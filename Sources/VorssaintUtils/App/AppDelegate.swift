@@ -33,6 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         AppSwitcher.shared.syncWithPreferences()
         FinderCutPaste.shared.syncWithPreferences()
         AutoQuitService.shared.syncWithPreferences()
+        ShelfService.shared.syncWithPreferences()
         AppVolumeMixer.shared.start()
         UpdateService.shared.startAutomaticChecks()
 
@@ -174,6 +175,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             menu.addItem(uninstallItem)
         }
 
+        if UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) {
+            let shelfItem = NSMenuItem(title: strings.shelfMenuItem,
+                                       action: #selector(menuOpenShelf), keyEquivalent: "")
+            shelfItem.target = self
+            menu.addItem(shelfItem)
+        }
+
         let updatesItem = NSMenuItem(title: strings.menuCheckUpdates, action: #selector(menuCheckUpdates), keyEquivalent: "")
         updatesItem.target = self
         menu.addItem(updatesItem)
@@ -205,6 +213,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     @objc private func menuOpenUninstaller() {
         openUninstallerWindow()
+    }
+
+    @objc private func menuOpenShelf() {
+        ShelfService.shared.summon()
     }
 
     @objc private func menuCheckUpdates() {

@@ -229,6 +229,25 @@ struct Strings {
     let uninstallerCatState: String
     let uninstallerCatOther: String
 
+    // MARK: Feature — temporary shelf
+    let shelfName: String
+    let shelfEnable: String
+    let shelfEnableCaption: String
+    let shelfHowTitle: String
+    let shelfStep1: String
+    let shelfStep2: String
+    let shelfStep3: String
+    let shelfShakeToggle: String
+    let shelfShakeCaption: String
+    let shelfHotkeyLabel: String
+    let shelfOpenNow: String
+    let shelfNoPermission: String
+    let shelfMenuItem: String
+    let shelfTitle: String
+    let shelfEmpty: String
+    let shelfClearAll: String
+    let shelfItemImage: String
+
     // MARK: Panel — per-app breakdown
     let breakdownMeasuring: String
 
@@ -477,6 +496,24 @@ extension Strings {
         uninstallerCatState: "Estado salvo",
         uninstallerCatOther: "Outros",
 
+        shelfName: "Área temporária",
+        shelfEnable: "Área temporária para arrastar arquivos",
+        shelfEnableCaption: "Um espaço flutuante para juntar arquivos, imagens e textos e arrastá-los depois para qualquer app.",
+        shelfHowTitle: "Como usar",
+        shelfStep1: "Abra a área com ⌃⌥⌘D ou sacudindo o mouse durante um arraste.",
+        shelfStep2: "Solte arquivos, imagens, links ou texto sobre ela para guardá-los.",
+        shelfStep3: "Arraste cada item de volta para qualquer app quando precisar.",
+        shelfShakeToggle: "Abrir sacudindo o mouse durante o arraste",
+        shelfShakeCaption: "Sacuda o ponteiro rapidamente segurando um item para chamar a área perto do cursor.",
+        shelfHotkeyLabel: "Atalho",
+        shelfOpenNow: "Abrir agora",
+        shelfNoPermission: "Não requer nenhuma permissão.",
+        shelfMenuItem: "Abrir área temporária",
+        shelfTitle: "Área temporária",
+        shelfEmpty: "Arraste itens aqui",
+        shelfClearAll: "Limpar tudo",
+        shelfItemImage: "Imagem",
+
         breakdownMeasuring: "Medindo…",
 
         mixerSection: "Mixer de volume",
@@ -719,6 +756,24 @@ extension Strings {
         uninstallerCatLogs: "Logs",
         uninstallerCatState: "Saved state",
         uninstallerCatOther: "Other",
+
+        shelfName: "Shelf",
+        shelfEnable: "Temporary area for dragging files",
+        shelfEnableCaption: "A floating spot to gather files, images and text, then drag them anywhere later.",
+        shelfHowTitle: "How to use",
+        shelfStep1: "Open it with ⌃⌥⌘D, or by shaking the mouse during a drag.",
+        shelfStep2: "Drop files, images, links or text onto it to hold them.",
+        shelfStep3: "Drag each item back out to any app when you need it.",
+        shelfShakeToggle: "Open by shaking the mouse while dragging",
+        shelfShakeCaption: "Shake the pointer quickly while holding an item to summon it near the cursor.",
+        shelfHotkeyLabel: "Shortcut",
+        shelfOpenNow: "Open now",
+        shelfNoPermission: "Requires no permissions.",
+        shelfMenuItem: "Open shelf",
+        shelfTitle: "Shelf",
+        shelfEmpty: "Drag items here",
+        shelfClearAll: "Clear all",
+        shelfItemImage: "Image",
 
         breakdownMeasuring: "Measuring…",
 

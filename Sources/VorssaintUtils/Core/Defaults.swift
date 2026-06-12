@@ -21,6 +21,8 @@ enum DefaultsKey {
     static let autoQuitEnabled = "autoQuitEnabled"
     static let autoQuitExceptions = "autoQuitExceptions"  // [bundle id] kept running
     static let uninstallerEnabled = "uninstallerEnabled"
+    static let shelfEnabled = "shelfEnabled"
+    static let shelfShakeToOpen = "shelfShakeToOpen"
 }
 
 enum Defaults {
@@ -39,6 +41,8 @@ enum Defaults {
             // Finder never benefits from being "quit" (it just relaunches), so
             // it's excepted out of the box.
             DefaultsKey.autoQuitExceptions: ["com.apple.finder"],
+            // When the shelf is on, the shake gesture is on too (still toggleable).
+            DefaultsKey.shelfShakeToOpen: true,
         ])
     }
 }

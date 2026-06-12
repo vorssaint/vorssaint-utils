@@ -21,8 +21,17 @@ final class HotkeyManager {
         if eventHandler == nil {
             var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
                                      eventKind: UInt32(kEventHotKeyPressed))
-            InstallEventHandler(GetEventDispatcherTarget(), { _, _, userData -> OSStatus in
+            // The dispatcher delivers every registered hotkey to every handler,
+            // so filter by id — other features (e.g. the shelf) register their own.
+            InstallEventHandler(GetEventDispatcherTarget(), { _, event, userData -> OSStatus in
                 guard let userData else { return noErr }
+                var hotKeyID = EventHotKeyID()
+                if let event {
+                    GetEventParameter(event, EventParamName(kEventParamDirectObject),
+                                      EventParamType(typeEventHotKeyID), nil,
+                                      MemoryLayout<EventHotKeyID>.size, nil, &hotKeyID)
+                }
+                guard hotKeyID.id == 1 else { return noErr }
                 let manager = Unmanaged<HotkeyManager>.fromOpaque(userData).takeUnretainedValue()
                 DispatchQueue.main.async { manager.onActivate?() }
                 return noErr
