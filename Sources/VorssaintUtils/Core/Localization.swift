@@ -175,6 +175,12 @@ struct Strings {
     // MARK: Panel — per-app breakdown
     let breakdownMeasuring: String
 
+    // MARK: Panel — volume mixer
+    let mixerSection: String
+    let mixerEmpty: String
+    let mixerUnavailable: String
+    let mixerPermissionBody: String
+
     // MARK: Settings — updates
     let updatesSection: String
     let autoCheckToggle: String
@@ -361,6 +367,11 @@ extension Strings {
 
         breakdownMeasuring: "Medindo…",
 
+        mixerSection: "Mixer de volume",
+        mixerEmpty: "Nada reproduzindo áudio agora",
+        mixerUnavailable: "Disponível a partir do macOS 14.4",
+        mixerPermissionBody: "Para ajustar o volume por app, permita “Gravação de Tela e Áudio do Sistema” nos Ajustes do Sistema. O áudio nunca é gravado.",
+
         updatesSection: "Atualizações",
         autoCheckToggle: "Procurar atualizações automaticamente",
         checkNowButton: "Procurar agora",
@@ -543,6 +554,11 @@ extension Strings {
         switcherTabsCaption: "Every Safari, Chrome, Edge, Brave or Vivaldi tab becomes a switcher entry. macOS asks for Automation consent once per browser.",
 
         breakdownMeasuring: "Measuring…",
+
+        mixerSection: "Volume mixer",
+        mixerEmpty: "Nothing playing audio right now",
+        mixerUnavailable: "Available on macOS 14.4 and later",
+        mixerPermissionBody: "To adjust per-app volume, allow “Screen & System Audio Recording” in System Settings. Audio is never recorded.",
 
         updatesSection: "Updates",
         autoCheckToggle: "Check for updates automatically",

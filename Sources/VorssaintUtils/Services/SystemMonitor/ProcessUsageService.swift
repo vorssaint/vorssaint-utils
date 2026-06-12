@@ -12,17 +12,6 @@ struct ProcessUsage: Identifiable, Equatable {
     var id: pid_t { pid }
 }
 
-/// Resolves the app responsible for a helper process (Safari Web Content →
-/// Safari, Chrome Helper (GPU) → Chrome). Exported by libsystem and used by
-/// Activity Monitor for its own grouping; resolved at runtime so a missing
-/// symbol degrades to per-process rows instead of breaking the build.
-private let responsiblePid: (@convention(c) (pid_t) -> pid_t)? = {
-    guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2) /* RTLD_DEFAULT */,
-                             "responsibility_get_pid_responsible_for_pid")
-    else { return nil }
-    return unsafeBitCast(symbol, to: (@convention(c) (pid_t) -> pid_t).self)
-}()
-
 /// Answers "which apps are eating this resource?" for the panel's System
 /// section. CPU and memory come from `ps`; GPU comes from the accelerator's
 /// per-process `accumulatedGPUTime` counters, sampled as deltas between calls.
@@ -75,7 +64,7 @@ final class ProcessUsageService {
         var fallbackNames: [pid_t: String] = [:]
 
         for row in rows {
-            let owner = responsibleApp(for: row.pid)
+            let owner = ResponsibleProcess.owner(of: row.pid)
             totals[owner, default: 0] += row.value
             if fallbackNames[owner] == nil {
                 fallbackNames[owner] = row.name
@@ -87,15 +76,10 @@ final class ProcessUsageService {
             .prefix(limit)
             .map { owner, value in
                 ProcessUsage(pid: owner,
-                             name: displayName(pid: owner, fallback: fallbackNames[owner] ?? "pid \(owner)"),
+                             name: ResponsibleProcess.displayName(pid: owner,
+                                                                  fallback: fallbackNames[owner] ?? "pid \(owner)"),
                              value: value)
             }
-    }
-
-    private func responsibleApp(for pid: pid_t) -> pid_t {
-        guard let responsiblePid else { return pid }
-        let owner = responsiblePid(pid)
-        return owner > 0 ? owner : pid
     }
 
     // MARK: - GPU
@@ -185,20 +169,4 @@ final class ProcessUsageService {
         return pid_t(digits)
     }
 
-    // MARK: - Naming
-
-    /// Prefers the app's localized name; system processes fall back to their
-    /// kernel-reported name (e.g. "WindowServer"), then to the caller's hint.
-    private func displayName(pid: pid_t, fallback: String) -> String {
-        if let app = NSRunningApplication(processIdentifier: pid),
-           let name = app.localizedName, !name.isEmpty {
-            return name
-        }
-        var buffer = [CChar](repeating: 0, count: 256)
-        if proc_name(pid, &buffer, UInt32(buffer.count)) > 0 {
-            let name = String(cString: buffer)
-            if !name.isEmpty { return name }
-        }
-        return fallback.trimmingCharacters(in: .whitespaces)
-    }
 }

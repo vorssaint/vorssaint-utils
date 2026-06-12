@@ -76,7 +76,7 @@ struct SystemSection: View {
                 } else {
                     ForEach(breakdownRows) { row in
                         HStack(spacing: 6) {
-                            Image(nsImage: icon(for: row.pid))
+                            Image(nsImage: ResponsibleProcess.icon(for: row.pid))
                                 .resizable()
                                 .frame(width: 14, height: 14)
                             Text(row.name)
@@ -98,10 +98,6 @@ struct SystemSection: View {
         }
     }
 
-    private func icon(for pid: pid_t) -> NSImage {
-        NSRunningApplication(processIdentifier: pid)?.icon
-            ?? NSWorkspace.shared.icon(for: .unixExecutable)
-    }
 
     // MARK: Temperatures
 

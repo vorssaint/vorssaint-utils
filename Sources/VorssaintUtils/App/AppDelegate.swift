@@ -30,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         AppActivationTracker.shared.start()
         ScrollInverter.shared.syncWithPreferences()
         AppSwitcher.shared.syncWithPreferences()
+        AppVolumeMixer.shared.start()
         UpdateService.shared.startAutomaticChecks()
 
         // If Accessibility is granted while the app is running (e.g. during
@@ -50,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
+        AppVolumeMixer.shared.stopAll()
         KeepAwakeManager.shared.deactivate(reason: .quit)
     }
 

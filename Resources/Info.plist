@@ -30,6 +30,8 @@
 	<string>public.app-category.utilities</string>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Vorssaint Utils controla o Finder para ejetar discos e esvaziar a Lixeira, e os navegadores para listar e ativar abas no alternador de janelas.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Vorssaint Utils intercepta o áudio de apps individuais apenas para ajustar o volume de cada um no mixer. Nada é gravado nem sai do seu Mac.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Vorssaint</string>
 	<key>NSPrincipalClass</key>

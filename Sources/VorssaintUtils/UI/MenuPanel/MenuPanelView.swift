@@ -13,6 +13,7 @@ struct MenuPanelView: View {
             header
             KeepAwakeCard()
             UtilitiesSection()
+            MixerSection()
             SystemSection()
             footer
         }
