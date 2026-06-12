@@ -1,7 +1,7 @@
 import Combine
 import SwiftUI
 
-/// Content of the menu bar popover: keep-awake controls, quick utilities and
+/// Content of the menu bar popover: keep-awake controls, the volume mixer and
 /// the system monitor.
 struct MenuPanelView: View {
     @ObservedObject private var l10n = L10n.shared
@@ -12,7 +12,6 @@ struct MenuPanelView: View {
         VStack(alignment: .leading, spacing: 12) {
             header
             KeepAwakeCard()
-            UtilitiesSection()
             MixerSection()
             SystemSection()
             footer
@@ -236,123 +235,5 @@ struct DurationPicker: View {
         .pickerStyle(.menu)
         .controlSize(.small)
         .fixedSize()
-    }
-}
-
-// MARK: - Utilities
-
-struct UtilitiesSection: View {
-    @ObservedObject private var l10n = L10n.shared
-    @State private var desktopHidden = false
-    @State private var hiddenFilesShown = false
-    @State private var confirmTrash = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionTitle(l10n.s.utilitiesSection)
-            VStack(spacing: 8) {
-                toggleRow(icon: "eye.slash",
-                          title: l10n.s.hideDesktopIcons,
-                          isOn: Binding(
-                            get: { desktopHidden },
-                            set: { value in
-                                desktopHidden = value
-                                DispatchQueue.global(qos: .userInitiated).async {
-                                    FinderTweaks.setDesktopIconsHidden(value)
-                                }
-                            }))
-                toggleRow(icon: "doc.text.magnifyingglass",
-                          title: l10n.s.showHiddenFiles,
-                          isOn: Binding(
-                            get: { hiddenFilesShown },
-                            set: { value in
-                                hiddenFilesShown = value
-                                DispatchQueue.global(qos: .userInitiated).async {
-                                    FinderTweaks.setHiddenFilesShown(value)
-                                }
-                            }))
-
-                Divider()
-
-                HStack(spacing: 8) {
-                    actionButton(icon: "display", title: l10n.s.turnOffDisplay) {
-                        appDelegate()?.closePopover()
-                        QuickActions.turnOffDisplay()
-                    }
-                    actionButton(icon: "eject.fill", title: l10n.s.ejectDisks) {
-                        appDelegate()?.closePopover()
-                        QuickActions.ejectAllDisks { ok, message in
-                            if !ok {
-                                Notifier.post(title: l10n.s.ejectDisks,
-                                              body: message ?? l10n.s.ejectFailed)
-                            }
-                        }
-                    }
-                }
-                actionButton(icon: "trash",
-                             title: confirmTrash ? l10n.s.confirmQuestion : l10n.s.emptyTrash,
-                             destructive: confirmTrash) {
-                    if confirmTrash {
-                        confirmTrash = false
-                        appDelegate()?.closePopover()
-                        QuickActions.emptyTrash { ok, message in
-                            if !ok {
-                                Notifier.post(title: l10n.s.emptyTrash,
-                                              body: message ?? l10n.s.trashFailed)
-                            }
-                        }
-                    } else {
-                        confirmTrash = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                            confirmTrash = false
-                        }
-                    }
-                }
-            }
-            .panelCard()
-        }
-        .onAppear {
-            DispatchQueue.global(qos: .userInitiated).async {
-                let desktop = FinderTweaks.desktopIconsHidden()
-                let hidden = FinderTweaks.hiddenFilesShown()
-                DispatchQueue.main.async {
-                    desktopHidden = desktop
-                    hiddenFilesShown = hidden
-                }
-            }
-        }
-    }
-
-    private func toggleRow(icon: String, title: String, isOn: Binding<Bool>) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .frame(width: 16)
-            Text(title)
-                .font(.system(size: 12))
-            Spacer()
-            Toggle("", isOn: isOn)
-                .toggleStyle(.switch)
-                .controlSize(.mini)
-                .labelsHidden()
-        }
-    }
-
-    private func actionButton(icon: String, title: String, destructive: Bool = false,
-                              action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 5) {
-                Image(systemName: icon)
-                    .font(.system(size: 11))
-                Text(title)
-                    .font(.system(size: 11, weight: .medium))
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 4)
-        }
-        .buttonStyle(.bordered)
-        .foregroundStyle(destructive ? Color.red : Color.primary)
     }
 }

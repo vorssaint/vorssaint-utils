@@ -87,17 +87,6 @@ struct Strings {
     let clamshellReady: String
     let clamshellNeedsPassword: String
 
-    // MARK: Panel — utilities
-    let utilitiesSection: String
-    let hideDesktopIcons: String
-    let showHiddenFiles: String
-    let turnOffDisplay: String
-    let ejectDisks: String
-    let emptyTrash: String
-    let confirmQuestion: String
-    let ejectFailed: String
-    let trashFailed: String
-
     // MARK: Panel — system monitor
     let systemSection: String
     let temperatures: String
@@ -289,16 +278,6 @@ extension Strings {
         clamshellReady: "Pronto — liga e desliga sem senha",
         clamshellNeedsPassword: "Pedirá a senha de administrador ao ativar",
 
-        utilitiesSection: "Utilidades",
-        hideDesktopIcons: "Ocultar ícones da mesa",
-        showHiddenFiles: "Mostrar arquivos ocultos",
-        turnOffDisplay: "Desligar tela",
-        ejectDisks: "Ejetar discos",
-        emptyTrash: "Esvaziar Lixeira",
-        confirmQuestion: "Confirmar?",
-        ejectFailed: "Não foi possível ejetar os discos.",
-        trashFailed: "Não foi possível esvaziar a Lixeira.",
-
         systemSection: "Sistema",
         temperatures: "Temperaturas",
         cpuLabel: "CPU",
@@ -476,16 +455,6 @@ extension Strings {
         clamshellNeedsSession: "Applied whenever “Keep awake” is active",
         clamshellReady: "Ready — toggles without a password",
         clamshellNeedsPassword: "Will ask for the administrator password when enabling",
-
-        utilitiesSection: "Utilities",
-        hideDesktopIcons: "Hide desktop icons",
-        showHiddenFiles: "Show hidden files",
-        turnOffDisplay: "Turn off display",
-        ejectDisks: "Eject disks",
-        emptyTrash: "Empty Trash",
-        confirmQuestion: "Confirm?",
-        ejectFailed: "The disks could not be ejected.",
-        trashFailed: "The Trash could not be emptied.",
 
         systemSection: "System",
         temperatures: "Temperatures",
