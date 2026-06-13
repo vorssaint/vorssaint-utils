@@ -85,8 +85,10 @@ sem analytics, sem chamadas de rede.
 Baixe o DMG mais recente em [**Releases**](https://github.com/vorssaint/vorssaint-utils/releases),
 abra e arraste o **Vorssaint Utils** para **Aplicativos**.
 
-> As releases têm assinatura ad-hoc (sem certificado pago da Apple). Na
-> primeira abertura, clique direito no app → **Abrir**, ou remova a quarentena:
+> As releases são assinadas com um certificado próprio estável (sem o
+> certificado pago da Apple), então as permissões concedidas sobrevivem às
+> atualizações — mas o Gatekeeper ainda alerta na primeira abertura. Clique
+> direito no app → **Abrir**, ou remova a quarentena:
 > `xattr -d com.apple.quarantine "/Applications/Vorssaint Utils.app"`
 
 ### Compilar do código

@@ -90,8 +90,10 @@ analytics, no network calls.
 Grab the latest DMG from [**Releases**](https://github.com/vorssaint/vorssaint-utils/releases),
 open it and drag **Vorssaint Utils** into **Applications**.
 
-> Releases are ad-hoc signed (no paid Apple Developer certificate). On first
-> launch, right-click the app → **Open**, or clear the quarantine flag:
+> Releases are signed with a stable self-signed certificate (no paid Apple
+> Developer ID), so granted permissions persist across updates — but Gatekeeper
+> still flags the first launch. Right-click the app → **Open**, or clear the
+> quarantine flag:
 > `xattr -d com.apple.quarantine "/Applications/Vorssaint Utils.app"`
 
 ### Build from source
