@@ -34,3 +34,13 @@ jobs:
         with:
           files: dist/*.dmg
           generate_release_notes: true
+          body: |
+            ### Opening it the first time
+
+            Vorssaint is signed but not notarized by Apple, so macOS shows a
+            security warning on the first launch. It's open source, so you can
+            read every line or build it yourself. To open it, do one of these once:
+
+            - **System Settings › Privacy & Security**, scroll to **Security**,
+              then click **Open Anyway**.
+            - Or in Terminal: `xattr -dr com.apple.quarantine "/Applications/Vorssaint Utils.app"`

@@ -68,11 +68,18 @@ textos e links para você arrastar entre apps, janelas e desktops.
 Baixe o DMG mais recente em [**Releases**](https://github.com/vorssaint/vorssaint-utils/releases),
 abra e arraste o **Vorssaint** para **Aplicativos**.
 
-> As releases são assinadas com um certificado próprio estável (sem o certificado
-> pago da Apple), então as permissões concedidas sobrevivem às atualizações. O
-> Gatekeeper ainda alerta na primeira abertura: clique direito no app e escolha
-> **Abrir**, ou remova a quarentena:
-> `xattr -d com.apple.quarantine "/Applications/Vorssaint Utils.app"`
+> **Abrindo pela primeira vez.** O Vorssaint é assinado, mas não é notarizado
+> pela Apple (a notarização exige uma conta paga de desenvolvedor), então o
+> macOS mostra um aviso de segurança na primeira abertura. Ele é open source:
+> você pode ler cada linha aqui ou compilar por conta própria. Para abrir, faça
+> uma vez:
+>
+> - Abra **Ajustes do Sistema › Privacidade e Segurança**, role até **Segurança**
+>   e clique em **Abrir Mesmo Assim** ao lado do Vorssaint.
+> - Ou, no Terminal: `xattr -dr com.apple.quarantine "/Applications/Vorssaint Utils.app"`
+>
+> Atualizações instaladas de dentro do app não mostram isso, e a assinatura
+> estável mantém as permissões concedidas entre as atualizações.
 
 ### Compilar do código
 ```sh

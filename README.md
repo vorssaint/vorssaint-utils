@@ -72,11 +72,17 @@ links so you can drag them between apps, windows and Spaces.
 Grab the latest DMG from [**Releases**](https://github.com/vorssaint/vorssaint-utils/releases),
 open it and drag **Vorssaint** into **Applications**.
 
-> Releases are signed with a stable self-signed certificate (no paid Apple
-> Developer ID), so granted permissions persist across updates. Gatekeeper still
-> flags the first launch: right-click the app and choose **Open**, or clear the
-> quarantine flag:
-> `xattr -d com.apple.quarantine "/Applications/Vorssaint Utils.app"`
+> **Opening it the first time.** Vorssaint is signed but not notarized by Apple
+> (notarization needs a paid Apple Developer account), so macOS shows a security
+> warning on the first launch. It's open source: you can read every line here or
+> build it yourself. To open it, do one of these once:
+>
+> - Open **System Settings › Privacy & Security**, scroll to **Security**, and
+>   click **Open Anyway** next to Vorssaint.
+> - Or, in Terminal: `xattr -dr com.apple.quarantine "/Applications/Vorssaint Utils.app"`
+>
+> Updates installed from inside the app don't show this, and a stable signing
+> identity keeps your granted permissions across updates.
 
 ### Build from source
 ```sh
