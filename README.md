@@ -9,6 +9,8 @@
 
 *Leia em [Português (Brasil)](docs/README.pt-BR.md).*
 
+If Vorssaint is useful to you, a quick ⭐ means a lot. It's 100% free, so starring is currently the only way to support it, and it helps others find the project.
+
 One small menu bar app that does the jobs you'd otherwise buy a handful of
 separate utilities for: keep your Mac awake, see what's slowing it down, set the
 volume per app, switch windows, and fix a few everyday annoyances.

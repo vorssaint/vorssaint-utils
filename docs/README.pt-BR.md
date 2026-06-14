@@ -4,6 +4,8 @@
 
 *Read in [English](../README.md).*
 
+Se o Vorssaint te ajuda, uma ⭐ rápida significa muito. Ele é 100% gratuito, então dar uma estrela é, por enquanto, a única forma de apoiar o projeto, e ainda ajuda mais gente a encontrá-lo.
+
 Um app pequeno na barra de menus que faz o trabalho para o qual você instalaria
 (e pagaria) vários utilitários separados: manter o Mac acordado, ver o que está
 deixando ele lento, ajustar o volume por app, alternar janelas, e resolver
