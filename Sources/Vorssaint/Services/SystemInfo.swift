@@ -35,11 +35,13 @@ enum SystemInfo {
     static func memoryUsage() -> (used: UInt64, total: UInt64)? {
         var stats = vm_statistics64()
         var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.stride / MemoryLayout<integer_t>.stride)
+        let host = mach_host_self()
         let kr = withUnsafeMutablePointer(to: &stats) { ptr in
             ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &count)
+                host_statistics64(host, HOST_VM_INFO64, $0, &count)
             }
         }
+        mach_port_deallocate(mach_task_self_, host)
         guard kr == KERN_SUCCESS else { return nil }
         let page = UInt64(vm_kernel_page_size)
         let used = (UInt64(stats.active_count) + UInt64(stats.wire_count) + UInt64(stats.compressor_page_count)) * page
