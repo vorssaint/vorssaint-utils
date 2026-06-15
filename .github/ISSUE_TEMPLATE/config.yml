@@ -1,0 +1,6 @@
+blank_issues_enabled: true
+
+contact_links:
+  - name: Security Vulnerability
+    about: Please report security vulnerabilities privately.
+    url: https://github.com/vorssaint/vorssaint-utils/security/advisories/new

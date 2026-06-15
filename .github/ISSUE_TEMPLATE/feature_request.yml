@@ -19,7 +19,7 @@ body:
     attributes:
       label: Proposed Solution
       description: Describe the solution you'd like to see.
-      placeholder: It would be great if Snapzy could...
+      placeholder: It would be great if Vorssaint could...
     validations:
       required: true
 
@@ -34,6 +34,12 @@ body:
     attributes:
       label: Feature Area
       options:
+        - Keep Awake
+        - System Monitor
+        - Menu Behavior
+        - Volume Mixer
+        - Window Switcher
+        - Other
       
     validations:
       required: true

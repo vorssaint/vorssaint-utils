@@ -19,8 +19,8 @@ body:
     attributes:
       label: Steps to Reproduce
       description: Steps to reproduce the behavior.
-      placeholder: |
-        1. Open Snapzy
+      placeholder: 
+        1. Open Vorssaint
         2. Click on '...'
         3. See error
     validations:
@@ -51,10 +51,10 @@ body:
       description: Add screenshots or recordings if applicable.
 
   - type: input
-    id: snapzy_version
+    id: vorssaint_version
     attributes:
-      label: Snapzy Version
-      placeholder: e.g. 1.0.7
+      label: Vorssaint Version
+      placeholder: e.g. 2.11.0
     validations:
       required: true
 
@@ -63,11 +63,10 @@ body:
     attributes:
       label: macOS Version
       options:
+        - macOS 27 (Golden Gate)
+        - macOS 26 (Tahoe)
         - macOS 15 (Sequoia)
         - macOS 14 (Sonoma)
-        - macOS 13 (Ventura)
-        - macOS 12 (Monterey)
-        - Older
     validations:
       required: true
 
