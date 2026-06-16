@@ -135,8 +135,9 @@ struct MenuPanelView: View {
 /// A vertical scroll container that always uses an overlay scroller, so it never
 /// reserves a legacy gutter on the right (which, when the system is set to always
 /// show scroll bars, would push the fixed-width panel content off-center). The
-/// content is pinned to the full width; its natural height is reported back so the
-/// popover can size itself and cap to the screen.
+/// content is pinned to the full width and reports its natural height back after
+/// every layout pass, so the popover sizes itself to fit and only scrolls once the
+/// content is taller than the screen.
 private struct OverlayScrollView<Content: View>: NSViewRepresentable {
     @Binding var measuredHeight: CGFloat
     let content: Content
@@ -155,7 +156,7 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
         scroll.drawsBackground = false
         scroll.borderType = .noBorder
 
-        let host = NSHostingView(rootView: content)
+        let host = HeightReportingHostingView(rootView: content)
         host.translatesAutoresizingMaskIntoConstraints = false
         scroll.documentView = host
         let clip = scroll.contentView
@@ -166,22 +167,60 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
             host.widthAnchor.constraint(equalTo: clip.widthAnchor),
         ])
         context.coordinator.host = host
+        installReporter(on: host)
         return scroll
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         scroll.scrollerStyle = .overlay
-        context.coordinator.host?.rootView = content
-        if let host = context.coordinator.host {
-            let height = host.fittingSize.height
-            if height > 1, abs(height - measuredHeight) > 0.5 {
-                DispatchQueue.main.async { measuredHeight = height }
-            }
+        guard let host = context.coordinator.host else { return }
+        host.rootView = content
+        installReporter(on: host)               // re-bind to the latest measuredHeight
+        let h = host.fittingSize.height          // catch content changes with no new layout pass
+        if h > 1, abs(h - measuredHeight) > 0.5 {
+            DispatchQueue.main.async { measuredHeight = h }
+        }
+    }
+
+    /// Wire the hosting view to report its natural height into `measuredHeight`
+    /// after every AppKit layout pass — including the frames of a collapse/expand
+    /// animation — so the popover tracks the real content height instead of a
+    /// single stale reading taken when SwiftUI happened to re-run updateNSView.
+    /// The 0.5pt guard also breaks the measure → resize → measure feedback loop.
+    private func installReporter(on host: HeightReportingHostingView<Content>) {
+        let binding = $measuredHeight
+        host.onLayout = { [weak host] in
+            guard let host else { return }
+            let h = host.fittingSize.height
+            guard h > 1, abs(h - binding.wrappedValue) > 0.5 else { return }
+            DispatchQueue.main.async { binding.wrappedValue = h }
         }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
-    final class Coordinator { var host: NSHostingView<Content>? }
+    final class Coordinator { var host: HeightReportingHostingView<Content>? }
+}
+
+/// An `NSHostingView` that fires `onLayout` after each AppKit layout pass. The
+/// menu panel uses it because collapsing or expanding a section flips state inside
+/// this view's own SwiftUI graph and never re-runs the surrounding `updateNSView`
+/// — so the height has to be read from here, where the change actually lands.
+private final class HeightReportingHostingView<Content: View>: NSHostingView<Content> {
+    var onLayout: (() -> Void)?
+
+    required init(rootView: Content) {
+        super.init(rootView: rootView)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layout() {
+        super.layout()
+        onLayout?()
+    }
 }
 
 // MARK: - Update banner
