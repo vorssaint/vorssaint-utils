@@ -63,6 +63,7 @@ enum DefaultsKey {
     // mean the canonical order and nothing collapsed, so no defaults registration.
     static let panelSectionOrder = "panelSectionOrder"
     static let panelCollapsedSections = "panelCollapsedSections"
+    static let panelCollapsedResetVersion = "panelCollapsedResetVersion"
 
     // Dev-build only: force the "update available" UI for local testing.
     static let simulateUpdate = "simulateUpdate"

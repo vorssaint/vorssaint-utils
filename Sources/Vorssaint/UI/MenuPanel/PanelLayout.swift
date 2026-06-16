@@ -55,6 +55,12 @@ enum PanelLayout {
         defaults.set(set.sorted().joined(separator: ","), forKey: DefaultsKey.panelCollapsedSections)
     }
 
+    static func resetCollapsedSectionsOnce(for version: String) {
+        guard defaults.string(forKey: DefaultsKey.panelCollapsedResetVersion) != version else { return }
+        defaults.removeObject(forKey: DefaultsKey.panelCollapsedSections)
+        defaults.set(version, forKey: DefaultsKey.panelCollapsedResetVersion)
+    }
+
     private static func collapsedSet() -> Set<String> {
         Set((defaults.string(forKey: DefaultsKey.panelCollapsedSections) ?? "")
             .split(separator: ",").map(String.init))

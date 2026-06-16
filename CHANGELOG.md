@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.15.1] - 2026-06-16
+
+### Fixed
+- The menu panel opens fully expanded again after updating, instead of restoring
+  an old collapsed layout that made it look unexpectedly tiny.
+
 ## [2.15.0] - 2026-06-16
 
 ### Added
