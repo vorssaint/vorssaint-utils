@@ -3,7 +3,7 @@
 > The free, open-source toolkit that replaces several paid Mac utilities.
 
 [![Release](https://img.shields.io/github/v/release/vorssaint/vorssaint-utils?label=release)](https://github.com/vorssaint/vorssaint-utils/releases)
-[![CI](https://github.com/vorssaint/vorssaint-utils/actions/workflows/ci.yml/badge.svg)](https://github.com/vorssaint/vorssaint-utils/actions/workflows/ci.yml)
+[![CI](https://github.com/vorssaint/vorssaint-utils/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/vorssaint/vorssaint-utils/actions/workflows/ci.yml)
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B%20(Apple%20Silicon)-black)](#requirements)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
 
