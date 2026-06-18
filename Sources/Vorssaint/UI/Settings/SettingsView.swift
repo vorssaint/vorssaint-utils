@@ -26,20 +26,7 @@ final class SettingsRouter: ObservableObject {
 struct SettingsView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var router = SettingsRouter.shared
-
-    private func sidebarLabel(_ title: String, systemImage: String, color: Color) -> some View {
-        Label {
-            Text(title)
-        } icon: {
-            Image(systemName: systemImage)
-                .foregroundStyle(.white)
-                .frame(width: 24, height: 24)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(color.gradient)
-                )
-        }
-    }
+    @State private var searchText = ""
 
     var body: some View {
         NavigationSplitView {
@@ -70,13 +57,28 @@ struct SettingsView: View {
             }
             .listStyle(.sidebar)
             .environment(\.defaultMinListRowHeight, 36)
+            .searchable(text: $searchText, prompt: "Search Settings")
             .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 280)
         } detail: {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(width: 772, height: 528)
+        .frame(width: 820, height: 560)
+    }
+
+    private func sidebarLabel(_ title: String, systemImage: String, color: Color) -> some View {
+        Label {
+            Text(title)
+                .font(.system(size: 14))
+        } icon: {
+            Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.white)
+                .frame(width: 26, height: 26)
+                .background(color.gradient)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
     }
 
     @ViewBuilder
