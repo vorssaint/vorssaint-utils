@@ -15,11 +15,13 @@ cd "$(dirname "$0")"
 DEV=0
 INSTALL=0
 TEST=0
+UNIVERSAL=0
 for arg in "$@"; do
     case "$arg" in
-        --dev)     DEV=1 ;;
-        --install) INSTALL=1 ;;
-        --test)    TEST=1 ;;
+        --dev)       DEV=1 ;;
+        --install)   INSTALL=1 ;;
+        --test)      TEST=1 ;;
+        --universal) UNIVERSAL=1 ;;
     esac
 done
 
@@ -101,12 +103,26 @@ if (( TEST )); then
     exit $?
 fi
 
-echo "▸ Compiling (release) against $(basename "$SDK")…"
 rm -rf build
 mkdir -p build
-swiftc -O -target "$TARGET" -sdk "$SDK" \
-    Sources/Vorssaint/**/*.swift \
-    -o "build/$EXECUTABLE"
+if (( UNIVERSAL )); then
+    echo "▸ Compiling (release, arm64) against $(basename "$SDK")…"
+    swiftc -O -target "arm64-apple-macosx14.0" -sdk "$SDK" \
+        Sources/Vorssaint/**/*.swift \
+        -o "build/${EXECUTABLE}-arm64"
+    echo "▸ Compiling (release, x86_64) against $(basename "$SDK")…"
+    swiftc -O -target "x86_64-apple-macosx14.0" -sdk "$SDK" \
+        Sources/Vorssaint/**/*.swift \
+        -o "build/${EXECUTABLE}-x86_64"
+    echo "▸ Creating universal binary…"
+    lipo -create "build/${EXECUTABLE}-arm64" "build/${EXECUTABLE}-x86_64" \
+        -output "build/$EXECUTABLE"
+else
+    echo "▸ Compiling (release) against $(basename "$SDK")…"
+    swiftc -O -target "$TARGET" -sdk "$SDK" \
+        Sources/Vorssaint/**/*.swift \
+        -o "build/$EXECUTABLE"
+fi
 
 echo "▸ Generating app icon…"
 swift Tools/MakeIcon.swift build/AppIcon.iconset

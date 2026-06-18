@@ -40,7 +40,7 @@ jobs:
           fi
 
       - name: Build
-        run: ./build.sh
+        run: ./build.sh --universal
 
       - name: Selftest
         run: ./build/Vorssaint --selftest
@@ -94,7 +94,7 @@ jobs:
             echo "NOTES<<__VRSS_EOF__"
             printf '%s\n' "$NOTES"
             echo ""
-            echo "Signed with an Apple Developer ID and notarized by Apple, so it downloads and opens normally. Requires macOS 14 or later. Open the .dmg below and drag Vorssaint to Applications."
+            echo "Signed with an Apple Developer ID and notarized by Apple, so it downloads and opens normally. Requires macOS 14 or later on Apple Silicon or Intel. Open the .dmg below and drag Vorssaint to Applications."
             echo "__VRSS_EOF__"
           } >> "$GITHUB_OUTPUT"
 
