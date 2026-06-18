@@ -5,8 +5,8 @@ import Foundation
 
 /// Static identity of the app, shared by UI, notifications and tooling.
 enum AppInfo {
-    static let name = "Vorssaint"
-    static let copyright = "© 2026 Vorssaint"
+    static let name = "MemoryKill"
+    static let copyright = "© 2026 MemoryKill (fork of Vorssaint)"
     static let repositoryURL = URL(string: "https://github.com/vorssaint/vorssaint-utils")!
     /// Buy Me a Coffee page. The project stays free; donations and stars are how
     /// the community keeps it alive. Confirm the handle is exactly right before

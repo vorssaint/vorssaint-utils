@@ -134,6 +134,12 @@ final class SystemMonitor: ObservableObject {
         }
     }
 
+    /// Forces an immediate full refresh (e.g. after a memory purge).
+    func refreshNow() {
+        ensureTimer()
+        refresh(full: true)
+    }
+
     /// Changes the sampling cadence (seconds). Restarts a running timer.
     func setInterval(seconds: Int) {
         let clamped = max(1, seconds)

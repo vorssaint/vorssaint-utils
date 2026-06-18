@@ -139,6 +139,15 @@ struct SystemSection: View {
                                 .font(.system(size: 10.5, weight: .medium))
                                 .monospacedDigit()
                                 .foregroundStyle(.secondary)
+                            if kind == .memory, !MemoryPurgeService.isProtected(pid: row.pid, name: row.name) {
+                                Button("Kill") {
+                                    _ = MemoryPurgeService.killProcess(pid: row.pid, name: row.name)
+                                    refreshBreakdown()
+                                }
+                                .buttonStyle(.borderless)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.red)
+                            }
                         }
                         .padding(.leading, 38)
                     }

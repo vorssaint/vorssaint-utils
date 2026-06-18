@@ -39,8 +39,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         setUpPopover()
         bindManagers()
 
-        HotkeyManager.shared.onActivate = { KeepAwakeManager.shared.toggle() }
-        HotkeyManager.shared.setEnabled(UserDefaults.standard.bool(forKey: DefaultsKey.hotkeyEnabled))
+        HotkeyManager.shared.onActivate = { [weak self] in self?.instantPurge() }
+        HotkeyManager.shared.setEnabled(UserDefaults.standard.bool(forKey: DefaultsKey.purgeHotkeyEnabled))
+        Notifier.requestPermission()
+        MemoryAutoPurger.shared.start()
 
         KeepAwakeManager.shared.recoverIfNeeded()
         AppActivationTracker.shared.start()
@@ -86,8 +88,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
+        MemoryAutoPurger.shared.stop()
         AppVolumeMixer.shared.stopAll()
         KeepAwakeManager.shared.deactivate(reason: .quit)
+    }
+
+    func instantPurge() {
+        MemoryPurgeService.purge(mode: .standard) { result in
+            SystemMonitor.shared.refreshNow()
+            if UserDefaults.standard.bool(forKey: DefaultsKey.autoPurgeNotify) {
+                Notifier.post(title: "MemoryKill purged", body: result.message)
+            }
+        }
     }
 
     /// The lifeline when the menu bar icon goes missing. Opening the app again
@@ -154,7 +166,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         popover.behavior = .applicationDefined
         popover.animates = false
         popover.delegate = self
-        let host = NSHostingController(rootView: MenuPanelView())
+        let host = NSHostingController(rootView: MemoryPanelView())
         host.sizingOptions = .preferredContentSize
         popover.contentViewController = host
         NotificationCenter.default.addObserver(self, selector: #selector(appResignedActive),
@@ -269,72 +281,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     // MARK: - Context menu (right click)
 
     private func showContextMenu() {
-        // The panel uses applicationDefined dismissal, so a right-click while it's
-        // open won't close it on its own — and the menu would try to open behind it.
-        // Close it first so the context menu always appears.
         if popover.isShown { popover.performClose(nil) }
 
-        let manager = KeepAwakeManager.shared
-        let strings = L10n.shared.s
         let menu = NSMenu()
 
-        let toggleItem = NSMenuItem(title: manager.isActive ? strings.menuDisableAwake : strings.menuEnableAwake,
-                                    action: #selector(menuToggleAwake),
-                                    keyEquivalent: "")
-        toggleItem.target = self
-        menu.addItem(toggleItem)
+        let purge = NSMenuItem(title: "Purge Memory", action: #selector(menuPurge), keyEquivalent: "")
+        purge.target = self
+        menu.addItem(purge)
 
-        if !manager.isActive {
-            let durationsItem = NSMenuItem(title: strings.menuActivateFor, action: nil, keyEquivalent: "")
-            let submenu = NSMenu()
-            let options: [(String, Int)] = [(strings.minutes15, 15), (strings.minutes30, 30),
-                                            (strings.hour1, 60), (strings.hours2, 120),
-                                            (strings.hours4, 240), (strings.hours8, 480),
-                                            (strings.indefinitely, 0)]
-            for (label, minutes) in options {
-                let item = NSMenuItem(title: label, action: #selector(menuActivateDuration(_:)), keyEquivalent: "")
-                item.target = self
-                item.tag = minutes
-                submenu.addItem(item)
-            }
-            durationsItem.submenu = submenu
-            menu.addItem(durationsItem)
-        }
+        let deep = NSMenuItem(title: "Deep Purge (admin)", action: #selector(menuDeepPurge), keyEquivalent: "")
+        deep.target = self
+        menu.addItem(deep)
 
-        let cleaningItem = NSMenuItem(title: strings.cleaningMenuItem,
-                                      action: #selector(menuCleaningMode), keyEquivalent: "")
-        cleaningItem.target = self
-        menu.addItem(cleaningItem)
+        let max = NSMenuItem(title: "MAX Purge", action: #selector(menuMaxPurge), keyEquivalent: "")
+        max.target = self
+        menu.addItem(max)
+
+        let hog = NSMenuItem(title: "Kill Top Memory Hog", action: #selector(menuKillHog), keyEquivalent: "")
+        hog.target = self
+        menu.addItem(hog)
 
         menu.addItem(.separator())
 
-        let settingsItem = NSMenuItem(title: strings.menuSettings, action: #selector(menuOpenSettings), keyEquivalent: ",")
-        settingsItem.target = self
-        menu.addItem(settingsItem)
-
-        let aboutItem = NSMenuItem(title: strings.menuAbout, action: #selector(showAbout), keyEquivalent: "")
-        aboutItem.target = self
-        menu.addItem(aboutItem)
-
-        let uninstallItem = NSMenuItem(title: strings.uninstallerMenuItem,
-                                       action: #selector(menuOpenUninstaller), keyEquivalent: "")
-        uninstallItem.target = self
-        menu.addItem(uninstallItem)
-
-        if UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) {
-            let shelfItem = NSMenuItem(title: strings.shelfMenuItem,
-                                       action: #selector(menuOpenShelf), keyEquivalent: "")
-            shelfItem.target = self
-            menu.addItem(shelfItem)
-        }
-
-        let updatesItem = NSMenuItem(title: strings.menuCheckUpdates, action: #selector(menuCheckUpdates), keyEquivalent: "")
-        updatesItem.target = self
-        menu.addItem(updatesItem)
-
-        menu.addItem(.separator())
-
-        let quitItem = NSMenuItem(title: strings.menuQuit, action: #selector(quitApp), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit MemoryKill", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
 
@@ -343,6 +312,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         DispatchQueue.main.async { [weak self] in
             self?.statusController.statusItem.menu = nil
         }
+    }
+
+    @objc private func menuPurge() { instantPurge() }
+
+    @objc private func menuDeepPurge() {
+        MemoryPurgeService.purge(mode: .deep) { _ in SystemMonitor.shared.refreshNow() }
+    }
+
+    @objc private func menuMaxPurge() {
+        MemoryPurgeService.purge(mode: .max) { _ in SystemMonitor.shared.refreshNow() }
+    }
+
+    @objc private func menuKillHog() {
+        _ = MemoryPurgeService.killTopMemoryHog()
+        SystemMonitor.shared.refreshNow()
     }
 
     @objc private func menuToggleAwake() {

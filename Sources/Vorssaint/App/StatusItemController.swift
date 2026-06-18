@@ -46,11 +46,12 @@ final class StatusItemController {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         // A stable identity so macOS remembers the item's position across launches
         // and across rebuilds, instead of re-placing it at the crowded default spot.
-        statusItem.autosaveName = "VorssaintMenuBarItem"
+        statusItem.autosaveName = "MemoryKillMenuBarItem"
         statusItem.behavior = []
         statusItem.isVisible = true
         if let button = statusItem.button {
-            button.image = BlackHoleGlyph.image(active: false)
+            button.image = NSImage(systemSymbolName: "memorychip", accessibilityDescription: "MemoryKill")
+            button.image?.isTemplate = true
             // Fully monospaced (not just digits) so the fixed-width metric fields
             // keep a constant pixel width and the item never jiggles.
             button.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .medium)
@@ -134,20 +135,23 @@ final class StatusItemController {
     /// keep the blue attention color; an active keep-awake session turns amber.
     private func updateIconAppearance() {
         guard let button = statusItem?.button else { return }
-        if case .available = UpdateService.shared.state {
-            button.image = BlackHoleGlyph.attentionImage()
-        } else {
-            button.image = BlackHoleGlyph.image(active: KeepAwakeManager.shared.isActive)
-        }
+        button.image = NSImage(systemSymbolName: "memorychip", accessibilityDescription: "MemoryKill")
+        button.image?.isTemplate = true
+        button.contentTintColor = memoryTint()
     }
 
     @objc private func clicked() {
         pulse()
         if NSApp.currentEvent?.type == .rightMouseUp {
             onRightClick?()
-        } else {
-            onLeftClick?()
+            return
         }
+        if UserDefaults.standard.bool(forKey: DefaultsKey.optionClickPurge),
+           NSApp.currentEvent?.modifierFlags.contains(.option) == true {
+            (NSApp.delegate as? AppDelegate)?.instantPurge()
+            return
+        }
+        onLeftClick?()
     }
 
     /// Quick, springy scale dip — the click micro-interaction.
@@ -221,7 +225,16 @@ final class StatusItemController {
                 button.toolTip = strings.statusActiveIndefinite
             }
         } else {
-            button.toolTip = strings.statusIdleTooltip
+            button.toolTip = "MemoryKill — click to purge and monitor RAM"
+        }
+    }
+
+    private func memoryTint() -> NSColor {
+        switch SystemMonitor.shared.snapshot.memoryPressure {
+        case .normal: return .systemGreen
+        case .warning: return .systemOrange
+        case .critical: return .systemRed
+        case .unknown: return .labelColor
         }
     }
 }

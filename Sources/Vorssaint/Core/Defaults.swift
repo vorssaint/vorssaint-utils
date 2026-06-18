@@ -70,6 +70,13 @@ enum DefaultsKey {
 
     // Dev-build only: force the "update available" UI for local testing.
     static let simulateUpdate = "simulateUpdate"
+
+    // MemoryKill — auto-purge and power-user toggles.
+    static let autoPurgeEnabled = "autoPurgeEnabled"
+    static let autoPurgeThreshold = "autoPurgeThreshold"   // warning | critical
+    static let autoPurgeNotify = "autoPurgeNotify"
+    static let purgeHotkeyEnabled = "purgeHotkeyEnabled"
+    static let optionClickPurge = "optionClickPurge"
 }
 
 /// Bump `currentFeatureSet` when the first-run tour changes. Existing users are
@@ -92,10 +99,7 @@ enum Defaults {
         DefaultsKey.batteryLimit: 10,
         DefaultsKey.hotkeyEnabled: true,
         DefaultsKey.showCountdown: false,
-        DefaultsKey.scrollInverterEnabled: false,
-        DefaultsKey.switcherEnabled: true,
         DefaultsKey.switcherMergeTabs: false,
-        DefaultsKey.autoCheckUpdates: true,
         // Finder never benefits from being "quit" (it just relaunches), so
         // it's excepted out of the box.
         DefaultsKey.autoQuitExceptions: ["com.apple.finder"],
@@ -104,13 +108,27 @@ enum Defaults {
         // Menu bar metrics start off (the icon stays clean) and are opt-in.
         // The panel shows every monitoring block by default; users hide what
         // they don't want.
-        DefaultsKey.monitorInterval: 2,
+        DefaultsKey.monitorInterval: 1,
+        DefaultsKey.autoPurgeEnabled: true,
+        DefaultsKey.autoPurgeThreshold: "warning",
+        DefaultsKey.autoPurgeNotify: true,
+        DefaultsKey.purgeHotkeyEnabled: true,
+        DefaultsKey.optionClickPurge: true,
         DefaultsKey.temperatureUnit: TemperatureUnit.celsius.rawValue,
-        DefaultsKey.menuBarMemoryStyle: "percent",
+        DefaultsKey.menuBarMemoryStyle: "both",
+        DefaultsKey.menuBarMemory: true,
+        DefaultsKey.menuBarCPU: false,
+        DefaultsKey.menuBarGPU: false,
+        DefaultsKey.menuBarNetwork: false,
+        DefaultsKey.menuBarPower: false,
         DefaultsKey.monitorShowSystem: true,
-        DefaultsKey.monitorShowNetwork: true,
-        DefaultsKey.monitorShowPower: true,
-        DefaultsKey.monitorShowMixer: true,
+        DefaultsKey.monitorShowNetwork: false,
+        DefaultsKey.monitorShowPower: false,
+        DefaultsKey.monitorShowMixer: false,
+        DefaultsKey.hasOnboarded: true,
+        DefaultsKey.autoCheckUpdates: false,
+        DefaultsKey.switcherEnabled: false,
+        DefaultsKey.scrollInverterEnabled: false,
         DefaultsKey.monitorGraphCPU: true,
         DefaultsKey.monitorGraphGPU: true,
         DefaultsKey.monitorGraphMemory: true,
