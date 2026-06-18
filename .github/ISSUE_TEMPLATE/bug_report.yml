@@ -10,7 +10,7 @@ body:
     attributes:
       label: Description
       description: A clear and concise description of what the bug is.
-      placeholder: Describe the bug...
+      placeholder: Describe the bug... (expected and actual behaviour)
     validations:
       required: true
 
@@ -23,24 +23,6 @@ body:
         1. Open Vorssaint
         2. Click on '...'
         3. See error
-    validations:
-      required: true
-
-  - type: textarea
-    id: expected
-    attributes:
-      label: Expected Behavior
-      description: What you expected to happen.
-      placeholder: Describe what should have happened...
-    validations:
-      required: true
-
-  - type: textarea
-    id: actual
-    attributes:
-      label: Actual Behavior
-      description: What actually happened.
-      placeholder: Describe what actually happened...
     validations:
       required: true
 
@@ -75,9 +57,3 @@ body:
     attributes:
       label: Installation Method
       placeholder: Homebrew, DMG, GitHub Release, etc.
-
-  - type: textarea
-    id: additional
-    attributes:
-      label: Additional Context
-      description: Add any other context about the problem here.
