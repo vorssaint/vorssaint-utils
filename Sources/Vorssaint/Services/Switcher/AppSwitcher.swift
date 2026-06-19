@@ -49,6 +49,7 @@ final class AppSwitcher: ObservableObject {
     // Virtual key codes handled during a session.
     private enum KeyCode {
         static let tab: Int64 = 48
+        static let backtick: Int64 = 50  // ⌘` — show-all shortcut
         static let escape: Int64 = 53
         static let enter: Int64 = 36
         static let q: Int64 = 12
@@ -139,14 +140,22 @@ final class AppSwitcher: ObservableObject {
         let flags = event.flags
 
         guard sessionActive else {
-            // A session starts with ⌘Tab, as long as the combo is not claimed
-            // by something else (⌘⌥Tab, ⌃⌘Tab…).
-            guard keyCode == KeyCode.tab,
-                  flags.contains(modifierFlag),
+            guard flags.contains(modifierFlag),
                   !flags.contains(conflictingFlag),
                   !flags.contains(.maskControl)
             else { return Unmanaged.passUnretained(event) }
 
+            if keyCode == KeyCode.backtick {
+                // ⌘` opens the switcher ignoring all filters — shows every window
+                // regardless of Space, monitor, minimized state or Finder preference.
+                return beginSession(reversed: flags.contains(.maskShift), ignoreFilters: true)
+                    ? nil
+                    : Unmanaged.passUnretained(event)
+            }
+
+            // A session starts with ⌘Tab, as long as the combo is not claimed
+            // by something else (⌘⌥Tab, ⌃⌘Tab…).
+            guard keyCode == KeyCode.tab else { return Unmanaged.passUnretained(event) }
             return beginSession(reversed: flags.contains(.maskShift))
                 ? nil
                 : Unmanaged.passUnretained(event)
@@ -177,8 +186,8 @@ final class AppSwitcher: ObservableObject {
 
     // MARK: - Session lifecycle
 
-    private func beginSession(reversed: Bool) -> Bool {
-        let windows = WindowEnumerator.listWindows()
+    private func beginSession(reversed: Bool, ignoreFilters: Bool = false) -> Bool {
+        let windows = WindowEnumerator.listWindows(ignoreFilters: ignoreFilters)
         guard !windows.isEmpty else { return false }
 
         let list = orderedForSession(windows)

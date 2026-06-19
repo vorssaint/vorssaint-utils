@@ -20,7 +20,7 @@ enum WindowEnumerator {
     /// Hard cap to keep the switcher readable and captures cheap.
     private static let maximumCount = 24
 
-    static func listWindows() -> [SwitcherItem] {
+    static func listWindows(ignoreFilters: Bool = false) -> [SwitcherItem] {
         guard let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] else {
             return []
         }
@@ -33,10 +33,10 @@ enum WindowEnumerator {
         regularApps[pid_t(ownPid)] = AppInfo.name
         let liveWindowIDs = accessibilityWindowIDs(for: Set(regularApps.keys).subtracting([pid_t(ownPid)]))
 
-        let currentSpaceOnly   = UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
-        let currentMonitorOnly = UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentMonitorOnly)
-        let hideMinimized      = UserDefaults.standard.bool(forKey: DefaultsKey.switcherHideMinimized)
-        let hideFinder         = UserDefaults.standard.bool(forKey: DefaultsKey.switcherHideFinder)
+        let currentSpaceOnly   = !ignoreFilters && UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
+        let currentMonitorOnly = !ignoreFilters && UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentMonitorOnly)
+        let hideMinimized      = !ignoreFilters && UserDefaults.standard.bool(forKey: DefaultsKey.switcherHideMinimized)
+        let hideFinder         = !ignoreFilters && UserDefaults.standard.bool(forKey: DefaultsKey.switcherHideFinder)
 
         let finderPid: pid_t? = hideFinder
             ? NSWorkspace.shared.runningApplications
