@@ -326,8 +326,13 @@ struct MouseSettings: View {
 struct SwitcherSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
-    @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
-    @AppStorage(DefaultsKey.switcherMergeTabs) private var switcherMergeTabs = false
+    @AppStorage(DefaultsKey.switcherEnabled)            private var switcherEnabled            = true
+    @AppStorage(DefaultsKey.switcherMergeTabs)          private var switcherMergeTabs          = false
+    @AppStorage(DefaultsKey.switcherCurrentSpaceOnly)   private var switcherCurrentSpaceOnly   = false
+    @AppStorage(DefaultsKey.switcherCurrentMonitorOnly) private var switcherCurrentMonitorOnly = false
+    @AppStorage(DefaultsKey.switcherHideMinimized)      private var switcherHideMinimized      = false
+    @AppStorage(DefaultsKey.switcherHideFinder)         private var switcherHideFinder         = false
+    @AppStorage(DefaultsKey.switcherIconsOnly)          private var switcherIconsOnly          = false
 
     var body: some View {
         Form {
@@ -346,6 +351,37 @@ struct SwitcherSettings: View {
                 Toggle(l10n.s.switcherMergeTabs, isOn: $switcherMergeTabs)
                     .disabled(!switcherEnabled)
                 Text(l10n.s.switcherMergeTabsCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Section(l10n.s.switcherFiltersSection) {
+                Toggle(l10n.s.switcherCurrentSpaceOnly, isOn: $switcherCurrentSpaceOnly)
+                    .disabled(!switcherEnabled)
+                Text(l10n.s.switcherCurrentSpaceOnlyCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Toggle(l10n.s.switcherCurrentMonitorOnly, isOn: $switcherCurrentMonitorOnly)
+                    .disabled(!switcherEnabled)
+                Text(l10n.s.switcherCurrentMonitorOnlyCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Toggle(l10n.s.switcherHideMinimized, isOn: $switcherHideMinimized)
+                    .disabled(!switcherEnabled)
+                Text(l10n.s.switcherHideMinimizedCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Toggle(l10n.s.switcherHideFinder, isOn: $switcherHideFinder)
+                    .disabled(!switcherEnabled)
+                Text(l10n.s.switcherHideFinderCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Toggle(l10n.s.switcherIconsOnly, isOn: $switcherIconsOnly)
+                    .disabled(!switcherEnabled)
+                Text(l10n.s.switcherIconsOnlyCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

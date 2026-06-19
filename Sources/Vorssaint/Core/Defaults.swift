@@ -19,6 +19,11 @@ enum DefaultsKey {
     static let scrollInverterEnabled = "scrollInverterEnabled"
     static let switcherEnabled = "switcherEnabled"
     static let switcherMergeTabs = "switcherMergeTabs"     // show one switcher entry per app (collapse all of an app's windows)
+    static let switcherCurrentSpaceOnly   = "switcherCurrentSpaceOnly"   // hide windows on other Spaces
+    static let switcherCurrentMonitorOnly = "switcherCurrentMonitorOnly" // hide windows on other monitors
+    static let switcherHideMinimized      = "switcherHideMinimized"      // hide minimized windows
+    static let switcherHideFinder         = "switcherHideFinder"         // hide Finder from the switcher
+    static let switcherIconsOnly          = "switcherIconsOnly"          // skip live thumbnails, show app icons only
     static let autoCheckUpdates = "autoCheckUpdates"
     static let appVolumes = "appVolumes"                  // [bundle id: 0...2]
     static let finderCutPasteEnabled = "finderCutPasteEnabled"
@@ -115,6 +120,11 @@ enum Defaults {
         DefaultsKey.scrollInverterEnabled: false,
         DefaultsKey.switcherEnabled: true,
         DefaultsKey.switcherMergeTabs: false,
+        DefaultsKey.switcherCurrentSpaceOnly: false,
+        DefaultsKey.switcherCurrentMonitorOnly: false,
+        DefaultsKey.switcherHideMinimized: false,
+        DefaultsKey.switcherHideFinder: false,
+        DefaultsKey.switcherIconsOnly: false,
         DefaultsKey.autoCheckUpdates: true,
         // Finder never benefits from being "quit" (it just relaunches), so
         // it's excepted out of the box.

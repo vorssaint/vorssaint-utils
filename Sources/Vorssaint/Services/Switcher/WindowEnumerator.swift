@@ -33,6 +33,25 @@ enum WindowEnumerator {
         regularApps[pid_t(ownPid)] = AppInfo.name
         let liveWindowIDs = accessibilityWindowIDs(for: Set(regularApps.keys).subtracting([pid_t(ownPid)]))
 
+        let currentSpaceOnly   = UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
+        let currentMonitorOnly = UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentMonitorOnly)
+        let hideMinimized      = UserDefaults.standard.bool(forKey: DefaultsKey.switcherHideMinimized)
+        let hideFinder         = UserDefaults.standard.bool(forKey: DefaultsKey.switcherHideFinder)
+
+        let finderPid: pid_t? = hideFinder
+            ? NSWorkspace.shared.runningApplications
+                .first(where: { $0.bundleIdentifier == Defaults.finderBundleIdentifier })?.processIdentifier
+            : nil
+
+        // Minimized IDs are only needed when hiding minimized without currentSpaceOnly,
+        // since currentSpaceOnly already excludes off-screen (minimized) windows.
+        let minimizedIDs: Set<CGWindowID> = (hideMinimized && !currentSpaceOnly)
+            ? collectMinimizedWindowIDs(for: Set(regularApps.keys).subtracting([pid_t(ownPid)]))
+            : []
+
+        let currentMonitorFrame: CGRect? = currentMonitorOnly ? NSScreen.withMouse.frame : nil
+        let primaryScreenHeight = NSScreen.screens.first?.frame.height ?? 0
+
         var seen = Set<CGWindowID>()
         var windows: [SwitcherItem] = []
 
@@ -61,6 +80,20 @@ enum WindowEnumerator {
                 ?? (info[kCGWindowIsOnscreen as String] as? Bool)
                 ?? false
 
+            // Windows on other Spaces report isOnScreen == false, same as minimized ones.
+            if currentSpaceOnly, !isOnScreen { continue }
+            if minimizedIDs.contains(windowID) { continue }
+            if let fp = finderPid, pid == fp { continue }
+            if let monitorFrame = currentMonitorFrame {
+                // kCGWindowBounds is in CoreGraphics coords (origin top-left, Y down).
+                // NSScreen.frame is in AppKit coords (origin bottom-left, Y up). Convert.
+                let appKitFrame = CGRect(x: frame.minX,
+                                         y: primaryScreenHeight - frame.maxY,
+                                         width: frame.width,
+                                         height: frame.height)
+                guard appKitFrame.intersects(monitorFrame) else { continue }
+            }
+
             let appName: String
             let displayTitle: String
             if pid == ownPid {
@@ -85,7 +118,9 @@ enum WindowEnumerator {
                                    isOnScreen: isOnScreen,
                                    frame: frame))
         }
-        appendWindowlessFinder(to: &windows, regularApps: regularApps)
+        if !hideFinder {
+            appendWindowlessFinder(to: &windows, regularApps: regularApps)
+        }
         if UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs) {
             windows = groupWindowsByApp(windows)
         }
@@ -126,6 +161,25 @@ enum WindowEnumerator {
             return ids
         }
         return nil
+    }
+
+    private static func collectMinimizedWindowIDs(for pids: Set<pid_t>) -> Set<CGWindowID> {
+        guard Permissions.shared.accessibility else { return [] }
+        var result = Set<CGWindowID>()
+        for pid in pids {
+            let app = AXUIElementCreateApplication(pid)
+            var value: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value) == .success,
+                  let axWindows = value as? [AXUIElement] else { continue }
+            for window in axWindows {
+                var minimized: CFTypeRef?
+                guard AXUIElementCopyAttributeValue(window, kAXMinimizedAttribute as CFString, &minimized) == .success,
+                      (minimized as? Bool) == true,
+                      let id = AXWindowResolver.windowID(for: window) else { continue }
+                result.insert(id)
+            }
+        }
+        return result
     }
 
     private static func appendWindowlessFinder(to windows: inout [SwitcherItem],

@@ -185,11 +185,14 @@ final class AppSwitcher: ObservableObject {
         self.windows = list
         sessionStartItemID = currentItemID(in: list)
         grid = SwitcherGrid.compute(count: list.count, on: NSScreen.withMouse)
-        previews = Dictionary(uniqueKeysWithValues: list.compactMap { item in
-            item.previewWindowID.flatMap { id in
-                WindowPreviewProvider.shared.cachedPreview(for: id).map { (id, $0) }
-            }
-        })
+        let iconsOnly = UserDefaults.standard.bool(forKey: DefaultsKey.switcherIconsOnly)
+        if !iconsOnly {
+            previews = Dictionary(uniqueKeysWithValues: list.compactMap { item in
+                item.previewWindowID.flatMap { id in
+                    WindowPreviewProvider.shared.cachedPreview(for: id).map { (id, $0) }
+                }
+            })
+        }
         userNavigated = false
         // Index 0 is the on-screen window; index 1 is the most-recently-used
         // other window — the toggle target, which may be another window of the
@@ -197,11 +200,13 @@ final class AppSwitcher: ObservableObject {
         selectedIndex = reversed ? max(0, list.count - 1) : (list.count > 1 ? 1 : 0)
         sessionActive = true
 
-        WindowPreviewProvider.shared.refreshPreviews(for: list) { [weak self] windowID, image in
-            guard let self,
-                  self.sessionActive,
-                  self.windows.contains(where: { $0.previewWindowID == windowID }) else { return }
-            self.previews[windowID] = image
+        if !iconsOnly {
+            WindowPreviewProvider.shared.refreshPreviews(for: list) { [weak self] windowID, image in
+                guard let self,
+                      self.sessionActive,
+                      self.windows.contains(where: { $0.previewWindowID == windowID }) else { return }
+                self.previews[windowID] = image
+            }
         }
         scheduleShowPanel()
         return true

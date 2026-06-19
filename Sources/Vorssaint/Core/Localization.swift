@@ -223,6 +223,17 @@ struct Strings {
     let switcherNoWindows: String
     let switcherMergeTabs: String
     let switcherMergeTabsCaption: String
+    let switcherFiltersSection: String
+    let switcherCurrentSpaceOnly: String
+    let switcherCurrentSpaceOnlyCaption: String
+    let switcherCurrentMonitorOnly: String
+    let switcherCurrentMonitorOnlyCaption: String
+    let switcherHideMinimized: String
+    let switcherHideMinimizedCaption: String
+    let switcherHideFinder: String
+    let switcherHideFinderCaption: String
+    let switcherIconsOnly: String
+    let switcherIconsOnlyCaption: String
 
     // MARK: Feature — cut & paste in Finder
     let cutPasteName: String
@@ -654,6 +665,17 @@ extension Strings {
         switcherNoWindows: "Nenhuma janela aberta",
         switcherMergeTabs: "Mostrar uma entrada por app",
         switcherMergeTabsCaption: "Junta todas as janelas de um app em uma só entrada no alternador, em vez de uma por janela.",
+        switcherFiltersSection: "Filtros",
+        switcherCurrentSpaceOnly: "Mostrar apenas janelas do Espaço atual",
+        switcherCurrentSpaceOnlyCaption: "Oculta janelas de outros Espaços. Janelas minimizadas também não são exibidas com esta opção ativa.",
+        switcherCurrentMonitorOnly: "Mostrar apenas janelas do monitor atual",
+        switcherCurrentMonitorOnlyCaption: "Limita o alternador às janelas cujo quadro está no mesmo monitor que o cursor.",
+        switcherHideMinimized: "Ocultar janelas minimizadas",
+        switcherHideMinimizedCaption: "Remove janelas minimizadas do alternador. Requer Acessibilidade.",
+        switcherHideFinder: "Ocultar o Finder",
+        switcherHideFinderCaption: "Remove o Finder do alternador, inclusive quando não há janelas abertas.",
+        switcherIconsOnly: "Mostrar apenas ícones dos apps, sem miniaturas ao vivo",
+        switcherIconsOnlyCaption: "Desativa o uso de Gravação de Tela pelo alternador. Cada card exibe o ícone do app em vez de uma captura ao vivo.",
 
         cutPasteName: "Recortar e colar",
         cutPasteEnable: "Recortar e colar arquivos no Finder",
@@ -1067,6 +1089,17 @@ extension Strings {
         switcherNoWindows: "No open windows",
         switcherMergeTabs: "Show one entry per app",
         switcherMergeTabsCaption: "Collapses all of an app's windows into one entry in the switcher, instead of one entry per window.",
+        switcherFiltersSection: "Filters",
+        switcherCurrentSpaceOnly: "Only show windows from the current desktop",
+        switcherCurrentSpaceOnlyCaption: "Hides windows on other Spaces. Minimized windows are not shown when this is on.",
+        switcherCurrentMonitorOnly: "Only show windows from the current monitor",
+        switcherCurrentMonitorOnlyCaption: "Limits the switcher to windows whose frame is on the same display as the cursor.",
+        switcherHideMinimized: "Hide minimized windows",
+        switcherHideMinimizedCaption: "Removes minimized windows from the switcher. Requires Accessibility.",
+        switcherHideFinder: "Hide Finder",
+        switcherHideFinderCaption: "Removes Finder from the switcher, including when Finder has no open windows.",
+        switcherIconsOnly: "Show app icons only, no live thumbnails",
+        switcherIconsOnlyCaption: "Disables Screen Recording use by the switcher. Each card shows the app icon instead of a live window capture.",
 
         cutPasteName: "Cut & paste",
         cutPasteEnable: "Cut & paste files in Finder",
