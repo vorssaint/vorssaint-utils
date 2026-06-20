@@ -6,7 +6,7 @@ import SwiftUI
 
 /// Per-app volume sliders, the mixer macOS never shipped. Shows every app
 /// holding an audio connection (a green dot marks the ones playing right now).
-/// 100% is untouched passthrough; below it attenuates and above it (up to 200%)
+/// 100% is untouched passthrough; below it attenuates and above it (up to 500%)
 /// boosts, with the slider and percentage turning amber in the boost range.
 struct MixerSection: View {
     @ObservedObject private var l10n = L10n.shared

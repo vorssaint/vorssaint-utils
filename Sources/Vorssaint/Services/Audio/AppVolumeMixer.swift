@@ -47,9 +47,9 @@ final class AppVolumeMixer: ObservableObject {
         return false
     }
 
-    /// Volumes run 0...2: 1.0 is 100% (untouched passthrough), up to 2.0 is a
-    /// 200% boost for sources that play too quietly.
-    static let maxVolume: Double = 2.0
+    /// Volumes run 0...5: 1.0 is 100% (untouched passthrough), up to 5.0 is a
+    /// 500% boost for sources that play too quietly.
+    static let maxVolume: Double = 5.0
 
     @Published private(set) var apps: [MixerApp] = []
     @Published private(set) var outputDevices: [MixerOutputDevice] = []

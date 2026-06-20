@@ -174,7 +174,8 @@ struct MetricsTests {
                == ["uninstaller", "homebrew", "cleanURL", "cleaning"],
                "panel item order keeps saved valid items first and appends defaults")
         expectClose(Defaults.sanitizedAppVolume(1.5), 1.5, "valid app volume is preserved")
-        expectClose(Defaults.sanitizedAppVolume(3), 2, "high app volume clamps to boost maximum")
+        expectClose(Defaults.sanitizedAppVolume(3), 3, "in-range boost volume is preserved")
+        expectClose(Defaults.sanitizedAppVolume(6), 5, "high app volume clamps to boost maximum")
         expectClose(Defaults.sanitizedAppVolume(-1), 0, "negative app volume clamps to mute")
         expectClose(Defaults.sanitizedAppVolume(.infinity), 1, "non-finite app volume falls back to unity")
         expect(Defaults.sanitizedAppOutputDeviceUID(" BuiltInSpeakerDevice ") == "BuiltInSpeakerDevice",

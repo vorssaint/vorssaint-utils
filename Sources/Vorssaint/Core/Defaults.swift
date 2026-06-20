@@ -27,7 +27,7 @@ enum DefaultsKey {
     static let previewSize = "previewSize"                // app switcher + dock preview thumbnail size
     static let autoCheckUpdates = "autoCheckUpdates"
     static let releaseNotesOnUpdate = "releaseNotesOnUpdate" // show What's New after an update
-    static let appVolumes = "appVolumes"                  // [bundle id: 0...2]
+    static let appVolumes = "appVolumes"                  // [bundle id: 0...5]
     static let appOutputDevices = "appOutputDevices"      // [bundle id: audio device UID]
     static let preferredInputDevice = "preferredInputDevice" // audio input device UID
     static let finderCutPasteEnabled = "finderCutPasteEnabled"
@@ -279,7 +279,9 @@ enum Defaults {
 
     static func sanitizedAppVolume(_ volume: Double) -> Double {
         guard volume.isFinite else { return 1 }
-        return min(max(volume, 0), 2)
+        // Keep in sync with AppVolumeMixer.maxVolume (not importable in the
+        // standalone test build, so the boost ceiling is duplicated here).
+        return min(max(volume, 0), 5)
     }
 
     static func sanitizedAppOutputDeviceUID(_ value: Any?) -> String? {
