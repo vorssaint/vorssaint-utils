@@ -26,59 +26,42 @@ final class SettingsRouter: ObservableObject {
 struct SettingsView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var router = SettingsRouter.shared
-    @State private var searchText = ""
 
     var body: some View {
         NavigationSplitView {
             List(selection: $router.page) {
                 Section {
-                    sidebarLabel(l10n.s.tabGeneral, systemImage: "gearshape.fill", color: .blue).tag(SettingsPage.general)
-                    sidebarLabel(l10n.s.tabAdvanced, systemImage: "slider.horizontal.3", color: .gray).tag(SettingsPage.advanced)
+                    Label(l10n.s.tabGeneral, systemImage: "gearshape").tag(SettingsPage.general)
+                    Label(l10n.s.tabAdvanced, systemImage: "slider.horizontal.3").tag(SettingsPage.advanced)
                 }
 
                 Section("System & Display") {
-                    sidebarLabel(l10n.s.tabMonitor, systemImage: "display", color: .indigo).tag(SettingsPage.monitor)
-                    sidebarLabel(l10n.s.tabEnergy, systemImage: "battery.100", color: .green).tag(SettingsPage.energy)
+                    Label(l10n.s.tabMonitor, systemImage: "chart.line.uptrend.xyaxis").tag(SettingsPage.monitor)
+                    Label(l10n.s.tabEnergy, systemImage: "bolt.fill").tag(SettingsPage.energy)
                 }
 
                 Section(l10n.s.settingsGroupFeatures) {
-                    sidebarLabel(l10n.s.tabMouse, systemImage: "computermouse.fill", color: .blue).tag(SettingsPage.mouse)
-                    sidebarLabel(l10n.s.tabSwitcher, systemImage: "square.on.square.fill", color: .purple).tag(SettingsPage.switcher)
-                    sidebarLabel(l10n.s.cutPasteName, systemImage: "scissors", color: .orange).tag(SettingsPage.cutPaste)
-                    sidebarLabel(l10n.s.autoQuitName, systemImage: "xmark.app.fill", color: .red).tag(SettingsPage.autoQuit)
-                    sidebarLabel(l10n.s.shelfName, systemImage: "tray.full.fill", color: .teal).tag(SettingsPage.shelf)
+                    Label(l10n.s.tabMouse, systemImage: "computermouse").tag(SettingsPage.mouse)
+                    Label(l10n.s.tabSwitcher, systemImage: "rectangle.on.rectangle").tag(SettingsPage.switcher)
+                    Label(l10n.s.cutPasteName, systemImage: "scissors").tag(SettingsPage.cutPaste)
+                    Label(l10n.s.autoQuitName, systemImage: "xmark.rectangle").tag(SettingsPage.autoQuit)
+                    Label(l10n.s.shelfName, systemImage: "tray.full").tag(SettingsPage.shelf)
                 }
 
                 Section("Maintenance") {
-                    sidebarLabel(l10n.s.uninstallerName, systemImage: "trash.fill", color: .gray).tag(SettingsPage.uninstaller)
-                    sidebarLabel(l10n.s.tabAbout, systemImage: "info.circle.fill", color: .blue).tag(SettingsPage.about)
-                    sidebarLabel(l10n.s.tabSupport, systemImage: "heart.fill", color: .pink).tag(SettingsPage.support)
+                    Label(l10n.s.uninstallerName, systemImage: "trash").tag(SettingsPage.uninstaller)
+                    Label(l10n.s.tabAbout, systemImage: "info.circle").tag(SettingsPage.about)
+                    Label(l10n.s.tabSupport, systemImage: "heart.fill").tag(SettingsPage.support)
                 }
             }
             .listStyle(.sidebar)
-            .environment(\.defaultMinListRowHeight, 36)
-            .searchable(text: $searchText, prompt: "Search Settings")
-            .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 280)
+            .navigationSplitViewColumnWidth(min: 198, ideal: 210, max: 240)
         } detail: {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(width: 820, height: 560)
-    }
-
-    private func sidebarLabel(_ title: String, systemImage: String, color: Color) -> some View {
-        Label {
-            Text(title)
-                .font(.system(size: 14))
-        } icon: {
-            Image(systemName: systemImage)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(.white)
-                .frame(width: 26, height: 26)
-                .background(color.gradient)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        }
+        .frame(width: 772, height: 528)
     }
 
     @ViewBuilder
