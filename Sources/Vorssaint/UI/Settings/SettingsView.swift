@@ -85,6 +85,7 @@ struct SettingsView: View {
         case .shelf: ShelfSettings()
         case .advanced: AdvancedSettings()
         case .about: AboutSettings()
+        case .releaseNotes: ReleaseNotesSettings()
         case .support: SupportSettings()
         }
     }
