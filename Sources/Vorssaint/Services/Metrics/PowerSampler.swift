@@ -33,6 +33,7 @@ final class PowerSampler {
     private var systemKey: SMCClient.Key?
     private var adapterKey: SMCClient.Key?
     private var resolvedKeys = false
+    private var batteryService: io_service_t = 0
 
     /// `PSTR` = System Total Power. `PDTR` = DC-In (adapter) Total Power. PSTR is
     /// also a reasonable system-power fallback if a Mac only exposes PDTR.
@@ -41,6 +42,12 @@ final class PowerSampler {
 
     init(smc: SMCClient?) {
         self.smc = smc
+    }
+
+    deinit {
+        if batteryService != 0 {
+            IOObjectRelease(batteryService)
+        }
     }
 
     func sample() -> PowerReading {
@@ -56,7 +63,7 @@ final class PowerSampler {
             reading.adapterWatts = plausibleWatts(adapterKey)
         }
 
-        if let props = Self.batteryProperties() {
+        if let props = batteryProperties() {
             reading.hasBattery = true
             reading.externalConnected = (props["ExternalConnected"] as? Bool) ?? false
             reading.isCharging = (props["IsCharging"] as? Bool) ?? false
@@ -114,16 +121,25 @@ final class PowerSampler {
         return watts
     }
 
-    private static func batteryProperties() -> [String: Any]? {
-        let service = IOServiceGetMatchingService(kIOMainPortDefault,
-                                                  IOServiceMatching("AppleSmartBattery"))
+    private func batteryProperties() -> [String: Any]? {
+        let service = resolvedBatteryService()
         guard service != 0 else { return nil }
-        defer { IOObjectRelease(service) }
 
         var properties: Unmanaged<CFMutableDictionary>?
         guard IORegistryEntryCreateCFProperties(service, &properties, kCFAllocatorDefault, 0) == kIOReturnSuccess,
               let dict = properties?.takeRetainedValue() as? [String: Any]
-        else { return nil }
+        else {
+            IOObjectRelease(service)
+            batteryService = 0
+            return nil
+        }
         return dict
+    }
+
+    private func resolvedBatteryService() -> io_service_t {
+        if batteryService != 0 { return batteryService }
+        batteryService = IOServiceGetMatchingService(kIOMainPortDefault,
+                                                     IOServiceMatching("AppleSmartBattery"))
+        return batteryService
     }
 }

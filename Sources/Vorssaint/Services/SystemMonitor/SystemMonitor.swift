@@ -52,10 +52,23 @@ struct SystemSnapshot {
     var batteryHistory: [Double] = []      // 0...1 charge level
 }
 
+/// What parts of the menu panel are actually visible right now. The popover can
+/// be open on Keep Awake, Utilities or Controls; in those states the monitor
+/// should not wake the heavier samplers just because the user clicked the icon.
+struct SystemMonitorPanelNeeds: Equatable {
+    var system = false
+    var network = false
+    var power = false
+
+    static let none = SystemMonitorPanelNeeds()
+
+    var any: Bool { system || network || power }
+}
+
 /// Reads temperatures (SMC), CPU/GPU usage, memory, network and power on a
-/// background queue. Runs while the panel is visible (full readings, including
-/// temperatures and GPU) and/or while a menu bar metric is enabled (light
-/// readings only). When nothing needs it, the timer stops — zero idle cost.
+/// background queue. Runs while the panel is visible (full readings) and/or
+/// while a menu bar metric is enabled (only the readings that metric needs).
+/// When nothing needs it, the timer stops — zero idle cost.
 final class SystemMonitor: ObservableObject {
     static let shared = SystemMonitor()
 
@@ -65,9 +78,12 @@ final class SystemMonitor: ObservableObject {
     private var timer: Timer?
     private var intervalSeconds = 2
     private var panelClients = 0
+    private var menuPanelNeeds: SystemMonitorPanelNeeds = .none
     private var menuBarActive = false
     private var refreshInFlight = false
-    private var pendingFullRefresh = false
+    private var pendingRefresh = false
+    private var pendingRefreshSuppressesGPU = false
+    private var suppressGPUReadsUntil: TimeInterval = 0
 
     // SMC sensors
     private var smc: SMCClient?
@@ -76,6 +92,7 @@ final class SystemMonitor: ObservableObject {
     private var gpuKeys: [SMCClient.Key] = []
     private var batteryKeys: [SMCClient.Key] = []
     private var tempKeysPrepared = false
+    private var cpuTemperaturePlatform: CPUTemperaturePlatform = .generic
 
     // Samplers
     private let networkSampler = NetworkSampler()
@@ -84,7 +101,14 @@ final class SystemMonitor: ObservableObject {
     // Running state
     private var previousCPUTicks: (busy: UInt64, total: UInt64)?
     private var tickCount = 0
+    private var lastCPUUsage: Double?
+    private var missedCPUUsageSamples = 0
     private var lastGPUUsage: Double?
+    private var missedGPUUsageSamples = 0
+    private var memoryCache: CachedMemoryReading?
+    private var cpuTemperatureCache: CachedSensorReading?
+    private var gpuTemperatureCache: CachedSensorReading?
+    private var batteryTemperatureCache: CachedSensorReading?
 
     // History
     private let historyCapacity = 120
@@ -108,67 +132,210 @@ final class SystemMonitor: ObservableObject {
 
     // MARK: - Lifecycle
 
-    /// The panel became visible: sample everything, including the heavier
-    /// temperature and GPU readings.
+    /// A full monitor surface became visible (Settings preview or onboarding).
     func panelDidAppear() {
-        panelClients += 1
-        ensureTimer()
-        refresh(full: true)
+        runOnMain { [weak self] in
+            guard let self else { return }
+            panelClients += 1
+            ensureTimer()
+            refresh(suppressImmediateGPU: true)
+            scheduleDeferredGPURefreshIfNeeded()
+        }
     }
 
-    /// The panel closed: keep going only if a menu bar metric still needs it.
+    /// A full monitor surface closed: keep going only if the menu panel or menu
+    /// bar metrics still need readings.
     func panelDidDisappear() {
-        panelClients = max(0, panelClients - 1)
-        stopTimerIfIdle()
+        runOnMain { [weak self] in
+            guard let self else { return }
+            panelClients = max(0, panelClients - 1)
+            stopTimerIfIdle()
+        }
+    }
+
+    /// The menu popover reports exactly which monitor sections are on screen.
+    /// This avoids paying for GPU, network or power reads while the panel is open
+    /// on another section.
+    func setMenuPanelNeeds(_ needs: SystemMonitorPanelNeeds) {
+        runOnMain { [weak self] in
+            guard let self else { return }
+            if needs == menuPanelNeeds {
+                if shouldRun {
+                    ensureTimer()
+                    refresh()
+                } else {
+                    stopTimerIfIdle()
+                }
+                return
+            }
+            let defaults = UserDefaults.standard
+            let previousNeeds = menuPanelNeeds
+            let neededGPUBefore = currentPlan(defaults: defaults).needGPUUsage
+            menuPanelNeeds = needs
+            let needsGPUAfter = currentPlan(defaults: defaults).needGPUUsage
+            if shouldRun {
+                ensureTimer()
+                let panelGPUBecameVisible = needs.system
+                    && !previousNeeds.system
+                    && defaults.bool(forKey: DefaultsKey.monitorSysGPU)
+                let suppressImmediateGPU = needsGPUAfter && (!neededGPUBefore || panelGPUBecameVisible)
+                refresh(suppressImmediateGPU: suppressImmediateGPU)
+                if suppressImmediateGPU {
+                    scheduleDeferredGPURefreshIfNeeded()
+                }
+            } else {
+                stopTimerIfIdle()
+            }
+        }
+    }
+
+    /// The menu popover animation can briefly raise compositor GPU usage. When
+    /// GPU is pinned to the menu bar, keep the previous value through that short
+    /// window instead of sampling the animation itself.
+    func suppressGPUReadsForTransientUI(duration: TimeInterval = 0.9) {
+        runOnMain { [weak self] in
+            guard let self else { return }
+            let until = ProcessInfo.processInfo.systemUptime + max(0.1, duration)
+            suppressGPUReadsUntil = max(suppressGPUReadsUntil, until)
+            if shouldSample(), currentPlan(defaults: .standard).needGPUUsage {
+                scheduleDeferredGPURefreshIfNeeded()
+            }
+        }
     }
 
     /// Toggles continuous light sampling for the menu bar metrics.
     func setMenuBarActive(_ active: Bool) {
-        guard active != menuBarActive else { return }
-        menuBarActive = active
-        if active {
-            ensureTimer()
-            refresh(full: panelVisible)
-        } else {
-            stopTimerIfIdle()
+        runOnMain { [weak self] in
+            guard let self, active != menuBarActive else { return }
+            menuBarActive = active
+            if active {
+                ensureTimer()
+                refresh()
+            } else {
+                stopTimerIfIdle()
+            }
         }
     }
 
     /// Changes the sampling cadence (seconds). Restarts a running timer.
     func setInterval(seconds: Int) {
-        let clamped = max(1, seconds)
-        guard clamped != intervalSeconds else { return }
-        intervalSeconds = clamped
-        if timer != nil { restartTimer() }
+        runOnMain { [weak self] in
+            guard let self else { return }
+            let clamped = max(1, seconds)
+            guard clamped != intervalSeconds else { return }
+            intervalSeconds = clamped
+            if timer != nil { restartTimer() }
+        }
     }
 
-    /// True while at least one panel surface (the popover, or an onboarding monitor
-    /// step) is on screen. A depth count, not a bool, so overlapping appear/disappear
-    /// from independent surfaces can't desync and leave the full-rate timer stuck on
-    /// (battery drain) or freeze a still-open preview.
-    private var panelVisible: Bool { panelClients > 0 }
+    private func runOnMain(_ work: @escaping () -> Void) {
+        if Thread.isMainThread {
+            work()
+        } else {
+            DispatchQueue.main.async { work() }
+        }
+    }
 
-    private var shouldRun: Bool { panelVisible || menuBarActive }
+    private func scheduleDeferredGPURefreshIfNeeded() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
+            guard let self,
+                  self.shouldRun,
+                  self.currentPlan(defaults: .standard).needGPUUsage else { return }
+            self.refresh()
+        }
+    }
+
+    /// True while at least one full monitor surface (Settings or onboarding) is
+    /// on screen. A depth count, not a bool, so overlapping appear/disappear from
+    /// independent surfaces cannot desync.
+    private var fullMonitorVisible: Bool { panelClients > 0 }
+
+    private var shouldRun: Bool { fullMonitorVisible || menuPanelNeeds.any || menuBarActive }
+
+    private func shouldSample(defaults: UserDefaults = .standard) -> Bool {
+        shouldRun && currentPlan(defaults: defaults).any
+    }
+
+    private struct SamplingPlan {
+        var needCPU = false
+        var needMemory = false
+        var needNetwork = false
+        var needPower = false
+        var needGPUUsage = false
+        var gpuEveryTick = false
+        var needCPUTemperature = false
+        var needGPUTemperature = false
+        var needBatteryTemperature = false
+
+        var needSMC: Bool { needPower || needTemperature }
+
+        var needTemperature: Bool {
+            needCPUTemperature || needGPUTemperature || needBatteryTemperature
+        }
+
+        var any: Bool {
+            needCPU || needMemory || needNetwork || needPower || needGPUUsage || needTemperature
+        }
+    }
+
+    private struct CachedSensorReading {
+        var value: Double
+        var updatedAt: TimeInterval
+        var missedSamples: Int
+    }
+
+    private struct CachedMemoryReading {
+        var used: UInt64
+        var total: UInt64
+        var pressure: MemoryPressure
+        var updatedAt: TimeInterval
+        var missedSamples: Int
+    }
+
+    private func currentPlan(defaults: UserDefaults) -> SamplingPlan {
+        var plan = SamplingPlan()
+        let panelNeedsSystem = fullMonitorVisible || menuPanelNeeds.system
+        let panelNeedsNetwork = fullMonitorVisible || menuPanelNeeds.network
+        let panelNeedsPower = fullMonitorVisible || menuPanelNeeds.power
+
+        let panelCPU = panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysCPU)
+        let panelGPU = panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysGPU)
+        let panelMemory = panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysMemory)
+        let panelBattery = panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysBattery)
+        let panelTemps = panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysTemps)
+
+        plan.needCPU = panelCPU || defaults.bool(forKey: DefaultsKey.menuBarCPU)
+        plan.needMemory = panelMemory || defaults.bool(forKey: DefaultsKey.menuBarMemory)
+        plan.needNetwork = panelNeedsNetwork || defaults.bool(forKey: DefaultsKey.menuBarNetwork)
+        plan.needPower = panelNeedsPower || panelBattery
+            || defaults.bool(forKey: DefaultsKey.menuBarPower)
+            || defaults.bool(forKey: DefaultsKey.menuBarBattery)
+        plan.needGPUUsage = panelGPU || defaults.bool(forKey: DefaultsKey.menuBarGPU)
+        plan.gpuEveryTick = panelGPU
+        plan.needCPUTemperature = panelTemps || defaults.bool(forKey: DefaultsKey.menuBarCPUTemperature)
+        plan.needGPUTemperature = panelTemps || defaults.bool(forKey: DefaultsKey.menuBarGPUTemperature)
+        plan.needBatteryTemperature = panelTemps || defaults.bool(forKey: DefaultsKey.menuBarBatteryTemperature)
+        return plan
+    }
 
     /// In menu-bar-only mode the (relatively pricey) GPU read is throttled to
     /// about every 4 s; while the panel is open GPU samples every tick.
     private var gpuLightStride: Int { max(1, Int((4.0 / Double(intervalSeconds)).rounded())) }
 
     private func ensureTimer() {
-        guard timer == nil, shouldRun else { return }
+        guard timer == nil, shouldSample() else { return }
         startTimer()
     }
 
     private func stopTimerIfIdle() {
-        guard !shouldRun else { return }
+        guard !shouldSample() else { return }
         timer?.invalidate()
         timer = nil
     }
 
     private func startTimer() {
         let t = Timer(timeInterval: TimeInterval(intervalSeconds), repeats: true) { [weak self] _ in
-            guard let self else { return }
-            self.refresh(full: self.panelVisible)
+            self?.refresh()
         }
         t.tolerance = TimeInterval(intervalSeconds) * 0.15
         RunLoop.main.add(t, forMode: .common)
@@ -183,44 +350,59 @@ final class SystemMonitor: ObservableObject {
 
     // MARK: - Refresh
 
-    private func refresh(full: Bool) {
+    private func refresh(suppressImmediateGPU: Bool = false) {
         if !Thread.isMainThread {
-            DispatchQueue.main.async { [weak self] in self?.refresh(full: full) }
+            DispatchQueue.main.async { [weak self] in self?.refresh(suppressImmediateGPU: suppressImmediateGPU) }
+            return
+        }
+        let defaults = UserDefaults.standard
+        let plan = currentPlan(defaults: defaults)
+        guard plan.any else {
+            stopTimerIfIdle()
             return
         }
         if refreshInFlight {
-            pendingFullRefresh = pendingFullRefresh || full
+            pendingRefresh = true
+            pendingRefreshSuppressesGPU = pendingRefreshSuppressesGPU || suppressImmediateGPU
             return
         }
         refreshInFlight = true
-        let defaults = UserDefaults.standard
-        let needNetwork = full || defaults.bool(forKey: DefaultsKey.menuBarNetwork)
-        let needPower = full || defaults.bool(forKey: DefaultsKey.menuBarPower) || defaults.bool(forKey: DefaultsKey.menuBarBattery)
-        let needGPU = full || defaults.bool(forKey: DefaultsKey.menuBarGPU)
+        let suppressGPUReadsUntil = self.suppressGPUReadsUntil
         queue.async { [weak self] in
             guard let self else { return }
-            self.prepareIfNeeded(full: full)
+            self.prepareIfNeeded(needSMC: plan.needSMC, needTemperature: plan.needTemperature)
             let tick = self.tickCount
             self.tickCount &+= 1
+            let now = ProcessInfo.processInfo.systemUptime
 
             var next = SystemSnapshot()
 
-            next.cpuUsage = self.readCPUUsage()
-            if let cpu = next.cpuUsage {
-                self.cpuHistory.push(cpu)
+            if plan.needCPU {
+                if let cpu = self.readCPUUsage() {
+                    self.lastCPUUsage = cpu
+                    self.missedCPUUsageSamples = 0
+                    self.cpuHistory.push(cpu)
+                } else if self.missedCPUUsageSamples < 3 {
+                    self.missedCPUUsageSamples += 1
+                } else {
+                    self.lastCPUUsage = nil
+                }
+                next.cpuUsage = self.lastCPUUsage
             }
 
-            if let memory = SystemInfo.memoryUsage() {
-                next.memoryUsed = memory.used
-                next.memoryTotal = memory.total
-                if memory.total > 0 {
-                    self.memoryHistory.push(Double(memory.used) / Double(memory.total))
+            if plan.needMemory {
+                if let memory = self.stabilizedMemoryReading(now: now) {
+                    next.memoryUsed = memory.used
+                    next.memoryTotal = memory.total
+                    next.memoryPressure = memory.pressure
+                    if memory.isFresh, memory.total > 0 {
+                        self.memoryHistory.push(Double(memory.used) / Double(memory.total))
+                    }
                 }
             }
-            next.memoryPressure = Self.readMemoryPressure()
 
-            if needNetwork {
-                let network = self.networkSampler.sample(now: ProcessInfo.processInfo.systemUptime)
+            if plan.needNetwork {
+                let network = self.networkSampler.sample(now: now)
                 next.netDownBytesPerSec = network.downBytesPerSec
                 next.netUpBytesPerSec = network.upBytesPerSec
                 next.netTotalDown = network.totalDown
@@ -229,61 +411,137 @@ final class SystemMonitor: ObservableObject {
                 if let up = network.upBytesPerSec { self.netUpHistory.push(up) }
             }
 
-            if needPower, let powerSampler = self.powerSampler {
+            if plan.needPower, let powerSampler = self.powerSampler {
                 let power = powerSampler.sample()
                 next.power = power
                 if let watts = power.systemWatts { self.powerHistory.push(watts) }
                 if let charge = power.chargePercent { self.batteryHistory.push(Double(charge) / 100.0) }
             }
 
-            // GPU usage is also wanted when pinned to the menu bar; temperatures
-            // only matter while the panel is open. The GPU read is the priciest,
-            // so in menu-bar-only mode it is throttled (gpuLightStride) and the
-            // last value carried forward so the menu bar number stays stable.
-            if needGPU {
-                if full || tick % self.gpuLightStride == 0 {
-                    self.lastGPUUsage = Self.readGPUUsage()
-                    if let gpu = self.lastGPUUsage { self.gpuHistory.push(gpu) }
+            // GPU usage is the priciest normal monitor read. When the panel first
+            // opens, skip the immediate read so the popover animation does not
+            // become a visible one-sample GPU spike. A deferred refresh follows.
+            if plan.needGPUUsage {
+                let suppressGPUForUI = suppressImmediateGPU || now < suppressGPUReadsUntil
+                let shouldSampleGPU = !suppressGPUForUI
+                    && (plan.gpuEveryTick || tick % self.gpuLightStride == 0)
+                if shouldSampleGPU {
+                    if let rawGPU = Self.readGPUUsage() {
+                        self.lastGPUUsage = MetricFormat.stabilizedGPUUsage(previous: self.lastGPUUsage,
+                                                                            current: rawGPU)
+                        self.missedGPUUsageSamples = 0
+                        if let gpu = self.lastGPUUsage { self.gpuHistory.push(gpu) }
+                    } else if self.missedGPUUsageSamples < 3 {
+                        self.missedGPUUsageSamples += 1
+                    } else {
+                        self.lastGPUUsage = nil
+                    }
                 }
                 next.gpuUsage = self.lastGPUUsage
             }
-            if full {
-                next.cpuTemperature = self.maxTemperature(of: self.cpuKeys)
-                next.gpuTemperature = self.maxTemperature(of: self.gpuKeys)
-                next.batteryTemperature = self.maxTemperature(of: self.batteryKeys)
+            if plan.needCPUTemperature {
+                next.cpuTemperature = Self.stabilizedTemperature(self.cpuTemperature(),
+                                                                 cache: &self.cpuTemperatureCache,
+                                                                 now: now)
+            }
+            if plan.needGPUTemperature {
+                next.gpuTemperature = Self.stabilizedTemperature(self.maxTemperature(of: self.gpuKeys),
+                                                                 cache: &self.gpuTemperatureCache,
+                                                                 now: now)
+            }
+            if plan.needBatteryTemperature {
+                next.batteryTemperature = Self.stabilizedTemperature(self.maxTemperature(of: self.batteryKeys),
+                                                                     cache: &self.batteryTemperatureCache,
+                                                                     now: now)
             }
 
-            next.cpuHistory = self.cpuHistory.values
-            next.gpuHistory = needGPU ? self.gpuHistory.values : []
-            next.memoryHistory = self.memoryHistory.values
-            next.netDownHistory = needNetwork ? self.netDownHistory.values : []
-            next.netUpHistory = needNetwork ? self.netUpHistory.values : []
-            next.systemPowerHistory = needPower ? self.powerHistory.values : []
-            next.batteryHistory = needPower ? self.batteryHistory.values : []
+            next.cpuHistory = plan.needCPU ? self.cpuHistory.values : []
+            next.gpuHistory = plan.needGPUUsage ? self.gpuHistory.values : []
+            next.memoryHistory = plan.needMemory ? self.memoryHistory.values : []
+            next.netDownHistory = plan.needNetwork ? self.netDownHistory.values : []
+            next.netUpHistory = plan.needNetwork ? self.netUpHistory.values : []
+            next.systemPowerHistory = plan.needPower ? self.powerHistory.values : []
+            next.batteryHistory = plan.needPower ? self.batteryHistory.values : []
 
             DispatchQueue.main.async {
                 self.snapshot = next
                 self.refreshInFlight = false
-                let shouldRunFullRefresh = self.pendingFullRefresh
-                self.pendingFullRefresh = false
-                if shouldRunFullRefresh, self.shouldRun {
-                    self.refresh(full: self.panelVisible)
+                let shouldRunPendingRefresh = self.pendingRefresh
+                let suppressGPU = self.pendingRefreshSuppressesGPU
+                self.pendingRefresh = false
+                self.pendingRefreshSuppressesGPU = false
+                if shouldRunPendingRefresh, self.shouldRun {
+                    self.refresh(suppressImmediateGPU: suppressGPU)
                 }
             }
         }
     }
 
+    private func stabilizedMemoryReading(now: TimeInterval) -> (used: UInt64, total: UInt64, pressure: MemoryPressure, isFresh: Bool)? {
+        let pressure = Self.readMemoryPressure()
+        if let memory = SystemInfo.memoryUsage(), memory.total > 0 {
+            let stablePressure: MemoryPressure
+            switch pressure {
+            case .unknown:
+                stablePressure = memoryCache?.pressure ?? .unknown
+            case .normal, .warning, .critical:
+                stablePressure = pressure
+            }
+            memoryCache = CachedMemoryReading(used: memory.used,
+                                              total: memory.total,
+                                              pressure: stablePressure,
+                                              updatedAt: now,
+                                              missedSamples: 0)
+            return (memory.used, memory.total, stablePressure, true)
+        }
+
+        guard var cached = memoryCache else { return nil }
+        cached.missedSamples += 1
+        guard cached.missedSamples <= 4, now - cached.updatedAt <= 12 else {
+            memoryCache = nil
+            return nil
+        }
+
+        switch pressure {
+        case .normal, .warning, .critical:
+            cached.pressure = pressure
+        case .unknown:
+            break
+        }
+        memoryCache = cached
+        return (cached.used, cached.total, cached.pressure, false)
+    }
+
+    private static func stabilizedTemperature(_ reading: Double?,
+                                              cache: inout CachedSensorReading?,
+                                              now: TimeInterval) -> Double? {
+        if let reading, reading > 1, reading < 125 {
+            cache = CachedSensorReading(value: reading, updatedAt: now, missedSamples: 0)
+            return reading
+        }
+        guard var cached = cache else { return nil }
+        cached.missedSamples += 1
+        if cached.missedSamples <= 4, now - cached.updatedAt <= 12 {
+            cache = cached
+            return cached.value
+        }
+        cache = nil
+        return nil
+    }
+
     // MARK: - Sensor preparation
 
     /// Opens the SMC lazily. Temperature key discovery is heavier (it enumerates
-    /// every SMC key) so it waits until a full panel sample.
-    private func prepareIfNeeded(full: Bool) {
-        if !smcTried {
+    /// every SMC key) so it waits until the panel or a pinned temperature metric
+    /// actually needs it.
+    private func prepareIfNeeded(needSMC: Bool, needTemperature: Bool) {
+        if needSMC, !smcTried {
             smcTried = true
             smc = SMCClient()
+            cpuTemperaturePlatform = TemperatureSensorSelector.currentPlatform()
             powerSampler = PowerSampler(smc: smc)
         }
-        guard full, !tempKeysPrepared else { return }
+        guard needTemperature, !tempKeysPrepared else { return }
         tempKeysPrepared = true
         guard let client = smc else { return }
 
@@ -294,6 +552,16 @@ final class SystemMonitor: ObservableObject {
         cpuKeys = all.filter { $0.name.hasPrefix("Tp") || $0.name.hasPrefix("Te") }
         gpuKeys = all.filter { $0.name.hasPrefix("Tg") }
         batteryKeys = all.filter { $0.name.hasPrefix("TB") }
+    }
+
+    private func cpuTemperature() -> Double? {
+        guard let smc else { return nil }
+        let readings = cpuKeys.compactMap { key -> (key: String, value: Double)? in
+            guard let value = smc.readValue(key) else { return nil }
+            return (key.name, value)
+        }
+        return TemperatureSensorSelector.displayedCPUTemperature(readings: readings,
+                                                                 platform: cpuTemperaturePlatform)
     }
 
     private func maxTemperature(of keys: [SMCClient.Key]) -> Double? {

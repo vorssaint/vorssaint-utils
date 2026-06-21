@@ -172,6 +172,12 @@ struct Strings {
     let tabAdvanced: String
     let tabAbout: String
     let tabReleaseNotes: String
+    let releaseNotesOnUpdateToggle: String
+    let whatsNewDontShowAgain: String
+    let previewSizeLabel: String
+    let previewSizeNormal: String
+    let previewSizeLarge: String
+    let previewSizeXLarge: String
     let settingsGroupFeatures: String
 
     // MARK: Settings — advanced
@@ -223,6 +229,19 @@ struct Strings {
     let switcherNoWindows: String
     let switcherMergeTabs: String
     let switcherMergeTabsCaption: String
+    let dockPreviewName: String
+    let dockPreviewEnable: String
+    let dockPreviewEnableCaption: String
+    let dockPreviewActiveNow: String
+    let dockPreviewMagnificationBlocked: String
+    let dockPreviewDockUnavailable: String
+    let dockPreviewAutohideBeta: String
+    let dockPreviewCloseWindow: String
+    let dockPreviewIntroPeek: String
+    let dockPreviewIntroSettingsHint: String
+    let dockPreviewIntroLater: String
+    let dockPreviewIntroEnable: String
+    let dockPreviewIntroMagnificationAction: String
 
     // MARK: Feature — cut & paste in Finder
     let cutPasteName: String
@@ -236,6 +255,7 @@ struct Strings {
     let cutPasteAutomationNote: String
     let cutReadyTitle: String
     let cutReadyHint: String
+    let cutCancel: String
     let cutDoneTitle: String
     let cutMovedSingular: String
     let cutMovedPluralFormat: String      // + count
@@ -310,6 +330,120 @@ struct Strings {
     let urlCleanerCopied: String
     let urlCleanerLocalNote: String
 
+    // MARK: Feature — Homebrew manager
+    let homebrewName: String
+    let homebrewEnableCaption: String
+    let homebrewMissingTitle: String
+    let homebrewMissingBody: String
+    let homebrewInstallHomebrew: String
+    let homebrewInstallHomebrewCaption: String
+    let homebrewInstallHomebrewOpened: String
+    let homebrewShellSetupTitle: String
+    let homebrewShellSetupBody: String
+    let homebrewShellSetupButton: String
+    let homebrewShellSetupOpened: String
+    let homebrewRefresh: String
+    let homebrewSearchPlaceholder: String
+    let homebrewKeyboardHint: String
+    let homebrewSearchButton: String
+    let homebrewSearchResults: String
+    let homebrewInstalled: String
+    let homebrewAll: String
+    let homebrewFormulas: String
+    let homebrewCasks: String
+    let homebrewNoPackages: String
+    let homebrewNoSelection: String
+    let homebrewDetailsTitle: String
+    let homebrewInstall: String
+    let homebrewUninstall: String
+    let homebrewOpenTerminal: String
+    let homebrewCancelOperation: String
+    let homebrewClearLog: String
+    let homebrewLogTitle: String
+    let homebrewVersion: String
+    let homebrewDescription: String
+    let homebrewHomepage: String
+    let homebrewPopularity: String
+    let homebrewPopularityFormat: String
+    let homebrewInstalledBadge: String
+    let homebrewNotInstalledBadge: String
+    let homebrewConfirmInstallTitle: String
+    let homebrewConfirmInstallBodyFormat: String
+    let homebrewConfirmUninstallTitle: String
+    let homebrewConfirmUninstallBodyFormat: String
+    let homebrewTerminalFallback: String
+    let homebrewLoading: String
+    let homebrewSearchEmpty: String
+    let homebrewOperationInstallFormat: String
+    let homebrewOperationUninstallFormat: String
+    let homebrewOperationInstalledFormat: String
+    let homebrewOperationUninstalledFormat: String
+    let homebrewOperationFailedFormat: String
+    let homebrewOperationCancelled: String
+    let homebrewOperationPreparing: String
+    let homebrewOperationDownloading: String
+    let homebrewOperationInstalling: String
+    let homebrewOperationUninstalling: String
+    let homebrewOperationFinalizing: String
+    let homebrewOperationRefreshing: String
+    let homebrewOperationTerminal: String
+    let homebrewOperationElapsedFormat: String
+    let homebrewOperationShowDetails: String
+    let homebrewOperationHideDetails: String
+    let homebrewOperationTechnicalLog: String
+    let homebrewOperationProgressUnknown: String
+
+    // MARK: Feature — local media tools
+    let mediaName: String
+    let mediaEnableCaption: String
+    let mediaLocalNote: String
+    let mediaToolVideo: String
+    let mediaToolGIF: String
+    let mediaToolImage: String
+    let mediaToolText: String
+    let mediaSelectFile: String
+    let mediaDropHint: String
+    let mediaOutput: String
+    let mediaOutputAutomatic: String
+    let mediaChooseOutput: String
+    let mediaStartVideo: String
+    let mediaStartGIF: String
+    let mediaStartImage: String
+    let mediaStartText: String
+    let mediaCancel: String
+    let mediaStartTime: String
+    let mediaEndTime: String
+    let mediaQuality: String
+    let mediaCompressionLow: String
+    let mediaCompressionMedium: String
+    let mediaCompressionHigh: String
+    let mediaMaxSize: String
+    let mediaWidth: String
+    let mediaFPS: String
+    let mediaKeepAudio: String
+    let mediaCodec: String
+    let mediaFormat: String
+    let mediaStripMetadata: String
+    let mediaLoopGIF: String
+    let mediaOCRMode: String
+    let mediaOCRAccurate: String
+    let mediaOCRFast: String
+    let mediaLanguageCorrection: String
+    let mediaTextOutputNote: String
+    let mediaRunning: String
+    let mediaCompleted: String
+    let mediaCancelled: String
+    let mediaOpenInFinder: String
+    let mediaCopyText: String
+    let mediaRunAgain: String
+    let mediaEmptyText: String
+    let mediaResultSavedFormat: String
+    let mediaResultSizeFormat: String
+    let mediaErrorNoFile: String
+    let mediaErrorNoVideo: String
+    let mediaErrorSameOutput: String
+    let mediaErrorUnsupported: String
+
     // MARK: Feature — temporary shelf
     let shelfName: String
     let shelfEnable: String
@@ -341,6 +475,21 @@ struct Strings {
     let mixerUnavailable: String
     let mixerPermissionBody: String
     let mixerResetTooltip: String
+    let mixerOutputDefault: String
+    let mixerOutputCurrent: String
+    let mixerOutputUnavailable: String
+    let mixerOutputFallback: String
+    let mixerOutputTooltip: String
+    let mixerSystemOutputTitle: String
+    let mixerSystemOutputNoDevices: String
+    let mixerSystemOutputTooltip: String
+    let mixerSystemOutputErrorFormat: String
+    let mixerInputTitle: String
+    let mixerInputNoDevices: String
+    let mixerInputUnavailable: String
+    let mixerInputFallback: String
+    let mixerInputTooltip: String
+    let mixerInputErrorFormat: String
 
     // MARK: Settings — updates
     let updatesSection: String
@@ -413,6 +562,8 @@ struct Strings {
     let tabMonitor: String
     let monitorMenuBarSection: String
     let monitorMenuBarCaption: String
+    let monitorCombineTemperatures: String
+    let monitorCombineTemperaturesCaption: String
     let monitorShowCPU: String
     let monitorShowMemory: String
     let monitorShowNetwork: String
@@ -434,6 +585,7 @@ struct Strings {
     let fanControlModeAutomatic: String
     let fanControlModeManual: String
     let betaBadge: String
+    let betaFeatureWarning: String
 
     // MARK: Panel — network
     let networkSection: String
@@ -453,6 +605,9 @@ struct Strings {
     let powerUnavailable: String
     let powerAdapterMaxFormat: String   // + rated watts, e.g. "30 W max"
     let monitorShowGPU: String
+    let monitorShowCPUTemperature: String
+    let monitorShowGPUTemperature: String
+    let monitorShowBatteryTemperature: String
     let monitorGraphsSection: String
     let monitorGraphsCaption: String
 
@@ -462,10 +617,14 @@ struct Strings {
     let obStepMenuBarTitle: String
     let obStepMenuBarBody: String
     let obStepMenuBarNote: String
+    let monitorMenuBarPresetLabel: String
+    let menuBarPresetReadable: String
+    let menuBarPresetDense: String
     let monitorLabelStyleLabel: String
     let menuBarLabelStyleCompact: String
     let menuBarLabelStyleClassic: String
     let monitorMemoryStyleLabel: String
+    let monitorMemoryPressureDot: String
     let memoryStyleDot: String
     let memoryStylePercent: String
     let memoryStyleBoth: String
@@ -521,6 +680,15 @@ struct Strings {
     let donateThanks: String
     let showMenuBarIcon: String
     let showMenuBarIconCaption: String
+
+    // MARK: Configurable shortcuts
+    let shortcutRecording: String
+    let shortcutReset: String
+    let shortcutInvalid: String
+    let shortcutConflictFormat: String
+    let shortcutUnavailable: String
+    let shelfShortcutToggle: String
+    let switcherUsageHintFormat: String
 }
 
 // MARK: - Português (Brasil)
@@ -564,7 +732,7 @@ extension Strings {
         panelNormalSleep: "Suspensão normal",
         panelSettings: "Ajustes",
         panelQuit: "Sair",
-        panelHotkeyHint: "⌃⌥⌘K alterna",
+        panelHotkeyHint: "Atalho alterna",
 
         keepAwakeTitle: "Manter acordado",
         keepAwakeEndsIn: "Termina em",
@@ -609,6 +777,12 @@ extension Strings {
         tabAdvanced: "Avançado",
         tabAbout: "Sobre",
         tabReleaseNotes: "Novidades",
+        releaseNotesOnUpdateToggle: "Mostrar novidades ao atualizar",
+        whatsNewDontShowAgain: "Não mostrar novamente",
+        previewSizeLabel: "Tamanho dos previews",
+        previewSizeNormal: "Normal",
+        previewSizeLarge: "Grande",
+        previewSizeXLarge: "Extra grande",
         settingsGroupFeatures: "Recursos",
         advancedResetSection: "Permissões",
         advancedResetDescription: "Remove todas as permissões que você concedeu ao Vorssaint (Acessibilidade, Gravação de Tela, Acesso Total ao Disco e outras), o item de início e a regra de tampa fechada. Útil para começar do zero ou antes de desinstalar. O app continua instalado.",
@@ -627,7 +801,7 @@ extension Strings {
         menuBarSection: "Barra de menus",
         showCountdown: "Mostrar tempo restante ao lado do ícone",
         globalHotkeySection: "Atalho global",
-        hotkeyToggle: "Alternar “Manter acordado” com ⌃⌥⌘K",
+        hotkeyToggle: "Ativar atalho para “Manter acordado”",
         hotkeyCaption: "Funciona em qualquer app, sem permissões extras.",
 
         sessionSection: "Sessão",
@@ -638,7 +812,7 @@ extension Strings {
         batteryProtectionCaption: "Evita que uma sessão esquecida drene a bateria do MacBook.",
         clamshellSection: "Tampa fechada",
         configuring: "Configurando…",
-        sudoersFailed: "Não foi possível concluir. Verifique a senha e tente de novo.",
+        sudoersFailed: "Não foi possível ativar. Desligue e ligue de novo para tentar.",
         clamshellExplanation: "“Continuar com a tampa fechada” desativa completamente a suspensão enquanto “Manter acordado” estiver ativo e é revertido automaticamente quando a sessão termina ou o app é encerrado. Prefira usá-lo conectado à energia.",
 
         scrollSection: "Rolagem",
@@ -648,12 +822,25 @@ extension Strings {
         scrollActiveNow: "Invertendo a rolagem do mouse agora",
 
         switcherSection: "Alternador de apps",
-        switcherEnable: "Substituir o ⌘Tab pelo alternador do Vorssaint",
+        switcherEnable: "Usar o alternador do Vorssaint",
         switcherEnableCaption: "Troque de janela vendo miniaturas reais, inclusive entre várias janelas do mesmo app.",
-        switcherUsageHint: "Segure ⌘ e toque Tab para navegar; solte para ativar a janela. Shift ou ← volta; Q fecha o app selecionado; Esc cancela.",
+        switcherUsageHint: "Segure o atalho para navegar; solte para ativar a janela. Shift ou ← volta; Q fecha o app selecionado; Esc cancela.",
         switcherNoWindows: "Nenhuma janela aberta",
         switcherMergeTabs: "Mostrar uma entrada por app",
         switcherMergeTabsCaption: "Junta todas as janelas de um app em uma só entrada no alternador, em vez de uma por janela.",
+        dockPreviewName: "Dock Preview",
+        dockPreviewEnable: "Pré-visualizar janelas no Dock",
+        dockPreviewEnableCaption: "Passe o mouse em um app aberto no Dock para ver e espiar suas janelas.",
+        dockPreviewActiveNow: "Ativo no Dock",
+        dockPreviewMagnificationBlocked: "Desative a ampliação do Dock para usar.",
+        dockPreviewDockUnavailable: "Não foi possível ler os itens do Dock.",
+        dockPreviewAutohideBeta: "Beta. Você pode encontrar alguns bugs.",
+        dockPreviewCloseWindow: "Fechar janela",
+        dockPreviewIntroPeek: "Passe o mouse em uma miniatura para espiar. Clique para abrir a janela.",
+        dockPreviewIntroSettingsHint: "Você pode mudar isso depois em Ajustes › Switcher.",
+        dockPreviewIntroLater: "Agora não",
+        dockPreviewIntroEnable: "Ativar Dock Preview",
+        dockPreviewIntroMagnificationAction: "Desative a ampliação do Dock para ativar.",
 
         cutPasteName: "Recortar e colar",
         cutPasteEnable: "Recortar e colar arquivos no Finder",
@@ -666,6 +853,7 @@ extension Strings {
         cutPasteAutomationNote: "Na primeira vez, o macOS pede permissão para controlar o Finder.",
         cutReadyTitle: "Recortado",
         cutReadyHint: "na pasta de destino para mover",
+        cutCancel: "Cancelar recorte",
         cutDoneTitle: "Movido!",
         cutMovedSingular: "1 item movido",
         cutMovedPluralFormat: "%d itens movidos",
@@ -737,11 +925,123 @@ extension Strings {
         urlCleanerCopied: "Copiado.",
         urlCleanerLocalNote: "Local. Sem rede.",
 
+        homebrewName: "Homebrew",
+        homebrewEnableCaption: "Pesquise, instale e remova fórmulas e casks.",
+        homebrewMissingTitle: "Homebrew não encontrado",
+        homebrewMissingBody: "O Vorssaint pode abrir o Terminal com o instalador oficial do Homebrew. O Terminal mostra os passos e pede sua senha se precisar.",
+        homebrewInstallHomebrew: "Instalar Homebrew",
+        homebrewInstallHomebrewCaption: "Depois que terminar no Terminal, volte aqui e clique em Atualizar.",
+        homebrewInstallHomebrewOpened: "Instalador aberto no Terminal.",
+        homebrewShellSetupTitle: "Finalizar configuração do Terminal",
+        homebrewShellSetupBody: "O Homebrew está instalado, mas o Terminal ainda pode não encontrar o comando brew. O Vorssaint pode abrir o Terminal com o comando de configuração.",
+        homebrewShellSetupButton: "Configurar Terminal",
+        homebrewShellSetupOpened: "Comando aberto no Terminal. Depois volte aqui e clique em Atualizar.",
+        homebrewRefresh: "Atualizar",
+        homebrewSearchPlaceholder: "Pesquisar pacotes",
+        homebrewKeyboardHint: "Espaço ou Enter fecham o painel do macOS. Use o botão de busca.",
+        homebrewSearchButton: "Pesquisar",
+        homebrewSearchResults: "Resultados",
+        homebrewInstalled: "Instalados",
+        homebrewAll: "Todos",
+        homebrewFormulas: "Fórmulas",
+        homebrewCasks: "Casks",
+        homebrewNoPackages: "Nenhum pacote encontrado",
+        homebrewNoSelection: "Selecione um pacote instalado ou pesquise um novo.",
+        homebrewDetailsTitle: "Detalhes do pacote",
+        homebrewInstall: "Instalar",
+        homebrewUninstall: "Desinstalar",
+        homebrewOpenTerminal: "Abrir Terminal",
+        homebrewCancelOperation: "Cancelar",
+        homebrewClearLog: "Limpar log",
+        homebrewLogTitle: "Log",
+        homebrewVersion: "Versão",
+        homebrewDescription: "Tipo",
+        homebrewHomepage: "Abrir site",
+        homebrewPopularity: "Popularidade",
+        homebrewPopularityFormat: "%@ instalações em %@ dias",
+        homebrewInstalledBadge: "Instalado",
+        homebrewNotInstalledBadge: "Não instalado",
+        homebrewConfirmInstallTitle: "Instalar pelo Homebrew?",
+        homebrewConfirmInstallBodyFormat: "O Homebrew vai baixar e instalar %@. Dependências também podem ser instaladas.",
+        homebrewConfirmUninstallTitle: "Desinstalar pelo Homebrew?",
+        homebrewConfirmUninstallBodyFormat: "O Homebrew vai desinstalar %@. Arquivos de configuração podem permanecer no sistema.",
+        homebrewTerminalFallback: "Esta operação precisa do Terminal para pedir a senha de administrador. O Vorssaint não captura senhas.",
+        homebrewLoading: "Carregando…",
+        homebrewSearchEmpty: "Nenhum resultado",
+        homebrewOperationInstallFormat: "Instalando %@",
+        homebrewOperationUninstallFormat: "Desinstalando %@",
+        homebrewOperationInstalledFormat: "%@ instalado.",
+        homebrewOperationUninstalledFormat: "%@ desinstalado.",
+        homebrewOperationFailedFormat: "Não foi possível concluir %@.",
+        homebrewOperationCancelled: "Operação cancelada.",
+        homebrewOperationPreparing: "Preparando...",
+        homebrewOperationDownloading: "Baixando arquivos...",
+        homebrewOperationInstalling: "Instalando arquivos...",
+        homebrewOperationUninstalling: "Removendo arquivos...",
+        homebrewOperationFinalizing: "Finalizando...",
+        homebrewOperationRefreshing: "Atualizando lista...",
+        homebrewOperationTerminal: "Continue no Terminal.",
+        homebrewOperationElapsedFormat: "%@ decorridos",
+        homebrewOperationShowDetails: "Mostrar detalhes",
+        homebrewOperationHideDetails: "Ocultar detalhes",
+        homebrewOperationTechnicalLog: "Detalhes técnicos",
+        homebrewOperationProgressUnknown: "O Homebrew ainda não informou uma porcentagem.",
+
+        mediaName: "Media",
+        mediaEnableCaption: "Comprima vídeos e imagens, crie GIFs e extraia texto localmente.",
+        mediaLocalNote: "Local. Sem rede.",
+        mediaToolVideo: "Vídeo",
+        mediaToolGIF: "GIF",
+        mediaToolImage: "Imagem",
+        mediaToolText: "Texto",
+        mediaSelectFile: "Escolher arquivo",
+        mediaDropHint: "Arraste um arquivo aqui ou clique para escolher.",
+        mediaOutput: "Saída",
+        mediaOutputAutomatic: "Automática",
+        mediaChooseOutput: "Destino",
+        mediaStartVideo: "Comprimir vídeo",
+        mediaStartGIF: "Criar GIF",
+        mediaStartImage: "Comprimir imagem",
+        mediaStartText: "Extrair texto",
+        mediaCancel: "Cancelar",
+        mediaStartTime: "Início",
+        mediaEndTime: "Fim",
+        mediaQuality: "Compressão",
+        mediaCompressionLow: "Baixa",
+        mediaCompressionMedium: "Média",
+        mediaCompressionHigh: "Alta",
+        mediaMaxSize: "Tamanho",
+        mediaWidth: "Largura",
+        mediaFPS: "FPS",
+        mediaKeepAudio: "Manter áudio",
+        mediaCodec: "Codec",
+        mediaFormat: "Formato",
+        mediaStripMetadata: "Remover metadados",
+        mediaLoopGIF: "Repetir GIF",
+        mediaOCRMode: "OCR",
+        mediaOCRAccurate: "Preciso",
+        mediaOCRFast: "Rápido",
+        mediaLanguageCorrection: "Correção de idioma",
+        mediaTextOutputNote: "O texto extraído pode ser copiado e salvo em TXT.",
+        mediaRunning: "Processando",
+        mediaCompleted: "Concluído",
+        mediaCancelled: "Cancelado.",
+        mediaOpenInFinder: "Mostrar",
+        mediaCopyText: "Copiar texto",
+        mediaRunAgain: "Rodar de novo",
+        mediaEmptyText: "Nenhum texto encontrado.",
+        mediaResultSavedFormat: "Salvo como %@",
+        mediaResultSizeFormat: "%@ para %@",
+        mediaErrorNoFile: "Escolha um arquivo primeiro.",
+        mediaErrorNoVideo: "Este arquivo não tem trilha de vídeo.",
+        mediaErrorSameOutput: "Escolha um destino diferente do arquivo original.",
+        mediaErrorUnsupported: "Formato não suportado pelo macOS.",
+
         shelfName: "Área temporária",
         shelfEnable: "Área temporária para arrastar arquivos",
         shelfEnableCaption: "Um espaço flutuante para juntar arquivos, imagens e textos e arrastá-los depois para qualquer app.",
         shelfHowTitle: "Como usar",
-        shelfStep1: "Abra a área com ⌃⌥⌘D ou sacudindo o mouse durante um arraste.",
+        shelfStep1: "Abra a área com o atalho ou sacudindo o mouse durante um arraste.",
         shelfStep2: "Solte arquivos, imagens, links ou texto sobre ela para guardá-los.",
         shelfStep3: "Arraste cada item de volta para qualquer app quando precisar.",
         shelfShakeToggle: "Abrir sacudindo o mouse durante o arraste",
@@ -765,6 +1065,21 @@ extension Strings {
         mixerUnavailable: "Disponível a partir do macOS 14.4",
         mixerPermissionBody: "Para ajustar o volume por app, permita “Gravação de Tela e Áudio do Sistema” nos Ajustes do Sistema. O áudio nunca é gravado.",
         mixerResetTooltip: "Voltar para 100%",
+        mixerOutputDefault: "Padrão",
+        mixerOutputCurrent: "atual",
+        mixerOutputUnavailable: "Saída indisponível",
+        mixerOutputFallback: "Usando o padrão até esse dispositivo voltar.",
+        mixerOutputTooltip: "Escolher saída",
+        mixerSystemOutputTitle: "Saída",
+        mixerSystemOutputNoDevices: "Nenhuma saída encontrada",
+        mixerSystemOutputTooltip: "Escolher saída do sistema",
+        mixerSystemOutputErrorFormat: "Não foi possível trocar: %@",
+        mixerInputTitle: "Microfone",
+        mixerInputNoDevices: "Nenhum microfone encontrado",
+        mixerInputUnavailable: "Microfone indisponível",
+        mixerInputFallback: "Usando o padrão até esse microfone voltar.",
+        mixerInputTooltip: "Escolher microfone",
+        mixerInputErrorFormat: "Não foi possível trocar: %@",
 
         updatesSection: "Atualizações",
         autoCheckToggle: "Procurar atualizações automaticamente",
@@ -832,6 +1147,8 @@ extension Strings {
         tabMonitor: "Monitor",
         monitorMenuBarSection: "Na barra de menus",
         monitorMenuBarCaption: "Escolha o que aparece ao lado do ícone na barra de menus.",
+        monitorCombineTemperatures: "Combinar uso e temperatura",
+        monitorCombineTemperaturesCaption: "Quando uso e temperatura do mesmo item estiverem ativos, mostra tudo em um bloco só.",
         monitorShowCPU: "CPU",
         monitorShowMemory: "Memória",
         monitorShowNetwork: "Rede",
@@ -853,6 +1170,7 @@ extension Strings {
         fanControlModeAutomatic: "Automático",
         fanControlModeManual: "Manual",
         betaBadge: "BETA",
+        betaFeatureWarning: "Beta. Você pode encontrar alguns bugs.",
 
         networkSection: "Rede",
         networkDownload: "Download",
@@ -870,6 +1188,9 @@ extension Strings {
         powerUnavailable: "Métricas de energia indisponíveis neste Mac",
         powerAdapterMaxFormat: "%@ máx.",
         monitorShowGPU: "GPU",
+        monitorShowCPUTemperature: "Temperatura da CPU",
+        monitorShowGPUTemperature: "Temperatura da GPU",
+        monitorShowBatteryTemperature: "Temperatura da bateria",
         monitorGraphsSection: "Gráficos",
         monitorGraphsCaption: "Escolha quais métricas mostram um gráfico ao longo do tempo.",
 
@@ -878,10 +1199,14 @@ extension Strings {
         obStepMenuBarTitle: "Métricas na barra de menus",
         obStepMenuBarBody: "Escolha o que mostrar ao lado do ícone. A prévia acima muda em tempo real.",
         obStepMenuBarNote: "Novidade: blocos de Rede e Energia e gráficos no painel. Ajuste tudo depois em Ajustes › Monitor.",
+        monitorMenuBarPresetLabel: "Estilo",
+        menuBarPresetReadable: "Legível",
+        menuBarPresetDense: "Denso",
         monitorLabelStyleLabel: "Rótulos",
         menuBarLabelStyleCompact: "Compactos",
         menuBarLabelStyleClassic: "Clássicos",
         monitorMemoryStyleLabel: "Mostrar memória como",
+        monitorMemoryPressureDot: "Ponto de pressão",
         memoryStyleDot: "Ponto",
         memoryStylePercent: "%",
         memoryStyleBoth: "Ambos",
@@ -905,7 +1230,7 @@ extension Strings {
         monitorItemNetTest: "Teste de velocidade",
         monitorPanelConfigHint: "Abra um bloco para escolher o que ele mostra.",
         monitorOrderSection: "Ordem das seções",
-        monitorOrderHint: "Arraste para reordenar as seções do painel. Use o chevron de cada seção no painel para recolher.",
+        monitorOrderHint: "Arraste para reordenar as seções do painel e use o olho para mostrar ou ocultar cada uma.",
         obStepPanelTitle: "O que aparece no painel",
         obStepPanelBody: "Abra cada bloco e escolha exatamente o que mostrar quando você clica no ícone.",
         obStepPanelNavigationTitle: "Painel por seções",
@@ -932,7 +1257,14 @@ extension Strings {
         donateButton: "Buy me a coffee",
         donateThanks: "Obrigado por estar aqui. 🖤",
         showMenuBarIcon: "Mostrar ícone na barra de menus",
-        showMenuBarIconCaption: "Se o ícone do Vorssaint sumir (o macOS pode esconder ícones quando a barra de menus fica sem espaço, comum em Macs com notch), reabra o Vorssaint pela pasta Aplicativos ou pelo Spotlight: isso recria o ícone e, se ele ainda estiver escondido, abre esta janela. O botão acima faz o mesmo quando você já consegue chegar aqui. Manter menos ícones na barra, ou menos métricas no Vorssaint, reduz bastante a chance."
+        showMenuBarIconCaption: "Se o ícone do Vorssaint sumir (o macOS pode esconder ícones quando a barra de menus fica sem espaço, comum em Macs com notch), reabra o Vorssaint pela pasta Aplicativos ou pelo Spotlight: isso recria o ícone e, se ele ainda estiver escondido, abre esta janela. O botão acima faz o mesmo quando você já consegue chegar aqui. Manter menos ícones na barra, ou menos métricas no Vorssaint, reduz bastante a chance.",
+        shortcutRecording: "Pressione o novo atalho",
+        shortcutReset: "Redefinir",
+        shortcutInvalid: "Use pelo menos Control, Option ou Command junto com uma tecla.",
+        shortcutConflictFormat: "Este atalho já está em uso por %@.",
+        shortcutUnavailable: "O macOS recusou este atalho. Escolha outro.",
+        shelfShortcutToggle: "Atalho da área temporária",
+        switcherUsageHintFormat: "Segure %@ para navegar; solte para ativar a janela. Shift ou ← volta; Q fecha o app selecionado; Esc cancela."
     )
 }
 
@@ -977,7 +1309,7 @@ extension Strings {
         panelNormalSleep: "Normal sleep",
         panelSettings: "Settings",
         panelQuit: "Quit",
-        panelHotkeyHint: "⌃⌥⌘K toggles",
+        panelHotkeyHint: "Shortcut toggles",
 
         keepAwakeTitle: "Keep awake",
         keepAwakeEndsIn: "Ends in",
@@ -1022,6 +1354,12 @@ extension Strings {
         tabAdvanced: "Advanced",
         tabAbout: "About",
         tabReleaseNotes: "What's New",
+        releaseNotesOnUpdateToggle: "Show what's new after updating",
+        whatsNewDontShowAgain: "Don't show again",
+        previewSizeLabel: "Preview size",
+        previewSizeNormal: "Normal",
+        previewSizeLarge: "Large",
+        previewSizeXLarge: "Extra large",
         settingsGroupFeatures: "Features",
         advancedResetSection: "Permissions",
         advancedResetDescription: "Removes every permission you granted Vorssaint (Accessibility, Screen Recording, Full Disk Access and others), the login item and the closed-lid rule. Useful to start fresh or before uninstalling. The app stays installed.",
@@ -1040,7 +1378,7 @@ extension Strings {
         menuBarSection: "Menu bar",
         showCountdown: "Show remaining time next to the icon",
         globalHotkeySection: "Global shortcut",
-        hotkeyToggle: "Toggle “Keep awake” with ⌃⌥⌘K",
+        hotkeyToggle: "Enable shortcut for “Keep awake”",
         hotkeyCaption: "Works in any app, no extra permissions.",
 
         sessionSection: "Session",
@@ -1051,7 +1389,7 @@ extension Strings {
         batteryProtectionCaption: "Keeps a forgotten session from draining the MacBook battery.",
         clamshellSection: "Closed lid",
         configuring: "Configuring…",
-        sudoersFailed: "Could not finish. Check the password and try again.",
+        sudoersFailed: "Couldn't turn it on. Switch it off and on again to retry.",
         clamshellExplanation: "“Keep going with the lid closed” fully disables sleep while “Keep awake” is active and is reverted automatically when the session ends or the app quits. Prefer using it plugged in.",
 
         scrollSection: "Scrolling",
@@ -1061,12 +1399,25 @@ extension Strings {
         scrollActiveNow: "Inverting mouse scrolling right now",
 
         switcherSection: "App switcher",
-        switcherEnable: "Replace ⌘Tab with the Vorssaint switcher",
+        switcherEnable: "Use the Vorssaint switcher",
         switcherEnableCaption: "Switch windows with real thumbnails, including between multiple windows of the same app.",
-        switcherUsageHint: "Hold ⌘ and tap Tab to navigate; release to activate the window. Shift or ← goes back; Q quits the selected app; Esc cancels.",
+        switcherUsageHint: "Hold the shortcut to navigate; release to activate the window. Shift or ← goes back; Q quits the selected app; Esc cancels.",
         switcherNoWindows: "No open windows",
         switcherMergeTabs: "Show one entry per app",
         switcherMergeTabsCaption: "Collapses all of an app's windows into one entry in the switcher, instead of one entry per window.",
+        dockPreviewName: "Dock Preview",
+        dockPreviewEnable: "Preview windows from the Dock",
+        dockPreviewEnableCaption: "Hover over an open app in the Dock to preview and peek at its windows.",
+        dockPreviewActiveNow: "Active in the Dock",
+        dockPreviewMagnificationBlocked: "Turn off Dock magnification to use this.",
+        dockPreviewDockUnavailable: "Could not read Dock items.",
+        dockPreviewAutohideBeta: "Beta. You may run into some bugs.",
+        dockPreviewCloseWindow: "Close window",
+        dockPreviewIntroPeek: "Hover over a thumbnail to peek. Click to open the window.",
+        dockPreviewIntroSettingsHint: "You can change this later in Settings › Switcher.",
+        dockPreviewIntroLater: "Not now",
+        dockPreviewIntroEnable: "Enable Dock Preview",
+        dockPreviewIntroMagnificationAction: "Turn off Dock magnification to enable.",
 
         cutPasteName: "Cut & paste",
         cutPasteEnable: "Cut & paste files in Finder",
@@ -1079,6 +1430,7 @@ extension Strings {
         cutPasteAutomationNote: "The first time, macOS asks for permission to control Finder.",
         cutReadyTitle: "Cut",
         cutReadyHint: "in the destination folder to move",
+        cutCancel: "Cancel cut",
         cutDoneTitle: "Moved!",
         cutMovedSingular: "1 item moved",
         cutMovedPluralFormat: "%d items moved",
@@ -1150,11 +1502,123 @@ extension Strings {
         urlCleanerCopied: "Copied.",
         urlCleanerLocalNote: "Local. No network.",
 
+        homebrewName: "Homebrew",
+        homebrewEnableCaption: "Search, install and remove formulae and casks.",
+        homebrewMissingTitle: "Homebrew not found",
+        homebrewMissingBody: "Vorssaint can open Terminal with the official Homebrew installer. Terminal shows the steps and asks for your password if needed.",
+        homebrewInstallHomebrew: "Install Homebrew",
+        homebrewInstallHomebrewCaption: "When Terminal finishes, come back here and click Refresh.",
+        homebrewInstallHomebrewOpened: "Installer opened in Terminal.",
+        homebrewShellSetupTitle: "Finish Terminal setup",
+        homebrewShellSetupBody: "Homebrew is installed, but Terminal may not find the brew command yet. Vorssaint can open Terminal with the setup command.",
+        homebrewShellSetupButton: "Set up Terminal",
+        homebrewShellSetupOpened: "Command opened in Terminal. Then come back here and click Refresh.",
+        homebrewRefresh: "Refresh",
+        homebrewSearchPlaceholder: "Search packages",
+        homebrewKeyboardHint: "Space or Return closes the macOS panel. Use the search button.",
+        homebrewSearchButton: "Search",
+        homebrewSearchResults: "Results",
+        homebrewInstalled: "Installed",
+        homebrewAll: "All",
+        homebrewFormulas: "Formulae",
+        homebrewCasks: "Casks",
+        homebrewNoPackages: "No packages found",
+        homebrewNoSelection: "Select an installed package or search for a new one.",
+        homebrewDetailsTitle: "Package details",
+        homebrewInstall: "Install",
+        homebrewUninstall: "Uninstall",
+        homebrewOpenTerminal: "Open Terminal",
+        homebrewCancelOperation: "Cancel",
+        homebrewClearLog: "Clear log",
+        homebrewLogTitle: "Log",
+        homebrewVersion: "Version",
+        homebrewDescription: "Type",
+        homebrewHomepage: "Open website",
+        homebrewPopularity: "Popularity",
+        homebrewPopularityFormat: "%@ installs in %@ days",
+        homebrewInstalledBadge: "Installed",
+        homebrewNotInstalledBadge: "Not installed",
+        homebrewConfirmInstallTitle: "Install with Homebrew?",
+        homebrewConfirmInstallBodyFormat: "Homebrew will download and install %@. Dependencies may also be installed.",
+        homebrewConfirmUninstallTitle: "Uninstall with Homebrew?",
+        homebrewConfirmUninstallBodyFormat: "Homebrew will uninstall %@. Configuration files may remain on the system.",
+        homebrewTerminalFallback: "This operation needs Terminal to ask for the administrator password. Vorssaint does not capture passwords.",
+        homebrewLoading: "Loading…",
+        homebrewSearchEmpty: "No results",
+        homebrewOperationInstallFormat: "Installing %@",
+        homebrewOperationUninstallFormat: "Uninstalling %@",
+        homebrewOperationInstalledFormat: "%@ installed.",
+        homebrewOperationUninstalledFormat: "%@ uninstalled.",
+        homebrewOperationFailedFormat: "Could not finish %@.",
+        homebrewOperationCancelled: "Operation cancelled.",
+        homebrewOperationPreparing: "Preparing...",
+        homebrewOperationDownloading: "Downloading files...",
+        homebrewOperationInstalling: "Installing files...",
+        homebrewOperationUninstalling: "Removing files...",
+        homebrewOperationFinalizing: "Finishing...",
+        homebrewOperationRefreshing: "Refreshing list...",
+        homebrewOperationTerminal: "Continue in Terminal.",
+        homebrewOperationElapsedFormat: "%@ elapsed",
+        homebrewOperationShowDetails: "Show details",
+        homebrewOperationHideDetails: "Hide details",
+        homebrewOperationTechnicalLog: "Technical details",
+        homebrewOperationProgressUnknown: "Homebrew has not reported a percentage yet.",
+
+        mediaName: "Media",
+        mediaEnableCaption: "Compress videos and images, make GIFs and extract text locally.",
+        mediaLocalNote: "Local. No network.",
+        mediaToolVideo: "Video",
+        mediaToolGIF: "GIF",
+        mediaToolImage: "Image",
+        mediaToolText: "Text",
+        mediaSelectFile: "Choose file",
+        mediaDropHint: "Drop a file here or click to choose one.",
+        mediaOutput: "Output",
+        mediaOutputAutomatic: "Automatic",
+        mediaChooseOutput: "Destination",
+        mediaStartVideo: "Compress video",
+        mediaStartGIF: "Make GIF",
+        mediaStartImage: "Compress image",
+        mediaStartText: "Extract text",
+        mediaCancel: "Cancel",
+        mediaStartTime: "Start",
+        mediaEndTime: "End",
+        mediaQuality: "Compression",
+        mediaCompressionLow: "Low",
+        mediaCompressionMedium: "Medium",
+        mediaCompressionHigh: "High",
+        mediaMaxSize: "Size",
+        mediaWidth: "Width",
+        mediaFPS: "FPS",
+        mediaKeepAudio: "Keep audio",
+        mediaCodec: "Codec",
+        mediaFormat: "Format",
+        mediaStripMetadata: "Remove metadata",
+        mediaLoopGIF: "Loop GIF",
+        mediaOCRMode: "OCR",
+        mediaOCRAccurate: "Accurate",
+        mediaOCRFast: "Fast",
+        mediaLanguageCorrection: "Language correction",
+        mediaTextOutputNote: "Extracted text can be copied and saved as TXT.",
+        mediaRunning: "Processing",
+        mediaCompleted: "Done",
+        mediaCancelled: "Cancelled.",
+        mediaOpenInFinder: "Show",
+        mediaCopyText: "Copy text",
+        mediaRunAgain: "Run again",
+        mediaEmptyText: "No text found.",
+        mediaResultSavedFormat: "Saved as %@",
+        mediaResultSizeFormat: "%@ to %@",
+        mediaErrorNoFile: "Choose a file first.",
+        mediaErrorNoVideo: "This file has no video track.",
+        mediaErrorSameOutput: "Choose a destination different from the original file.",
+        mediaErrorUnsupported: "Format not supported by macOS.",
+
         shelfName: "Shelf",
         shelfEnable: "Temporary area for dragging files",
         shelfEnableCaption: "A floating spot to gather files, images and text, then drag them anywhere later.",
         shelfHowTitle: "How to use",
-        shelfStep1: "Open it with ⌃⌥⌘D, or by shaking the mouse during a drag.",
+        shelfStep1: "Open it with the shortcut, or by shaking the mouse during a drag.",
         shelfStep2: "Drop files, images, links or text onto it to hold them.",
         shelfStep3: "Drag each item back out to any app when you need it.",
         shelfShakeToggle: "Open by shaking the mouse while dragging",
@@ -1178,6 +1642,21 @@ extension Strings {
         mixerUnavailable: "Available on macOS 14.4 and later",
         mixerPermissionBody: "To adjust per-app volume, allow “Screen & System Audio Recording” in System Settings. Audio is never recorded.",
         mixerResetTooltip: "Reset to 100%",
+        mixerOutputDefault: "Default",
+        mixerOutputCurrent: "current",
+        mixerOutputUnavailable: "Output unavailable",
+        mixerOutputFallback: "Using default until this device returns.",
+        mixerOutputTooltip: "Choose output",
+        mixerSystemOutputTitle: "Output",
+        mixerSystemOutputNoDevices: "No outputs found",
+        mixerSystemOutputTooltip: "Choose system output",
+        mixerSystemOutputErrorFormat: "Could not switch: %@",
+        mixerInputTitle: "Microphone",
+        mixerInputNoDevices: "No microphones found",
+        mixerInputUnavailable: "Microphone unavailable",
+        mixerInputFallback: "Using default until this microphone returns.",
+        mixerInputTooltip: "Choose microphone",
+        mixerInputErrorFormat: "Could not switch: %@",
 
         updatesSection: "Updates",
         autoCheckToggle: "Check for updates automatically",
@@ -1245,6 +1724,8 @@ extension Strings {
         tabMonitor: "Monitor",
         monitorMenuBarSection: "In the menu bar",
         monitorMenuBarCaption: "Choose what appears next to the icon in the menu bar.",
+        monitorCombineTemperatures: "Combine usage and temperature",
+        monitorCombineTemperaturesCaption: "When usage and temperature for the same item are enabled, show them in one block.",
         monitorShowCPU: "CPU",
         monitorShowMemory: "Memory",
         monitorShowNetwork: "Network",
@@ -1266,6 +1747,7 @@ extension Strings {
         fanControlModeAutomatic: "Automatic",
         fanControlModeManual: "Manual",
         betaBadge: "BETA",
+        betaFeatureWarning: "Beta. You may run into some bugs.",
 
         networkSection: "Network",
         networkDownload: "Download",
@@ -1283,6 +1765,9 @@ extension Strings {
         powerUnavailable: "Power metrics unavailable on this Mac",
         powerAdapterMaxFormat: "%@ max",
         monitorShowGPU: "GPU",
+        monitorShowCPUTemperature: "CPU temperature",
+        monitorShowGPUTemperature: "GPU temperature",
+        monitorShowBatteryTemperature: "Battery temperature",
         monitorGraphsSection: "Graphs",
         monitorGraphsCaption: "Choose which metrics show a graph over time.",
 
@@ -1291,10 +1776,14 @@ extension Strings {
         obStepMenuBarTitle: "Metrics in the menu bar",
         obStepMenuBarBody: "Pick what to show next to the icon. The preview above updates live.",
         obStepMenuBarNote: "New: Network and Power blocks and graphs in the panel. Fine-tune it all later in Settings › Monitor.",
+        monitorMenuBarPresetLabel: "Style",
+        menuBarPresetReadable: "Readable",
+        menuBarPresetDense: "Dense",
         monitorLabelStyleLabel: "Labels",
         menuBarLabelStyleCompact: "Compact",
         menuBarLabelStyleClassic: "Classic",
         monitorMemoryStyleLabel: "Show memory as",
+        monitorMemoryPressureDot: "Pressure dot",
         memoryStyleDot: "Dot",
         memoryStylePercent: "%",
         memoryStyleBoth: "Both",
@@ -1318,7 +1807,7 @@ extension Strings {
         monitorItemNetTest: "Speed test",
         monitorPanelConfigHint: "Open a block to choose what it shows.",
         monitorOrderSection: "Section order",
-        monitorOrderHint: "Drag to reorder the panel sections. Use each section's chevron in the panel to collapse it.",
+        monitorOrderHint: "Drag to reorder the panel sections and use the eye to show or hide each one.",
         obStepPanelTitle: "What's in the panel",
         obStepPanelBody: "Open each block and pick exactly what shows when you click the icon.",
         obStepPanelNavigationTitle: "Section-based panel",
@@ -1345,6 +1834,13 @@ extension Strings {
         donateButton: "Buy me a coffee",
         donateThanks: "Thank you for being here. 🖤",
         showMenuBarIcon: "Show menu bar icon",
-        showMenuBarIconCaption: "If Vorssaint's icon disappears (macOS can hide menu bar icons when the bar runs out of room, common on Macs with a notch), reopen Vorssaint from Applications or Spotlight: that rebuilds the icon and, if it's still hidden, opens this window. The button above does the same when you can already get here. Keeping fewer menu bar icons, or fewer Vorssaint metrics, makes it far less likely."
+        showMenuBarIconCaption: "If Vorssaint's icon disappears (macOS can hide menu bar icons when the bar runs out of room, common on Macs with a notch), reopen Vorssaint from Applications or Spotlight: that rebuilds the icon and, if it's still hidden, opens this window. The button above does the same when you can already get here. Keeping fewer menu bar icons, or fewer Vorssaint metrics, makes it far less likely.",
+        shortcutRecording: "Press the new shortcut",
+        shortcutReset: "Reset",
+        shortcutInvalid: "Use at least Control, Option or Command with a key.",
+        shortcutConflictFormat: "This shortcut is already used by %@.",
+        shortcutUnavailable: "macOS rejected this shortcut. Choose another one.",
+        shelfShortcutToggle: "Shelf shortcut",
+        switcherUsageHintFormat: "Hold %@ to navigate; release to activate the window. Shift or ← goes back; Q quits the selected app; Esc cancels."
     )
 }

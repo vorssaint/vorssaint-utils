@@ -178,7 +178,7 @@ struct ShelfShowcaseStep: View {
             benefit: l10n.s.shelfEnableCaption,
             enableLabel: l10n.s.shelfEnable,
             enabled: $enabled,
-            howTo: [HowToRow(keys: ["⌃", "⌥", "⌘", "D"], text: l10n.s.shelfStep1),
+            howTo: [HowToRow(keys: GlobalShortcut.shelfDefault.keyCaps, text: l10n.s.shelfStep1),
                     HowToRow(keys: nil, text: l10n.s.shelfStep2),
                     HowToRow(keys: nil, text: l10n.s.shelfStep3)],
             onToggle: { ShelfService.shared.syncWithPreferences() },

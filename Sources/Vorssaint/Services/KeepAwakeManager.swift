@@ -46,6 +46,11 @@ final class KeepAwakeManager: ObservableObject {
     private var hasDisplayAssertion = false
     private var endTimer: Timer?
     private var batteryTimer: Timer?
+    /// Guards the closed-lid setup against an infinite retry loop: if `pmset
+    /// disablesleep` keeps failing while the sudoers rule still checks out as
+    /// installed, re-preparing would bounce here forever (and flicker the
+    /// caption). One automatic re-acquire per user attempt, then we give up.
+    private var clamshellSetupRetried = false
 
     private init() {
         clamshellPreferred = UserDefaults.standard.bool(forKey: DefaultsKey.clamshellPreferred)
@@ -167,6 +172,9 @@ final class KeepAwakeManager: ObservableObject {
     // MARK: - Closed lid (pmset disablesleep)
 
     private func applyClamshellPreference() {
+        // A fresh user-driven attempt (toggle on, or a new session) gets one
+        // automatic setup retry again.
+        clamshellSetupRetried = false
         if passwordlessClamshell {
             if isActive {
                 enableClamshell()
@@ -202,16 +210,23 @@ final class KeepAwakeManager: ObservableObject {
         passwordlessClamshell = ok
 
         guard ok else {
-            if clamshellPreferred {
-                clamshellPreferred = false
-                clamshellSetupFailed = true
-            }
+            markClamshellSetupFailed()
             return
         }
 
         if isActive, clamshellPreferred {
             enableClamshell()
         }
+    }
+
+    /// Turns the preference back off and surfaces the error, ending any retry
+    /// loop. Setting `clamshellPreferred` false runs its `didSet`, which clears
+    /// the in-progress/failed flags, so the failure flag is raised afterwards.
+    private func markClamshellSetupFailed() {
+        clamshellSetupInProgress = false
+        guard clamshellPreferred else { return }
+        clamshellPreferred = false
+        clamshellSetupFailed = true
     }
 
     private func enableClamshell() {
@@ -221,7 +236,15 @@ final class KeepAwakeManager: ObservableObject {
             DispatchQueue.main.async {
                 guard ok else {
                     self.passwordlessClamshell = false
-                    if self.clamshellPreferred {
+                    guard self.clamshellPreferred else { return }
+                    if self.clamshellSetupRetried {
+                        // Already re-acquired the rule once and pmset still won't
+                        // disable sleep: the rule lists as installed but the command
+                        // fails on this Mac. Re-preparing again only loops (and
+                        // flickers the caption), so stop and report the failure.
+                        self.markClamshellSetupFailed()
+                    } else {
+                        self.clamshellSetupRetried = true
                         self.prepareClamshellPreference()
                     }
                     return

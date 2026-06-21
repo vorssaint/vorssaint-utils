@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import CoreServices
 
 enum Shell {
     @discardableResult
@@ -21,7 +22,35 @@ enum Shell {
 
 /// Runs a command with administrator privileges (system password prompt).
 enum AdminShell {
+    // Vorssaint is a menu-bar agent (LSUIElement), so it is rarely the active
+    // app. SecurityAgent attaches its password dialog to the requesting process;
+    // when that process is an inactive agent the dialog can open behind the
+    // frontmost app and read as "no prompt appeared". Bringing the app forward
+    // first — exactly what onboarding and the Dock Preview intro already do for
+    // their own windows — makes the dialog surface in focus.
+    //
+    // `prompting` serializes the request: a second one while a dialog is already
+    // up returns false instead of stacking another SecurityAgent dialog (what a
+    // frustrated retry used to do, and what was linked to the instability in
+    // issue #63). Every caller already treats false as "permission not granted".
+    private static let promptLock = NSLock()
+    private static var prompting = false
+
     static func runSync(_ command: String, prompt: String) -> Bool {
+        promptLock.lock()
+        if prompting {
+            promptLock.unlock()
+            return false
+        }
+        prompting = true
+        promptLock.unlock()
+        defer {
+            promptLock.lock()
+            prompting = false
+            promptLock.unlock()
+        }
+
+        bringAppToFront()
         let source = "do shell script \(appleScriptString(command)) with administrator privileges with prompt \(appleScriptString(prompt))"
         return Shell.run("/usr/bin/osascript", ["-e", source]).status == 0
     }
@@ -29,6 +58,18 @@ enum AdminShell {
     static func run(_ command: String, prompt: String, completion: @escaping (Bool) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
             completion(runSync(command, prompt: prompt))
+        }
+    }
+
+    /// Brings the app forward so the administrator dialog opens in focus. Safe
+    /// from any thread: hops to the main thread when it is not already on it.
+    private static func bringAppToFront() {
+        if Thread.isMainThread {
+            NSApp.activate(ignoringOtherApps: true)
+        } else {
+            DispatchQueue.main.async {
+                NSApp.activate(ignoringOtherApps: true)
+            }
         }
     }
 
@@ -93,5 +134,50 @@ enum Sudoers {
     @discardableResult
     static func pmsetDisableSleep(_ on: Bool) -> Bool {
         Shell.run("/usr/bin/sudo", ["-n", "/usr/bin/pmset", "disablesleep", on ? "1" : "0"]).status == 0
+    }
+}
+
+/// Sends Apple Events to another app IN-PROCESS (via NSAppleScript) instead of
+/// spawning `osascript`. The Automation consent is then attributed to THIS app —
+/// so it stays granted across updates, is re-requested if it was lost, and the
+/// first-run consent prompt is never killed by a watchdog. It is the same
+/// per-target Automation permission the features already required; nothing new is
+/// requested. Call these OFF the main thread, so a slow target never blocks the
+/// UI or the event taps (the calls block their thread until the target replies).
+enum AppleScriptRunner {
+    /// True when this app may script `bundleID`. Undetermined → shows the system
+    /// prompt (attributed to this app); granted → returns at once; denied →
+    /// false without nagging.
+    @discardableResult
+    static func consentToAutomate(bundleID: String) -> Bool {
+        var target = AEAddressDesc()
+        let created = bundleID.withCString { ptr in
+            AECreateDesc(typeApplicationBundleID, ptr, bundleID.utf8.count, &target)
+        }
+        guard created == noErr else { return false }
+        defer { AEDisposeDesc(&target) }
+        return AEDeterminePermissionToAutomateTarget(&target, typeWildCard, typeWildCard, true) == noErr
+    }
+
+    /// Runs the AppleScript in this process. Returns whether it succeeded and the
+    /// result string (or the error message on failure). Sending the event in
+    /// process itself triggers the Automation prompt when consent is undetermined.
+    @discardableResult
+    static func run(_ source: String) -> (ok: Bool, output: String) {
+        guard let script = NSAppleScript(source: source) else { return (false, "") }
+        var error: NSDictionary?
+        let result = script.executeAndReturnError(&error)
+        if let error {
+            return (false, (error[NSAppleScript.errorMessage] as? String) ?? "")
+        }
+        return (true, result.stringValue ?? "")
+    }
+
+    /// Escapes a value for embedding inside an AppleScript double-quoted string.
+    static func literal(_ value: String) -> String {
+        let escaped = value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"\(escaped)\""
     }
 }

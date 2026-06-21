@@ -16,9 +16,10 @@ Um app pequeno na barra de menus que faz o trabalho para o qual você instalaria
 deixando ele lento, ajustar o volume por app, alternar janelas, carregar arquivos
 entre apps, remover sobras e resolver algumas chatices do dia a dia.
 
-**Grátis. Open source. Local.** Sem conta, sem assinatura, sem telemetria.
-Nada sai do seu Mac, exceto uma verificação de atualização que você pode
-desligar. É feito com frameworks nativos do macOS, então fica pequeno e rápido.
+**Grátis. Open source. Local-first.** Sem conta, sem assinatura, sem telemetria
+do Vorssaint. Os recursos principais rodam no seu Mac; rede só entra em recursos
+visíveis como atualização, teste de velocidade e ações do Homebrew que você
+inicia. É feito com frameworks nativos do macOS, então fica pequeno e rápido.
 
 **Instale com o [Homebrew](https://brew.sh):**
 
@@ -117,8 +118,9 @@ Os recursos podem ser ajustados pelos Ajustes ou direto pelo painel.
 ## Por que é feito assim
 
 - **Grátis e open source**, sob GPL-3.0-or-later. Sem níveis pagos.
-- **Local por padrão.** Sem conta, sem login, sem telemetria. A única chamada de
-  rede verifica se há nova versão no GitHub, e dá para desligar.
+- **Local por padrão.** Sem conta, sem login, sem backend do Vorssaint e sem
+  telemetria do Vorssaint. Rede só entra em recursos visíveis: atualização,
+  teste de velocidade e busca, popularidade ou instalação pelo Homebrew.
 - **Nativo e leve.** SwiftUI + AppKit puro, sem dependências externas, um app
   pequeno no lugar de vários.
 - **Opcional por princípio.** Os recursos podem ser ajustados ou desativados,
@@ -172,15 +174,16 @@ cada concessão.
 
 | Permissão | Usada por | Sem ela |
 |---|---|---|
-| **Acessibilidade** | Inversor de rolagem, teclado do alternador, recortar e colar, encerrar ao fechar | Esses recursos ficam desligados |
-| **Gravação de Tela** | Títulos e miniaturas no alternador | Alternador mostra só ícones |
+| **Acessibilidade** | Inversor de rolagem, alternador, Dock Preview, recortar e colar, encerrar ao fechar | Esses recursos ficam desligados |
+| **Gravação de Tela** | Títulos e miniaturas no alternador e no Dock Preview | Pré-visualizações ficam limitadas ou indisponíveis |
+| **Gravação de Áudio do Sistema** | Volume por app e roteamento de saída no mixer | Apps continuam no áudio normal do sistema |
 | **Notificações** | Avisos de fim de sessão e proteção de bateria | Operação silenciosa |
 | **Acesso Total ao Disco** (opcional) | Varredura mais completa do desinstalador | Varre só os locais acessíveis |
 | **Administrador** (uma vez, opcional) | Tampa fechada sem senha | Pede senha a cada uso |
 
-Recortar e colar e o desinstalador também pedem o consentimento de Automação na
-primeira vez que falam com o Finder. A área temporária não precisa de nenhuma
-permissão.
+Recortar e colar, o desinstalador e a abertura do Terminal pelo Homebrew também
+podem pedir Automação na primeira vez que falam com Finder ou Terminal. A área
+temporária não precisa de nenhuma permissão.
 
 A primeira abertura traz um onboarding curto e guiado (idioma, permissões e uma
 página opcional por recurso). Reveja quando quiser em **Ajustes › Sobre**.
@@ -190,8 +193,8 @@ página opcional por recurso). Reveja quando quiser em **Ajustes › Sobre**.
 ```sh
 ./Tools/uninstall.sh   # de um clone, ou baixe do repositório
 ```
-Encerra o app, remove o item de início, redefine as permissões de Acessibilidade
-e Gravação de Tela, apaga o app, as preferências e o estado salvo, e remove a
+Encerra o app, remove o item de início, redefine as permissões de privacidade,
+apaga o app, as preferências e o estado salvo, e remove a
 regra `sudoers` opcional de tampa fechada, sem deixar nada para trás. Ou arraste
 o app para a Lixeira e rode `tccutil reset All com.vorssaint.utils` para limpar
 as permissões.

@@ -174,31 +174,24 @@ final class StatusItemController {
             includesCountdown = true
         }
         let metrics = MenuBarMetric.enabled(in: defaults)
-        let textGap = " "
         if !metrics.isEmpty {
             let metricsTitle = MenuBarRenderer.attributed(for: SystemMonitor.shared.snapshot,
                                                           metrics: metrics,
                                                           allowStacked: !includesCountdown,
-                                                          linePrefix: textGap)
+                                                          linePrefix: " ")
             if metricsTitle.length > 0 {
                 if title.length > 0 { title.append(NSAttributedString(string: "  ")) }
                 title.append(metricsTitle)
             }
         }
 
-        if includesCountdown || !metrics.isEmpty {
-            statusItem.length = MenuBarRenderer.reservedStatusItemLength(for: metrics,
-                                                                         includesCountdown: includesCountdown,
-                                                                         allowStacked: !includesCountdown)
-        } else {
-            statusItem.length = NSStatusItem.variableLength
-        }
+        statusItem.length = NSStatusItem.variableLength
 
         if title.length == 0 {
             button.attributedTitle = NSAttributedString(string: "")
             button.imagePosition = .imageOnly
         } else {
-            let full = NSMutableAttributedString(string: textGap)
+            let full = NSMutableAttributedString(string: " ")
             full.append(title)
             let stacked = full.string.contains("\n")
             let font = MenuBarRenderer.statusFont(stacked: stacked)

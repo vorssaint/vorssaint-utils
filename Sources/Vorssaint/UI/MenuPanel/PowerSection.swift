@@ -16,20 +16,69 @@ struct PowerSection: View {
     @AppStorage(DefaultsKey.monitorPwrAdapter) private var pwrAdapter = true
     @AppStorage(DefaultsKey.monitorPwrBattery) private var pwrBattery = true
     @AppStorage(DefaultsKey.monitorPwrHealth) private var pwrHealth = true
+    @AppStorage(DefaultsKey.panelPowerOrder) private var powerOrderRaw = ""
+    @State private var draggingBlock: Block?
 
     var body: some View {
         PanelSection(.power, title: l10n.s.powerSection, collapsible: collapsible,
-                     supportsEditing: true) { editing in
+                     supportsEditing: true,
+                     resetAction: resetPanelDefaults) { editing in
             VStack(alignment: .leading, spacing: 10) {
-                content(editing: editing)
+                ForEach(Array(blocks(editing: editing).enumerated()), id: \.element) { index, block in
+                    if index > 0 { Divider() }
+                    PanelReorderableItem(item: block,
+                                         isEnabled: editing,
+                                         order: blockOrderBinding,
+                                         dragging: $draggingBlock) {
+                        HStack(alignment: .top, spacing: 8) {
+                            if editing {
+                                PanelDragHandle()
+                            }
+                            blockContent(block, editing: editing)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
             }
             .panelCard()
         }
     }
 
+    private enum Block: String, PanelOrderItem { case system, adapter, battery, health }
+
+    private var orderedBlocks: [Block] {
+        _ = powerOrderRaw
+        return PanelLayout.itemOrder(Block.self, key: DefaultsKey.panelPowerOrder)
+    }
+
+    private var blockOrderBinding: Binding<[Block]> {
+        Binding {
+            orderedBlocks
+        } set: { newValue in
+            PanelLayout.setItemOrder(newValue, key: DefaultsKey.panelPowerOrder)
+        }
+    }
+
+    private func blocks(editing: Bool) -> [Block] {
+        if editing { return orderedBlocks }
+        return orderedBlocks.filter(isVisible)
+    }
+
+    private func isVisible(_ block: Block) -> Bool {
+        guard let power = monitor.snapshot.power, !power.isEmpty else { return false }
+        switch block {
+        case .system: return pwrSystem && power.systemWatts != nil
+        case .adapter: return pwrAdapter && power.externalConnected && power.adapterWatts != nil
+        case .battery: return pwrBattery && power.hasBattery && power.batteryWatts != nil
+        case .health: return pwrHealth && power.healthPercent != nil
+        }
+    }
+
     @ViewBuilder
-    private func content(editing: Bool) -> some View {
+    private func blockContent(_ block: Block, editing: Bool) -> some View {
         if let power = monitor.snapshot.power, !power.isEmpty {
+            switch block {
+            case .system:
             if pwrSystem, let watts = power.systemWatts {
                 row(icon: "bolt.fill", color: PanelMetricColor.orange(for: colorScheme),
                     label: l10n.s.powerSystem, value: MetricFormat.watts(watts),
@@ -45,6 +94,7 @@ struct PowerSection: View {
                                    systemImage: "bolt.fill",
                                    isVisible: $pwrSystem)
             }
+            case .adapter:
             if pwrAdapter, power.externalConnected, let adapter = power.adapterWatts {
                 row(icon: "powerplug.fill", color: .accentColor,
                     label: l10n.s.powerAdapter, value: MetricFormat.watts(adapter),
@@ -55,6 +105,7 @@ struct PowerSection: View {
                                    systemImage: "powerplug.fill",
                                    isVisible: $pwrAdapter)
             }
+            case .battery:
             if pwrBattery, power.hasBattery, let flow = power.batteryWatts {
                 row(icon: flow >= 0 ? "battery.100.bolt" : "battery.50",
                     color: flow >= 0 ? PanelMetricColor.green(for: colorScheme) : .secondary,
@@ -67,6 +118,7 @@ struct PowerSection: View {
                                    systemImage: "battery.100.bolt",
                                    isVisible: $pwrBattery)
             }
+            case .health:
             if pwrHealth, let health = power.healthPercent {
                 row(icon: "heart.fill", color: PanelMetricColor.pink(for: colorScheme),
                     label: l10n.s.powerHealth,
@@ -78,35 +130,47 @@ struct PowerSection: View {
                                    systemImage: "heart.fill",
                                    isVisible: $pwrHealth)
             }
+            }
         } else {
-            VStack(alignment: .leading, spacing: 8) {
+            if block == orderedBlocks.first {
                 Text(l10n.s.powerUnavailable)
                     .font(.system(size: 10.5))
                     .foregroundStyle(.tertiary)
-                if editing {
-                    if !pwrSystem {
-                        PanelHiddenItemRow(title: l10n.s.powerSystem,
-                                           systemImage: "bolt.fill",
-                                           isVisible: $pwrSystem)
-                    }
-                    if !pwrAdapter {
-                        PanelHiddenItemRow(title: l10n.s.powerAdapter,
-                                           systemImage: "powerplug.fill",
-                                           isVisible: $pwrAdapter)
-                    }
-                    if !pwrBattery {
-                        PanelHiddenItemRow(title: l10n.s.powerBattery,
-                                           systemImage: "battery.100.bolt",
-                                           isVisible: $pwrBattery)
-                    }
-                    if !pwrHealth {
-                        PanelHiddenItemRow(title: l10n.s.powerHealth,
-                                           systemImage: "heart.fill",
-                                           isVisible: $pwrHealth)
-                    }
-                }
+            } else if editing {
+                hiddenRow(for: block)
             }
         }
+    }
+
+    @ViewBuilder
+    private func hiddenRow(for block: Block) -> some View {
+        switch block {
+        case .system:
+            PanelHiddenItemRow(title: l10n.s.powerSystem,
+                               systemImage: "bolt.fill",
+                               isVisible: $pwrSystem)
+        case .adapter:
+            PanelHiddenItemRow(title: l10n.s.powerAdapter,
+                               systemImage: "powerplug.fill",
+                               isVisible: $pwrAdapter)
+        case .battery:
+            PanelHiddenItemRow(title: l10n.s.powerBattery,
+                               systemImage: "battery.100.bolt",
+                               isVisible: $pwrBattery)
+        case .health:
+            PanelHiddenItemRow(title: l10n.s.powerHealth,
+                               systemImage: "heart.fill",
+                               isVisible: $pwrHealth)
+        }
+    }
+
+    private func resetPanelDefaults() {
+        PanelLayout.resetItemOrder(key: DefaultsKey.panelPowerOrder)
+        powerOrderRaw = ""
+        pwrSystem = true
+        pwrAdapter = true
+        pwrBattery = true
+        pwrHealth = true
     }
 
     private func adapterCaption(_ power: PowerReading) -> String {

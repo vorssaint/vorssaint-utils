@@ -42,7 +42,6 @@ final class AutoQuitService: ObservableObject {
     ])
     private static let windowLossNotifications = Set([
         kAXUIElementDestroyedNotification as String,
-        kAXWindowMiniaturizedNotification as String,
         kAXMainWindowChangedNotification as String,
         kAXFocusedWindowChangedNotification as String,
         kAXApplicationDeactivatedNotification as String,
@@ -59,6 +58,8 @@ final class AutoQuitService: ObservableObject {
     private var closeRequestTap: CFMachPort?
     private var closeRequestRunLoopSource: CFRunLoopSource?
     private var recentCloseButtonRequests: [pid_t: Date] = [:]
+    private var minimizedWindows: [pid_t: Set<CGWindowID>] = [:]
+    private var appsWithUnresolvedMinimizedWindows = Set<pid_t>()
 
     private let closeRequestGrace: TimeInterval = 5
 
@@ -101,6 +102,11 @@ final class AutoQuitService: ObservableObject {
         startCloseRequestMonitor()
     }
 
+    /// Force-stops all observers and the close-request tap regardless of the
+    /// preference. Used before the app resets its own permissions, so a revoked
+    /// Accessibility grant can never leave a live tap behind.
+    func suspend() { stop() }
+
     private func stop() {
         guard running else { return }
         running = false
@@ -115,6 +121,8 @@ final class AutoQuitService: ObservableObject {
         observers.removeAll()
         hadWindows.removeAll()
         recentCloseButtonRequests.removeAll()
+        minimizedWindows.removeAll()
+        appsWithUnresolvedMinimizedWindows.removeAll()
     }
 
     // MARK: - Per-app observers
@@ -147,6 +155,8 @@ final class AutoQuitService: ObservableObject {
         observers[pid] = nil
         hadWindows[pid] = nil
         recentCloseButtonRequests[pid] = nil
+        minimizedWindows[pid] = nil
+        appsWithUnresolvedMinimizedWindows.remove(pid)
     }
 
     /// Called from the C observer callback (on the main run loop).
@@ -157,6 +167,17 @@ final class AutoQuitService: ObservableObject {
             pid = observerPID
         }
         guard pid != 0 else { return }
+
+        if notification == (kAXWindowMiniaturizedNotification as String) {
+            markMinimizedWindow(pid: pid, element: element)
+            return
+        }
+        if notification == (kAXWindowDeminiaturizedNotification as String) {
+            clearMinimizedWindow(pid: pid, element: element)
+        }
+        if notification == (kAXUIElementDestroyedNotification as String) {
+            clearMinimizedWindow(pid: pid, element: element)
+        }
 
         if Self.windowRefreshNotifications.contains(notification), let observer = observers[pid] {
             refreshWindows(pid: pid, observer: observer)
@@ -179,13 +200,20 @@ final class AutoQuitService: ObservableObject {
         guard running, hadWindows[pid] == true,
               let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else { return }
         if let bundleID = app.bundleIdentifier, exceptions.contains(bundleID) { return }
-        let hiddenByCloseRequest = app.isHidden && hasRecentCloseButtonRequest(pid: pid)
+        let recentClose = hasRecentCloseButtonRequest(pid: pid)
+        let hiddenByCloseRequest = app.isHidden && recentClose
         if app.isHidden && !hiddenByCloseRequest { return }
 
         let appElement = AXUIElementCreateApplication(pid)
+        if hasKnownMinimizedWindow(pid: pid, appElement: appElement) { return }
+        // After an explicit close-button click, ignore off-screen titled windows
+        // for ALL apps, not just hidden ones. Chromium/Electron apps especially
+        // keep a titled helper/background window parked off-screen (or on another
+        // Space) after the visible window closes; counting it kept the app alive
+        // forever. Clicking the close button is the clear "I'm done here" signal.
         guard !hasUserFacingWindow(pid: pid,
                                    appElement: appElement,
-                                   includeOffscreenTitled: !hiddenByCloseRequest) else { return }
+                                   includeOffscreenTitled: !recentClose) else { return }
 
         // Zero windows can be a transient state, most notably when leaving full
         // screen with the green button: the full-screen window is destroyed a
@@ -199,14 +227,18 @@ final class AutoQuitService: ObservableObject {
             return
         }
 
-        let stillHiddenByCloseRequest = app.isHidden && hasRecentCloseButtonRequest(pid: pid)
+        let stillRecentClose = hasRecentCloseButtonRequest(pid: pid)
+        let stillHiddenByCloseRequest = app.isHidden && stillRecentClose
         if app.isHidden && !stillHiddenByCloseRequest { return }
+        if hasKnownMinimizedWindow(pid: pid, appElement: appElement) { return }
         guard !hasUserFacingWindow(pid: pid,
                                    appElement: appElement,
-                                   includeOffscreenTitled: !stillHiddenByCloseRequest) else { return }
+                                   includeOffscreenTitled: !stillRecentClose) else { return }
 
         hadWindows[pid] = false
         recentCloseButtonRequests[pid] = nil
+        minimizedWindows[pid] = nil
+        appsWithUnresolvedMinimizedWindows.remove(pid)
         app.terminate()
     }
 
@@ -217,6 +249,7 @@ final class AutoQuitService: ObservableObject {
         for window in windows {
             watch(window: window, observer: observer, refcon: refcon)
         }
+        recordMinimizedWindows(pid: pid, windows: windows)
         if !windows.isEmpty || hasWindowServerUserWindow(pid: pid) == true {
             hadWindows[pid] = true
         }
@@ -254,6 +287,10 @@ final class AutoQuitService: ObservableObject {
     /// shouldn't keep an app "alive" for this purpose.
     private static func isStandardWindow(_ window: AXUIElement) -> Bool {
         if boolAttribute(window, "AXFullScreen") { return true }
+        if boolAttribute(window, kAXMinimizedAttribute as String),
+           role(of: window) == (kAXWindowRole as String) {
+            return true
+        }
 
         var subrole: CFTypeRef?
         if AXUIElementCopyAttributeValue(window, kAXSubroleAttribute as CFString, &subrole) == .success,
@@ -300,6 +337,9 @@ final class AutoQuitService: ObservableObject {
         }
         if let hasWindowServerWindow = hasWindowServerUserWindow(pid: pid,
                                                                  includeOffscreenTitled: includeOffscreenTitled) {
+            if !includeOffscreenTitled {
+                return hasWindowServerWindow
+            }
             return hasWindowServerWindow
         }
         return !axWindows.isEmpty
@@ -372,6 +412,10 @@ final class AutoQuitService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
+        // Accessibility gone (e.g. reset): the AX hit-test below would hang
+        // inside the tap and freeze clicks, so let the click through untouched.
+        guard AXIsProcessTrusted() else { return Unmanaged.passUnretained(event) }
+
         guard type == .leftMouseDown,
               event.flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]).isEmpty,
               let candidate = WindowServerTrafficLightHitTest.candidate(
@@ -388,6 +432,7 @@ final class AutoQuitService: ObservableObject {
 
     private func markCloseButtonRequest(pid: pid_t) {
         recentCloseButtonRequests[pid] = Date()
+        scheduleCloseRequestChecks(pid: pid)
     }
 
     private func hasRecentCloseButtonRequest(pid: pid_t) -> Bool {
@@ -399,23 +444,66 @@ final class AutoQuitService: ObservableObject {
         return false
     }
 
+    private func markMinimizedWindow(pid: pid_t, element: AXUIElement) {
+        if let id = AXWindowResolver.windowID(for: element) {
+            minimizedWindows[pid, default: []].insert(id)
+        } else {
+            appsWithUnresolvedMinimizedWindows.insert(pid)
+        }
+    }
+
+    private func clearMinimizedWindow(pid: pid_t, element: AXUIElement) {
+        if let id = AXWindowResolver.windowID(for: element) {
+            minimizedWindows[pid]?.remove(id)
+            if minimizedWindows[pid]?.isEmpty == true {
+                minimizedWindows[pid] = nil
+            }
+        } else {
+            appsWithUnresolvedMinimizedWindows.remove(pid)
+        }
+    }
+
+    private func recordMinimizedWindows(pid: pid_t, windows: [AXUIElement]) {
+        let ids = windows.compactMap { window -> CGWindowID? in
+            guard Self.boolAttribute(window, kAXMinimizedAttribute as String) else { return nil }
+            return AXWindowResolver.windowID(for: window)
+        }
+        guard !ids.isEmpty else { return }
+        minimizedWindows[pid, default: []].formUnion(ids)
+    }
+
+    private func hasKnownMinimizedWindow(pid: pid_t, appElement: AXUIElement) -> Bool {
+        let windows = standardWindows(of: appElement)
+        recordMinimizedWindows(pid: pid, windows: windows)
+        return minimizedWindows[pid]?.isEmpty == false || appsWithUnresolvedMinimizedWindows.contains(pid)
+    }
+
+    private func scheduleCloseRequestChecks(pid: pid_t) {
+        for delay in [0.35, 1.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.checkWindows(pid: pid)
+            }
+        }
+    }
+
     private func closeButtonPID(at point: CGPoint, candidate: TrafficLightCandidate) -> pid_t? {
+        guard candidate.pid != getpid(), observers[candidate.pid] != nil else { return nil }
         guard let element = elementAt(point: point),
-              let window = Self.topLevelWindow(from: element),
-              Self.isStandardWindow(window),
-              let closeButton = Self.windowAttribute(window, kAXCloseButtonAttribute as String),
-              Self.boolAttribute(closeButton, kAXEnabledAttribute as String, default: true),
-              let buttonFrame = Self.frame(of: closeButton),
-              buttonFrame.insetBy(dx: -4, dy: -4).contains(point)
-        else { return nil }
+              let window = Self.topLevelWindow(from: element)
+        else { return candidate.pid }
 
         var pid: pid_t = 0
         AXUIElementGetPid(window, &pid)
-        guard pid == candidate.pid,
-              pid != 0,
-              pid != getpid(),
-              observers[pid] != nil else { return nil }
-        return pid
+        if pid == 0 { return candidate.pid }
+        guard pid == candidate.pid else { return nil }
+
+        guard Self.isStandardWindow(window),
+              let closeButton = Self.windowAttribute(window, kAXCloseButtonAttribute as String),
+              Self.boolAttribute(closeButton, kAXEnabledAttribute as String, default: true),
+              let buttonFrame = Self.frame(of: closeButton)
+        else { return candidate.pid }
+
+        return buttonFrame.insetBy(dx: -4, dy: -4).contains(point) ? pid : nil
     }
 
     private func elementAt(point: CGPoint) -> AXUIElement? {

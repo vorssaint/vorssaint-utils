@@ -31,14 +31,28 @@ struct SystemSection: View {
     @AppStorage(DefaultsKey.monitorSysBattery) private var sysBattery = true
     @AppStorage(DefaultsKey.monitorSysMemory) private var sysMemory = true
     @AppStorage(DefaultsKey.monitorSysUptime) private var sysUptime = true
+    @AppStorage(DefaultsKey.panelSystemOrder) private var systemOrderRaw = ""
+    @State private var draggingBlock: Block?
 
     var body: some View {
         PanelSection(.system, title: l10n.s.systemSection, collapsible: collapsible,
-                     supportsEditing: true) { editing in
+                     supportsEditing: true,
+                     resetAction: resetPanelDefaults) { editing in
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(Array(blocks(editing: editing).enumerated()), id: \.element) { index, block in
                     if index > 0 { Divider() }
-                    blockContent(block, editing: editing)
+                    PanelReorderableItem(item: block,
+                                         isEnabled: editing,
+                                         order: blockOrderBinding,
+                                         dragging: $draggingBlock) {
+                        HStack(alignment: .top, spacing: 8) {
+                            if editing {
+                                PanelDragHandle()
+                            }
+                            blockContent(block, editing: editing)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
                 }
             }
             .panelCard()
@@ -58,23 +72,51 @@ struct SystemSection: View {
 
     /// Card subsections, in order, filtered by the per-item toggles (and whether a
     /// battery exists). Drives divider interleaving so only rendered blocks get one.
-    private enum Block: Hashable { case temps, usage, memory, uptime }
+    private enum Block: String, PanelOrderItem { case temps, usage, memory, uptime }
 
     private var usageVisible: Bool {
         sysCPU || sysGPU || (sysBattery && monitor.snapshot.power?.chargePercent != nil)
     }
 
     private var visibleBlocks: [Block] {
-        var blocks: [Block] = []
-        if sysTemps { blocks.append(.temps) }
-        if usageVisible { blocks.append(.usage) }
-        if sysMemory { blocks.append(.memory) }
-        if sysUptime { blocks.append(.uptime) }
-        return blocks
+        orderedBlocks.filter(isVisible)
     }
 
     private func blocks(editing: Bool) -> [Block] {
-        editing ? [.temps, .usage, .memory, .uptime] : visibleBlocks
+        editing ? orderedBlocks : visibleBlocks
+    }
+
+    private var orderedBlocks: [Block] {
+        _ = systemOrderRaw
+        return PanelLayout.itemOrder(Block.self, key: DefaultsKey.panelSystemOrder)
+    }
+
+    private var blockOrderBinding: Binding<[Block]> {
+        Binding {
+            orderedBlocks
+        } set: { newValue in
+            PanelLayout.setItemOrder(newValue, key: DefaultsKey.panelSystemOrder)
+        }
+    }
+
+    private func isVisible(_ block: Block) -> Bool {
+        switch block {
+        case .temps: return sysTemps
+        case .usage: return usageVisible
+        case .memory: return sysMemory
+        case .uptime: return sysUptime
+        }
+    }
+
+    private func resetPanelDefaults() {
+        PanelLayout.resetItemOrder(key: DefaultsKey.panelSystemOrder)
+        systemOrderRaw = ""
+        sysTemps = true
+        sysCPU = true
+        sysGPU = true
+        sysBattery = true
+        sysMemory = true
+        sysUptime = true
     }
 
     @ViewBuilder
@@ -354,14 +396,15 @@ struct SystemSection: View {
     }
 
     static func uptimeString() -> String {
-        let total = Int(ProcessInfo.processInfo.systemUptime)
-        let days = total / 86_400
-        let hours = (total % 86_400) / 3_600
-        let minutes = (total % 3_600) / 60
-        if days > 0 { return "\(days)d \(hours)h" }
-        if hours > 0 { return "\(hours)h \(minutes)min" }
-        return "\(minutes)min"
+        let total = SystemInfo.wallClockUptimeSeconds() ?? Int(ProcessInfo.processInfo.systemUptime)
+        return MetricFormat.uptime(total)
     }
+
+    private static let memoryFormatter: ByteCountFormatter = {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .memory
+        return formatter
+    }()
 
     private func usageRow(label: String, fraction: Double?, kind: BreakdownKind,
                           editing: Bool, visible: Binding<Bool>) -> some View {
@@ -476,9 +519,7 @@ struct SystemSection: View {
     }
 
     private func formatMemory(_ bytes: UInt64) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .memory
-        return formatter.string(fromByteCount: Int64(bytes))
+        Self.memoryFormatter.string(fromByteCount: Int64(bytes))
     }
 }
 

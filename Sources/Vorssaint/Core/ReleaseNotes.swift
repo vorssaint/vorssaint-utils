@@ -20,6 +20,30 @@ struct ReleaseNotes {
         return parsed
     }
 
+    /// Every version listed in the changelog, in document order (newest first).
+    /// Used to surface the releases a user skipped between updates.
+    static func allVersions(changelog: String? = bundledChangelog()) -> [String] {
+        guard let changelog else { return [] }
+        return changelog
+            .components(separatedBy: .newlines)
+            .compactMap { header(in: $0)?.version }
+    }
+
+    /// Raw markdown body of a version's changelog section (everything between its
+    /// `## [version]` header and the next one), so the Developer build can feed
+    /// the update preview real notes. Empty when the version is absent.
+    static func rawNotes(for version: String, changelog: String? = bundledChangelog()) -> String {
+        guard let changelog else { return "" }
+        let lines = changelog.components(separatedBy: .newlines)
+        guard let start = lines.firstIndex(where: { header(in: $0)?.version == version }) else { return "" }
+        var body: [String] = []
+        for line in lines.dropFirst(start + 1) {
+            if line.hasPrefix("## [") { break }
+            body.append(line)
+        }
+        return body.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private static func bundledChangelog() -> String? {
         guard let url = Bundle.main.url(forResource: "CHANGELOG", withExtension: "md") else { return nil }
         return try? String(contentsOf: url, encoding: .utf8)
@@ -32,7 +56,7 @@ struct ReleaseNotes {
 
         var sections: [ReleaseNoteSection] = []
         var currentTitle = ""
-        var currentItems: [String] = []
+        var currentItems: [ReleaseNoteItem] = []
 
         func flushSection() {
             guard !currentItems.isEmpty, shouldDisplaySection(currentTitle) else { return }
@@ -50,9 +74,12 @@ struct ReleaseNotes {
 
             let trimmed = rawLine.trimmingCharacters(in: .whitespaces)
             if trimmed.hasPrefix("- ") {
-                currentItems.append(clean(String(trimmed.dropFirst(2))))
-            } else if rawLine.hasPrefix("  "), !currentItems.isEmpty, !trimmed.isEmpty {
-                currentItems[currentItems.count - 1] += " " + clean(trimmed)
+                currentItems.append(.bullet(clean(String(trimmed.dropFirst(2)))))
+            } else if let image = image(in: trimmed) {
+                currentItems.append(.image(image))
+            } else if rawLine.hasPrefix("  "), !currentItems.isEmpty, !trimmed.isEmpty,
+                      case let .bullet(text) = currentItems[currentItems.count - 1] {
+                currentItems[currentItems.count - 1] = .bullet(text + " " + clean(trimmed))
             }
         }
         flushSection()
@@ -88,6 +115,23 @@ struct ReleaseNotes {
             .trimmingCharacters(in: .whitespaces)
     }
 
+    private static func image(in line: String) -> ReleaseNoteImage? {
+        guard line.hasPrefix("!["),
+              let altEnd = line[line.index(line.startIndex, offsetBy: 2)...].firstIndex(of: "]") else {
+            return nil
+        }
+        let linkStartIndex = line.index(after: altEnd)
+        guard linkStartIndex < line.endIndex,
+              line[linkStartIndex] == "(",
+              let linkEnd = line[line.index(after: linkStartIndex)...].firstIndex(of: ")") else {
+            return nil
+        }
+        let alt = String(line[line.index(line.startIndex, offsetBy: 2)..<altEnd])
+        let path = String(line[line.index(after: linkStartIndex)..<linkEnd])
+        guard !path.isEmpty else { return nil }
+        return ReleaseNoteImage(alt: alt, path: path)
+    }
+
     private static func shouldDisplaySection(_ title: String) -> Bool {
         let normalized = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return normalized != "website" && normalized != "links"
@@ -96,5 +140,22 @@ struct ReleaseNotes {
 
 struct ReleaseNoteSection {
     let title: String
-    let items: [String]
+    let items: [ReleaseNoteItem]
+
+    var bulletItems: [String] {
+        items.compactMap {
+            if case let .bullet(text) = $0 { return text }
+            return nil
+        }
+    }
+}
+
+enum ReleaseNoteItem: Equatable {
+    case bullet(String)
+    case image(ReleaseNoteImage)
+}
+
+struct ReleaseNoteImage: Equatable {
+    let alt: String
+    let path: String
 }

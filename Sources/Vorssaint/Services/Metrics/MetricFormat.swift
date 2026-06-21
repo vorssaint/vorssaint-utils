@@ -93,6 +93,18 @@ enum MetricFormat {
         "\(Int((max(0, min(1, fraction)) * 100).rounded()))%"
     }
 
+    /// Smooths the GPU usage readout enough to hide one-sample compositor spikes
+    /// from opening the menu panel, without hiding sustained load.
+    static func stabilizedGPUUsage(previous: Double?, current: Double) -> Double {
+        let value = current.isFinite ? max(0, min(1, current)) : 0
+        guard let previous, previous.isFinite else { return value }
+        let baseline = max(0, min(1, previous))
+        if value > baseline {
+            return min(value, baseline + 0.20)
+        }
+        return baseline * 0.35 + value * 0.65
+    }
+
     /// Temperature, stored internally as Celsius and formatted in the user's
     /// preferred display unit.
     static func temperature(_ celsius: Double, unit: TemperatureUnit) -> String {
@@ -102,6 +114,34 @@ enum MetricFormat {
         case .fahrenheit:
             return String(format: "%.0f °F", celsius * 9 / 5 + 32)
         }
+    }
+
+    /// Compact temperature for tight surfaces like the menu bar. The settings
+    /// page still makes the active unit explicit.
+    static func temperatureCompact(_ celsius: Double, unit: TemperatureUnit) -> String {
+        switch unit {
+        case .celsius:
+            return String(format: "%.0f°", celsius)
+        case .fahrenheit:
+            return String(format: "%.0f°", celsius * 9 / 5 + 32)
+        }
+    }
+
+    static func temperatureUnitSuffix(_ unit: TemperatureUnit) -> String {
+        switch unit {
+        case .celsius: return "°C"
+        case .fahrenheit: return "°F"
+        }
+    }
+
+    static func uptime(_ seconds: Int) -> String {
+        let total = max(0, seconds)
+        let days = total / 86_400
+        let hours = (total % 86_400) / 3_600
+        let minutes = (total % 3_600) / 60
+        if days > 0 { return "\(days)d \(hours)h" }
+        if hours > 0 { return "\(hours)h \(minutes)min" }
+        return "\(minutes)min"
     }
 
     // MARK: Network speed & filtering

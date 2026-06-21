@@ -2,6 +2,9 @@
 // Copyright (C) 2026 Vorssaint
 
 import SwiftUI
+import UniformTypeIdentifiers
+
+protocol PanelOrderItem: RawRepresentable, CaseIterable, Hashable where RawValue == String {}
 
 /// The major, user-customizable sections of the menu panel. Raw values are the
 /// stable identifiers persisted in the saved order and the collapsed set, so
@@ -37,6 +40,25 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
         case .controls: return "switch.2"
         }
     }
+
+    /// The UserDefaults key that controls whether this section shows in the panel.
+    /// The monitoring blocks reuse their existing `monitorShow*` keys; the rest
+    /// get a dedicated `panelShow*` key so every section is hideable.
+    var visibilityKey: String {
+        switch self {
+        case .keepAwake: return DefaultsKey.panelShowKeepAwake
+        case .mixer: return DefaultsKey.monitorShowMixer
+        case .system: return DefaultsKey.monitorShowSystem
+        case .network: return DefaultsKey.monitorShowNetwork
+        case .power: return DefaultsKey.monitorShowPower
+        case .fanControl: return DefaultsKey.monitorShowFanControlBeta
+        case .utilities: return DefaultsKey.panelShowUtilities
+        case .controls: return DefaultsKey.panelShowControls
+        }
+    }
+
+    /// Fan Control is a beta opt-in (default hidden); everything else shows by default.
+    var shownByDefault: Bool { self != .fanControl }
 }
 
 /// Persisted panel layout: the order the sections appear in and which ones are
@@ -68,6 +90,28 @@ enum PanelLayout {
 
     static func setOrder(_ ids: [PanelSectionID]) {
         defaults.set(ids.map(\.rawValue).joined(separator: ","), forKey: DefaultsKey.panelSectionOrder)
+    }
+
+    static func itemOrder<Item: PanelOrderItem>(_ type: Item.Type, key: String) -> [Item] {
+        let defaultOrder = type.allCases.map(\.rawValue)
+        let raw = defaults.string(forKey: key) ?? ""
+        return Defaults.sanitizedPanelItemOrder(raw, defaultOrder: defaultOrder).compactMap(Item.init(rawValue:))
+    }
+
+    static func setItemOrder<Item: PanelOrderItem>(_ ids: [Item], key: String) {
+        defaults.set(ids.map(\.rawValue).joined(separator: ","), forKey: key)
+    }
+
+    static func resetItemOrder(key: String) {
+        defaults.removeObject(forKey: key)
+    }
+
+    static func isShown(_ id: PanelSectionID) -> Bool {
+        defaults.object(forKey: id.visibilityKey) as? Bool ?? id.shownByDefault
+    }
+
+    static func setShown(_ shown: Bool, for id: PanelSectionID) {
+        defaults.set(shown, forKey: id.visibilityKey)
     }
 
     static func isCollapsed(_ id: PanelSectionID) -> Bool {
@@ -103,6 +147,7 @@ struct PanelSection<Content: View>: View {
     private let collapsible: Bool
     private let supportsEditing: Bool
     private let editButtonVisible: Bool
+    private let resetAction: (() -> Void)?
     private let content: (Bool) -> Content
     @State private var collapsed: Bool
     @State private var editing = false
@@ -114,6 +159,7 @@ struct PanelSection<Content: View>: View {
         self.collapsible = collapsible
         self.supportsEditing = false
         self.editButtonVisible = false
+        self.resetAction = nil
         self.content = { _ in content() }
         _collapsed = State(initialValue: PanelLayout.isCollapsed(id))
     }
@@ -121,12 +167,14 @@ struct PanelSection<Content: View>: View {
     init(_ id: PanelSectionID, title: String, collapsible: Bool = true,
          supportsEditing: Bool,
          editButtonVisible: Bool = true,
+         resetAction: (() -> Void)? = nil,
          @ViewBuilder content: @escaping (Bool) -> Content) {
         self.id = id
         self.title = title
         self.collapsible = collapsible
         self.supportsEditing = supportsEditing
         self.editButtonVisible = editButtonVisible
+        self.resetAction = resetAction
         self.content = content
         _collapsed = State(initialValue: PanelLayout.isCollapsed(id))
     }
@@ -158,6 +206,12 @@ struct PanelSection<Content: View>: View {
                 Spacer(minLength: 0)
             }
             if supportsEditing {
+                if isEditing, let resetAction {
+                    resetButton(resetAction)
+                        .opacity(editButtonVisible ? 1 : 0)
+                        .disabled(!editButtonVisible)
+                        .accessibilityHidden(!editButtonVisible)
+                }
                 editButton
                     .opacity(editButtonVisible ? 1 : 0)
                     .disabled(!editButtonVisible)
@@ -175,18 +229,47 @@ struct PanelSection<Content: View>: View {
 
     private var editButton: some View {
         Button(action: toggleEditing) {
-            Image(systemName: isEditing ? "checkmark.circle.fill" : "slider.horizontal.3")
-                .font(.system(size: 11, weight: .semibold))
-                .frame(width: 22, height: 18)
-                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            if isEditing {
+                Label("OK", systemImage: "checkmark")
+                    .font(.system(size: 10.5, weight: .bold))
+                    .labelStyle(.titleAndIcon)
+                    .padding(.horizontal, 8)
+                    .frame(height: 24)
+                    .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            } else {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(width: 22, height: 18)
+                    .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
         }
         .buttonStyle(.plain)
-        .foregroundStyle(isEditing ? Color.accentColor : Color.secondary)
+        .foregroundStyle(isEditing ? Color.white : Color.secondary)
         .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(isEditing ? Color.accentColor.opacity(0.14) : Color.clear)
+            RoundedRectangle(cornerRadius: isEditing ? 8 : 6, style: .continuous)
+                .fill(isEditing ? Color.accentColor : Color.clear)
         )
         .help(isEditing ? l10n.s.uninstallerDoneTitle : l10n.s.menuEdit)
+    }
+
+    private func resetButton(_ action: @escaping () -> Void) -> some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.16)) {
+                action()
+            }
+        } label: {
+            Image(systemName: "arrow.counterclockwise")
+                .font(.system(size: 10.5, weight: .semibold))
+                .frame(width: 22, height: 22)
+                .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color.primary.opacity(0.07))
+        )
+        .help(l10n.s.mixerOutputDefault)
     }
 
     private var isEditing: Bool { supportsEditing && editButtonVisible && editing }
@@ -204,6 +287,64 @@ struct PanelSection<Content: View>: View {
     private func toggle() {
         withAnimation(.easeOut(duration: 0.18)) { collapsed.toggle() }
         PanelLayout.setCollapsed(collapsed, for: id)
+    }
+}
+
+struct PanelDragHandle: View {
+    var body: some View {
+        Image(systemName: "line.3.horizontal")
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.tertiary)
+            .frame(width: 16, height: 22)
+            .contentShape(Rectangle())
+            .help(L10n.shared.s.monitorOrderHint)
+    }
+}
+
+struct PanelReorderableItem<Item: PanelOrderItem, Content: View>: View {
+    let item: Item
+    var isEnabled = true
+    @Binding var order: [Item]
+    @Binding var dragging: Item?
+    let content: () -> Content
+
+    var body: some View {
+        if isEnabled {
+            content()
+                .onDrag {
+                    dragging = item
+                    return NSItemProvider(object: item.rawValue as NSString)
+                }
+                .onDrop(of: [UTType.text], delegate: PanelItemDropDelegate(item: item,
+                                                                           order: $order,
+                                                                           dragging: $dragging))
+        } else {
+            content()
+        }
+    }
+}
+
+private struct PanelItemDropDelegate<Item: PanelOrderItem>: DropDelegate {
+    let item: Item
+    @Binding var order: [Item]
+    @Binding var dragging: Item?
+
+    func dropEntered(info: DropInfo) {
+        guard let dragging, dragging != item,
+              let from = order.firstIndex(of: dragging),
+              let to = order.firstIndex(of: item) else { return }
+        withAnimation(.easeInOut(duration: 0.16)) {
+            order.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+        }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        dragging = nil
+        return true
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
     }
 }
 

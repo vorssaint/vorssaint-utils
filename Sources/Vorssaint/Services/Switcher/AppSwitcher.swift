@@ -7,10 +7,11 @@ import Combine
 import CoreGraphics
 import SwiftUI
 
-/// The window switcher: a global event tap takes over ⌘Tab, and while ⌘ is held
-/// a non-activating panel cycles through real windows — release commits, Q quits
-/// the highlighted app, Esc cancels. The panel joins every Space and fullscreen
-/// app, so the switcher is available wherever the user is.
+/// The window switcher: a global event tap takes over the configured shortcut,
+/// and while its modifiers are held a non-activating panel cycles through real
+/// windows. Releasing commits, Q quits the highlighted app, Esc cancels. The
+/// panel joins every Space and fullscreen app, so the switcher is available
+/// wherever the user is.
 final class AppSwitcher: ObservableObject {
     static let shared = AppSwitcher()
 
@@ -41,10 +42,7 @@ final class AppSwitcher: ObservableObject {
     /// The on-screen window when the current session opened — becomes the
     /// second-most-recent window on commit, so a flick toggles straight back.
     private var sessionStartItemID: String?
-
-    // The switcher always takes over ⌘Tab to replace the system switcher.
-    private let modifierFlag = CGEventFlags.maskCommand
-    private let conflictingFlag = CGEventFlags.maskAlternate
+    private var sessionShortcut: GlobalShortcut?
 
     // Virtual key codes handled during a session.
     private enum KeyCode {
@@ -77,6 +75,11 @@ final class AppSwitcher: ObservableObject {
             removeTap()
         }
     }
+
+    /// Force-stops the tap regardless of the preference. Used before the app
+    /// resets its own permissions, so a revoked Accessibility grant can never
+    /// leave a live tap behind.
+    func suspend() { removeTap() }
 
     // MARK: - Event tap
 
@@ -121,11 +124,21 @@ final class AppSwitcher: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
+        // With Accessibility revoked the AX lookups behind a session would hang
+        // inside the tap and freeze input; pass events through and drop any
+        // session that was open.
+        guard AXIsProcessTrusted() else {
+            if sessionActive { cancelSession() }
+            return Unmanaged.passUnretained(event)
+        }
+
         switch type {
         case .keyDown:
             return handleKeyDown(event)
         case .flagsChanged:
-            if sessionActive, !event.flags.contains(modifierFlag) {
+            if sessionActive,
+               let shortcut = sessionShortcut,
+               !shortcut.requiredModifiersHeld(in: event.flags) {
                 commitSession()
             }
             return Unmanaged.passUnretained(event)
@@ -139,22 +152,23 @@ final class AppSwitcher: ObservableObject {
         let flags = event.flags
 
         guard sessionActive else {
-            // A session starts with ⌘Tab, as long as the combo is not claimed
-            // by something else (⌘⌥Tab, ⌃⌘Tab…).
-            guard keyCode == KeyCode.tab,
-                  flags.contains(modifierFlag),
-                  !flags.contains(conflictingFlag),
-                  !flags.contains(.maskControl)
+            let shortcut = GlobalShortcut.saved(for: DefaultsKey.switcherShortcut,
+                                                fallback: .switcherDefault)
+            guard shortcut.matches(event: event, allowingExtraShift: true)
             else { return Unmanaged.passUnretained(event) }
 
-            return beginSession(reversed: flags.contains(.maskShift))
+            let reversed = shortcut.shiftIsNavigationModifier && flags.contains(.maskShift)
+            return beginSession(reversed: reversed, shortcut: shortcut)
                 ? nil
                 : Unmanaged.passUnretained(event)
         }
 
+        let shortcut = sessionShortcut ?? GlobalShortcut.saved(for: DefaultsKey.switcherShortcut,
+                                                               fallback: .switcherDefault)
         switch keyCode {
-        case KeyCode.tab:
-            advanceSelection(by: flags.contains(.maskShift) ? -1 : 1)
+        case _ where keyCode == shortcut.keyCode && shortcut.matches(event: event, allowingExtraShift: true):
+            let delta = shortcut.shiftIsNavigationModifier && flags.contains(.maskShift) ? -1 : 1
+            advanceSelection(by: delta)
         case KeyCode.rightArrow:
             advanceSelection(by: 1)
         case KeyCode.leftArrow:
@@ -177,7 +191,7 @@ final class AppSwitcher: ObservableObject {
 
     // MARK: - Session lifecycle
 
-    private func beginSession(reversed: Bool) -> Bool {
+    private func beginSession(reversed: Bool, shortcut: GlobalShortcut) -> Bool {
         let windows = WindowEnumerator.listWindows()
         guard !windows.isEmpty else { return false }
 
@@ -196,8 +210,9 @@ final class AppSwitcher: ObservableObject {
         // same app. Shift starts from the far end.
         selectedIndex = reversed ? max(0, list.count - 1) : (list.count > 1 ? 1 : 0)
         sessionActive = true
+        sessionShortcut = shortcut
 
-        WindowPreviewProvider.shared.refreshPreviews(for: list) { [weak self] windowID, image in
+        WindowPreviewProvider.shared.refreshPreviews(for: list, maxPixelSize: 640 * PreviewSizing.scale) { [weak self] windowID, image in
             guard let self,
                   self.sessionActive,
                   self.windows.contains(where: { $0.previewWindowID == windowID }) else { return }
@@ -357,6 +372,7 @@ final class AppSwitcher: ObservableObject {
         hoverAnchor = nil
         userNavigated = false
         sessionStartItemID = nil
+        sessionShortcut = nil
     }
 
     // MARK: - Panel
@@ -426,8 +442,10 @@ struct SwitcherGrid: Equatable {
     let visibleRows: Int
     let panelSize: CGSize
 
-    static let cardWidth: CGFloat = 288
-    static let cardHeight: CGFloat = 214
+    // Base sizes scaled by the user's preview-size preference (Normal/Large/
+    // Extra), so one setting grows the switcher and the Dock preview together.
+    static var cardWidth: CGFloat { 288 * PreviewSizing.scale }
+    static var cardHeight: CGFloat { 214 * PreviewSizing.scale }
     static let spacing: CGFloat = 12
     static let padding: CGFloat = 20
 

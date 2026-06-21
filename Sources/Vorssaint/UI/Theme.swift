@@ -46,6 +46,24 @@ enum PanelMetricColor {
     }
 }
 
+enum PanelSurface {
+    static func baseFill(for scheme: ColorScheme) -> Color {
+        scheme == .light ? Color.white.opacity(0.68) : Color.black.opacity(0.42)
+    }
+
+    static func cardFill(for scheme: ColorScheme) -> Color {
+        scheme == .light ? Color.white.opacity(0.38) : Color.white.opacity(0.075)
+    }
+
+    static func controlFill(for scheme: ColorScheme) -> Color {
+        scheme == .light ? Color.black.opacity(0.055) : Color.white.opacity(0.085)
+    }
+
+    static func border(for scheme: ColorScheme) -> Color {
+        scheme == .light ? Color.black.opacity(0.09) : Color.white.opacity(0.11)
+    }
+}
+
 func sectionTitle(_ text: String) -> some View {
     Text(text.uppercased())
         .font(.system(size: 10, weight: .semibold))
@@ -56,10 +74,47 @@ func sectionTitle(_ text: String) -> some View {
 extension View {
     /// The rounded card background used by every panel section.
     func panelCard() -> some View {
-        padding(10)
+        modifier(PanelCardModifier())
+    }
+
+    /// A restrained glass base for the menu panel: still translucent, but with a
+    /// stable tint so text and controls do not depend too much on the wallpaper.
+    func panelGlassSurface(cornerRadius: CGFloat = 18) -> some View {
+        background(PanelGlassSurface(cornerRadius: cornerRadius))
+    }
+}
+
+private struct PanelCardModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        content
+            .padding(10)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.primary.opacity(0.055))
+                    .fill(PanelSurface.cardFill(for: colorScheme))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(PanelSurface.border(for: colorScheme), lineWidth: 0.7)
+            )
+    }
+}
+
+private struct PanelGlassSurface: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let cornerRadius: CGFloat
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(.regularMaterial)
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(PanelSurface.baseFill(for: colorScheme))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(PanelSurface.border(for: colorScheme), lineWidth: 0.8)
             )
     }
 }

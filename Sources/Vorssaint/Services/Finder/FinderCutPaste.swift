@@ -77,6 +77,14 @@ final class FinderCutPaste: ObservableObject {
         }
     }
 
+    /// Force-stops the tap regardless of the preference. Used before the app
+    /// resets its own permissions, so a revoked Accessibility grant can never
+    /// leave a live tap behind.
+    func suspend() {
+        removeTap()
+        clearMarks()
+    }
+
     // MARK: - Event tap
 
     private func installTap() {
@@ -116,6 +124,9 @@ final class FinderCutPaste: ObservableObject {
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             return Unmanaged.passUnretained(event)
         }
+        // Accessibility gone (e.g. reset): the AX focus check below would hang
+        // inside the tap and freeze the keyboard, so pass the keystroke through.
+        guard AXIsProcessTrusted() else { return Unmanaged.passUnretained(event) }
         guard type == .keyDown else { return Unmanaged.passUnretained(event) }
 
         let flags = event.flags
@@ -277,11 +288,28 @@ final class FinderCutPaste: ObservableObject {
 
     func clearMarks() {
         guard !marked.isEmpty || lastResult != nil else { return }
+        resetCutState(clearOwnedPasteboard: false)
+    }
+
+    func cancelPendingCut() {
+        guard !marked.isEmpty || lastResult != nil else { return }
+        resetCutState(clearOwnedPasteboard: true)
+    }
+
+    private func resetCutState(clearOwnedPasteboard: Bool) {
+        resultDismiss?.cancel()
+        resultDismiss = nil
+        let shouldClearPasteboard = clearOwnedPasteboard
+            && !marked.isEmpty
+            && NSPasteboard.general.changeCount == markedChangeCount
         operationGeneration += 1
         moveInProgress = false
         marked = []
         markedChangeCount = 0
         lastResult = nil
+        if shouldClearPasteboard {
+            NSPasteboard.general.clearContents()
+        }
         refreshPanel()
     }
 
@@ -336,11 +364,18 @@ final class FinderCutPaste: ObservableObject {
     }
 }
 
-/// Talks to Finder over AppleScript to read the current selection and the
-/// folder a paste would land in. Runs `osascript` in a subprocess with a
-/// watchdog so a wedged Finder can never hang the app.
+/// Reads the current Finder selection and the folder a paste would land in,
+/// sending the Apple Events IN-PROCESS (see `AppleScriptRunner`) so the Finder
+/// Automation consent is attributed to this app — stable across updates and
+/// re-requested if it was lost — which is why the cut HUD had stopped appearing
+/// for some users. Same Finder Automation permission as before; nothing new.
+/// Callers run this off the main thread so a slow Finder never blocks the UI or
+/// the event taps.
 private enum FinderBridge {
+    private static let finderBundleID = "com.apple.finder"
+
     static func selectionURLs() -> [URL] {
+        guard AppleScriptRunner.consentToAutomate(bundleID: finderBundleID) else { return [] }
         let script = """
         tell application "Finder"
             set out to ""
@@ -350,37 +385,22 @@ private enum FinderBridge {
             return out
         end tell
         """
-        guard let output = runOSA(script) else { return [] }
-        return output.split(whereSeparator: \.isNewline)
+        let result = AppleScriptRunner.run(script)
+        guard result.ok else { return [] }
+        return result.output.split(whereSeparator: \.isNewline)
             .map { URL(fileURLWithPath: String($0)) }
     }
 
     static func insertionLocationPath() -> String? {
+        guard AppleScriptRunner.consentToAutomate(bundleID: finderBundleID) else { return nil }
         let script = """
         tell application "Finder"
             return POSIX path of (insertion location as alias)
         end tell
         """
-        let path = runOSA(script)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return (path?.isEmpty == false) ? path : nil
-    }
-
-    private static func runOSA(_ source: String, timeout: TimeInterval = 5) -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", source]
-        let outPipe = Pipe()
-        process.standardOutput = outPipe
-        process.standardError = Pipe()
-        do { try process.run() } catch { return nil }
-
-        let watchdog = DispatchWorkItem { if process.isRunning { process.terminate() } }
-        DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: watchdog)
-        let data = outPipe.fileHandleForReading.readDataToEndOfFile() // returns on exit or terminate
-        process.waitUntilExit()
-        watchdog.cancel()
-
-        guard process.terminationStatus == 0 else { return nil }
-        return String(data: data, encoding: .utf8)
+        let result = AppleScriptRunner.run(script)
+        guard result.ok else { return nil }
+        let path = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+        return path.isEmpty ? nil : path
     }
 }

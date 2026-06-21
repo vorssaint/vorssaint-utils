@@ -35,6 +35,11 @@ final class ScrollInverter: ObservableObject {
         }
     }
 
+    /// Force-stops the tap regardless of the preference. Used before the app
+    /// resets its own permissions, so a revoked Accessibility grant can never
+    /// leave a live tap behind.
+    func suspend() { stop() }
+
     private func start() {
         guard tap == nil else {
             isRunning = true

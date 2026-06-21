@@ -15,6 +15,18 @@ struct BatteryInfo {
 /// The battery snapshot feeds the keep-awake battery protection; the memory
 /// reading feeds the system monitor.
 enum SystemInfo {
+    static func wallClockUptimeSeconds(now: Date = Date()) -> Int? {
+        var bootTime = timeval()
+        var size = MemoryLayout<timeval>.stride
+        guard sysctlbyname("kern.boottime", &bootTime, &size, nil, 0) == 0 else { return nil }
+        guard bootTime.tv_sec > 0 else { return nil }
+
+        let bootSeconds = Double(bootTime.tv_sec) + Double(bootTime.tv_usec) / 1_000_000
+        let elapsed = now.timeIntervalSince1970 - bootSeconds
+        guard elapsed.isFinite, elapsed >= 0 else { return nil }
+        return Int(elapsed.rounded(.down))
+    }
+
     static func batterySnapshot() -> BatteryInfo? {
         guard let blobRef = IOPSCopyPowerSourcesInfo() else { return nil }
         let blob = blobRef.takeRetainedValue()

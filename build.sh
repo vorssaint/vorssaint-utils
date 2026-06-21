@@ -80,20 +80,25 @@ else
 fi
 
 # --test: compile and run the standalone unit tests (pure helpers only: metrics,
-# defaults, localization contracts; no app, no UI, no IOKit), then exit. Fast and
-# deterministic; no XCTest needed.
+# Homebrew parsing, defaults, localization contracts; no app, no UI, no IOKit),
+# then exit. Fast and deterministic; no XCTest needed.
 if (( TEST )); then
     echo "▸ Building & running unit tests against $(basename "$SDK")…"
     rm -rf build
     mkdir -p build
     swiftc -O -target "$TARGET" -sdk "$SDK" \
+        Sources/Vorssaint/Services/Media/MediaSupport.swift \
         Sources/Vorssaint/Core/Defaults.swift \
         Sources/Vorssaint/Core/AppInfo.swift \
         Sources/Vorssaint/Core/Localization.swift \
         Sources/Vorssaint/Core/Localizations/Strings+*.swift \
         Sources/Vorssaint/Core/ReleaseNotes.swift \
         Sources/Vorssaint/Core/URLCleaning.swift \
+        Sources/Vorssaint/Services/Audio/MixerRoutingSupport.swift \
+        Sources/Vorssaint/Services/DockPreview/DockPreviewSupport.swift \
+        Sources/Vorssaint/Services/Homebrew/HomebrewSupport.swift \
         Sources/Vorssaint/Services/Metrics/MetricFormat.swift \
+        Sources/Vorssaint/Services/Metrics/TemperatureSensorSelector.swift \
         Sources/Vorssaint/Services/CleaningMode/CleaningUnlockCounter.swift \
         Tests/MetricsTests.swift \
         -o build/metrics-tests
@@ -136,6 +141,14 @@ fi
 printf 'APPL????' > "$STAGE/Contents/PkgInfo"
 cp build/AppIcon.icns "$STAGE/Contents/Resources/AppIcon.icns"
 cp build/MenuBarIcon.png build/MenuBarIcon@2x.png build/BrandMark.png "$STAGE/Contents/Resources/"
+if [[ -f Resources/Gifs/dockPreview.gif ]]; then
+    mkdir -p "$STAGE/Contents/Resources/Gifs"
+    cp Resources/Gifs/dockPreview.gif "$STAGE/Contents/Resources/Gifs/"
+fi
+if [[ -d Resources/Images ]]; then
+    mkdir -p "$STAGE/Contents/Resources/Images"
+    cp Resources/Images/* "$STAGE/Contents/Resources/Images/"
+fi
 xattr -c -r "$STAGE" 2>/dev/null || true
 
 # Signing, in order of preference:
