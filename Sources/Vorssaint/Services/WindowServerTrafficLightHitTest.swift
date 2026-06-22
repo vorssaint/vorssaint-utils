@@ -40,7 +40,7 @@ enum WindowServerTrafficLightHitTest {
                   let ownerPID = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
                   ownerPID != getpid(),
                   let number = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value else {
-                return nil
+                continue
             }
 
             guard pidIsEligible(ownerPID),

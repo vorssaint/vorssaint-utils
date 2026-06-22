@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import ServiceManagement
 import SwiftUI
 
@@ -8,7 +9,7 @@ import SwiftUI
 /// the Features section, so every feature gets its own page.
 enum SettingsPage: Hashable {
     case general, energy, monitor
-    case mouse, switcher, cutPaste, autoQuit, uninstaller, urlCleaner, shelf
+    case mouse, switcher, cutPaste, autoQuit, uninstaller, urlCleaner, homebrew, media, shelf
     case advanced, about, releaseNotes, support
 }
 
@@ -41,6 +42,8 @@ struct SettingsView: View {
                     Label(l10n.s.autoQuitName, systemImage: "xmark.rectangle").tag(SettingsPage.autoQuit)
                     Label(l10n.s.uninstallerName, systemImage: "trash").tag(SettingsPage.uninstaller)
                     Label(l10n.s.urlCleanerName, systemImage: "link").tag(SettingsPage.urlCleaner)
+                    Label(l10n.s.homebrewName, systemImage: "shippingbox").tag(SettingsPage.homebrew)
+                    Label(l10n.s.mediaName, systemImage: "photo.on.rectangle.angled").tag(SettingsPage.media)
                     Label(l10n.s.shelfName, systemImage: "tray.full").tag(SettingsPage.shelf)
                 }
 
@@ -71,6 +74,8 @@ struct SettingsView: View {
         case .autoQuit: AutoQuitSettings()
         case .uninstaller: UninstallerView()
         case .urlCleaner: URLCleanerSettings()
+        case .homebrew: HomebrewSettings()
+        case .media: MediaSettings()
         case .shelf: ShelfSettings()
         case .advanced: AdvancedSettings()
         case .about: AboutSettings()
@@ -84,6 +89,7 @@ struct SettingsView: View {
 
 struct GeneralSettings: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var hotkeys = HotkeyManager.shared
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
@@ -131,6 +137,14 @@ struct GeneralSettings: View {
                     .onChange(of: hotkeyEnabled) { _, enabled in
                         HotkeyManager.shared.setEnabled(enabled)
                     }
+                ShortcutPreferenceRow(role: .keepAwake, isEnabled: hotkeyEnabled) {
+                    HotkeyManager.shared.syncWithPreferences()
+                }
+                if hotkeyEnabled, hotkeys.registrationFailed {
+                    Text(l10n.s.shortcutUnavailable)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
                 Text(l10n.s.hotkeyCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -164,7 +178,7 @@ struct UpdatesView: View {
 
                 if case .available = updates.state {
                     Button(l10n.s.updateInstallButton) {
-                        updates.downloadAndInstall()
+                        appDelegate()?.showUpdatePreview()
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -326,8 +340,12 @@ struct MouseSettings: View {
 struct SwitcherSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
+    @ObservedObject private var dockPreview = DockPreviewService.shared
     @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
     @AppStorage(DefaultsKey.switcherMergeTabs) private var switcherMergeTabs = false
+    @AppStorage(DefaultsKey.switcherShowWindowlessFinder) private var switcherShowWindowlessFinder = true
+    @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
+    @AppStorage(DefaultsKey.previewSize) private var previewSize = "normal"
 
     var body: some View {
         Form {
@@ -339,7 +357,11 @@ struct SwitcherSettings: View {
                 Text(l10n.s.switcherEnableCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text(l10n.s.switcherUsageHint)
+                ShortcutPreferenceRow(role: .switcher, isEnabled: switcherEnabled) {
+                    AppSwitcher.shared.syncWithPreferences()
+                }
+                Text(String(format: l10n.s.switcherUsageHintFormat,
+                            GlobalShortcutRole.switcher.savedShortcut.displayString))
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -348,8 +370,42 @@ struct SwitcherSettings: View {
                 Text(l10n.s.switcherMergeTabsCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                if switcherEnabled {
+                    Toggle(l10n.s.switcherShowFinder, isOn: $switcherShowWindowlessFinder)
+                    Text(l10n.s.switcherShowFinderCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
-            if switcherEnabled {
+            Section {
+                Toggle(l10n.s.dockPreviewEnable, isOn: $dockPreviewEnabled)
+                    .onChange(of: dockPreviewEnabled) { _, _ in
+                        DockPreviewService.shared.syncWithPreferences()
+                    }
+                Text(dockPreviewCaption)
+                    .font(.caption)
+                    .foregroundStyle(dockPreviewWarning ? .orange : .secondary)
+            } header: {
+                HStack(spacing: 6) {
+                    Text(l10n.s.dockPreviewName)
+                    PanelBetaBadge(text: l10n.s.betaBadge)
+                }
+            }
+            Section {
+                Picker(l10n.s.previewSizeLabel, selection: $previewSize) {
+                    Text(l10n.s.previewSizeNormal).tag("normal")
+                    Text(l10n.s.previewSizeLarge).tag("large")
+                    Text(l10n.s.previewSizeXLarge).tag("xlarge")
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: previewSize) { _, _ in
+                    AppSwitcher.shared.syncWithPreferences()
+                }
+            } header: {
+                Text(l10n.s.previewSizeLabel)
+            }
+            if switcherEnabled || dockPreviewEnabled {
                 if !permissions.accessibility {
                     Section(l10n.s.permissionRequired) {
                         PermissionRow(kind: .accessibility)
@@ -363,6 +419,22 @@ struct SwitcherSettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var dockPreviewCaption: String {
+        guard dockPreviewEnabled else { return l10n.s.dockPreviewEnableCaption }
+        if !permissions.accessibility { return "\(l10n.s.permissionRequired): \(l10n.s.permissionAccessibility)" }
+        if !permissions.screenRecording { return "\(l10n.s.permissionRequired): \(l10n.s.permissionScreenRecording)" }
+        switch dockPreview.blockedReason {
+        case .magnification: return l10n.s.dockPreviewMagnificationBlocked
+        case .dockUnavailable: return l10n.s.dockPreviewDockUnavailable
+        default:
+            return l10n.s.betaFeatureWarning
+        }
+    }
+
+    private var dockPreviewWarning: Bool {
+        dockPreviewEnabled
     }
 }
 
@@ -422,6 +494,7 @@ struct AboutSettings: View {
 
 struct ReleaseNotesSettings: View {
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.releaseNotesOnUpdate) private var releaseNotesOnUpdate = true
     private let notes = ReleaseNotes.current
 
     var body: some View {
@@ -435,6 +508,10 @@ struct ReleaseNotesSettings: View {
             }
             .padding(.horizontal, 24)
             .padding(.top, 24)
+
+            Toggle(l10n.s.releaseNotesOnUpdateToggle, isOn: $releaseNotesOnUpdate)
+                .toggleStyle(.switch)
+                .padding(.horizontal, 24)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
@@ -483,18 +560,59 @@ struct ReleaseNotesSettings: View {
                     .tracking(1.2)
             }
             ForEach(Array(section.items.enumerated()), id: \.offset) { _, item in
-                HStack(alignment: .top, spacing: 9) {
-                    Image(systemName: iconName(for: section.title))
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
-                        .frame(width: 18, alignment: .center)
-                    Text(item)
-                        .font(.system(size: 12.5))
-                        .foregroundStyle(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                releaseItem(item, sectionTitle: section.title)
             }
         }
+    }
+
+    @ViewBuilder
+    private func releaseItem(_ item: ReleaseNoteItem, sectionTitle: String) -> some View {
+        switch item {
+        case let .bullet(text):
+            HStack(alignment: .top, spacing: 9) {
+                Image(systemName: iconName(for: sectionTitle))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 18, alignment: .center)
+                Text(text)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        case let .image(image):
+            if let nsImage = releaseNoteImage(image) {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .scaledToFit()
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(.quaternary, lineWidth: 1)
+                    )
+                    .accessibilityLabel(image.alt)
+                    .padding(.leading, 27)
+            }
+        }
+    }
+
+    private func releaseNoteImage(_ image: ReleaseNoteImage) -> NSImage? {
+        var path = image.path
+        if let resourcesRange = path.range(of: "Resources/") {
+            path = String(path[resourcesRange.lowerBound...])
+        }
+        if path.hasPrefix("Resources/") {
+            path.removeFirst("Resources/".count)
+        }
+        let nsPath = path as NSString
+        let ext = nsPath.pathExtension
+        let name = (nsPath.deletingPathExtension as NSString).lastPathComponent
+        let directory = nsPath.deletingLastPathComponent
+        guard !name.isEmpty, !ext.isEmpty else { return nil }
+        let subdirectory = directory.isEmpty || directory == "." ? nil : directory
+        guard let url = Bundle.main.url(forResource: name,
+                                        withExtension: ext,
+                                        subdirectory: subdirectory) else { return nil }
+        return NSImage(contentsOf: url)
     }
 
     private func iconName(for title: String) -> String {

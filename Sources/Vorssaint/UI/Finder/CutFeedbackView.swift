@@ -48,6 +48,19 @@ struct CutFeedbackView: View {
                     .padding(.horizontal, 7).padding(.vertical, 2)
                     .background(Capsule().fill(Color.orange.opacity(0.18)))
                     .foregroundStyle(.orange)
+                Button {
+                    service.cancelPendingCut()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 20)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(l10n.s.cutCancel)
+                .accessibilityLabel(l10n.s.cutCancel)
             }
 
             VStack(alignment: .leading, spacing: 5) {

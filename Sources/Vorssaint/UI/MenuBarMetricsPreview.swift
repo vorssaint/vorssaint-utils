@@ -11,15 +11,24 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.menuBarCPU) private var cpu = false
     @AppStorage(DefaultsKey.menuBarGPU) private var gpu = false
     @AppStorage(DefaultsKey.menuBarMemory) private var memory = false
+    @AppStorage(DefaultsKey.menuBarCPUTemperature) private var cpuTemperature = false
+    @AppStorage(DefaultsKey.menuBarGPUTemperature) private var gpuTemperature = false
+    @AppStorage(DefaultsKey.menuBarBatteryTemperature) private var batteryTemperature = false
     @AppStorage(DefaultsKey.menuBarNetwork) private var network = false
     @AppStorage(DefaultsKey.menuBarBattery) private var battery = false
     @AppStorage(DefaultsKey.menuBarPower) private var power = false
+    @AppStorage(DefaultsKey.menuBarMetricOrder) private var metricOrder = ""
+    @AppStorage(DefaultsKey.menuBarCombineTemperatures) private var combineTemperatures = true
     @AppStorage(DefaultsKey.menuBarLabelStyle) private var labelStyle = "compact"
     @AppStorage(DefaultsKey.menuBarMemoryStyle) private var memoryStyle = "percent"
+    @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
 
     var body: some View {
+        let _ = metricOrder
+        let _ = combineTemperatures
         let _ = labelStyle
         let _ = memoryStyle
+        let _ = temperatureUnit
         let lines = MenuBarRenderer.lines(for: monitor.snapshot, metrics: activeMetrics)
         let stacked = lines.count > 1
 
@@ -57,14 +66,16 @@ struct MenuBarMetricsPreview: View {
     }
 
     private var activeMetrics: [MenuBarMetric] {
-        var metrics: [MenuBarMetric] = []
-        if cpu { metrics.append(.cpu) }
-        if gpu { metrics.append(.gpu) }
-        if memory { metrics.append(.memory) }
-        if network { metrics.append(.network) }
-        if battery { metrics.append(.battery) }
-        if power { metrics.append(.power) }
-        return metrics
+        let _ = cpu
+        let _ = gpu
+        let _ = memory
+        let _ = cpuTemperature
+        let _ = gpuTemperature
+        let _ = batteryTemperature
+        let _ = network
+        let _ = battery
+        let _ = power
+        return MenuBarMetric.enabled(in: .standard)
     }
 
     @ViewBuilder
@@ -78,10 +89,96 @@ struct MenuBarMetricsPreview: View {
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
+        case let .symbol(name):
+            Image(systemName: name)
+                .font(.system(size: stacked ? 8.8 : 10.8, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: stacked ? 9.2 : 11.4, height: stacked ? 9.2 : 11.4)
+        case let .largeSymbol(name):
+            Image(systemName: name)
+                .font(.system(size: 13.6, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 14.2, height: 14.2)
+        case let .metricBlock(label, value, minimumValue, style, pressure):
+            metricBlock(label: label,
+                        value: value,
+                        minimumValue: minimumValue,
+                        style: style,
+                        pressure: pressure)
+        case let .networkBlock(down, up, style):
+            VStack(alignment: .leading, spacing: -0.8) {
+                Text("↓\(down)")
+                Text("↑\(up)")
+            }
+            .font(.system(size: style == .readable ? 8.6 : 8,
+                          weight: .semibold,
+                          design: .monospaced))
+            .foregroundStyle(.white)
+            .frame(minWidth: style == .readable ? 34 : 31, alignment: .leading)
+            .fixedSize(horizontal: true, vertical: true)
+        case let .batteryBlock(percent, isCharging, style):
+            HStack(spacing: style == .readable ? 5 : 4) {
+                Image(systemName: MenuBarRenderer.batterySymbol(for: percent, isCharging: isCharging))
+                    .font(.system(size: style == .readable ? 17 : 15.5, weight: .regular))
+                Text("\(max(0, min(100, percent)))%")
+                    .font(.system(size: style == .readable ? 13 : 12,
+                                  weight: .semibold,
+                                  design: .monospaced))
+                    .frame(minWidth: style == .readable ? 33 : 30, alignment: .leading)
+            }
+            .foregroundStyle(.white)
+            .fixedSize(horizontal: true, vertical: true)
         case let .dot(pressure):
             Circle()
                 .fill(dotColor(pressure))
                 .frame(width: stacked ? 5.5 : 7.5, height: stacked ? 5.5 : 7.5)
+        case .separator:
+            Text("│")
+                .font(.system(size: MenuBarRenderer.statusFontSize(stacked: stacked),
+                              weight: .medium,
+                              design: .monospaced))
+                .foregroundStyle(.white.opacity(0.28))
+                .padding(.horizontal, 5)
+        }
+    }
+
+    private func metricBlock(label: String,
+                             value: String,
+                             minimumValue: String,
+                             style: MenuBarBlockStyle,
+                             pressure: MemoryPressure?) -> some View {
+        VStack(spacing: -1) {
+            Text(label)
+                .font(.system(size: style == .readable ? 7.2 : 6.6, weight: .medium))
+            HStack(spacing: pressure == nil ? 0 : 4) {
+                if let pressure {
+                    Circle()
+                        .fill(dotColor(pressure))
+                        .frame(width: style == .readable ? 5.2 : 4.8,
+                               height: style == .readable ? 5.2 : 4.8)
+                }
+                Text(value)
+                    .font(.system(size: style == .readable ? 13 : 12,
+                                  weight: .semibold,
+                                  design: .monospaced))
+                    .frame(minWidth: metricValueMinWidth(minimumValue: minimumValue, style: style),
+                           alignment: .center)
+            }
+        }
+        .foregroundStyle(.white)
+        .fixedSize(horizontal: true, vertical: true)
+    }
+
+    private func metricValueMinWidth(minimumValue: String, style: MenuBarBlockStyle) -> CGFloat {
+        switch minimumValue {
+        case "100% 999°":
+            return style == .readable ? 62 : 56
+        case "100%", "999°":
+            return style == .readable ? 33 : 30
+        case "99W":
+            return style == .readable ? 28 : 25
+        default:
+            return 0
         }
     }
 

@@ -162,16 +162,20 @@ final class AppUninstaller: ObservableObject {
     /// user answers the prompt; a cancel simply leaves the items in place.
     private static func trashViaFinder(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
+        guard AppleScriptRunner.consentToAutomate(bundleID: "com.apple.finder") else { return }
+        // In-process Apple Events (see AppleScriptRunner): the Finder Automation
+        // consent is attributed to this app and re-requested if it was lost,
+        // instead of a fragile osascript subprocess. Paths are embedded as
+        // escaped string literals (no argv).
+        let targets = urls
+            .map { "set end of targets to POSIX file \(AppleScriptRunner.literal($0.path))" }
+            .joined(separator: "\n")
         let source = """
-        on run argv
-            set targets to {}
-            repeat with pathText in argv
-                set end of targets to POSIX file (pathText as text)
-            end repeat
-            tell application "Finder" to delete targets
-        end run
+        set targets to {}
+        \(targets)
+        tell application "Finder" to delete targets
         """
-        _ = Shell.run("/usr/bin/osascript", ["-e", source] + urls.map(\.path))
+        _ = AppleScriptRunner.run(source)
     }
 
     // MARK: - Scanning

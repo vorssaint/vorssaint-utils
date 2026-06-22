@@ -2,8 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleAllowMixedLocalizations</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>pt-BR</string>
+	<string>en</string>
 	<key>CFBundleDisplayName</key>
 	<string>Vorssaint</string>
 	<key>CFBundleExecutable</key>
@@ -14,18 +16,29 @@
 	<string>com.vorssaint.utils</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>pt-BR</string>
+		<string>es</string>
+		<string>de</string>
+		<string>fr</string>
+		<string>it</string>
+		<string>ja</string>
+		<string>zh-Hans</string>
+	</array>
 	<key>CFBundleName</key>
 	<string>Vorssaint</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>3.0.3</string>
+	<string>3.0.10</string>
 	<key>CFBundleSupportedPlatforms</key>
 	<array>
 		<string>MacOSX</string>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>50</string>
+	<string>57</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
 	<key>LSMinimumSystemVersion</key>
@@ -33,7 +46,7 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>O Vorssaint controla o Finder para mover arquivos recortados e para enviar itens à Lixeira no desinstalador.</string>
+	<string>O Vorssaint usa Automação para mover arquivos no Finder, enviar itens à Lixeira e abrir comandos no Terminal quando você pede ações do Homebrew.</string>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>Vorssaint intercepta o áudio de apps individuais apenas para ajustar o volume de cada um no mixer. Nada é gravado nem sai do seu Mac.</string>
 	<key>NSHumanReadableCopyright</key>

@@ -15,6 +15,7 @@ dist/
 
 # Local-only working notes
 AGENTS.md
+E2E/
 
 # macOS noise
 .DS_Store

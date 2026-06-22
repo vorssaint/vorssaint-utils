@@ -23,6 +23,13 @@ struct MonitorPanelConfig: View {
     @AppStorage(DefaultsKey.monitorNetTotals) private var netTotals = true
     @AppStorage(DefaultsKey.monitorNetTest) private var netTest = true
 
+    @AppStorage(DefaultsKey.monitorShowDisk) private var showDisk = true
+    @AppStorage(DefaultsKey.monitorDiskUsage) private var diskUsage = true
+    @AppStorage(DefaultsKey.monitorDiskActivity) private var diskActivity = true
+    @AppStorage(DefaultsKey.monitorDiskSMART) private var diskSMART = true
+    @AppStorage(DefaultsKey.monitorDiskProtection) private var diskProtection = true
+    @AppStorage(DefaultsKey.monitorDiskTools) private var diskTools = true
+
     @AppStorage(DefaultsKey.monitorShowPower) private var showPower = true
     @AppStorage(DefaultsKey.monitorPwrSystem) private var pwrSystem = true
     @AppStorage(DefaultsKey.monitorPwrAdapter) private var pwrAdapter = true
@@ -44,6 +51,13 @@ struct MonitorPanelConfig: View {
             Toggle(l10n.s.monitorItemNetSpeed, isOn: $netSpeed)
             Toggle(l10n.s.monitorItemNetTotals, isOn: $netTotals)
             Toggle(l10n.s.monitorItemNetTest, isOn: $netTest)
+        }
+        block(title: l10n.s.diskSection, master: $showDisk) {
+            Toggle(l10n.s.monitorItemDiskUsage, isOn: $diskUsage)
+            Toggle(l10n.s.monitorItemDiskActivity, isOn: $diskActivity)
+            Toggle(l10n.s.monitorItemDiskSMART, isOn: $diskSMART)
+            Toggle(l10n.s.monitorItemDiskProtection, isOn: $diskProtection)
+            Toggle(l10n.s.monitorItemDiskTools, isOn: $diskTools)
         }
         block(title: l10n.s.powerSection, master: $showPower) {
             Toggle(l10n.s.powerSystem, isOn: $pwrSystem)

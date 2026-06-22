@@ -5,6 +5,10 @@ import AppKit
 import Combine
 import SwiftUI
 
+extension Notification.Name {
+    static let menuPanelWillShow = Notification.Name("VorssaintMenuPanelWillShow")
+}
+
 /// Content of the menu bar popover: keep-awake controls, the volume mixer and
 /// the system monitor.
 struct MenuPanelView: View {
@@ -15,8 +19,12 @@ struct MenuPanelView: View {
     @AppStorage(DefaultsKey.monitorShowMixer) private var showMixer = true
     @AppStorage(DefaultsKey.monitorShowSystem) private var showSystem = true
     @AppStorage(DefaultsKey.monitorShowNetwork) private var showNetwork = true
+    @AppStorage(DefaultsKey.monitorShowDisk) private var showDisk = true
     @AppStorage(DefaultsKey.monitorShowPower) private var showPower = true
     @AppStorage(DefaultsKey.monitorShowFanControlBeta) private var showFanControlBeta = false
+    @AppStorage(DefaultsKey.panelShowKeepAwake) private var showKeepAwake = true
+    @AppStorage(DefaultsKey.panelShowUtilities) private var showUtilities = true
+    @AppStorage(DefaultsKey.panelShowControls) private var showControls = true
     @AppStorage(DefaultsKey.panelNavigationEnabled) private var panelNavigationEnabled = true
     @AppStorage(DefaultsKey.panelSectionOrder) private var sectionOrderRaw = ""
     @State private var contentHeight: CGFloat = 0
@@ -40,12 +48,42 @@ struct MenuPanelView: View {
         }
         .onAppear {
             awake.refreshPasswordlessStatus()
+            syncMonitorSampling()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .menuPanelWillShow)) { _ in
+            syncMonitorSampling()
+        }
+        .onDisappear {
+            SystemMonitor.shared.setMenuPanelNeeds(.none)
+        }
+        .onChange(of: monitorNeeds) { _, _ in
+            syncMonitorSampling()
         }
         .onChange(of: updates.state) { _, state in
             if !state.showsMenuPanelBanner {
                 updateBannerHeight = 0
             }
         }
+    }
+
+    private var monitorNeeds: SystemMonitorPanelNeeds {
+        if panelNavigationEnabled {
+            switch activeSection {
+            case .system: return SystemMonitorPanelNeeds(system: true)
+            case .network: return SystemMonitorPanelNeeds(network: true)
+            case .disk: return SystemMonitorPanelNeeds(disk: true)
+            case .power: return SystemMonitorPanelNeeds(power: true)
+            default: return .none
+            }
+        }
+        return SystemMonitorPanelNeeds(system: showSystem,
+                                       network: showNetwork,
+                                       disk: showDisk,
+                                       power: showPower)
+    }
+
+    private func syncMonitorSampling() {
+        SystemMonitor.shared.setMenuPanelNeeds(monitorNeeds)
     }
 
     private var classicPanel: some View {
@@ -60,7 +98,7 @@ struct MenuPanelView: View {
             VStack(alignment: .leading, spacing: 12) {
                 UpdateBanner()
                 header
-                ForEach(orderedSections) { id in
+                ForEach(visibleSections) { id in
                     section(for: id)
                 }
                 footer
@@ -69,6 +107,7 @@ struct MenuPanelView: View {
             .frame(width: 332)
         }
         .frame(width: 332, height: min(contentHeight == 0 ? 480 : contentHeight, maxHeight))
+        .panelGlassSurface()
     }
 
     private var navigablePanel: some View {
@@ -90,6 +129,7 @@ struct MenuPanelView: View {
         }
         .padding(12)
         .frame(width: 332, height: navigablePanelHeight)
+        .panelGlassSurface()
     }
 
     /// The major sections in the user's saved order. Reading `sectionOrderRaw`
@@ -128,12 +168,13 @@ struct MenuPanelView: View {
     private var estimatedNavigableContentHeight: CGFloat {
         switch activeSection {
         case .keepAwake: return 250
-        case .mixer: return 190
+        case .mixer: return 250
         case .system: return 460
         case .network: return 190
+        case .disk: return 360
         case .power: return 170
         case .fanControl: return 92
-        case .utilities: return 190
+        case .utilities: return 500
         case .controls: return 360
         }
     }
@@ -148,6 +189,7 @@ struct MenuPanelView: View {
         case .mixer: if showMixer { MixerSection(collapsible: collapsible) }
         case .system: if showSystem { SystemSection(collapsible: collapsible) }
         case .network: if showNetwork { NetworkSection(collapsible: collapsible) }
+        case .disk: if showDisk { DiskSection(collapsible: collapsible) }
         case .power: if showPower { PowerSection(collapsible: collapsible) }
         case .fanControl: if showFanControlBeta { FanControlSection(collapsible: collapsible) }
         case .utilities: UtilitiesSection(collapsible: collapsible, startCleaning: startCleaning)
@@ -157,14 +199,15 @@ struct MenuPanelView: View {
 
     private func isSectionVisible(_ id: PanelSectionID) -> Bool {
         switch id {
-        case .keepAwake: return true
+        case .keepAwake: return showKeepAwake
         case .mixer: return showMixer
         case .system: return showSystem
         case .network: return showNetwork
+        case .disk: return showDisk
         case .power: return showPower
         case .fanControl: return showFanControlBeta
-        case .utilities: return true
-        case .controls: return true
+        case .utilities: return showUtilities
+        case .controls: return showControls
         }
     }
 
@@ -194,7 +237,11 @@ struct MenuPanelView: View {
         .padding(4)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.primary.opacity(0.055))
+                .fill(PanelSurface.cardFill(for: colorScheme))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(PanelSurface.border(for: colorScheme), lineWidth: 0.7)
         )
     }
 
@@ -295,11 +342,11 @@ struct MenuPanelView: View {
                 .frame(maxWidth: .infinity, minHeight: 28)
                 .background(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(Color.primary.opacity(0.055))
+                        .fill(PanelSurface.cardFill(for: colorScheme))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.055), lineWidth: 0.8)
+                        .strokeBorder(PanelSurface.border(for: colorScheme), lineWidth: 0.8)
                 )
                 .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
@@ -308,21 +355,34 @@ struct MenuPanelView: View {
     }
 }
 
+private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
+    case homebrew, media, uninstaller, cleanURL, cleaning
+
+    var id: String { rawValue }
+}
+
 struct UtilitiesSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
     @State private var showUninstaller = false
     @State private var showURLCleaner = false
+    @State private var showHomebrewPanel = false
+    @State private var showMediaPanel = false
     @AppStorage(DefaultsKey.panelUtilityCleaning) private var showCleaning = true
     @AppStorage(DefaultsKey.panelUtilityURLCleaner) private var showCleanURL = true
     @AppStorage(DefaultsKey.panelUtilityUninstaller) private var showUninstallerAction = true
+    @AppStorage(DefaultsKey.panelUtilityHomebrew) private var showHomebrew = true
+    @AppStorage(DefaultsKey.panelUtilityMedia) private var showMedia = true
+    @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
+    @State private var draggingItem: UtilityPanelItem?
     var collapsible = true
     var startCleaning: () -> Void
 
     var body: some View {
         PanelSection(.utilities, title: l10n.s.utilitiesSection, collapsible: collapsible,
                      supportsEditing: true,
-                     editButtonVisible: !showUninstaller && !showURLCleaner) { editing in
+                     editButtonVisible: !showUninstaller && !showURLCleaner && !showHomebrewPanel && !showMediaPanel,
+                     resetAction: resetPanelDefaults) { editing in
             if showUninstaller {
                 PanelUninstallerView {
                     showUninstaller = false
@@ -331,46 +391,47 @@ struct UtilitiesSection: View {
                 PanelURLCleanerView {
                     showURLCleaner = false
                 }
+            } else if showHomebrewPanel {
+                PanelHomebrewView {
+                    PanelInteractionState.shared.keepsPopoverOpen = false
+                    showHomebrewPanel = false
+                }
+            } else if showMediaPanel {
+                PanelMediaView {
+                    PanelInteractionState.shared.keepsPopoverOpen = false
+                    showMediaPanel = false
+                }
             } else {
                 VStack(alignment: .leading, spacing: 8) {
-                    if editing || showCleaning {
-                        UtilityActionButton(title: l10n.s.cleaningMenuItem,
-                                            caption: cleaningCaption,
-                                            systemImage: "keyboard",
-                                            isEditing: editing,
-                                            visibility: $showCleaning,
-                                            needsAttention: cleaningNeedsAccessibility,
-                                            permissionButtonTitle: l10n.s.permissionRequest,
-                                            permissionAction: cleaningNeedsAccessibility ? grantAccessibility : nil,
-                                            action: startCleaning)
-                    }
-                    if editing || showCleanURL {
-                        UtilityActionButton(title: l10n.s.urlCleanerName,
-                                            caption: l10n.s.urlCleanerEnableCaption,
-                                            systemImage: "link",
-                                            isEditing: editing,
-                                            visibility: $showCleanURL,
-                                            action: {
-                                                PanelInteractionState.shared.keepsPopoverOpen = true
-                                                showURLCleaner = true
-                                            })
-                    }
-                    if editing || showUninstallerAction {
-                        UtilityActionButton(title: l10n.s.uninstallerName,
-                                            caption: l10n.s.uninstallerEnableCaption,
-                                            systemImage: "trash",
-                                            isEditing: editing,
-                                            visibility: $showUninstallerAction,
-                                            action: {
-                                                PanelInteractionState.shared.keepsPopoverOpen = true
-                                                showUninstaller = true
-                                            })
+                    ForEach(items(editing: editing)) { item in
+                        PanelReorderableItem(item: item,
+                                             isEnabled: editing,
+                                             order: itemOrderBinding,
+                                             dragging: $draggingItem) {
+                            itemView(item, editing: editing)
+                        }
                     }
                 }
             }
         }
+        .onChange(of: showHomebrewPanel) { _, shown in
+            if shown {
+                PanelInteractionState.shared.keepsPopoverOpen = true
+            } else if !showUninstaller && !showURLCleaner && !showMediaPanel {
+                PanelInteractionState.shared.keepsPopoverOpen = false
+            }
+        }
+        .onChange(of: showMediaPanel) { _, shown in
+            if shown {
+                PanelInteractionState.shared.keepsPopoverOpen = true
+            } else if !showUninstaller && !showURLCleaner && !showHomebrewPanel {
+                PanelInteractionState.shared.keepsPopoverOpen = false
+            }
+        }
         .onDisappear {
-            PanelInteractionState.shared.keepsPopoverOpen = false
+            if !showUninstaller && !showURLCleaner && !showHomebrewPanel && !showMediaPanel {
+                PanelInteractionState.shared.keepsPopoverOpen = false
+            }
         }
     }
 
@@ -384,10 +445,115 @@ struct UtilitiesSection: View {
             : l10n.s.cleaningPanelCaption
     }
 
+    private var orderedItems: [UtilityPanelItem] {
+        _ = utilityOrderRaw
+        return PanelLayout.itemOrder(UtilityPanelItem.self, key: DefaultsKey.panelUtilityOrder)
+    }
+
+    private var itemOrderBinding: Binding<[UtilityPanelItem]> {
+        Binding {
+            orderedItems
+        } set: { newValue in
+            PanelLayout.setItemOrder(newValue, key: DefaultsKey.panelUtilityOrder)
+        }
+    }
+
+    private func items(editing: Bool) -> [UtilityPanelItem] {
+        orderedItems.filter { editing || isVisible($0) }
+    }
+
+    private func isVisible(_ item: UtilityPanelItem) -> Bool {
+        switch item {
+        case .homebrew: return showHomebrew
+        case .media: return showMedia
+        case .uninstaller: return showUninstallerAction
+        case .cleanURL: return showCleanURL
+        case .cleaning: return showCleaning
+        }
+    }
+
+    @ViewBuilder
+    private func itemView(_ item: UtilityPanelItem, editing: Bool) -> some View {
+        switch item {
+        case .homebrew:
+            UtilityActionButton(title: l10n.s.homebrewName,
+                                caption: l10n.s.homebrewEnableCaption,
+                                systemImage: "shippingbox",
+                                badge: l10n.s.betaBadge,
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showHomebrew,
+                                action: {
+                                    PanelInteractionState.shared.keepsPopoverOpen = true
+                                    showHomebrewPanel = true
+                                })
+        case .media:
+            UtilityActionButton(title: l10n.s.mediaName,
+                                caption: l10n.s.mediaEnableCaption,
+                                systemImage: "photo.on.rectangle.angled",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showMedia,
+                                action: {
+                                    PanelInteractionState.shared.keepsPopoverOpen = true
+                                    showMediaPanel = true
+                                })
+        case .uninstaller:
+            UtilityActionButton(title: l10n.s.uninstallerName,
+                                caption: l10n.s.uninstallerEnableCaption,
+                                systemImage: "trash",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showUninstallerAction,
+                                action: {
+                                    PanelInteractionState.shared.keepsPopoverOpen = true
+                                    showUninstaller = true
+                                })
+        case .cleanURL:
+            UtilityActionButton(title: l10n.s.urlCleanerName,
+                                caption: l10n.s.urlCleanerEnableCaption,
+                                systemImage: "link",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showCleanURL,
+                                action: {
+                                    PanelInteractionState.shared.keepsPopoverOpen = true
+                                    showURLCleaner = true
+                                })
+        case .cleaning:
+            UtilityActionButton(title: l10n.s.cleaningMenuItem,
+                                caption: cleaningCaption,
+                                systemImage: "keyboard",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showCleaning,
+                                needsAttention: cleaningNeedsAccessibility,
+                                permissionButtonTitle: l10n.s.permissionRequest,
+                                permissionAction: cleaningNeedsAccessibility ? grantAccessibility : nil,
+                                action: startCleaning)
+        }
+    }
+
+    private func resetPanelDefaults() {
+        PanelLayout.resetItemOrder(key: DefaultsKey.panelUtilityOrder)
+        utilityOrderRaw = ""
+        showHomebrew = true
+        showMedia = true
+        showUninstallerAction = true
+        showCleanURL = true
+        showCleaning = true
+    }
+
     private func grantAccessibility() {
         Permissions.shared.requestAccessibility()
         Permissions.shared.openAccessibilitySettings()
     }
+}
+
+private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
+    case mouseScroll, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview
+
+    var id: String { rawValue }
 }
 
 struct QuickControlsSection: View {
@@ -395,132 +561,44 @@ struct QuickControlsSection: View {
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var inverter = ScrollInverter.shared
     @ObservedObject private var switcher = AppSwitcher.shared
+    @ObservedObject private var dockPreview = DockPreviewService.shared
     @ObservedObject private var cutPaste = FinderCutPaste.shared
     @ObservedObject private var autoQuit = AutoQuitService.shared
     @ObservedObject private var windowMaximizer = WindowMaximizer.shared
     @AppStorage(DefaultsKey.scrollInverterEnabled) private var scrollEnabled = false
     @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
+    @AppStorage(DefaultsKey.switcherShowWindowlessFinder) private var switcherShowWindowlessFinder = true
+    @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
     @AppStorage(DefaultsKey.finderCutPasteEnabled) private var cutPasteEnabled = false
     @AppStorage(DefaultsKey.autoQuitEnabled) private var autoQuitEnabled = false
     @AppStorage(DefaultsKey.shelfEnabled) private var shelfEnabled = false
     @AppStorage(DefaultsKey.windowMaximizeEnabled) private var windowMaximizeEnabled = false
     @AppStorage(DefaultsKey.panelControlMouseScroll) private var showScroll = true
     @AppStorage(DefaultsKey.panelControlSwitcher) private var showSwitcher = true
+    @AppStorage(DefaultsKey.panelControlDockPreview) private var showDockPreview = true
     @AppStorage(DefaultsKey.panelControlCutPaste) private var showCutPaste = true
     @AppStorage(DefaultsKey.panelControlAutoQuit) private var showAutoQuit = true
     @AppStorage(DefaultsKey.panelControlShelf) private var showShelf = true
     @AppStorage(DefaultsKey.panelControlWindowMaximize) private var showWindowMaximize = true
+    @AppStorage(DefaultsKey.panelControlOrder) private var controlOrderRaw = ""
+    @State private var draggingItem: ControlPanelItem?
     var collapsible = true
 
     var body: some View {
         PanelSection(.controls, title: l10n.s.quickControlsSection, collapsible: collapsible,
-                     supportsEditing: true) { editing in
+                     supportsEditing: true,
+                     resetAction: resetPanelDefaults) { editing in
             VStack(alignment: .leading, spacing: 8) {
-                if editing || showScroll {
-                    PanelToggleRow(title: l10n.s.invertMouseScroll,
-                                   caption: caption(l10n.s.invertMouseScrollCaption, needsAccessibility: scrollEnabled),
-                                   systemImage: "computermouse",
-                                   isOn: $scrollEnabled,
-                                   isEditing: editing,
-                                   visibility: $showScroll,
-                                   isActive: scrollEnabled && inverter.isRunning,
-                                   activeText: l10n.s.scrollActiveNow,
-                                   needsAttention: scrollEnabled && !permissions.accessibility,
-                                   permissionButtonTitle: l10n.s.permissionRequest,
-                                   permissionAction: accessibilityPermissionAction(scrollEnabled))
-                        .onChange(of: scrollEnabled) { _, enabled in
-                            ScrollInverter.shared.syncWithPreferences()
-                            requestAccessibilityIfNeeded(enabled)
-                        }
-                }
-
-                if editing || showSwitcher {
-                    PanelToggleRow(title: l10n.s.switcherSection,
-                                   caption: switcherCaption,
-                                   systemImage: "rectangle.on.rectangle",
-                                   isOn: $switcherEnabled,
-                                   isEditing: editing,
-                                   visibility: $showSwitcher,
-                                   isActive: switcherEnabled && switcher.isRunning,
-                                   needsAttention: switcherEnabled && (!permissions.accessibility || !permissions.screenRecording),
-                                   permissionButtonTitle: l10n.s.permissionRequest,
-                                   permissionAction: switcherPermissionAction)
-                        .onChange(of: switcherEnabled) { _, enabled in
-                            AppSwitcher.shared.syncWithPreferences()
-                            guard enabled else { return }
-                            if !permissions.accessibility {
-                                grantAccessibility()
-                            } else if !permissions.screenRecording {
-                                grantScreenRecording()
-                            }
-                        }
-                }
-
-                if editing || showCutPaste {
-                    PanelToggleRow(title: l10n.s.cutPasteName,
-                                   caption: caption(l10n.s.cutPasteEnableCaption, needsAccessibility: cutPasteEnabled),
-                                   systemImage: "scissors",
-                                   isOn: $cutPasteEnabled,
-                                   isEditing: editing,
-                                   visibility: $showCutPaste,
-                                   isActive: cutPasteEnabled && cutPaste.isRunning,
-                                   activeText: l10n.s.cutPasteActiveNow,
-                                   needsAttention: cutPasteEnabled && !permissions.accessibility,
-                                   permissionButtonTitle: l10n.s.permissionRequest,
-                                   permissionAction: accessibilityPermissionAction(cutPasteEnabled))
-                        .onChange(of: cutPasteEnabled) { _, enabled in
-                            FinderCutPaste.shared.syncWithPreferences()
-                            requestAccessibilityIfNeeded(enabled)
-                        }
-                }
-
-                if editing || showAutoQuit {
-                    PanelToggleRow(title: l10n.s.autoQuitName,
-                                   caption: caption(l10n.s.autoQuitEnableCaption, needsAccessibility: autoQuitEnabled),
-                                   systemImage: "xmark.rectangle",
-                                   isOn: $autoQuitEnabled,
-                                   isEditing: editing,
-                                   visibility: $showAutoQuit,
-                                   isActive: autoQuitEnabled && autoQuit.isRunning,
-                                   activeText: l10n.s.autoQuitActiveNow,
-                                   needsAttention: autoQuitEnabled && !permissions.accessibility,
-                                   permissionButtonTitle: l10n.s.permissionRequest,
-                                   permissionAction: accessibilityPermissionAction(autoQuitEnabled))
-                        .onChange(of: autoQuitEnabled) { _, enabled in
-                            AutoQuitService.shared.syncWithPreferences()
-                            requestAccessibilityIfNeeded(enabled)
-                        }
-                }
-
-                if editing || showShelf {
-                    PanelToggleRow(title: l10n.s.shelfName,
-                                   caption: l10n.s.shelfEnableCaption,
-                                   systemImage: "tray.full",
-                                   isOn: $shelfEnabled,
-                                   isEditing: editing,
-                                   visibility: $showShelf,
-                                   isActive: shelfEnabled)
-                        .onChange(of: shelfEnabled) { _, _ in
-                            ShelfService.shared.syncWithPreferences()
-                        }
-                }
-
-                if editing || showWindowMaximize {
-                    PanelToggleRow(title: l10n.s.windowMaximizeName,
-                                   caption: caption(l10n.s.windowMaximizeCaption, needsAccessibility: windowMaximizeEnabled),
-                                   systemImage: "arrow.up.left.and.arrow.down.right",
-                                   isOn: $windowMaximizeEnabled,
-                                   isEditing: editing,
-                                   visibility: $showWindowMaximize,
-                                   isActive: windowMaximizeEnabled && windowMaximizer.isRunning,
-                                   activeText: l10n.s.windowMaximizeActiveNow,
-                                   needsAttention: windowMaximizeEnabled && !permissions.accessibility,
-                                   permissionButtonTitle: l10n.s.permissionRequest,
-                                   permissionAction: accessibilityPermissionAction(windowMaximizeEnabled))
-                        .onChange(of: windowMaximizeEnabled) { _, enabled in
-                            WindowMaximizer.shared.syncWithPreferences()
-                            requestAccessibilityIfNeeded(enabled)
-                        }
+                ForEach(Array(items(editing: editing).enumerated()), id: \.element) { index, item in
+                    if item == .dockPreview, index > 0 {
+                        PanelSubgroupDivider()
+                    }
+                    PanelReorderableItem(item: item,
+                                         isEnabled: editing,
+                                         order: itemOrderBinding,
+                                         dragging: $draggingItem) {
+                        itemView(item, editing: editing)
+                    }
                 }
             }
         }
@@ -531,6 +609,198 @@ struct QuickControlsSection: View {
         if !permissions.accessibility { return missingPermission(l10n.s.permissionAccessibility) }
         if !permissions.screenRecording { return missingPermission(l10n.s.permissionScreenRecording) }
         return l10n.s.switcherEnableCaption
+    }
+
+    private var dockPreviewCaption: String {
+        guard dockPreviewEnabled else { return l10n.s.dockPreviewEnableCaption }
+        if !permissions.accessibility { return missingPermission(l10n.s.permissionAccessibility) }
+        if !permissions.screenRecording { return missingPermission(l10n.s.permissionScreenRecording) }
+        switch dockPreview.blockedReason {
+        case .magnification: return l10n.s.dockPreviewMagnificationBlocked
+        case .dockUnavailable: return l10n.s.dockPreviewDockUnavailable
+        default:
+            return l10n.s.betaFeatureWarning
+        }
+    }
+
+    private var dockPreviewNeedsAttention: Bool {
+        true
+    }
+
+    private var orderedItems: [ControlPanelItem] {
+        _ = controlOrderRaw
+        return PanelLayout.itemOrder(ControlPanelItem.self, key: DefaultsKey.panelControlOrder)
+    }
+
+    private var itemOrderBinding: Binding<[ControlPanelItem]> {
+        Binding {
+            orderedItems
+        } set: { newValue in
+            PanelLayout.setItemOrder(newValue, key: DefaultsKey.panelControlOrder)
+        }
+    }
+
+    private func items(editing: Bool) -> [ControlPanelItem] {
+        orderedItems.filter { editing || isVisible($0) }
+    }
+
+    private func isVisible(_ item: ControlPanelItem) -> Bool {
+        switch item {
+        case .mouseScroll: return showScroll
+        case .switcher: return showSwitcher
+        case .cutPaste: return showCutPaste
+        case .autoQuit: return showAutoQuit
+        case .shelf: return showShelf
+        case .windowMaximize: return showWindowMaximize
+        case .dockPreview: return showDockPreview
+        }
+    }
+
+    @ViewBuilder
+    private func itemView(_ item: ControlPanelItem, editing: Bool) -> some View {
+        switch item {
+        case .mouseScroll:
+            PanelToggleRow(title: l10n.s.invertMouseScroll,
+                           caption: caption(l10n.s.invertMouseScrollCaption, needsAccessibility: scrollEnabled),
+                           systemImage: "computermouse",
+                           isOn: $scrollEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showScroll,
+                           isActive: scrollEnabled && inverter.isRunning,
+                           activeText: l10n.s.scrollActiveNow,
+                           needsAttention: scrollEnabled && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: accessibilityPermissionAction(scrollEnabled))
+                .onChange(of: scrollEnabled) { _, enabled in
+                    ScrollInverter.shared.syncWithPreferences()
+                    requestAccessibilityIfNeeded(enabled)
+                }
+        case .switcher:
+            VStack(alignment: .leading, spacing: 5) {
+                PanelToggleRow(title: l10n.s.switcherSection,
+                               caption: switcherCaption,
+                               systemImage: "rectangle.on.rectangle",
+                               isOn: $switcherEnabled,
+                               isEditing: editing,
+                               showsDragHandle: true,
+                               visibility: $showSwitcher,
+                               isActive: switcherEnabled && switcher.isRunning,
+                               needsAttention: switcherEnabled && (!permissions.accessibility || !permissions.screenRecording),
+                               permissionButtonTitle: l10n.s.permissionRequest,
+                               permissionAction: switcherPermissionAction)
+                    .onChange(of: switcherEnabled) { _, enabled in
+                        AppSwitcher.shared.syncWithPreferences()
+                        guard enabled else { return }
+                        if !permissions.accessibility {
+                            grantAccessibility()
+                        } else if !permissions.screenRecording {
+                            grantScreenRecording()
+                        }
+                    }
+                if switcherEnabled && !editing {
+                    switcherFinderOption
+                }
+            }
+        case .cutPaste:
+            PanelToggleRow(title: l10n.s.cutPasteName,
+                           caption: caption(l10n.s.cutPasteEnableCaption, needsAccessibility: cutPasteEnabled),
+                           systemImage: "scissors",
+                           isOn: $cutPasteEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showCutPaste,
+                           isActive: cutPasteEnabled && cutPaste.isRunning,
+                           activeText: l10n.s.cutPasteActiveNow,
+                           needsAttention: cutPasteEnabled && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: accessibilityPermissionAction(cutPasteEnabled))
+                .onChange(of: cutPasteEnabled) { _, enabled in
+                    FinderCutPaste.shared.syncWithPreferences()
+                    requestAccessibilityIfNeeded(enabled)
+                }
+        case .autoQuit:
+            PanelToggleRow(title: l10n.s.autoQuitName,
+                           caption: caption(l10n.s.autoQuitEnableCaption, needsAccessibility: autoQuitEnabled),
+                           systemImage: "xmark.rectangle",
+                           isOn: $autoQuitEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showAutoQuit,
+                           isActive: autoQuitEnabled && autoQuit.isRunning,
+                           activeText: l10n.s.autoQuitActiveNow,
+                           needsAttention: autoQuitEnabled && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: accessibilityPermissionAction(autoQuitEnabled))
+                .onChange(of: autoQuitEnabled) { _, enabled in
+                    AutoQuitService.shared.syncWithPreferences()
+                    requestAccessibilityIfNeeded(enabled)
+                }
+        case .shelf:
+            PanelToggleRow(title: l10n.s.shelfName,
+                           caption: l10n.s.shelfEnableCaption,
+                           systemImage: "tray.full",
+                           isOn: $shelfEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showShelf,
+                           isActive: shelfEnabled)
+                .onChange(of: shelfEnabled) { _, _ in
+                    ShelfService.shared.syncWithPreferences()
+                }
+        case .windowMaximize:
+            PanelToggleRow(title: l10n.s.windowMaximizeName,
+                           caption: caption(l10n.s.windowMaximizeCaption, needsAccessibility: windowMaximizeEnabled),
+                           systemImage: "arrow.up.left.and.arrow.down.right",
+                           isOn: $windowMaximizeEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showWindowMaximize,
+                           isActive: windowMaximizeEnabled && windowMaximizer.isRunning,
+                           activeText: l10n.s.windowMaximizeActiveNow,
+                           needsAttention: windowMaximizeEnabled && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: accessibilityPermissionAction(windowMaximizeEnabled))
+                .onChange(of: windowMaximizeEnabled) { _, enabled in
+                    WindowMaximizer.shared.syncWithPreferences()
+                    requestAccessibilityIfNeeded(enabled)
+                }
+        case .dockPreview:
+            PanelToggleRow(title: l10n.s.dockPreviewName,
+                           caption: dockPreviewCaption,
+                           systemImage: "dock.rectangle",
+                           isOn: $dockPreviewEnabled,
+                           badge: l10n.s.betaBadge,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showDockPreview,
+                           isActive: dockPreviewEnabled && dockPreview.isRunning,
+                           activeText: l10n.s.dockPreviewActiveNow,
+                           needsAttention: dockPreviewEnabled && dockPreviewNeedsAttention,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: dockPreviewPermissionAction)
+                .onChange(of: dockPreviewEnabled) { _, enabled in
+                    DockPreviewService.shared.syncWithPreferences()
+                    guard enabled else { return }
+                    if !permissions.accessibility {
+                        grantAccessibility()
+                    } else if !permissions.screenRecording {
+                        grantScreenRecording()
+                    }
+                }
+        }
+    }
+
+    private func resetPanelDefaults() {
+        PanelLayout.resetItemOrder(key: DefaultsKey.panelControlOrder)
+        controlOrderRaw = ""
+        showScroll = true
+        showSwitcher = true
+        showCutPaste = true
+        showAutoQuit = true
+        showShelf = true
+        showWindowMaximize = true
+        showDockPreview = true
     }
 
     private func caption(_ text: String, needsAccessibility: Bool) -> String {
@@ -553,8 +823,43 @@ struct QuickControlsSection: View {
         return { grantAccessibility() }
     }
 
+    private var switcherFinderOption: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 8) {
+                Text(l10n.s.switcherShowFinder)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Toggle("", isOn: $switcherShowWindowlessFinder)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+            }
+            Text(l10n.s.switcherShowFinderCaption)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.tertiary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.leading, 31)
+        .padding(.trailing, 4)
+        .padding(.bottom, 2)
+    }
+
     private var switcherPermissionAction: (() -> Void)? {
         guard switcherEnabled else { return nil }
+        if !permissions.accessibility {
+            return { grantAccessibility() }
+        }
+        if !permissions.screenRecording {
+            return { grantScreenRecording() }
+        }
+        return nil
+    }
+
+    private var dockPreviewPermissionAction: (() -> Void)? {
+        guard dockPreviewEnabled else { return nil }
         if !permissions.accessibility {
             return { grantAccessibility() }
         }
@@ -579,7 +884,9 @@ private struct UtilityActionButton: View {
     let title: String
     let caption: String
     let systemImage: String
+    var badge: String? = nil
     var isEditing = false
+    var showsDragHandle = false
     var visibility: Binding<Bool>? = nil
     var needsAttention = false
     var permissionButtonTitle: String? = nil
@@ -609,15 +916,23 @@ private struct UtilityActionButton: View {
 
     private func rowContent(showChevron: Bool) -> some View {
         HStack(spacing: 9) {
+            if isEditing && showsDragHandle {
+                PanelDragHandle()
+            }
             Image(systemName: systemImage)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(iconColor)
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(isHiddenInEditor ? Color.secondary : Color.primary)
-                    .lineLimit(1)
+                HStack(spacing: 5) {
+                    Text(title)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(isHiddenInEditor ? Color.secondary : Color.primary)
+                        .lineLimit(1)
+                    if let badge {
+                        PanelBetaBadge(text: badge)
+                    }
+                }
                 Text(caption)
                     .font(.system(size: 10))
                     .foregroundStyle(captionColor)
@@ -669,7 +984,9 @@ private struct PanelToggleRow: View {
     let caption: String
     let systemImage: String
     @Binding var isOn: Bool
+    var badge: String? = nil
     var isEditing = false
+    var showsDragHandle = false
     var visibility: Binding<Bool>? = nil
     var isActive = false
     var activeText: String? = nil
@@ -684,15 +1001,23 @@ private struct PanelToggleRow: View {
 
     private var rowContent: some View {
         HStack(spacing: 9) {
+            if isEditing && showsDragHandle {
+                PanelDragHandle()
+            }
             Image(systemName: systemImage)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(iconColor)
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(isHiddenInEditor ? Color.secondary : Color.primary)
-                    .lineLimit(1)
+                HStack(spacing: 5) {
+                    Text(title)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(isHiddenInEditor ? Color.secondary : Color.primary)
+                        .lineLimit(1)
+                    if let badge {
+                        PanelBetaBadge(text: badge)
+                    }
+                }
                 Text(caption)
                     .font(.system(size: 10))
                     .foregroundStyle(captionColor)
@@ -748,6 +1073,39 @@ private struct PanelToggleRow: View {
 
     private var isHiddenInEditor: Bool {
         isEditing && visibility?.wrappedValue == false
+    }
+}
+
+/// A small "Beta" pill, used to flag a control as still experimental.
+struct PanelBetaBadge: View {
+    let text: String
+
+    var body: some View {
+        Text(text.uppercased())
+            .font(.system(size: 8, weight: .bold))
+            .tracking(0.4)
+            .foregroundStyle(.orange)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1.5)
+            .background(
+                Capsule(style: .continuous).fill(Color.orange.opacity(0.16))
+            )
+            .overlay(
+                Capsule(style: .continuous).strokeBorder(Color.orange.opacity(0.35), lineWidth: 0.5)
+            )
+            .accessibilityLabel(text)
+    }
+}
+
+/// A thin separator that sets the experimental group apart from the stable
+/// quick controls. The row's own "Beta" badge does the labelling, so this just
+/// provides the visual break.
+private struct PanelSubgroupDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color.secondary.opacity(0.16))
+            .frame(height: 1)
+            .padding(.vertical, 3)
     }
 }
 
@@ -892,7 +1250,7 @@ struct UpdateBanner: View {
         switch updates.state {
         case let .available(version):
             Button {
-                UpdateService.shared.downloadAndInstall()
+                appDelegate()?.showUpdatePreview()
             } label: {
                 HStack(spacing: 9) {
                     Image(systemName: "arrow.down.circle.fill")

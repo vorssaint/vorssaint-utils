@@ -289,6 +289,9 @@ private struct MenuBarSetupStep: View {
     @AppStorage(DefaultsKey.menuBarCPU) private var cpu = false
     @AppStorage(DefaultsKey.menuBarGPU) private var gpu = false
     @AppStorage(DefaultsKey.menuBarMemory) private var memory = false
+    @AppStorage(DefaultsKey.menuBarCPUTemperature) private var cpuTemperature = false
+    @AppStorage(DefaultsKey.menuBarGPUTemperature) private var gpuTemperature = false
+    @AppStorage(DefaultsKey.menuBarBatteryTemperature) private var batteryTemperature = false
     @AppStorage(DefaultsKey.menuBarNetwork) private var network = false
     @AppStorage(DefaultsKey.menuBarBattery) private var battery = false
     @AppStorage(DefaultsKey.menuBarPower) private var power = false
@@ -308,6 +311,12 @@ private struct MenuBarSetupStep: View {
                 toggle(l10n.s.monitorShowGPU, $gpu)
                 Divider()
                 toggle(l10n.s.monitorShowMemory, $memory)
+                Divider()
+                toggle(l10n.s.monitorShowCPUTemperature, $cpuTemperature)
+                Divider()
+                toggle(l10n.s.monitorShowGPUTemperature, $gpuTemperature)
+                Divider()
+                toggle(l10n.s.monitorShowBatteryTemperature, $batteryTemperature)
                 Divider()
                 toggle(l10n.s.monitorShowNetwork, $network)
                 Divider()
@@ -332,8 +341,6 @@ private struct MenuBarSetupStep: View {
 
             Spacer()
         }
-        .onAppear { SystemMonitor.shared.panelDidAppear() }
-        .onDisappear { SystemMonitor.shared.panelDidDisappear() }
     }
 
     private func toggle(_ title: String, _ isOn: Binding<Bool>) -> some View {

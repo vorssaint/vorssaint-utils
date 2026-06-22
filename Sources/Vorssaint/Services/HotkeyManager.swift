@@ -2,25 +2,35 @@
 // Copyright (C) 2026 Vorssaint
 
 import Carbon.HIToolbox
+import Combine
 import Foundation
 
-/// Global ⌃⌥⌘K shortcut via Carbon (no Accessibility permission required).
-final class HotkeyManager {
+/// Global Keep Awake shortcut via Carbon (no Accessibility permission required).
+final class HotkeyManager: ObservableObject {
     static let shared = HotkeyManager()
 
+    @Published private(set) var registrationFailed = false
     var onActivate: (() -> Void)?
 
     private var hotKeyRef: EventHotKeyRef?
     private var eventHandler: EventHandlerRef?
+    private var registeredShortcut: GlobalShortcut?
 
     private init() {}
+
+    func syncWithPreferences() {
+        setEnabled(UserDefaults.standard.bool(forKey: DefaultsKey.hotkeyEnabled))
+    }
 
     func setEnabled(_ enabled: Bool) {
         enabled ? register() : unregister()
     }
 
     private func register() {
-        guard hotKeyRef == nil else { return }
+        let shortcut = GlobalShortcut.saved(for: DefaultsKey.keepAwakeShortcut,
+                                            fallback: .keepAwakeDefault)
+        if hotKeyRef != nil, registeredShortcut == shortcut { return }
+        unregister()
         if eventHandler == nil {
             var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
                                      eventKind: UInt32(kEventHotKeyPressed))
@@ -44,12 +54,22 @@ final class HotkeyManager {
             }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), &eventHandler)
         }
         let hotKeyID = EventHotKeyID(signature: 0x5655_544C, id: 1) // 'VUTL'
-        RegisterEventHotKey(UInt32(kVK_ANSI_K),
-                            UInt32(controlKey | optionKey | cmdKey),
-                            hotKeyID,
-                            GetEventDispatcherTarget(),
-                            0,
-                            &hotKeyRef)
+        var ref: EventHotKeyRef?
+        let status = RegisterEventHotKey(shortcut.carbonKeyCode,
+                                         shortcut.carbonModifiers,
+                                         hotKeyID,
+                                         GetEventDispatcherTarget(),
+                                         0,
+                                         &ref)
+        if status == noErr, let ref {
+            hotKeyRef = ref
+            registeredShortcut = shortcut
+            registrationFailed = false
+        } else {
+            hotKeyRef = nil
+            registeredShortcut = nil
+            registrationFailed = true
+        }
     }
 
     private func unregister() {
@@ -57,5 +77,7 @@ final class HotkeyManager {
             UnregisterEventHotKey(ref)
             hotKeyRef = nil
         }
+        registeredShortcut = nil
+        registrationFailed = false
     }
 }

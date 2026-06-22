@@ -15,32 +15,71 @@ struct NetworkSection: View {
     @AppStorage(DefaultsKey.monitorNetSpeed) private var netSpeed = true
     @AppStorage(DefaultsKey.monitorNetTotals) private var netTotals = true
     @AppStorage(DefaultsKey.monitorNetTest) private var netTest = true
+    @AppStorage(DefaultsKey.panelNetworkOrder) private var networkOrderRaw = ""
+    @State private var draggingBlock: Block?
 
     var body: some View {
         PanelSection(.network, title: l10n.s.networkSection, collapsible: collapsible,
-                     supportsEditing: true) { editing in
+                     supportsEditing: true,
+                     resetAction: resetPanelDefaults) { editing in
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(Array(blocks(editing: editing).enumerated()), id: \.element) { index, block in
                     if index > 0 { Divider() }
-                    blockContent(block, editing: editing)
+                    PanelReorderableItem(item: block,
+                                         isEnabled: editing,
+                                         order: blockOrderBinding,
+                                         dragging: $draggingBlock) {
+                        HStack(alignment: .top, spacing: 8) {
+                            if editing {
+                                PanelDragHandle()
+                            }
+                            blockContent(block, editing: editing)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
                 }
             }
             .panelCard()
         }
     }
 
-    private enum Block: Hashable { case speed, totals, test }
+    private enum Block: String, PanelOrderItem { case speed, totals, test }
 
     private var visibleBlocks: [Block] {
-        var blocks: [Block] = []
-        if netSpeed { blocks.append(.speed) }
-        if netTotals { blocks.append(.totals) }
-        if netTest { blocks.append(.test) }
-        return blocks
+        orderedBlocks.filter(isVisible)
     }
 
     private func blocks(editing: Bool) -> [Block] {
-        editing ? [.speed, .totals, .test] : visibleBlocks
+        editing ? orderedBlocks : visibleBlocks
+    }
+
+    private var orderedBlocks: [Block] {
+        _ = networkOrderRaw
+        return PanelLayout.itemOrder(Block.self, key: DefaultsKey.panelNetworkOrder)
+    }
+
+    private var blockOrderBinding: Binding<[Block]> {
+        Binding {
+            orderedBlocks
+        } set: { newValue in
+            PanelLayout.setItemOrder(newValue, key: DefaultsKey.panelNetworkOrder)
+        }
+    }
+
+    private func isVisible(_ block: Block) -> Bool {
+        switch block {
+        case .speed: return netSpeed
+        case .totals: return netTotals
+        case .test: return netTest
+        }
+    }
+
+    private func resetPanelDefaults() {
+        PanelLayout.resetItemOrder(key: DefaultsKey.panelNetworkOrder)
+        networkOrderRaw = ""
+        netSpeed = true
+        netTotals = true
+        netTest = true
     }
 
     @ViewBuilder

@@ -8,6 +8,12 @@ import Darwin
 /// a human name. Shared by the resource breakdown and the volume mixer, so
 /// helper processes roll up into their app with its proper icon.
 enum ResponsibleProcess {
+    private static let iconCache: NSCache<NSNumber, NSImage> = {
+        let cache = NSCache<NSNumber, NSImage>()
+        cache.countLimit = 200
+        return cache
+    }()
+
     /// `responsibility_get_pid_responsible_for_pid`, exported by libsystem and
     /// used by the system for the same grouping; resolved at runtime so a
     /// missing symbol degrades to per-process rows instead of breaking.
@@ -40,7 +46,11 @@ enum ResponsibleProcess {
     }
 
     static func icon(for pid: pid_t) -> NSImage {
-        NSRunningApplication(processIdentifier: pid)?.icon
+        let key = NSNumber(value: pid)
+        if let cached = iconCache.object(forKey: key) { return cached }
+        let image = NSRunningApplication(processIdentifier: pid)?.icon
             ?? NSWorkspace.shared.icon(for: .unixExecutable)
+        iconCache.setObject(image, forKey: key)
+        return image
     }
 }

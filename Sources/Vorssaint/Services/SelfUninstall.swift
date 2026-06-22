@@ -19,11 +19,18 @@ enum SelfUninstall {
     /// optional closed-lid sudoers rule, and leaves the app in place. Calls back
     /// on the main queue. Used by "Clear all permissions".
     static func clearPermissions(completion: @escaping () -> Void) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            detachFromSystem()
-            removeSudoersRuleIfPresent {           // may show one admin prompt
-                resetTCC()
-                DispatchQueue.main.async(execute: completion)
+        // Stop every input interceptor FIRST (on the main thread), then revoke.
+        // Revoking Accessibility while a tap is live makes the tap callback hang
+        // on an AX call and freezes the whole machine's input — see the note on
+        // `suspendInputInterceptors`.
+        DispatchQueue.main.async {
+            suspendInputInterceptors()
+            DispatchQueue.global(qos: .userInitiated).async {
+                detachFromSystem()
+                removeSudoersRuleIfPresent {           // may show one admin prompt
+                    resetTCC()
+                    DispatchQueue.main.async(execute: completion)
+                }
             }
         }
     }
@@ -31,17 +38,37 @@ enum SelfUninstall {
     /// Clears permissions, removes preferences and saved state, sends the app
     /// bundle to the Trash and quits. Used by "Uninstall Vorssaint completely".
     static func uninstallCompletely() {
-        DispatchQueue.global(qos: .userInitiated).async {
-            detachFromSystem()
-            removeSudoersRuleIfPresent {
-                resetTCC()
-                removePreferences()
-                DispatchQueue.main.async { trashOwnBundleAndQuit() }
+        DispatchQueue.main.async {
+            suspendInputInterceptors()
+            DispatchQueue.global(qos: .userInitiated).async {
+                detachFromSystem()
+                removeSudoersRuleIfPresent {
+                    resetTCC()
+                    removePreferences()
+                    DispatchQueue.main.async { trashOwnBundleAndQuit() }
+                }
             }
         }
     }
 
     // MARK: - Steps (each scoped to this app only)
+
+    /// Tears down every Accessibility-backed input interceptor. MUST run on the
+    /// main thread and BEFORE permissions are reset: otherwise revoking
+    /// Accessibility while an event tap is still live makes the tap's callback
+    /// block on an AX call, which stalls the OS input queue and freezes the
+    /// keyboard and clicks (only the mouse cursor keeps moving). Each `stop`/
+    /// `suspend`/`deactivate` is idempotent, so calling it when a service is
+    /// already off is a no-op.
+    private static func suspendInputInterceptors() {
+        ScrollInverter.shared.suspend()
+        WindowMaximizer.shared.stop()
+        AppSwitcher.shared.suspend()
+        DockPreviewService.shared.stop()
+        AutoQuitService.shared.suspend()
+        FinderCutPaste.shared.suspend()
+        CleaningModeManager.shared.deactivate()
+    }
 
     private static func detachFromSystem() {
         // Restore normal sleep if a closed-lid session left it disabled.

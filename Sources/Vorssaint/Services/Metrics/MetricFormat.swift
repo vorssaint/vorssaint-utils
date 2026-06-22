@@ -10,6 +10,11 @@ struct NetworkCounters: Equatable {
     var sent: UInt64 = 0
 }
 
+struct DiskIOCounters: Equatable {
+    var read: UInt64 = 0
+    var written: UInt64 = 0
+}
+
 /// Pure, deterministic helpers for the system monitor: number formatting, the
 /// fixed-size history buffer, network speed math and interface filtering.
 ///
@@ -62,6 +67,40 @@ enum MetricFormat {
         return "\(number(value, unit: unit)) \(unit)"
     }
 
+    static func diskBytes(_ bytes: UInt64) -> String {
+        let units = ["B", "KB", "MB", "GB", "TB", "PB"]
+        var value = max(0, Double(bytes))
+        var index = 0
+        while value >= 1000, index < units.count - 1 {
+            value /= 1000
+            index += 1
+        }
+        if units[index] == "B" {
+            return String(format: "%.0f B", value)
+        }
+        return value < 10 ? String(format: "%.1f %@", value, units[index])
+            : String(format: "%.0f %@", value, units[index])
+    }
+
+    static func diskBytesPrecise(_ bytes: UInt64) -> String {
+        let units = ["B", "KB", "MB", "GB", "TB", "PB"]
+        var value = max(0, Double(bytes))
+        var index = 0
+        while value >= 1000, index < units.count - 1 {
+            value /= 1000
+            index += 1
+        }
+        let unit = units[index]
+        if unit == "B" {
+            return String(format: "%.0f B", value)
+        }
+        if unit == "TB" || unit == "PB" {
+            return String(format: "%.2f %@", value, unit)
+        }
+        return value < 10 ? String(format: "%.1f %@", value, unit)
+            : String(format: "%.0f %@", value, unit)
+    }
+
     /// A throughput, e.g. "1.2 MB/s". Used in the panel.
     static func bytesPerSec(_ bytesPerSecond: Double) -> String {
         let (value, unit) = scale(bytesPerSecond)
@@ -93,6 +132,18 @@ enum MetricFormat {
         "\(Int((max(0, min(1, fraction)) * 100).rounded()))%"
     }
 
+    /// Smooths the GPU usage readout enough to hide one-sample compositor spikes
+    /// from opening the menu panel, without hiding sustained load.
+    static func stabilizedGPUUsage(previous: Double?, current: Double) -> Double {
+        let value = current.isFinite ? max(0, min(1, current)) : 0
+        guard let previous, previous.isFinite else { return value }
+        let baseline = max(0, min(1, previous))
+        if value > baseline {
+            return min(value, baseline + 0.20)
+        }
+        return baseline * 0.35 + value * 0.65
+    }
+
     /// Temperature, stored internally as Celsius and formatted in the user's
     /// preferred display unit.
     static func temperature(_ celsius: Double, unit: TemperatureUnit) -> String {
@@ -102,6 +153,34 @@ enum MetricFormat {
         case .fahrenheit:
             return String(format: "%.0f °F", celsius * 9 / 5 + 32)
         }
+    }
+
+    /// Compact temperature for tight surfaces like the menu bar. The settings
+    /// page still makes the active unit explicit.
+    static func temperatureCompact(_ celsius: Double, unit: TemperatureUnit) -> String {
+        switch unit {
+        case .celsius:
+            return String(format: "%.0f°", celsius)
+        case .fahrenheit:
+            return String(format: "%.0f°", celsius * 9 / 5 + 32)
+        }
+    }
+
+    static func temperatureUnitSuffix(_ unit: TemperatureUnit) -> String {
+        switch unit {
+        case .celsius: return "°C"
+        case .fahrenheit: return "°F"
+        }
+    }
+
+    static func uptime(_ seconds: Int) -> String {
+        let total = max(0, seconds)
+        let days = total / 86_400
+        let hours = (total % 86_400) / 3_600
+        let minutes = (total % 3_600) / 60
+        if days > 0 { return "\(days)d \(hours)h" }
+        if hours > 0 { return "\(hours)h \(minutes)min" }
+        return "\(minutes)min"
     }
 
     // MARK: Network speed & filtering
@@ -118,6 +197,17 @@ enum MetricFormat {
         let up = current.sent >= previous.sent
             ? Double(current.sent - previous.sent) / elapsed : 0
         return (down, up)
+    }
+
+    static func diskSpeed(previous: DiskIOCounters,
+                          current: DiskIOCounters,
+                          elapsed: Double) -> (read: Double, write: Double) {
+        guard elapsed > 0 else { return (0, 0) }
+        let read = current.read >= previous.read
+            ? Double(current.read - previous.read) / elapsed : 0
+        let write = current.written >= previous.written
+            ? Double(current.written - previous.written) / elapsed : 0
+        return (read, write)
     }
 
     /// Whether an interface counts toward "real" network throughput. Loopback and

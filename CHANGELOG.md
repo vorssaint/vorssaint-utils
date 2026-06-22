@@ -4,6 +4,165 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [3.0.10] - 2026-06-21
+
+### Summary
+- This update adds disk monitoring to the System Monitor, with per-disk storage,
+  activity, SMART details when available and safe eject controls for external
+  drives.
+- App Switcher is steadier with multiple windows and fullscreen apps, including
+  games.
+- App Switcher now has a Finder visibility option for users who prefer not to
+  show Finder when it has no open windows.
+
+### Added
+- System Monitor now has a Disks section with storage usage, live read/write
+  activity, session totals, SMART details when macOS exposes them, per-disk
+  selection and Finder-style decimal storage values.
+- Disks can now be selected individually, with per-disk details, an Eject action,
+  an Eject all action for external drives and safety guards that block eject
+  actions for the internal system disk.
+- App Switcher can now hide Finder when it has no open windows, while keeping
+  Finder windows visible when they exist.
+
+### Fixed
+- App Switcher now returns to the exact window you last used in apps with
+  multiple windows, instead of letting the app choose a different window.
+- App Switcher now switches more reliably when entering or leaving fullscreen
+  apps and games.
+
+## [3.0.9] - 2026-06-20
+
+### Summary
+- This update focuses on making Vorssaint feel lighter, steadier and more
+  reliable during everyday use.
+- Menu bar readings for CPU, GPU, RAM and temperatures stay visible through
+  brief refresh gaps, while the monitor does less background work when the panel
+  is closed or only a few metrics are visible.
+- The Volume Mixer is easier to control with one output selection for the system
+  and apps, while per-app volume, mute and boost settings stay intact.
+- Media tools are more responsive with larger videos and more reliable when
+  reading video details or creating GIFs.
+
+### Changed
+- The Volume Mixer can now send the whole system and apps to one audio output at
+  once.
+- The system monitor and menu bar now do less background work, especially when
+  the panel is closed or only a few metrics are visible.
+- Live monitor updates are smoother and avoid unnecessary redraws while values
+  are refreshing.
+- Media tools are more responsive with large videos and handle video details and
+  GIF creation more reliably.
+
+### Fixed
+- GPU temperature, RAM and CPU readings in the menu bar now stay visible through
+  quick moments when a value is unavailable instead of disappearing and coming
+  back.
+- The Network panel now starts measuring correctly when opened directly on
+  Network.
+- GPU usage in the menu bar now avoids brief spikes when opening the panel,
+  while still showing real sustained activity.
+
+## [3.0.8] - 2026-06-20
+
+### Added
+- CPU, GPU and battery temperatures can now be pinned to the menu bar as
+  metrics, using the selected Celsius or Fahrenheit setting.
+- Menu bar temperatures now combine with matching usage or battery charge by
+  default, with a setting to split them into separate CPU°C, GPU°C and BAT°C
+  blocks.
+
+![Menu bar temperature metrics](https://raw.githubusercontent.com/vorssaint/vorssaint-utils/main/Resources/Images/menu-bar-temperature-metrics.png)
+
+## [3.0.7] - 2026-06-20
+
+### Added
+- Utilities now includes Media for local video compression, GIF creation, image
+  compression and text extraction from images, with drag and drop, simple
+  controls and local-only processing.
+- Dock Preview cards now include a red close button on the left for closing the
+  real window directly from its preview, and the panel stays correctly sized as
+  windows are closed.
+- Pending Finder cut operations now include a close button to cancel the cut and
+  dismiss the floating HUD.
+
+### Changed
+- Menu bar metrics now use a cleaner compact layout with clearer CPU, GPU, RAM,
+  battery, power and network readings, custom ordering, persisted choices and
+  steadier widths.
+- The menu panel uses a subtler glass surface so text and controls stay readable
+  across different backgrounds.
+
+## [3.0.6] - 2026-06-20
+
+### Added
+- Global shortcuts for Keep Awake, Shelf and App Switcher can now be changed or
+  turned off.
+
+### Fixed
+- Closed Vorssaint Settings windows no longer linger in App Switcher.
+- Minimized windows now stay open and remain available in App Switcher and Dock
+  Preview.
+
+## [3.0.5] - 2026-06-19
+
+### Added
+- When installing an update, a preview of the new version's changelog is shown
+  first, so you can decide whether the update is worth it before downloading.
+- After updating, a What's New window summarizes everything since your previous
+  version. You can turn it off in Settings > What's New, or with "Don't show
+  again".
+- The app switcher and Dock previews now have a size option (Normal, Large or
+  Extra large) so windows stay easy to identify on large displays.
+
+### Fixed
+- Closed-lid mode now reliably brings up the administrator password prompt when
+  it is being set up on a Mac that has not granted permission yet, and no longer
+  becomes unstable when the request is retried.
+- "Clear all permissions" could freeze the Mac's input; it now stops the app's
+  event taps before resetting permissions, and feature event taps no longer
+  block when Accessibility is revoked.
+- Cut & paste for files in Finder (⌘X) shows its on-screen confirmation again:
+  Finder Automation is now requested in-process and re-requested if it was lost
+  after an update, instead of failing silently.
+- When closed-lid mode cannot be turned on, the message now clearly says to
+  switch it off and on again to try, instead of a confusing note that pointed at
+  your password even when no password was involved.
+
+## [3.0.4] - 2026-06-18
+
+### Added
+- Utilities now includes a Homebrew manager for searching, installing and
+  uninstalling formulae and casks from the menu panel, with popularity-sorted
+  search results and a guided setup flow when Homebrew is not installed.
+- The Volume Mixer can now route each app to the system default output or a
+  specific speaker, display or audio device.
+- The Volume Mixer now includes a global microphone picker that remembers a
+  preferred input and restores it when the device reconnects.
+- Dock Preview can now show window previews when hovering over open apps in the
+  Dock, with a temporary peek before selecting a window.
+- This update includes a one-time Dock Preview intro with a short demo and beta
+  note.
+
+### Changed
+- Panel edit mode now has a clearer OK button, reset control and drag handles
+  for reordering items.
+- Utilities now defaults to Homebrew first, followed by Uninstaller, Clean URL
+  and Cleaning Mode.
+
+### Fixed
+- App Switcher now keeps fullscreen windows available when they are on another
+  Space.
+- App Switcher thumbnails now try a secondary ScreenCaptureKit match for native
+  fullscreen windows on another Space.
+- Green-button maximization now avoids falling through to native fullscreen when
+  the custom resize path cannot run.
+- Quit on close now ignores stale AX windows after a real close-button request
+  when WindowServer confirms there is no visible app window left.
+- Quit on close now follows explicit close-button clicks in apps that do not
+  always emit standard window-close callbacks.
+- Settings now opens beside the menu panel instead of starting underneath it.
+
 ## [3.0.3] - 2026-06-18
 
 ### Changed

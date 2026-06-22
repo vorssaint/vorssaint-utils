@@ -11,6 +11,7 @@ import SwiftUI
 struct MixerSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var mixer = AppVolumeMixer.shared
+    @ObservedObject private var inputManager = AudioInputDeviceManager.shared
     @State private var normalSliderTint = Color(nsColor: .controlAccentColor)
     @State private var accentRevision = 0
     var collapsible = true
@@ -18,6 +19,12 @@ struct MixerSection: View {
     var body: some View {
         PanelSection(.mixer, title: l10n.s.mixerSection, collapsible: collapsible) {
             VStack(alignment: .leading, spacing: 8) {
+                universalOutputPicker
+                microphonePicker
+                if AppVolumeMixer.isSupported, (!mixer.apps.isEmpty || mixer.needsPermission) {
+                    Divider()
+                }
+
                 if !AppVolumeMixer.isSupported {
                     emptyLabel(l10n.s.mixerUnavailable)
                 } else if mixer.needsPermission {
@@ -36,6 +43,138 @@ struct MixerSection: View {
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("NSSystemColorsDidChangeNotification"))) { _ in
             refreshSliderTint()
         }
+    }
+
+    private var universalOutputPicker: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Label {
+                    Text(l10n.s.mixerSystemOutputTitle)
+                        .font(.system(size: 11.5, weight: .medium))
+                } icon: {
+                    Image(systemName: "speaker.wave.2.fill")
+                        .font(.system(size: 10.5, weight: .semibold))
+                }
+                .foregroundStyle(.secondary)
+
+                Spacer(minLength: 6)
+
+                Picker(l10n.s.mixerSystemOutputTooltip, selection: universalOutputSelectionBinding) {
+                    if mixer.currentOutputDeviceUID == nil {
+                        Text(l10n.s.mixerOutputUnavailable)
+                            .tag(MixerRoutingSupport.systemDefaultSelectionID)
+                    }
+                    ForEach(universalOutputDevices) { device in
+                        Text(outputDeviceTitle(device))
+                            .tag(device.uid)
+                    }
+                    if let selected = mixer.currentOutputDeviceUID,
+                       !universalOutputDevices.contains(where: { $0.uid == selected }) {
+                        Text(l10n.s.mixerOutputUnavailable)
+                            .tag(selected)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .controlSize(.small)
+                .frame(width: 164)
+                .disabled(universalOutputDevices.isEmpty)
+                .help(l10n.s.mixerSystemOutputTooltip)
+            }
+
+            if universalOutputDevices.isEmpty {
+                inputMessage(l10n.s.mixerSystemOutputNoDevices, systemImage: "speaker.slash")
+            } else if let outputSwitchError = mixer.outputSwitchError {
+                inputMessage(String(format: l10n.s.mixerSystemOutputErrorFormat, outputSwitchError),
+                             systemImage: "exclamationmark.triangle")
+            }
+        }
+    }
+
+    private var universalOutputDevices: [MixerOutputDevice] {
+        mixer.outputDevices.filter(\.canBeDefaultOutput)
+    }
+
+    private var universalOutputSelectionBinding: Binding<String> {
+        Binding(
+            get: { mixer.currentOutputDeviceUID ?? MixerRoutingSupport.systemDefaultSelectionID },
+            set: { selection in
+                guard selection != MixerRoutingSupport.systemDefaultSelectionID else { return }
+                mixer.setUniversalOutputDeviceUID(selection)
+            }
+        )
+    }
+
+    private var microphonePicker: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Label {
+                    Text(l10n.s.mixerInputTitle)
+                        .font(.system(size: 11.5, weight: .medium))
+                } icon: {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 10.5, weight: .semibold))
+                }
+                .foregroundStyle(.secondary)
+
+                Spacer(minLength: 6)
+
+                Picker(l10n.s.mixerInputTooltip, selection: inputSelectionBinding) {
+                    Text(l10n.s.mixerOutputDefault)
+                        .tag(MixerRoutingSupport.systemDefaultSelectionID)
+                    ForEach(inputManager.inputDevices) { device in
+                        Text(inputDeviceTitle(device))
+                            .tag(device.uid)
+                    }
+                    if let selected = inputManager.preferredInputDeviceUID,
+                       inputManager.preferredUnavailable {
+                        Text(l10n.s.mixerInputUnavailable)
+                            .tag(selected)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .controlSize(.small)
+                .frame(width: 164)
+                .disabled(inputManager.inputDevices.isEmpty)
+                .help(l10n.s.mixerInputTooltip)
+            }
+
+            if inputManager.inputDevices.isEmpty {
+                inputMessage(l10n.s.mixerInputNoDevices, systemImage: "mic.slash")
+            } else if inputManager.preferredUnavailable {
+                inputMessage(l10n.s.mixerInputFallback, systemImage: "mic.badge.xmark")
+            } else if let lastError = inputManager.lastError {
+                inputMessage(String(format: l10n.s.mixerInputErrorFormat, lastError),
+                             systemImage: "exclamationmark.triangle")
+            }
+        }
+    }
+
+    private var inputSelectionBinding: Binding<String> {
+        Binding(
+            get: { inputManager.preferredInputDeviceUID ?? MixerRoutingSupport.systemDefaultSelectionID },
+            set: { selection in
+                inputManager.setPreferredInputDeviceUID(
+                    selection == MixerRoutingSupport.systemDefaultSelectionID ? nil : selection)
+            }
+        )
+    }
+
+    private func inputDeviceTitle(_ device: MixerInputDevice) -> String {
+        device.isDefault ? "\(device.name) (\(l10n.s.mixerOutputCurrent))" : device.name
+    }
+
+    private func outputDeviceTitle(_ device: MixerOutputDevice) -> String {
+        device.isDefault ? "\(device.name) (\(l10n.s.mixerOutputCurrent))" : device.name
+    }
+
+    private func inputMessage(_ text: String, systemImage: String) -> some View {
+        Label(text, systemImage: systemImage)
+            .font(.system(size: 9.5))
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder
@@ -102,70 +241,86 @@ private struct MixerRow: View {
     private var isAtUnity: Bool { (app.volume * 100).rounded() == 100 }
 
     var body: some View {
-        HStack(spacing: 8) {
-            ZStack(alignment: .bottomTrailing) {
-                Image(nsImage: ResponsibleProcess.icon(for: app.ownerPid))
-                    .resizable()
-                    .frame(width: 18, height: 18)
-                if app.isPlaying {
-                    Circle()
-                        .fill(PanelMetricColor.green(for: colorScheme))
-                        .frame(width: 6, height: 6)
-                        .overlay(Circle().stroke(Color(nsColor: .windowBackgroundColor), lineWidth: 1))
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 8) {
+                ZStack(alignment: .bottomTrailing) {
+                    Image(nsImage: ResponsibleProcess.icon(for: app.ownerPid))
+                        .resizable()
+                        .frame(width: 18, height: 18)
+                    if app.isPlaying {
+                        Circle()
+                            .fill(PanelMetricColor.green(for: colorScheme))
+                            .frame(width: 6, height: 6)
+                            .overlay(Circle().stroke(Color(nsColor: .windowBackgroundColor), lineWidth: 1))
+                    }
                 }
+
+                Text(app.name)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                Spacer(minLength: 4)
+
+                outputPicker
             }
 
-            Text(app.name)
-                .font(.system(size: 11.5))
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(width: 86, alignment: .leading)
+            HStack(spacing: 8) {
+                MixerVolumeSlider(value: volumeBinding,
+                                  normalTint: normalTint,
+                                  boostTint: boostColor,
+                                  isBoosting: isBoosting,
+                                  accentRevision: accentRevision,
+                                  accessibilityLabel: app.name)
 
-            MixerVolumeSlider(value: volumeBinding,
-                              normalTint: normalTint,
-                              boostTint: boostColor,
-                              isBoosting: isBoosting,
-                              accentRevision: accentRevision,
-                              accessibilityLabel: app.name)
-
-            HStack(spacing: 2) {
-                if isBoosting {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(boostColor)
+                HStack(spacing: 2) {
+                    if isBoosting {
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(boostColor)
+                    }
+                    Text("\(Int((app.volume * 100).rounded()))%")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundStyle(isBoosting ? boostColor : Color.secondary)
                 }
-                Text("\(Int((app.volume * 100).rounded()))%")
-                    .font(.system(size: 10.5, weight: .medium))
-                    .monospacedDigit()
-                    .foregroundStyle(isBoosting ? boostColor : Color.secondary)
-            }
-            .frame(width: 42, alignment: .trailing)
+                .frame(width: 42, alignment: .trailing)
 
-            Button {
-                mixer.setVolume(1, for: app)
-            } label: {
-                Image(systemName: "arrow.counterclockwise")
-                    .font(.system(size: 9.5, weight: .semibold))
-                    .foregroundStyle(isBoosting ? boostColor : Color.secondary)
-                    .frame(width: 14)
-            }
-            .buttonStyle(.plain)
-            .help(l10n.s.mixerResetTooltip)
-            .opacity(isAtUnity ? 0 : 1)
-            .disabled(isAtUnity)
+                Button {
+                    mixer.setVolume(1, for: app)
+                } label: {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundStyle(isBoosting ? boostColor : Color.secondary)
+                        .frame(width: 14)
+                }
+                .buttonStyle(.plain)
+                .help(l10n.s.mixerResetTooltip)
+                .opacity(isAtUnity ? 0 : 1)
+                .disabled(isAtUnity)
 
-            Button {
-                mixer.toggleMute(app)
-            } label: {
-                Image(systemName: app.volume <= 0.001 ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(app.volume <= 0.001
-                                     ? PanelMetricColor.red(for: colorScheme)
-                                     : Color.secondary)
-                    .frame(width: 16)
+                Button {
+                    mixer.toggleMute(app)
+                } label: {
+                    Image(systemName: app.volume <= 0.001 ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(app.volume <= 0.001
+                                         ? PanelMetricColor.red(for: colorScheme)
+                                         : Color.secondary)
+                        .frame(width: 16)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+
+            if app.outputDeviceUnavailable {
+                Label(l10n.s.mixerOutputFallback, systemImage: "speaker.badge.exclamationmark")
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
+        .padding(.vertical, 2)
     }
 
     private var volumeBinding: Binding<Double> {
@@ -173,6 +328,40 @@ private struct MixerRow: View {
             get: { app.volume },
             set: { mixer.setVolume($0, for: app) }
         )
+    }
+
+    private var outputPicker: some View {
+        Picker(l10n.s.mixerOutputTooltip, selection: outputSelectionBinding) {
+            Text(l10n.s.mixerOutputDefault)
+                .tag(MixerRoutingSupport.systemDefaultSelectionID)
+            ForEach(mixer.outputDevices) { device in
+                Text(outputDeviceTitle(device))
+                    .tag(device.uid)
+            }
+            if let selected = app.selectedOutputDeviceUID, app.outputDeviceUnavailable {
+                Text(l10n.s.mixerOutputUnavailable)
+                    .tag(selected)
+            }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .controlSize(.small)
+        .frame(width: 112)
+        .help(l10n.s.mixerOutputTooltip)
+    }
+
+    private var outputSelectionBinding: Binding<String> {
+        Binding(
+            get: { app.selectedOutputDeviceUID ?? MixerRoutingSupport.systemDefaultSelectionID },
+            set: { selection in
+                mixer.setOutputDeviceUID(selection == MixerRoutingSupport.systemDefaultSelectionID ? nil : selection,
+                                         for: app)
+            }
+        )
+    }
+
+    private func outputDeviceTitle(_ device: MixerOutputDevice) -> String {
+        device.isDefault ? "\(device.name) (\(l10n.s.mixerOutputCurrent))" : device.name
     }
 }
 

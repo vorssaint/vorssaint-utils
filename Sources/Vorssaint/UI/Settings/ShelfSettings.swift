@@ -5,7 +5,9 @@ import SwiftUI
 
 struct ShelfSettings: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var shelf = ShelfService.shared
     @AppStorage(DefaultsKey.shelfEnabled) private var enabled = false
+    @AppStorage(DefaultsKey.shelfShortcutEnabled) private var shortcutEnabled = true
     @AppStorage(DefaultsKey.shelfShakeToOpen) private var shake = true
 
     var body: some View {
@@ -31,10 +33,17 @@ struct ShelfSettings: View {
 
             if enabled {
                 Section {
-                    HStack {
-                        Text(l10n.s.shelfHotkeyLabel)
-                        Spacer()
-                        ShortcutCaps(keys: ["⌃", "⌥", "⌘", "D"])
+                    Toggle(l10n.s.shelfShortcutToggle, isOn: $shortcutEnabled)
+                        .onChange(of: shortcutEnabled) { _, _ in
+                            ShelfService.shared.syncHotkey()
+                        }
+                    ShortcutPreferenceRow(role: .shelf, isEnabled: shortcutEnabled) {
+                        ShelfService.shared.syncHotkey()
+                    }
+                    if shortcutEnabled, shelf.hotkeyRegistrationFailed {
+                        Text(l10n.s.shortcutUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
                     }
                     VStack(alignment: .leading, spacing: 3) {
                         Toggle(l10n.s.shelfShakeToggle, isOn: $shake)

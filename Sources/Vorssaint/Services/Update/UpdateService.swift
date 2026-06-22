@@ -22,6 +22,9 @@ final class UpdateService: ObservableObject {
 
     @Published private(set) var state: State = .idle
     @Published private(set) var lastChecked: Date?
+    /// Markdown release notes for the available update, shown in the pre-install
+    /// preview. Set alongside `.available`; cleared otherwise.
+    @Published private(set) var availableNotes: String?
 
     private let repository = "vorssaint/vorssaint-utils"
     private var downloadURL: URL?
@@ -47,6 +50,7 @@ final class UpdateService: ObservableObject {
         if AppInfo.isDeveloperBuild {
             if UserDefaults.standard.bool(forKey: DefaultsKey.simulateUpdate) {
                 state = .available(version: "9.9.9")
+                availableNotes = ReleaseNotes.rawNotes(for: AppInfo.version)
             }
             return
         }
@@ -78,8 +82,13 @@ final class UpdateService: ObservableObject {
         if AppInfo.isDeveloperBuild {
             // No real update target; reflect the simulation default so the
             // notification UI can be exercised locally.
-            state = UserDefaults.standard.bool(forKey: DefaultsKey.simulateUpdate)
-                ? .available(version: "9.9.9") : .upToDate
+            if UserDefaults.standard.bool(forKey: DefaultsKey.simulateUpdate) {
+                state = .available(version: "9.9.9")
+                availableNotes = ReleaseNotes.rawNotes(for: AppInfo.version)
+            } else {
+                state = .upToDate
+                availableNotes = nil
+            }
             lastChecked = Date()
             return
         }
@@ -99,6 +108,7 @@ final class UpdateService: ObservableObject {
                 self.lastChecked = Date()
                 guard let data, error == nil,
                       let release = try? JSONDecoder().decode(GitHubRelease.self, from: data) else {
+                    self.availableNotes = nil
                     self.state = .failed(error?.localizedDescription ?? "-")
                     return
                 }
@@ -107,6 +117,7 @@ final class UpdateService: ObservableObject {
                 self.downloadURL = asset?.browserDownloadURL
 
                 if Self.isNewer(latest, than: AppInfo.version), self.downloadURL != nil {
+                    self.availableNotes = release.body
                     self.state = .available(version: latest)
                     // Notify once per distinct release, not on every hourly re-check.
                     if !manual, latest != self.notifiedVersion {
@@ -116,6 +127,7 @@ final class UpdateService: ObservableObject {
                                       body: "\(s.updateAvailablePrefix) \(latest)")
                     }
                 } else {
+                    self.availableNotes = nil
                     self.state = .upToDate
                 }
             }
@@ -283,10 +295,12 @@ final class UpdateService: ObservableObject {
 private struct GitHubRelease: Decodable {
     let tagName: String
     let assets: [Asset]
+    let body: String?
 
     enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
         case assets
+        case body
     }
 
     struct Asset: Decodable {

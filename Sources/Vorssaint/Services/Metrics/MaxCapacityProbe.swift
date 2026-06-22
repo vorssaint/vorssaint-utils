@@ -35,15 +35,23 @@ final class MaxCapacityProbe {
     /// Refreshes the cache if it's stale. Non-blocking; the slow work runs on a
     /// utility queue. Safe to call on every sample.
     func refreshIfStale() {
+        let now = ProcessInfo.processInfo.systemUptime
+        lock.lock()
+        guard !running, now - lastRefresh >= interval else {
+            lock.unlock()
+            return
+        }
+        running = true
+        lastRefresh = now
+        lock.unlock()
+
         queue.async { [weak self] in
             guard let self else { return }
-            let now = ProcessInfo.processInfo.systemUptime
-            guard !self.running, now - self.lastRefresh >= self.interval else { return }
-            self.running = true
-            defer { self.running = false }   // never strand the in-flight flag
-            self.lastRefresh = now           // stamp from work start, so the throttle holds
             let value = Self.read()
-            self.lock.lock(); self.cached = value; self.lock.unlock()
+            self.lock.lock()
+            self.cached = value
+            self.running = false
+            self.lock.unlock()
         }
     }
 

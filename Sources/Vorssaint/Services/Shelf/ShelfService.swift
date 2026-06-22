@@ -9,7 +9,7 @@ import UniformTypeIdentifiers
 
 /// A floating "shelf" that holds files, images, text and links you drop on it,
 /// to drag back out into any app later. It's summoned at the cursor by a global
-/// shortcut (⌃⌥⌘D) or, optionally, by shaking the mouse mid-drag. Items live
+/// shortcut or, optionally, by shaking the mouse mid-drag. Items live
 /// only while the app runs.
 ///
 /// No permissions required: the shortcut is a Carbon hot key, and the shake
@@ -69,6 +69,7 @@ final class ShelfService: ObservableObject {
     private var panel: NSPanel?
     private var hotKeyRef: EventHotKeyRef?
     private var hotKeyHandler: EventHandlerRef?
+    private var registeredShortcut: GlobalShortcut?
     private var mouseMonitor: Any?
     private var shakeSamples: [(t: TimeInterval, x: CGFloat)] = []
     private var lastSummon: TimeInterval = 0
@@ -79,6 +80,7 @@ final class ShelfService: ObservableObject {
     private var autoHideFadeStart: Date?
     private var pointerInsidePanel = false
     @Published private(set) var dropTargeted = false
+    @Published private(set) var hotkeyRegistrationFailed = false
     private var interactionDepth = 0
     /// Drag-pasteboard state captured at mouse-down. Finder bumps the change
     /// count after this point; Dock stacks can publish the drag contents first.
@@ -131,7 +133,7 @@ final class ShelfService: ObservableObject {
 
     func syncWithPreferences() {
         if UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) {
-            registerHotkey()
+            syncHotkey()
             syncShakeMonitor()
         } else {
             unregisterHotkey()
@@ -149,8 +151,17 @@ final class ShelfService: ObservableObject {
 
     // MARK: - Triggers
 
+    func syncHotkey() {
+        let wanted = UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
+            && UserDefaults.standard.bool(forKey: DefaultsKey.shelfShortcutEnabled)
+        if wanted { registerHotkey() } else { unregisterHotkey() }
+    }
+
     private func registerHotkey() {
-        guard hotKeyRef == nil else { return }
+        let shortcut = GlobalShortcut.saved(for: DefaultsKey.shelfShortcut,
+                                            fallback: .shelfDefault)
+        if hotKeyRef != nil, registeredShortcut == shortcut { return }
+        unregisterHotkey()
         if hotKeyHandler == nil {
             var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
                                      eventKind: UInt32(kEventHotKeyPressed))
@@ -163,8 +174,8 @@ final class ShelfService: ObservableObject {
                                       MemoryLayout<EventHotKeyID>.size, nil, &id)
                 }
                 // Not our hotkey: hand it back so the keep-awake handler on the
-                // same dispatch target still receives ⌃⌥⌘K. Returning noErr would
-                // swallow it.
+                // same dispatch target still receives its shortcut. Returning noErr
+                // would swallow it.
                 guard id.id == 2 else { return OSStatus(eventNotHandledErr) }
                 let service = Unmanaged<ShelfService>.fromOpaque(userData).takeUnretainedValue()
                 DispatchQueue.main.async { service.toggle() }
@@ -172,14 +183,26 @@ final class ShelfService: ObservableObject {
             }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), &hotKeyHandler)
         }
         let id = EventHotKeyID(signature: 0x5655_5348, id: 2) // 'VUSH'
-        RegisterEventHotKey(UInt32(kVK_ANSI_D),
-                            UInt32(controlKey | optionKey | cmdKey),
-                            id, GetEventDispatcherTarget(), 0, &hotKeyRef)
+        var ref: EventHotKeyRef?
+        let status = RegisterEventHotKey(shortcut.carbonKeyCode,
+                                         shortcut.carbonModifiers,
+                                         id, GetEventDispatcherTarget(), 0, &ref)
+        if status == noErr, let ref {
+            hotKeyRef = ref
+            registeredShortcut = shortcut
+            hotkeyRegistrationFailed = false
+        } else {
+            hotKeyRef = nil
+            registeredShortcut = nil
+            hotkeyRegistrationFailed = true
+        }
     }
 
     private func unregisterHotkey() {
         if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
         hotKeyRef = nil
+        registeredShortcut = nil
+        hotkeyRegistrationFailed = false
     }
 
     private func startShakeMonitor() {
