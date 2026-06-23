@@ -652,6 +652,7 @@ private final class TapGainEngine: GainEngine {
 
         let description = CATapDescription(stereoMixdownOfProcesses: objects)
         description.muteBehavior = .mutedWhenTapped
+        description.isPrivate = true
         guard AudioHardwareCreateProcessTap(description, &tapID) == noErr, tapID != 0 else {
             return nil
         }
@@ -675,10 +676,6 @@ private final class TapGainEngine: GainEngine {
             kAudioAggregateDeviceTapAutoStartKey: true,
         ]
         if let clockUID, clockUID != outputDeviceUID {
-            aggregate[kAudioAggregateDeviceSubDeviceListKey] = [
-                [kAudioSubDeviceUIDKey: outputDeviceUID],
-                [kAudioSubDeviceUIDKey: clockUID],
-            ]
             aggregate[kAudioAggregateDeviceClockDeviceKey] = clockUID
         }
         guard AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &aggregateID) == noErr,
@@ -687,7 +684,9 @@ private final class TapGainEngine: GainEngine {
             return nil
         }
 
-        // Sync sample rate to the target output device.
+        // Sync sample rate and buffer size to the target output device so
+        // the aggregate's IO proc runs in lockstep, avoiding resampling
+        // artifacts (especially audible on Bluetooth and AirPlay outputs).
         if let outObj = Self.deviceObject(forUID: outputDeviceUID) {
             var rate: Float64 = 0
             if AppVolumeMixer.read(outObj, kAudioDevicePropertyNominalSampleRate, &rate), rate > 0 {
@@ -698,18 +697,31 @@ private final class TapGainEngine: GainEngine {
                 let rateSize = UInt32(MemoryLayout<Float64>.size)
                 AudioObjectSetPropertyData(aggregateID, &rateAddr, 0, nil, rateSize, &rate)
             }
+            var bufferSize: UInt32 = 0
+            if AppVolumeMixer.read(outObj, kAudioDevicePropertyBufferFrameSize, &bufferSize), bufferSize > 0 {
+                var bufAddr = AudioObjectPropertyAddress(
+                    mSelector: kAudioDevicePropertyBufferFrameSize,
+                    mScope: kAudioObjectPropertyScopeGlobal,
+                    mElement: kAudioObjectPropertyElementMain)
+                let bufSize = UInt32(MemoryLayout<UInt32>.size)
+                AudioObjectSetPropertyData(aggregateID, &bufAddr, 0, nil, bufSize, &bufferSize)
+            }
         }
 
         let box = gainBox
         guard AudioDeviceCreateIOProcIDWithBlock(&ioProc, aggregateID, nil, { _, input, _, output, _ in
             let inputBuffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
             let outputBuffers = UnsafeMutableAudioBufferListPointer(output)
-            for i in 0..<outputBuffers.count {
-                if let data = outputBuffers[i].mData {
-                    memset(data, 0, Int(outputBuffers[i].mDataByteSize))
-                }
-            }
             var gain = box.value
+            // Mute: zero every output buffer and return early.
+            if gain < 0.001 {
+                for i in 0..<outputBuffers.count {
+                    if let data = outputBuffers[i].mData {
+                        memset(data, 0, Int(outputBuffers[i].mDataByteSize))
+                    }
+                }
+                return
+            }
             let boosting = gain > 1
             var low: Float = -1, high: Float = 1
             for (index, inputBuffer) in inputBuffers.enumerated() where index < outputBuffers.count {
@@ -719,8 +731,19 @@ private final class TapGainEngine: GainEngine {
                 let frames = min(Int(inputBuffer.mDataByteSize),
                                  Int(outputBuffers[index].mDataByteSize)) / MemoryLayout<Float>.size
                 vDSP_vsmul(source, 1, &gain, destination, 1, vDSP_Length(frames))
+                // A boost can push samples past [-1, 1]; hard-limit so nothing out
+                // of range reaches the device (a clean clip, never garbage).
                 if boosting {
                     vDSP_vclip(destination, 1, &low, &high, destination, 1, vDSP_Length(frames))
+                }
+            }
+            // Zero any trailing output buffers that have no matching input,
+            // so stale data never reaches the device.
+            if outputBuffers.count > inputBuffers.count {
+                for i in inputBuffers.count..<outputBuffers.count {
+                    if let data = outputBuffers[i].mData {
+                        memset(data, 0, Int(outputBuffers[i].mDataByteSize))
+                    }
                 }
             }
         }) == noErr else {
@@ -774,11 +797,25 @@ private final class TapGainEngine: GainEngine {
         return nil
     }
 
+    /// Returns the UID of a real hardware output device suitable as a clock
+    /// source, or nil when the given output is already hardware-backed.
+    /// Virtual devices (BoomAudio, SoundSource, BlackHole, etc.) lack a
+    /// hardware clock, so the aggregate needs a real device to drive it.
     private static func hardwareClockUID(for outputUID: String) -> String? {
         guard let dev = deviceObject(forUID: outputUID) else { return nil }
         var transportType: UInt32 = 0
         AppVolumeMixer.read(dev, kAudioDevicePropertyTransportType, &transportType)
-        guard transportType == kAudioDeviceTransportTypeVirtual else { return nil }
+        // Only virtual and aggregate devices lack a usable clock.
+        guard transportType == kAudioDeviceTransportTypeVirtual
+           || transportType == kAudioDeviceTransportTypeAggregate else { return nil }
+
+        // Accept any non-virtual, non-aggregate device with output channels
+        // as a clock source: built-in, USB, HDMI, DisplayPort, Thunderbolt,
+        // Bluetooth, AirPlay, FireWire, PCI, etc.
+        let excludedTransports: Set<UInt32> = [
+            kAudioDeviceTransportTypeVirtual,
+            kAudioDeviceTransportTypeAggregate,
+        ]
 
         var size: UInt32 = 0
         var addr = AudioObjectPropertyAddress(
@@ -790,27 +827,40 @@ private final class TapGainEngine: GainEngine {
         var devices = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
         guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject),
                                           &addr, 0, nil, &size, &devices) == noErr else { return nil }
+
+        // Prefer the current default output device (if it's real hardware)
+        // to minimise clock drift, then fall back to any hardware output.
+        var defaultDevice = AudioObjectID(0)
+        AppVolumeMixer.read(AudioObjectID(kAudioObjectSystemObject),
+                            kAudioHardwarePropertyDefaultOutputDevice, &defaultDevice)
+
+        var fallbackUID: String?
         for candidate in devices {
             var tt: UInt32 = 0
             AppVolumeMixer.read(candidate, kAudioDevicePropertyTransportType, &tt)
-            guard tt == kAudioDeviceTransportTypeBuiltIn || tt == kAudioDeviceTransportTypeUSB else { continue }
-            var outAddr = AudioObjectPropertyAddress(
-                mSelector: kAudioDevicePropertyStreamConfiguration,
-                mScope: kAudioObjectPropertyScopeOutput,
-                mElement: kAudioObjectPropertyElementMain)
-            var cfgSize: UInt32 = 0
-            guard AudioObjectGetPropertyDataSize(candidate, &outAddr, 0, nil, &cfgSize) == noErr,
-                  cfgSize > 0 else { continue }
-            let buf = UnsafeMutablePointer<AudioBufferList>.allocate(capacity: Int(cfgSize) / MemoryLayout<AudioBufferList>.stride + 1)
-            defer { buf.deallocate() }
-            guard AudioObjectGetPropertyData(candidate, &outAddr, 0, nil, &cfgSize, buf) == noErr else { continue }
-            let channels = UnsafeMutableAudioBufferListPointer(buf).reduce(0) { $0 + Int($1.mNumberChannels) }
-            guard channels > 0 else { continue }
+            guard !excludedTransports.contains(tt) else { continue }
+            guard Self.outputChannelCount(of: candidate) > 0 else { continue }
             var hwUID: CFString = "" as CFString
-            if AppVolumeMixer.read(candidate, kAudioDevicePropertyDeviceUID, &hwUID) {
-                return hwUID as String
-            }
+            guard AppVolumeMixer.read(candidate, kAudioDevicePropertyDeviceUID, &hwUID) else { continue }
+            let uid = hwUID as String
+            if candidate == defaultDevice { return uid }
+            if fallbackUID == nil { fallbackUID = uid }
         }
-        return nil
+        return fallbackUID
+    }
+
+    private static func outputChannelCount(of device: AudioObjectID) -> Int {
+        var outAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyStreamConfiguration,
+            mScope: kAudioObjectPropertyScopeOutput,
+            mElement: kAudioObjectPropertyElementMain)
+        var cfgSize: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(device, &outAddr, 0, nil, &cfgSize) == noErr,
+              cfgSize > 0 else { return 0 }
+        let buf = UnsafeMutablePointer<AudioBufferList>.allocate(
+            capacity: Int(cfgSize) / MemoryLayout<AudioBufferList>.stride + 1)
+        defer { buf.deallocate() }
+        guard AudioObjectGetPropertyData(device, &outAddr, 0, nil, &cfgSize, buf) == noErr else { return 0 }
+        return UnsafeMutableAudioBufferListPointer(buf).reduce(0) { $0 + Int($1.mNumberChannels) }
     }
 }
