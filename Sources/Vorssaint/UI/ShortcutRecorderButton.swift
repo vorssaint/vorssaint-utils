@@ -90,12 +90,17 @@ struct ShortcutPreferenceRow: View {
     private let role: GlobalShortcutRole
     private let isEnabled: Bool
     private let onChange: () -> Void
+    private let additionalConflict: (GlobalShortcut) -> String?
     @AppStorage private var rawValue: String
     @State private var errorText: String?
 
-    init(role: GlobalShortcutRole, isEnabled: Bool = true, onChange: @escaping () -> Void) {
+    init(role: GlobalShortcutRole,
+         isEnabled: Bool = true,
+         additionalConflict: @escaping (GlobalShortcut) -> String? = { _ in nil },
+         onChange: @escaping () -> Void) {
         self.role = role
         self.isEnabled = isEnabled
+        self.additionalConflict = additionalConflict
         self.onChange = onChange
         _rawValue = AppStorage(wrappedValue: role.defaultShortcut.storageValue, role.storageKey)
     }
@@ -137,6 +142,10 @@ struct ShortcutPreferenceRow: View {
     private func save(_ shortcut: GlobalShortcut) {
         if let conflict = GlobalShortcutRole.conflict(for: shortcut, excluding: role) {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict.title(l10n.s))
+            return
+        }
+        if let conflict = additionalConflict(shortcut) {
+            errorText = String(format: l10n.s.shortcutConflictFormat, conflict)
             return
         }
         rawValue = shortcut.storageValue

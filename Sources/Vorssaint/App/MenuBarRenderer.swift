@@ -516,9 +516,9 @@ enum MenuBarRenderer {
         return segments
     }
 
-    /// The colored attributed string for the status item. Only the memory dot
-    /// gets an explicit color; everything else stays adaptive (the caller applies
-    /// the font over the whole run, which does not disturb the dot's color).
+    /// The colored attributed string for the status item. Only alert/status dots
+    /// get fixed colors; text and image-backed metric blocks use dynamic system
+    /// colors so they follow the menu bar appearance over each wallpaper.
     static func attributed(for snapshot: SystemSnapshot,
                            metrics: [MenuBarMetric],
                            allowStacked: Bool = true,
@@ -559,12 +559,14 @@ enum MenuBarRenderer {
     private static func symbolAttachment(named name: String,
                                          stacked: Bool,
                                          enlarged: Bool = false) -> NSAttributedString {
+        let configuration = NSImage.SymbolConfiguration(pointSize: enlarged ? 13.6 : (stacked ? 8.8 : 10.8),
+                                                        weight: .semibold)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [.labelColor]))
         guard let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: enlarged ? 13.6 : (stacked ? 8.8 : 10.8),
-                                                                 weight: .semibold)) else {
+            .withSymbolConfiguration(configuration) else {
             return NSAttributedString(string: "")
         }
-        image.isTemplate = true
+        image.isTemplate = false
         let attachment = NSTextAttachment()
         attachment.image = image
         let side: CGFloat = enlarged ? 14.2 : (stacked ? 9.2 : 11.4)
@@ -620,11 +622,11 @@ enum MenuBarRenderer {
         let labelFont = NSFont.systemFont(ofSize: style == .readable ? 7.2 : 6.6, weight: .medium)
         let valueFont = NSFont.monospacedDigitSystemFont(ofSize: style == .readable ? 13.0 : 12.0,
                                                          weight: .semibold)
-        let labelAttrs: [NSAttributedString.Key: Any] = [.font: labelFont, .foregroundColor: NSColor.white]
-        let valueAttrs: [NSAttributedString.Key: Any] = [.font: valueFont, .foregroundColor: NSColor.white]
-        let labelSize = (label as NSString).size(withAttributes: labelAttrs)
-        let valueSize = (value as NSString).size(withAttributes: valueAttrs)
-        let minimumValueSize = (minimumValue as NSString).size(withAttributes: valueAttrs)
+        let sizingLabelAttrs: [NSAttributedString.Key: Any] = [.font: labelFont]
+        let sizingValueAttrs: [NSAttributedString.Key: Any] = [.font: valueFont]
+        let labelSize = (label as NSString).size(withAttributes: sizingLabelAttrs)
+        let valueSize = (value as NSString).size(withAttributes: sizingValueAttrs)
+        let minimumValueSize = (minimumValue as NSString).size(withAttributes: sizingValueAttrs)
         let dotDiameter: CGFloat = pressure == nil ? 0 : (style == .readable ? 5.2 : 4.8)
         let dotGap: CGFloat = pressure == nil ? 0 : 4
         let reservedValueWidth = max(valueSize.width, minimumValueSize.width)
@@ -632,27 +634,29 @@ enum MenuBarRenderer {
         let drawnGroupWidth = dotDiameter + dotGap + valueSize.width
         let width = ceil(max(labelSize.width, reservedGroupWidth) + (style == .readable ? 2 : 0.5))
         let height: CGFloat = style == .readable ? 22 : 20
-        let image = NSImage(size: NSSize(width: width, height: height))
-        image.lockFocus()
-        NSColor.clear.setFill()
-        NSRect(origin: .zero, size: image.size).fill()
-        (label as NSString).draw(at: NSPoint(x: (width - labelSize.width) / 2,
-                                 y: style == .readable ? 12.9 : 12.0),
-                                 withAttributes: labelAttrs)
-        var valueX = (width - drawnGroupWidth) / 2
-        if let pressure {
-            let dotRect = NSRect(x: valueX,
-                                 y: style == .readable ? 4.1 : 3.5,
-                                 width: dotDiameter,
-                                 height: dotDiameter)
-            nsColor(for: pressure).setFill()
-            NSBezierPath(ovalIn: dotRect).fill()
-            valueX += dotDiameter + dotGap
+        let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { rect in
+            NSColor.clear.setFill()
+            rect.fill()
+            let labelAttrs = dynamicTextAttributes(font: labelFont)
+            let valueAttrs = dynamicTextAttributes(font: valueFont)
+            (label as NSString).draw(at: NSPoint(x: (width - labelSize.width) / 2,
+                                     y: style == .readable ? 12.9 : 12.0),
+                                     withAttributes: labelAttrs)
+            var valueX = (width - drawnGroupWidth) / 2
+            if let pressure {
+                let dotRect = NSRect(x: valueX,
+                                     y: style == .readable ? 4.1 : 3.5,
+                                     width: dotDiameter,
+                                     height: dotDiameter)
+                nsColor(for: pressure).setFill()
+                NSBezierPath(ovalIn: dotRect).fill()
+                valueX += dotDiameter + dotGap
+            }
+            (value as NSString).draw(at: NSPoint(x: valueX, y: style == .readable ? -0.4 : -0.8),
+                                     withAttributes: valueAttrs)
+            return true
         }
-        (value as NSString).draw(at: NSPoint(x: valueX, y: style == .readable ? -0.4 : -0.8),
-                                 withAttributes: valueAttrs)
-        image.unlockFocus()
-        image.isTemplate = true
+        image.isTemplate = false
         blockImageCache.setObject(image, forKey: cacheKey)
         return image
     }
@@ -663,21 +667,23 @@ enum MenuBarRenderer {
 
         let font = NSFont.monospacedSystemFont(ofSize: style == .readable ? 8.6 : 8.0,
                                                weight: .semibold)
-        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.white]
+        let sizingAttrs: [NSAttributedString.Key: Any] = [.font: font]
         let lines = ["↓\(down)", "↑\(up)"]
         let lineHeight: CGFloat = style == .readable ? 9.4 : 8.7
         let reservedLines = lines + ["↓000B", "↑000B"]
-        let width = reservedLines.map { ($0 as NSString).size(withAttributes: attrs).width }.max() ?? 22
-        let image = NSImage(size: NSSize(width: ceil(width), height: ceil(lineHeight * 2)))
-        image.lockFocus()
-        NSColor.clear.setFill()
-        NSRect(origin: .zero, size: image.size).fill()
-        for (index, line) in lines.enumerated() {
-            let y = image.size.height - lineHeight * CGFloat(index + 1) + 0.2
-            (line as NSString).draw(at: NSPoint(x: 0, y: y), withAttributes: attrs)
+        let width = reservedLines.map { ($0 as NSString).size(withAttributes: sizingAttrs).width }.max() ?? 22
+        let imageSize = NSSize(width: ceil(width), height: ceil(lineHeight * 2))
+        let image = NSImage(size: imageSize, flipped: false) { rect in
+            NSColor.clear.setFill()
+            rect.fill()
+            let attrs = dynamicTextAttributes(font: font)
+            for (index, line) in lines.enumerated() {
+                let y = imageSize.height - lineHeight * CGFloat(index + 1) + 0.2
+                (line as NSString).draw(at: NSPoint(x: 0, y: y), withAttributes: attrs)
+            }
+            return true
         }
-        image.unlockFocus()
-        image.isTemplate = true
+        image.isTemplate = false
         blockImageCache.setObject(image, forKey: cacheKey)
         return image
     }
@@ -694,34 +700,40 @@ enum MenuBarRenderer {
         let valueFont = NSFont.monospacedDigitSystemFont(ofSize: style == .readable ? 13.0 : 12.0,
                                                          weight: .semibold)
         let value = "\(clampedPercent)%"
-        let valueAttrs: [NSAttributedString.Key: Any] = [.font: valueFont, .foregroundColor: NSColor.white]
-        let valueSize = (value as NSString).size(withAttributes: valueAttrs)
-        let reservedValueSize = max(valueSize.width, ("100%" as NSString).size(withAttributes: valueAttrs).width)
+        let sizingValueAttrs: [NSAttributedString.Key: Any] = [.font: valueFont]
+        let valueSize = (value as NSString).size(withAttributes: sizingValueAttrs)
+        let reservedValueSize = max(valueSize.width, ("100%" as NSString).size(withAttributes: sizingValueAttrs).width)
         let symbolWidth: CGFloat = style == .readable ? 20 : 18
         let gap: CGFloat = style == .readable ? 5 : 4
         let height: CGFloat = style == .readable ? 22 : 20
-        let image = NSImage(size: NSSize(width: ceil(symbolWidth + gap + reservedValueSize), height: height))
-        image.lockFocus()
-        NSColor.clear.setFill()
-        NSRect(origin: .zero, size: image.size).fill()
-        let symbolConfig = NSImage.SymbolConfiguration(pointSize: symbolPointSize, weight: .regular)
-            .applying(NSImage.SymbolConfiguration(paletteColors: [.white]))
-        if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
-            .withSymbolConfiguration(symbolConfig) {
-            let symbolSize = symbol.size
-            let rect = NSRect(x: 0,
-                              y: (height - symbolSize.height) / 2,
-                              width: min(symbolWidth, symbolSize.width),
-                              height: symbolSize.height)
-            symbol.draw(in: rect)
+        let imageSize = NSSize(width: ceil(symbolWidth + gap + reservedValueSize), height: height)
+        let image = NSImage(size: imageSize, flipped: false) { rect in
+            NSColor.clear.setFill()
+            rect.fill()
+            let symbolConfig = NSImage.SymbolConfiguration(pointSize: symbolPointSize, weight: .regular)
+                .applying(NSImage.SymbolConfiguration(paletteColors: [.labelColor]))
+            if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+                .withSymbolConfiguration(symbolConfig) {
+                let symbolSize = symbol.size
+                let symbolRect = NSRect(x: 0,
+                                        y: (height - symbolSize.height) / 2,
+                                        width: min(symbolWidth, symbolSize.width),
+                                        height: symbolSize.height)
+                symbol.draw(in: symbolRect)
+            }
+            let valueAttrs = dynamicTextAttributes(font: valueFont)
+            let valueY = (height - valueSize.height) / 2
+            (value as NSString).draw(at: NSPoint(x: symbolWidth + gap, y: valueY),
+                                     withAttributes: valueAttrs)
+            return true
         }
-        let valueY = (height - valueSize.height) / 2
-        (value as NSString).draw(at: NSPoint(x: symbolWidth + gap, y: valueY),
-                                 withAttributes: valueAttrs)
-        image.unlockFocus()
-        image.isTemplate = true
+        image.isTemplate = false
         blockImageCache.setObject(image, forKey: cacheKey)
         return image
+    }
+
+    private static func dynamicTextAttributes(font: NSFont) -> [NSAttributedString.Key: Any] {
+        [.font: font, .foregroundColor: NSColor.labelColor]
     }
 
     static func batterySymbol(for percent: Int, isCharging: Bool) -> String {

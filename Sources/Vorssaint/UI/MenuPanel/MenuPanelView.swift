@@ -356,7 +356,7 @@ struct MenuPanelView: View {
 }
 
 private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
-    case homebrew, media, uninstaller, cleanURL, cleaning
+    case homebrew, media, clipboard, windowLayout, uninstaller, cleanURL, cleaning
 
     var id: String { rawValue }
 }
@@ -368,11 +368,16 @@ struct UtilitiesSection: View {
     @State private var showURLCleaner = false
     @State private var showHomebrewPanel = false
     @State private var showMediaPanel = false
+    @State private var showClipboardPanel = false
+    @State private var showWindowLayoutPanel = false
     @AppStorage(DefaultsKey.panelUtilityCleaning) private var showCleaning = true
     @AppStorage(DefaultsKey.panelUtilityURLCleaner) private var showCleanURL = true
     @AppStorage(DefaultsKey.panelUtilityUninstaller) private var showUninstallerAction = true
     @AppStorage(DefaultsKey.panelUtilityHomebrew) private var showHomebrew = true
     @AppStorage(DefaultsKey.panelUtilityMedia) private var showMedia = true
+    @AppStorage(DefaultsKey.panelUtilityClipboard) private var showClipboard = true
+    @AppStorage(DefaultsKey.panelUtilityWindowLayout) private var showWindowLayout = true
+    @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
     @State private var draggingItem: UtilityPanelItem?
     var collapsible = true
@@ -381,7 +386,12 @@ struct UtilitiesSection: View {
     var body: some View {
         PanelSection(.utilities, title: l10n.s.utilitiesSection, collapsible: collapsible,
                      supportsEditing: true,
-                     editButtonVisible: !showUninstaller && !showURLCleaner && !showHomebrewPanel && !showMediaPanel,
+                     editButtonVisible: !showUninstaller
+                        && !showURLCleaner
+                        && !showHomebrewPanel
+                        && !showMediaPanel
+                        && !showClipboardPanel
+                        && !showWindowLayoutPanel,
                      resetAction: resetPanelDefaults) { editing in
             if showUninstaller {
                 PanelUninstallerView {
@@ -401,6 +411,16 @@ struct UtilitiesSection: View {
                     PanelInteractionState.shared.keepsPopoverOpen = false
                     showMediaPanel = false
                 }
+            } else if showClipboardPanel {
+                PanelClipboardView {
+                    PanelInteractionState.shared.keepsPopoverOpen = false
+                    showClipboardPanel = false
+                }
+            } else if showWindowLayoutPanel {
+                PanelWindowLayoutView {
+                    PanelInteractionState.shared.keepsPopoverOpen = false
+                    showWindowLayoutPanel = false
+                }
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(items(editing: editing)) { item in
@@ -417,19 +437,38 @@ struct UtilitiesSection: View {
         .onChange(of: showHomebrewPanel) { _, shown in
             if shown {
                 PanelInteractionState.shared.keepsPopoverOpen = true
-            } else if !showUninstaller && !showURLCleaner && !showMediaPanel {
+            } else if !showUninstaller && !showURLCleaner && !showMediaPanel && !showClipboardPanel && !showWindowLayoutPanel {
                 PanelInteractionState.shared.keepsPopoverOpen = false
             }
         }
         .onChange(of: showMediaPanel) { _, shown in
             if shown {
                 PanelInteractionState.shared.keepsPopoverOpen = true
-            } else if !showUninstaller && !showURLCleaner && !showHomebrewPanel {
+            } else if !showUninstaller && !showURLCleaner && !showHomebrewPanel && !showClipboardPanel && !showWindowLayoutPanel {
+                PanelInteractionState.shared.keepsPopoverOpen = false
+            }
+        }
+        .onChange(of: showClipboardPanel) { _, shown in
+            if shown {
+                PanelInteractionState.shared.keepsPopoverOpen = true
+            } else if !showUninstaller && !showURLCleaner && !showHomebrewPanel && !showMediaPanel && !showWindowLayoutPanel {
+                PanelInteractionState.shared.keepsPopoverOpen = false
+            }
+        }
+        .onChange(of: showWindowLayoutPanel) { _, shown in
+            if shown {
+                PanelInteractionState.shared.keepsPopoverOpen = true
+            } else if !showUninstaller && !showURLCleaner && !showHomebrewPanel && !showMediaPanel && !showClipboardPanel {
                 PanelInteractionState.shared.keepsPopoverOpen = false
             }
         }
         .onDisappear {
-            if !showUninstaller && !showURLCleaner && !showHomebrewPanel && !showMediaPanel {
+            if !showUninstaller
+                && !showURLCleaner
+                && !showHomebrewPanel
+                && !showMediaPanel
+                && !showClipboardPanel
+                && !showWindowLayoutPanel {
                 PanelInteractionState.shared.keepsPopoverOpen = false
             }
         }
@@ -466,6 +505,8 @@ struct UtilitiesSection: View {
         switch item {
         case .homebrew: return showHomebrew
         case .media: return showMedia
+        case .clipboard: return showClipboard
+        case .windowLayout: return showWindowLayout
         case .uninstaller: return showUninstallerAction
         case .cleanURL: return showCleanURL
         case .cleaning: return showCleaning
@@ -479,7 +520,6 @@ struct UtilitiesSection: View {
             UtilityActionButton(title: l10n.s.homebrewName,
                                 caption: l10n.s.homebrewEnableCaption,
                                 systemImage: "shippingbox",
-                                badge: l10n.s.betaBadge,
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: $showHomebrew,
@@ -497,6 +537,30 @@ struct UtilitiesSection: View {
                                 action: {
                                     PanelInteractionState.shared.keepsPopoverOpen = true
                                     showMediaPanel = true
+                                })
+        case .clipboard:
+            UtilityActionButton(title: FeatureStrings.clipboard(l10n.language).title,
+                                caption: clipboardEnabled
+                                    ? FeatureStrings.clipboard(l10n.language).caption
+                                    : FeatureStrings.clipboard(l10n.language).disabled,
+                                systemImage: "doc.on.clipboard",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showClipboard,
+                                action: {
+                                    PanelInteractionState.shared.keepsPopoverOpen = true
+                                    showClipboardPanel = true
+                                })
+        case .windowLayout:
+            UtilityActionButton(title: FeatureStrings.windowLayout(l10n.language).title,
+                                caption: FeatureStrings.windowLayout(l10n.language).caption,
+                                systemImage: "rectangle.3.group",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showWindowLayout,
+                                action: {
+                                    PanelInteractionState.shared.keepsPopoverOpen = true
+                                    showWindowLayoutPanel = true
                                 })
         case .uninstaller:
             UtilityActionButton(title: l10n.s.uninstallerName,
@@ -539,6 +603,8 @@ struct UtilitiesSection: View {
         utilityOrderRaw = ""
         showHomebrew = true
         showMedia = true
+        showClipboard = true
+        showWindowLayout = true
         showUninstallerAction = true
         showCleanURL = true
         showCleaning = true
@@ -619,12 +685,14 @@ struct QuickControlsSection: View {
         case .magnification: return l10n.s.dockPreviewMagnificationBlocked
         case .dockUnavailable: return l10n.s.dockPreviewDockUnavailable
         default:
-            return l10n.s.betaFeatureWarning
+            return l10n.s.dockPreviewEnableCaption
         }
     }
 
     private var dockPreviewNeedsAttention: Bool {
-        true
+        !permissions.accessibility
+            || !permissions.screenRecording
+            || dockPreview.blockedReason != nil
     }
 
     private var orderedItems: [ControlPanelItem] {
@@ -770,7 +838,6 @@ struct QuickControlsSection: View {
                            caption: dockPreviewCaption,
                            systemImage: "dock.rectangle",
                            isOn: $dockPreviewEnabled,
-                           badge: l10n.s.betaBadge,
                            isEditing: editing,
                            showsDragHandle: true,
                            visibility: $showDockPreview,

@@ -19,7 +19,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var settingsWindow: NSWindow?
     private var onboardingWindow: NSWindow?
     private var dockPreviewIntroWindow: NSWindow?
-    private var whatsNewWindow: NSWindow?
     private var updatePreviewWindow: NSWindow?
     private let popoverOpenDuration: TimeInterval = 0.18
     private let popoverCloseDuration: TimeInterval = 0.14
@@ -60,6 +59,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         ShelfService.shared.syncWithPreferences()
         URLCleanerService.shared.syncWithPreferences()
         WindowMaximizer.shared.syncWithPreferences()
+        WindowLayoutService.shared.syncWithPreferences()
+        ClipboardHistoryService.shared.syncWithPreferences()
+        MonitorAlertService.shared.start()
         AudioInputDeviceManager.shared.start()
         AppVolumeMixer.shared.start()
         UpdateService.shared.startAutomaticChecks()
@@ -78,6 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 FinderCutPaste.shared.syncWithPreferences()
                 AutoQuitService.shared.syncWithPreferences()
                 WindowMaximizer.shared.syncWithPreferences()
+                WindowLayoutService.shared.syncWithPreferences()
             }
             .store(in: &cancellables)
 
@@ -100,12 +103,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         if !defaults.bool(forKey: DefaultsKey.hasOnboarded) {
             showOnboarding(mode: .full)
         } else {
-            // Capture the version this user last ran *before* overwriting it, so
-            // we can tell which releases they skipped (e.g. 3.0.2 → 3.0.5).
-            let previousVersion = defaults.string(forKey: DefaultsKey.lastUpdateIntroVersion)
+            // Keep the last seen version marker current without opening
+            // post-update release notes; the update flow already previews them.
             defaults.set(OnboardingInfo.currentFeatureSet, forKey: DefaultsKey.featuresOnboardingVersion)
             defaults.set(AppInfo.version, forKey: DefaultsKey.lastUpdateIntroVersion)
-            presentUpdateIntros(previousVersion: previousVersion)
+            presentUpdateIntros()
         }
     }
 
@@ -764,39 +766,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
     }
 
-    /// On launch after an update, surface what changed. A user who skipped one
-    /// or more releases (e.g. 3.0.2 → 3.0.5) gets a one-time "What's New" window
-    /// covering everything they missed; the Dock Preview intro then follows if
-    /// they have never seen it. A contiguous update or a normal relaunch shows
-    /// nothing extra here.
-    private func presentUpdateIntros(previousVersion: String?) {
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.releaseNotesOnUpdate) else {
-            showDockPreviewIntroIfNeeded()
-            return
-        }
-        let notes = updateReleaseNotes(previousVersion: previousVersion)
-        if notes.isEmpty {
-            showDockPreviewIntroIfNeeded()
-        } else {
-            showWhatsNew(notes)
-        }
-    }
-
-    /// Release notes for every changelog version newer than `previousVersion`, up
-    /// to and including the current one — so every update surfaces what changed
-    /// (and a version-skipper sees everything they missed). Newest first. Empty
-    /// when the previous version is unknown (avoids surprising long-time users)
-    /// or unchanged.
-    private func updateReleaseNotes(previousVersion: String?) -> [ReleaseNotes] {
-        guard let previous = previousVersion else { return [] }
-        let current = AppInfo.version
-        let versions = ReleaseNotes.allVersions().filter { version in
-            UpdateService.isNewer(version, than: previous)
-                && (version == current || UpdateService.isNewer(current, than: version))
-        }
-        return versions
-            .sorted { UpdateService.isNewer($0, than: $1) }
-            .map { ReleaseNotes.notes(for: $0) }
+    /// On launch after an update, do not re-open What's New: every update path
+    /// shows the changelog before download. Keep only one-off feature intros.
+    private func presentUpdateIntros() {
+        showDockPreviewIntroIfNeeded()
     }
 
     /// True on the release that introduced Dock Preview, or any later one.
@@ -887,43 +860,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         window.setFrame(frame.integral, display: false)
     }
 
-    private func showWhatsNew(_ releases: [ReleaseNotes]) {
-        closePopover()
-        if let window = whatsNewWindow {
-            NSApp.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
-            return
-        }
-        let host = NSHostingController(rootView: WhatsNewView(
-            releases: releases,
-            onClose: { [weak self] in
-                self?.whatsNewWindow?.close()
-            },
-            onDontShowAgain: { [weak self] in
-                UserDefaults.standard.set(false, forKey: DefaultsKey.releaseNotesOnUpdate)
-                self?.whatsNewWindow?.close()
-            }
-        ))
-        host.sizingOptions = .preferredContentSize
-        let window = NSWindow(contentViewController: host)
-        window.title = L10n.shared.s.tabReleaseNotes
-        window.styleMask = [.titled, .closable, .fullSizeContentView]
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
-        window.isReleasedWhenClosed = false
-        window.isRestorable = false
-        window.isMovableByWindowBackground = true
-        window.delegate = self
-        centerWhatsNewWindow(window)
-        whatsNewWindow = window
-        NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
-        DispatchQueue.main.async { [weak self, weak window] in
-            guard let self, let window, window === self.whatsNewWindow else { return }
-            self.centerWhatsNewWindow(window)
-        }
-    }
-
     private func centerWhatsNewWindow(_ window: NSWindow) {
         window.contentView?.layoutSubtreeIfNeeded()
         let screen = window.screen ?? popover.contentViewController?.view.window?.screen ?? NSScreen.withMouse
@@ -1000,13 +936,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             dockPreviewIntroWindow = nil
             guard !isTerminating else { return }
             markDockPreviewIntroSeen()
-        }
-        if window === whatsNewWindow {
-            whatsNewWindow = nil
-            guard !isTerminating else { return }
-            // The Dock Preview intro follows the catch-up notes (never both at
-            // once) for a user who has not seen it yet.
-            showDockPreviewIntroIfNeeded()
         }
         if window === updatePreviewWindow {
             updatePreviewWindow = nil

@@ -19,7 +19,6 @@ struct PanelHomebrewView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             header
-            betaWarning
             if homebrew.brewPath == nil {
                 missingState
             } else {
@@ -80,7 +79,6 @@ struct PanelHomebrewView: View {
         HStack(spacing: 8) {
             Label(l10n.s.homebrewName, systemImage: "shippingbox")
                 .font(.system(size: 12, weight: .semibold))
-            PanelBetaBadge(text: l10n.s.betaBadge)
             Spacer()
             Button(action: onClose) {
                 Image(systemName: "xmark.circle.fill")
@@ -91,13 +89,6 @@ struct PanelHomebrewView: View {
             .buttonStyle(.plain)
             .help(l10n.s.uninstallerCancel)
         }
-    }
-
-    private var betaWarning: some View {
-        Text(l10n.s.betaFeatureWarning)
-            .font(.system(size: 9.5))
-            .foregroundStyle(.orange)
-            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var missingState: some View {

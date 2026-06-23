@@ -41,11 +41,8 @@ struct DockPreviewIntroView: View {
 
     private var header: some View {
         VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                Text(l10n.s.dockPreviewName)
-                    .font(.system(size: 24, weight: .bold))
-                PanelBetaBadge(text: l10n.s.betaBadge)
-            }
+            Text(l10n.s.dockPreviewName)
+                .font(.system(size: 24, weight: .bold))
 
             Text(l10n.s.dockPreviewEnableCaption)
                 .font(.system(size: 13))
@@ -80,18 +77,6 @@ struct DockPreviewIntroView: View {
                 Text(l10n.s.dockPreviewIntroPeek)
                     .font(.system(size: 12.5))
                     .foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-            }
-
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.orange)
-                    .frame(width: 20)
-                Text(l10n.s.betaFeatureWarning)
-                    .font(.system(size: 12.5, weight: .medium))
-                    .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
             }

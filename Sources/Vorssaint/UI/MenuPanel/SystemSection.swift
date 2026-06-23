@@ -9,7 +9,7 @@ enum BreakdownKind {
 }
 
 /// The "System" section of the panel: component temperatures, hardware usage
-/// and memory pressure — only the readings that matter, presented cleanly.
+/// and memory pressure, only the readings that matter, presented cleanly.
 /// Tapping CPU, GPU, Battery or Memory expands the top consumers of that resource.
 struct SystemSection: View {
     @ObservedObject private var l10n = L10n.shared
@@ -17,6 +17,7 @@ struct SystemSection: View {
     @Environment(\.colorScheme) private var colorScheme
     var collapsible = true
     @State private var expanded: BreakdownKind?
+    @State private var alertsExpanded = false
     @State private var breakdownRows: [ProcessUsage] = []
     @State private var breakdownIsLoading = false
     @State private var lastBreakdownRefresh = Date.distantPast
@@ -30,6 +31,7 @@ struct SystemSection: View {
     @AppStorage(DefaultsKey.monitorSysGPU) private var sysGPU = true
     @AppStorage(DefaultsKey.monitorSysBattery) private var sysBattery = true
     @AppStorage(DefaultsKey.monitorSysMemory) private var sysMemory = true
+    @AppStorage(DefaultsKey.monitorSysAlerts) private var sysAlerts = true
     @AppStorage(DefaultsKey.monitorSysUptime) private var sysUptime = true
     @AppStorage(DefaultsKey.panelSystemOrder) private var systemOrderRaw = ""
     @State private var draggingBlock: Block?
@@ -72,7 +74,7 @@ struct SystemSection: View {
 
     /// Card subsections, in order, filtered by the per-item toggles (and whether a
     /// battery exists). Drives divider interleaving so only rendered blocks get one.
-    private enum Block: String, PanelOrderItem { case temps, usage, memory, uptime }
+    private enum Block: String, PanelOrderItem { case temps, usage, memory, alerts, uptime }
 
     private var usageVisible: Bool {
         sysCPU || sysGPU || (sysBattery && monitor.snapshot.power?.chargePercent != nil)
@@ -104,6 +106,7 @@ struct SystemSection: View {
         case .temps: return sysTemps
         case .usage: return usageVisible
         case .memory: return sysMemory
+        case .alerts: return sysAlerts
         case .uptime: return sysUptime
         }
     }
@@ -116,6 +119,7 @@ struct SystemSection: View {
         sysGPU = true
         sysBattery = true
         sysMemory = true
+        sysAlerts = true
         sysUptime = true
     }
 
@@ -125,6 +129,7 @@ struct SystemSection: View {
         case .temps: temperatureGrid(editing: editing)
         case .usage: usageRows(editing: editing)
         case .memory: memoryRows(editing: editing)
+        case .alerts: alertRows(editing: editing)
         case .uptime: uptimeRow(editing: editing)
         }
     }
@@ -516,6 +521,44 @@ struct SystemSection: View {
         Text(text)
             .font(.system(size: 10, weight: .medium))
             .foregroundStyle(.tertiary)
+    }
+
+    @ViewBuilder
+    private func alertRows(editing: Bool) -> some View {
+        let text = FeatureStrings.monitorAlerts(l10n.language)
+        if !sysAlerts {
+            PanelHiddenItemRow(title: text.section,
+                               systemImage: "bell.badge",
+                               isVisible: $sysAlerts)
+        } else {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 6) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            alertsExpanded.toggle()
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 8, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                                .rotationEffect(.degrees(alertsExpanded ? 90 : 0))
+                            subsectionLabel(text.section)
+                            Spacer(minLength: 0)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    if editing {
+                        PanelInlineHideButton(isVisible: $sysAlerts)
+                    }
+                }
+                if alertsExpanded {
+                    MonitorAlertsControls(compact: true)
+                        .transition(.opacity)
+                }
+            }
+        }
     }
 
     private func formatMemory(_ bytes: UInt64) -> String {

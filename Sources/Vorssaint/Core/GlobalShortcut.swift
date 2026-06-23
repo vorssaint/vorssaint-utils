@@ -118,6 +118,30 @@ struct GlobalShortcut: Equatable, Hashable {
                                              modifiers: [.control, .option, .command])
     static let switcherDefault = GlobalShortcut(keyCode: Int64(kVK_Tab),
                                                 modifiers: [.command])
+    static let clipboardDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_V),
+                                                 modifiers: [.control, .option, .command])
+    static let windowLayoutLeftDefault = GlobalShortcut(keyCode: Int64(kVK_LeftArrow),
+                                                        modifiers: [.control, .option])
+    static let windowLayoutRightDefault = GlobalShortcut(keyCode: Int64(kVK_RightArrow),
+                                                         modifiers: [.control, .option])
+    static let windowLayoutTopDefault = GlobalShortcut(keyCode: Int64(kVK_UpArrow),
+                                                       modifiers: [.control, .option])
+    static let windowLayoutBottomDefault = GlobalShortcut(keyCode: Int64(kVK_DownArrow),
+                                                          modifiers: [.control, .option])
+    static let windowLayoutTopLeftDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_U),
+                                                           modifiers: [.control, .option])
+    static let windowLayoutTopRightDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_I),
+                                                            modifiers: [.control, .option])
+    static let windowLayoutBottomLeftDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_J),
+                                                              modifiers: [.control, .option])
+    static let windowLayoutBottomRightDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_K),
+                                                               modifiers: [.control, .option])
+    static let windowLayoutMaximizeDefault = GlobalShortcut(keyCode: Int64(kVK_Return),
+                                                            modifiers: [.control, .option])
+    static let windowLayoutCenterDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_C),
+                                                          modifiers: [.control, .option])
+    static let windowLayoutRestoreDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_R),
+                                                           modifiers: [.control, .option])
 
     static func saved(for key: String, fallback: GlobalShortcut) -> GlobalShortcut {
         if let raw = UserDefaults.standard.string(forKey: key),
@@ -247,6 +271,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case keepAwake
     case shelf
     case switcher
+    case clipboard
 
     var id: String { storageKey }
 
@@ -255,6 +280,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keepAwake: return DefaultsKey.keepAwakeShortcut
         case .shelf: return DefaultsKey.shelfShortcut
         case .switcher: return DefaultsKey.switcherShortcut
+        case .clipboard: return DefaultsKey.clipboardHistoryShortcut
         }
     }
 
@@ -263,6 +289,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keepAwake: return .keepAwakeDefault
         case .shelf: return .shelfDefault
         case .switcher: return .switcherDefault
+        case .clipboard: return .clipboardDefault
         }
     }
 
@@ -275,6 +302,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keepAwake: return strings.keepAwakeTitle
         case .shelf: return strings.shelfName
         case .switcher: return strings.switcherSection
+        case .clipboard: return "Clipboard"
         }
     }
 

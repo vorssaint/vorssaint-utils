@@ -15,7 +15,7 @@
 
 <p align="center"><sub>Também disponível em <a href="docs/README.pt-BR.md">Português (Brasil)</a>.</sub></p>
 
-Vorssaint is the one menu bar app that does the work of a whole shelf of paid Mac tools. Per app volume, a full system monitor, a window switcher, a file shelf, an app uninstaller, link cleaning, keep awake and a handful more, all living behind a single icon up in your menu bar. Install it once and stop paying for and juggling a pile of single purpose apps. It is local-first and stays out of your way: core features run on your Mac, with network used only for update checks, speed tests and Homebrew actions you start. Free, open source, no account, no subscription and no Vorssaint telemetry.
+Vorssaint is the one menu bar app that does the work of a whole shelf of paid Mac tools. Per app volume, a full system monitor, window controls, clipboard history, a window switcher, a file shelf, an app uninstaller, link cleaning, keep awake and a handful more, all living behind a single icon up in your menu bar. Install it once and stop paying for and juggling a pile of single purpose apps. It is local-first and stays out of your way: core features run on your Mac, with network used only for update checks, speed tests and Homebrew actions you start. Free, open source, no account, no subscription and no Vorssaint telemetry.
 
 ## Everything in one menu bar app
 
@@ -32,6 +32,7 @@ On macOS 26 and newer the slider takes on the Liquid Glass look, and earlier ver
 ### 📊 See what your Mac is doing
 
 - **System monitor.** Follow CPU, GPU, memory, temperatures, battery details and uptime in one compact panel, with small history graphs and optional menu bar readouts.
+- **Monitor alerts.** Get optional notifications for sustained CPU load, high CPU temperature, critical memory pressure, low disk space and low battery.
 - **Network.** Watch live upload and download rates, the totals for your session, and a speed test you can run whenever you are curious.
 - **Power and battery.** Keep an eye on the system draw, the adapter input, the flow in and out of the battery, plus health, cycle count and which apps are burning real energy right now.
 
@@ -40,10 +41,12 @@ On macOS 26 and newer the slider takes on the Liquid Glass look, and earlier ver
 ### 🪟 Move windows and files around
 
 - **Window switcher.** A richer spin on ⌘Tab with live thumbnails, including more than one window from the same app.
+- **Window Layout.** Move the active window to halves, corners, center or the usable screen with optional shortcuts.
 - **Shelf.** Park files, images, text and links near your cursor for a moment, then drag them wherever they belong later on.
 - **Finder cut and paste.** Use ⌘X and ⌘V to move selected files, while text fields keep their usual shortcuts.
 - **Quit on close.** Let an app quit when its last window closes, with exceptions for the apps you want to leave running.
 - **Green button maximizer.** An optional take on the green button that keeps the window in the current Space and puts it back to its old size on the next click.
+- **Clipboard history.** Keep a local text history with pinned items, search, manual ordering and quick paste shortcuts.
 
 <p align="center"><img src="docs/assets/readme/window-switcher.gif" alt="Window switcher with live thumbnails" width="460"></p>
 
@@ -91,10 +94,10 @@ Every macOS permission is optional, and the first run walks you through each one
 
 | Permission | Used by | Without it |
 |---|---|---|
-| Accessibility | Scroll direction, the switcher, Dock Preview, Finder cut and paste, quit on close | Those features stay off |
+| Accessibility | Scroll direction, Window Layout, the switcher, Dock Preview, Finder cut and paste, quit on close | Those features stay off |
 | Screen Recording | Window titles and thumbnails in the switcher and Dock Preview | Previews fall back or stay unavailable |
 | System Audio Recording | Per app volume and output routing in the mixer | Apps stay on normal system audio |
-| Notifications | Keep awake, battery and update alerts | The app stays silent |
+| Notifications | Keep awake, battery, Monitor and update alerts | The app stays silent |
 | Full Disk Access (optional) | A deeper uninstaller scan | It scans the reachable places only |
 | Administrator (once, optional) | Password free closed lid toggling | A password prompt on each toggle |
 

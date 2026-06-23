@@ -86,6 +86,7 @@ final class SystemMonitor: ObservableObject {
     private var panelClients = 0
     private var menuPanelNeeds: SystemMonitorPanelNeeds = .none
     private var menuBarActive = false
+    private var alertsActive = false
     private var refreshInFlight = false
     private var pendingRefresh = false
     private var pendingRefreshSuppressesGPU = false
@@ -228,6 +229,21 @@ final class SystemMonitor: ObservableObject {
         }
     }
 
+    /// Optional alert rules can keep only the necessary samplers alive even when
+    /// no monitor UI is visible and no metric is pinned to the menu bar.
+    func setAlertsActive(_ active: Bool) {
+        runOnMain { [weak self] in
+            guard let self, active != alertsActive else { return }
+            alertsActive = active
+            if active {
+                ensureTimer()
+                refresh()
+            } else {
+                stopTimerIfIdle()
+            }
+        }
+    }
+
     /// Changes the sampling cadence (seconds). Restarts a running timer.
     func setInterval(seconds: Int) {
         runOnMain { [weak self] in
@@ -261,7 +277,7 @@ final class SystemMonitor: ObservableObject {
     /// independent surfaces cannot desync.
     private var fullMonitorVisible: Bool { panelClients > 0 }
 
-    private var shouldRun: Bool { fullMonitorVisible || menuPanelNeeds.any || menuBarActive }
+    private var shouldRun: Bool { fullMonitorVisible || menuPanelNeeds.any || menuBarActive || alertsActive }
 
     private func shouldSample(defaults: UserDefaults = .standard) -> Bool {
         shouldRun && currentPlan(defaults: defaults).any
@@ -316,17 +332,23 @@ final class SystemMonitor: ObservableObject {
         let panelMemory = panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysMemory)
         let panelBattery = panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysBattery)
         let panelTemps = panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysTemps)
+        let alertCPU = defaults.bool(forKey: DefaultsKey.monitorAlertCPU)
+        let alertCPUTemperature = defaults.bool(forKey: DefaultsKey.monitorAlertCPUTemperature)
+        let alertMemory = defaults.bool(forKey: DefaultsKey.monitorAlertMemory)
+        let alertDisk = defaults.bool(forKey: DefaultsKey.monitorAlertDisk)
+        let alertBattery = defaults.bool(forKey: DefaultsKey.monitorAlertBattery)
 
-        plan.needCPU = panelCPU || defaults.bool(forKey: DefaultsKey.menuBarCPU)
-        plan.needMemory = panelMemory || defaults.bool(forKey: DefaultsKey.menuBarMemory)
+        plan.needCPU = panelCPU || defaults.bool(forKey: DefaultsKey.menuBarCPU) || alertCPU
+        plan.needMemory = panelMemory || defaults.bool(forKey: DefaultsKey.menuBarMemory) || alertMemory
         plan.needNetwork = panelNeedsNetwork || defaults.bool(forKey: DefaultsKey.menuBarNetwork)
-        plan.needDisk = panelNeedsDisk
+        plan.needDisk = panelNeedsDisk || alertDisk
         plan.needPower = panelNeedsPower || panelBattery
             || defaults.bool(forKey: DefaultsKey.menuBarPower)
             || defaults.bool(forKey: DefaultsKey.menuBarBattery)
+            || alertBattery
         plan.needGPUUsage = panelGPU || defaults.bool(forKey: DefaultsKey.menuBarGPU)
         plan.gpuEveryTick = panelGPU
-        plan.needCPUTemperature = panelTemps || defaults.bool(forKey: DefaultsKey.menuBarCPUTemperature)
+        plan.needCPUTemperature = panelTemps || defaults.bool(forKey: DefaultsKey.menuBarCPUTemperature) || alertCPUTemperature
         plan.needGPUTemperature = panelTemps || defaults.bool(forKey: DefaultsKey.menuBarGPUTemperature)
         plan.needBatteryTemperature = panelTemps || defaults.bool(forKey: DefaultsKey.menuBarBatteryTemperature)
         return plan

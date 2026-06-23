@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [3.1.0] - 2026-06-23
+
+### Summary
+Vorssaint 3.1.0 adds three optional tools: Clipboard History for saving and reusing copied text locally, Window Layout for arranging the active window with shortcuts, and Monitor Alerts for notifying you when selected system limits need attention. It also makes Settings easier to browse and improves menu bar metric readability on light and dark wallpapers.
+
+### Added
+- Clipboard History, with local text history, pinned items, search, manual order,
+  clear controls, sensitive-text skip and quick paste shortcuts.
+- Window Layout, with actions for halves, corners, center, maximize, restore and
+  optional global shortcuts.
+- Monitor Alerts, with optional notifications for high CPU, CPU temperature,
+  memory pressure, disk space and battery, configurable from Settings and the
+  System panel.
+
+### Changed
+- Settings are now grouped into clearer categories.
+- Homebrew and Dock Preview no longer show beta labels in the app.
+- Clipboard and Window Layout are available in the Utilities panel and can be
+  hidden or reordered.
+- Menu bar metric text now adapts better to light and dark wallpapers.
+- What's New no longer opens again after installing an update, because the
+  update flow already shows the changelog before download.
+
 ## [3.0.10] - 2026-06-21
 
 ### Summary

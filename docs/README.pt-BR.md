@@ -14,7 +14,8 @@ Se o Vorssaint te ajuda, uma ⭐ rápida significa muito e ainda ajuda mais gent
 Um app pequeno na barra de menus que faz o trabalho para o qual você instalaria
 (e pagaria) vários utilitários separados: manter o Mac acordado, ver o que está
 deixando ele lento, ajustar o volume por app, alternar janelas, carregar arquivos
-entre apps, remover sobras e resolver algumas chatices do dia a dia.
+entre apps, guardar histórico local de clipboard, organizar janelas, remover
+sobras e resolver algumas chatices do dia a dia.
 
 **Grátis. Open source. Local-first.** Sem conta, sem assinatura, sem telemetria
 do Vorssaint. Os recursos principais rodam no seu Mac; rede só entra em recursos
@@ -42,7 +43,7 @@ Os recursos podem ser ajustados pelos Ajustes ou direto pelo painel.
     </td>
     <td width="50%" valign="top">
       <strong>🌡️ Monitor do sistema com gráficos</strong><br>
-      <sub>Acompanhe CPU, GPU, memória, temperaturas, bateria e uptime num painel compacto.</sub><br><br>
+      <sub>Acompanhe CPU, GPU, memória, temperaturas, bateria, uptime e alertas opcionais num painel compacto.</sub><br><br>
       <img src="assets/readme/system-monitor-graph.png" alt="Monitor do sistema com gráficos ao vivo" width="330">
     </td>
   </tr>
@@ -110,6 +111,10 @@ Os recursos podem ser ajustados pelos Ajustes ou direto pelo painel.
 
 ### Também incluído
 
+- **📋 Histórico de clipboard**: guarda textos localmente, com fixados, busca,
+  ordem manual e atalhos rápidos para colar.
+- **🪟 Layout de janelas**: move a janela ativa para metades, cantos, centro ou
+  tela útil com atalhos opcionais.
 - **🖱️ Corrija a direção da rolagem do mouse**: inverte a roda do mouse sem
   mexer na rolagem natural do trackpad.
 - **🧪 Fan Control beta**: entrada de teste disponível, com controles manuais
@@ -174,10 +179,10 @@ cada concessão.
 
 | Permissão | Usada por | Sem ela |
 |---|---|---|
-| **Acessibilidade** | Inversor de rolagem, alternador, Dock Preview, recortar e colar, encerrar ao fechar | Esses recursos ficam desligados |
+| **Acessibilidade** | Inversor de rolagem, layout de janelas, alternador, Dock Preview, recortar e colar, encerrar ao fechar | Esses recursos ficam desligados |
 | **Gravação de Tela** | Títulos e miniaturas no alternador e no Dock Preview | Pré-visualizações ficam limitadas ou indisponíveis |
 | **Gravação de Áudio do Sistema** | Volume por app e roteamento de saída no mixer | Apps continuam no áudio normal do sistema |
-| **Notificações** | Avisos de fim de sessão e proteção de bateria | Operação silenciosa |
+| **Notificações** | Avisos de fim de sessão, proteção de bateria, Monitor e atualizações | Operação silenciosa |
 | **Acesso Total ao Disco** (opcional) | Varredura mais completa do desinstalador | Varre só os locais acessíveis |
 | **Administrador** (uma vez, opcional) | Tampa fechada sem senha | Pede senha a cada uso |
 

@@ -9,7 +9,7 @@ import SwiftUI
 /// the Features section, so every feature gets its own page.
 enum SettingsPage: Hashable {
     case general, energy, monitor
-    case mouse, switcher, cutPaste, autoQuit, uninstaller, urlCleaner, homebrew, media, shelf
+    case mouse, switcher, cutPaste, autoQuit, uninstaller, urlCleaner, homebrew, media, clipboard, windowLayout, shelf
     case advanced, about, releaseNotes, support
 }
 
@@ -28,29 +28,42 @@ struct SettingsView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var router = SettingsRouter.shared
 
+    private var categories: SettingsCategoryStrings {
+        FeatureStrings.settingsCategories(l10n.language)
+    }
+
     var body: some View {
         NavigationSplitView {
             List(selection: $router.page) {
-                Label(l10n.s.tabGeneral, systemImage: "gearshape").tag(SettingsPage.general)
-                Label(l10n.s.tabEnergy, systemImage: "bolt.fill").tag(SettingsPage.energy)
-                Label(l10n.s.tabMonitor, systemImage: "chart.line.uptrend.xyaxis").tag(SettingsPage.monitor)
+                Section(categories.essentials) {
+                    Label(l10n.s.tabGeneral, systemImage: "gearshape").tag(SettingsPage.general)
+                    Label(l10n.s.tabEnergy, systemImage: "bolt.fill").tag(SettingsPage.energy)
+                    Label(l10n.s.tabMonitor, systemImage: "chart.line.uptrend.xyaxis").tag(SettingsPage.monitor)
+                }
 
-                Section(l10n.s.settingsGroupFeatures) {
+                Section(categories.windowsControls) {
                     Label(l10n.s.tabMouse, systemImage: "computermouse").tag(SettingsPage.mouse)
                     Label(l10n.s.tabSwitcher, systemImage: "rectangle.on.rectangle").tag(SettingsPage.switcher)
+                    Label(FeatureStrings.windowLayout(l10n.language).title, systemImage: "rectangle.3.group").tag(SettingsPage.windowLayout)
                     Label(l10n.s.cutPasteName, systemImage: "scissors").tag(SettingsPage.cutPaste)
                     Label(l10n.s.autoQuitName, systemImage: "xmark.rectangle").tag(SettingsPage.autoQuit)
+                }
+
+                Section(categories.utilities) {
+                    Label(FeatureStrings.clipboard(l10n.language).title, systemImage: "doc.on.clipboard").tag(SettingsPage.clipboard)
+                    Label(l10n.s.shelfName, systemImage: "tray.full").tag(SettingsPage.shelf)
                     Label(l10n.s.uninstallerName, systemImage: "trash").tag(SettingsPage.uninstaller)
                     Label(l10n.s.urlCleanerName, systemImage: "link").tag(SettingsPage.urlCleaner)
                     Label(l10n.s.homebrewName, systemImage: "shippingbox").tag(SettingsPage.homebrew)
                     Label(l10n.s.mediaName, systemImage: "photo.on.rectangle.angled").tag(SettingsPage.media)
-                    Label(l10n.s.shelfName, systemImage: "tray.full").tag(SettingsPage.shelf)
                 }
 
-                Label(l10n.s.tabAdvanced, systemImage: "wrench.and.screwdriver").tag(SettingsPage.advanced)
-                Label(l10n.s.tabAbout, systemImage: "info.circle").tag(SettingsPage.about)
-                Label(l10n.s.tabReleaseNotes, systemImage: "sparkles").tag(SettingsPage.releaseNotes)
-                Label(l10n.s.tabSupport, systemImage: "heart.fill").tag(SettingsPage.support)
+                Section(categories.app) {
+                    Label(l10n.s.tabAdvanced, systemImage: "wrench.and.screwdriver").tag(SettingsPage.advanced)
+                    Label(l10n.s.tabAbout, systemImage: "info.circle").tag(SettingsPage.about)
+                    Label(l10n.s.tabReleaseNotes, systemImage: "sparkles").tag(SettingsPage.releaseNotes)
+                    Label(l10n.s.tabSupport, systemImage: "heart.fill").tag(SettingsPage.support)
+                }
             }
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 198, ideal: 210, max: 240)
@@ -76,6 +89,8 @@ struct SettingsView: View {
         case .urlCleaner: URLCleanerSettings()
         case .homebrew: HomebrewSettings()
         case .media: MediaSettings()
+        case .clipboard: ClipboardSettings()
+        case .windowLayout: WindowLayoutSettings()
         case .shelf: ShelfSettings()
         case .advanced: AdvancedSettings()
         case .about: AboutSettings()
@@ -387,10 +402,7 @@ struct SwitcherSettings: View {
                     .font(.caption)
                     .foregroundStyle(dockPreviewWarning ? .orange : .secondary)
             } header: {
-                HStack(spacing: 6) {
-                    Text(l10n.s.dockPreviewName)
-                    PanelBetaBadge(text: l10n.s.betaBadge)
-                }
+                Text(l10n.s.dockPreviewName)
             }
             Section {
                 Picker(l10n.s.previewSizeLabel, selection: $previewSize) {
@@ -429,12 +441,12 @@ struct SwitcherSettings: View {
         case .magnification: return l10n.s.dockPreviewMagnificationBlocked
         case .dockUnavailable: return l10n.s.dockPreviewDockUnavailable
         default:
-            return l10n.s.betaFeatureWarning
+            return l10n.s.dockPreviewEnableCaption
         }
     }
 
     private var dockPreviewWarning: Bool {
-        dockPreviewEnabled
+        dockPreviewEnabled && dockPreview.blockedReason != nil
     }
 }
 
@@ -494,7 +506,6 @@ struct AboutSettings: View {
 
 struct ReleaseNotesSettings: View {
     @ObservedObject private var l10n = L10n.shared
-    @AppStorage(DefaultsKey.releaseNotesOnUpdate) private var releaseNotesOnUpdate = true
     private let notes = ReleaseNotes.current
 
     var body: some View {
@@ -508,10 +519,6 @@ struct ReleaseNotesSettings: View {
             }
             .padding(.horizontal, 24)
             .padding(.top, 24)
-
-            Toggle(l10n.s.releaseNotesOnUpdateToggle, isOn: $releaseNotesOnUpdate)
-                .toggleStyle(.switch)
-                .padding(.horizontal, 24)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {

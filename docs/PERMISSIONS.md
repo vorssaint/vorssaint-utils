@@ -6,10 +6,10 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 | Permission | Optional | Powers |
 |---|---|---|
-| Accessibility | Yes | Scroll direction, the app and window switcher, Dock Preview, Finder cut and paste, quit on close |
+| Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Finder cut and paste, quit on close |
 | Screen Recording | Yes | Window titles and thumbnails in the switcher and Dock Preview |
 | System Audio Recording | Yes | Per app volume and output routing in the mixer |
-| Notifications | Yes | Keep awake, battery and update alerts |
+| Notifications | Yes | Keep awake, battery, Monitor and update alerts |
 | Full Disk Access | Yes | A deeper uninstaller scan |
 | Administrator (one time) | Yes | Password free closed lid toggling |
 | Automation | Yes | Finder cut and paste, moving leftovers to the Trash and Homebrew Terminal handoff |
@@ -21,6 +21,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 **What uses it.**
 
 - **Scroll direction inverter**, which flips the mouse wheel.
+- **Window Layout**, which moves the active window when you use a layout action or shortcut.
 - **App and window switcher**, which captures the switcher hotkey and reads the window list.
 - **Dock Preview**, which reads Dock items and brings windows forward for a temporary peek.
 - **Finder cut and paste**, which steps in on ⌘X and ⌘V while Finder is in front.
@@ -58,6 +59,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 - **Keep awake**, with a note when a keep awake timer finishes.
 - **Battery**, with the battery protection alerts.
+- **Monitor**, with optional alerts for the conditions you turn on.
 - **Updates**, with a one time note when a new version shows up, and only while automatic update checks are on.
 
 **If you say no.** Vorssaint runs without a peep, and the same information is still right there in the panel and in Settings.

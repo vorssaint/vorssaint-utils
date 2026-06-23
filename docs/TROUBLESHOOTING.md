@@ -27,7 +27,7 @@ Vorssaint keeps an eye on Accessibility and Screen Recording, so features tend t
 
 ### Accessibility
 
-This one powers the scroll direction inverter, the switcher, Dock Preview, Finder cut and paste and quit on close. If they do nothing, open System Settings, Privacy and Security, Accessibility and confirm Vorssaint is switched on. If you rebuilt the app yourself, its signature can shift and macOS may treat it as a different app, so remove the old Vorssaint entry with the minus button and grant it again. For steady local signing while you develop, see the [contributing guide](../CONTRIBUTING.md).
+This one powers the scroll direction inverter, Window Layout, the switcher, Dock Preview, Finder cut and paste and quit on close. If they do nothing, open System Settings, Privacy and Security, Accessibility and confirm Vorssaint is switched on. If you rebuilt the app yourself, its signature can shift and macOS may treat it as a different app, so remove the old Vorssaint entry with the minus button and grant it again. For steady local signing while you develop, see the [contributing guide](../CONTRIBUTING.md).
 
 ### Screen Recording
 

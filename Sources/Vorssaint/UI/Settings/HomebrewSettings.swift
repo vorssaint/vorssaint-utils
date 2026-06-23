@@ -57,15 +57,8 @@ struct HomebrewSettings: View {
 
     private var pageHeader: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 7) {
-                Label(l10n.s.homebrewName, systemImage: "shippingbox")
-                    .font(.system(size: 14, weight: .semibold))
-                PanelBetaBadge(text: l10n.s.betaBadge)
-            }
-            Text(l10n.s.betaFeatureWarning)
-                .font(.caption)
-                .foregroundStyle(.orange)
-                .fixedSize(horizontal: false, vertical: true)
+            Label(l10n.s.homebrewName, systemImage: "shippingbox")
+                .font(.system(size: 14, weight: .semibold))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

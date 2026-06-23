@@ -57,6 +57,7 @@ struct MonitorSettings: View {
                 }
                 .pickerStyle(.segmented)
             }
+            monitorAlertsSection
             Section(l10n.s.monitorPanelSection) {
                 MonitorPanelConfig()
                 Text(l10n.s.monitorPanelConfigHint)
@@ -99,6 +100,13 @@ struct MonitorSettings: View {
         }
         .onDisappear {
             SystemMonitor.shared.panelDidDisappear()
+        }
+    }
+
+    private var monitorAlertsSection: some View {
+        let text = FeatureStrings.monitorAlerts(l10n.language)
+        return Section(text.section) {
+            MonitorAlertsControls(compact: false)
         }
     }
 }

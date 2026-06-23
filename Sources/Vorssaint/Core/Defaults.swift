@@ -45,6 +45,8 @@ enum DefaultsKey {
     static let panelUtilityUninstaller = "panelUtilityUninstaller"
     static let panelUtilityHomebrew = "panelUtilityHomebrew"
     static let panelUtilityMedia = "panelUtilityMedia"
+    static let panelUtilityClipboard = "panelUtilityClipboard"
+    static let panelUtilityWindowLayout = "panelUtilityWindowLayout"
     static let panelControlMouseScroll = "panelControlMouseScroll"
     static let panelControlSwitcher = "panelControlSwitcher"
     static let panelControlDockPreview = "panelControlDockPreview"
@@ -96,6 +98,7 @@ enum DefaultsKey {
     static let monitorSysGPU = "monitorSysGPU"
     static let monitorSysBattery = "monitorSysBattery"
     static let monitorSysMemory = "monitorSysMemory"
+    static let monitorSysAlerts = "monitorSysAlerts"
     static let monitorSysUptime = "monitorSysUptime"
     static let monitorNetSpeed = "monitorNetSpeed"
     static let monitorNetTotals = "monitorNetTotals"
@@ -109,6 +112,17 @@ enum DefaultsKey {
     static let monitorPwrAdapter = "monitorPwrAdapter"
     static let monitorPwrBattery = "monitorPwrBattery"
     static let monitorPwrHealth = "monitorPwrHealth"
+    // System monitor — optional notifications for sustained or actionable conditions.
+    static let monitorAlertCPU = "monitorAlertCPU"
+    static let monitorAlertCPUTemperature = "monitorAlertCPUTemperature"
+    static let monitorAlertMemory = "monitorAlertMemory"
+    static let monitorAlertDisk = "monitorAlertDisk"
+    static let monitorAlertBattery = "monitorAlertBattery"
+    static let monitorAlertCPUThreshold = "monitorAlertCPUThreshold"
+    static let monitorAlertCPUTemperatureThreshold = "monitorAlertCPUTemperatureThreshold"
+    static let monitorAlertDiskFreePercent = "monitorAlertDiskFreePercent"
+    static let monitorAlertBatteryPercent = "monitorAlertBatteryPercent"
+    static let monitorAlertCooldownMinutes = "monitorAlertCooldownMinutes"
     // Menu panel layout — the order the major sections appear in and which are
     // collapsed, both comma-joined section ids (see PanelSectionID). Absent keys
     // mean the canonical order and nothing collapsed, so no defaults registration.
@@ -144,6 +158,28 @@ enum DefaultsKey {
     static let mediaImageStripMetadata = "mediaImageStripMetadata"
     static let mediaTextAccurate = "mediaTextAccurate"
     static let mediaTextLanguageCorrection = "mediaTextLanguageCorrection"
+
+    // Clipboard history — text only, opt-in and local.
+    static let clipboardHistoryEnabled = "clipboardHistoryEnabled"
+    static let clipboardHistoryEntries = "clipboardHistoryEntries"
+    static let clipboardHistoryLimit = "clipboardHistoryLimit"
+    static let clipboardHistorySkipSensitive = "clipboardHistorySkipSensitive"
+    static let clipboardHistoryShortcutEnabled = "clipboardHistoryShortcutEnabled"
+    static let clipboardHistoryShortcut = "clipboardHistoryShortcut"
+
+    // Window Layout — manual window snapping and optional global shortcuts.
+    static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
+    static let windowLayoutShortcutLeft = "windowLayoutShortcutLeft"
+    static let windowLayoutShortcutRight = "windowLayoutShortcutRight"
+    static let windowLayoutShortcutTop = "windowLayoutShortcutTop"
+    static let windowLayoutShortcutBottom = "windowLayoutShortcutBottom"
+    static let windowLayoutShortcutTopLeft = "windowLayoutShortcutTopLeft"
+    static let windowLayoutShortcutTopRight = "windowLayoutShortcutTopRight"
+    static let windowLayoutShortcutBottomLeft = "windowLayoutShortcutBottomLeft"
+    static let windowLayoutShortcutBottomRight = "windowLayoutShortcutBottomRight"
+    static let windowLayoutShortcutMaximize = "windowLayoutShortcutMaximize"
+    static let windowLayoutShortcutCenter = "windowLayoutShortcutCenter"
+    static let windowLayoutShortcutRestore = "windowLayoutShortcutRestore"
 
     // Dev-build only: force the "update available" UI for local testing.
     static let simulateUpdate = "simulateUpdate"
@@ -196,6 +232,8 @@ enum Defaults {
     static let allowedMenuBarLabelStyles = ["compact", "classic"]
     static let allowedMenuBarMemoryStyles = ["dot", "percent", "both"]
     static let allowedPreviewSizes = ["normal", "large", "xlarge"]
+    static let allowedClipboardHistoryLimits = [20, 50, 100]
+    static let allowedMonitorAlertCooldowns = [5, 15, 30, 60]
 
     static let registeredDefaults: [String: Any] = [
         DefaultsKey.clamshellPreferred: false,
@@ -227,6 +265,8 @@ enum Defaults {
         DefaultsKey.panelUtilityUninstaller: true,
         DefaultsKey.panelUtilityHomebrew: true,
         DefaultsKey.panelUtilityMedia: true,
+        DefaultsKey.panelUtilityClipboard: true,
+        DefaultsKey.panelUtilityWindowLayout: true,
         DefaultsKey.panelControlMouseScroll: true,
         DefaultsKey.panelControlSwitcher: true,
         DefaultsKey.panelControlDockPreview: true,
@@ -270,6 +310,7 @@ enum Defaults {
         DefaultsKey.monitorSysGPU: true,
         DefaultsKey.monitorSysBattery: true,
         DefaultsKey.monitorSysMemory: true,
+        DefaultsKey.monitorSysAlerts: true,
         DefaultsKey.monitorSysUptime: true,
         DefaultsKey.monitorNetSpeed: true,
         DefaultsKey.monitorNetTotals: true,
@@ -283,6 +324,16 @@ enum Defaults {
         DefaultsKey.monitorPwrAdapter: true,
         DefaultsKey.monitorPwrBattery: true,
         DefaultsKey.monitorPwrHealth: true,
+        DefaultsKey.monitorAlertCPU: false,
+        DefaultsKey.monitorAlertCPUTemperature: false,
+        DefaultsKey.monitorAlertMemory: false,
+        DefaultsKey.monitorAlertDisk: false,
+        DefaultsKey.monitorAlertBattery: false,
+        DefaultsKey.monitorAlertCPUThreshold: 90,
+        DefaultsKey.monitorAlertCPUTemperatureThreshold: 90,
+        DefaultsKey.monitorAlertDiskFreePercent: 10,
+        DefaultsKey.monitorAlertBatteryPercent: 15,
+        DefaultsKey.monitorAlertCooldownMinutes: 15,
         DefaultsKey.mediaLastTool: MediaTool.videoCompressor.rawValue,
         DefaultsKey.mediaVideoStart: 0.0,
         DefaultsKey.mediaVideoEnd: 0.0,
@@ -303,6 +354,23 @@ enum Defaults {
         DefaultsKey.mediaImageStripMetadata: true,
         DefaultsKey.mediaTextAccurate: true,
         DefaultsKey.mediaTextLanguageCorrection: true,
+        DefaultsKey.clipboardHistoryEnabled: false,
+        DefaultsKey.clipboardHistoryLimit: 50,
+        DefaultsKey.clipboardHistorySkipSensitive: true,
+        DefaultsKey.clipboardHistoryShortcutEnabled: true,
+        DefaultsKey.clipboardHistoryShortcut: GlobalShortcut.clipboardDefault.storageValue,
+        DefaultsKey.windowLayoutShortcutsEnabled: false,
+        DefaultsKey.windowLayoutShortcutLeft: GlobalShortcut.windowLayoutLeftDefault.storageValue,
+        DefaultsKey.windowLayoutShortcutRight: GlobalShortcut.windowLayoutRightDefault.storageValue,
+        DefaultsKey.windowLayoutShortcutTop: GlobalShortcut.windowLayoutTopDefault.storageValue,
+        DefaultsKey.windowLayoutShortcutBottom: GlobalShortcut.windowLayoutBottomDefault.storageValue,
+        DefaultsKey.windowLayoutShortcutTopLeft: GlobalShortcut.windowLayoutTopLeftDefault.storageValue,
+        DefaultsKey.windowLayoutShortcutTopRight: GlobalShortcut.windowLayoutTopRightDefault.storageValue,
+        DefaultsKey.windowLayoutShortcutBottomLeft: GlobalShortcut.windowLayoutBottomLeftDefault.storageValue,
+        DefaultsKey.windowLayoutShortcutBottomRight: GlobalShortcut.windowLayoutBottomRightDefault.storageValue,
+        DefaultsKey.windowLayoutShortcutMaximize: GlobalShortcut.windowLayoutMaximizeDefault.storageValue,
+        DefaultsKey.windowLayoutShortcutCenter: GlobalShortcut.windowLayoutCenterDefault.storageValue,
+        DefaultsKey.windowLayoutShortcutRestore: GlobalShortcut.windowLayoutRestoreDefault.storageValue,
     ]
 
     static func register() {
@@ -377,6 +445,18 @@ enum Defaults {
 
     static func sanitizedMenuBarMemoryStyle(_ style: String) -> String {
         allowedMenuBarMemoryStyles.contains(style) ? style : "percent"
+    }
+
+    static func sanitizedClipboardHistoryLimit(_ value: Int) -> Int {
+        allowedClipboardHistoryLimits.contains(value) ? value : 50
+    }
+
+    static func sanitizedMonitorAlertCooldown(_ value: Int) -> Int {
+        allowedMonitorAlertCooldowns.contains(value) ? value : 15
+    }
+
+    static func sanitizedPercent(_ value: Int, fallback: Int, range: ClosedRange<Int>) -> Int {
+        range.contains(value) ? value : fallback
     }
 
     static func sanitizedBundleIdentifierList(_ bundleIDs: [String]) -> [String] {
