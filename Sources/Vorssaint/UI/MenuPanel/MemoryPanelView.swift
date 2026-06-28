@@ -6,7 +6,7 @@ import SwiftUI
 struct MemoryPanelView: View {
     @ObservedObject private var monitor = SystemMonitor.shared
     @ObservedObject private var autoPurger = MemoryAutoPurger.shared
-    @AppStorage(DefaultsKey.autoPurgeEnabled) private var autoPurgeEnabled = true
+    @AppStorage(DefaultsKey.autoPurgeEnabled) private var autoPurgeEnabled = false
     @AppStorage(DefaultsKey.autoPurgeThreshold) private var autoPurgeThreshold = "warning"
     @AppStorage(DefaultsKey.autoPurgeNotify) private var autoPurgeNotify = true
     @AppStorage(DefaultsKey.purgeHotkeyEnabled) private var purgeHotkeyEnabled = true
@@ -15,6 +15,7 @@ struct MemoryPanelView: View {
     @State private var statusMessage: String?
     @State private var isPurging = false
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var purgeConfirmation = ""
 
     var body: some View {
         ScrollView {
@@ -76,8 +77,12 @@ struct MemoryPanelView: View {
                 .kerning(0.5)
                 .foregroundStyle(.secondary)
 
+            Text("Standard: memory pressure relief simulation only")
+                .font(.system(size: 10.5))
+                .foregroundStyle(.secondary)
+
             Button { runPurge(.standard) } label: {
-                Label(isPurging ? "Purging..." : "Purge Memory", systemImage: "bolt.fill")
+                Label(isPurging ? "Simulating..." : "Standard", systemImage: "wind")
                     .font(.system(size: 13, weight: .semibold))
                     .frame(maxWidth: .infinity)
             }
@@ -85,11 +90,28 @@ struct MemoryPanelView: View {
             .tint(monitor.snapshot.memoryPressure.color)
             .disabled(isPurging)
 
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Deep: may request administrator password and run /usr/bin/purge")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                Text("Max: may request administrator password and run /usr/sbin/purge")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                TextField(MemoryPurgeService.requiredDeepConfirmation, text: $purgeConfirmation)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 10.5))
+            }
+
             HStack(spacing: 8) {
-                Button("Deep Purge") { runPurge(.deep) }
+                Button("Deep") { runPurge(.deep, confirmationText: purgeConfirmation) }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .disabled(isPurging)
+                    .disabled(isPurging || !confirmationMatches)
+
+                Button("Max") { runPurge(.max, confirmationText: purgeConfirmation) }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(isPurging || !confirmationMatches)
 
                 Button("Kill Top Hog") {
                     statusMessage = MemoryPurgeService.killTopMemoryHog()
@@ -117,15 +139,15 @@ struct MemoryPanelView: View {
                 .kerning(0.5)
                 .foregroundStyle(.secondary)
 
-            Button { runPurge(.max) } label: {
+            Button { runPurge(.max, confirmationText: purgeConfirmation) } label: {
                 Label("MAX Purge (everything)", systemImage: "flame.fill")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
             .tint(.red)
-            .disabled(isPurging)
+            .disabled(isPurging || !confirmationMatches)
 
-            Text("Caches + DNS + 4× pressure passes + admin purge. Use when RAM is critically low.")
+            Text("Caches + DNS + 4× pressure passes + manual admin purge. Use when RAM is critically low.")
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
 
@@ -204,14 +226,29 @@ struct MemoryPanelView: View {
     }
 
     private func runPurge(_ mode: MemoryPurgeService.Mode) {
+        runPurge(mode, confirmationText: nil)
+    }
+
+    private func runPurge(_ mode: MemoryPurgeService.Mode, confirmationText: String?) {
         guard !isPurging else { return }
         isPurging = true
-        statusMessage = mode == .max ? "Running MAX purge..." : "Reclaiming memory..."
-        MemoryPurgeService.purge(mode: mode) { result in
+        switch mode {
+        case .standard:
+            statusMessage = "Simulating pressure relief..."
+        case .deep:
+            statusMessage = "Running deep purge..."
+        case .max:
+            statusMessage = "Running MAX purge..."
+        }
+        MemoryPurgeService.purge(mode: mode, trigger: .manual, confirmationText: confirmationText) { result in
             isPurging = false
             statusMessage = result.message
             SystemMonitor.shared.refreshNow()
         }
+    }
+
+    private var confirmationMatches: Bool {
+        purgeConfirmation == MemoryPurgeService.requiredDeepConfirmation
     }
 
     private func syncHotkey() {

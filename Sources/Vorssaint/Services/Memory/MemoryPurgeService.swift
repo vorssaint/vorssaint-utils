@@ -11,10 +11,29 @@ enum MemoryPurgeService {
         case max
     }
 
+    enum Trigger: String, Codable {
+        case manual
+        case auto
+    }
+
     struct Result {
         let freedBytes: Int64
         let message: String
     }
+
+    struct Receipt: Codable {
+        let timestamp: String
+        let mode: String
+        let manualOrAuto: String
+        let commandUsed: String
+        let success: Bool
+        let beforeReclaimableEstimate: UInt64?
+        let afterReclaimableEstimate: UInt64?
+        let durationSeconds: Double
+        let note: String?
+    }
+
+    static let requiredDeepConfirmation = "I understand deep purge may request administrator password and run /usr/bin/purge"
 
     static func reclaimableBytes() -> UInt64 {
         var stats = vm_statistics64()
@@ -35,33 +54,88 @@ enum MemoryPurgeService {
         reclaimableBytes()
     }
 
-    static func purge(mode: Mode, completion: @escaping (Result) -> Void) {
+    static func purge(mode: Mode, trigger: Trigger = .manual, confirmationText: String? = nil, completion: @escaping (Result) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
             let before = reclaimableBytes()
+            let started = Date()
+            var commandUsed = "simulation_only"
+            var success = true
+            var note: String? = "pressure_relief_simulation_only"
             switch mode {
             case .standard:
                 triggerPressureRelief(passes: 2)
             case .deep:
-                triggerPressureRelief(passes: 3)
-                _ = AdminShell.runSync("/usr/sbin/purge",
-                                       prompt: "MemoryKill needs your password to purge disk caches.")
+                guard confirmationText == requiredDeepConfirmation else {
+                    success = false
+                    note = "confirmation_mismatch"
+                    commandUsed = "none"
+                    let after = reclaimableBytes()
+                    writeReceipt(.init(timestamp: timestampString(from: started),
+                                       mode: "deep",
+                                       manualOrAuto: trigger.rawValue,
+                                       commandUsed: commandUsed,
+                                       success: success,
+                                       beforeReclaimableEstimate: before,
+                                       afterReclaimableEstimate: after,
+                                       durationSeconds: Date().timeIntervalSince(started),
+                                       note: note))
+                    DispatchQueue.main.async {
+                        completion(Result(freedBytes: 0, message: "Deep purge confirmation did not match."))
+                    }
+                    return
+                }
+                commandUsed = "/usr/bin/purge"
+                let result = Shell.run("/usr/bin/purge", [])
+                success = result.status == 0
+                note = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
             case .max:
+                guard confirmationText == requiredDeepConfirmation else {
+                    success = false
+                    note = "confirmation_mismatch"
+                    commandUsed = "none"
+                    let after = reclaimableBytes()
+                    writeReceipt(.init(timestamp: timestampString(from: started),
+                                       mode: "max",
+                                       manualOrAuto: trigger.rawValue,
+                                       commandUsed: commandUsed,
+                                       success: success,
+                                       beforeReclaimableEstimate: before,
+                                       afterReclaimableEstimate: after,
+                                       durationSeconds: Date().timeIntervalSince(started),
+                                       note: note))
+                    DispatchQueue.main.async {
+                        completion(Result(freedBytes: 0, message: "MAX purge confirmation did not match."))
+                    }
+                    return
+                }
                 _ = clearUserCaches()
                 triggerPressureRelief(passes: 4)
                 _ = flushDNS()
-                _ = AdminShell.runSync("/usr/sbin/purge",
-                                       prompt: "MemoryKill needs your password for MAX purge.")
+                commandUsed = "/usr/sbin/purge"
+                success = AdminShell.runSync("/usr/sbin/purge",
+                                              prompt: "MemoryKill needs your password for MAX purge.")
                 triggerPressureRelief(passes: 2)
             }
             Thread.sleep(forTimeInterval: 1.0)
             let after = reclaimableBytes()
             let freed = Int64(after) &- Int64(before)
             let message: String
-            if freed > 32 * 1024 * 1024 {
+            if mode == .standard {
+                message = "Standard pressure relief simulated."
+            } else if freed > 32 * 1024 * 1024 {
                 message = "\(modeLabel(mode)): freed \(formatBytes(freed))."
             } else {
                 message = "\(modeLabel(mode)) complete."
             }
+            writeReceipt(.init(timestamp: timestampString(from: started),
+                               mode: String(describing: mode),
+                               manualOrAuto: trigger.rawValue,
+                               commandUsed: commandUsed,
+                               success: success,
+                               beforeReclaimableEstimate: before,
+                               afterReclaimableEstimate: after,
+                               durationSeconds: Date().timeIntervalSince(started),
+                               note: note?.isEmpty == true ? nil : note))
             DispatchQueue.main.async {
                 completion(Result(freedBytes: max(freed, 0), message: message))
             }
@@ -183,9 +257,32 @@ enum MemoryPurgeService {
 
     private static func modeLabel(_ mode: Mode) -> String {
         switch mode {
-        case .standard: return "Purge"
+        case .standard: return "Standard"
         case .deep: return "Deep purge"
         case .max: return "MAX purge"
+        }
+    }
+
+    private static func timestampString(from date: Date = Date()) -> String {
+        ISO8601DateFormatter().string(from: date)
+    }
+
+    private static func writeReceipt(_ receipt: Receipt) {
+        let directory = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first?
+            .appendingPathComponent(AppInfo.name, isDirectory: true)
+            .appendingPathComponent("PurgeReceipts", isDirectory: true)
+        guard let directory else { return }
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(receipt)
+            let name = receipt.timestamp.replacingOccurrences(of: ":", with: "") + ".json"
+            try data.write(to: directory.appendingPathComponent(name), options: [.atomic])
+        } catch {
+            print("PURGE RECEIPT WRITE FAILED: \(error)")
         }
     }
 

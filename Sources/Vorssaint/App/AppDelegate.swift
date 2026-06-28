@@ -94,10 +94,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     func instantPurge() {
-        MemoryPurgeService.purge(mode: .standard) { result in
+        MemoryPurgeService.purge(mode: .standard, trigger: .manual) { result in
             SystemMonitor.shared.refreshNow()
             if UserDefaults.standard.bool(forKey: DefaultsKey.autoPurgeNotify) {
-                Notifier.post(title: "MemoryKill purged", body: result.message)
+                Notifier.post(title: "MemoryKill pressure relief", body: result.message)
             }
         }
     }
@@ -285,15 +285,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
         let menu = NSMenu()
 
-        let purge = NSMenuItem(title: "Purge Memory", action: #selector(menuPurge), keyEquivalent: "")
+        let purge = NSMenuItem(title: "Standard Pressure Relief", action: #selector(menuPurge), keyEquivalent: "")
         purge.target = self
         menu.addItem(purge)
 
-        let deep = NSMenuItem(title: "Deep Purge (admin)", action: #selector(menuDeepPurge), keyEquivalent: "")
+        let deep = NSMenuItem(title: "Open Panel for Deep Purge", action: #selector(menuDeepPurge), keyEquivalent: "")
         deep.target = self
         menu.addItem(deep)
 
-        let max = NSMenuItem(title: "MAX Purge", action: #selector(menuMaxPurge), keyEquivalent: "")
+        let max = NSMenuItem(title: "Open Panel for MAX Purge", action: #selector(menuMaxPurge), keyEquivalent: "")
         max.target = self
         menu.addItem(max)
 
@@ -316,13 +316,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     @objc private func menuPurge() { instantPurge() }
 
-    @objc private func menuDeepPurge() {
-        MemoryPurgeService.purge(mode: .deep) { _ in SystemMonitor.shared.refreshNow() }
-    }
+    @objc private func menuDeepPurge() { togglePopover() }
 
-    @objc private func menuMaxPurge() {
-        MemoryPurgeService.purge(mode: .max) { _ in SystemMonitor.shared.refreshNow() }
-    }
+    @objc private func menuMaxPurge() { togglePopover() }
 
     @objc private func menuKillHog() {
         _ = MemoryPurgeService.killTopMemoryHog()

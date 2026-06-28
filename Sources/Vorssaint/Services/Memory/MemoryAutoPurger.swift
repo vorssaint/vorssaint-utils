@@ -46,7 +46,7 @@ final class MemoryAutoPurger: ObservableObject {
         guard shouldPurge else { return }
 
         isRunning = true
-        MemoryPurgeService.purge(mode: .standard) { [weak self] result in
+        MemoryPurgeService.purge(mode: .standard, trigger: .auto) { [weak self] result in
             guard let self else { return }
             self.isRunning = false
             self.lastAutoPurgeAt = Date()

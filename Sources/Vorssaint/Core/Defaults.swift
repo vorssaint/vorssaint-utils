@@ -109,7 +109,7 @@ enum Defaults {
         // The panel shows every monitoring block by default; users hide what
         // they don't want.
         DefaultsKey.monitorInterval: 1,
-        DefaultsKey.autoPurgeEnabled: true,
+        DefaultsKey.autoPurgeEnabled: false,
         DefaultsKey.autoPurgeThreshold: "warning",
         DefaultsKey.autoPurgeNotify: true,
         DefaultsKey.purgeHotkeyEnabled: true,
