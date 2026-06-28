@@ -136,6 +136,14 @@ struct MetricsTests {
                "clipboard shortcut hint exposes copy-only keyboard action in Portuguese")
         expect(FeatureStrings.clipboard(.enUS).shortcutHint.contains("Option+Delete"),
                "clipboard shortcut hint exposes delete keyboard action in English")
+        expect(FeatureStrings.clipboard(.zhHans).title == "剪贴板",
+               "clipboard title is localized in Simplified Chinese")
+        expect(FeatureStrings.windowLayout(.zhHans).title == "窗口布局",
+               "window layout title is localized in Simplified Chinese")
+        expect(FeatureStrings.settingsCategories(.zhHans).utilities == "实用工具",
+               "settings category title is localized in Simplified Chinese")
+        expect(FeatureStrings.monitorAlerts(.zhHans).section == "提醒",
+               "monitor alert section is localized in Simplified Chinese")
         expect(ClipboardHistorySelection.initialIndex(totalCount: 3, pinnedCount: 0, query: "") == 1,
                "clipboard quick window starts on previous recent item when nothing is pinned")
         expect(ClipboardHistorySelection.initialIndex(totalCount: 3, pinnedCount: 1, query: "") == 0,

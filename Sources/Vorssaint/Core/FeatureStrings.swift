@@ -5,19 +5,35 @@ import Foundation
 
 enum FeatureStrings {
     static func settingsCategories(_ language: AppLanguage) -> SettingsCategoryStrings {
-        language == .ptBR ? .ptBR : .enUS
+        switch language {
+        case .ptBR: return .ptBR
+        case .zhHans: return .zhHans
+        default: return .enUS
+        }
     }
 
     static func clipboard(_ language: AppLanguage) -> ClipboardFeatureStrings {
-        language == .ptBR ? .ptBR : .enUS
+        switch language {
+        case .ptBR: return .ptBR
+        case .zhHans: return .zhHans
+        default: return .enUS
+        }
     }
 
     static func windowLayout(_ language: AppLanguage) -> WindowLayoutFeatureStrings {
-        language == .ptBR ? .ptBR : .enUS
+        switch language {
+        case .ptBR: return .ptBR
+        case .zhHans: return .zhHans
+        default: return .enUS
+        }
     }
 
     static func monitorAlerts(_ language: AppLanguage) -> MonitorAlertFeatureStrings {
-        language == .ptBR ? .ptBR : .enUS
+        switch language {
+        case .ptBR: return .ptBR
+        case .zhHans: return .zhHans
+        default: return .enUS
+        }
     }
 }
 
@@ -31,6 +47,13 @@ struct SettingsCategoryStrings {
         essentials: "Essenciais",
         windowsControls: "Janelas e controles",
         utilities: "Utilitários",
+        app: "App"
+    )
+
+    static let zhHans = SettingsCategoryStrings(
+        essentials: "基础功能",
+        windowsControls: "窗口与控制",
+        utilities: "实用工具",
         app: "App"
     )
 
@@ -101,6 +124,37 @@ struct ClipboardFeatureStrings {
         noResults: "Nenhum resultado",
         newestFirst: "Mais recentes primeiro",
         active: "Guardando novos textos"
+    )
+
+    static let zhHans = ClipboardFeatureStrings(
+        title: "剪贴板",
+        enable: "保存剪贴板历史",
+        caption: "保存复制过的文本，方便之后再次使用。所有内容都保存在本机，可随时清除。",
+        localNote: "只保存文本。图片、文件和特别大的内容会被忽略。",
+        skipSensitive: "跳过疑似敏感文本",
+        skipSensitiveCaption: "避免保存像密码、令牌或密钥的短文本。",
+        limit: "数量上限",
+        showInPanel: "在面板中显示",
+        shortcut: "历史快捷键",
+        shortcutCaption: "打开快速窗口，支持搜索、固定项目，以及用 ⌘1 到 ⌘9 粘贴到上一个 App。",
+        shortcutHint: "快速窗口中：Enter 粘贴，Shift+Enter 仅复制。方向键选择，⌘1 到 ⌘9 粘贴，Option+P 固定，Option+Delete 删除。",
+        pinned: "已固定",
+        recent: "最近",
+        pin: "固定",
+        unpin: "取消固定",
+        clearRecent: "清除最近项目",
+        clearAll: "清除未固定项目",
+        empty: "没有保存的文本",
+        disabled: "启用历史记录后即可开始保存复制的文本。",
+        search: "搜索复制的文本",
+        copy: "复制",
+        copied: "已复制",
+        delete: "删除项目",
+        moveUp: "上移",
+        moveDown: "下移",
+        noResults: "没有结果",
+        newestFirst: "最新优先",
+        active: "正在保存新文本"
     )
 
     static let enUS = ClipboardFeatureStrings(
@@ -208,6 +262,43 @@ struct WindowLayoutFeatureStrings {
         restore: "Restaurar"
     )
 
+    static let zhHans = WindowLayoutFeatureStrings(
+        title: "窗口布局",
+        caption: "将当前窗口移动到半屏、三分屏、角落、另一台显示器、居中位置或可用屏幕区域。",
+        showInPanel: "在面板中显示",
+        shortcuts: "快捷键",
+        shortcutsCaption: "使用全局快捷键整理当前窗口，无需打开面板。",
+        permissionCaption: "使用辅助功能权限，仅移动当前窗口。",
+        noWindow: "未找到当前窗口。",
+        missingPermission: "请授予辅助功能权限以移动窗口。",
+        failed: "无法移动此窗口。",
+        done: "窗口已整理。",
+        restored: "窗口已恢复。",
+        noRestore: "没有可恢复的上一个布局。",
+        target: "当前窗口",
+        halves: "半屏",
+        thirds: "三分屏",
+        corners: "角落",
+        other: "操作",
+        leftHalf: "左半屏",
+        rightHalf: "右半屏",
+        topHalf: "上半屏",
+        bottomHalf: "下半屏",
+        leftThird: "左侧 1/3",
+        centerThird: "中间 1/3",
+        rightThird: "右侧 1/3",
+        leftTwoThirds: "左侧 2/3",
+        rightTwoThirds: "右侧 2/3",
+        topLeft: "左上角",
+        topRight: "右上角",
+        bottomLeft: "左下角",
+        bottomRight: "右下角",
+        maximize: "最大化",
+        center: "居中",
+        nextDisplay: "下一台显示器",
+        restore: "恢复"
+    )
+
     static let enUS = WindowLayoutFeatureStrings(
         title: "Window layout",
         caption: "Moves the active window to halves, thirds, corners, another display, center or the usable screen.",
@@ -301,6 +392,35 @@ struct MonitorAlertFeatureStrings {
         diskBodyFormat: "%@ está com menos de %d%% livre.",
         batteryTitle: "Bateria baixa",
         batteryBodyFormat: "A bateria está em %d%%."
+    )
+
+    static let zhHans = MonitorAlertFeatureStrings(
+        section: "提醒",
+        caption: "默认关闭。启用后，监视器只会在出现有意义的状态时提醒，并遵守提醒间隔。",
+        cpu: "CPU 过高",
+        cpuTemperature: "CPU 温度过高",
+        memory: "内存压力严重",
+        disk: "磁盘空间不足",
+        battery: "电池电量低",
+        cpuThreshold: "CPU 高于",
+        cpuTemperatureThreshold: "温度高于",
+        diskThreshold: "可用空间低于",
+        batteryThreshold: "电量低于",
+        cooldown: "提醒间隔",
+        cooldown5: "5 分钟",
+        cooldown15: "15 分钟",
+        cooldown30: "30 分钟",
+        cooldown60: "1 小时",
+        cpuTitle: "CPU 过高",
+        cpuBodyFormat: "CPU 已连续几秒高于 %d%%。",
+        cpuTemperatureTitle: "CPU 过热",
+        cpuTemperatureBodyFormat: "CPU 已达到 %d °C。",
+        memoryTitle: "内存严重",
+        memoryBody: "内存压力已达到严重级别。",
+        diskTitle: "磁盘空间不足",
+        diskBodyFormat: "%@ 的可用空间低于 %d%%。",
+        batteryTitle: "电池电量低",
+        batteryBodyFormat: "电池电量为 %d%%。"
     )
 
     static let enUS = MonitorAlertFeatureStrings(
