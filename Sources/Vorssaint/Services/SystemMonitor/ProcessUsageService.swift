@@ -77,6 +77,24 @@ final class ProcessUsageService {
         cacheLock.unlock()
     }
 
+    func canActivate(_ row: ProcessUsage) -> Bool {
+        guard let app = NSRunningApplication(processIdentifier: row.pid),
+              app.activationPolicy == .regular,
+              !app.isTerminated
+        else { return false }
+        return true
+    }
+
+    func activate(_ row: ProcessUsage) {
+        guard canActivate(row),
+              let app = NSRunningApplication(processIdentifier: row.pid)
+        else { return }
+        NSApp.yieldActivation(to: app)
+        if !app.activate(from: NSRunningApplication.current, options: []) {
+            app.activate(options: [])
+        }
+    }
+
     // MARK: - Energy
 
     /// macOS does not expose Activity Monitor's Energy Impact as a `ps` column.

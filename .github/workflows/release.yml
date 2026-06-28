@@ -62,6 +62,33 @@ jobs:
           NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
         run: ./Tools/notarize.sh dist/*.dmg
 
+      - name: Prepare release showcase media
+        id: release_files
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dist/showcase
+          if [[ "$VERSION" == "3.1.4" ]]; then
+            ASSET="vorssaint-3.1.4-showcase-1.mp4"
+            SOURCE="ReleaseAssets/$ASSET"
+            TARGET="dist/showcase/$ASSET"
+            if [[ -f "$SOURCE" ]]; then
+              cp "$SOURCE" "$TARGET"
+            fi
+            if [[ ! -s "$TARGET" ]]; then
+              echo "Missing required showcase media: $TARGET" >&2
+              echo "The app expects https://github.com/vorssaint/vorssaint-utils/releases/download/v3.1.4/$ASSET" >&2
+              exit 1
+            fi
+          fi
+          {
+            echo "FILES<<__VRSS_FILES__"
+            printf '%s\n' dist/*.dmg
+            if compgen -G "dist/showcase/*.mp4" > /dev/null; then
+              printf '%s\n' dist/showcase/*.mp4
+            fi
+            echo "__VRSS_FILES__"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Verify notarization
         run: |
           DMG=$(ls dist/*.dmg | head -1)
@@ -101,6 +128,6 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         with:
-          files: dist/*.dmg
+          files: ${{ steps.release_files.outputs.FILES }}
           body: ${{ steps.notes.outputs.NOTES }}
           make_latest: true

@@ -27,8 +27,39 @@ struct SwitcherItem: Identifiable, Equatable {
         title.isEmpty ? appName : title
     }
 
+    /// Secondary label used when the window title does not already identify the
+    /// app. This keeps crowded switcher grids readable without repeating text.
+    var displaySubtitle: String? {
+        let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanAppName = appName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanAppName.isEmpty,
+              !cleanTitle.isEmpty,
+              cleanTitle.caseInsensitiveCompare(cleanAppName) != .orderedSame
+        else { return nil }
+        return cleanAppName
+    }
+
+    var accessibilityTitle: String {
+        if let displaySubtitle {
+            return "\(displayTitle), \(displaySubtitle)"
+        }
+        return displayTitle
+    }
+
     var appIcon: NSImage? {
         NSRunningApplication(processIdentifier: pid)?.icon
+    }
+
+    func withMinimized(_ minimized: Bool) -> SwitcherItem {
+        SwitcherItem(id: id,
+                     title: title,
+                     appName: appName,
+                     pid: pid,
+                     windowID: windowID,
+                     isOnScreen: minimized ? false : true,
+                     isMinimized: minimized,
+                     isFullscreen: isFullscreen,
+                     frame: frame)
     }
 
     static func window(id: CGWindowID, title: String, appName: String, pid: pid_t,

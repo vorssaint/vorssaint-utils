@@ -19,10 +19,31 @@ struct HomebrewPackage: Identifiable, Hashable {
     var stableVersion: String?
     var homepage: String?
     var popularity: HomebrewPopularity?
+    var update: HomebrewPackageUpdate?
 
     var id: String { "\(kind.rawValue):\(name)" }
     var isInstalled: Bool { installedVersion != nil }
+    var hasUpdateAvailable: Bool { update != nil }
     var versionText: String? { installedVersion ?? stableVersion }
+}
+
+struct HomebrewPackageUpdate: Hashable {
+    let kind: HomebrewPackageKind
+    let name: String
+    let installedVersions: [String]
+    let currentVersion: String
+    let isPinned: Bool
+
+    var id: String { "\(kind.rawValue):\(name)" }
+
+    var installedText: String {
+        installedVersions.joined(separator: ", ")
+    }
+
+    var versionSummary: String {
+        let installed = installedText
+        return installed.isEmpty ? currentVersion : "\(installed) -> \(currentVersion)"
+    }
 }
 
 struct HomebrewPopularity: Hashable {
@@ -48,10 +69,26 @@ struct HomebrewOperation {
     enum Action {
         case install
         case uninstall
+        case upgrade
+        case upgradeAll
+        case updateHomebrew
+
+        var runningSystemImage: String {
+            switch self {
+            case .install:
+                return "arrow.down.circle.fill"
+            case .uninstall:
+                return "trash.circle.fill"
+            case .upgrade, .upgradeAll:
+                return "arrow.up.circle.fill"
+            case .updateHomebrew:
+                return "arrow.triangle.2.circlepath"
+            }
+        }
     }
 
     let action: Action
-    let package: HomebrewPackage
+    let package: HomebrewPackage?
 }
 
 enum HomebrewOperationPhase: Equatable {
@@ -59,6 +96,7 @@ enum HomebrewOperationPhase: Equatable {
     case downloading
     case installing
     case uninstalling
+    case upgrading
     case finalizing
     case refreshing
 }
@@ -73,7 +111,7 @@ enum HomebrewOperationResult: Equatable {
 
 struct HomebrewOperationStatus: Equatable {
     var action: HomebrewOperation.Action
-    var package: HomebrewPackage
+    var package: HomebrewPackage?
     var phase: HomebrewOperationPhase
     var result: HomebrewOperationResult
     var progressFraction: Double?
@@ -84,11 +122,20 @@ struct HomebrewOperationStatus: Equatable {
     var isActive: Bool {
         result == .running
     }
+
+    var targetID: String {
+        package?.id ?? "homebrew:\(action)"
+    }
 }
 
 struct HomebrewPendingAction {
     let action: HomebrewOperation.Action
-    let package: HomebrewPackage
+    let package: HomebrewPackage?
+
+    init(action: HomebrewOperation.Action, package: HomebrewPackage? = nil) {
+        self.action = action
+        self.package = package
+    }
 }
 
 enum HomebrewCommandBuilder {
@@ -97,6 +144,14 @@ enum HomebrewCommandBuilder {
 
     static func installed(brewPath: String) -> HomebrewCommand {
         HomebrewCommand(executable: brewPath, arguments: ["info", "--json=v2", "--installed"])
+    }
+
+    static func outdated(brewPath: String) -> HomebrewCommand {
+        HomebrewCommand(executable: brewPath, arguments: ["outdated", "--json=v2"])
+    }
+
+    static func update(brewPath: String) -> HomebrewCommand {
+        HomebrewCommand(executable: brewPath, arguments: ["update"])
     }
 
     static func search(brewPath: String, kind: HomebrewPackageKind, query: String) -> HomebrewCommand {
@@ -121,6 +176,17 @@ enum HomebrewCommandBuilder {
         if package.kind == .cask { args.append("--cask") }
         args.append(package.name)
         return HomebrewCommand(executable: brewPath, arguments: args)
+    }
+
+    static func upgrade(brewPath: String, package: HomebrewPackage) -> HomebrewCommand {
+        var args = ["upgrade"]
+        if package.kind == .cask { args.append("--cask") }
+        args.append(package.name)
+        return HomebrewCommand(executable: brewPath, arguments: args)
+    }
+
+    static func upgradeAll(brewPath: String) -> HomebrewCommand {
+        HomebrewCommand(executable: brewPath, arguments: ["upgrade"])
     }
 
     static func isValidToken(_ token: String) -> Bool {
@@ -338,11 +404,31 @@ enum HomebrewProgressParser {
             || lower.contains("purging") {
             return .uninstalling
         }
+        if lower.contains("upgrading")
+            || lower.contains("upgraded") {
+            return .upgrading
+        }
+        if action == .updateHomebrew,
+           (lower.contains("updating")
+            || lower.contains("updated")
+            || lower.contains("already up-to-date")
+            || lower.contains("already up to date")) {
+            return .refreshing
+        }
         if lower.contains("installing")
             || lower.contains("pouring")
             || lower.contains("moving app")
             || lower.contains("linking") {
-            return action == .uninstall ? .uninstalling : .installing
+            switch action {
+            case .uninstall:
+                return .uninstalling
+            case .upgrade, .upgradeAll:
+                return .upgrading
+            case .updateHomebrew:
+                return .refreshing
+            case .install:
+                return .installing
+            }
         }
         if lower.contains("cleanup")
             || lower.contains("cleaning")
@@ -464,6 +550,33 @@ enum HomebrewParser {
             }
     }
 
+    static func parseOutdatedJSON(_ data: Data) throws -> [String: HomebrewPackageUpdate] {
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return [:]
+        }
+        let formulae = (root["formulae"] as? [[String: Any]] ?? [])
+            .compactMap { parseOutdatedItem($0, kind: .formula) }
+        let casks = (root["casks"] as? [[String: Any]] ?? [])
+            .compactMap { parseOutdatedItem($0, kind: .cask) }
+        return Dictionary(uniqueKeysWithValues: (formulae + casks).map { ($0.id, $0) })
+    }
+
+    static func parseOutdatedCommandOutput(_ output: String) throws -> [String: HomebrewPackageUpdate] {
+        let data = Data(output.utf8)
+        do {
+            return try parseOutdatedJSON(data)
+        } catch {
+            for json in balancedJSONObjects(in: output) {
+                let jsonData = Data(json.utf8)
+                guard isOutdatedJSONObject(jsonData) else { continue }
+                if let updates = try? parseOutdatedJSON(jsonData) {
+                    return updates
+                }
+            }
+            throw error
+        }
+    }
+
     private static func parseFormula(_ item: [String: Any]) -> HomebrewPackage? {
         guard let name = item["name"] as? String,
               HomebrewCommandBuilder.isValidToken(name) else { return nil }
@@ -498,11 +611,38 @@ enum HomebrewParser {
                                homepage: item["homepage"] as? String)
     }
 
+    private static func parseOutdatedItem(_ item: [String: Any],
+                                          kind: HomebrewPackageKind) -> HomebrewPackageUpdate? {
+        guard let name = (item["name"] as? String) ?? (item["token"] as? String),
+              HomebrewCommandBuilder.isValidToken(name),
+              let currentVersion = item["current_version"] as? String,
+              !currentVersion.isEmpty else { return nil }
+        let installedVersions = (item["installed_versions"] as? [String]) ?? []
+        return HomebrewPackageUpdate(kind: kind,
+                                     name: name,
+                                     installedVersions: installedVersions,
+                                     currentVersion: currentVersion,
+                                     isPinned: item["pinned"] as? Bool ?? false)
+    }
+
     private static func isInfoJSONObject(_ data: Data) -> Bool {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return false
         }
         return root["formulae"] != nil || root["casks"] != nil
+    }
+
+    private static func isOutdatedJSONObject(_ data: Data) -> Bool {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return false
+        }
+        let formulae = root["formulae"] as? [[String: Any]]
+        let casks = root["casks"] as? [[String: Any]]
+        guard formulae != nil || casks != nil else { return false }
+        let items = (formulae ?? []) + (casks ?? [])
+        return items.isEmpty || items.contains { item in
+            item["current_version"] != nil || item["installed_versions"] != nil
+        }
     }
 
     private static func balancedJSONObjects(in output: String) -> [String] {

@@ -333,7 +333,7 @@ final class StatusItemController {
                                      primary: .battery,
                                      temperature: .batteryTemperature,
                                      primaryTitle: strings.batteryLabel)
-            case .memory, .network, .power:
+            case .memory, .network, .diskUsage, .diskActivity, .power:
                 let id = metric.rawValue
                 guard emittedIDs.insert(id).inserted else { continue }
                 groups.append(MetricStatusGroup(id: id,

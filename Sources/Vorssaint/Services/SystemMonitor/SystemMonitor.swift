@@ -350,7 +350,10 @@ final class SystemMonitor: ObservableObject {
         plan.needCPU = panelCPU || defaults.bool(forKey: DefaultsKey.menuBarCPU) || alertCPU
         plan.needMemory = panelMemory || defaults.bool(forKey: DefaultsKey.menuBarMemory) || alertMemory
         plan.needNetwork = panelNeedsNetwork || defaults.bool(forKey: DefaultsKey.menuBarNetwork)
-        plan.needDisk = panelNeedsDisk || alertDisk
+        plan.needDisk = panelNeedsDisk
+            || defaults.bool(forKey: DefaultsKey.menuBarDiskUsage)
+            || defaults.bool(forKey: DefaultsKey.menuBarDiskActivity)
+            || alertDisk
         plan.needPower = panelNeedsPower || panelBattery
             || defaults.bool(forKey: DefaultsKey.menuBarPower)
             || defaults.bool(forKey: DefaultsKey.menuBarBattery)

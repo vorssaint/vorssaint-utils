@@ -59,7 +59,14 @@ final class ClipboardHistoryService: ObservableObject {
     @Published private(set) var entries: [ClipboardHistoryEntry] = []
     @Published private(set) var isRunning = false
     @Published private(set) var shortcutRegistrationFailed = false
-    @Published var quickQuery = ""
+    @Published var quickQuery = "" {
+        didSet {
+            if quickQuery != oldValue {
+                resetQuickSelection()
+            }
+        }
+    }
+    @Published private(set) var quickSelectionIndex = 0
 
     private var timer: Timer?
     private var lastChangeCount = NSPasteboard.general.changeCount
@@ -151,12 +158,24 @@ final class ClipboardHistoryService: ObservableObject {
         filteredEntries(matching: quickQuery)
     }
 
+    var selectedQuickEntryID: UUID? {
+        selectedQuickEntry?.id
+    }
+
+    var selectedQuickEntry: ClipboardHistoryEntry? {
+        let matches = filteredQuickEntries
+        guard !matches.isEmpty else { return nil }
+        return matches[clampedQuickSelectionIndex(for: matches.count)]
+    }
+
     func filteredEntries(matching query: String) -> [ClipboardHistoryEntry] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return entries }
-        return entries.filter {
-            $0.text.range(of: trimmed, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+        let candidates = entries.enumerated().map { index, entry in
+            ClipboardHistorySearchCandidate(index: index,
+                                            text: entry.text,
+                                            isPinned: entry.isPinned)
         }
+        return ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query)
+            .map { entries[$0] }
     }
 
     func copyQuickEntry(at index: Int) {
@@ -165,12 +184,50 @@ final class ClipboardHistoryService: ObservableObject {
         copyQuickEntry(matches[index])
     }
 
+    func copySelectedQuickEntry() {
+        let count = filteredQuickEntries.count
+        guard count > 0 else { return }
+        copyQuickEntry(at: clampedQuickSelectionIndex(for: count))
+    }
+
+    func copySelectedQuickEntryOnly() {
+        guard let entry = selectedQuickEntry else { return }
+        copyOnlyQuickEntry(entry)
+    }
+
+    func togglePinSelectedQuickEntry() {
+        guard let entry = selectedQuickEntry else { return }
+        togglePin(entry)
+        quickSelectionIndex = clampedQuickSelectionIndex(for: filteredQuickEntries.count)
+    }
+
+    func removeSelectedQuickEntry() {
+        guard let entry = selectedQuickEntry else { return }
+        remove(entry)
+        quickSelectionIndex = clampedQuickSelectionIndex(for: filteredQuickEntries.count)
+    }
+
+    func moveQuickSelection(_ delta: Int) {
+        let count = filteredQuickEntries.count
+        guard count > 0 else {
+            quickSelectionIndex = 0
+            return
+        }
+        quickSelectionIndex = min(max(quickSelectionIndex + delta, 0), count - 1)
+    }
+
     func copyQuickEntry(_ entry: ClipboardHistoryEntry) {
         copy(entry)
         let target = pasteTargetApp
         hideHistoryWindow()
         pasteTargetApp = nil
         pasteIntoPreviousApp(target)
+    }
+
+    func copyOnlyQuickEntry(_ entry: ClipboardHistoryEntry) {
+        copy(entry)
+        hideHistoryWindow()
+        pasteTargetApp = nil
     }
 
     private func start() {
@@ -368,6 +425,7 @@ final class ClipboardHistoryService: ObservableObject {
         let panel = ensurePanel()
         rememberPasteTarget()
         quickQuery = ""
+        resetQuickSelection()
         position(panel)
         installKeyMonitor(for: panel)
         installDismissMonitors(for: panel)
@@ -462,10 +520,36 @@ final class ClipboardHistoryService: ObservableObject {
                 return nil
             }
             if event.keyCode == UInt16(kVK_Return) || event.keyCode == UInt16(kVK_ANSI_KeypadEnter) {
-                self.copyQuickEntry(at: 0)
+                let enterModifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
+                if enterModifiers == [.shift] {
+                    self.copySelectedQuickEntryOnly()
+                    return nil
+                }
+                if enterModifiers.isEmpty {
+                    self.copySelectedQuickEntry()
+                    return nil
+                }
+                return event
+            }
+            let modifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
+            if modifiers == [.option], event.keyCode == UInt16(kVK_ANSI_P) {
+                self.togglePinSelectedQuickEntry()
                 return nil
             }
-            if event.modifierFlags.intersection([.command]) == [.command],
+            if modifiers == [.option],
+               event.keyCode == UInt16(kVK_Delete) || event.keyCode == UInt16(kVK_ForwardDelete) {
+                self.removeSelectedQuickEntry()
+                return nil
+            }
+            if event.keyCode == UInt16(kVK_DownArrow) {
+                self.moveQuickSelection(1)
+                return nil
+            }
+            if event.keyCode == UInt16(kVK_UpArrow) {
+                self.moveQuickSelection(-1)
+                return nil
+            }
+            if modifiers == [.command],
                let index = Self.digitIndex(for: event.keyCode) {
                 self.copyQuickEntry(at: index)
                 return nil
@@ -529,6 +613,12 @@ final class ClipboardHistoryService: ObservableObject {
         }
     }
 
+    private func resetQuickSelection() {
+        quickSelectionIndex = ClipboardHistorySelection.initialIndex(totalCount: filteredQuickEntries.count,
+                                                                    pinnedCount: pinnedEntries.count,
+                                                                    query: quickQuery)
+    }
+
     private static func digitIndex(for keyCode: UInt16) -> Int? {
         switch Int(keyCode) {
         case kVK_ANSI_1: return 0
@@ -542,5 +632,9 @@ final class ClipboardHistoryService: ObservableObject {
         case kVK_ANSI_9: return 8
         default: return nil
         }
+    }
+
+    private func clampedQuickSelectionIndex(for count: Int) -> Int {
+        min(max(quickSelectionIndex, 0), max(count - 1, 0))
     }
 }

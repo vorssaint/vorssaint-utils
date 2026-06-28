@@ -117,18 +117,43 @@ enum WindowActivator {
         guard Permissions.shared.accessibility else { return false }
         let axApp = AXUIElementCreateApplication(pid)
         guard let axWindow = axElement(windowID: windowID, in: axApp) else { return false }
-        var minimized: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(axWindow, kAXMinimizedAttribute as CFString, &minimized) == .success
-        else { return false }
-        return (minimized as? Bool) == true
+        return minimizedState(of: axWindow) == true
     }
 
-    static func setWindowMinimized(_ minimized: Bool, windowID: CGWindowID, pid: pid_t) {
-        guard Permissions.shared.accessibility else { return }
+    @discardableResult
+    static func setWindowMinimized(_ minimized: Bool, windowID: CGWindowID, pid: pid_t) -> Bool {
+        if pid == ProcessInfo.processInfo.processIdentifier {
+            guard let window = NSApp.windows.first(where: { $0.windowNumber == Int(windowID) }) else { return false }
+            if minimized {
+                window.miniaturize(nil)
+            } else {
+                window.deminiaturize(nil)
+            }
+            return true
+        }
+
+        guard Permissions.shared.accessibility else { return false }
         let axApp = AXUIElementCreateApplication(pid)
-        guard let axWindow = axElement(windowID: windowID, in: axApp) else { return }
-        AXUIElementSetAttributeValue(axWindow, kAXMinimizedAttribute as CFString,
-                                     minimized ? kCFBooleanTrue : kCFBooleanFalse)
+        guard let axWindow = axElement(windowID: windowID, in: axApp) else { return false }
+        if minimizedState(of: axWindow) == minimized { return true }
+
+        let setResult = AXUIElementSetAttributeValue(axWindow,
+                                                     kAXMinimizedAttribute as CFString,
+                                                     minimized ? kCFBooleanTrue : kCFBooleanFalse)
+        if setResult == .success, minimizedState(of: axWindow) == minimized {
+            return true
+        }
+
+        guard minimized else {
+            return setResult == .success
+        }
+        guard let minimizeButton = elementAttribute(axWindow, kAXMinimizeButtonAttribute as String),
+              boolAttribute(minimizeButton, kAXEnabledAttribute as String, default: true)
+        else {
+            return setResult == .success
+        }
+        return AXUIElementPerformAction(minimizeButton, kAXPressAction as CFString) == .success
+            || setResult == .success
     }
 
     static func closeWindow(windowID: CGWindowID, pid: pid_t) -> Bool {
@@ -409,6 +434,17 @@ enum WindowActivator {
               let value
         else { return defaultValue }
         return (value as? Bool) ?? defaultValue
+    }
+
+    private static func minimizedState(of axWindow: AXUIElement) -> Bool? {
+        var minimized: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(axWindow, kAXMinimizedAttribute as CFString, &minimized) == .success,
+              let minimized
+        else { return nil }
+        if CFGetTypeID(minimized) == CFBooleanGetTypeID() {
+            return CFBooleanGetValue((minimized as! CFBoolean))
+        }
+        return minimized as? Bool
     }
 }
 

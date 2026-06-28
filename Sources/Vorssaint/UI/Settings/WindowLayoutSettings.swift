@@ -40,7 +40,7 @@ struct WindowLayoutSettings: View {
                 Text(text.shortcutsCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                ForEach(WindowLayoutAction.allCases) { action in
+                ForEach(WindowLayoutAction.shortcutActions) { action in
                     WindowLayoutShortcutRow(action: action,
                                             isEnabled: shortcutsEnabled && permissions.accessibility)
                 }
@@ -58,6 +58,14 @@ struct WindowLayoutSettings: View {
                 actionRow(.bottomHalf)
             }
 
+            Section(text.thirds) {
+                actionRow(.leftThird)
+                actionRow(.centerThird)
+                actionRow(.rightThird)
+                actionRow(.leftTwoThirds)
+                actionRow(.rightTwoThirds)
+            }
+
             Section(text.corners) {
                 actionRow(.topLeft)
                 actionRow(.topRight)
@@ -68,6 +76,7 @@ struct WindowLayoutSettings: View {
             Section(text.other) {
                 actionRow(.maximize)
                 actionRow(.center)
+                actionRow(.nextDisplay)
                 actionRow(.restore)
                 if let message = resultMessage {
                     Text(message)
@@ -89,19 +98,7 @@ struct WindowLayoutSettings: View {
     }
 
     private func title(for action: WindowLayoutAction) -> String {
-        switch action {
-        case .leftHalf: return text.leftHalf
-        case .rightHalf: return text.rightHalf
-        case .topHalf: return text.topHalf
-        case .bottomHalf: return text.bottomHalf
-        case .topLeft: return text.topLeft
-        case .topRight: return text.topRight
-        case .bottomLeft: return text.bottomLeft
-        case .bottomRight: return text.bottomRight
-        case .maximize: return text.maximize
-        case .center: return text.center
-        case .restore: return text.restore
-        }
+        action.title(text)
     }
 
     private func symbol(for action: WindowLayoutAction) -> String {
@@ -110,12 +107,18 @@ struct WindowLayoutSettings: View {
         case .rightHalf: return "rectangle.rightthird.inset.filled"
         case .topHalf: return "rectangle.topthird.inset.filled"
         case .bottomHalf: return "rectangle.bottomthird.inset.filled"
+        case .leftThird: return "rectangle.leftthird.inset.filled"
+        case .centerThird: return "rectangle.center.inset.filled"
+        case .rightThird: return "rectangle.rightthird.inset.filled"
+        case .leftTwoThirds: return "rectangle.leadinghalf.filled"
+        case .rightTwoThirds: return "rectangle.trailinghalf.filled"
         case .topLeft: return "arrow.up.left"
         case .topRight: return "arrow.up.right"
         case .bottomLeft: return "arrow.down.left"
         case .bottomRight: return "arrow.down.right"
         case .maximize: return "arrow.up.left.and.arrow.down.right"
         case .center: return "scope"
+        case .nextDisplay: return "arrow.right.to.line"
         case .restore: return "arrow.uturn.backward"
         }
     }

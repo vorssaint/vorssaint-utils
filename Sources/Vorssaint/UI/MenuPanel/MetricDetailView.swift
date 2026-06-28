@@ -5,7 +5,7 @@ import AppKit
 import SwiftUI
 
 enum MetricDetailKind: String, Equatable, Identifiable {
-    case cpu, gpu, memory, network, battery, power
+    case cpu, gpu, memory, network, disk, battery, power
 
     var id: String { rawValue }
 
@@ -15,6 +15,8 @@ enum MetricDetailKind: String, Equatable, Identifiable {
             return .system
         case .network:
             return .network
+        case .disk:
+            return .disk
         case .power:
             return .power
         }
@@ -26,6 +28,7 @@ enum MetricDetailKind: String, Equatable, Identifiable {
         case .gpu: return "rectangle.connected.to.line.below"
         case .memory: return "memorychip"
         case .network: return "network"
+        case .disk: return "internaldrive"
         case .battery: return "battery.100"
         case .power: return "powerplug.fill"
         }
@@ -41,6 +44,8 @@ enum MetricDetailKind: String, Equatable, Identifiable {
             return SystemMonitorPanelNeeds(memory: true)
         case .network:
             return SystemMonitorPanelNeeds(network: true)
+        case .disk:
+            return SystemMonitorPanelNeeds(disk: true)
         case .battery:
             return SystemMonitorPanelNeeds(power: true, battery: true, batteryTemperature: true)
         case .power:
@@ -54,6 +59,7 @@ enum MetricDetailKind: String, Equatable, Identifiable {
         case .gpu: return s.gpuLabel
         case .memory: return s.memorySection
         case .network: return s.networkSection
+        case .disk: return s.diskSection
         case .battery: return s.batteryLabel
         case .power: return s.powerSection
         }
@@ -65,7 +71,7 @@ enum MetricDetailKind: String, Equatable, Identifiable {
         case .gpu: return .gpu
         case .memory: return .memory
         case .power: return .energy
-        case .network, .battery: return nil
+        case .network, .disk, .battery: return nil
         }
     }
 }
@@ -81,6 +87,8 @@ extension MenuBarMetric {
             return .memory
         case .network:
             return .network
+        case .diskUsage, .diskActivity:
+            return .disk
         case .battery, .batteryTemperature:
             return .battery
         case .power:
@@ -157,6 +165,8 @@ struct MetricDetailView: View {
             historyGraph(monitor.snapshot.memoryHistory, color: summaryColor, maxValue: 1)
         case .network:
             networkGraph
+        case .disk:
+            diskGraph
         case .battery:
             historyGraph(monitor.snapshot.batteryHistory, color: summaryColor, maxValue: 1)
         case .power:
@@ -185,6 +195,23 @@ struct MetricDetailView: View {
                 Sparkline(values: down, color: .accentColor, maxValue: peak, showsZeroBaseline: true)
                 Sparkline(values: up,
                           color: PanelMetricColor.green(for: colorScheme),
+                          maxValue: peak,
+                          fillOpacity: 0.08)
+            }
+            .frame(height: 38)
+        }
+    }
+
+    @ViewBuilder
+    private var diskGraph: some View {
+        let read = monitor.snapshot.diskReadHistory
+        let write = monitor.snapshot.diskWriteHistory
+        if read.count >= 2 || write.count >= 2 {
+            let peak = max(read.max() ?? 0, write.max() ?? 0, 1)
+            ZStack {
+                Sparkline(values: read, color: summaryColor, maxValue: peak, showsZeroBaseline: true)
+                Sparkline(values: write,
+                          color: PanelMetricColor.pink(for: colorScheme),
                           maxValue: peak,
                           fillOpacity: 0.08)
             }
@@ -254,20 +281,7 @@ struct MetricDetailView: View {
                     .foregroundStyle(.tertiary)
             } else {
                 ForEach(processRows) { row in
-                    HStack(spacing: 7) {
-                        Image(nsImage: ResponsibleProcess.icon(for: row.pid))
-                            .resizable()
-                            .frame(width: 15, height: 15)
-                        Text(row.name)
-                            .font(.system(size: 10.5))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        Spacer(minLength: 0)
-                        Text(processValue(row))
-                            .font(.system(size: 10.5, weight: .medium))
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                    }
+                    ProcessUsageRow(row: row, value: processValue(row))
                 }
             }
         }
@@ -303,6 +317,17 @@ struct MetricDetailView: View {
                     snapshot.netUpBytesPerSec.map(MetricFormat.bytesPerSec) ?? l10n.s.networkMeasuring),
                 row(l10n.s.networkThisSession, sessionNetworkText(snapshot)),
             ]
+        case .disk:
+            guard let disk = primaryDisk(from: snapshot.disk) else {
+                return [row(l10n.s.diskSection, l10n.s.diskNoDisks)]
+            }
+            let activity = diskActivity(from: snapshot.disk)
+            return [
+                row(disk.name, "\(MetricFormat.percent(disk.usedFraction)) \(l10n.s.diskUsed)"),
+                row(l10n.s.diskFree, MetricFormat.diskBytes(disk.freeBytes)),
+                row(l10n.s.diskRead, activity.map { MetricFormat.bytesPerSec($0.read) } ?? l10n.s.networkMeasuring),
+                row(l10n.s.diskWrite, activity.map { MetricFormat.bytesPerSec($0.write) } ?? l10n.s.networkMeasuring),
+            ]
         case .battery:
             let power = snapshot.power
             return [
@@ -334,6 +359,8 @@ struct MetricDetailView: View {
             return MetricFormat.percent(Double(used) / Double(total))
         case .network:
             return snapshot.netDownBytesPerSec.map(MetricFormat.bytesPerSecCompact) ?? "-"
+        case .disk:
+            return primaryDisk(from: snapshot.disk).map { MetricFormat.percent($0.usedFraction) } ?? "-"
         case .battery:
             return snapshot.power?.chargePercent.map { "\($0)%" } ?? "-"
         case .power:
@@ -353,6 +380,9 @@ struct MetricDetailView: View {
             return "\(formatMemory(used)) / \(formatMemory(total))"
         case .network:
             return "\(l10n.s.networkUpload) \(snapshot.netUpBytesPerSec.map(MetricFormat.bytesPerSecCompact) ?? "-")"
+        case .disk:
+            guard let disk = primaryDisk(from: snapshot.disk) else { return l10n.s.diskNoDisks }
+            return "\(MetricFormat.diskBytes(disk.freeBytes)) \(l10n.s.diskFree)"
         case .battery:
             return (snapshot.power?.isCharging ?? false) ? l10n.s.powerCharging : l10n.s.powerOnBattery
         case .power:
@@ -368,6 +398,8 @@ struct MetricDetailView: View {
             return PanelMetricColor.cyan(for: colorScheme)
         case .memory:
             return PanelMetricColor.mint(for: colorScheme)
+        case .disk:
+            return PanelMetricColor.yellow(for: colorScheme)
         case .battery:
             return PanelMetricColor.green(for: colorScheme)
         case .power:
@@ -445,6 +477,20 @@ struct MetricDetailView: View {
 
     private func processValue(_ row: ProcessUsage) -> String {
         kind == .memory ? formatMemory(UInt64(row.value)) : String(format: "%.1f%%", row.value)
+    }
+
+    private func primaryDisk(from reading: DiskReading?) -> DiskDeviceReading? {
+        guard let devices = reading?.devices, !devices.isEmpty else { return nil }
+        return devices.first(where: { $0.isInternal }) ?? devices.first
+    }
+
+    private func diskActivity(from reading: DiskReading?) -> (read: Double, write: Double)? {
+        let devices = reading?.uniqueIODevices ?? []
+        guard !devices.isEmpty else { return nil }
+        let readValues = devices.compactMap(\.readBytesPerSec)
+        let writeValues = devices.compactMap(\.writeBytesPerSec)
+        guard !readValues.isEmpty || !writeValues.isEmpty else { return nil }
+        return (readValues.reduce(0, +), writeValues.reduce(0, +))
     }
 
     private func formatTemperature(_ celsius: Double) -> String {

@@ -83,7 +83,7 @@ struct ClipboardFeatureStrings {
         showInPanel: "Mostrar no painel",
         shortcut: "Atalho do histórico",
         shortcutCaption: "Abre uma janela rápida com busca, favoritos e atalhos ⌘1 a ⌘9 para colar no app anterior.",
-        shortcutHint: "Na janela rápida: Enter cola o primeiro item, ⌘1 a ⌘9 colam, e os botões dos itens apagam ou reordenam.",
+        shortcutHint: "Na janela rápida: Enter cola, Shift+Enter só copia. Setas escolhem, ⌘1 a ⌘9 colam, Option+P fixa, Option+Delete apaga.",
         pinned: "Fixados",
         recent: "Recentes",
         pin: "Fixar",
@@ -114,7 +114,7 @@ struct ClipboardFeatureStrings {
         showInPanel: "Show in panel",
         shortcut: "History shortcut",
         shortcutCaption: "Opens a quick window with search, pinned items and ⌘1 to ⌘9 shortcuts for pasting into the previous app.",
-        shortcutHint: "In the quick window: Enter pastes the first item, ⌘1 to ⌘9 paste items, and item buttons delete or reorder.",
+        shortcutHint: "In the quick window: Enter pastes, Shift+Enter only copies. Arrows choose, ⌘1 to ⌘9 paste, Option+P pins, Option+Delete deletes.",
         pinned: "Pinned",
         recent: "Recent",
         pin: "Pin",
@@ -150,23 +150,30 @@ struct WindowLayoutFeatureStrings {
     let noRestore: String
     let target: String
     let halves: String
+    let thirds: String
     let corners: String
     let other: String
     let leftHalf: String
     let rightHalf: String
     let topHalf: String
     let bottomHalf: String
+    let leftThird: String
+    let centerThird: String
+    let rightThird: String
+    let leftTwoThirds: String
+    let rightTwoThirds: String
     let topLeft: String
     let topRight: String
     let bottomLeft: String
     let bottomRight: String
     let maximize: String
     let center: String
+    let nextDisplay: String
     let restore: String
 
     static let ptBR = WindowLayoutFeatureStrings(
         title: "Layout de janelas",
-        caption: "Reposiciona a janela ativa em metades, cantos, centro ou tela útil.",
+        caption: "Reposiciona a janela ativa em metades, terços, cantos, outro display, centro ou tela útil.",
         showInPanel: "Mostrar no painel",
         shortcuts: "Atalhos",
         shortcutsCaption: "Use atalhos globais para organizar a janela ativa sem abrir o painel.",
@@ -179,24 +186,31 @@ struct WindowLayoutFeatureStrings {
         noRestore: "Nenhum layout anterior para restaurar.",
         target: "Janela ativa",
         halves: "Metades",
+        thirds: "Terços",
         corners: "Cantos",
         other: "Ações",
         leftHalf: "Esquerda",
         rightHalf: "Direita",
         topHalf: "Topo",
         bottomHalf: "Base",
+        leftThird: "1/3 esquerda",
+        centerThird: "1/3 centro",
+        rightThird: "1/3 direita",
+        leftTwoThirds: "2/3 esquerda",
+        rightTwoThirds: "2/3 direita",
         topLeft: "Topo esquerdo",
         topRight: "Topo direito",
         bottomLeft: "Base esquerda",
         bottomRight: "Base direita",
         maximize: "Maximizar",
         center: "Centralizar",
+        nextDisplay: "Próximo display",
         restore: "Restaurar"
     )
 
     static let enUS = WindowLayoutFeatureStrings(
         title: "Window layout",
-        caption: "Moves the active window to halves, corners, center or the usable screen.",
+        caption: "Moves the active window to halves, thirds, corners, another display, center or the usable screen.",
         showInPanel: "Show in panel",
         shortcuts: "Shortcuts",
         shortcutsCaption: "Use global shortcuts to arrange the active window without opening the panel.",
@@ -209,18 +223,25 @@ struct WindowLayoutFeatureStrings {
         noRestore: "No previous layout to restore.",
         target: "Active window",
         halves: "Halves",
+        thirds: "Thirds",
         corners: "Corners",
         other: "Actions",
         leftHalf: "Left",
         rightHalf: "Right",
         topHalf: "Top",
         bottomHalf: "Bottom",
+        leftThird: "Left 1/3",
+        centerThird: "Center 1/3",
+        rightThird: "Right 1/3",
+        leftTwoThirds: "Left 2/3",
+        rightTwoThirds: "Right 2/3",
         topLeft: "Top left",
         topRight: "Top right",
         bottomLeft: "Bottom left",
         bottomRight: "Bottom right",
         maximize: "Maximize",
         center: "Center",
+        nextDisplay: "Next display",
         restore: "Restore"
     )
 }

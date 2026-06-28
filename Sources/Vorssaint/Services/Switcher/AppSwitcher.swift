@@ -24,13 +24,25 @@ final class AppSwitcher: ObservableObject {
 
     @Published private(set) var windows: [SwitcherItem] = []
     @Published private(set) var previews: [CGWindowID: CGImage] = [:]
-    @Published private(set) var selectedIndex = 0
+    @Published private(set) var selectedIndex = 0 {
+        didSet {
+            guard oldValue != selectedIndex else { return }
+            updateIconRowLayoutForCurrentSelection()
+            if sessionActive, iconRowModeEnabled {
+                resizePanel()
+            }
+        }
+    }
     @Published private(set) var grid = SwitcherGrid.empty
+    @Published private(set) var iconRowLayout = SwitcherIconRowLayout.empty
+    @Published private(set) var searchQuery = ""
+    @Published private(set) var totalWindowCount = 0
 
     private var sessionActive = false
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var panel: NSPanel?
+    private var sessionItems: [SwitcherItem] = []
 
     /// The panel appears only after this delay, like the system switcher: a
     /// quick ⌘Tab flick switches with no UI at all, which is what makes rapid
@@ -55,9 +67,11 @@ final class AppSwitcher: ObservableObject {
     // Virtual key codes handled during a session.
     private enum KeyCode {
         static let tab: Int64 = 48
+        static let delete: Int64 = 51
         static let escape: Int64 = 53
         static let enter: Int64 = 36
         static let q: Int64 = 12
+        static let grave: Int64 = 50
         static let leftArrow: Int64 = 123
         static let rightArrow: Int64 = 124
         static let downArrow: Int64 = 125
@@ -185,14 +199,22 @@ final class AppSwitcher: ObservableObject {
             moveSelection(by: grid.columns)
         case KeyCode.upArrow:
             moveSelection(by: -grid.columns)
-        case KeyCode.q:
+        case KeyCode.q where searchQuery.isEmpty:
             quitSelectedApp()
+        case KeyCode.grave where iconRowModeEnabled && searchQuery.isEmpty:
+            let delta = flags.contains(.maskShift) ? -1 : 1
+            advanceWindowInSelectedApp(by: delta)
+        case KeyCode.delete:
+            removeLastSearchCharacter()
         case KeyCode.escape:
             cancelSession()
         case KeyCode.enter:
             commitSession()
         default:
-            break // Swallow stray keys so they never leak into the focused app.
+            if let text = printableSearchText(from: event) {
+                appendSearchText(text)
+            }
+            // Swallow stray keys so they never leak into the focused app.
         }
         return nil
     }
@@ -204,10 +226,13 @@ final class AppSwitcher: ObservableObject {
         guard !windows.isEmpty else { return false }
 
         let list = orderedForSession(windows)
+        sessionItems = list
+        totalWindowCount = list.count
+        searchQuery = ""
         self.windows = list
         sessionSourceContext = sourceContext(in: list)
         sessionStartItemID = sessionSourceContext?.itemID ?? currentItemID(in: list)
-        grid = SwitcherGrid.compute(count: list.count, on: NSScreen.withMouse)
+        recomputeLayouts(for: list)
         previews = Dictionary(uniqueKeysWithValues: list.compactMap { item in
             item.previewWindowID.flatMap { id in
                 WindowPreviewProvider.shared.cachedPreview(for: id).map { (id, $0) }
@@ -217,14 +242,14 @@ final class AppSwitcher: ObservableObject {
         // Index 0 is the on-screen window; index 1 is the most-recently-used
         // other window — the toggle target, which may be another window of the
         // same app. Shift starts from the far end.
-        selectedIndex = reversed ? max(0, list.count - 1) : (list.count > 1 ? 1 : 0)
+        selectedIndex = initialSelectionIndex(in: list, reversed: reversed)
         sessionActive = true
         sessionShortcut = shortcut
 
         WindowPreviewProvider.shared.refreshPreviews(for: list, maxPixelSize: 640 * PreviewSizing.scale) { [weak self] windowID, image in
             guard let self,
                   self.sessionActive,
-                  self.windows.contains(where: { $0.previewWindowID == windowID }) else { return }
+                  self.sessionItems.contains(where: { $0.previewWindowID == windowID }) else { return }
             self.previews[windowID] = image
         }
         scheduleShowPanel()
@@ -251,6 +276,18 @@ final class AppSwitcher: ObservableObject {
         if item.id == currentID { return (0, 0, 0) }
         if let rank = itemMRU.firstIndex(of: item.id) { return (1, rank, 0) }
         return (2, 0, original)
+    }
+
+    private func initialSelectionIndex(in items: [SwitcherItem], reversed: Bool) -> Int {
+        guard !items.isEmpty else { return 0 }
+        guard iconRowModeEnabled else {
+            return reversed ? max(0, items.count - 1) : (items.count > 1 ? 1 : 0)
+        }
+
+        let groups = SwitcherSupport.appGroups(items: items)
+        guard !groups.isEmpty else { return 0 }
+        let groupIndex = reversed ? max(0, groups.count - 1) : (groups.count > 1 ? 1 : 0)
+        return groups[groupIndex].representativeIndex
     }
 
     /// The id of the window on screen right now. Prefer the Accessibility
@@ -333,6 +370,58 @@ final class AppSwitcher: ObservableObject {
         select(index: index)
     }
 
+    private var selectedItemID: String? {
+        guard windows.indices.contains(selectedIndex) else { return nil }
+        return windows[selectedIndex].id
+    }
+
+    private func appendSearchText(_ text: String) {
+        let clean = sanitizedSearchInput(text)
+        guard !clean.isEmpty else { return }
+        let preferredID = selectedItemID
+        let remaining = max(0, 64 - searchQuery.count)
+        guard remaining > 0 else { return }
+        searchQuery += String(clean.prefix(remaining))
+        applySearchFilter(preferredItemID: preferredID)
+    }
+
+    private func removeLastSearchCharacter() {
+        guard !searchQuery.isEmpty else { return }
+        let preferredID = selectedItemID
+        searchQuery.removeLast()
+        applySearchFilter(preferredItemID: preferredID)
+    }
+
+    private func printableSearchText(from event: CGEvent) -> String? {
+        var length = 0
+        var chars = [UniChar](repeating: 0, count: 16)
+        event.keyboardGetUnicodeString(maxStringLength: chars.count,
+                                       actualStringLength: &length,
+                                       unicodeString: &chars)
+        guard length > 0 else { return nil }
+        return sanitizedSearchInput(String(utf16CodeUnits: chars, count: length))
+    }
+
+    private func sanitizedSearchInput(_ text: String) -> String {
+        String(String.UnicodeScalarView(text.unicodeScalars.filter { scalar in
+            !CharacterSet.controlCharacters.contains(scalar)
+                && !CharacterSet.newlines.contains(scalar)
+        }))
+    }
+
+    private func applySearchFilter(preferredItemID: String?) {
+        let records = sessionItems.map { item in
+            SwitcherSearchRecord(id: item.id, title: item.title, appName: item.appName)
+        }
+        let visibleIDs = Set(SwitcherSupport.filteredSearchIDs(records: records, query: searchQuery))
+        windows = sessionItems.filter { visibleIDs.contains($0.id) }
+        selectedIndex = SwitcherSupport.searchSelectionIndex(itemIDs: windows.map(\.id),
+                                                             preferredID: preferredItemID,
+                                                             previousIndex: selectedIndex)
+        recomputeLayouts(for: windows)
+        resizePanel()
+    }
+
     func closeWindow(_ item: SwitcherItem) {
         guard sessionActive,
               windows.contains(where: { $0.id == item.id }),
@@ -350,8 +439,26 @@ final class AppSwitcher: ObservableObject {
 
     private func advanceSelection(by delta: Int) {
         guard !windows.isEmpty else { return }
+        if iconRowModeEnabled {
+            advanceAppSelection(by: delta)
+            return
+        }
         userNavigated = true
         selectedIndex = (selectedIndex + delta + windows.count) % windows.count
+    }
+
+    private func advanceAppSelection(by delta: Int) {
+        userNavigated = true
+        selectedIndex = SwitcherSupport.nextAppSelectionIndex(items: windows,
+                                                              selectedIndex: selectedIndex,
+                                                              delta: delta)
+    }
+
+    private func advanceWindowInSelectedApp(by delta: Int) {
+        userNavigated = true
+        selectedIndex = SwitcherSupport.nextWindowSelectionIndexWithinApp(items: windows,
+                                                                          selectedIndex: selectedIndex,
+                                                                          delta: delta)
     }
 
     /// Quits the app owning the selected window (⌘Tab → Q), removes its windows
@@ -364,16 +471,24 @@ final class AppSwitcher: ObservableObject {
         app.terminate()
 
         let removedBeforeSelection = windows[..<selectedIndex].filter { $0.pid == pid }.count
+        sessionItems.removeAll { $0.pid == pid }
+        totalWindowCount = sessionItems.count
         windows.removeAll { $0.pid == pid }
         let remaining = Set(windows.compactMap(\.previewWindowID))
         previews = previews.filter { remaining.contains($0.key) }
 
-        guard !windows.isEmpty else {
+        guard !sessionItems.isEmpty else {
             endSession()
             return
         }
+        guard !windows.isEmpty else {
+            selectedIndex = 0
+            recomputeLayouts(for: windows)
+            resizePanel()
+            return
+        }
         selectedIndex = min(max(0, selectedIndex - removedBeforeSelection), windows.count - 1)
-        grid = SwitcherGrid.compute(count: windows.count, on: NSScreen.withMouse)
+        recomputeLayouts(for: windows)
         resizePanel()
     }
 
@@ -403,6 +518,8 @@ final class AppSwitcher: ObservableObject {
                                                selectedIndex: selectedIndex)
         guard state.didRemove else { return }
 
+        sessionItems.removeAll { $0.id == itemID }
+        totalWindowCount = sessionItems.count
         let remaining = Set(state.remainingItemIDs)
         windows = windows.filter { remaining.contains($0.id) }
         let remainingPreviews = Set(windows.compactMap(\.previewWindowID))
@@ -413,18 +530,28 @@ final class AppSwitcher: ObservableObject {
         }
 
         guard !state.shouldEndSession else {
-            endSession()
+            if sessionItems.isEmpty || searchQuery.isEmpty {
+                endSession()
+            } else {
+                selectedIndex = 0
+                recomputeLayouts(for: windows)
+                resizePanel()
+            }
             return
         }
 
         selectedIndex = state.selectedIndex
-        grid = SwitcherGrid.compute(count: windows.count, on: NSScreen.withMouse)
+        recomputeLayouts(for: windows)
         resizePanel()
     }
 
     /// Row jump (↑/↓): moves without wrapping so the selection stays put at
     /// the grid edges.
     private func moveSelection(by delta: Int) {
+        if iconRowModeEnabled {
+            advanceWindowInSelectedApp(by: delta < 0 ? -1 : 1)
+            return
+        }
         let target = selectedIndex + delta
         guard windows.indices.contains(target) else { return }
         userNavigated = true
@@ -457,10 +584,14 @@ final class AppSwitcher: ObservableObject {
         pendingShow = nil
         WindowPreviewProvider.shared.cancel()
         panel?.orderOut(nil)
+        sessionItems = []
         windows = []
         previews = [:]
         selectedIndex = 0
         grid = .empty
+        iconRowLayout = .empty
+        searchQuery = ""
+        totalWindowCount = 0
         hoverAnchor = nil
         userNavigated = false
         sessionStartItemID = nil
@@ -485,7 +616,7 @@ final class AppSwitcher: ObservableObject {
     private func showPanel() {
         let panel = ensurePanel()
         hoverAnchor = NSEvent.mouseLocation
-        panel.setFrame(centeredFrame(for: grid.panelSize), display: true)
+        panel.setFrame(centeredFrame(for: currentPanelSize), display: true)
         panel.orderFrontRegardless()
     }
 
@@ -494,8 +625,46 @@ final class AppSwitcher: ObservableObject {
     /// as intentional instead of a flash.
     private func resizePanel() {
         guard let panel else { return }
-        let frame = centeredFrame(for: grid.panelSize)
+        let frame = centeredFrame(for: currentPanelSize)
         panel.setFrame(frame, display: true, animate: panel.isVisible)
+    }
+
+    private var currentPanelSize: CGSize {
+        iconRowModeEnabled
+            ? iconRowLayout.panelSize
+            : grid.panelSize
+    }
+
+    private var iconRowModeEnabled: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.switcherIconRowMode)
+    }
+
+    private func recomputeLayouts(for items: [SwitcherItem]) {
+        let screen = NSScreen.withMouse
+        grid = SwitcherGrid.compute(count: max(items.count, 1), on: screen)
+        let appGroups = SwitcherSupport.appGroups(items: items)
+        iconRowLayout = SwitcherIconRowLayout.compute(
+            appCount: appGroups.count,
+            selectedWindowCount: selectedAppWindowCount(in: items),
+            screenVisibleFrame: screen.visibleFrame
+        )
+    }
+
+    private func updateIconRowLayoutForCurrentSelection() {
+        guard !windows.isEmpty else { return }
+        let screen = NSScreen.withMouse
+        let appGroups = SwitcherSupport.appGroups(items: windows)
+        iconRowLayout = SwitcherIconRowLayout.compute(
+            appCount: appGroups.count,
+            selectedWindowCount: selectedAppWindowCount(in: windows),
+            screenVisibleFrame: screen.visibleFrame
+        )
+    }
+
+    private func selectedAppWindowCount(in items: [SwitcherItem]) -> Int {
+        guard items.indices.contains(selectedIndex) else { return 1 }
+        let pid = items[selectedIndex].pid
+        return max(1, items.filter { $0.pid == pid }.count)
     }
 
     private func centeredFrame(for size: CGSize) -> NSRect {

@@ -4,6 +4,52 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [3.1.4] - 2026-06-27
+
+### Summary
+Vorssaint 3.1.4 makes Homebrew in Settings more stable and easier to browse, adds package updates from Homebrew, adds a large-icon ⌘Tab view with visible shortcuts, adds finer Window Layout placement options, improves App Switcher and Dock Preview navigation, expands Monitor menu bar metrics and makes Clipboard History faster to use from the keyboard.
+
+### Added
+- Window Layout can now place the active window into left, center and right
+  thirds, left or right two-thirds layouts, and the next display.
+- Dock Preview can now pin the current preview panel, show position when an app
+  has multiple windows, and reliably minimize or restore windows directly from
+  each preview card or its context menu. Multi-window previews can also move to
+  the previous or next window from the preview header, and pinned previews can
+  be dragged to a better position on screen. Multiple pinned previews can stay
+  on screen at once while you keep using other apps. The selected preview stays
+  visible while navigating long rows of windows, and pinned previews stay open
+  until you close or unpin them from the header.
+- App Switcher can now show a large icon row with one entry per app, with the
+  selected app's window previews above it so a specific window can still be
+  chosen directly.
+- Monitor can now show disk usage and live disk activity in the menu bar, if
+  enabled.
+
+### Changed
+- Homebrew now shows package counts in filters and sections, making long
+  installed lists easier to scan.
+- Homebrew now marks installed packages that have updates available, shows a
+  compact update count, can refresh Homebrew itself and can update one package
+  directly from the list, the context menu, the detail view or all available
+  updates at once. Operation logs and fallback commands can also be copied.
+- Clipboard History's quick window now targets the previous item first when no
+  items are pinned, supports arrow-key selection, copy-without-paste, keyboard
+  pin/delete actions, full-text tooltips and multi-word search.
+- App Switcher now filters windows as you type while switching, and App Switcher
+  plus Dock Preview show the app name under titles when it helps distinguish
+  similar windows.
+- The large-icon App Switcher now shows the current app-switching shortcut and
+  the shortcut for moving between windows of the selected app.
+- What's New and the update preview now show the short summary at the top of the
+  release notes.
+- Monitor's per-app CPU, GPU, memory and energy lists can now bring a listed app
+  forward directly.
+
+### Fixed
+- Homebrew in Settings no longer destabilizes the Settings navigation when it
+  loads many installed packages.
+
 ## [3.1.3] - 2026-06-25
 
 ### Summary

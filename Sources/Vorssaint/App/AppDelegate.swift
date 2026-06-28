@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var onboardingWindow: NSWindow?
     private var dockPreviewIntroWindow: NSWindow?
     private var supportIntroWindow: NSWindow?
+    private var updateShowcaseWindow: NSWindow?
     private var updatePreviewWindow: NSWindow?
     private let popoverOpenDuration: TimeInterval = 0.18
     private let popoverCloseDuration: TimeInterval = 0.14
@@ -906,8 +907,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// On launch after an update, do not re-open What's New: every update path
     /// shows the changelog before download. Keep only one-off feature intros.
     private func presentUpdateIntros() {
+        if showUpdateShowcaseIntroIfNeeded() { return }
         if showSupportUpdateIntroIfNeeded() { return }
         showDockPreviewIntroIfNeeded()
+    }
+
+    private func showUpdateShowcaseIntroIfNeeded() -> Bool {
+        guard AppInfo.version == UpdateShowcaseInfo.releaseVersion else {
+            UpdateShowcaseInfo.cleanupCache()
+            return false
+        }
+        guard UserDefaults.standard.string(forKey: DefaultsKey.updateShowcaseIntroVersion)
+                != UpdateShowcaseInfo.releaseVersion else {
+            UpdateShowcaseInfo.cleanupCache()
+            return false
+        }
+        showUpdateShowcaseIntro()
+        return true
+    }
+
+    private func showUpdateShowcaseIntro() {
+        closePopover()
+        if let window = updateShowcaseWindow {
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+            return
+        }
+        let host = NSHostingController(rootView: UpdateShowcaseIntroView(
+            onClose: { [weak self] in
+                self?.markUpdateShowcaseIntroSeen()
+                self?.updateShowcaseWindow?.close()
+            }
+        ))
+        host.sizingOptions = .preferredContentSize
+        let window = NSWindow(contentViewController: host)
+        window.title = L10n.shared.s.updateShowcaseTitle
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.isReleasedWhenClosed = false
+        window.isRestorable = false
+        window.isMovableByWindowBackground = true
+        window.delegate = self
+        centerUpdateShowcaseWindow(window)
+        updateShowcaseWindow = window
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        DispatchQueue.main.async { [weak self, weak window] in
+            guard let self, let window, window === self.updateShowcaseWindow else { return }
+            self.centerUpdateShowcaseWindow(window)
+        }
     }
 
     private func showSupportUpdateIntroIfNeeded() -> Bool {
@@ -1071,6 +1120,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         window.setFrame(frame.integral, display: false)
     }
 
+    private func centerUpdateShowcaseWindow(_ window: NSWindow) {
+        window.contentView?.layoutSubtreeIfNeeded()
+        let screen = window.screen ?? popover.contentViewController?.view.window?.screen ?? NSScreen.withMouse
+        let visible = screen.visibleFrame
+        let margin: CGFloat = 40
+        let availableWidth = max(1, visible.width - margin)
+        let availableHeight = max(1, visible.height - margin)
+        let width = min(CGFloat(680), availableWidth)
+        let height = min(CGFloat(600), availableHeight)
+        let frame = NSRect(x: visible.midX - width / 2,
+                           y: visible.midY - height / 2,
+                           width: width,
+                           height: height)
+        window.setFrame(frame.integral, display: false)
+    }
+
     /// The pre-install update preview, shown before any download from BOTH the
     /// Settings install button and the menu panel's update banner (the blue
     /// button most people use), so the changelog is always seen first. In the
@@ -1137,6 +1202,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             guard !isTerminating else { return }
             markSupportUpdateIntroSeen()
         }
+        if window === updateShowcaseWindow {
+            updateShowcaseWindow = nil
+            guard !isTerminating else { return }
+            markUpdateShowcaseIntroSeen()
+        }
         if window === updatePreviewWindow {
             updatePreviewWindow = nil
         }
@@ -1150,6 +1220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         UserDefaults.standard.set(AppInfo.version, forKey: DefaultsKey.lastUpdateIntroVersion)
         markDockPreviewIntroSeenIfCurrentUpdate()
         markSupportUpdateIntroSeenIfCurrentUpdate()
+        markUpdateShowcaseIntroSeenIfCurrentUpdate()
     }
 
     private func markDockPreviewIntroSeenIfCurrentUpdate() {
@@ -1171,5 +1242,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private func markSupportUpdateIntroSeen() {
         UserDefaults.standard.set(SupportUpdateIntroInfo.releaseVersion,
                                   forKey: DefaultsKey.supportUpdateIntroVersion)
+    }
+
+    private func markUpdateShowcaseIntroSeenIfCurrentUpdate() {
+        guard AppInfo.version == UpdateShowcaseInfo.releaseVersion else { return }
+        markUpdateShowcaseIntroSeen()
+    }
+
+    private func markUpdateShowcaseIntroSeen() {
+        UserDefaults.standard.set(UpdateShowcaseInfo.releaseVersion,
+                                  forKey: DefaultsKey.updateShowcaseIntroVersion)
     }
 }

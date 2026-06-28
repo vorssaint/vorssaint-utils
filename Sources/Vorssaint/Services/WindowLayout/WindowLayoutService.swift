@@ -49,7 +49,7 @@ final class WindowLayoutService: ObservableObject {
 
     func shortcutConflictTitle(_ shortcut: GlobalShortcut, excluding excluded: WindowLayoutAction?) -> String? {
         let text = FeatureStrings.windowLayout(L10n.shared.language)
-        return WindowLayoutAction.allCases.first {
+        return WindowLayoutAction.shortcutActions.first {
             $0 != excluded && $0.savedShortcut == shortcut
         }?.title(text)
     }
@@ -76,6 +76,25 @@ final class WindowLayoutService: ObservableObject {
             return finish(.failure(.failed))
         }
         let currentRect = appKitFrame(fromAX: target.frame)
+        if action == .nextDisplay {
+            guard let destination = nextScreen(after: screen) else {
+                return finish(.failure(.failed))
+            }
+            let rect = WindowLayoutGeometry.rectForNextDisplay(current: currentRect,
+                                                               sourceVisibleFrame: screen.visibleFrame,
+                                                               destinationVisibleFrame: destination.visibleFrame)
+            previousFrames[target.windowID] = target.frame
+            if setFrame(axFrame(fromAppKit: rect),
+                        targetRect: rect,
+                        screenVisibleFrame: destination.visibleFrame,
+                        action: .nextDisplay,
+                        on: target.window) {
+                lastActions[target.windowID] = .nextDisplay
+                return finish(.success(restored: false))
+            }
+            previousFrames.removeValue(forKey: target.windowID)
+            return finish(.failure(.failed))
+        }
         let previousAction = lastActions[target.windowID]
         let effectiveAction = WindowLayoutGeometry.effectiveAction(for: action,
                                                                    current: currentRect,
@@ -209,6 +228,7 @@ final class WindowLayoutService: ObservableObject {
     private func shouldUseMaximizeFallback(for action: WindowLayoutAction) -> Bool {
         switch action {
         case .leftHalf, .rightHalf, .topHalf, .bottomHalf,
+                .leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds,
                 .topLeft, .topRight, .bottomLeft, .bottomRight:
             return true
         default:
@@ -264,7 +284,7 @@ final class WindowLayoutService: ObservableObject {
     // MARK: - Shortcuts
 
     private func registerHotkeys() {
-        let shortcuts = Dictionary(uniqueKeysWithValues: WindowLayoutAction.allCases.map {
+        let shortcuts = Dictionary(uniqueKeysWithValues: WindowLayoutAction.shortcutActions.map {
             ($0, $0.savedShortcut)
         })
         if !hotKeyRefs.isEmpty, shortcuts == registeredShortcuts { return }
@@ -291,7 +311,7 @@ final class WindowLayoutService: ObservableObject {
         }
 
         var failures = Set<WindowLayoutAction>()
-        for action in WindowLayoutAction.allCases {
+        for action in WindowLayoutAction.shortcutActions {
             let shortcut = shortcuts[action] ?? action.defaultShortcut
             let id = EventHotKeyID(signature: 0x5655_574C, id: action.shortcutID) // 'VUWL'
             var ref: EventHotKeyRef?
@@ -355,6 +375,19 @@ final class WindowLayoutService: ObservableObject {
         return NSScreen.screens.max { lhs, rhs in
             lhs.frame.intersection(appKitFrame).area < rhs.frame.intersection(appKitFrame).area
         } ?? NSScreen.main ?? NSScreen.screens.first
+    }
+
+    private func nextScreen(after current: NSScreen) -> NSScreen? {
+        let screens = NSScreen.screens.sorted {
+            if abs($0.frame.minX - $1.frame.minX) > 0.5 {
+                return $0.frame.minX < $1.frame.minX
+            }
+            return $0.frame.minY < $1.frame.minY
+        }
+        guard screens.count > 1,
+              let index = screens.firstIndex(where: { $0 === current })
+        else { return nil }
+        return screens[(index + 1) % screens.count]
     }
 
     private func axFrame(fromAppKit rect: NSRect) -> WindowLayoutFrame {

@@ -292,6 +292,7 @@ struct MenuPanelView: View {
         switch selectedMetric {
         case .cpu, .gpu, .memory: return 430
         case .network: return 330
+        case .disk: return 360
         case .battery, .power: return 360
         }
     }
@@ -778,7 +779,7 @@ struct QuickControlsSection: View {
     @ObservedObject private var windowMaximizer = WindowMaximizer.shared
     @AppStorage(DefaultsKey.scrollInverterEnabled) private var scrollEnabled = false
     @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
-    @AppStorage(DefaultsKey.switcherShowWindowlessFinder) private var switcherShowWindowlessFinder = true
+    @AppStorage(DefaultsKey.switcherIconRowMode) private var switcherIconRowMode = false
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
     @AppStorage(DefaultsKey.finderCutPasteEnabled) private var cutPasteEnabled = false
     @AppStorage(DefaultsKey.autoQuitEnabled) private var autoQuitEnabled = false
@@ -912,7 +913,7 @@ struct QuickControlsSection: View {
                         }
                     }
                 if switcherEnabled && !editing {
-                    switcherFinderOption
+                    switcherIconRowOption
                 }
             }
         case .cutPaste:
@@ -1035,20 +1036,23 @@ struct QuickControlsSection: View {
         return { grantAccessibility() }
     }
 
-    private var switcherFinderOption: some View {
+    private var switcherIconRowOption: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 8) {
-                Text(l10n.s.switcherShowFinder)
+                Text(l10n.s.switcherIconRowMode)
                     .font(.system(size: 10.5, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 Spacer(minLength: 8)
-                Toggle("", isOn: $switcherShowWindowlessFinder)
+                Toggle("", isOn: $switcherIconRowMode)
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .controlSize(.mini)
+                    .onChange(of: switcherIconRowMode) { _, _ in
+                        AppSwitcher.shared.syncWithPreferences()
+                    }
             }
-            Text(l10n.s.switcherShowFinderCaption)
+            Text(l10n.s.switcherIconRowModeCaption)
                 .font(.system(size: 9.5))
                 .foregroundStyle(.tertiary)
                 .lineLimit(2)

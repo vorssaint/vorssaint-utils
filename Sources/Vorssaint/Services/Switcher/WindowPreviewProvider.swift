@@ -20,7 +20,7 @@ final class WindowPreviewProvider {
     private var cache: [CGWindowID: CGImage] = [:]
     private var captureTask: Task<Void, Never>?
 
-    private init() {}
+    init() {}
 
     func cachedPreview(for windowID: CGWindowID) -> CGImage? {
         cache[windowID]

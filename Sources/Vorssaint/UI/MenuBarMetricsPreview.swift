@@ -15,6 +15,8 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.menuBarGPUTemperature) private var gpuTemperature = false
     @AppStorage(DefaultsKey.menuBarBatteryTemperature) private var batteryTemperature = false
     @AppStorage(DefaultsKey.menuBarNetwork) private var network = false
+    @AppStorage(DefaultsKey.menuBarDiskUsage) private var diskUsage = false
+    @AppStorage(DefaultsKey.menuBarDiskActivity) private var diskActivity = false
     @AppStorage(DefaultsKey.menuBarBattery) private var battery = false
     @AppStorage(DefaultsKey.menuBarPower) private var power = false
     @AppStorage(DefaultsKey.menuBarMetricOrder) private var metricOrder = ""
@@ -73,6 +75,8 @@ struct MenuBarMetricsPreview: View {
         let _ = gpuTemperature
         let _ = batteryTemperature
         let _ = network
+        let _ = diskUsage
+        let _ = diskActivity
         let _ = battery
         let _ = power
         return MenuBarMetric.enabled(in: .standard)
@@ -109,6 +113,19 @@ struct MenuBarMetricsPreview: View {
             VStack(alignment: .leading, spacing: -0.6) {
                 Text("↓\(down)")
                 Text("↑\(up)")
+            }
+            .font(.system(size: MenuBarRenderer.networkBlockFontSize(style: style),
+                          weight: .semibold,
+                          design: .monospaced))
+            .foregroundStyle(.white)
+            .frame(minWidth: style == .readable ? 39 : 36,
+                   minHeight: style == .readable ? 22 : 20,
+                   alignment: .center)
+            .fixedSize(horizontal: true, vertical: true)
+        case let .diskActivityBlock(read, write, style):
+            VStack(alignment: .leading, spacing: -0.6) {
+                Text("R\(read)")
+                Text("W\(write)")
             }
             .font(.system(size: MenuBarRenderer.networkBlockFontSize(style: style),
                           weight: .semibold,

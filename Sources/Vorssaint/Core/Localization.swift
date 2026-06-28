@@ -241,6 +241,10 @@ struct Strings {
     let switcherEnableCaption: String
     let switcherUsageHint: String
     let switcherNoWindows: String
+    let switcherIconRowMode: String
+    let switcherIconRowModeCaption: String
+    let switcherShortcutHintApps: String
+    let switcherShortcutHintWindows: String
     let switcherMergeTabs: String
     let switcherMergeTabsCaption: String
     let switcherShowFinder: String
@@ -252,7 +256,16 @@ struct Strings {
     let dockPreviewMagnificationBlocked: String
     let dockPreviewDockUnavailable: String
     let dockPreviewAutohideBeta: String
+    let dockPreviewOpenWindow: String
     let dockPreviewCloseWindow: String
+    let dockPreviewMinimizeWindow: String
+    let dockPreviewRestoreWindow: String
+    let dockPreviewPinPanel: String
+    let dockPreviewUnpinPanel: String
+    let dockPreviewPinned: String
+    let dockPreviewClosePanel: String
+    let dockPreviewPreviousWindow: String
+    let dockPreviewNextWindow: String
     let dockPreviewIntroPeek: String
     let dockPreviewIntroSettingsHint: String
     let dockPreviewIntroLater: String
@@ -372,6 +385,10 @@ struct Strings {
     let homebrewDetailsTitle: String
     let homebrewInstall: String
     let homebrewUninstall: String
+    let homebrewUpgrade: String
+    let homebrewUpgradeAll: String
+    let homebrewUpdateHomebrew: String
+    let homebrewAllPackages: String
     let homebrewOpenTerminal: String
     let homebrewCancelOperation: String
     let homebrewClearLog: String
@@ -383,23 +400,39 @@ struct Strings {
     let homebrewPopularityFormat: String
     let homebrewInstalledBadge: String
     let homebrewNotInstalledBadge: String
+    let homebrewUpdates: String
+    let homebrewUpdateAvailableBadge: String
+    let homebrewLatestVersion: String
     let homebrewConfirmInstallTitle: String
     let homebrewConfirmInstallBodyFormat: String
     let homebrewConfirmUninstallTitle: String
     let homebrewConfirmUninstallBodyFormat: String
+    let homebrewConfirmUpgradeTitle: String
+    let homebrewConfirmUpgradeBodyFormat: String
+    let homebrewConfirmUpgradeAllTitle: String
+    let homebrewConfirmUpgradeAllBody: String
+    let homebrewConfirmUpdateHomebrewTitle: String
+    let homebrewConfirmUpdateHomebrewBody: String
     let homebrewTerminalFallback: String
     let homebrewLoading: String
     let homebrewSearchEmpty: String
     let homebrewOperationInstallFormat: String
     let homebrewOperationUninstallFormat: String
+    let homebrewOperationUpgradeFormat: String
+    let homebrewOperationUpgradeAll: String
+    let homebrewOperationUpdateHomebrew: String
     let homebrewOperationInstalledFormat: String
     let homebrewOperationUninstalledFormat: String
+    let homebrewOperationUpgradedFormat: String
+    let homebrewOperationUpgradedAll: String
+    let homebrewOperationUpdatedHomebrew: String
     let homebrewOperationFailedFormat: String
     let homebrewOperationCancelled: String
     let homebrewOperationPreparing: String
     let homebrewOperationDownloading: String
     let homebrewOperationInstalling: String
     let homebrewOperationUninstalling: String
+    let homebrewOperationUpgrading: String
     let homebrewOperationFinalizing: String
     let homebrewOperationRefreshing: String
     let homebrewOperationTerminal: String
@@ -743,6 +776,10 @@ struct Strings {
     let supportIntroStarButton: String
     let supportIntroCoffeeButton: String
     let supportIntroLaterButton: String
+    let updateShowcaseTitle: String
+    let updateShowcaseMessage: String
+    let updateShowcaseUnavailable: String
+    let updateShowcaseRestart: String
     let showMenuBarIcon: String
     let showMenuBarIconCaption: String
 
@@ -905,6 +942,10 @@ extension Strings {
         switcherEnableCaption: "Troque de janela vendo miniaturas reais, inclusive entre várias janelas do mesmo app.",
         switcherUsageHint: "Segure o atalho para navegar; solte para ativar a janela. Shift ou ← volta; Q fecha o app selecionado; Esc cancela.",
         switcherNoWindows: "Nenhuma janela aberta",
+        switcherIconRowMode: "Mostrar ⌘Tab com ícones grandes",
+        switcherIconRowModeCaption: "Mostra um ícone por app com os previews das janelas do app acima.",
+        switcherShortcutHintApps: "Apps",
+        switcherShortcutHintWindows: "Janelas",
         switcherMergeTabs: "Mostrar uma entrada por app",
         switcherMergeTabsCaption: "Junta todas as janelas de um app em uma só entrada no alternador, em vez de uma por janela.",
         switcherShowFinder: "Mostrar Finder sem janelas",
@@ -916,7 +957,16 @@ extension Strings {
         dockPreviewMagnificationBlocked: "Desative a ampliação do Dock para usar.",
         dockPreviewDockUnavailable: "Não foi possível ler os itens do Dock.",
         dockPreviewAutohideBeta: "Beta. Você pode encontrar alguns bugs.",
+        dockPreviewOpenWindow: "Abrir janela",
         dockPreviewCloseWindow: "Fechar janela",
+        dockPreviewMinimizeWindow: "Minimizar janela",
+        dockPreviewRestoreWindow: "Restaurar janela",
+        dockPreviewPinPanel: "Fixar prévia",
+        dockPreviewUnpinPanel: "Desfixar prévia",
+        dockPreviewPinned: "Fixado",
+        dockPreviewClosePanel: "Fechar prévia",
+        dockPreviewPreviousWindow: "Janela anterior",
+        dockPreviewNextWindow: "Próxima janela",
         dockPreviewIntroPeek: "Passe o mouse em uma miniatura para espiar. Clique para abrir a janela.",
         dockPreviewIntroSettingsHint: "Você pode mudar isso depois em Ajustes › Switcher.",
         dockPreviewIntroLater: "Agora não",
@@ -1031,6 +1081,10 @@ extension Strings {
         homebrewDetailsTitle: "Detalhes do pacote",
         homebrewInstall: "Instalar",
         homebrewUninstall: "Desinstalar",
+        homebrewUpgrade: "Atualizar",
+        homebrewUpgradeAll: "Atualizar tudo",
+        homebrewUpdateHomebrew: "Atualizar Homebrew",
+        homebrewAllPackages: "pacotes",
         homebrewOpenTerminal: "Abrir Terminal",
         homebrewCancelOperation: "Cancelar",
         homebrewClearLog: "Limpar log",
@@ -1042,23 +1096,39 @@ extension Strings {
         homebrewPopularityFormat: "%@ instalações em %@ dias",
         homebrewInstalledBadge: "Instalado",
         homebrewNotInstalledBadge: "Não instalado",
+        homebrewUpdates: "Atualizações",
+        homebrewUpdateAvailableBadge: "Atualização disponível",
+        homebrewLatestVersion: "Mais recente",
         homebrewConfirmInstallTitle: "Instalar pelo Homebrew?",
         homebrewConfirmInstallBodyFormat: "O Homebrew vai baixar e instalar %@. Dependências também podem ser instaladas.",
         homebrewConfirmUninstallTitle: "Desinstalar pelo Homebrew?",
         homebrewConfirmUninstallBodyFormat: "O Homebrew vai desinstalar %@. Arquivos de configuração podem permanecer no sistema.",
+        homebrewConfirmUpgradeTitle: "Atualizar pelo Homebrew?",
+        homebrewConfirmUpgradeBodyFormat: "O Homebrew vai baixar e aplicar a versão mais recente de %@. Dependências também podem ser atualizadas.",
+        homebrewConfirmUpgradeAllTitle: "Atualizar todos pelo Homebrew?",
+        homebrewConfirmUpgradeAllBody: "O Homebrew vai baixar e aplicar as versões mais recentes dos pacotes com atualização disponível. Dependências também podem ser atualizadas.",
+        homebrewConfirmUpdateHomebrewTitle: "Atualizar Homebrew?",
+        homebrewConfirmUpdateHomebrewBody: "O Homebrew vai buscar as informações mais recentes e depois recarregar seus pacotes.",
         homebrewTerminalFallback: "Esta operação precisa do Terminal para pedir a senha de administrador. O Vorssaint não captura senhas.",
         homebrewLoading: "Carregando…",
         homebrewSearchEmpty: "Nenhum resultado",
         homebrewOperationInstallFormat: "Instalando %@",
         homebrewOperationUninstallFormat: "Desinstalando %@",
+        homebrewOperationUpgradeFormat: "Atualizando %@",
+        homebrewOperationUpgradeAll: "Atualizando pacotes",
+        homebrewOperationUpdateHomebrew: "Atualizando Homebrew",
         homebrewOperationInstalledFormat: "%@ instalado.",
         homebrewOperationUninstalledFormat: "%@ desinstalado.",
+        homebrewOperationUpgradedFormat: "%@ atualizado.",
+        homebrewOperationUpgradedAll: "Pacotes atualizados.",
+        homebrewOperationUpdatedHomebrew: "Homebrew atualizado.",
         homebrewOperationFailedFormat: "Não foi possível concluir %@.",
         homebrewOperationCancelled: "Operação cancelada.",
         homebrewOperationPreparing: "Preparando...",
         homebrewOperationDownloading: "Baixando arquivos...",
         homebrewOperationInstalling: "Instalando arquivos...",
         homebrewOperationUninstalling: "Removendo arquivos...",
+        homebrewOperationUpgrading: "Atualizando arquivos...",
         homebrewOperationFinalizing: "Finalizando...",
         homebrewOperationRefreshing: "Atualizando lista...",
         homebrewOperationTerminal: "Continue no Terminal.",
@@ -1385,6 +1455,10 @@ extension Strings {
         supportIntroStarButton: "Dar uma estrela",
         supportIntroCoffeeButton: "Buy me a coffee",
         supportIntroLaterButton: "Agora não",
+        updateShowcaseTitle: "Novidades da 3.1.4",
+        updateShowcaseMessage: "Veja uma prévia rápida das principais melhorias desta atualização.",
+        updateShowcaseUnavailable: "Não foi possível carregar o vídeo agora. Você ainda pode continuar.",
+        updateShowcaseRestart: "Voltar ao início",
         showMenuBarIcon: "Mostrar ícone na barra de menus",
         showMenuBarIconCaption: "Se o ícone do Vorssaint sumir (o macOS pode esconder ícones quando a barra de menus fica sem espaço, comum em Macs com notch), reabra o Vorssaint pela pasta Aplicativos ou pelo Spotlight: isso recria o ícone e, se ele ainda estiver escondido, abre esta janela. O botão acima faz o mesmo quando você já consegue chegar aqui. Manter menos ícones na barra, ou menos métricas no Vorssaint, reduz bastante a chance.",
         shortcutRecording: "Pressione o novo atalho",
@@ -1546,6 +1620,10 @@ extension Strings {
         switcherEnableCaption: "Switch windows with real thumbnails, including between multiple windows of the same app.",
         switcherUsageHint: "Hold the shortcut to navigate; release to activate the window. Shift or ← goes back; Q quits the selected app; Esc cancels.",
         switcherNoWindows: "No open windows",
+        switcherIconRowMode: "Show ⌘Tab with large icons",
+        switcherIconRowModeCaption: "Shows one icon per app with that app's window previews above it.",
+        switcherShortcutHintApps: "Apps",
+        switcherShortcutHintWindows: "Windows",
         switcherMergeTabs: "Show one entry per app",
         switcherMergeTabsCaption: "Collapses all of an app's windows into one entry in the switcher, instead of one entry per window.",
         switcherShowFinder: "Show Finder without windows",
@@ -1557,7 +1635,16 @@ extension Strings {
         dockPreviewMagnificationBlocked: "Turn off Dock magnification to use this.",
         dockPreviewDockUnavailable: "Could not read Dock items.",
         dockPreviewAutohideBeta: "Beta. You may run into some bugs.",
+        dockPreviewOpenWindow: "Open window",
         dockPreviewCloseWindow: "Close window",
+        dockPreviewMinimizeWindow: "Minimize window",
+        dockPreviewRestoreWindow: "Restore window",
+        dockPreviewPinPanel: "Pin preview",
+        dockPreviewUnpinPanel: "Unpin preview",
+        dockPreviewPinned: "Pinned",
+        dockPreviewClosePanel: "Close preview",
+        dockPreviewPreviousWindow: "Previous window",
+        dockPreviewNextWindow: "Next window",
         dockPreviewIntroPeek: "Hover over a thumbnail to peek. Click to open the window.",
         dockPreviewIntroSettingsHint: "You can change this later in Settings › Switcher.",
         dockPreviewIntroLater: "Not now",
@@ -1672,6 +1759,10 @@ extension Strings {
         homebrewDetailsTitle: "Package details",
         homebrewInstall: "Install",
         homebrewUninstall: "Uninstall",
+        homebrewUpgrade: "Update",
+        homebrewUpgradeAll: "Update all",
+        homebrewUpdateHomebrew: "Update Homebrew",
+        homebrewAllPackages: "packages",
         homebrewOpenTerminal: "Open Terminal",
         homebrewCancelOperation: "Cancel",
         homebrewClearLog: "Clear log",
@@ -1683,23 +1774,39 @@ extension Strings {
         homebrewPopularityFormat: "%@ installs in %@ days",
         homebrewInstalledBadge: "Installed",
         homebrewNotInstalledBadge: "Not installed",
+        homebrewUpdates: "Updates",
+        homebrewUpdateAvailableBadge: "Update available",
+        homebrewLatestVersion: "Latest",
         homebrewConfirmInstallTitle: "Install with Homebrew?",
         homebrewConfirmInstallBodyFormat: "Homebrew will download and install %@. Dependencies may also be installed.",
         homebrewConfirmUninstallTitle: "Uninstall with Homebrew?",
         homebrewConfirmUninstallBodyFormat: "Homebrew will uninstall %@. Configuration files may remain on the system.",
+        homebrewConfirmUpgradeTitle: "Update with Homebrew?",
+        homebrewConfirmUpgradeBodyFormat: "Homebrew will download and apply the latest version of %@. Dependencies may also be updated.",
+        homebrewConfirmUpgradeAllTitle: "Update all with Homebrew?",
+        homebrewConfirmUpgradeAllBody: "Homebrew will download and apply the latest versions for packages with updates available. Dependencies may also be updated.",
+        homebrewConfirmUpdateHomebrewTitle: "Update Homebrew?",
+        homebrewConfirmUpdateHomebrewBody: "Homebrew will fetch the latest information and then reload your packages.",
         homebrewTerminalFallback: "This operation needs Terminal to ask for the administrator password. Vorssaint does not capture passwords.",
         homebrewLoading: "Loading…",
         homebrewSearchEmpty: "No results",
         homebrewOperationInstallFormat: "Installing %@",
         homebrewOperationUninstallFormat: "Uninstalling %@",
+        homebrewOperationUpgradeFormat: "Updating %@",
+        homebrewOperationUpgradeAll: "Updating packages",
+        homebrewOperationUpdateHomebrew: "Updating Homebrew",
         homebrewOperationInstalledFormat: "%@ installed.",
         homebrewOperationUninstalledFormat: "%@ uninstalled.",
+        homebrewOperationUpgradedFormat: "%@ updated.",
+        homebrewOperationUpgradedAll: "Packages updated.",
+        homebrewOperationUpdatedHomebrew: "Homebrew updated.",
         homebrewOperationFailedFormat: "Could not finish %@.",
         homebrewOperationCancelled: "Operation cancelled.",
         homebrewOperationPreparing: "Preparing...",
         homebrewOperationDownloading: "Downloading files...",
         homebrewOperationInstalling: "Installing files...",
         homebrewOperationUninstalling: "Removing files...",
+        homebrewOperationUpgrading: "Updating files...",
         homebrewOperationFinalizing: "Finishing...",
         homebrewOperationRefreshing: "Refreshing list...",
         homebrewOperationTerminal: "Continue in Terminal.",
@@ -2026,6 +2133,10 @@ extension Strings {
         supportIntroStarButton: "Leave a star",
         supportIntroCoffeeButton: "Buy me a coffee",
         supportIntroLaterButton: "Not now",
+        updateShowcaseTitle: "What's new in 3.1.4",
+        updateShowcaseMessage: "Take a quick look at the main improvements in this update.",
+        updateShowcaseUnavailable: "The video could not load right now. You can still continue.",
+        updateShowcaseRestart: "Restart",
         showMenuBarIcon: "Show menu bar icon",
         showMenuBarIconCaption: "If Vorssaint's icon disappears (macOS can hide menu bar icons when the bar runs out of room, common on Macs with a notch), reopen Vorssaint from Applications or Spotlight: that rebuilds the icon and, if it's still hidden, opens this window. The button above does the same when you can already get here. Keeping fewer menu bar icons, or fewer Vorssaint metrics, makes it far less likely.",
         shortcutRecording: "Press the new shortcut",

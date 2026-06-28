@@ -57,11 +57,22 @@ struct ReleaseNotes {
         var sections: [ReleaseNoteSection] = []
         var currentTitle = ""
         var currentItems: [ReleaseNoteItem] = []
+        var currentParagraph: [String] = []
+
+        func flushParagraph() {
+            guard !currentParagraph.isEmpty else { return }
+            let paragraph = clean(currentParagraph.joined(separator: " "))
+            if !paragraph.isEmpty {
+                currentItems.append(.paragraph(paragraph))
+            }
+            currentParagraph.removeAll()
+        }
 
         func flushSection() {
+            flushParagraph()
+            defer { currentItems.removeAll() }
             guard !currentItems.isEmpty, shouldDisplaySection(currentTitle) else { return }
             sections.append(ReleaseNoteSection(title: currentTitle, items: currentItems))
-            currentItems.removeAll()
         }
 
         for rawLine in lines.dropFirst(start + 1) {
@@ -73,13 +84,19 @@ struct ReleaseNotes {
             }
 
             let trimmed = rawLine.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("- ") {
+            if trimmed.isEmpty {
+                flushParagraph()
+            } else if trimmed.hasPrefix("- ") {
+                flushParagraph()
                 currentItems.append(.bullet(clean(String(trimmed.dropFirst(2)))))
             } else if let image = image(in: trimmed) {
+                flushParagraph()
                 currentItems.append(.image(image))
             } else if rawLine.hasPrefix("  "), !currentItems.isEmpty, !trimmed.isEmpty,
                       case let .bullet(text) = currentItems[currentItems.count - 1] {
                 currentItems[currentItems.count - 1] = .bullet(text + " " + clean(trimmed))
+            } else if !currentTitle.isEmpty {
+                currentParagraph.append(trimmed)
             }
         }
         flushSection()
@@ -148,9 +165,17 @@ struct ReleaseNoteSection {
             return nil
         }
     }
+
+    var paragraphItems: [String] {
+        items.compactMap {
+            if case let .paragraph(text) = $0 { return text }
+            return nil
+        }
+    }
 }
 
 enum ReleaseNoteItem: Equatable {
+    case paragraph(String)
     case bullet(String)
     case image(ReleaseNoteImage)
 }

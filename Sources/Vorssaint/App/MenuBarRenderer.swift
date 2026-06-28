@@ -5,7 +5,7 @@ import AppKit
 
 /// A live reading the user can pin next to the menu bar icon.
 enum MenuBarMetric: String, CaseIterable, Identifiable {
-    case cpu, gpu, memory, cpuTemperature, gpuTemperature, batteryTemperature, network, battery, power
+    case cpu, gpu, memory, cpuTemperature, gpuTemperature, batteryTemperature, network, diskUsage, diskActivity, battery, power
 
     var id: String { rawValue }
 
@@ -18,6 +18,8 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .gpuTemperature: return DefaultsKey.menuBarGPUTemperature
         case .batteryTemperature: return DefaultsKey.menuBarBatteryTemperature
         case .network: return DefaultsKey.menuBarNetwork
+        case .diskUsage: return DefaultsKey.menuBarDiskUsage
+        case .diskActivity: return DefaultsKey.menuBarDiskActivity
         case .battery: return DefaultsKey.menuBarBattery
         case .power: return DefaultsKey.menuBarPower
         }
@@ -32,6 +34,8 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .gpuTemperature: return "rectangle.connected.to.line.below"
         case .batteryTemperature: return "battery.100"
         case .network: return "network"
+        case .diskUsage: return "internaldrive"
+        case .diskActivity: return "internaldrive.fill"
         case .battery: return "battery.100"
         case .power: return "powerplug.fill"
         }
@@ -46,6 +50,8 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .gpuTemperature: return strings.monitorShowGPUTemperature
         case .batteryTemperature: return strings.monitorShowBatteryTemperature
         case .network: return strings.monitorShowNetwork
+        case .diskUsage: return strings.monitorItemDiskUsage
+        case .diskActivity: return strings.monitorItemDiskActivity
         case .battery: return strings.batteryLabel
         case .power: return strings.monitorShowPowerLabel
         }
@@ -56,7 +62,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         .gpu, .gpuTemperature,
         .memory,
         .battery, .batteryTemperature,
-        .network, .power,
+        .network, .diskUsage, .diskActivity, .power,
     ]
 
     static func order(in defaults: UserDefaults) -> [MenuBarMetric] {
@@ -121,6 +127,7 @@ enum MenuBarSegment {
     case largeSymbol(String)
     case metricBlock(label: String, value: String, minimumValue: String, style: MenuBarBlockStyle, pressure: MemoryPressure?)
     case networkBlock(down: String, up: String, style: MenuBarBlockStyle)
+    case diskActivityBlock(read: String, write: String, style: MenuBarBlockStyle)
     case batteryBlock(percent: Int, isCharging: Bool, style: MenuBarBlockStyle)
     case dot(MemoryPressure)
     case separator
@@ -297,6 +304,21 @@ enum MenuBarRenderer {
                                                        .text(" "), .symbol("arrow.up"), .text(" " + upText)],
                                             width: reservedWidth(for: metric, preset: preset)))
                 }
+            case .diskUsage:
+                if let disk = primaryDisk(from: snapshot.disk) {
+                    let text = "DSK " + percent(disk.usedFraction)
+                    items.append(MetricItem(metric: metric,
+                                            segments: [.symbol(metric.symbolName), .text(" " + text)],
+                                            width: reservedWidth(for: metric, preset: preset)))
+                }
+            case .diskActivity:
+                if let activity = diskActivity(from: snapshot.disk) {
+                    let total = activity.read + activity.write
+                    let text = "IO " + MetricFormat.bytesPerSecCompact(total)
+                    items.append(MetricItem(metric: metric,
+                                            segments: [.symbol(metric.symbolName), .text(" " + text)],
+                                            width: reservedWidth(for: metric, preset: preset)))
+                }
             case .battery:
                 if let charge = snapshot.power?.chargePercent {
                     let symbol = (snapshot.power?.isCharging ?? false) ? "battery.100.bolt" : metric.symbolName
@@ -412,6 +434,20 @@ enum MenuBarRenderer {
                                                  up: MetricFormat.bytesPerSecCompact(up),
                                                  style: style)])
                 }
+            case .diskUsage:
+                if let disk = primaryDisk(from: snapshot.disk) {
+                    groups.append([.metricBlock(label: "DSK",
+                                                value: percent(disk.usedFraction),
+                                                minimumValue: "100%",
+                                                style: style,
+                                                pressure: nil)])
+                }
+            case .diskActivity:
+                if let activity = diskActivity(from: snapshot.disk) {
+                    groups.append([.diskActivityBlock(read: MetricFormat.bytesPerSecCompact(activity.read),
+                                                      write: MetricFormat.bytesPerSecCompact(activity.write),
+                                                      style: style)])
+                }
             case .battery, .batteryTemperature:
                 if combineTemperatures {
                     guard !renderedBattery else { break }
@@ -507,6 +543,10 @@ enum MenuBarRenderer {
             return 11      // symbol + " CPU 999°" / " GPU 999°" / " BAT 999°"
         case (_, .network):
             return 15      // down symbol + 1.0G + up symbol + 1.0G
+        case (_, .diskUsage):
+            return 11      // symbol + " DSK 100%"
+        case (_, .diskActivity):
+            return 15      // R1.0G + W1.0G
         case (_, .battery), (_, .power):
             return 11      // symbol + " BAT 100%" / " PWR 99W"
         }
@@ -564,6 +604,8 @@ enum MenuBarRenderer {
                                                     pressure: pressure))
             case let .networkBlock(down, up, style):
                 result.append(networkBlockAttachment(down: down, up: up, style: style))
+            case let .diskActivityBlock(read, write, style):
+                result.append(diskActivityBlockAttachment(read: read, write: write, style: style))
             case let .batteryBlock(percent, isCharging, style):
                 result.append(batteryBlockAttachment(percent: percent,
                                                      isCharging: isCharging,
@@ -614,6 +656,18 @@ enum MenuBarRenderer {
 
     private static func networkBlockAttachment(down: String, up: String, style: MenuBarBlockStyle) -> NSAttributedString {
         let image = networkBlockImage(down: down, up: up, style: style)
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        attachment.bounds = NSRect(x: 0, y: style == .readable ? -6.1 : -5.5,
+                                   width: image.size.width,
+                                   height: image.size.height)
+        return NSAttributedString(attachment: attachment)
+    }
+
+    private static func diskActivityBlockAttachment(read: String,
+                                                    write: String,
+                                                    style: MenuBarBlockStyle) -> NSAttributedString {
+        let image = diskActivityBlockImage(read: read, write: write, style: style)
         let attachment = NSTextAttachment()
         attachment.image = image
         attachment.bounds = NSRect(x: 0, y: style == .readable ? -6.1 : -5.5,
@@ -689,13 +743,34 @@ enum MenuBarRenderer {
         let cacheKey = "network|\(down)|\(up)|\(style)" as NSString
         if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
 
+        return stackedRatesImage(lines: ["↓\(down)", "↑\(up)"],
+                                 reservedLines: ["↓000B", "↑000B"],
+                                 cacheKey: cacheKey,
+                                 style: style)
+    }
+
+    private static func diskActivityBlockImage(read: String,
+                                               write: String,
+                                               style: MenuBarBlockStyle) -> NSImage {
+        let cacheKey = "diskActivity|\(read)|\(write)|\(style)" as NSString
+        if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
+
+        return stackedRatesImage(lines: ["R\(read)", "W\(write)"],
+                                 reservedLines: ["R000B", "W000B"],
+                                 cacheKey: cacheKey,
+                                 style: style)
+    }
+
+    private static func stackedRatesImage(lines: [String],
+                                          reservedLines: [String],
+                                          cacheKey: NSString,
+                                          style: MenuBarBlockStyle) -> NSImage {
         let font = NSFont.monospacedSystemFont(ofSize: networkBlockFontSize(style: style),
                                                weight: .semibold)
         let sizingAttrs: [NSAttributedString.Key: Any] = [.font: font]
-        let lines = ["↓\(down)", "↑\(up)"]
         let lineHeight = networkBlockLineHeight(style: style)
-        let reservedLines = lines + ["↓000B", "↑000B"]
-        let width = (reservedLines.map { ($0 as NSString).size(withAttributes: sizingAttrs).width }.max() ?? 22)
+        let widthCandidates = lines + reservedLines
+        let width = (widthCandidates.map { ($0 as NSString).size(withAttributes: sizingAttrs).width }.max() ?? 22)
             + (style == .readable ? 1.5 : 1.0)
         let height: CGFloat = style == .readable ? 22 : 20
         let imageSize = NSSize(width: ceil(width), height: height)
@@ -788,12 +863,45 @@ enum MenuBarRenderer {
         snapshot.batteryTemperature = 125
         snapshot.netDownBytesPerSec = 1_000_000_000
         snapshot.netUpBytesPerSec = 1_000_000_000
+        snapshot.disk = DiskReading(devices: [
+            DiskDeviceReading(id: "main",
+                              name: "Macintosh HD",
+                              mountPath: "/",
+                              bsdName: "disk3s1",
+                              wholeDisk: "disk3",
+                              ioCounterID: "disk3",
+                              totalBytes: 1_000_000_000_000,
+                              freeBytes: 0,
+                              usedBytes: 1_000_000_000_000,
+                              isInternal: true,
+                              isRemovable: false,
+                              isEjectable: false,
+                              smart: nil,
+                              readBytesPerSec: 1_000_000_000,
+                              writeBytesPerSec: 1_000_000_000,
+                              totalReadBytes: nil,
+                              totalWrittenBytes: nil),
+        ])
         var power = PowerReading()
         power.systemWatts = 99
         power.chargePercent = 100
         power.isCharging = true
         snapshot.power = power
         return snapshot
+    }
+
+    private static func primaryDisk(from reading: DiskReading?) -> DiskDeviceReading? {
+        guard let devices = reading?.devices, !devices.isEmpty else { return nil }
+        return devices.first(where: { $0.isInternal }) ?? devices.first
+    }
+
+    private static func diskActivity(from reading: DiskReading?) -> (read: Double, write: Double)? {
+        let devices = reading?.uniqueIODevices ?? []
+        guard !devices.isEmpty else { return nil }
+        let readValues = devices.compactMap(\.readBytesPerSec)
+        let writeValues = devices.compactMap(\.writeBytesPerSec)
+        guard !readValues.isEmpty || !writeValues.isEmpty else { return nil }
+        return (readValues.reduce(0, +), writeValues.reduce(0, +))
     }
 
     static func nsColor(for pressure: MemoryPressure) -> NSColor {

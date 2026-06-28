@@ -384,6 +384,7 @@ struct SwitcherSettings: View {
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var dockPreview = DockPreviewService.shared
     @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
+    @AppStorage(DefaultsKey.switcherIconRowMode) private var switcherIconRowMode = false
     @AppStorage(DefaultsKey.switcherMergeTabs) private var switcherMergeTabs = false
     @AppStorage(DefaultsKey.switcherShowWindowlessFinder) private var switcherShowWindowlessFinder = true
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
@@ -404,6 +405,15 @@ struct SwitcherSettings: View {
                 }
                 Text(String(format: l10n.s.switcherUsageHintFormat,
                             GlobalShortcutRole.switcher.savedShortcut.displayString))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Toggle(l10n.s.switcherIconRowMode, isOn: $switcherIconRowMode)
+                    .disabled(!switcherEnabled)
+                    .onChange(of: switcherIconRowMode) { _, _ in
+                        AppSwitcher.shared.syncWithPreferences()
+                    }
+                Text(l10n.s.switcherIconRowModeCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -602,6 +612,11 @@ struct ReleaseNotesSettings: View {
     @ViewBuilder
     private func releaseItem(_ item: ReleaseNoteItem, sectionTitle: String) -> some View {
         switch item {
+        case let .paragraph(text):
+            Text(text)
+                .font(.system(size: 12.8))
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
         case let .bullet(text):
             HStack(alignment: .top, spacing: 9) {
                 Image(systemName: iconName(for: sectionTitle))

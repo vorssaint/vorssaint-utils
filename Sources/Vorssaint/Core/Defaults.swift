@@ -13,6 +13,8 @@ enum DefaultsKey {
     static let lastUpdateIntroVersion = "lastUpdateIntroVersion"
     static let dockPreviewIntroVersion = "dockPreviewIntroVersion"
     static let supportUpdateIntroVersion = "supportUpdateIntroVersion"
+    static let updateShowcaseIntroVersion = "updateShowcaseIntroVersion"
+    static let updateShowcaseMediaOverride = "updateShowcaseMediaOverride"
     static let defaultDuration = "defaultDurationMinutes" // 0 = indefinite
     static let batteryLimit = "batteryLimitPercent"       // 0 = never
     static let keepAwakeAutoStart = "keepAwakeAutoStart"  // start Keep Awake when the app launches
@@ -27,6 +29,7 @@ enum DefaultsKey {
     static let scrollInverterEnabled = "scrollInverterEnabled"
     static let switcherEnabled = "switcherEnabled"
     static let switcherShortcut = "switcherShortcut"      // GlobalShortcut storage value
+    static let switcherIconRowMode = "switcherIconRowMode"
     static let switcherMergeTabs = "switcherMergeTabs"     // show one switcher entry per app (collapse all of an app's windows)
     static let switcherShowWindowlessFinder = "switcherShowWindowlessFinder"
     static let dockPreviewEnabled = "dockPreviewEnabled"
@@ -77,6 +80,8 @@ enum DefaultsKey {
     static let menuBarBatteryTemperature = "menuBarBatteryTemperature"
     static let menuBarTemperature = "menuBarTemperature" // legacy Developer key for the old generic temperature metric
     static let menuBarNetwork = "menuBarNetwork"
+    static let menuBarDiskUsage = "menuBarDiskUsage"
+    static let menuBarDiskActivity = "menuBarDiskActivity"
     static let menuBarBattery = "menuBarBattery"
     static let menuBarPower = "menuBarPower"
     static let menuBarPreset = "menuBarPreset"           // dense
@@ -265,7 +270,7 @@ enum Defaults {
         "gpu", "gpuTemperature",
         "memory",
         "battery", "batteryTemperature",
-        "network", "power",
+        "network", "diskUsage", "diskActivity", "power",
     ]
     static let allowedMenuBarLabelStyles = ["compact", "classic"]
     static let allowedMenuBarMemoryStyles = ["dot", "percent", "both"]
@@ -287,12 +292,15 @@ enum Defaults {
         DefaultsKey.scrollInverterEnabled: false,
         DefaultsKey.switcherEnabled: true,
         DefaultsKey.switcherShortcut: "command:48",
+        DefaultsKey.switcherIconRowMode: false,
         DefaultsKey.switcherMergeTabs: false,
         DefaultsKey.switcherShowWindowlessFinder: true,
         DefaultsKey.dockPreviewEnabled: false,
         DefaultsKey.previewSize: "normal",
         DefaultsKey.autoCheckUpdates: true,
         DefaultsKey.releaseNotesOnUpdate: true,
+        DefaultsKey.updateShowcaseIntroVersion: "",
+        DefaultsKey.updateShowcaseMediaOverride: "",
         DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect: false,
         DefaultsKey.soundOutputSwitcherEnabled: false,
         DefaultsKey.soundOutputSwitcherShortcut: GlobalShortcut.soundOutputSwitcherDefault.storageValue,
@@ -330,6 +338,8 @@ enum Defaults {
         DefaultsKey.menuBarCPUTemperature: false,
         DefaultsKey.menuBarGPUTemperature: false,
         DefaultsKey.menuBarBatteryTemperature: false,
+        DefaultsKey.menuBarDiskUsage: false,
+        DefaultsKey.menuBarDiskActivity: false,
         DefaultsKey.menuBarPreset: "dense",
         DefaultsKey.menuBarMetricOrder: defaultMenuBarMetricOrder.joined(separator: ","),
         DefaultsKey.menuBarCombineTemperatures: true,

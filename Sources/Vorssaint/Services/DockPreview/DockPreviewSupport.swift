@@ -58,6 +58,11 @@ struct DockPreviewCloseState: Equatable {
     let shouldEndSession: Bool
 }
 
+struct DockPreviewMouseDownDecision: Equatable {
+    let shouldEndSession: Bool
+    let restoreOrigin: Bool
+}
+
 /// A thin keep-alive region connecting a Dock icon to its preview panel.
 ///
 /// Intentionally *not* the padded union of the icon and panel: a union spans the
@@ -95,6 +100,7 @@ enum DockPreviewSupport {
     static var cardHeight: CGFloat { 142 * PreviewSizing.scale }
     static let cardSpacing: CGFloat = 8
     static let panelPadding: CGFloat = 12
+    static let panelHeaderHeight: CGFloat = 28
 
     /// How far in from the Dock's screen edge the cursor can be and still sit over
     /// a Dock item. Used to gate the per-mouse-move Accessibility hit-test to the
@@ -182,7 +188,51 @@ enum DockPreviewSupport {
         let availableCards = max(1, Int((maxWidth - padding * 2 + spacing) / (cardWidth + spacing)))
         let visibleCards = min(count, availableCards)
         let width = CGFloat(visibleCards) * cardWidth + CGFloat(max(0, visibleCards - 1)) * spacing + padding * 2
-        return CGSize(width: min(width, maxWidth), height: cardHeight + padding * 2)
+        return CGSize(width: min(width, maxWidth), height: cardHeight + padding * 2 + panelHeaderHeight)
+    }
+
+    static func windowPositionText(selectedWindowID: CGWindowID?, windowIDs: [CGWindowID]) -> String? {
+        guard windowIDs.count > 1 else { return nil }
+        guard let selectedWindowID,
+              let index = windowIDs.firstIndex(of: selectedWindowID) else {
+            return "\(windowIDs.count)"
+        }
+        return "\(index + 1)/\(windowIDs.count)"
+    }
+
+    static func adjacentWindowID(selectedWindowID: CGWindowID?,
+                                 windowIDs: [CGWindowID],
+                                 offset: Int) -> CGWindowID? {
+        guard !windowIDs.isEmpty else { return nil }
+        guard windowIDs.count > 1 else { return windowIDs.first }
+
+        let currentIndex: Int
+        if let selectedWindowID,
+           let index = windowIDs.firstIndex(of: selectedWindowID) {
+            currentIndex = index
+        } else {
+            currentIndex = offset < 0 ? 0 : -1
+        }
+        let nextIndex = (currentIndex + offset + windowIDs.count) % windowIDs.count
+        return windowIDs[nextIndex]
+    }
+
+    static func mouseDownDecision(isVisible: Bool,
+                                  isPinned: Bool,
+                                  isInsidePanel: Bool,
+                                  clickedDock: Bool) -> DockPreviewMouseDownDecision {
+        guard isVisible, !isPinned, !isInsidePanel else {
+            return DockPreviewMouseDownDecision(shouldEndSession: false, restoreOrigin: false)
+        }
+        return DockPreviewMouseDownDecision(shouldEndSession: true, restoreOrigin: !clickedDock)
+    }
+
+    static func shouldRestoreOriginAfterMinimize(originPID: pid_t?,
+                                                 originWindowID: CGWindowID?,
+                                                 targetPID: pid_t,
+                                                 targetWindowID: CGWindowID) -> Bool {
+        guard let originPID else { return false }
+        return originPID != targetPID || originWindowID != targetWindowID
     }
 
     /// The keep-alive corridor for a session: the icon and panel (each with a

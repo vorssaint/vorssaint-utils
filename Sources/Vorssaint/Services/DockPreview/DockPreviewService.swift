@@ -21,6 +21,7 @@ final class DockPreviewService: ObservableObject {
     @Published private(set) var previews: [CGWindowID: CGImage] = [:]
     @Published private(set) var selectedWindowID: CGWindowID?
     @Published private(set) var currentAppName: String?
+    @Published private(set) var isPinned = false
 
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -53,6 +54,9 @@ final class DockPreviewService: ObservableObject {
     private var desiredPeek: SwitcherItem?
     private var touchedWindows: [CGWindowID: TouchedWindow] = [:]
     private var touchedApps: [pid_t: Bool] = [:]
+    private var pendingMinimizeConfirmations: [CGWindowID: UUID] = [:]
+    private var pinnedPanels: [UUID: DockPreviewPinnedPanel] = [:]
+    private var pinnedPanelWindows: [UUID: NSPanel] = [:]
     private var dockPIDCache: pid_t?
     private var cachedPreferences: DockPreviewPreferences?
 
@@ -85,6 +89,7 @@ final class DockPreviewService: ObservableObject {
         guard availability.canRun else {
             stopTap()
             endSession(restore: true)
+            closeAllPinnedPanels()
             isRunning = false
             return
         }
@@ -93,6 +98,7 @@ final class DockPreviewService: ObservableObject {
             blockedReason = .dockUnavailable
             stopTap()
             endSession(restore: true)
+            closeAllPinnedPanels()
             isRunning = false
             return
         }
@@ -104,6 +110,7 @@ final class DockPreviewService: ObservableObject {
         stopSettingsTimer()
         stopTap()
         endSession(restore: true)
+        closeAllPinnedPanels()
         isRunning = false
         blockedReason = nil
     }
@@ -164,6 +171,11 @@ final class DockPreviewService: ObservableObject {
         WindowActivator.activate(item)
     }
 
+    func closePreviewPanel() {
+        guard isVisible else { return }
+        endSession(restore: true)
+    }
+
     func close(_ item: SwitcherItem) {
         guard isVisible,
               windows.contains(item),
@@ -182,6 +194,57 @@ final class DockPreviewService: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
             self?.finishClosing(item, windowID: windowID, attempt: 0)
         }
+    }
+
+    func toggleMinimized(_ item: SwitcherItem) {
+        guard isVisible,
+              windows.contains(item),
+              let windowID = item.windowID,
+              !item.isFullscreen
+        else { return }
+
+        let shouldMinimize = !item.isMinimized
+        let restoreOriginAfterMinimize = DockPreviewSupport.shouldRestoreOriginAfterMinimize(
+            originPID: sessionOrigin?.pid,
+            originWindowID: sessionOrigin?.windowID,
+            targetPID: item.pid,
+            targetWindowID: windowID
+        )
+        guard WindowActivator.setWindowMinimized(shouldMinimize, windowID: windowID, pid: item.pid) else { return }
+        if shouldMinimize && !restoreOriginAfterMinimize {
+            sessionOrigin = nil
+        }
+        touchedWindows[windowID] = TouchedWindow(pid: item.pid, wasMinimized: false)
+        scheduleMinimizeConfirmation(windowID: windowID,
+                                     pid: item.pid,
+                                     minimized: shouldMinimize,
+                                     restoreOriginAfterMinimize: restoreOriginAfterMinimize,
+                                     attempt: 0)
+    }
+
+    func togglePinned() {
+        guard isVisible, let panel, !windows.isEmpty else { return }
+        createPinnedPanel(from: panel.frame)
+        endSession(restore: true)
+    }
+
+    func selectPreviousWindow() {
+        selectAdjacentWindow(offset: -1)
+    }
+
+    func selectNextWindow() {
+        selectAdjacentWindow(offset: 1)
+    }
+
+    private func selectAdjacentWindow(offset: Int) {
+        guard isVisible, windows.count > 1 else { return }
+        let ids = windows.compactMap(\.windowID)
+        guard let nextWindowID = DockPreviewSupport.adjacentWindowID(selectedWindowID: selectedWindowID,
+                                                                     windowIDs: ids,
+                                                                     offset: offset),
+              let next = windows.first(where: { $0.windowID == nextWindowID })
+        else { return }
+        preview(next)
     }
 
     // MARK: - Event tap
@@ -265,6 +328,17 @@ final class DockPreviewService: ObservableObject {
         lastAppKitMousePoint = point
 
         if isVisible {
+            if isPinned {
+                switch currentZone(point: point, axPoint: axPoint) {
+                case .panel:
+                    hasEnteredPanel = true
+                case .openingPath, .ownIcon, .otherIcon, .outside:
+                    break
+                }
+                cancelPendingHide()
+                cancelPendingHover()
+                return
+            }
             switch currentZone(point: point, axPoint: axPoint) {
             case .panel:
                 hasEnteredPanel = true
@@ -356,17 +430,30 @@ final class DockPreviewService: ObservableObject {
         }
 
         let point = appKitPoint(fromAX: axPoint)
-        // Card clicks are committed by the panel's own tap gesture.
-        if activePanelFrame?.contains(point) == true {
+        let isInsidePanel = activePanelFrame?.contains(point) == true
+        let initialDecision = DockPreviewSupport.mouseDownDecision(isVisible: isVisible,
+                                                                   isPinned: isPinned,
+                                                                   isInsidePanel: isInsidePanel,
+                                                                   clickedDock: false)
+        if !initialDecision.shouldEndSession {
+            cancelPendingHide()
+            cancelPendingHover()
             return
         }
         // A click on the Dock (this app's icon or any other) hands activation to
         // the Dock itself, so don't fight it by restoring the previous window.
         let clickedDock = dockHit(at: axPoint) != nil
-        endSession(restore: !clickedDock)
+        let decision = DockPreviewSupport.mouseDownDecision(isVisible: isVisible,
+                                                            isPinned: false,
+                                                            isInsidePanel: false,
+                                                            clickedDock: clickedDock)
+        if decision.shouldEndSession {
+            endSession(restore: decision.restoreOrigin)
+        }
     }
 
     private func scheduleHideIfStillOutside() {
+        guard !isPinned else { return }
         guard pendingHide == nil else { return }
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
@@ -427,6 +514,7 @@ final class DockPreviewService: ObservableObject {
     }
 
     private func beginSession(_ hit: DockHit) {
+        guard !(isPinned && isVisible) else { return }
         cancelPendingHover()
         cancelPendingHide()
 
@@ -456,6 +544,7 @@ final class DockPreviewService: ObservableObject {
         }
 
         currentSessionPID = hit.app.processIdentifier
+        isPinned = false
         hasEnteredPanel = false
         currentAppName = hit.app.localizedName ?? hit.app.bundleIdentifier ?? ""
         windows = list
@@ -482,6 +571,7 @@ final class DockPreviewService: ObservableObject {
         WindowPreviewProvider.shared.cancel()
         tearDownVisuals(restore: restore, retryRestore: restore)
         sessionOrigin = nil
+        isPinned = false
         panel?.orderOut(nil)
     }
 
@@ -494,6 +584,7 @@ final class DockPreviewService: ObservableObject {
     /// would land after the new app's first peek and snatch focus back.
     private func tearDownVisuals(restore: Bool, retryRestore: Bool) {
         cancelPendingPeekReconcile()
+        cancelPendingMinimizeConfirmations()
 
         let origin = sessionOrigin
         let touchedWindows = self.touchedWindows
@@ -504,6 +595,7 @@ final class DockPreviewService: ObservableObject {
         selectedWindowID = nil
         currentAppName = nil
         currentSessionPID = nil
+        isPinned = false
         activePanelFrame = nil
         activeCorridor = nil
         activeIconFrame = nil
@@ -538,6 +630,90 @@ final class DockPreviewService: ObservableObject {
     private func cancelPendingPeekReconcile() {
         pendingPeekReconcile?.cancel()
         pendingPeekReconcile = nil
+    }
+
+    private func cancelPendingMinimizeConfirmations() {
+        pendingMinimizeConfirmations.removeAll()
+    }
+
+    private func scheduleMinimizeConfirmation(windowID: CGWindowID,
+                                              pid: pid_t,
+                                              minimized: Bool,
+                                              restoreOriginAfterMinimize: Bool,
+                                              attempt: Int) {
+        let token = pendingMinimizeConfirmations[windowID] ?? UUID()
+        pendingMinimizeConfirmations[windowID] = token
+        let delay = DockPreviewMinimizeConfirmation.delay(for: attempt)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            self?.confirmMinimizedState(windowID: windowID,
+                                        pid: pid,
+                                        minimized: minimized,
+                                        restoreOriginAfterMinimize: restoreOriginAfterMinimize,
+                                        attempt: attempt,
+                                        token: token)
+        }
+    }
+
+    private func confirmMinimizedState(windowID: CGWindowID,
+                                       pid: pid_t,
+                                       minimized: Bool,
+                                       restoreOriginAfterMinimize: Bool,
+                                       attempt: Int,
+                                       token: UUID) {
+        guard isVisible,
+              pendingMinimizeConfirmations[windowID] == token,
+              windows.contains(where: { $0.windowID == windowID })
+        else { return }
+
+        let isMinimized = WindowActivator.windowIsMinimized(windowID: windowID, pid: pid)
+        if isMinimized == minimized {
+            pendingMinimizeConfirmations.removeValue(forKey: windowID)
+            applyMinimizedState(windowID: windowID,
+                                minimized: minimized,
+                                restoreOriginAfterMinimize: restoreOriginAfterMinimize)
+            return
+        }
+
+        guard attempt + 1 < DockPreviewMinimizeConfirmation.delays.count else {
+            pendingMinimizeConfirmations.removeValue(forKey: windowID)
+            applyMinimizedState(windowID: windowID,
+                                minimized: isMinimized,
+                                restoreOriginAfterMinimize: false)
+            return
+        }
+
+        _ = WindowActivator.setWindowMinimized(minimized, windowID: windowID, pid: pid)
+        scheduleMinimizeConfirmation(windowID: windowID,
+                                     pid: pid,
+                                     minimized: minimized,
+                                     restoreOriginAfterMinimize: restoreOriginAfterMinimize,
+                                     attempt: attempt + 1)
+    }
+
+    private func applyMinimizedState(windowID: CGWindowID,
+                                     minimized: Bool,
+                                     restoreOriginAfterMinimize: Bool) {
+        windows = windows.map { candidate in
+            candidate.windowID == windowID ? candidate.withMinimized(minimized) : candidate
+        }
+
+        if minimized {
+            cancelPendingPeekReconcile()
+            if desiredPeek?.windowID == windowID {
+                desiredPeek = nil
+            }
+            if selectedWindowID == windowID {
+                selectedWindowID = nil
+            }
+            if activePeekWindowID == windowID {
+                activePeekWindowID = nil
+                if restoreOriginAfterMinimize {
+                    restoreOrigin(retry: false)
+                }
+            }
+        } else {
+            selectedWindowID = windowID
+        }
     }
 
     private func restoreOrigin(retry: Bool) {
@@ -666,6 +842,24 @@ final class DockPreviewService: ObservableObject {
         panel.contentViewController?.view.layoutSubtreeIfNeeded()
     }
 
+    private func clampedPanelFrame(_ frame: CGRect) -> CGRect {
+        let visibleFrame = screen(containing: frame).visibleFrame
+        let padding = DockPreviewSupport.edgePadding
+        let minX = visibleFrame.minX + padding
+        let maxX = visibleFrame.maxX - frame.width - padding
+        let minY = visibleFrame.minY + padding
+        let maxY = visibleFrame.maxY - frame.height - padding
+
+        func clamped(_ value: CGFloat, lower: CGFloat, upper: CGFloat) -> CGFloat {
+            min(max(value, lower), max(lower, upper))
+        }
+
+        return CGRect(x: clamped(frame.minX, lower: minX, upper: maxX),
+                      y: clamped(frame.minY, lower: minY, upper: maxY),
+                      width: frame.width,
+                      height: frame.height)
+    }
+
     private func ensurePanel() -> NSPanel {
         if let panel { return panel }
 
@@ -677,6 +871,7 @@ final class DockPreviewService: ObservableObject {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
+        panel.isMovable = true
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.acceptsMouseMovedEvents = true
@@ -684,6 +879,61 @@ final class DockPreviewService: ObservableObject {
         panel.contentViewController = NSHostingController(rootView: DockPreviewPanelView(service: self))
         self.panel = panel
         return panel
+    }
+
+    private func createPinnedPanel(from sourceFrame: CGRect) {
+        let pinned = DockPreviewPinnedPanel(
+            appPID: windows[0].pid,
+            windows: windows,
+            previews: previews,
+            selectedWindowID: selectedWindowID,
+            currentAppName: currentAppName,
+            onClose: { [weak self] id in
+                self?.closePinnedPanel(id)
+            }
+        )
+        let panel = makePinnedPanel(for: pinned)
+        pinned.panel = panel
+        let frame = clampedPanelFrame(sourceFrame)
+
+        pinnedPanels[pinned.id] = pinned
+        pinnedPanelWindows[pinned.id] = panel
+
+        panel.setFrame(frame, display: true, animate: false)
+        panel.contentViewController?.view.layoutSubtreeIfNeeded()
+        panel.orderFrontRegardless()
+    }
+
+    private func makePinnedPanel(for pinned: DockPreviewPinnedPanel) -> NSPanel {
+        let panel = NSPanel(contentRect: .zero,
+                            styleMask: [.borderless, .nonactivatingPanel],
+                            backing: .buffered,
+                            defer: false)
+        panel.level = .statusBar
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.isMovable = true
+        panel.hidesOnDeactivate = false
+        panel.isReleasedWhenClosed = false
+        panel.acceptsMouseMovedEvents = true
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        panel.contentViewController = NSHostingController(rootView: DockPreviewPinnedPanelView(panel: pinned))
+        return panel
+    }
+
+    private func closePinnedPanel(_ id: UUID) {
+        if let panel = pinnedPanelWindows.removeValue(forKey: id) {
+            panel.orderOut(nil)
+            panel.contentViewController = nil
+        }
+        pinnedPanels.removeValue(forKey: id)
+    }
+
+    private func closeAllPinnedPanels() {
+        for id in Array(pinnedPanelWindows.keys) {
+            closePinnedPanel(id)
+        }
     }
 
     private func screen(containing rect: CGRect) -> NSScreen {
@@ -961,8 +1211,291 @@ private struct TouchedWindow {
     let wasMinimized: Bool
 }
 
+private enum DockPreviewMinimizeConfirmation {
+    static let delays: [TimeInterval] = [0.04, 0.12, 0.28, 0.55]
+
+    static func delay(for attempt: Int) -> TimeInterval {
+        delays[min(max(0, attempt), delays.count - 1)]
+    }
+}
+
 private extension CGRect {
     var center: CGPoint {
         CGPoint(x: midX, y: midY)
+    }
+}
+
+final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
+    private static let refreshInterval: TimeInterval = 0.75
+    private static let maximumWindowCount = 12
+
+    let id = UUID()
+    @Published private(set) var windows: [SwitcherItem]
+    @Published private(set) var previews: [CGWindowID: CGImage]
+    @Published private(set) var selectedWindowID: CGWindowID?
+    let currentAppName: String?
+
+    weak var panel: NSPanel?
+
+    private let appPID: pid_t
+    private let onClose: (UUID) -> Void
+    private let previewProvider = WindowPreviewProvider()
+    private var refreshTimer: Timer?
+    private var pendingMinimizeConfirmations: [CGWindowID: UUID] = [:]
+
+    init(appPID: pid_t,
+         windows: [SwitcherItem],
+         previews: [CGWindowID: CGImage],
+         selectedWindowID: CGWindowID?,
+         currentAppName: String?,
+         onClose: @escaping (UUID) -> Void) {
+        self.appPID = appPID
+        self.windows = windows
+        self.previews = previews
+        self.selectedWindowID = selectedWindowID
+        self.currentAppName = currentAppName
+        self.onClose = onClose
+        startRefreshTimer()
+    }
+
+    deinit {
+        refreshTimer?.invalidate()
+        pendingMinimizeConfirmations.removeAll()
+        previewProvider.cancel()
+    }
+
+    func preview(_ item: SwitcherItem) {
+        guard windows.contains(item) else { return }
+        selectedWindowID = item.windowID
+    }
+
+    func endPreview(_ item: SwitcherItem) {
+        guard selectedWindowID == item.windowID else { return }
+    }
+
+    func commit(_ item: SwitcherItem) {
+        guard windows.contains(item) else { return }
+        selectedWindowID = item.windowID
+        WindowActivator.activate(item)
+    }
+
+    func close(_ item: SwitcherItem) {
+        guard windows.contains(item),
+              let windowID = item.windowID,
+              WindowActivator.closeWindow(windowID: windowID, pid: item.pid)
+        else { return }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
+            self?.finishClosing(item, windowID: windowID, attempt: 0)
+        }
+    }
+
+    func toggleMinimized(_ item: SwitcherItem) {
+        guard windows.contains(item),
+              let windowID = item.windowID,
+              !item.isFullscreen
+        else { return }
+
+        let shouldMinimize = !item.isMinimized
+        guard WindowActivator.setWindowMinimized(shouldMinimize, windowID: windowID, pid: item.pid) else { return }
+        scheduleMinimizeConfirmation(windowID: windowID,
+                                     pid: item.pid,
+                                     minimized: shouldMinimize,
+                                     attempt: 0)
+    }
+
+    func closePreviewPanel() {
+        refreshTimer?.invalidate()
+        pendingMinimizeConfirmations.removeAll()
+        previewProvider.cancel()
+        onClose(id)
+    }
+
+    func selectPreviousWindow() {
+        selectAdjacentWindow(offset: -1)
+    }
+
+    func selectNextWindow() {
+        selectAdjacentWindow(offset: 1)
+    }
+
+    private func selectAdjacentWindow(offset: Int) {
+        let ids = windows.compactMap(\.windowID)
+        guard let nextWindowID = DockPreviewSupport.adjacentWindowID(selectedWindowID: selectedWindowID,
+                                                                     windowIDs: ids,
+                                                                     offset: offset)
+        else { return }
+        selectedWindowID = nextWindowID
+    }
+
+    private func scheduleMinimizeConfirmation(windowID: CGWindowID,
+                                              pid: pid_t,
+                                              minimized: Bool,
+                                              attempt: Int) {
+        let token = pendingMinimizeConfirmations[windowID] ?? UUID()
+        pendingMinimizeConfirmations[windowID] = token
+        let delay = DockPreviewMinimizeConfirmation.delay(for: attempt)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            self?.confirmMinimizedState(windowID: windowID,
+                                        pid: pid,
+                                        minimized: minimized,
+                                        attempt: attempt,
+                                        token: token)
+        }
+    }
+
+    private func confirmMinimizedState(windowID: CGWindowID,
+                                       pid: pid_t,
+                                       minimized: Bool,
+                                       attempt: Int,
+                                       token: UUID) {
+        guard pendingMinimizeConfirmations[windowID] == token,
+              windows.contains(where: { $0.windowID == windowID })
+        else { return }
+
+        let isMinimized = WindowActivator.windowIsMinimized(windowID: windowID, pid: pid)
+        if isMinimized == minimized {
+            pendingMinimizeConfirmations.removeValue(forKey: windowID)
+            applyMinimizedState(windowID: windowID, minimized: minimized)
+            return
+        }
+
+        guard attempt + 1 < DockPreviewMinimizeConfirmation.delays.count else {
+            pendingMinimizeConfirmations.removeValue(forKey: windowID)
+            applyMinimizedState(windowID: windowID, minimized: isMinimized)
+            return
+        }
+
+        _ = WindowActivator.setWindowMinimized(minimized, windowID: windowID, pid: pid)
+        scheduleMinimizeConfirmation(windowID: windowID,
+                                     pid: pid,
+                                     minimized: minimized,
+                                     attempt: attempt + 1)
+    }
+
+    private func applyMinimizedState(windowID: CGWindowID, minimized: Bool) {
+        windows = windows.map { candidate in
+            candidate.windowID == windowID ? candidate.withMinimized(minimized) : candidate
+        }
+        selectedWindowID = minimized ? nil : windowID
+    }
+
+    private func startRefreshTimer() {
+        let timer = Timer(timeInterval: Self.refreshInterval, repeats: true) { [weak self] _ in
+            self?.refreshWindows()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        refreshTimer = timer
+    }
+
+    private func refreshWindows() {
+        let previousIDs = windows.compactMap(\.windowID)
+        let refreshed = WindowEnumerator.listWindows(for: appPID, maximumCount: Self.maximumWindowCount)
+            .filter { $0.windowID != nil }
+        guard !refreshed.isEmpty else {
+            closePreviewPanel()
+            return
+        }
+
+        let refreshedIDs = refreshed.compactMap(\.windowID)
+        let windowIDsChanged = refreshedIDs != previousIDs
+        let windowsChanged = refreshed != windows
+        let missingPreview = refreshed.contains { item in
+            guard let windowID = item.previewWindowID else { return false }
+            return previews[windowID] == nil
+        }
+        guard windowIDsChanged || windowsChanged || missingPreview else { return }
+
+        windows = refreshed
+        previews = previews.filter { refreshedIDs.contains($0.key) }
+        for item in refreshed {
+            guard let windowID = item.previewWindowID,
+                  previews[windowID] == nil,
+                  let cached = WindowPreviewProvider.shared.cachedPreview(for: windowID)
+            else { continue }
+            previews[windowID] = cached
+        }
+
+        if let selectedWindowID, !refreshedIDs.contains(selectedWindowID) {
+            self.selectedWindowID = refreshedIDs.first
+        } else if selectedWindowID == nil {
+            selectedWindowID = refreshedIDs.first
+        }
+
+        if windowIDsChanged {
+            resizePanel()
+        }
+        refreshMissingPreviews(for: refreshed,
+                               windowIDsChanged: windowIDsChanged,
+                               missingPreview: missingPreview)
+    }
+
+    private func refreshMissingPreviews(for items: [SwitcherItem],
+                                        windowIDsChanged: Bool,
+                                        missingPreview: Bool) {
+        guard windowIDsChanged || missingPreview else { return }
+
+        previewProvider.refreshPreviews(for: items, maxPixelSize: 420 * PreviewSizing.scale) { [weak self] windowID, image in
+            guard let self, self.windows.contains(where: { $0.previewWindowID == windowID }) else { return }
+            self.previews[windowID] = image
+        }
+    }
+
+    private func finishClosing(_ item: SwitcherItem, windowID: CGWindowID, attempt: Int) {
+        guard windows.contains(where: { $0.windowID == windowID }) else { return }
+
+        let refreshed = WindowEnumerator.listWindows(for: item.pid, maximumCount: 12)
+        guard !refreshed.contains(where: { $0.windowID == windowID }) else {
+            guard attempt < 2 else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+                self?.finishClosing(item, windowID: windowID, attempt: attempt + 1)
+            }
+            return
+        }
+
+        windows.removeAll { $0.windowID == windowID }
+        previews.removeValue(forKey: windowID)
+        if selectedWindowID == windowID {
+            selectedWindowID = windows.first?.windowID
+        }
+        if windows.isEmpty {
+            closePreviewPanel()
+        } else {
+            resizePanel()
+        }
+    }
+
+    private func resizePanel() {
+        guard let panel else { return }
+        let size = DockPreviewSupport.panelSize(itemCount: windows.count,
+                                                screenVisibleFrame: screen(containing: panel.frame).visibleFrame)
+        var frame = panel.frame
+        frame.size = size
+        panel.setFrame(clampedPanelFrame(frame), display: true, animate: true)
+        panel.contentViewController?.view.layoutSubtreeIfNeeded()
+    }
+
+    private func clampedPanelFrame(_ frame: CGRect) -> CGRect {
+        let visibleFrame = screen(containing: frame).visibleFrame
+        let padding = DockPreviewSupport.edgePadding
+        let minX = visibleFrame.minX + padding
+        let maxX = visibleFrame.maxX - frame.width - padding
+        let minY = visibleFrame.minY + padding
+        let maxY = visibleFrame.maxY - frame.height - padding
+
+        func clamped(_ value: CGFloat, lower: CGFloat, upper: CGFloat) -> CGFloat {
+            min(max(value, lower), max(lower, upper))
+        }
+
+        return CGRect(x: clamped(frame.minX, lower: minX, upper: maxX),
+                      y: clamped(frame.minY, lower: minY, upper: maxY),
+                      width: frame.width,
+                      height: frame.height)
+    }
+
+    private func screen(containing rect: CGRect) -> NSScreen {
+        let point = rect.center
+        return NSScreen.screens.first { $0.frame.contains(point) }
+            ?? NSScreen.withMouse
     }
 }

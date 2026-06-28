@@ -219,21 +219,10 @@ struct SystemSection: View {
                         .padding(.leading, 38)
                 } else {
                     ForEach(breakdownRows) { row in
-                        HStack(spacing: 6) {
-                            Image(nsImage: ResponsibleProcess.icon(for: row.pid))
-                                .resizable()
-                                .frame(width: 14, height: 14)
-                            Text(row.name)
-                                .font(.system(size: 10.5))
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Spacer()
-                            Text(breakdownValue(row, for: kind))
-                                .font(.system(size: 10.5, weight: .medium))
-                                .monospacedDigit()
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.leading, 38)
+                        ProcessUsageRow(row: row,
+                                        value: breakdownValue(row, for: kind),
+                                        iconSize: 14,
+                                        leadingPadding: 38)
                     }
                 }
             }

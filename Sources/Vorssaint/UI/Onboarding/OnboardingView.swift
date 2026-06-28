@@ -293,6 +293,8 @@ private struct MenuBarSetupStep: View {
     @AppStorage(DefaultsKey.menuBarGPUTemperature) private var gpuTemperature = false
     @AppStorage(DefaultsKey.menuBarBatteryTemperature) private var batteryTemperature = false
     @AppStorage(DefaultsKey.menuBarNetwork) private var network = false
+    @AppStorage(DefaultsKey.menuBarDiskUsage) private var diskUsage = false
+    @AppStorage(DefaultsKey.menuBarDiskActivity) private var diskActivity = false
     @AppStorage(DefaultsKey.menuBarBattery) private var battery = false
     @AppStorage(DefaultsKey.menuBarPower) private var power = false
 
@@ -319,6 +321,10 @@ private struct MenuBarSetupStep: View {
                 toggle(l10n.s.monitorShowBatteryTemperature, $batteryTemperature)
                 Divider()
                 toggle(l10n.s.monitorShowNetwork, $network)
+                Divider()
+                toggle(l10n.s.monitorItemDiskUsage, $diskUsage)
+                Divider()
+                toggle(l10n.s.monitorItemDiskActivity, $diskActivity)
                 Divider()
                 toggle(l10n.s.batteryLabel, $battery)
                 Divider()

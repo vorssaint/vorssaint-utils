@@ -47,7 +47,7 @@ struct ClipboardQuickPanelView: View {
                 Text(text.shortcutHint)
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .lineLimit(3)
             }
             Spacer()
             Button {
@@ -73,16 +73,24 @@ struct ClipboardQuickPanelView: View {
         if filtered.isEmpty {
             emptyState(history.entries.isEmpty ? text.empty : text.noResults)
         } else {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    if history.quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        section(title: text.pinned, entries: history.pinnedEntries)
-                        section(title: text.recent, entries: history.recentEntries)
-                    } else {
-                        section(title: text.newestFirst, entries: filtered)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) {
+                        if history.quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            section(title: text.pinned, entries: history.pinnedEntries)
+                            section(title: text.recent, entries: history.recentEntries)
+                        } else {
+                            section(title: text.newestFirst, entries: filtered)
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .onChange(of: history.quickSelectionIndex) { _, _ in
+                    scrollSelectedEntry(with: proxy)
+                }
+                .onChange(of: history.quickQuery) { _, _ in
+                    scrollSelectedEntry(with: proxy)
+                }
             }
         }
     }
@@ -95,7 +103,10 @@ struct ClipboardQuickPanelView: View {
                     .foregroundStyle(.secondary)
                     .tracking(0.6)
                 ForEach(Array(entries.enumerated()), id: \.element.id) { _, entry in
-                    entryRow(entry, shortcutIndex: shortcutIndex(for: entry))
+                    entryRow(entry,
+                             shortcutIndex: shortcutIndex(for: entry),
+                             isSelected: history.selectedQuickEntryID == entry.id)
+                        .id(entry.id)
                 }
             }
         }
@@ -113,7 +124,9 @@ struct ClipboardQuickPanelView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func entryRow(_ entry: ClipboardHistoryEntry, shortcutIndex: Int?) -> some View {
+    private func entryRow(_ entry: ClipboardHistoryEntry,
+                          shortcutIndex: Int?,
+                          isSelected: Bool) -> some View {
         HStack(alignment: .top, spacing: 9) {
             if let shortcutIndex {
                 Text("⌘\(shortcutIndex + 1)")
@@ -138,6 +151,7 @@ struct ClipboardQuickPanelView: View {
                     .lineLimit(3)
                     .truncationMode(.tail)
                     .textSelection(.enabled)
+                    .help(entry.preview)
                 HStack(spacing: 7) {
                     Text(entry.copiedAt, style: .time)
                         .font(.system(size: 9.5))
@@ -186,7 +200,7 @@ struct ClipboardQuickPanelView: View {
                     .controlSize(.mini)
                     .help(text.delete)
                     Button {
-                        history.copyQuickEntry(entry)
+                        history.copyOnlyQuickEntry(entry)
                     } label: {
                         Image(systemName: "doc.on.doc")
                             .font(.system(size: 10, weight: .bold))
@@ -201,8 +215,13 @@ struct ClipboardQuickPanelView: View {
         .padding(9)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.primary.opacity(entry.isPinned ? 0.075 : 0.045))
+                .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.primary.opacity(entry.isPinned ? 0.075 : 0.045))
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(isSelected ? Color.accentColor.opacity(0.28) : Color.clear, lineWidth: 1)
+        )
+        .help(entry.preview)
     }
 
     private var footer: some View {
@@ -226,5 +245,12 @@ struct ClipboardQuickPanelView: View {
     private func shortcutIndex(for entry: ClipboardHistoryEntry) -> Int? {
         guard let index = filtered.firstIndex(where: { $0.id == entry.id }), index < 9 else { return nil }
         return index
+    }
+
+    private func scrollSelectedEntry(with proxy: ScrollViewProxy) {
+        guard let id = history.selectedQuickEntryID else { return }
+        withAnimation(.easeOut(duration: 0.12)) {
+            proxy.scrollTo(id, anchor: .center)
+        }
     }
 }

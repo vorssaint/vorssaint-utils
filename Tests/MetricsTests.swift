@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import CoreGraphics
+import Carbon.HIToolbox
 import Darwin
 import Foundation
 
@@ -109,6 +110,38 @@ struct MetricsTests {
         expect(smart?.powerOnHours == 12, "SMART reading includes power-on hours")
         expect(smart?.unsafeShutdowns == 13, "SMART reading includes unsafe shutdowns")
         expect(smart?.mediaErrors == 14, "SMART reading includes media errors")
+
+        // MARK: Clipboard history search
+
+        let clipboardCandidates = [
+            ClipboardHistorySearchCandidate(index: 0, text: "Deploy checklist final", isPinned: false),
+            ClipboardHistorySearchCandidate(index: 1, text: "Token cleanup note", isPinned: true),
+            ClipboardHistorySearchCandidate(index: 2, text: "Final database deploy plan", isPinned: false),
+            ClipboardHistorySearchCandidate(index: 3, text: "Reunião com João", isPinned: false),
+        ]
+        expect(ClipboardHistorySearch.matches("Reunião com João", query: "reuniao joao"),
+               "clipboard search ignores case and accents")
+        expect(ClipboardHistorySearch.rankedIndexes(candidates: clipboardCandidates,
+                                                    matching: "deploy final") == [0, 2],
+               "clipboard search matches multiple words in any order and ranks prefix matches first")
+        expect(ClipboardHistorySearch.rankedIndexes(candidates: clipboardCandidates,
+                                                    matching: "cleanup token") == [1],
+               "clipboard search matches pinned entries with reordered query terms")
+        expect(ClipboardHistorySearch.rankedIndexes(candidates: clipboardCandidates,
+                                                    matching: "missing") == [],
+               "clipboard search returns no results for unmatched terms")
+        expect(FeatureStrings.clipboard(.ptBR).shortcutHint.contains("Option+P"),
+               "clipboard shortcut hint exposes pin keyboard action in Portuguese")
+        expect(FeatureStrings.clipboard(.ptBR).shortcutHint.contains("Shift+Enter"),
+               "clipboard shortcut hint exposes copy-only keyboard action in Portuguese")
+        expect(FeatureStrings.clipboard(.enUS).shortcutHint.contains("Option+Delete"),
+               "clipboard shortcut hint exposes delete keyboard action in English")
+        expect(ClipboardHistorySelection.initialIndex(totalCount: 3, pinnedCount: 0, query: "") == 1,
+               "clipboard quick window starts on previous recent item when nothing is pinned")
+        expect(ClipboardHistorySelection.initialIndex(totalCount: 3, pinnedCount: 1, query: "") == 0,
+               "clipboard quick window keeps pinned items first")
+        expect(ClipboardHistorySelection.initialIndex(totalCount: 3, pinnedCount: 0, query: "deploy") == 0,
+               "clipboard quick window starts search results at the first match")
 
         let maxCapacityStringJSON = Data(#"{"SPPowerDataType":[{"sppower_battery_health_info":{"sppower_battery_health_maximum_capacity":"93%"}}]}"#.utf8)
         expect(MaxCapacityProbe.percent(fromSystemProfilerJSON: maxCapacityStringJSON) == 93,
@@ -253,12 +286,18 @@ struct MetricsTests {
                "window switcher is on for clean installs")
         expect(registeredDefaults[DefaultsKey.switcherShortcut] as? String == "command:48",
                "switcher shortcut defaults to Cmd+Tab")
+        expect(registeredDefaults[DefaultsKey.switcherIconRowMode] as? Bool == false,
+               "App Switcher icon-row mode is optional")
         expect(registeredDefaults[DefaultsKey.switcherShowWindowlessFinder] as? Bool == true,
                "Finder without windows stays visible in the switcher by default")
         expect(registeredDefaults[DefaultsKey.dockPreviewEnabled] as? Bool == false,
                "Dock Preview is opt-in for clean installs")
         expect(registeredDefaults[DefaultsKey.autoCheckUpdates] as? Bool == true,
                "update checks are on for clean installs")
+        expect(registeredDefaults[DefaultsKey.updateShowcaseIntroVersion] as? String == "",
+               "update showcase intro starts unseen")
+        expect(registeredDefaults[DefaultsKey.updateShowcaseMediaOverride] as? String == "",
+               "update showcase media override is empty by default")
         expect(registeredDefaults[DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect] as? Bool == false,
                "headphone disconnect volume lowering is opt-in")
         expect(registeredDefaults[DefaultsKey.soundOutputSwitcherEnabled] as? Bool == false,
@@ -337,9 +376,13 @@ struct MetricsTests {
                "menu bar GPU temperature is opt-in")
         expect(registeredDefaults[DefaultsKey.menuBarBatteryTemperature] as? Bool == false,
                "menu bar battery temperature is opt-in")
+        expect(registeredDefaults[DefaultsKey.menuBarDiskUsage] as? Bool == false,
+               "menu bar disk usage is opt-in")
+        expect(registeredDefaults[DefaultsKey.menuBarDiskActivity] as? Bool == false,
+               "menu bar disk activity is opt-in")
         expect(registeredDefaults[DefaultsKey.menuBarMetricOrder] as? String
-               == "cpu,cpuTemperature,gpu,gpuTemperature,memory,battery,batteryTemperature,network,power",
-               "menu bar metric order keeps temperature sensors next to their components")
+               == "cpu,cpuTemperature,gpu,gpuTemperature,memory,battery,batteryTemperature,network,diskUsage,diskActivity,power",
+               "menu bar metric order keeps temperature sensors next to their components and disk near live I/O")
         expect(registeredDefaults[DefaultsKey.menuBarCombineTemperatures] as? Bool == true,
                "menu bar combines usage and temperature by default")
         expect(registeredDefaults[DefaultsKey.menuBarSeparateMetrics] as? Bool == false,
@@ -396,11 +439,11 @@ struct MetricsTests {
         expect(Defaults.sanitizedMenuBarMemoryStyle("bad") == "percent", "invalid memory style falls back to percent")
         expect(Defaults.sanitizedMenuBarMetricOrder("cpu,gpu,memory,network,battery,power")
                == ["cpu", "gpu", "memory", "network", "battery", "power",
-                   "cpuTemperature", "gpuTemperature", "batteryTemperature"],
+                   "cpuTemperature", "gpuTemperature", "batteryTemperature", "diskUsage", "diskActivity"],
                "menu bar metric order appends temperature sensors without rewriting existing saved order")
         expect(Defaults.sanitizedMenuBarMetricOrder("temperature,cpu,cpu,bad")
                == ["cpuTemperature", "gpuTemperature", "batteryTemperature",
-                   "cpu", "gpu", "memory", "battery", "network", "power"],
+                   "cpu", "gpu", "memory", "battery", "network", "diskUsage", "diskActivity", "power"],
                "menu bar metric order migrates the old generic temperature value")
         expect(Defaults.sanitizedBundleIdentifierList([" com.example.One ", "", "com.example.One", "com.example.Two"])
                == ["com.example.One", "com.example.Two"],
@@ -429,6 +472,40 @@ struct MetricsTests {
         expect(WindowLayoutGeometry.rect(for: .bottomHalf, current: currentWindow, visibleFrame: visibleFrame)
                == CGRect(x: 0, y: 40, width: 1440, height: 430),
                "window layout bottom half targets the lower visible frame")
+        expect(WindowLayoutGeometry.rect(for: .leftThird, current: currentWindow, visibleFrame: visibleFrame)
+               == CGRect(x: 0, y: 40, width: 480, height: 860),
+               "window layout left third targets the first third")
+        expect(WindowLayoutGeometry.rect(for: .centerThird, current: currentWindow, visibleFrame: visibleFrame)
+               == CGRect(x: 480, y: 40, width: 480, height: 860),
+               "window layout center third targets the middle third")
+        expect(WindowLayoutGeometry.rect(for: .rightThird, current: currentWindow, visibleFrame: visibleFrame)
+               == CGRect(x: 960, y: 40, width: 480, height: 860),
+               "window layout right third targets the final third")
+        expect(WindowLayoutGeometry.rect(for: .leftTwoThirds, current: currentWindow, visibleFrame: visibleFrame)
+               == CGRect(x: 0, y: 40, width: 960, height: 860),
+               "window layout left two thirds targets the first two thirds")
+        expect(WindowLayoutGeometry.rect(for: .rightTwoThirds, current: currentWindow, visibleFrame: visibleFrame)
+               == CGRect(x: 480, y: 40, width: 960, height: 860),
+               "window layout right two thirds targets the final two thirds")
+        let nextDisplayFrame = CGRect(x: 1440, y: 80, width: 1920, height: 1000)
+        let rightHalfWindow = CGRect(x: 720, y: 40, width: 720, height: 860)
+        expect(WindowLayoutGeometry.rectForNextDisplay(current: rightHalfWindow,
+                                                       sourceVisibleFrame: visibleFrame,
+                                                       destinationVisibleFrame: nextDisplayFrame)
+               == CGRect(x: 2400, y: 80, width: 960, height: 1000),
+               "window layout next display preserves relative placement and size")
+        let oversizedWindow = CGRect(x: -40, y: 0, width: 2000, height: 1200)
+        expect(WindowLayoutGeometry.rectForNextDisplay(current: oversizedWindow,
+                                                       sourceVisibleFrame: visibleFrame,
+                                                       destinationVisibleFrame: nextDisplayFrame)
+               == nextDisplayFrame,
+               "window layout next display clamps oversized windows to the destination visible frame")
+        expect(!WindowLayoutAction.shortcutActions.contains(.leftThird),
+               "manual third actions do not register global shortcuts")
+        expect(!WindowLayoutAction.shortcutActions.contains(.nextDisplay),
+               "next display action stays manual and does not register a global shortcut")
+        expect(WindowLayoutAction.shortcutActions.contains(.leftHalf),
+               "existing half actions keep global shortcuts")
         expect(WindowLayoutGeometry.rect(for: .topLeft, current: currentWindow, visibleFrame: visibleFrame)
                == CGRect(x: 0, y: 470, width: 720, height: 430),
                "window layout top left targets the upper-left quadrant")
@@ -886,6 +963,144 @@ struct MetricsTests {
         let twoPreviewSize = DockPreviewSupport.panelSize(itemCount: 2, screenVisibleFrame: screen)
         expect(twoPreviewSize.width > onePreviewSize.width,
                "Dock Preview panel size shrinks when a card is removed")
+        expect(onePreviewSize.height == DockPreviewSupport.cardHeight
+               + DockPreviewSupport.panelPadding * 2
+               + DockPreviewSupport.panelHeaderHeight,
+               "Dock Preview panel reserves room for the pinned header")
+        expect(DockPreviewSupport.windowPositionText(selectedWindowID: nil, windowIDs: [11]) == nil,
+               "Dock Preview hides the window counter for a single window")
+        expect(DockPreviewSupport.windowPositionText(selectedWindowID: nil, windowIDs: [11, 22, 33]) == "3",
+               "Dock Preview header shows the window count before a card is selected")
+        expect(DockPreviewSupport.windowPositionText(selectedWindowID: 22, windowIDs: [11, 22, 33]) == "2/3",
+               "Dock Preview header shows selected window position")
+        let iconRowLayout = SwitcherIconRowLayout.compute(count: 6, screenVisibleFrame: screen)
+        expect(iconRowLayout.visibleIconCount == 6,
+               "App Switcher icon-row mode can show all icons when they fit")
+        expect(iconRowLayout.panelSize.width <= screen.width * 0.96 + SwitcherIconRowLayout.padding * 2,
+               "App Switcher icon-row mode stays within the visible screen")
+        expect(iconRowLayout.panelSize.height
+               == SwitcherIconRowLayout.previewHeight
+               + SwitcherIconRowLayout.previewGap
+               + SwitcherIconRowLayout.rowHeight
+               + SwitcherIconRowLayout.hintGap
+               + SwitcherIconRowLayout.hintHeight
+               + SwitcherIconRowLayout.padding * 2,
+               "App Switcher icon-row mode reserves preview, icon row and shortcut hint height")
+        let defaultSwitcherHints = SwitcherSupport.shortcutHints(for: .switcherDefault)
+        expect(defaultSwitcherHints.apps == "⌘Tab" && defaultSwitcherHints.windows == "⌘`",
+               "App Switcher icon-row hints describe default app and window shortcuts")
+        let customSwitcherHints = SwitcherSupport.shortcutHints(
+            for: GlobalShortcut(keyCode: Int64(kVK_Tab), modifiers: [.option])
+        )
+        expect(customSwitcherHints.apps == "⌥Tab" && customSwitcherHints.windows == "⌥`",
+               "App Switcher icon-row hints follow custom shortcut modifiers")
+        let groupedSwitcherItems = [
+            SwitcherItem.window(id: 1, title: "One", appName: "Alpha", pid: 101,
+                                isOnScreen: true, frame: .zero),
+            SwitcherItem.window(id: 2, title: "Two", appName: "Alpha", pid: 101,
+                                isOnScreen: true, frame: .zero),
+            SwitcherItem.window(id: 3, title: "Main", appName: "Beta", pid: 202,
+                                isOnScreen: true, frame: .zero),
+        ]
+        let appGroups = SwitcherSupport.appGroups(items: groupedSwitcherItems)
+        expect(appGroups.count == 2
+               && appGroups[0].representativeIndex == 0
+               && appGroups[0].windowCount == 2
+               && appGroups[1].representativeIndex == 2,
+               "App Switcher icon-row mode keeps one row entry per app")
+        expect(SwitcherSupport.nextAppSelectionIndex(items: groupedSwitcherItems,
+                                                     selectedIndex: 0,
+                                                     delta: 1) == 2,
+               "App Switcher icon-row app navigation skips duplicate windows from the same app")
+        expect(SwitcherSupport.nextAppSelectionIndex(items: groupedSwitcherItems,
+                                                     selectedIndex: 2,
+                                                     delta: -1) == 0,
+               "App Switcher icon-row app navigation wraps backward by app")
+        expect(SwitcherSupport.nextWindowSelectionIndexWithinApp(items: groupedSwitcherItems,
+                                                                 selectedIndex: 0,
+                                                                 delta: 1) == 1,
+               "App Switcher icon-row window navigation moves within the selected app")
+        expect(SwitcherSupport.nextWindowSelectionIndexWithinApp(items: groupedSwitcherItems,
+                                                                 selectedIndex: 1,
+                                                                 delta: 1) == 0,
+               "App Switcher icon-row window navigation wraps within the selected app")
+        expect(SwitcherSupport.nextWindowSelectionIndexWithinApp(items: groupedSwitcherItems,
+                                                                 selectedIndex: 2,
+                                                                 delta: 1) == 2,
+               "App Switcher icon-row window navigation stays put when the app has one window")
+        let groupedIconLayout = SwitcherIconRowLayout.compute(appCount: appGroups.count,
+                                                              selectedWindowCount: appGroups[0].windowCount,
+                                                              screenVisibleFrame: screen)
+        expect(groupedIconLayout.appRowContentWidth
+               >= CGFloat(appGroups.count) * SwitcherIconRowLayout.appTileWidth,
+               "App Switcher icon-row layout uses full app tile width")
+        expect(groupedIconLayout.previewContentWidth
+               >= CGFloat(appGroups[0].windowCount) * SwitcherIconRowLayout.previewCardWidth,
+               "App Switcher icon-row layout reserves room for selected app previews")
+        let singleWindowAppLayout = SwitcherIconRowLayout.compute(appCount: appGroups.count,
+                                                                  selectedWindowCount: appGroups[1].windowCount,
+                                                                  screenVisibleFrame: screen)
+        expect(singleWindowAppLayout.previewContentWidth == SwitcherIconRowLayout.previewCardWidth,
+               "App Switcher icon-row layout does not reserve empty preview slots for a one-window app")
+        expect(DockPreviewSupport.adjacentWindowID(selectedWindowID: 22,
+                                                   windowIDs: [11, 22, 33],
+                                                   offset: 1) == 33,
+               "Dock Preview next button selects the next window")
+        expect(DockPreviewSupport.adjacentWindowID(selectedWindowID: 11,
+                                                   windowIDs: [11, 22, 33],
+                                                   offset: -1) == 33,
+               "Dock Preview previous button wraps from the first window to the last")
+        expect(DockPreviewSupport.adjacentWindowID(selectedWindowID: nil,
+                                                   windowIDs: [11, 22, 33],
+                                                   offset: 1) == 11,
+               "Dock Preview next button starts from the first window when none is selected")
+        expect(DockPreviewSupport.adjacentWindowID(selectedWindowID: nil,
+                                                   windowIDs: [11, 22, 33],
+                                                   offset: -1) == 33,
+               "Dock Preview previous button starts from the last window when none is selected")
+        expect(DockPreviewSupport.adjacentWindowID(selectedWindowID: nil,
+                                                   windowIDs: [],
+                                                   offset: 1) == nil,
+               "Dock Preview navigation handles an empty window list")
+        expect(DockPreviewSupport.mouseDownDecision(isVisible: true,
+                                                    isPinned: true,
+                                                    isInsidePanel: false,
+                                                    clickedDock: false)
+               == DockPreviewMouseDownDecision(shouldEndSession: false, restoreOrigin: false),
+               "Dock Preview pinned panel ignores outside clicks")
+        expect(DockPreviewSupport.mouseDownDecision(isVisible: true,
+                                                    isPinned: false,
+                                                    isInsidePanel: true,
+                                                    clickedDock: false)
+               == DockPreviewMouseDownDecision(shouldEndSession: false, restoreOrigin: false),
+               "Dock Preview panel clicks are handled by the panel")
+        expect(DockPreviewSupport.mouseDownDecision(isVisible: true,
+                                                    isPinned: false,
+                                                    isInsidePanel: false,
+                                                    clickedDock: true)
+               == DockPreviewMouseDownDecision(shouldEndSession: true, restoreOrigin: false),
+               "Dock Preview Dock clicks close without restoring the previous window")
+        expect(DockPreviewSupport.mouseDownDecision(isVisible: true,
+                                                    isPinned: false,
+                                                    isInsidePanel: false,
+                                                    clickedDock: false)
+               == DockPreviewMouseDownDecision(shouldEndSession: true, restoreOrigin: true),
+               "Dock Preview outside clicks close and restore the previous window")
+        expect(!DockPreviewSupport.shouldRestoreOriginAfterMinimize(originPID: 10,
+                                                                    originWindowID: 44,
+                                                                    targetPID: 10,
+                                                                    targetWindowID: 44),
+               "Dock Preview does not restore the same window after minimizing it")
+        expect(DockPreviewSupport.shouldRestoreOriginAfterMinimize(originPID: 10,
+                                                                   originWindowID: 44,
+                                                                   targetPID: 10,
+                                                                   targetWindowID: 45),
+               "Dock Preview can restore a different source window after minimizing a preview")
+        expect(DockPreviewSupport.shouldRestoreOriginAfterMinimize(originPID: 10,
+                                                                   originWindowID: 44,
+                                                                   targetPID: 20,
+                                                                   targetWindowID: 45),
+               "Dock Preview can restore a different source app after minimizing a preview")
         let closeMiddle = DockPreviewSupport.closeState(afterRemoving: 22,
                                                         windowIDs: [11, 22, 33],
                                                         selectedWindowID: 22,
@@ -915,6 +1130,23 @@ struct MetricsTests {
                                                       desiredWindowID: nil)
         expect(closeLast.shouldEndSession && closeLast.remainingWindowIDs.isEmpty,
                "Dock Preview close ends the panel when the last window is removed")
+        let dockPreviewWindow = SwitcherItem.window(id: 77,
+                                                    title: "Preview",
+                                                    appName: "Demo",
+                                                    pid: 123,
+                                                    isOnScreen: true,
+                                                    frame: CGRect(x: 10, y: 20, width: 300, height: 200))
+        let minimizedDockPreviewWindow = dockPreviewWindow.withMinimized(true)
+        expect(minimizedDockPreviewWindow.id == dockPreviewWindow.id
+               && minimizedDockPreviewWindow.windowID == dockPreviewWindow.windowID
+               && minimizedDockPreviewWindow.isMinimized
+               && !minimizedDockPreviewWindow.isOnScreen,
+               "Dock Preview minimize state keeps the same window identity")
+        let restoredDockPreviewWindow = minimizedDockPreviewWindow.withMinimized(false)
+        expect(restoredDockPreviewWindow.id == dockPreviewWindow.id
+               && !restoredDockPreviewWindow.isMinimized
+               && restoredDockPreviewWindow.isOnScreen,
+               "Dock Preview restore clears the minimized state without changing identity")
         expect(SwitcherSupport.activationPlan(targetsSpecificWindow: true)
                == SwitcherActivationPlan(activateAllWindows: false,
                                          makeAppFrontmostAfterActivation: false,
@@ -1114,12 +1346,37 @@ struct MetricsTests {
                && switcherCloseMissing.remainingItemIDs == ["a", "b"]
                && switcherCloseMissing.selectedIndex == 1,
                "App Switcher close leaves selection intact when the item is not present")
+        let searchRecords = [
+            SwitcherSearchRecord(id: "alpha", title: "Inbox", appName: "Alpha"),
+            SwitcherSearchRecord(id: "beta", title: "Vorssaint Roadmap", appName: "Beta"),
+            SwitcherSearchRecord(id: "gamma", title: "Café notes", appName: "Gamma"),
+        ]
+        expect(SwitcherSupport.filteredSearchIDs(records: searchRecords, query: "") == ["alpha", "beta", "gamma"],
+               "App Switcher search keeps all windows for an empty query")
+        expect(SwitcherSupport.filteredSearchIDs(records: searchRecords, query: "beta roadmap") == ["beta"],
+               "App Switcher search matches multiple tokens across app name and window title")
+        expect(SwitcherSupport.filteredSearchIDs(records: searchRecords, query: "cafe") == ["gamma"],
+               "App Switcher search ignores accents")
+        expect(SwitcherSupport.filteredSearchIDs(records: searchRecords, query: "missing").isEmpty,
+               "App Switcher search can return no matches")
+        expect(SwitcherSupport.searchSelectionIndex(itemIDs: ["alpha", "beta"],
+                                                    preferredID: "beta",
+                                                    previousIndex: 0) == 1,
+               "App Switcher search preserves the selected item when it remains visible")
+        expect(SwitcherSupport.searchSelectionIndex(itemIDs: ["alpha"],
+                                                    preferredID: "beta",
+                                                    previousIndex: 2) == 0,
+               "App Switcher search falls back to a valid selection")
         // MARK: Release notes parsing
 
         let changelog = """
         # Changelog
 
         ## [2.17.2] - 2026-06-17
+
+        ### Summary
+        This update keeps **Shelf** clear
+        and the update window centered.
 
         ### Fixed
         - **Shelf** no longer shows an extra outline.
@@ -1141,11 +1398,14 @@ struct MetricsTests {
         let notes = ReleaseNotes.notes(for: "2.17.2", changelog: changelog)
         expect(notes.version == "2.17.2", "release notes version is parsed")
         expect(notes.date == "2026-06-17", "release notes date is parsed")
-        expect(notes.sections.count == 2, "release notes keep sections for the requested version")
-        expect(notes.sections.first?.title == "Fixed", "release notes first section title is parsed")
-        expect(notes.sections.first?.bulletItems.first == "Shelf no longer shows an extra outline.",
+        expect(notes.sections.count == 3, "release notes keep sections for the requested version")
+        expect(notes.sections.first?.title == "Summary", "release notes first section title is parsed")
+        expect(notes.sections.first?.paragraphItems.first == "This update keeps Shelf clear and the update window centered.",
+               "release notes parse summary paragraphs")
+        expect(notes.sections.dropFirst().first?.title == "Fixed", "release notes fixed section title is parsed")
+        expect(notes.sections.dropFirst().first?.bulletItems.first == "Shelf no longer shows an extra outline.",
                "release notes strip simple markdown emphasis")
-        expect(notes.sections.first?.bulletItems.dropFirst().first == "The update window opens centered on the visible screen.",
+        expect(notes.sections.dropFirst().first?.bulletItems.dropFirst().first == "The update window opens centered on the visible screen.",
                "release notes join continuation lines")
         expect(notes.sections.last?.bulletItems == ["Coffee shortcut in the menu panel."],
                "release notes stop before the next version")
@@ -1183,18 +1443,44 @@ struct MetricsTests {
         expect(!HomebrewCommandBuilder.isValidToken("bad token"), "spaced Homebrew token is invalid")
 
         let brewPath = "/opt/homebrew/bin/brew"
-        let cask = HomebrewPackage(kind: .cask, name: "visual-studio-code",
-                                   displayName: "Visual Studio Code", desc: nil,
+        let cask = HomebrewPackage(kind: .cask, name: "sample-tool",
+                                   displayName: "Sample Tool", desc: nil,
                                    installedVersion: nil, stableVersion: nil, homepage: nil)
         expect(HomebrewCommandBuilder.search(brewPath: brewPath, kind: .formula, query: "jq").arguments
                == ["search", "--formula", "jq"],
                "formula search command uses separated arguments")
+        expect(HomebrewCommandBuilder.outdated(brewPath: brewPath).arguments
+               == ["outdated", "--json=v2"],
+               "Homebrew outdated command uses read-only JSON v2 output")
+        expect(HomebrewCommandBuilder.update(brewPath: brewPath).arguments
+               == ["update"],
+               "Homebrew update command refreshes Homebrew metadata")
         expect(HomebrewCommandBuilder.install(brewPath: brewPath, package: cask).arguments
-               == ["install", "--cask", "visual-studio-code"],
+               == ["install", "--cask", "sample-tool"],
                "cask install command uses --cask")
         expect(HomebrewCommandBuilder.uninstall(brewPath: brewPath, package: cask).arguments
-               == ["uninstall", "--cask", "visual-studio-code"],
+               == ["uninstall", "--cask", "sample-tool"],
                "cask uninstall command uses --cask")
+        expect(HomebrewCommandBuilder.upgrade(brewPath: brewPath, package: cask).arguments
+               == ["upgrade", "--cask", "sample-tool"],
+               "cask upgrade command uses --cask")
+        let formula = HomebrewPackage(kind: .formula, name: "jq",
+                                      displayName: "jq", desc: nil,
+                                      installedVersion: "1.8.1", stableVersion: nil, homepage: nil)
+        expect(HomebrewCommandBuilder.upgrade(brewPath: brewPath, package: formula).arguments
+               == ["upgrade", "jq"],
+               "formula upgrade command uses separated arguments")
+        expect(HomebrewCommandBuilder.upgradeAll(brewPath: brewPath).arguments
+               == ["upgrade"],
+               "Homebrew update all command upgrades all outdated packages")
+        expect(HomebrewOperation.Action.install.runningSystemImage == "arrow.down.circle.fill",
+               "Homebrew install status uses a download icon")
+        expect(HomebrewOperation.Action.uninstall.runningSystemImage == "trash.circle.fill",
+               "Homebrew uninstall status uses a trash icon")
+        expect(HomebrewOperation.Action.upgrade.runningSystemImage == "arrow.up.circle.fill",
+               "Homebrew package update status uses an update icon")
+        expect(HomebrewOperation.Action.updateHomebrew.runningSystemImage == "arrow.triangle.2.circlepath",
+               "Homebrew metadata refresh status uses a refresh icon")
         expect(HomebrewCommandBuilder.needsTerminalFallback(output: "sudo: a terminal is required to read the password"),
                "sudo terminal error triggers Homebrew terminal fallback")
         expect(HomebrewCommandBuilder.installerCommand == #"/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)""#,
@@ -1230,14 +1516,20 @@ struct MetricsTests {
         expect(HomebrewProgressParser.phase(in: "==> Downloading https://example.com/file",
                                             action: .install) == .downloading,
                "Homebrew progress parser detects downloads")
-        expect(HomebrewProgressParser.phase(in: "==> Installing Cask google-chrome",
+        expect(HomebrewProgressParser.phase(in: "==> Installing Cask sample-tool",
                                             action: .install) == .installing,
                "Homebrew progress parser detects installs")
-        expect(HomebrewProgressParser.phase(in: "==> Uninstalling Cask google-chrome",
+        expect(HomebrewProgressParser.phase(in: "==> Uninstalling Cask sample-tool",
                                             action: .uninstall) == .uninstalling,
                "Homebrew progress parser detects uninstalls")
-        expect(HomebrewProgressParser.activity(in: "\u{001B}[32m==> Moving App 'Chrome.app'\u{001B}[0m")
-               == "Moving App 'Chrome.app'",
+        expect(HomebrewProgressParser.phase(in: "==> Upgrading sample-formula",
+                                            action: .upgrade) == .upgrading,
+               "Homebrew progress parser detects upgrades")
+        expect(HomebrewProgressParser.phase(in: "Already up-to-date.",
+                                            action: .updateHomebrew) == .refreshing,
+               "Homebrew progress parser detects metadata refresh")
+        expect(HomebrewProgressParser.activity(in: "\u{001B}[32m==> Moving App 'Sample.app'\u{001B}[0m")
+               == "Moving App 'Sample.app'",
                "Homebrew progress parser cleans activity lines")
         expect(HomebrewProgressParser.visibleError(from: "$ brew install x\nError: Cask failed")
                == "Error: Cask failed",
@@ -1247,20 +1539,20 @@ struct MetricsTests {
         {
           "formulae": [
             {
-              "name": "jq",
-              "full_name": "jq",
-              "desc": "Command-line JSON processor",
-              "homepage": "https://jqlang.github.io/jq/",
+              "name": "sample-formula",
+              "full_name": "sample-formula",
+              "desc": "Sample formula",
+              "homepage": "https://example.com/sample-formula",
               "versions": { "stable": "1.8.1" },
               "installed": [{ "version": "1.8.1" }]
             }
           ],
           "casks": [
             {
-              "token": "visual-studio-code",
-              "name": ["Visual Studio Code"],
-              "desc": "Code editor",
-              "homepage": "https://code.visualstudio.com/",
+              "token": "sample-tool",
+              "name": ["Sample Tool"],
+              "desc": "Sample cask",
+              "homepage": "https://example.com/sample-tool",
               "version": "1.108.1",
               "installed": "1.107.0"
             }
@@ -1271,9 +1563,9 @@ struct MetricsTests {
         expect(homebrewPackages.count == 2, "Homebrew JSON parser keeps formulae and casks")
         expect(homebrewPackages.first?.kind == .cask,
                "Homebrew JSON parser sorts casks before formulae")
-        expect(homebrewPackages.first(where: { $0.name == "jq" })?.installedVersion == "1.8.1",
+        expect(homebrewPackages.first(where: { $0.name == "sample-formula" })?.installedVersion == "1.8.1",
                "Homebrew parser reads installed formula version")
-        expect(homebrewPackages.first(where: { $0.name == "visual-studio-code" })?.displayName == "Visual Studio Code",
+        expect(homebrewPackages.first(where: { $0.name == "sample-tool" })?.displayName == "Sample Tool",
                "Homebrew parser reads cask display name")
         let cleanCommandPackages = (try? HomebrewParser.parseInfoCommandOutput(homebrewJSON)) ?? []
         expect(cleanCommandPackages.count == 2,
@@ -1287,36 +1579,71 @@ struct MetricsTests {
         let noisyCommandPackages = (try? HomebrewParser.parseInfoCommandOutput(noisyHomebrewOutput)) ?? []
         expect(noisyCommandPackages.count == 2,
                "Homebrew command output parser accepts warnings around JSON")
-        expect(noisyCommandPackages.first(where: { $0.name == "visual-studio-code" })?.installedVersion == "1.107.0",
+        expect(noisyCommandPackages.first(where: { $0.name == "sample-tool" })?.installedVersion == "1.107.0",
                "Homebrew command output parser keeps package data from noisy output")
         expect((try? HomebrewParser.parseInfoCommandOutput("Warning: no JSON here")) == nil,
                "Homebrew command output parser rejects output without valid JSON")
-        let searchPackages = HomebrewParser.parseSearchOutput("jq\nbad token\nwget\nvisual-studio-code\n",
+        let outdatedJSON = """
+        {
+          "formulae": [
+            {
+              "name": "fmt",
+              "installed_versions": ["12.1.0"],
+              "current_version": "12.2.0",
+              "pinned": false
+            }
+          ],
+          "casks": [
+            {
+              "name": "sample-tool",
+              "installed_versions": ["1.107.0"],
+              "current_version": "1.108.1",
+              "pinned": true
+            }
+          ]
+        }
+        """
+        let outdatedPackages = (try? HomebrewParser.parseOutdatedJSON(Data(outdatedJSON.utf8))) ?? [:]
+        expect(outdatedPackages.count == 2,
+               "Homebrew outdated parser keeps formulae and casks")
+        expect(outdatedPackages["formula:fmt"]?.versionSummary == "12.1.0 -> 12.2.0",
+               "Homebrew outdated parser renders installed to current version")
+        expect(outdatedPackages["cask:sample-tool"]?.isPinned == true,
+               "Homebrew outdated parser reads pinned status")
+        let noisyOutdatedOutput = """
+        Warning: Homebrew updated metadata
+        {"notice": "not outdated data"}
+        \(outdatedJSON)
+        """
+        let noisyOutdatedPackages = (try? HomebrewParser.parseOutdatedCommandOutput(noisyOutdatedOutput)) ?? [:]
+        expect(noisyOutdatedPackages["formula:fmt"]?.currentVersion == "12.2.0",
+               "Homebrew outdated command output parser accepts warnings around JSON")
+        let searchPackages = HomebrewParser.parseSearchOutput("sample-formula\nbad token\nsample-filter\nsample-tool\n",
                                                               kind: .formula,
                                                               installed: homebrewPackages)
-        expect(searchPackages.map(\.name) == ["jq", "wget", "visual-studio-code"],
+        expect(searchPackages.map(\.name) == ["sample-formula", "sample-filter", "sample-tool"],
                "Homebrew search parser keeps valid one-token results")
         let analyticsJSON = """
         {
           "category": "formula_install_on_request",
           "formulae": {
-            "jq": [
-              { "formula": "jq", "count": "21,557" },
-              { "formula": "jq --HEAD", "count": "30" }
+            "sample-formula": [
+              { "formula": "sample-formula", "count": "21,557" },
+              { "formula": "sample-formula --HEAD", "count": "30" }
             ],
-            "wget": [
-              { "formula": "wget", "count": "42,001" }
+            "sample-filter": [
+              { "formula": "sample-filter", "count": "42,001" }
             ]
           }
         }
         """
         let popularity = (try? HomebrewAnalytics.parse(Data(analyticsJSON.utf8), kind: .formula)) ?? [:]
-        expect(popularity["jq"]?.count == 21_557,
+        expect(popularity["sample-formula"]?.count == 21_557,
                "Homebrew analytics parser prefers the exact formula count")
-        expect(popularity["wget"]?.rank == 1,
+        expect(popularity["sample-filter"]?.rank == 1,
                "Homebrew analytics parser ranks by count")
         let rankedPackages = HomebrewAnalytics.enrichAndSort(searchPackages, popularity: popularity)
-        expect(rankedPackages.map(\.name) == ["wget", "jq", "visual-studio-code"],
+        expect(rankedPackages.map(\.name) == ["sample-filter", "sample-formula", "sample-tool"],
                "Homebrew search results sort by popularity first")
         expect(rankedPackages.first?.popularity?.compactCount == "42K",
                "Homebrew search results keep compact popularity")
@@ -1344,11 +1671,32 @@ struct MetricsTests {
             expectFormat(strings.mixerInputErrorFormat, ["@"], "\(prefix) mixer input error format")
             expectFormat(strings.homebrewConfirmInstallBodyFormat, ["@"], "\(prefix) Homebrew install format")
             expectFormat(strings.homebrewConfirmUninstallBodyFormat, ["@"], "\(prefix) Homebrew uninstall format")
+            expectFormat(strings.homebrewConfirmUpgradeBodyFormat, ["@"], "\(prefix) Homebrew upgrade format")
+            expect(!strings.homebrewUpgradeAll.isEmpty, "\(prefix) Homebrew update all title is present")
+            expect(!strings.homebrewUpdateHomebrew.isEmpty, "\(prefix) Homebrew update Homebrew title is present")
+            expect(!strings.switcherIconRowMode.isEmpty, "\(prefix) App Switcher icon-row title is present")
+            expect(!strings.switcherIconRowModeCaption.isEmpty, "\(prefix) App Switcher icon-row caption is present")
+            expect(!strings.switcherShortcutHintApps.isEmpty, "\(prefix) App Switcher app shortcut hint is present")
+            expect(!strings.switcherShortcutHintWindows.isEmpty, "\(prefix) App Switcher window shortcut hint is present")
+            expect(!strings.updateShowcaseTitle.isEmpty, "\(prefix) update showcase title is present")
+            expect(!strings.updateShowcaseMessage.isEmpty, "\(prefix) update showcase message is present")
+            expect(!strings.updateShowcaseUnavailable.isEmpty, "\(prefix) update showcase fallback is present")
+            expect(!strings.updateShowcaseRestart.isEmpty, "\(prefix) update showcase restart control is present")
+            expect(!strings.homebrewConfirmUpgradeAllTitle.isEmpty, "\(prefix) Homebrew update all confirmation title is present")
+            expect(!strings.homebrewConfirmUpgradeAllBody.isEmpty, "\(prefix) Homebrew update all confirmation body is present")
+            expect(!strings.homebrewConfirmUpdateHomebrewTitle.isEmpty, "\(prefix) Homebrew update Homebrew confirmation title is present")
+            expect(!strings.homebrewConfirmUpdateHomebrewBody.isEmpty, "\(prefix) Homebrew update Homebrew confirmation body is present")
             expectFormat(strings.homebrewPopularityFormat, ["@", "@"], "\(prefix) Homebrew popularity format")
             expectFormat(strings.homebrewOperationInstallFormat, ["@"], "\(prefix) Homebrew operation install format")
             expectFormat(strings.homebrewOperationUninstallFormat, ["@"], "\(prefix) Homebrew operation uninstall format")
+            expectFormat(strings.homebrewOperationUpgradeFormat, ["@"], "\(prefix) Homebrew operation upgrade format")
+            expect(!strings.homebrewOperationUpgradeAll.isEmpty, "\(prefix) Homebrew operation update all is present")
+            expect(!strings.homebrewOperationUpdateHomebrew.isEmpty, "\(prefix) Homebrew operation update Homebrew is present")
             expectFormat(strings.homebrewOperationInstalledFormat, ["@"], "\(prefix) Homebrew operation installed format")
             expectFormat(strings.homebrewOperationUninstalledFormat, ["@"], "\(prefix) Homebrew operation uninstalled format")
+            expectFormat(strings.homebrewOperationUpgradedFormat, ["@"], "\(prefix) Homebrew operation upgraded format")
+            expect(!strings.homebrewOperationUpgradedAll.isEmpty, "\(prefix) Homebrew operation updated all is present")
+            expect(!strings.homebrewOperationUpdatedHomebrew.isEmpty, "\(prefix) Homebrew operation updated Homebrew is present")
             expectFormat(strings.homebrewOperationFailedFormat, ["@"], "\(prefix) Homebrew operation failed format")
             expectFormat(strings.homebrewOperationElapsedFormat, ["@"], "\(prefix) Homebrew operation elapsed format")
 

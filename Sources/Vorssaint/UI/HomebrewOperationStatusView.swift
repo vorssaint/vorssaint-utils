@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 
 struct HomebrewOperationStatusView: View {
@@ -108,8 +109,15 @@ struct HomebrewOperationStatusView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if terminalFallbackCommand != nil {
-                Button(l10n.s.homebrewOpenTerminal) {
-                    onOpenTerminal()
+                HStack(spacing: 8) {
+                    Button(l10n.s.homebrewOpenTerminal) {
+                        onOpenTerminal()
+                    }
+                    Button {
+                        copy(terminalFallbackCommand)
+                    } label: {
+                        Label(l10n.s.menuCopy, systemImage: "doc.on.doc")
+                    }
                 }
                 .controlSize(.small)
             }
@@ -131,9 +139,19 @@ struct HomebrewOperationStatusView: View {
 
     private var technicalLog: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(l10n.s.homebrewOperationTechnicalLog)
-                .font(.system(size: compact ? 9.5 : 11, weight: .semibold))
-                .foregroundStyle(.tertiary)
+            HStack(spacing: 8) {
+                Text(l10n.s.homebrewOperationTechnicalLog)
+                    .font(.system(size: compact ? 9.5 : 11, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                Spacer(minLength: 0)
+                Button {
+                    copy(log)
+                } label: {
+                    Label(l10n.s.menuCopy, systemImage: "doc.on.doc")
+                }
+                .controlSize(.mini)
+                .disabled(log.isEmpty)
+            }
             ScrollView {
                 Text(log.isEmpty ? " " : log)
                     .font(.system(size: compact ? 9 : 10, design: .monospaced))
@@ -148,17 +166,23 @@ struct HomebrewOperationStatusView: View {
     private var title: String {
         switch status.result {
         case .running:
-            return String(format: status.action == .install
-                          ? l10n.s.homebrewOperationInstallFormat
-                          : l10n.s.homebrewOperationUninstallFormat,
-                          status.package.displayName)
+            if status.action == .updateHomebrew {
+                return l10n.s.homebrewOperationUpdateHomebrew
+            }
+            if status.action == .upgradeAll {
+                return l10n.s.homebrewOperationUpgradeAll
+            }
+            return String(format: runningTitleFormat, packageDisplayName)
         case .succeeded:
-            return String(format: status.action == .install
-                          ? l10n.s.homebrewOperationInstalledFormat
-                          : l10n.s.homebrewOperationUninstalledFormat,
-                          status.package.displayName)
+            if status.action == .updateHomebrew {
+                return l10n.s.homebrewOperationUpdatedHomebrew
+            }
+            if status.action == .upgradeAll {
+                return l10n.s.homebrewOperationUpgradedAll
+            }
+            return String(format: succeededTitleFormat, packageDisplayName)
         case .failed:
-            return String(format: l10n.s.homebrewOperationFailedFormat, status.package.displayName)
+            return String(format: l10n.s.homebrewOperationFailedFormat, packageDisplayName)
         case .cancelled:
             return l10n.s.homebrewOperationCancelled
         case .needsTerminal:
@@ -171,7 +195,7 @@ struct HomebrewOperationStatusView: View {
         case .cancelled:
             return l10n.s.homebrewOperationCancelled
         case .failed:
-            return String(format: l10n.s.homebrewOperationFailedFormat, status.package.displayName)
+            return String(format: l10n.s.homebrewOperationFailedFormat, packageDisplayName)
         case .needsTerminal:
             return l10n.s.homebrewOperationTerminal
         case .running, .succeeded:
@@ -180,15 +204,40 @@ struct HomebrewOperationStatusView: View {
             case .downloading: return l10n.s.homebrewOperationDownloading
             case .installing: return l10n.s.homebrewOperationInstalling
             case .uninstalling: return l10n.s.homebrewOperationUninstalling
+            case .upgrading: return l10n.s.homebrewOperationUpgrading
             case .finalizing: return l10n.s.homebrewOperationFinalizing
             case .refreshing: return l10n.s.homebrewOperationRefreshing
             }
         }
     }
 
+    private var runningTitleFormat: String {
+        switch status.action {
+        case .install: return l10n.s.homebrewOperationInstallFormat
+        case .uninstall: return l10n.s.homebrewOperationUninstallFormat
+        case .upgrade: return l10n.s.homebrewOperationUpgradeFormat
+        case .upgradeAll: return l10n.s.homebrewOperationUpgradeAll
+        case .updateHomebrew: return l10n.s.homebrewOperationUpdateHomebrew
+        }
+    }
+
+    private var succeededTitleFormat: String {
+        switch status.action {
+        case .install: return l10n.s.homebrewOperationInstalledFormat
+        case .uninstall: return l10n.s.homebrewOperationUninstalledFormat
+        case .upgrade: return l10n.s.homebrewOperationUpgradedFormat
+        case .upgradeAll: return l10n.s.homebrewOperationUpgradedAll
+        case .updateHomebrew: return l10n.s.homebrewOperationUpdatedHomebrew
+        }
+    }
+
+    private var packageDisplayName: String {
+        status.package?.displayName ?? l10n.s.homebrewAllPackages
+    }
+
     private var iconName: String {
         switch status.result {
-        case .running: return "arrow.down.circle.fill"
+        case .running: return status.action.runningSystemImage
         case .succeeded: return "checkmark.circle.fill"
         case .failed: return "exclamationmark.triangle.fill"
         case .cancelled: return "xmark.circle.fill"
@@ -217,6 +266,13 @@ struct HomebrewOperationStatusView: View {
         }
         let hours = minutes / 60
         return "\(hours)h \(minutes % 60)min"
+    }
+
+    private func copy(_ text: String?) {
+        guard let text, !text.isEmpty else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
     }
 }
 
