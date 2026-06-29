@@ -9,6 +9,7 @@ import Foundation
 enum AppLanguage: String, CaseIterable, Identifiable {
     case enUS = "en-US"
     case ptBR = "pt-BR"
+    case tr = "tr"
     case es = "es"
     case de = "de"
     case fr = "fr"
@@ -23,6 +24,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         switch self {
         case .enUS: return "English (US)"
         case .ptBR: return "Português (Brasil)"
+        case .tr: return "Türkçe"
         case .es: return "Español"
         case .de: return "Deutsch"
         case .fr: return "Français"
@@ -35,7 +37,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     static var systemDefault: AppLanguage {
         let preferred = Locale.preferredLanguages.first ?? "en"
         let matches: [(String, AppLanguage)] = [
-            ("pt", .ptBR), ("es", .es), ("de", .de), ("fr", .fr),
+            ("pt", .ptBR), ("tr", .tr), ("es", .es), ("de", .de), ("fr", .fr),
             ("it", .it), ("ja", .ja), ("zh", .zhHans),
         ]
         for (prefix, language) in matches where preferred.hasPrefix(prefix) { return language }
@@ -56,6 +58,7 @@ final class L10n: ObservableObject {
         switch language {
         case .enUS: return .enUS
         case .ptBR: return .ptBR
+        case .tr: return .tr
         case .es: return .es
         case .de: return .de
         case .fr: return .fr

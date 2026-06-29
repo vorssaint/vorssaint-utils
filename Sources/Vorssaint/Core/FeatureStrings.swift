@@ -7,6 +7,7 @@ enum FeatureStrings {
     static func settingsCategories(_ language: AppLanguage) -> SettingsCategoryStrings {
         switch language {
         case .ptBR: return .ptBR
+        case .tr: return .tr
         case .zhHans: return .zhHans
         default: return .enUS
         }
@@ -15,6 +16,7 @@ enum FeatureStrings {
     static func clipboard(_ language: AppLanguage) -> ClipboardFeatureStrings {
         switch language {
         case .ptBR: return .ptBR
+        case .tr: return .tr
         case .zhHans: return .zhHans
         default: return .enUS
         }
@@ -23,6 +25,7 @@ enum FeatureStrings {
     static func windowLayout(_ language: AppLanguage) -> WindowLayoutFeatureStrings {
         switch language {
         case .ptBR: return .ptBR
+        case .tr: return .tr
         case .zhHans: return .zhHans
         default: return .enUS
         }
@@ -31,6 +34,7 @@ enum FeatureStrings {
     static func monitorAlerts(_ language: AppLanguage) -> MonitorAlertFeatureStrings {
         switch language {
         case .ptBR: return .ptBR
+        case .tr: return .tr
         case .zhHans: return .zhHans
         default: return .enUS
         }
@@ -48,6 +52,13 @@ struct SettingsCategoryStrings {
         windowsControls: "Janelas e controles",
         utilities: "Utilitários",
         app: "App"
+    )
+
+    static let tr = SettingsCategoryStrings(
+        essentials: "Temel",
+        windowsControls: "Pencereler ve denetimler",
+        utilities: "Araçlar",
+        app: "Uygulama"
     )
 
     static let zhHans = SettingsCategoryStrings(
@@ -124,6 +135,37 @@ struct ClipboardFeatureStrings {
         noResults: "Nenhum resultado",
         newestFirst: "Mais recentes primeiro",
         active: "Guardando novos textos"
+    )
+
+    static let tr = ClipboardFeatureStrings(
+        title: "Pano",
+        enable: "Pano geçmişini kaydet",
+        caption: "Kopyalanan metinleri daha sonra yeniden kullanabilmen için saklar. Her şey yerel kalır ve istediğin zaman temizlenebilir.",
+        localNote: "Yalnızca metin kaydedilir. Görseller, dosyalar ve çok büyük öğeler yok sayılır.",
+        skipSensitive: "Hassas görünen metinleri atla",
+        skipSensitiveCaption: "Parola, token veya anahtar gibi görünen kısa ve boşluksuz dizeleri kaydetmekten kaçınır.",
+        limit: "Sınır",
+        showInPanel: "Panelde göster",
+        shortcut: "Geçmiş kısayolu",
+        shortcutCaption: "Arama, sabitlenmiş öğeler ve önceki uygulamaya yapıştırmak için ⌘1 - ⌘9 kısayolları olan hızlı bir pencere açar.",
+        shortcutHint: "Hızlı pencerede: Enter yapıştırır, Shift+Enter yalnızca kopyalar. Oklar seçer, ⌘1 - ⌘9 yapıştırır, Option+P sabitler, Option+Delete siler.",
+        pinned: "Sabitlenenler",
+        recent: "Son",
+        pin: "Sabitle",
+        unpin: "Sabitlemeyi kaldır",
+        clearRecent: "Sonları temizle",
+        clearAll: "Sabitlenmeyenleri temizle",
+        empty: "Kayıtlı metin yok",
+        disabled: "Kopyalanan metinleri kaydetmeye başlamak için geçmişi etkinleştir.",
+        search: "Kopyalanan metinlerde ara",
+        copy: "Kopyala",
+        copied: "Kopyalandı",
+        delete: "Öğeyi sil",
+        moveUp: "Yukarı taşı",
+        moveDown: "Aşağı taşı",
+        noResults: "Sonuç yok",
+        newestFirst: "En yeniler önce",
+        active: "Yeni metinler kaydediliyor"
     )
 
     static let zhHans = ClipboardFeatureStrings(
@@ -262,6 +304,43 @@ struct WindowLayoutFeatureStrings {
         restore: "Restaurar"
     )
 
+    static let tr = WindowLayoutFeatureStrings(
+        title: "Pencere yerleşimi",
+        caption: "Etkin pencereyi yarımlara, üçlü bölümlere, köşelere, başka ekrana, merkeze veya kullanılabilir ekrana taşır.",
+        showInPanel: "Panelde göster",
+        shortcuts: "Kısayollar",
+        shortcutsCaption: "Paneli açmadan etkin pencereyi düzenlemek için genel kısayollar kullan.",
+        permissionCaption: "Yalnızca etkin pencereyi taşımak için Erişilebilirlik kullanır.",
+        noWindow: "Etkin pencere bulunamadı.",
+        missingPermission: "Pencereleri taşımak için Erişilebilirlik izni ver.",
+        failed: "Bu pencere taşınamadı.",
+        done: "Pencere yerleştirildi.",
+        restored: "Pencere geri yüklendi.",
+        noRestore: "Geri yüklenecek önceki yerleşim yok.",
+        target: "Etkin pencere",
+        halves: "Yarımlar",
+        thirds: "Üçlüler",
+        corners: "Köşeler",
+        other: "Eylemler",
+        leftHalf: "Sol",
+        rightHalf: "Sağ",
+        topHalf: "Üst",
+        bottomHalf: "Alt",
+        leftThird: "Sol 1/3",
+        centerThird: "Orta 1/3",
+        rightThird: "Sağ 1/3",
+        leftTwoThirds: "Sol 2/3",
+        rightTwoThirds: "Sağ 2/3",
+        topLeft: "Sol üst",
+        topRight: "Sağ üst",
+        bottomLeft: "Sol alt",
+        bottomRight: "Sağ alt",
+        maximize: "Büyüt",
+        center: "Ortala",
+        nextDisplay: "Sonraki ekran",
+        restore: "Geri yükle"
+    )
+
     static let zhHans = WindowLayoutFeatureStrings(
         title: "窗口布局",
         caption: "将当前窗口移动到半屏、三分屏、角落、另一台显示器、居中位置或可用屏幕区域。",
@@ -392,6 +471,35 @@ struct MonitorAlertFeatureStrings {
         diskBodyFormat: "%@ está com menos de %d%% livre.",
         batteryTitle: "Bateria baixa",
         batteryBodyFormat: "A bateria está em %d%%."
+    )
+
+    static let tr = MonitorAlertFeatureStrings(
+        section: "Uyarılar",
+        caption: "Varsayılan olarak kapalıdır. Etkinleştirildiğinde Monitör yalnızca anlamlı bir koşuldan sonra uyarır ve uyarı aralığına uyar.",
+        cpu: "Yüksek CPU",
+        cpuTemperature: "Yüksek CPU sıcaklığı",
+        memory: "Kritik bellek basıncı",
+        disk: "Düşük disk alanı",
+        battery: "Düşük pil",
+        cpuThreshold: "CPU şu değerin üstünde",
+        cpuTemperatureThreshold: "Sıcaklık şu değerin üstünde",
+        diskThreshold: "Boş alan şu değerin altında",
+        batteryThreshold: "Pil şu değerin altında",
+        cooldown: "Uyarı aralığı",
+        cooldown5: "5 dakika",
+        cooldown15: "15 dakika",
+        cooldown30: "30 dakika",
+        cooldown60: "1 saat",
+        cpuTitle: "Yüksek CPU",
+        cpuBodyFormat: "CPU birkaç saniye boyunca %d%% üzerinde kaldı.",
+        cpuTemperatureTitle: "CPU sıcak",
+        cpuTemperatureBodyFormat: "CPU %d °C değerine ulaştı.",
+        memoryTitle: "Kritik bellek",
+        memoryBody: "Bellek basıncı kritik seviyeye ulaştı.",
+        diskTitle: "Düşük disk alanı",
+        diskBodyFormat: "%@ diskinde %d%% altında boş alan var.",
+        batteryTitle: "Düşük pil",
+        batteryBodyFormat: "Pil %d%% seviyesinde."
     )
 
     static let zhHans = MonitorAlertFeatureStrings(

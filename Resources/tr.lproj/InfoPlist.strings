@@ -1,0 +1,5 @@
+/* macOS Automation permission prompt. */
+"NSAppleEventsUsageDescription" = "Vorssaint; Finder'da dosya taşımak, öğeleri Çöp Sepeti'ne göndermek ve Homebrew işlemleri istediğinde Terminal komutları açmak için Otomasyon kullanır.";
+
+/* macOS Screen & System Audio Recording permission prompt. */
+"NSAudioCaptureUsageDescription" = "Vorssaint, mikserde her uygulamanın ses düzeyini ayarlamak için yalnızca tek tek uygulama seslerine dokunur. Hiçbir şey kaydedilmez veya Mac'inden çıkmaz.";

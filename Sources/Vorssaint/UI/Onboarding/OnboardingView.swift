@@ -159,7 +159,7 @@ private struct WelcomeStep: View {
                         Text(language.displayName).tag(language)
                     }
                 }
-                // A menu (not segmented): with eight languages a segmented control
+                // A menu (not segmented): with nine languages a segmented control
                 // would overflow, and several names are in their own script.
                 .pickerStyle(.menu)
 

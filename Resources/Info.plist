@@ -26,6 +26,7 @@
 		<string>it</string>
 		<string>ja</string>
 		<string>zh-Hans</string>
+		<string>tr</string>
 	</array>
 	<key>CFBundleName</key>
 	<string>Vorssaint</string>
@@ -46,9 +47,9 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>O Vorssaint usa Automação para mover arquivos no Finder, enviar itens à Lixeira e abrir comandos no Terminal quando você pede ações do Homebrew.</string>
+	<string>Vorssaint uses Automation to move files in Finder, send items to the Trash and open Terminal commands when you ask for Homebrew actions.</string>
 	<key>NSAudioCaptureUsageDescription</key>
-	<string>Vorssaint intercepta o áudio de apps individuais apenas para ajustar o volume de cada um no mixer. Nada é gravado nem sai do seu Mac.</string>
+	<string>Vorssaint taps individual app audio only to adjust each app's volume in the mixer. Nothing is recorded or leaves your Mac.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Vorssaint</string>
 	<key>NSPrincipalClass</key>

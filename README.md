@@ -66,7 +66,7 @@ Run a timer or stay up until you say stop. Closed lid mode is there for when you
 
 ### 🌍 Made to feel at home
 
-Vorssaint speaks eight languages and you can switch between them anytime in Settings. The compact panel lets you choose between a plain list and grouped sections, and you can tuck away the parts you rarely use, then bring them back from the same spot.
+Vorssaint speaks nine languages and you can switch between them anytime in Settings. The compact panel lets you choose between a plain list and grouped sections, and you can tuck away the parts you rarely use, then bring them back from the same spot.
 
 ## Install
 

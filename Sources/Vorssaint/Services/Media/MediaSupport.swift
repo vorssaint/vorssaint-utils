@@ -141,6 +141,7 @@ enum MediaSupport {
     static func recognitionLanguages(for languageRawValue: String) -> [String] {
         switch languageRawValue {
         case "pt-BR": return ["pt-BR", "en-US"]
+        case "tr": return ["tr-TR", "en-US"]
         case "es": return ["es-ES", "en-US"]
         case "de": return ["de-DE", "en-US"]
         case "fr": return ["fr-FR", "en-US"]
