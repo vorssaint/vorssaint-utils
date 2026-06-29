@@ -413,11 +413,39 @@ final class AppVolumeMixer: ObservableObject {
                                  volume: saved[id] ?? 1))
         }
         next.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        next = Self.coalescingAppsWithDuplicateIDs(next)
 
         guard audioEnvironmentChanged || next != apps else { return }
         apps = next
         reconcileEngines(with: next)
         clearPermissionIfNoActiveAdjustments()
+    }
+
+    private static func coalescingAppsWithDuplicateIDs(_ apps: [MixerApp]) -> [MixerApp] {
+        var merged: [MixerApp] = []
+        var indexesByID: [String: Int] = [:]
+
+        for app in apps {
+            guard let index = indexesByID[app.id] else {
+                indexesByID[app.id] = merged.count
+                merged.append(app)
+                continue
+            }
+
+            let existing = merged[index]
+            let audioObjects = Array(Set(existing.audioObjects).union(app.audioObjects)).sorted()
+            merged[index] = MixerApp(id: existing.id,
+                                     ownerPid: existing.ownerPid,
+                                     name: existing.name,
+                                     audioObjects: audioObjects,
+                                     isPlaying: existing.isPlaying || app.isPlaying,
+                                     selectedOutputDeviceUID: existing.selectedOutputDeviceUID,
+                                     effectiveOutputDeviceUID: existing.effectiveOutputDeviceUID,
+                                     outputDeviceUnavailable: existing.outputDeviceUnavailable,
+                                     volume: existing.volume)
+        }
+
+        return merged
     }
 
     private func lowerVolumeIfHeadphonesDisconnected(previousDefaultUID: String?,
@@ -451,7 +479,11 @@ final class AppVolumeMixer: ObservableObject {
     /// taps for apps that stopped playing, retargets taps whose process set
     /// changed (new helper spawned), and applies saved volumes to newcomers.
     private func reconcileEngines(with apps: [MixerApp]) {
-        let byId = Dictionary(uniqueKeysWithValues: apps.map { ($0.id, $0) })
+        let apps = Self.coalescingAppsWithDuplicateIDs(apps)
+        var byId: [String: MixerApp] = [:]
+        for app in apps {
+            byId[app.id] = app
+        }
 
         for (id, engine) in Array(engines) {
             guard let app = byId[id] else {
