@@ -210,6 +210,8 @@ struct Strings {
     let languageLabel: String
     let menuBarSection: String
     let showCountdown: String
+    let showMenuBarIconToggle: String
+    let showMenuBarIconToggleCaption: String
     let globalHotkeySection: String
     let hotkeyToggle: String
     let hotkeyCaption: String
@@ -914,6 +916,8 @@ extension Strings {
         languageLabel: "Idioma",
         menuBarSection: "Barra de menus",
         showCountdown: "Mostrar tempo restante ao lado do ícone",
+        showMenuBarIconToggle: "Mostrar ícone do Vorssaint",
+        showMenuBarIconToggleCaption: "Desative para mostrar só as métricas escolhidas na barra de menus. Se nenhuma métrica estiver ativa, o ícone continua aparecendo para manter o app acessível.",
         globalHotkeySection: "Atalho global",
         hotkeyToggle: "Ativar atalho para “Manter acordado”",
         hotkeyCaption: "Funciona em qualquer app, sem permissões extras.",
@@ -1592,6 +1596,8 @@ extension Strings {
         languageLabel: "Language",
         menuBarSection: "Menu bar",
         showCountdown: "Show remaining time next to the icon",
+        showMenuBarIconToggle: "Show Vorssaint icon",
+        showMenuBarIconToggleCaption: "Turn this off to show only your selected menu bar metrics. If no metrics are active, the icon stays visible so the app remains accessible.",
         globalHotkeySection: "Global shortcut",
         hotkeyToggle: "Enable shortcut for “Keep awake”",
         hotkeyCaption: "Works in any app, no extra permissions.",

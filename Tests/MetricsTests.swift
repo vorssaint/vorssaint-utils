@@ -37,6 +37,23 @@ struct MetricsTests {
 
         // MARK: Byte / rate formatting
 
+        expect(MenuBarIconVisibility.shouldShowIcon(userWantsIcon: true,
+                                                    hasInlineContent: false,
+                                                    renderedSeparateMetricCount: 0),
+               "menu bar icon shows when user preference is enabled")
+        expect(MenuBarIconVisibility.shouldShowIcon(userWantsIcon: false,
+                                                    hasInlineContent: false,
+                                                    renderedSeparateMetricCount: 0),
+               "menu bar icon stays visible when no metrics or text preserve app access")
+        expect(!MenuBarIconVisibility.shouldShowIcon(userWantsIcon: false,
+                                                     hasInlineContent: true,
+                                                     renderedSeparateMetricCount: 0),
+               "menu bar icon hides when inline menu bar text remains clickable")
+        expect(!MenuBarIconVisibility.shouldShowIcon(userWantsIcon: false,
+                                                     hasInlineContent: false,
+                                                     renderedSeparateMetricCount: 1),
+               "menu bar icon hides when separate metric items remain clickable")
+
         expectEqual(MetricFormat.bytes(0), "0 B", "bytes zero")
         expectEqual(MetricFormat.bytes(512), "512 B", "bytes < 1K")
         expectEqual(MetricFormat.bytes(1024), "1.0 KB", "bytes 1K")

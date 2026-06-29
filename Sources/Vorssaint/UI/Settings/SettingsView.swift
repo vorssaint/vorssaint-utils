@@ -109,6 +109,7 @@ struct GeneralSettings: View {
     @State private var loginError: String?
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
     @AppStorage(DefaultsKey.showCountdown) private var showCountdown = false
+    @AppStorage(DefaultsKey.showMenuBarIcon) private var showMenuBarIcon = true
 
     var body: some View {
         Form {
@@ -140,6 +141,10 @@ struct GeneralSettings: View {
             }
             Section(l10n.s.menuBarSection) {
                 Toggle(l10n.s.showCountdown, isOn: $showCountdown)
+                Toggle(l10n.s.showMenuBarIconToggle, isOn: $showMenuBarIcon)
+                Text(l10n.s.showMenuBarIconToggleCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Button(l10n.s.showMenuBarIcon) {
                     appDelegate()?.reshowStatusItem()
                 }

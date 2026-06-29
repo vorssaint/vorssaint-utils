@@ -123,6 +123,8 @@ extension Strings {
         languageLabel: "语言",
         menuBarSection: "菜单栏",
         showCountdown: "在图标旁显示剩余时间",
+        showMenuBarIconToggle: "显示 Vorssaint 图标",
+        showMenuBarIconToggleCaption: "关闭后，菜单栏只显示你选择的指标。如果没有启用任何指标，图标仍会保持可见，确保 App 仍可访问。",
         globalHotkeySection: "全局快捷键",
         hotkeyToggle: "启用“保持唤醒”快捷键",
         hotkeyCaption: "在任何 App 中都有效，无需额外权限。",

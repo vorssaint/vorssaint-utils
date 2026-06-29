@@ -123,6 +123,8 @@ extension Strings {
         languageLabel: "Idioma",
         menuBarSection: "Barra de menús",
         showCountdown: "Mostrar el tiempo restante junto al icono",
+        showMenuBarIconToggle: "Mostrar el icono de Vorssaint",
+        showMenuBarIconToggleCaption: "Desactívalo para mostrar solo las métricas elegidas en la barra de menús. Si no hay métricas activas, el icono seguirá visible para que la app siga siendo accesible.",
         globalHotkeySection: "Atajo global",
         hotkeyToggle: "Activar atajo para «Mantener activo»",
         hotkeyCaption: "Funciona en cualquier app, sin permisos adicionales.",

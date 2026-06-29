@@ -123,6 +123,8 @@ extension Strings {
         languageLabel: "Langue",
         menuBarSection: "Barre des menus",
         showCountdown: "Afficher le temps restant à côté de l’icône",
+        showMenuBarIconToggle: "Afficher l’icône Vorssaint",
+        showMenuBarIconToggleCaption: "Désactivez cette option pour n’afficher que les mesures choisies dans la barre des menus. Si aucune mesure n’est active, l’icône reste visible pour que l’app reste accessible.",
         globalHotkeySection: "Raccourci global",
         hotkeyToggle: "Activer le raccourci pour « Garder éveillé »",
         hotkeyCaption: "Fonctionne dans toutes les apps, sans autorisation supplémentaire.",

@@ -24,6 +24,7 @@ enum DefaultsKey {
     static let keepAwakeShortcut = "keepAwakeShortcut"    // GlobalShortcut storage value
     static let keepAwakeIconTint = "keepAwakeIconTint"    // KeepAwakeIconTint.rawValue
     static let showCountdown = "showCountdownInMenuBar"
+    static let showMenuBarIcon = "showMenuBarIcon"
     static let hasOnboarded = "hasOnboarded"
     static let sleepDisabledFlag = "vorssDisabledSleep"   // internal guard for pmset disablesleep
     static let scrollInverterEnabled = "scrollInverterEnabled"
@@ -239,6 +240,14 @@ enum KeepAwakeIconTint: String, CaseIterable, Identifiable {
     }
 }
 
+enum MenuBarIconVisibility {
+    static func shouldShowIcon(userWantsIcon: Bool,
+                               hasInlineContent: Bool,
+                               renderedSeparateMetricCount: Int) -> Bool {
+        userWantsIcon || (!hasInlineContent && renderedSeparateMetricCount == 0)
+    }
+}
+
 /// Thumbnail size for the app switcher and Dock preview, scaled from one user
 /// preference so both grow together. Captures scale by the same factor, so
 /// larger previews stay sharp.
@@ -289,6 +298,7 @@ enum Defaults {
         DefaultsKey.keepAwakeShortcut: "control+option+command:40",
         DefaultsKey.keepAwakeIconTint: KeepAwakeIconTint.orange.rawValue,
         DefaultsKey.showCountdown: false,
+        DefaultsKey.showMenuBarIcon: true,
         DefaultsKey.scrollInverterEnabled: false,
         DefaultsKey.switcherEnabled: true,
         DefaultsKey.switcherShortcut: "command:48",

@@ -123,6 +123,8 @@ extension Strings {
         languageLabel: "Sprache",
         menuBarSection: "Menüleiste",
         showCountdown: "Verbleibende Zeit neben dem Symbol anzeigen",
+        showMenuBarIconToggle: "Vorssaint-Symbol anzeigen",
+        showMenuBarIconToggleCaption: "Deaktiviere dies, um nur die ausgewählten Menüleistenwerte anzuzeigen. Wenn keine Werte aktiv sind, bleibt das Symbol sichtbar, damit die App erreichbar bleibt.",
         globalHotkeySection: "Globaler Kurzbefehl",
         hotkeyToggle: "Kurzbefehl für „Wachhalten“ aktivieren",
         hotkeyCaption: "Funktioniert in jeder App, ohne zusätzliche Berechtigungen.",

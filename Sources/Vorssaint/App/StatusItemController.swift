@@ -8,7 +8,7 @@ import Combine
 /// title and the tooltip. Click handling is delegated back to the AppDelegate.
 final class StatusItemController {
     var onLeftClick: (() -> Void)?
-    var onRightClick: (() -> Void)?
+    var onRightClick: ((NSStatusBarButton) -> Void)?
     var onMetricClick: ((MenuBarMetric, NSStatusBarButton) -> Void)?
 
     private(set) var statusItem: NSStatusItem!
@@ -103,7 +103,7 @@ final class StatusItemController {
 
         UpdateService.shared.$state
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.updateIconAppearance() }
+            .sink { [weak self] _ in self?.refresh() }
             .store(in: &cancellables)
 
         KeepAwakeManager.shared.$endDate
@@ -157,16 +157,22 @@ final class StatusItemController {
     /// keep the blue attention color; an active keep-awake session turns amber.
     private func updateIconAppearance() {
         guard let button = statusItem?.button else { return }
+        guard button.image != nil else { return }
+        button.image = currentIconImage()
+    }
+
+    private func currentIconImage() -> NSImage? {
         if case .available = UpdateService.shared.state {
-            button.image = BlackHoleGlyph.attentionImage()
+            return BlackHoleGlyph.attentionImage()
         } else {
-            button.image = BlackHoleGlyph.image(active: KeepAwakeManager.shared.isActive)
+            return BlackHoleGlyph.image(active: KeepAwakeManager.shared.isActive)
         }
     }
 
     @objc private func clicked() {
         if NSApp.currentEvent?.type == .rightMouseUp {
-            onRightClick?()
+            guard let button else { return }
+            onRightClick?(button)
         } else {
             onLeftClick?()
         }
@@ -181,6 +187,7 @@ final class StatusItemController {
         let snapshot = SystemMonitor.shared.snapshot
         let metrics = MenuBarMetric.enabled(in: defaults)
         let separateMetrics = defaults.bool(forKey: DefaultsKey.menuBarSeparateMetrics)
+        let userWantsIcon = defaults.bool(forKey: DefaultsKey.showMenuBarIcon)
 
         // Compose the title from the keep-awake countdown (when shown) followed by
         // the pinned live metrics. Built attributed so the memory pressure dot can
@@ -200,9 +207,11 @@ final class StatusItemController {
             title.append(NSAttributedString(string: countdown))
             includesCountdown = true
         }
+        let renderedSeparateMetricCount: Int
         if separateMetrics {
-            refreshMetricStatusItems(metrics: metrics, snapshot: snapshot, strings: strings)
+            renderedSeparateMetricCount = refreshMetricStatusItems(metrics: metrics, snapshot: snapshot, strings: strings)
         } else {
+            renderedSeparateMetricCount = 0
             removeMetricStatusItems(except: Set<String>())
         }
         if !separateMetrics, !metrics.isEmpty {
@@ -216,11 +225,18 @@ final class StatusItemController {
             }
         }
 
+        let shouldShowIcon = MenuBarIconVisibility.shouldShowIcon(
+            userWantsIcon: userWantsIcon,
+            hasInlineContent: title.length > 0,
+            renderedSeparateMetricCount: renderedSeparateMetricCount
+        )
+        statusItem.isVisible = title.length > 0 || shouldShowIcon
         statusItem.length = NSStatusItem.variableLength
 
         if title.length == 0 {
             button.attributedTitle = NSAttributedString(string: "")
-            button.imagePosition = .imageOnly
+            button.image = shouldShowIcon ? currentIconImage() : nil
+            button.imagePosition = shouldShowIcon ? .imageOnly : .noImage
         } else {
             let full = NSMutableAttributedString(string: " ")
             full.append(title)
@@ -242,7 +258,8 @@ final class StatusItemController {
             }
             button.font = font
             button.attributedTitle = full
-            button.imagePosition = .imageLeading
+            button.image = shouldShowIcon ? currentIconImage() : nil
+            button.imagePosition = shouldShowIcon ? .imageLeading : .noImage
         }
 
         if manager.isActive {
@@ -258,10 +275,11 @@ final class StatusItemController {
 
     private func refreshMetricStatusItems(metrics: [MenuBarMetric],
                                           snapshot: SystemSnapshot,
-                                          strings: Strings) {
+                                          strings: Strings) -> Int {
         let groups = metricStatusGroups(for: metrics, strings: strings)
         let wanted = Set(groups.map(\.id))
         removeMetricStatusItems(except: wanted)
+        var renderedCount = 0
 
         for group in groups {
             let title = MenuBarRenderer.attributed(for: snapshot,
@@ -271,6 +289,7 @@ final class StatusItemController {
                 removeMetricStatusItem(for: group.id)
                 continue
             }
+            renderedCount += 1
 
             metricStatusItemFocus[group.id] = group.focusMetric
             let item = metricStatusItems[group.id] ?? installMetricStatusItem(for: group)
@@ -287,6 +306,7 @@ final class StatusItemController {
             button.imagePosition = .noImage
             button.toolTip = group.title
         }
+        return renderedCount
     }
 
     private func metricStatusGroups(for metrics: [MenuBarMetric], strings: Strings) -> [MetricStatusGroup] {
@@ -368,7 +388,7 @@ final class StatusItemController {
 
     @objc private func metricClicked(_ sender: NSStatusBarButton) {
         if NSApp.currentEvent?.type == .rightMouseUp {
-            onRightClick?()
+            onRightClick?(sender)
             return
         }
         guard let metric = focusMetric(from: sender) else {

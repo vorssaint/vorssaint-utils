@@ -123,6 +123,8 @@ extension Strings {
         languageLabel: "言語",
         menuBarSection: "メニューバー",
         showCountdown: "アイコンの横に残り時間を表示",
+        showMenuBarIconToggle: "Vorssaint アイコンを表示",
+        showMenuBarIconToggleCaption: "オフにすると、選択したメニューバーの計測値だけを表示します。計測値が有効でない場合は、アプリへアクセスできるようにアイコンを表示したままにします。",
         globalHotkeySection: "グローバルショートカット",
         hotkeyToggle: "「スリープ防止」のショートカットを有効にする",
         hotkeyCaption: "追加のアクセス権なしで、どのアプリでも使えます。",

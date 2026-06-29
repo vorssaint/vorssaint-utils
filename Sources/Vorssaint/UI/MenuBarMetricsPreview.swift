@@ -23,6 +23,7 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.menuBarCombineTemperatures) private var combineTemperatures = true
     @AppStorage(DefaultsKey.menuBarLabelStyle) private var labelStyle = "compact"
     @AppStorage(DefaultsKey.menuBarMemoryStyle) private var memoryStyle = "percent"
+    @AppStorage(DefaultsKey.showMenuBarIcon) private var showMenuBarIcon = true
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
 
     var body: some View {
@@ -41,8 +42,10 @@ struct MenuBarMetricsPreview: View {
             Image(systemName: "battery.75")
                 .foregroundStyle(.white.opacity(0.5))
             HStack(spacing: 5) {
-                glyph
-                    .frame(width: 20, height: 14)
+                if shouldShowGlyph(lines: lines) {
+                    glyph
+                        .frame(width: 20, height: 14)
+                }
                 if !lines.isEmpty {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
@@ -80,6 +83,10 @@ struct MenuBarMetricsPreview: View {
         let _ = battery
         let _ = power
         return MenuBarMetric.enabled(in: .standard)
+    }
+
+    private func shouldShowGlyph(lines: [[MenuBarSegment]]) -> Bool {
+        showMenuBarIcon || activeMetrics.isEmpty || lines.isEmpty
     }
 
     @ViewBuilder

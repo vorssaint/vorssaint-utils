@@ -45,7 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
         statusController = StatusItemController()
         statusController.onLeftClick = { [weak self] in self?.toggleMainPopover() }
-        statusController.onRightClick = { [weak self] in self?.showContextMenu() }
+        statusController.onRightClick = { [weak self] button in self?.showContextMenu(anchor: button) }
         statusController.onMetricClick = { [weak self] metric, button in
             self?.showMetricPanel(for: metric, anchoredTo: button)
         }
@@ -561,19 +561,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     // MARK: - Context menu (right click)
 
-    private func showContextMenu() {
+    private func showContextMenu(anchor button: NSStatusBarButton) {
         // The panel uses applicationDefined dismissal, so a right-click while it's
         // open won't close it on its own — and the menu would try to open behind it.
         // Close it first so the context menu always appears.
         if popover.isShown {
-            closePopover { [weak self] in self?.presentContextMenu() }
+            closePopover { [weak self, button] in
+                self?.presentContextMenu(anchor: button)
+            }
             return
         }
 
-        presentContextMenu()
+        presentContextMenu(anchor: button)
     }
 
-    private func presentContextMenu() {
+    private func presentContextMenu(anchor button: NSStatusBarButton) {
         let manager = KeepAwakeManager.shared
         let strings = L10n.shared.s
         let menu = NSMenu()
@@ -638,10 +640,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         quitItem.target = self
         menu.addItem(quitItem)
 
-        statusController.statusItem.menu = menu
-        statusController.button?.performClick(nil)
-        DispatchQueue.main.async { [weak self] in
-            self?.statusController.statusItem.menu = nil
+        if button === statusController.button {
+            statusController.statusItem.menu = menu
+            button.performClick(nil)
+            DispatchQueue.main.async { [weak self] in
+                self?.statusController.statusItem.menu = nil
+            }
+        } else {
+            menu.popUp(positioning: nil, at: NSPoint(x: button.bounds.midX, y: button.bounds.minY), in: button)
         }
     }
 
