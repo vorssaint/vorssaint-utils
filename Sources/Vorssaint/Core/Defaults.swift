@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import CoreGraphics
+import Carbon.HIToolbox
 import Foundation
 
 /// Every UserDefaults key used by the app, in one place.
@@ -29,6 +30,7 @@ enum DefaultsKey {
     static let scrollInverterEnabled = "scrollInverterEnabled"
     static let switcherEnabled = "switcherEnabled"
     static let switcherShortcut = "switcherShortcut"      // GlobalShortcut storage value
+    static let switcherWindowShortcut = "switcherWindowShortcut" // GlobalShortcut storage value
     static let switcherIconRowMode = "switcherIconRowMode"
     static let switcherMergeTabs = "switcherMergeTabs"     // show one switcher entry per app (collapse all of an app's windows)
     static let switcherShowWindowlessFinder = "switcherShowWindowlessFinder"
@@ -52,6 +54,9 @@ enum DefaultsKey {
     static let shelfShakeToOpen = "shelfShakeToOpen"
     static let urlCleanerEnabled = "urlCleanerEnabled"
     static let windowMaximizeEnabled = "windowMaximizeEnabled"
+    static let keyboardDebounceEnabled = "keyboardDebounceEnabled"
+    static let keyboardDebounceWindowMs = "keyboardDebounceWindowMs"
+    static let keyboardDebounceKeyWindows = "keyboardDebounceKeyWindows" // comma-separated keyCode:ms
     static let panelUtilityCleaning = "panelUtilityCleaning"
     static let panelUtilityURLCleaner = "panelUtilityURLCleaner"
     static let panelUtilityUninstaller = "panelUtilityUninstaller"
@@ -66,6 +71,7 @@ enum DefaultsKey {
     static let panelControlAutoQuit = "panelControlAutoQuit"
     static let panelControlShelf = "panelControlShelf"
     static let panelControlWindowMaximize = "panelControlWindowMaximize"
+    static let panelControlKeyDebounce = "panelControlKeyDebounce"
     // Show/hide whole panel sections that have no monitorShow* key of their own.
     static let panelShowKeepAwake = "panelShowKeepAwake"
     static let panelShowUtilities = "panelShowUtilities"
@@ -83,6 +89,7 @@ enum DefaultsKey {
     static let menuBarDiskUsage = "menuBarDiskUsage"
     static let menuBarDiskActivity = "menuBarDiskActivity"
     static let menuBarBattery = "menuBarBattery"
+    static let menuBarPeripheralBattery = "menuBarPeripheralBattery"
     static let menuBarPower = "menuBarPower"
     static let menuBarPreset = "menuBarPreset"           // dense
     static let menuBarMetricOrder = "menuBarMetricOrder" // comma-separated MenuBarMetric raw values
@@ -116,6 +123,7 @@ enum DefaultsKey {
     static let monitorSysAlerts = "monitorSysAlerts"
     static let monitorSysUptime = "monitorSysUptime"
     static let monitorNetSpeed = "monitorNetSpeed"
+    static let monitorNetApps = "monitorNetApps"
     static let monitorNetTotals = "monitorNetTotals"
     static let monitorNetTest = "monitorNetTest"
     static let monitorDiskUsage = "monitorDiskUsage"
@@ -213,7 +221,7 @@ enum DockPreviewIntroInfo {
 }
 
 enum SupportUpdateIntroInfo {
-    static let releaseVersion = "3.1.2"
+    static var releaseVersion: String { AppInfo.version }
 }
 
 enum KeepAwakeIconTint: String, CaseIterable, Identifiable {
@@ -264,12 +272,14 @@ enum Defaults {
     static let allowedKeepAwakeMouseJiggleIntervals = [1, 2, 5, 10, 15]
     static let allowedBatteryLimits = [0, 5, 10, 15, 20]
     static let allowedMonitorIntervals = [1, 2, 5]
+    static let defaultKeyboardDebounceWindowMs = 10
+    static let allowedKeyboardDebounceWindowRange = 0...500
     static let allowedMenuBarPresets = ["dense"]
     static let defaultMenuBarMetricOrder = [
         "cpu", "cpuTemperature",
         "gpu", "gpuTemperature",
         "memory",
-        "battery", "batteryTemperature",
+        "battery", "batteryTemperature", "peripheralBattery",
         "network", "diskUsage", "diskActivity", "power",
     ]
     static let allowedMenuBarLabelStyles = ["compact", "classic"]
@@ -292,6 +302,7 @@ enum Defaults {
         DefaultsKey.scrollInverterEnabled: false,
         DefaultsKey.switcherEnabled: true,
         DefaultsKey.switcherShortcut: "command:48",
+        DefaultsKey.switcherWindowShortcut: GlobalShortcut.switcherWindowDefault.storageValue,
         DefaultsKey.switcherIconRowMode: false,
         DefaultsKey.switcherMergeTabs: false,
         DefaultsKey.switcherShowWindowlessFinder: true,
@@ -313,6 +324,9 @@ enum Defaults {
         DefaultsKey.shelfShakeToOpen: true,
         DefaultsKey.urlCleanerEnabled: false,
         DefaultsKey.windowMaximizeEnabled: false,
+        DefaultsKey.keyboardDebounceEnabled: false,
+        DefaultsKey.keyboardDebounceWindowMs: defaultKeyboardDebounceWindowMs,
+        DefaultsKey.keyboardDebounceKeyWindows: "",
         DefaultsKey.panelUtilityCleaning: true,
         DefaultsKey.panelUtilityURLCleaner: true,
         DefaultsKey.panelUtilityUninstaller: true,
@@ -327,6 +341,7 @@ enum Defaults {
         DefaultsKey.panelControlAutoQuit: true,
         DefaultsKey.panelControlShelf: true,
         DefaultsKey.panelControlWindowMaximize: true,
+        DefaultsKey.panelControlKeyDebounce: true,
         DefaultsKey.panelShowKeepAwake: true,
         DefaultsKey.panelShowUtilities: true,
         DefaultsKey.panelShowControls: true,
@@ -340,6 +355,7 @@ enum Defaults {
         DefaultsKey.menuBarBatteryTemperature: false,
         DefaultsKey.menuBarDiskUsage: false,
         DefaultsKey.menuBarDiskActivity: false,
+        DefaultsKey.menuBarPeripheralBattery: false,
         DefaultsKey.menuBarPreset: "dense",
         DefaultsKey.menuBarMetricOrder: defaultMenuBarMetricOrder.joined(separator: ","),
         DefaultsKey.menuBarCombineTemperatures: true,
@@ -369,6 +385,7 @@ enum Defaults {
         DefaultsKey.monitorSysAlerts: true,
         DefaultsKey.monitorSysUptime: true,
         DefaultsKey.monitorNetSpeed: true,
+        DefaultsKey.monitorNetApps: true,
         DefaultsKey.monitorNetTotals: true,
         DefaultsKey.monitorNetTest: true,
         DefaultsKey.monitorDiskUsage: true,
@@ -433,6 +450,26 @@ enum Defaults {
         let defaults = UserDefaults.standard
         defaults.register(defaults: registeredDefaults)
         migrateLegacyMenuBarTemperatureMetric(in: defaults)
+        migrateLegacySwitcherWindowShortcut(in: defaults)
+        migrateLegacyKeyboardDebounceWindow(in: defaults)
+    }
+
+    static func migrateLegacySwitcherWindowShortcut(in defaults: UserDefaults) {
+        let wrongDeveloperDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_Grave),
+                                                   modifiers: [.control, .option, .command]).storageValue
+        guard defaults.string(forKey: DefaultsKey.switcherWindowShortcut) == wrongDeveloperDefault else {
+            return
+        }
+        defaults.set(GlobalShortcut.switcherWindowDefault.storageValue,
+                     forKey: DefaultsKey.switcherWindowShortcut)
+    }
+
+    static func migrateLegacyKeyboardDebounceWindow(in defaults: UserDefaults) {
+        guard defaults.object(forKey: DefaultsKey.keyboardDebounceWindowMs) as? Int == 30,
+              defaults.bool(forKey: DefaultsKey.keyboardDebounceEnabled) == false,
+              (defaults.string(forKey: DefaultsKey.keyboardDebounceKeyWindows) ?? "").isEmpty
+        else { return }
+        defaults.set(defaultKeyboardDebounceWindowMs, forKey: DefaultsKey.keyboardDebounceWindowMs)
     }
 
     static func sanitizedDefaultDuration(_ minutes: Int) -> Int {
@@ -457,6 +494,12 @@ enum Defaults {
 
     static func sanitizedMonitorInterval(_ seconds: Int) -> Int {
         allowedMonitorIntervals.contains(seconds) ? seconds : 2
+    }
+
+    static func sanitizedKeyboardDebounceWindow(_ milliseconds: Int) -> Int {
+        allowedKeyboardDebounceWindowRange.contains(milliseconds)
+            ? milliseconds
+            : defaultKeyboardDebounceWindowMs
     }
 
     static func sanitizedMenuBarPreset(_ preset: String) -> String {

@@ -18,6 +18,7 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.menuBarDiskUsage) private var diskUsage = false
     @AppStorage(DefaultsKey.menuBarDiskActivity) private var diskActivity = false
     @AppStorage(DefaultsKey.menuBarBattery) private var battery = false
+    @AppStorage(DefaultsKey.menuBarPeripheralBattery) private var peripheralBattery = false
     @AppStorage(DefaultsKey.menuBarPower) private var power = false
     @AppStorage(DefaultsKey.menuBarMetricOrder) private var metricOrder = ""
     @AppStorage(DefaultsKey.menuBarCombineTemperatures) private var combineTemperatures = true
@@ -78,6 +79,7 @@ struct MenuBarMetricsPreview: View {
         let _ = diskUsage
         let _ = diskActivity
         let _ = battery
+        let _ = peripheralBattery
         let _ = power
         return MenuBarMetric.enabled(in: .standard)
     }
@@ -196,6 +198,8 @@ struct MenuBarMetricsPreview: View {
             return style == .readable ? 33 : 30
         case "99W":
             return style == .readable ? 28 : 25
+        case "100%+9":
+            return style == .readable ? 50 : 46
         default:
             return 0
         }

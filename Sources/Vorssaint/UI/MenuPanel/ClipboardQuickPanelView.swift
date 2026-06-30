@@ -47,7 +47,7 @@ struct ClipboardQuickPanelView: View {
                 Text(text.shortcutHint)
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
-                    .lineLimit(3)
+                    .lineLimit(4)
             }
             Spacer()
             Button {
@@ -105,7 +105,8 @@ struct ClipboardQuickPanelView: View {
                 ForEach(Array(entries.enumerated()), id: \.element.id) { _, entry in
                     entryRow(entry,
                              shortcutIndex: shortcutIndex(for: entry),
-                             isSelected: history.selectedQuickEntryID == entry.id)
+                             isSelected: history.selectedQuickEntryID == entry.id,
+                             isBatchSelected: history.isQuickBatchSelected(entry))
                         .id(entry.id)
                 }
             }
@@ -126,24 +127,18 @@ struct ClipboardQuickPanelView: View {
 
     private func entryRow(_ entry: ClipboardHistoryEntry,
                           shortcutIndex: Int?,
-                          isSelected: Bool) -> some View {
+                          isSelected: Bool,
+                          isBatchSelected: Bool) -> some View {
         HStack(alignment: .top, spacing: 9) {
-            if let shortcutIndex {
-                Text("⌘\(shortcutIndex + 1)")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 32, height: 24)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(Color.primary.opacity(0.07))
-                    )
-            } else {
-                Image(systemName: entry.isPinned ? "pin.fill" : "doc.text")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(entry.isPinned ? Color.accentColor : Color.secondary)
-                    .opacity(entry.isPinned ? 1 : 0.65)
-                    .frame(width: 32, height: 24)
+            Button {
+                history.toggleQuickBatchSelection(entry)
+            } label: {
+                leadingMarker(entry: entry,
+                              shortcutIndex: shortcutIndex,
+                              isBatchSelected: isBatchSelected)
             }
+            .buttonStyle(.plain)
+            .help(isBatchSelected ? text.unselectMultiple : text.selectMultiple)
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(entry.preview)
@@ -215,17 +210,72 @@ struct ClipboardQuickPanelView: View {
         .padding(9)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.primary.opacity(entry.isPinned ? 0.075 : 0.045))
+                .fill(rowBackground(entry: entry, isSelected: isSelected, isBatchSelected: isBatchSelected))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(isSelected ? Color.accentColor.opacity(0.28) : Color.clear, lineWidth: 1)
+                .stroke(isBatchSelected ? Color.accentColor.opacity(0.5)
+                        : isSelected ? Color.accentColor.opacity(0.28) : Color.clear,
+                        lineWidth: 1)
         )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if NSEvent.modifierFlags.intersection([.command]).contains(.command) {
+                history.toggleQuickBatchSelection(entry)
+            }
+        }
         .help(entry.preview)
+    }
+
+    @ViewBuilder
+    private func leadingMarker(entry: ClipboardHistoryEntry,
+                               shortcutIndex: Int?,
+                               isBatchSelected: Bool) -> some View {
+        if isBatchSelected {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 32, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.12))
+                )
+        } else if let shortcutIndex {
+            Text("⌘\(shortcutIndex + 1)")
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundStyle(.secondary)
+                .frame(width: 32, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.primary.opacity(0.07))
+                )
+        } else {
+            Image(systemName: entry.isPinned ? "pin.fill" : "doc.text")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(entry.isPinned ? Color.accentColor : Color.secondary)
+                .opacity(entry.isPinned ? 1 : 0.65)
+                .frame(width: 32, height: 24)
+        }
+    }
+
+    private func rowBackground(entry: ClipboardHistoryEntry,
+                               isSelected: Bool,
+                               isBatchSelected: Bool) -> Color {
+        if isBatchSelected { return Color.accentColor.opacity(0.16) }
+        if isSelected { return Color.accentColor.opacity(0.12) }
+        return Color.primary.opacity(entry.isPinned ? 0.075 : 0.045)
     }
 
     private var footer: some View {
         HStack(spacing: 8) {
+            if history.quickBatchCount > 0 {
+                Text(String(format: text.selectedCountFormat, history.quickBatchCount))
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(Color.accentColor)
+                Button(text.clearSelection) {
+                    history.clearQuickBatchSelection()
+                }
+            }
             Button(text.clearRecent) {
                 history.clearRecent()
             }

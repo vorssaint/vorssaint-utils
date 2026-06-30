@@ -68,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         ShelfService.shared.syncWithPreferences()
         URLCleanerService.shared.syncWithPreferences()
         WindowMaximizer.shared.syncWithPreferences()
+        KeyboardDebounceService.shared.syncWithPreferences()
         WindowLayoutService.shared.syncWithPreferences()
         ClipboardHistoryService.shared.syncWithPreferences()
         MonitorAlertService.shared.start()
@@ -91,6 +92,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 FinderCutPaste.shared.syncWithPreferences()
                 AutoQuitService.shared.syncWithPreferences()
                 WindowMaximizer.shared.syncWithPreferences()
+                KeyboardDebounceService.shared.syncWithPreferences()
                 WindowLayoutService.shared.syncWithPreferences()
             }
             .store(in: &cancellables)
@@ -124,8 +126,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
+        ProcessUsageService.shared.stopNetworkMonitoring(force: true)
         URLCleanerService.shared.stop()
         WindowMaximizer.shared.stop()
+        KeyboardDebounceService.shared.suspend()
         DockPreviewService.shared.stop()
         SoundOutputSwitcher.shared.stop()
         AppVolumeMixer.shared.stopAll()
@@ -904,11 +908,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
     }
 
-    /// On launch after an update, do not re-open What's New: every update path
-    /// shows the changelog before download. Keep only one-off feature intros.
+    /// On launch after an update, keep the short support prompt visible once per
+    /// version. The changelog itself is already shown before download.
     private func presentUpdateIntros() {
-        if showUpdateShowcaseIntroIfNeeded() { return }
         if showSupportUpdateIntroIfNeeded() { return }
+        if showUpdateShowcaseIntroIfNeeded() { return }
         showDockPreviewIntroIfNeeded()
     }
 
@@ -960,7 +964,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func showSupportUpdateIntroIfNeeded() -> Bool {
-        guard AppInfo.version == SupportUpdateIntroInfo.releaseVersion else { return false }
         guard UserDefaults.standard.string(forKey: DefaultsKey.supportUpdateIntroVersion)
                 != SupportUpdateIntroInfo.releaseVersion else { return false }
         showSupportUpdateIntro()
@@ -1235,7 +1238,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func markSupportUpdateIntroSeenIfCurrentUpdate() {
-        guard AppInfo.version == SupportUpdateIntroInfo.releaseVersion else { return }
         markSupportUpdateIntroSeen()
     }
 

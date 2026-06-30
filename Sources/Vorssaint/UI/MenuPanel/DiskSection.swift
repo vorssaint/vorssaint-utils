@@ -143,35 +143,45 @@ struct DiskSection: View {
             Text(l10n.s.diskSelect)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.tertiary)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(disks) { disk in
-                        Button {
-                            selectedDiskID = disk.id
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: disk.isInternal ? "internaldrive" : "externaldrive")
-                                    .font(.system(size: 10, weight: .semibold))
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text(disk.name)
-                                        .font(.system(size: 10.5, weight: .semibold))
-                                        .lineLimit(1)
-                                    Text("\(MetricFormat.percent(disk.usedFraction)) \(l10n.s.diskUsed)")
-                                        .font(.system(size: 9))
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 6)
-                            .background(selectorBackground(for: disk))
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                    }
+            LazyVGrid(columns: diskSelectorColumns, alignment: .leading, spacing: 6) {
+                ForEach(disks) { disk in
+                    diskSelectorButton(for: disk)
                 }
-                .padding(.vertical, 1)
             }
+            .padding(.vertical, 1)
         }
+    }
+
+    private var diskSelectorColumns: [GridItem] {
+        [GridItem(.adaptive(minimum: 96, maximum: 138), spacing: 6, alignment: .leading)]
+    }
+
+    private func diskSelectorButton(for disk: DiskDeviceReading) -> some View {
+        Button {
+            selectedDiskID = disk.id
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: disk.isInternal ? "internaldrive" : "externaldrive")
+                    .font(.system(size: 10, weight: .semibold))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(disk.name)
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Text("\(MetricFormat.percent(disk.usedFraction)) \(l10n.s.diskUsed)")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(selectorBackground(for: disk))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 
     private func selectorBackground(for disk: DiskDeviceReading) -> some ShapeStyle {

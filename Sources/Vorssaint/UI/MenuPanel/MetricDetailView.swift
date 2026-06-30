@@ -47,7 +47,10 @@ enum MetricDetailKind: String, Equatable, Identifiable {
         case .disk:
             return SystemMonitorPanelNeeds(disk: true)
         case .battery:
-            return SystemMonitorPanelNeeds(power: true, battery: true, batteryTemperature: true)
+            return SystemMonitorPanelNeeds(power: true,
+                                           battery: true,
+                                           peripheralBattery: true,
+                                           batteryTemperature: true)
         case .power:
             return SystemMonitorPanelNeeds(power: true)
         }
@@ -71,7 +74,8 @@ enum MetricDetailKind: String, Equatable, Identifiable {
         case .gpu: return .gpu
         case .memory: return .memory
         case .power: return .energy
-        case .network, .disk, .battery: return nil
+        case .network: return .network
+        case .disk, .battery: return nil
         }
     }
 }
@@ -89,7 +93,7 @@ extension MenuBarMetric {
             return .network
         case .diskUsage, .diskActivity:
             return .disk
-        case .battery, .batteryTemperature:
+        case .battery, .batteryTemperature, .peripheralBattery:
             return .battery
         case .power:
             return .power
@@ -108,6 +112,7 @@ struct MetricDetailView: View {
     @State private var processRowsLoading = false
     @State private var lastProcessRefresh = Date.distantPast
     @State private var refreshSerial = 0
+    @State private var networkMonitoringActive = false
     private let processLimit = 15
 
     var body: some View {
@@ -121,13 +126,26 @@ struct MetricDetailView: View {
                 processCard
             }
         }
-        .onAppear { refreshProcessRows(force: true, delay: 0.65) }
-        .onChange(of: kind) { _, _ in refreshProcessRows(force: true, delay: 0.65) }
+        .onAppear {
+            if kind == .network {
+                startNetworkMonitoringIfNeeded()
+            }
+            refreshProcessRows(force: true, delay: 0.2)
+        }
+        .onChange(of: kind) { oldKind, newKind in
+            if oldKind == .network, newKind != .network {
+                stopNetworkMonitoringIfNeeded()
+            } else if oldKind != .network, newKind == .network {
+                startNetworkMonitoringIfNeeded()
+            }
+            refreshProcessRows(force: true, delay: 0.2)
+        }
         .onReceive(monitor.$snapshot) { _ in refreshProcessRows(force: false, delay: 0.85) }
         .onDisappear {
             refreshSerial &+= 1
             processRows = []
             processRowsLoading = false
+            stopNetworkMonitoringIfNeeded()
         }
     }
 
@@ -270,7 +288,7 @@ struct MetricDetailView: View {
     private var processCard: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 6) {
-                Text(kind == .power ? l10n.s.energyAppsTitle : l10n.s.usageSection)
+                Text(processTitle)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.tertiary)
                 Spacer(minLength: 0)
@@ -330,13 +348,23 @@ struct MetricDetailView: View {
             ]
         case .battery:
             let power = snapshot.power
-            return [
-                row(l10n.s.batteryLabel, power?.chargePercent.map { "\($0)%" } ?? l10n.s.networkMeasuring),
+            var rows = [
+                row(l10n.s.batteryCharge, power?.chargePercent.map { "\($0)%" } ?? l10n.s.networkMeasuring),
                 row(l10n.s.powerBattery, batteryFlowText(power)),
                 row(l10n.s.temperatures, snapshot.batteryTemperature.map(formatTemperature) ?? l10n.s.monitorUnavailable),
                 row(l10n.s.powerHealth, power?.healthPercent.map { "\(Int($0.rounded()))%" } ?? "-"),
                 row(l10n.s.powerCycles, power?.cycleCount.map(String.init) ?? "-"),
             ]
+            if snapshot.peripheralBatteries.isEmpty {
+                rows.append(row(l10n.s.monitorShowPeripheralBattery,
+                                l10n.s.peripheralBatteryNoDevices,
+                                wrapsValue: true))
+            } else {
+                for device in PeripheralBatterySupport.sorted(snapshot.peripheralBatteries).prefix(5) {
+                    rows.append(row(device.name, "\(device.percent)%"))
+                }
+            }
+            return rows
         case .power:
             let power = snapshot.power
             return [
@@ -408,32 +436,65 @@ struct MetricDetailView: View {
     }
 
     private var emptyProcessText: String {
-        kind == .power ? l10n.s.energyAppsIdle : l10n.s.breakdownMeasuring
+        switch kind {
+        case .power: return l10n.s.energyAppsIdle
+        case .network: return l10n.s.networkAppsIdle
+        default: return l10n.s.breakdownMeasuring
+        }
     }
 
+    private var processTitle: String {
+        switch kind {
+        case .power: return l10n.s.energyAppsTitle
+        case .network: return l10n.s.networkApps
+        default: return l10n.s.usageSection
+        }
+    }
+
+    @ViewBuilder
     private func detailRow(_ row: MetricDetailRow) -> some View {
-        HStack(spacing: 8) {
-            Text(row.title)
-                .font(.system(size: 10.5))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            Spacer(minLength: 0)
-            if row.showsPressure, case .memory = kind {
-                PressureIndicator(pressure: monitor.snapshot.memoryPressure)
-            } else {
+        if row.wrapsValue {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.title)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
                 Text(row.value)
                     .font(.system(size: 11, weight: .medium))
-                    .monospacedDigit()
                     .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } else {
+            HStack(spacing: 8) {
+                Text(row.title)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .truncationMode(.middle)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 0)
+                if row.showsPressure, case .memory = kind {
+                    PressureIndicator(pressure: monitor.snapshot.memoryPressure)
+                } else {
+                    Text(row.value)
+                        .font(.system(size: 11, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
             }
         }
     }
 
-    private func row(_ title: String, _ value: String, showsPressure: Bool = false) -> MetricDetailRow {
-        MetricDetailRow(id: title, title: title, value: value, showsPressure: showsPressure)
+    private func row(_ title: String,
+                     _ value: String,
+                     showsPressure: Bool = false,
+                     wrapsValue: Bool = false) -> MetricDetailRow {
+        MetricDetailRow(id: title,
+                        title: title,
+                        value: value,
+                        showsPressure: showsPressure,
+                        wrapsValue: wrapsValue)
     }
 
     private func refreshProcessRows(force: Bool, delay: TimeInterval = 0) {
@@ -458,12 +519,16 @@ struct MetricDetailView: View {
             self.processRowsLoading = self.processRows.isEmpty
             DispatchQueue.global(qos: .utility).async {
                 let rows = ProcessUsageService.shared.top(processKind, limit: processLimit)
+                let isWarmingUp = processKind == .network && ProcessUsageService.shared.networkMonitoringIsWarmingUp
                 DispatchQueue.main.async {
                     guard self.refreshSerial == serial,
                           self.kind.processKind == processKind else { return }
-                    self.processRowsLoading = false
+                    self.processRowsLoading = rows.isEmpty && isWarmingUp
                     if !rows.isEmpty || self.processRows.isEmpty {
                         self.processRows = rows
+                    }
+                    if rows.isEmpty && isWarmingUp {
+                        self.refreshProcessRows(force: true, delay: 1.0)
                     }
                 }
             }
@@ -475,8 +540,29 @@ struct MetricDetailView: View {
         }
     }
 
+    private func startNetworkMonitoringIfNeeded() {
+        guard !networkMonitoringActive else { return }
+        networkMonitoringActive = true
+        ProcessUsageService.shared.startNetworkMonitoring()
+    }
+
+    private func stopNetworkMonitoringIfNeeded() {
+        guard networkMonitoringActive else { return }
+        networkMonitoringActive = false
+        ProcessUsageService.shared.stopNetworkMonitoring()
+    }
+
     private func processValue(_ row: ProcessUsage) -> String {
-        kind == .memory ? formatMemory(UInt64(row.value)) : String(format: "%.1f%%", row.value)
+        switch kind {
+        case .memory:
+            return formatMemory(UInt64(row.value))
+        case .network:
+            let down = row.networkDownBytesPerSec ?? 0
+            let up = row.networkUpBytesPerSec ?? 0
+            return "↓\(MetricFormat.bytesPerSecCompact(down)) ↑\(MetricFormat.bytesPerSecCompact(up))"
+        default:
+            return String(format: "%.1f%%", row.value)
+        }
     }
 
     private func primaryDisk(from reading: DiskReading?) -> DiskDeviceReading? {
@@ -557,4 +643,5 @@ private struct MetricDetailRow: Identifiable {
     let title: String
     let value: String
     var showsPressure = false
+    var wrapsValue = false
 }

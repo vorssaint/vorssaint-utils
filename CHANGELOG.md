@@ -4,6 +4,46 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [3.1.5] - 2026-06-29
+
+### Summary
+Vorssaint 3.1.5 adds multi-item paste to Clipboard History, makes Quit on close exceptions easier to set up from installed apps, adds per-app network activity and optional peripheral battery status to Monitor, adds keyboard debounce for duplicate key presses, improves Mixer compatibility with Zoom calls, improves localized feature labels, and improves App Switcher order and shortcuts.
+
+### Added
+- Clipboard History can now mark multiple items in the quick window and paste or
+  copy them together as one stack.
+- Monitor can now show recent per-app network traffic, with download and upload
+  activity in the Network panel and the Network detail view.
+- Monitor can now show connected keyboard, mouse, trackpad and Bluetooth audio
+  device battery in the menu bar and System panel when enabled, with updates
+  within a few seconds as devices connect or disconnect.
+- Debounce can now filter very fast duplicate keyboard presses, with a 10 ms
+  global window adjustable from the panel and optional per-key windows in
+  milliseconds.
+- The large-icon App Switcher now has a separate configurable shortcut for
+  moving between windows of the selected app.
+
+### Changed
+- Quit on close exceptions can now be added from installed apps instead of only
+  apps that are currently running.
+
+### Fixed
+- Clipboard History now preserves the full scheme when a copied web address is
+  also provided as a structured URL by the source app.
+- Zoom is kept on the normal system audio path so joining calls no longer hangs
+  when Mixer boost settings are active.
+- The Disk selector in Monitor no longer stops vertical panel scrolling when
+  the pointer is over it.
+- The large-icon App Switcher now keeps the selected app's window previews
+  aligned with the selected icon.
+- The App Switcher now reliably returns to the previous app when used twice in
+  a row.
+- Apps that were running but missing from the old running-app picker, such as
+  Signal, can now be added to Quit on close exceptions.
+- Feature names, Clipboard controls, Window Layout labels and Monitor alert
+  labels now stay localized across all supported app languages instead of
+  falling back to English.
+
 ## [3.1.4] - 2026-06-27
 
 ### Summary

@@ -134,28 +134,82 @@ struct MetricsTests {
                "clipboard shortcut hint exposes pin keyboard action in Portuguese")
         expect(FeatureStrings.clipboard(.ptBR).shortcutHint.contains("Shift+Enter"),
                "clipboard shortcut hint exposes copy-only keyboard action in Portuguese")
+        expect(FeatureStrings.clipboard(.ptBR).shortcutHint.contains("⌘+clique"),
+               "clipboard shortcut hint exposes multi-selection in Portuguese")
         expect(FeatureStrings.clipboard(.enUS).shortcutHint.contains("Option+Delete"),
                "clipboard shortcut hint exposes delete keyboard action in English")
         expect(FeatureStrings.clipboard(.tr).shortcutHint.contains("Option+P"),
                "clipboard shortcut hint exposes pin keyboard action in Turkish")
-        expect(FeatureStrings.clipboard(.zhHans).title == "剪贴板",
-               "clipboard title is localized in Simplified Chinese")
-        expect(FeatureStrings.windowLayout(.tr).title == "Pencere yerleşimi",
-               "window layout title is localized in Turkish")
-        expect(FeatureStrings.windowLayout(.zhHans).title == "窗口布局",
-               "window layout title is localized in Simplified Chinese")
-        expect(FeatureStrings.settingsCategories(.zhHans).utilities == "实用工具",
-               "settings category title is localized in Simplified Chinese")
-        expect(FeatureStrings.monitorAlerts(.tr).section == "Uyarılar",
-               "monitor alert section is localized in Turkish")
-        expect(FeatureStrings.monitorAlerts(.zhHans).section == "提醒",
-               "monitor alert section is localized in Simplified Chinese")
+        expect(FeatureStrings.clipboard(.enUS).shortcutHint.contains("Cmd-click"),
+               "clipboard shortcut hint exposes multi-selection in English")
+        expect(FeatureStrings.clipboard(.tr).shortcutHint.contains("Cmd-tıklama"),
+               "clipboard shortcut hint exposes multi-selection in Turkish")
+        let featureTitles: [(AppLanguage, String, String, String, String)] = [
+            (.enUS, "Clipboard", "Window layout", "Utilities", "Alerts"),
+            (.ptBR, "Clipboard", "Layout de janelas", "Utilitários", "Alertas"),
+            (.tr, "Pano", "Pencere yerleşimi", "Araçlar", "Uyarılar"),
+            (.es, "Portapapeles", "Diseño de ventanas", "Utilidades", "Alertas"),
+            (.de, "Zwischenablage", "Fensterlayout", "Dienstprogramme", "Warnungen"),
+            (.fr, "Presse-papiers", "Disposition des fenêtres", "Utilitaires", "Alertes"),
+            (.it, "Appunti", "Layout finestre", "Utilità", "Avvisi"),
+            (.ja, "クリップボード", "ウインドウ配置", "ユーティリティ", "アラート"),
+            (.zhHans, "剪贴板", "窗口布局", "实用工具", "提醒"),
+        ]
+        for (language, clipboardTitle, windowTitle, utilitiesTitle, alertsTitle) in featureTitles {
+            expect(FeatureStrings.clipboard(language).title == clipboardTitle,
+                   "\(language.rawValue) clipboard title is localized")
+            expect(FeatureStrings.windowLayout(language).title == windowTitle,
+                   "\(language.rawValue) window layout title is localized")
+            expect(FeatureStrings.settingsCategories(language).utilities == utilitiesTitle,
+                   "\(language.rawValue) settings category title is localized")
+            expect(FeatureStrings.monitorAlerts(language).section == alertsTitle,
+                   "\(language.rawValue) monitor alert section is localized")
+        }
+        for language in AppLanguage.allCases {
+            let clipboardStrings = FeatureStrings.clipboard(language)
+            expectFormat(clipboardStrings.selectedCountFormat, ["d"],
+                         "\(language.rawValue) clipboard selected count format")
+            let alertStrings = FeatureStrings.monitorAlerts(language)
+            expectFormat(alertStrings.cpuBodyFormat, ["d"], "\(language.rawValue) CPU alert format")
+            expectFormat(alertStrings.cpuTemperatureBodyFormat, ["d"],
+                         "\(language.rawValue) CPU temperature alert format")
+            expectFormat(alertStrings.diskBodyFormat, ["@", "d"], "\(language.rawValue) disk alert format")
+            expectFormat(alertStrings.batteryBodyFormat, ["d"], "\(language.rawValue) battery alert format")
+        }
         expect(ClipboardHistorySelection.initialIndex(totalCount: 3, pinnedCount: 0, query: "") == 1,
                "clipboard quick window starts on previous recent item when nothing is pinned")
         expect(ClipboardHistorySelection.initialIndex(totalCount: 3, pinnedCount: 1, query: "") == 0,
                "clipboard quick window keeps pinned items first")
         expect(ClipboardHistorySelection.initialIndex(totalCount: 3, pinnedCount: 0, query: "deploy") == 0,
                "clipboard quick window starts search results at the first match")
+        expectEqual(ClipboardHistoryBatch.combinedText(["First", "Second", "Third"]),
+                    "First\nSecond\nThird",
+                    "clipboard batch joins selected entries as a single paste")
+        expect(ClipboardHistoryBatch.orderedSelectedIndexes(allIDs: ["a", "b", "c", "d"],
+                                                           selectedIDs: Set(["d", "b"])) == [1, 3],
+               "clipboard batch preserves the visible history order")
+        expectEqual(ClipboardHistoryPasteboardText.preferredText(webURLString: "http://localhost:3000/page",
+                                                                 plainText: "//localhost:3000/page") ?? "",
+                    "http://localhost:3000/page",
+                    "clipboard history preserves the scheme for scheme-relative browser URLs")
+        expectEqual(ClipboardHistoryPasteboardText.preferredText(webURLString: "https://example.com/docs",
+                                                                 plainText: "example.com/docs") ?? "",
+                    "https://example.com/docs",
+                    "clipboard history restores the scheme for scheme-stripped browser URLs")
+        expectEqual(ClipboardHistoryPasteboardText.preferredText(webURLString: "https://example.com/docs",
+                                                                 plainText: "Open docs") ?? "",
+                    "Open docs",
+                    "clipboard history keeps ordinary link text when it is not a URL")
+        expectEqual(ClipboardHistoryPasteboardText.preferredText(webURLString: "file:///tmp/example.txt",
+                                                                 plainText: "/tmp/example.txt") ?? "",
+                    "/tmp/example.txt",
+                    "clipboard history ignores non-web URL pasteboard types")
+        expect(!ClipboardHistorySensitiveText.looksSensitive("http://localhost:3000/page"),
+               "clipboard history does not treat normal web URLs as secrets")
+        expect(ClipboardHistorySensitiveText.looksSensitive("https://example.com/callback?token=abc"),
+               "clipboard history still skips URLs with obvious secret words")
+        expect(ClipboardHistorySensitiveText.looksSensitive("abc1234567890-xyz-abc"),
+               "clipboard history still skips compact secret-looking text")
 
         let maxCapacityStringJSON = Data(#"{"SPPowerDataType":[{"sppower_battery_health_info":{"sppower_battery_health_maximum_capacity":"93%"}}]}"#.utf8)
         expect(MaxCapacityProbe.percent(fromSystemProfilerJSON: maxCapacityStringJSON) == 93,
@@ -169,6 +223,92 @@ struct MetricsTests {
         let maxCapacityUnavailableJSON = Data(#"{"SPPowerDataType":[{"sppower_battery_health_info":{"sppower_battery_health_maximum_capacity":"EM_DASH"}}]}"#.utf8)
         expect(MaxCapacityProbe.percent(fromSystemProfilerJSON: maxCapacityUnavailableJSON) == nil,
                "battery maximum capacity ignores placeholder values")
+
+        // MARK: Peripheral battery helpers
+
+        expect(PeripheralBatterySupport.percent(from: "87%") == 87,
+               "peripheral battery parses percentage strings")
+        expect(PeripheralBatterySupport.percent(from: NSNumber(value: 62.4)) == 62,
+               "peripheral battery rounds numeric values")
+        expect(PeripheralBatterySupport.percent(from: 140) == nil,
+               "peripheral battery ignores invalid percentages")
+        let usageMouse = [["DeviceUsagePage": 1, "DeviceUsage": 2]]
+        expect(PeripheralBatterySupport.kind(product: "Wireless Device",
+                                             primaryUsagePage: nil,
+                                             primaryUsage: nil,
+                                             usagePairs: usageMouse) == .mouse,
+               "peripheral battery infers mouse from HID usage")
+        expect(PeripheralBatterySupport.kind(product: "soundcore Space Q45",
+                                             minorType: "Headset",
+                                             primaryUsagePage: nil,
+                                             primaryUsage: nil,
+                                             usagePairs: []) == .audio,
+               "peripheral battery infers Bluetooth headsets as audio devices")
+        let bluetoothJSON = Data("""
+        {"SPBluetoothDataType":[{"device_connected":[
+          {"soundcore Space Q45":{"device_address":"F4:9D:8A:A2:4C:12","device_batteryLevelMain":"100%","device_minorType":"Headset"}},
+          {"AirPods Pro":{"device_address":"E5:04:BE:68:C2:93","device_batteryLevelCase":"88%","device_batteryLevelLeft":"92%","device_batteryLevelRight":"90%"}}
+        ],"device_not_connected":[
+          {"Old Mouse":{"device_address":"00:00:00:00:00:00","device_batteryLevelMain":"12%","device_minorType":"Mouse"}}
+        ]}]}
+        """.utf8)
+        let bluetoothDevices = PeripheralBatterySupport.bluetoothDevices(fromSystemProfilerJSON: bluetoothJSON)
+        expect(bluetoothDevices.contains(PeripheralBatteryDevice(id: "Bluetooth:F4:9D:8A:A2:4C:12",
+                                                                 name: "soundcore Space Q45",
+                                                                 percent: 100,
+                                                                 kind: .audio)),
+               "peripheral battery parses connected Bluetooth headset battery")
+        expect(bluetoothDevices.contains(PeripheralBatteryDevice(id: "Bluetooth:E5:04:BE:68:C2:93",
+                                                                 name: "AirPods Pro",
+                                                                 percent: 88,
+                                                                 kind: .audio)),
+               "peripheral battery uses the lowest connected AirPods component")
+        expect(!bluetoothDevices.contains { $0.name == "Old Mouse" },
+               "peripheral battery ignores disconnected Bluetooth devices")
+        let keyboard = PeripheralBatteryDevice(id: "keyboard",
+                                               name: "Magic Keyboard",
+                                               percent: 78,
+                                               kind: .keyboard)
+        let mouse = PeripheralBatteryDevice(id: "mouse",
+                                            name: "Magic Mouse",
+                                            percent: 24,
+                                            kind: .mouse)
+        expect(PeripheralBatterySupport.sorted([keyboard, mouse]).map(\.id) == ["mouse", "keyboard"],
+               "peripheral battery devices sort by lowest charge first")
+        let menuMetric = PeripheralBatterySupport.menuBarMetric(for: [keyboard, mouse])
+        expect(menuMetric?.label == "MOU" && menuMetric?.value == "24%+1",
+               "peripheral battery menu metric shows the lowest device and extra count")
+
+        // MARK: Keyboard debounce
+
+        var debounceState = KeyboardDebounceState()
+        let debounceConfig = KeyboardDebounceConfig(enabled: true,
+                                                    globalWindowMs: 50,
+                                                    keyWindows: [:])
+        expect(!debounceState.shouldSuppress(keyCode: 37, isAutoRepeat: false, time: 10.00, config: debounceConfig),
+               "debounce accepts the first key press")
+        expect(debounceState.shouldSuppress(keyCode: 37, isAutoRepeat: false, time: 10.03, config: debounceConfig),
+               "debounce suppresses duplicate key press inside the window")
+        expect(!debounceState.shouldSuppress(keyCode: 37, isAutoRepeat: false, time: 10.06, config: debounceConfig),
+               "debounce accepts the key after the window")
+        expect(!debounceState.shouldSuppress(keyCode: 37, isAutoRepeat: true, time: 10.07, config: debounceConfig),
+               "debounce leaves key auto-repeat alone")
+        let perKeyConfig = KeyboardDebounceConfig(enabled: true,
+                                                  globalWindowMs: 20,
+                                                  keyWindows: [37: 100, 40: 0])
+        debounceState.reset()
+        _ = debounceState.shouldSuppress(keyCode: 37, isAutoRepeat: false, time: 20.00, config: perKeyConfig)
+        expect(debounceState.shouldSuppress(keyCode: 37, isAutoRepeat: false, time: 20.06, config: perKeyConfig),
+               "debounce per-key window overrides the global window")
+        _ = debounceState.shouldSuppress(keyCode: 40, isAutoRepeat: false, time: 30.00, config: perKeyConfig)
+        expect(!debounceState.shouldSuppress(keyCode: 40, isAutoRepeat: false, time: 30.01, config: perKeyConfig),
+               "debounce per-key zero disables filtering for that key")
+        let encodedKeyWindows = KeyboardDebounceConfig.encodeKeyWindows([37: 100, 40: 0])
+        expect(encodedKeyWindows == "37:100,40:0",
+               "debounce key windows encode in stable key order")
+        expect(KeyboardDebounceConfig.decodeKeyWindows("37:100,bad,40:0,99:999")
+               == [37: 100, 40: 0, 99: Defaults.defaultKeyboardDebounceWindowMs],
+               "debounce key windows decode and sanitize stored values")
 
         // MARK: Watts & percent
 
@@ -300,6 +440,37 @@ struct MetricsTests {
                "window switcher is on for clean installs")
         expect(registeredDefaults[DefaultsKey.switcherShortcut] as? String == "command:48",
                "switcher shortcut defaults to Cmd+Tab")
+        expect(registeredDefaults[DefaultsKey.switcherWindowShortcut] as? String
+               == GlobalShortcut.switcherWindowDefault.storageValue,
+               "switcher window shortcut defaults to Cmd+Grave")
+        let shortcutSuite = "vorss.tests.switcher.shortcut"
+        if let migrationDefaults = UserDefaults(suiteName: shortcutSuite) {
+            migrationDefaults.removePersistentDomain(forName: shortcutSuite)
+            migrationDefaults.set("control+option+command:50", forKey: DefaultsKey.switcherWindowShortcut)
+            Defaults.migrateLegacySwitcherWindowShortcut(in: migrationDefaults)
+            expect(migrationDefaults.string(forKey: DefaultsKey.switcherWindowShortcut)
+                   == GlobalShortcut.switcherWindowDefault.storageValue,
+                   "switcher window shortcut migrates the accidental Ctrl+Option+Cmd+Grave default back to Cmd+Grave")
+            migrationDefaults.set("option:50", forKey: DefaultsKey.switcherWindowShortcut)
+            Defaults.migrateLegacySwitcherWindowShortcut(in: migrationDefaults)
+            expect(migrationDefaults.string(forKey: DefaultsKey.switcherWindowShortcut) == "option:50",
+                   "switcher window shortcut migration preserves real custom shortcuts")
+            migrationDefaults.set(30, forKey: DefaultsKey.keyboardDebounceWindowMs)
+            migrationDefaults.set(false, forKey: DefaultsKey.keyboardDebounceEnabled)
+            migrationDefaults.set("", forKey: DefaultsKey.keyboardDebounceKeyWindows)
+            Defaults.migrateLegacyKeyboardDebounceWindow(in: migrationDefaults)
+            expect(migrationDefaults.integer(forKey: DefaultsKey.keyboardDebounceWindowMs)
+                   == Defaults.defaultKeyboardDebounceWindowMs,
+                   "keyboard debounce migration updates the old disabled Developer default")
+            migrationDefaults.set(30, forKey: DefaultsKey.keyboardDebounceWindowMs)
+            migrationDefaults.set(true, forKey: DefaultsKey.keyboardDebounceEnabled)
+            Defaults.migrateLegacyKeyboardDebounceWindow(in: migrationDefaults)
+            expect(migrationDefaults.integer(forKey: DefaultsKey.keyboardDebounceWindowMs) == 30,
+                   "keyboard debounce migration preserves active user choices")
+            migrationDefaults.removePersistentDomain(forName: shortcutSuite)
+        } else {
+            expect(false, "test suite defaults are available")
+        }
         expect(registeredDefaults[DefaultsKey.switcherIconRowMode] as? Bool == false,
                "App Switcher icon-row mode is optional")
         expect(registeredDefaults[DefaultsKey.switcherShowWindowlessFinder] as? Bool == true,
@@ -312,6 +483,8 @@ struct MetricsTests {
                "update showcase intro starts unseen")
         expect(registeredDefaults[DefaultsKey.updateShowcaseMediaOverride] as? String == "",
                "update showcase media override is empty by default")
+        expect(SupportUpdateIntroInfo.releaseVersion == AppInfo.version,
+               "support prompt targets the current app version for every update")
         expect(registeredDefaults[DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect] as? Bool == false,
                "headphone disconnect volume lowering is opt-in")
         expect(registeredDefaults[DefaultsKey.soundOutputSwitcherEnabled] as? Bool == false,
@@ -334,6 +507,12 @@ struct MetricsTests {
                "URL cleaner clipboard watching is opt-in")
         expect(registeredDefaults[DefaultsKey.windowMaximizeEnabled] as? Bool == false,
                "green button maximize override is opt-in")
+        expect(registeredDefaults[DefaultsKey.keyboardDebounceEnabled] as? Bool == false,
+               "keyboard debounce is opt-in")
+        expect(registeredDefaults[DefaultsKey.keyboardDebounceWindowMs] as? Int == 10,
+               "keyboard debounce default window starts low")
+        expect(registeredDefaults[DefaultsKey.keyboardDebounceKeyWindows] as? String == "",
+               "keyboard debounce per-key windows start empty")
         expect(registeredDefaults[DefaultsKey.panelUtilityCleaning] as? Bool == true,
                "panel cleaning utility is visible by default")
         expect(registeredDefaults[DefaultsKey.panelUtilityURLCleaner] as? Bool == true,
@@ -358,6 +537,8 @@ struct MetricsTests {
                "panel shelf control is visible by default")
         expect(registeredDefaults[DefaultsKey.panelControlWindowMaximize] as? Bool == true,
                "panel window maximize control is visible by default")
+        expect(registeredDefaults[DefaultsKey.panelControlKeyDebounce] as? Bool == true,
+               "panel keyboard debounce control is visible by default")
         expect(registeredDefaults[DefaultsKey.panelShowKeepAwake] as? Bool == true,
                "Keep Awake panel section is shown by default")
         expect(registeredDefaults[DefaultsKey.panelShowUtilities] as? Bool == true,
@@ -372,6 +553,8 @@ struct MetricsTests {
                "system alert controls are shown by default")
         expect(registeredDefaults[DefaultsKey.monitorGraphDisk] as? Bool == true,
                "disk monitor graph is shown by default")
+        expect(registeredDefaults[DefaultsKey.monitorNetApps] as? Bool == true,
+               "network app usage block is shown by default")
         expect(registeredDefaults[DefaultsKey.monitorDiskUsage] as? Bool == true,
                "disk usage block is shown by default")
         expect(registeredDefaults[DefaultsKey.monitorDiskActivity] as? Bool == true,
@@ -394,8 +577,10 @@ struct MetricsTests {
                "menu bar disk usage is opt-in")
         expect(registeredDefaults[DefaultsKey.menuBarDiskActivity] as? Bool == false,
                "menu bar disk activity is opt-in")
+        expect(registeredDefaults[DefaultsKey.menuBarPeripheralBattery] as? Bool == false,
+               "menu bar peripheral battery is opt-in")
         expect(registeredDefaults[DefaultsKey.menuBarMetricOrder] as? String
-               == "cpu,cpuTemperature,gpu,gpuTemperature,memory,battery,batteryTemperature,network,diskUsage,diskActivity,power",
+               == "cpu,cpuTemperature,gpu,gpuTemperature,memory,battery,batteryTemperature,peripheralBattery,network,diskUsage,diskActivity,power",
                "menu bar metric order keeps temperature sensors next to their components and disk near live I/O")
         expect(registeredDefaults[DefaultsKey.menuBarCombineTemperatures] as? Bool == true,
                "menu bar combines usage and temperature by default")
@@ -447,17 +632,21 @@ struct MetricsTests {
         expect(Defaults.sanitizedBatteryLimit(100) == 10, "invalid battery limit falls back to default")
         expect(Defaults.sanitizedMonitorInterval(5) == 5, "valid monitor interval is preserved")
         expect(Defaults.sanitizedMonitorInterval(7) == 2, "invalid monitor interval falls back to default")
+        expect(Defaults.sanitizedKeyboardDebounceWindow(80) == 80,
+               "valid debounce window is preserved")
+        expect(Defaults.sanitizedKeyboardDebounceWindow(999) == Defaults.defaultKeyboardDebounceWindowMs,
+               "invalid debounce window falls back to default")
         expect(Defaults.sanitizedMenuBarLabelStyle("classic") == "classic", "valid label style is preserved")
         expect(Defaults.sanitizedMenuBarLabelStyle("bad") == "compact", "invalid label style falls back to compact")
         expect(Defaults.sanitizedMenuBarMemoryStyle("dot") == "dot", "valid memory style is preserved")
         expect(Defaults.sanitizedMenuBarMemoryStyle("bad") == "percent", "invalid memory style falls back to percent")
         expect(Defaults.sanitizedMenuBarMetricOrder("cpu,gpu,memory,network,battery,power")
                == ["cpu", "gpu", "memory", "network", "battery", "power",
-                   "cpuTemperature", "gpuTemperature", "batteryTemperature", "diskUsage", "diskActivity"],
+                   "cpuTemperature", "gpuTemperature", "batteryTemperature", "peripheralBattery", "diskUsage", "diskActivity"],
                "menu bar metric order appends temperature sensors without rewriting existing saved order")
         expect(Defaults.sanitizedMenuBarMetricOrder("temperature,cpu,cpu,bad")
                == ["cpuTemperature", "gpuTemperature", "batteryTemperature",
-                   "cpu", "gpu", "memory", "battery", "network", "diskUsage", "diskActivity", "power"],
+                   "cpu", "gpu", "memory", "battery", "peripheralBattery", "network", "diskUsage", "diskActivity", "power"],
                "menu bar metric order migrates the old generic temperature value")
         expect(Defaults.sanitizedBundleIdentifierList([" com.example.One ", "", "com.example.One", "com.example.Two"])
                == ["com.example.One", "com.example.Two"],
@@ -844,6 +1033,14 @@ struct MetricsTests {
                                                   targetOutputDeviceUID: "ExternalDisplay",
                                                   defaultOutputDeviceUID: "BuiltInSpeakerDevice"),
                "specific non-default output at 100 percent uses an engine")
+        expect(MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "us.zoom.xos", name: "zoom.us"),
+               "Zoom is kept out of process-tap audio routing")
+        expect(MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "us.zoom.ZoomAutoUpdater", name: "Zoom"),
+               "Zoom helper bundle ids are kept out of process-tap audio routing")
+        expect(!MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "com.apple.Safari", name: "Safari"),
+               "regular apps remain eligible for process-tap audio routing")
+        expect(!MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: nil, name: "Zoomable Notes"),
+               "unrelated app names are not treated as Zoom")
         expect(MixerRoutingSupport.effectiveDeviceUID(selectedUID: "ExternalDisplay",
                                                       availableUIDs: ["BuiltInSpeakerDevice"],
                                                       defaultUID: "BuiltInSpeakerDevice") == "BuiltInSpeakerDevice",
@@ -1002,14 +1199,43 @@ struct MetricsTests {
                + SwitcherIconRowLayout.hintHeight
                + SwitcherIconRowLayout.padding * 2,
                "App Switcher icon-row mode reserves preview, icon row and shortcut hint height")
-        let defaultSwitcherHints = SwitcherSupport.shortcutHints(for: .switcherDefault)
-        expect(defaultSwitcherHints.apps == "⌘Tab" && defaultSwitcherHints.windows == "⌘`",
+        let previousPreviewSize = UserDefaults.standard.object(forKey: DefaultsKey.previewSize)
+        UserDefaults.standard.set("xlarge", forKey: DefaultsKey.previewSize)
+        let xlargeIconRowLayout = SwitcherIconRowLayout.compute(appCount: 6,
+                                                                 selectedWindowCount: 1,
+                                                                 screenVisibleFrame: screen)
+        expect(SwitcherIconRowLayout.scale <= 1.15,
+               "App Switcher icon-row mode caps Extra High preview scaling")
+        expect(xlargeIconRowLayout.panelSize.height < 540,
+               "App Switcher icon-row mode stays compact with Extra High previews")
+        expect(xlargeIconRowLayout.panelSize.width < 950,
+               "App Switcher icon-row mode avoids a giant empty backdrop with six apps")
+        let xlargeSingleWindowLayout = SwitcherIconRowLayout.compute(appCount: 1,
+                                                                     selectedWindowCount: 1,
+                                                                     screenVisibleFrame: screen)
+        expectClose(Double(xlargeSingleWindowLayout.previewContentWidth),
+                    Double(SwitcherIconRowLayout.previewCardWidth),
+                    "App Switcher icon-row mode keeps a one-window preview card compact")
+        expectClose(Double(xlargeSingleWindowLayout.previewSurfaceWidth),
+                    Double(SwitcherIconRowLayout.previewCardWidth + SwitcherIconRowLayout.previewPanelPadding * 2),
+                    "App Switcher icon-row mode keeps padding around a one-window preview card")
+        expect(xlargeSingleWindowLayout.panelSize.width < 430,
+               "App Switcher icon-row mode avoids a giant horizontal panel for one app with one window")
+        if let previousPreviewSize {
+            UserDefaults.standard.set(previousPreviewSize, forKey: DefaultsKey.previewSize)
+        } else {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.previewSize)
+        }
+        let defaultSwitcherHints = SwitcherSupport.shortcutHints(for: .switcherDefault,
+                                                                 windowShortcut: .switcherWindowDefault)
+        expect(defaultSwitcherHints.apps == "⌘Tab" && defaultSwitcherHints.windows == "⌘ `",
                "App Switcher icon-row hints describe default app and window shortcuts")
         let customSwitcherHints = SwitcherSupport.shortcutHints(
-            for: GlobalShortcut(keyCode: Int64(kVK_Tab), modifiers: [.option])
+            for: GlobalShortcut(keyCode: Int64(kVK_Tab), modifiers: [.option]),
+            windowShortcut: GlobalShortcut(keyCode: Int64(kVK_ANSI_J), modifiers: [.command])
         )
-        expect(customSwitcherHints.apps == "⌥Tab" && customSwitcherHints.windows == "⌥`",
-               "App Switcher icon-row hints follow custom shortcut modifiers")
+        expect(customSwitcherHints.apps == "⌥Tab" && customSwitcherHints.windows == "⌘J",
+               "App Switcher icon-row hints show custom app and window shortcuts independently")
         let groupedSwitcherItems = [
             SwitcherItem.window(id: 1, title: "One", appName: "Alpha", pid: 101,
                                 isOnScreen: true, frame: .zero),
@@ -1044,6 +1270,16 @@ struct MetricsTests {
                                                                  selectedIndex: 2,
                                                                  delta: 1) == 2,
                "App Switcher icon-row window navigation stays put when the app has one window")
+        let afterFirstSwitch = SwitcherSupport.updatedMRU(afterActivating: "window-b",
+                                                          previousID: "window-a",
+                                                          existing: [])
+        expect(afterFirstSwitch == ["window-b", "window-a"],
+               "App Switcher MRU records the previous window immediately after a switch")
+        let afterSecondSwitch = SwitcherSupport.updatedMRU(afterActivating: "window-a",
+                                                           previousID: "window-b",
+                                                           existing: afterFirstSwitch)
+        expect(afterSecondSwitch == ["window-a", "window-b"],
+               "App Switcher MRU toggles back after two consecutive switcher uses")
         let groupedIconLayout = SwitcherIconRowLayout.compute(appCount: appGroups.count,
                                                               selectedWindowCount: appGroups[0].windowCount,
                                                               screenVisibleFrame: screen)
@@ -1053,6 +1289,110 @@ struct MetricsTests {
         expect(groupedIconLayout.previewContentWidth
                >= CGFloat(appGroups[0].windowCount) * SwitcherIconRowLayout.previewCardWidth,
                "App Switcher icon-row layout reserves room for selected app previews")
+        expectClose(Double(groupedIconLayout.appRowSurfaceWidth),
+                    Double(groupedIconLayout.appRowContentWidth + SwitcherIconRowLayout.rowHorizontalPadding * 2),
+                    "App Switcher icon-row layout keeps horizontal padding inside the app row surface")
+        expectClose(Double(groupedIconLayout.previewSurfaceWidth),
+                    Double(groupedIconLayout.previewContentWidth + SwitcherIconRowLayout.previewPanelPadding * 2),
+                    "App Switcher icon-row layout keeps preview cards away from the surface border")
+        let issue128Layout = SwitcherIconRowLayout.compute(appCount: 7,
+                                                           selectedWindowCount: 2,
+                                                           screenVisibleFrame: screen)
+        let issue128LeftPlacement = SwitcherSupport.selectedPreviewPlacement(
+            appCount: 7,
+            selectedAppIndex: 1,
+            selectedWindowIndex: 0,
+            selectedWindowCount: 2,
+            visibleIconCount: issue128Layout.visibleIconCount,
+            appRowContentWidth: issue128Layout.appRowContentWidth,
+            appRowSurfaceWidth: issue128Layout.appRowSurfaceWidth,
+            previewContentWidth: issue128Layout.previewContentWidth,
+            previewSurfaceWidth: issue128Layout.previewSurfaceWidth
+        )
+        let leftAppCenter = SwitcherIconRowLayout.appTileWidth / 2
+            + SwitcherIconRowLayout.appTileWidth
+            + SwitcherIconRowLayout.spacing
+        func expectedPreviewLeading(selectedCenterInRow: CGFloat,
+                                    layout: SwitcherIconRowLayout) -> CGFloat {
+            let contentWidth = max(layout.appRowSurfaceWidth, layout.previewSurfaceWidth)
+            let rawLeading = selectedCenterInRow - layout.previewSurfaceWidth / 2
+            return min(max(0, rawLeading), contentWidth - layout.previewSurfaceWidth)
+        }
+        let issue128ContentWidth = max(issue128Layout.appRowSurfaceWidth, issue128Layout.previewSurfaceWidth)
+        let issue128RowLeading = max(0, (issue128ContentWidth - issue128Layout.appRowSurfaceWidth) / 2)
+            + SwitcherIconRowLayout.rowHorizontalPadding
+        let leftPreviewLeading = expectedPreviewLeading(selectedCenterInRow: issue128RowLeading + leftAppCenter,
+                                                        layout: issue128Layout)
+        expectClose(Double(issue128LeftPlacement.leading),
+                    Double(leftPreviewLeading),
+                    "App Switcher icon-row preview anchors to a left-side selected app")
+        let issue128SecondWindowPlacement = SwitcherSupport.selectedPreviewPlacement(
+            appCount: 7,
+            selectedAppIndex: 1,
+            selectedWindowIndex: 1,
+            selectedWindowCount: 2,
+            visibleIconCount: issue128Layout.visibleIconCount,
+            appRowContentWidth: issue128Layout.appRowContentWidth,
+            appRowSurfaceWidth: issue128Layout.appRowSurfaceWidth,
+            previewContentWidth: issue128Layout.previewContentWidth,
+            previewSurfaceWidth: issue128Layout.previewSurfaceWidth
+        )
+        expectClose(Double(issue128SecondWindowPlacement.leading),
+                    Double(issue128LeftPlacement.leading),
+                    "App Switcher icon-row preview does not move when switching windows inside one app")
+        let issue128CenterPlacement = SwitcherSupport.selectedPreviewPlacement(
+            appCount: 7,
+            selectedAppIndex: 3,
+            selectedWindowIndex: 0,
+            selectedWindowCount: 2,
+            visibleIconCount: issue128Layout.visibleIconCount,
+            appRowContentWidth: issue128Layout.appRowContentWidth,
+            appRowSurfaceWidth: issue128Layout.appRowSurfaceWidth,
+            previewContentWidth: issue128Layout.previewContentWidth,
+            previewSurfaceWidth: issue128Layout.previewSurfaceWidth
+        )
+        let centerAppCenter = SwitcherIconRowLayout.appTileWidth / 2
+            + 3 * (SwitcherIconRowLayout.appTileWidth + SwitcherIconRowLayout.spacing)
+        let centerPreviewLeading = expectedPreviewLeading(selectedCenterInRow: issue128RowLeading + centerAppCenter,
+                                                          layout: issue128Layout)
+        expectClose(Double(issue128CenterPlacement.leading),
+                    Double(centerPreviewLeading),
+                    "App Switcher icon-row preview anchors to a centered selected app")
+        let scrollingPreviewPlacement = SwitcherSupport.selectedPreviewPlacement(
+            appCount: 20,
+            selectedAppIndex: 1,
+            selectedWindowIndex: 0,
+            selectedWindowCount: 2,
+            visibleIconCount: 6,
+            appRowContentWidth: issue128Layout.appRowContentWidth,
+            appRowSurfaceWidth: issue128Layout.appRowSurfaceWidth,
+            previewContentWidth: issue128Layout.previewContentWidth,
+            previewSurfaceWidth: issue128Layout.previewSurfaceWidth
+        )
+        let scrollingPreviewLeading = expectedPreviewLeading(
+            selectedCenterInRow: issue128RowLeading + issue128Layout.appRowContentWidth / 2,
+            layout: issue128Layout
+        )
+        expectClose(Double(scrollingPreviewPlacement.leading),
+                    Double(scrollingPreviewLeading),
+                    "App Switcher icon-row preview anchors to the visible app row when the app row scrolls")
+        let manyWindowLayout = SwitcherIconRowLayout.compute(appCount: 20,
+                                                             selectedWindowCount: 12,
+                                                             screenVisibleFrame: screen)
+        let scrollingWindowPreviewPlacement = SwitcherSupport.selectedPreviewPlacement(
+            appCount: 20,
+            selectedAppIndex: 1,
+            selectedWindowIndex: 6,
+            selectedWindowCount: 12,
+            visibleIconCount: manyWindowLayout.visibleIconCount,
+            appRowContentWidth: manyWindowLayout.appRowContentWidth,
+            appRowSurfaceWidth: manyWindowLayout.appRowSurfaceWidth,
+            previewContentWidth: manyWindowLayout.previewContentWidth,
+            previewSurfaceWidth: manyWindowLayout.previewSurfaceWidth
+        )
+        let centeredPreviewLeading = (scrollingWindowPreviewPlacement.contentWidth - manyWindowLayout.previewSurfaceWidth) / 2
+        expectClose(Double(scrollingWindowPreviewPlacement.leading), Double(centeredPreviewLeading),
+                    "App Switcher icon-row preview stays centered when the window preview row scrolls")
         let singleWindowAppLayout = SwitcherIconRowLayout.compute(appCount: appGroups.count,
                                                                   selectedWindowCount: appGroups[1].windowCount,
                                                                   screenVisibleFrame: screen)
@@ -1430,6 +1770,19 @@ struct MetricsTests {
                "release notes parse changelog images")
         expect(!notes.sections.contains(where: { $0.title == "Website" }),
                "release notes hide website sections from the feature list")
+        let previewBodyWithoutSummaryHeading = """
+        ## [2.17.3]
+
+        A short release summary from the GitHub release body.
+
+        ### Fixed
+        - Preview bullet.
+        """
+        let previewNotes = ReleaseNotes.notes(for: "2.17.3", changelog: previewBodyWithoutSummaryHeading)
+        expect(previewNotes.sections.first?.title == "Summary",
+               "release notes preserve an unheaded release-body summary paragraph")
+        expect(previewNotes.sections.first?.paragraphItems.first == "A short release summary from the GitHub release body.",
+               "release notes keep summary text before the first subsection")
 
         // MARK: URL cleaning
 
@@ -1695,6 +2048,8 @@ struct MetricsTests {
             expect(!strings.switcherIconRowModeCaption.isEmpty, "\(prefix) App Switcher icon-row caption is present")
             expect(!strings.switcherShortcutHintApps.isEmpty, "\(prefix) App Switcher app shortcut hint is present")
             expect(!strings.switcherShortcutHintWindows.isEmpty, "\(prefix) App Switcher window shortcut hint is present")
+            expect(!strings.networkApps.isEmpty, "\(prefix) network app usage title is present")
+            expect(!strings.networkAppsIdle.isEmpty, "\(prefix) network app idle text is present")
             expect(!strings.updateShowcaseTitle.isEmpty, "\(prefix) update showcase title is present")
             expect(!strings.updateShowcaseMessage.isEmpty, "\(prefix) update showcase message is present")
             expect(!strings.updateShowcaseUnavailable.isEmpty, "\(prefix) update showcase fallback is present")
@@ -1764,6 +2119,42 @@ struct MetricsTests {
         // Counter reset (interface went down) must not produce a negative/huge spike.
         let afterReset = MetricFormat.netSpeed(previous: fast, current: slow, elapsed: 2)
         expect(afterReset.down == 0 && afterReset.up == 0, "counter reset yields zero")
+
+        let nettopCSV = """
+        time,,bytes_in,bytes_out,
+        08:31:45.865507,Codex (Service).78844,78288,477660,
+        08:31:45.865507,codex.78880,3154372,13193590,
+        time,,bytes_in,bytes_out,
+        08:31:46.871245,Codex (Service).78844,416,98,
+        08:31:46.871246,codex.78880,16245,20641,
+        08:31:46.871247,launchd.1,0,0,
+        """
+        let nettopRows = NetworkProcessSupport.parseNettopCSV(nettopCSV)
+        expect(nettopRows.count == 2,
+               "nettop parser keeps only active rows from the final delta section")
+        expect(nettopRows.first?.name == "Codex (Service)" && nettopRows.first?.pid == 78844,
+               "nettop parser extracts process names containing spaces")
+        expectClose(nettopRows.last?.bytesIn ?? -1, 16_245, "nettop parser reads numeric bytes in")
+        expectClose(nettopRows.last?.bytesOut ?? -1, 20_641, "nettop parser reads numeric bytes out")
+
+        var nettopStream = NetworkProcessDeltaStreamParser()
+        let streamLines = [
+            "time,,bytes_in,bytes_out,",
+            "08:31:45.865507,Codex.78844,78288,477660,",
+            "time,,bytes_in,bytes_out,",
+            "08:31:46.871245,Codex.78844,416,98,",
+            "08:31:46.871247,launchd.1,0,0,",
+            "time,,bytes_in,bytes_out,",
+        ]
+        let streamedSections = streamLines.compactMap { nettopStream.consumeCSVLine($0) }
+        expect(streamedSections.count == 1,
+               "nettop stream parser skips the initial cumulative section")
+        expect(streamedSections.first?.count == 1,
+               "nettop stream parser emits only active rows from the first delta section")
+        expectClose(streamedSections.first?.first?.bytesIn ?? -1, 416,
+                    "nettop stream parser does not publish cumulative bytes")
+        expect(NetworkProcessSupport.nettopArguments == ["-P", "-d", "-x", "-J", "bytes_in,bytes_out", "-L", "2", "-s", "1"],
+               "nettop per-app sampling keeps CSV output and relies on the app timeout instead of process exit")
 
         // MARK: Interface filtering
 

@@ -16,6 +16,7 @@ struct ShortcutRecorderButton: NSViewRepresentable {
         let button = RecorderButton()
         button.bezelStyle = .rounded
         button.setButtonType(.momentaryPushIn)
+        button.font = .monospacedSystemFont(ofSize: 13, weight: .semibold)
         button.target = button
         button.action = #selector(RecorderButton.beginRecording)
         apply(to: button)
@@ -81,6 +82,9 @@ final class RecorderButton: NSButton {
 
     func refreshTitle() {
         title = isRecording ? recordingTitle : shortcut.displayString
+        font = isRecording
+            ? .systemFont(ofSize: 13, weight: .medium)
+            : .monospacedSystemFont(ofSize: 13, weight: .semibold)
     }
 }
 
@@ -89,6 +93,7 @@ struct ShortcutPreferenceRow: View {
 
     private let role: GlobalShortcutRole
     private let isEnabled: Bool
+    private let label: String?
     private let onChange: () -> Void
     private let additionalConflict: (GlobalShortcut) -> String?
     @AppStorage private var rawValue: String
@@ -96,10 +101,12 @@ struct ShortcutPreferenceRow: View {
 
     init(role: GlobalShortcutRole,
          isEnabled: Bool = true,
+         label: String? = nil,
          additionalConflict: @escaping (GlobalShortcut) -> String? = { _ in nil },
          onChange: @escaping () -> Void) {
         self.role = role
         self.isEnabled = isEnabled
+        self.label = label
         self.additionalConflict = additionalConflict
         self.onChange = onChange
         _rawValue = AppStorage(wrappedValue: role.defaultShortcut.storageValue, role.storageKey)
@@ -108,7 +115,7 @@ struct ShortcutPreferenceRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 8) {
-                Text(l10n.s.shelfHotkeyLabel)
+                Text(label ?? l10n.s.shelfHotkeyLabel)
                 Spacer()
                 ShortcutRecorderButton(shortcut: shortcut,
                                        isEnabled: isEnabled,

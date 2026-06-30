@@ -116,6 +116,23 @@ enum MixerRoutingSupport {
             && targetOutputDeviceUID != defaultOutputDeviceUID
     }
 
+    static func bypassesProcessTap(bundleIdentifier: String?, name: String) -> Bool {
+        let bundle = (bundleIdentifier ?? "")
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .lowercased()
+        if bundle == "us.zoom.xos" || bundle.hasPrefix("us.zoom.") {
+            return true
+        }
+
+        let normalizedName = name
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalizedName == "zoom"
+            || normalizedName == "zoom.us"
+            || normalizedName == "zoom workplace"
+    }
+
     static func resolveInputDevice(preferredUID: String?,
                                    availableUIDs: Set<String>,
                                    currentUID: String?) -> MixerInputRouteResolution {

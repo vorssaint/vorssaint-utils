@@ -10,8 +10,19 @@ struct AppPickerView: View {
     @State private var isLoading = false
 
     var compact = false
+    var loadApps: () -> [InstalledApps.InstalledApp] = { InstalledApps.installedApplications() }
     var onCancel: () -> Void
     var onSelect: (URL) -> Void
+
+    init(compact: Bool = false,
+         onCancel: @escaping () -> Void,
+         onSelect: @escaping (URL) -> Void,
+         loadApps: @escaping () -> [InstalledApps.InstalledApp] = { InstalledApps.installedApplications() }) {
+        self.compact = compact
+        self.onCancel = onCancel
+        self.onSelect = onSelect
+        self.loadApps = loadApps
+    }
 
     private var filteredApps: [InstalledApps.InstalledApp] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -91,7 +102,7 @@ struct AppPickerView: View {
         guard apps.isEmpty, !isLoading else { return }
         isLoading = true
         DispatchQueue.global(qos: .userInitiated).async {
-            let loaded = InstalledApps.installedApplications()
+            let loaded = loadApps()
             DispatchQueue.main.async {
                 apps = loaded
                 isLoading = false

@@ -71,7 +71,6 @@ final class AppSwitcher: ObservableObject {
         static let escape: Int64 = 53
         static let enter: Int64 = 36
         static let q: Int64 = 12
-        static let grave: Int64 = 50
         static let leftArrow: Int64 = 123
         static let rightArrow: Int64 = 124
         static let downArrow: Int64 = 125
@@ -187,10 +186,16 @@ final class AppSwitcher: ObservableObject {
 
         let shortcut = sessionShortcut ?? GlobalShortcut.saved(for: DefaultsKey.switcherShortcut,
                                                                fallback: .switcherDefault)
+        let windowShortcut = GlobalShortcut.saved(for: DefaultsKey.switcherWindowShortcut,
+                                                  fallback: .switcherWindowDefault)
         switch keyCode {
         case _ where keyCode == shortcut.keyCode && shortcut.matches(event: event, allowingExtraShift: true):
             let delta = shortcut.shiftIsNavigationModifier && flags.contains(.maskShift) ? -1 : 1
             advanceSelection(by: delta)
+        case _ where iconRowModeEnabled && searchQuery.isEmpty
+            && windowShortcut.matches(event: event, allowingExtraShift: true):
+            let delta = windowShortcut.shiftIsNavigationModifier && flags.contains(.maskShift) ? -1 : 1
+            advanceWindowInSelectedApp(by: delta)
         case KeyCode.rightArrow:
             advanceSelection(by: 1)
         case KeyCode.leftArrow:
@@ -201,9 +206,6 @@ final class AppSwitcher: ObservableObject {
             moveSelection(by: -grid.columns)
         case KeyCode.q where searchQuery.isEmpty:
             quitSelectedApp()
-        case KeyCode.grave where iconRowModeEnabled && searchQuery.isEmpty:
-            let delta = flags.contains(.maskShift) ? -1 : 1
-            advanceWindowInSelectedApp(by: delta)
         case KeyCode.delete:
             removeLastSearchCharacter()
         case KeyCode.escape:
@@ -340,15 +342,10 @@ final class AppSwitcher: ObservableObject {
     /// front and the window the user came from becomes second, so the very next
     /// ⌘Tab toggles straight back — the standard most-recently-used behavior,
     /// at window granularity (including two windows of the same app).
-    private func recordUse(_ activatedID: String) {
-        itemMRU.removeAll { $0 == activatedID }
-        itemMRU.insert(activatedID, at: 0)
-        if let previous = sessionStartItemID, previous != activatedID {
-            itemMRU.removeAll { $0 == previous }
-            itemMRU.insert(previous, at: 1)
-        }
-        // Bound the history so closed windows don't accumulate forever.
-        if itemMRU.count > 64 { itemMRU.removeLast(itemMRU.count - 64) }
+    private func recordUse(_ activatedID: String, previousID: String?) {
+        itemMRU = SwitcherSupport.updatedMRU(afterActivating: activatedID,
+                                             previousID: previousID,
+                                             existing: itemMRU)
     }
 
     func select(index: Int) {
@@ -563,9 +560,10 @@ final class AppSwitcher: ObservableObject {
         guard sessionActive else { return }
         let selection = windows.indices.contains(selectedIndex) ? windows[selectedIndex] : nil
         let source = sessionSourceContext
+        let previousID = sessionStartItemID
         endSession()
         if let selection {
-            recordUse(selection.id)
+            recordUse(selection.id, previousID: previousID)
             WindowActivator.activate(selection,
                                      sourceWasFullscreen: source?.isFullscreen ?? false,
                                      sourcePID: source?.pid,
@@ -615,8 +613,10 @@ final class AppSwitcher: ObservableObject {
 
     private func showPanel() {
         let panel = ensurePanel()
+        panel.hasShadow = !iconRowModeEnabled
         hoverAnchor = NSEvent.mouseLocation
         panel.setFrame(centeredFrame(for: currentPanelSize), display: true)
+        panel.invalidateShadow()
         panel.orderFrontRegardless()
     }
 
@@ -626,7 +626,9 @@ final class AppSwitcher: ObservableObject {
     private func resizePanel() {
         guard let panel else { return }
         let frame = centeredFrame(for: currentPanelSize)
+        panel.hasShadow = !iconRowModeEnabled
         panel.setFrame(frame, display: true, animate: panel.isVisible)
+        panel.invalidateShadow()
     }
 
     private var currentPanelSize: CGSize {

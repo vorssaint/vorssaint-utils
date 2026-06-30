@@ -296,6 +296,7 @@ private struct MenuBarSetupStep: View {
     @AppStorage(DefaultsKey.menuBarDiskUsage) private var diskUsage = false
     @AppStorage(DefaultsKey.menuBarDiskActivity) private var diskActivity = false
     @AppStorage(DefaultsKey.menuBarBattery) private var battery = false
+    @AppStorage(DefaultsKey.menuBarPeripheralBattery) private var peripheralBattery = false
     @AppStorage(DefaultsKey.menuBarPower) private var power = false
 
     var body: some View {
@@ -327,6 +328,8 @@ private struct MenuBarSetupStep: View {
                 toggle(l10n.s.monitorItemDiskActivity, $diskActivity)
                 Divider()
                 toggle(l10n.s.batteryLabel, $battery)
+                Divider()
+                toggle(l10n.s.monitorShowPeripheralBattery, $peripheralBattery)
                 Divider()
                 toggle(l10n.s.monitorShowPowerLabel, $power)
             }

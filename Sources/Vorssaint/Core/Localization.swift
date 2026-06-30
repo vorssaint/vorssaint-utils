@@ -654,6 +654,8 @@ struct Strings {
     let networkUpload: String
     let networkThisSession: String
     let networkMeasuring: String
+    let networkApps: String
+    let networkAppsIdle: String
 
     // MARK: Panel — disk
     let diskSection: String
@@ -699,6 +701,8 @@ struct Strings {
     let monitorShowCPUTemperature: String
     let monitorShowGPUTemperature: String
     let monitorShowBatteryTemperature: String
+    let monitorShowPeripheralBattery: String
+    let peripheralBatteryNoDevices: String
     let monitorGraphsSection: String
     let monitorGraphsCaption: String
 
@@ -722,6 +726,7 @@ struct Strings {
 
     // MARK: System uptime, battery health, speed test
     let systemUptime: String
+    let batteryCharge: String
     let powerHealth: String
     let powerCycles: String
     let speedTestRun: String
@@ -760,6 +765,18 @@ struct Strings {
     let windowMaximizeCaption: String
     let windowMaximizeActiveNow: String
     let windowMaximizeNeedsAccessibility: String
+    let keyDebounceName: String
+    let keyDebounceEnable: String
+    let keyDebounceCaption: String
+    let keyDebounceActiveNow: String
+    let keyDebounceGlobalWindow: String
+    let keyDebouncePerKeySection: String
+    let keyDebouncePerKeyCaption: String
+    let keyDebounceKeyLabel: String
+    let keyDebounceWindowLabel: String
+    let keyDebounceAddKey: String
+    let keyDebounceNoOverrides: String
+    let keyDebounceRemoveKey: String
     let cleaningPanelCaption: String
     let cleaningOverlayTitle: String
     let cleaningOverlaySubtitle: String
@@ -1340,6 +1357,8 @@ extension Strings {
         networkUpload: "Upload",
         networkThisSession: "Nesta sessão",
         networkMeasuring: "Medindo…",
+        networkApps: "Apps usando rede",
+        networkAppsIdle: "Nenhum app usando rede agora",
 
         diskSection: "Discos",
         diskUsed: "usado",
@@ -1383,6 +1402,8 @@ extension Strings {
         monitorShowCPUTemperature: "Temperatura da CPU",
         monitorShowGPUTemperature: "Temperatura da GPU",
         monitorShowBatteryTemperature: "Temperatura da bateria",
+        monitorShowPeripheralBattery: "Bateria dos periféricos",
+        peripheralBatteryNoDevices: "Nenhum periférico encontrado",
         monitorGraphsSection: "Gráficos",
         monitorGraphsCaption: "Escolha quais métricas mostram um gráfico ao longo do tempo.",
 
@@ -1404,8 +1425,9 @@ extension Strings {
         memoryStyleBoth: "Ambos",
 
         systemUptime: "Ativo há",
+        batteryCharge: "Carga",
         powerHealth: "Saúde da bateria",
-        powerCycles: "ciclos",
+        powerCycles: "Ciclos",
         speedTestRun: "Testar velocidade",
         speedTestAgain: "Testar de novo",
         speedTestLatency: "Latência",
@@ -1440,6 +1462,18 @@ extension Strings {
         windowMaximizeCaption: "O botão verde maximiza sem criar outro Espaço.",
         windowMaximizeActiveNow: "Ativo no botão verde",
         windowMaximizeNeedsAccessibility: "Precisa de Acessibilidade para funcionar.",
+        keyDebounceName: "Debounce",
+        keyDebounceEnable: "Filtrar teclas duplicadas",
+        keyDebounceCaption: "Filtra toques duplicados muito rápidos.",
+        keyDebounceActiveNow: "Filtro ativo",
+        keyDebounceGlobalWindow: "Janela global",
+        keyDebouncePerKeySection: "Teclas específicas",
+        keyDebouncePerKeyCaption: "Valores por tecla substituem a janela global. Use 0 ms para não filtrar uma tecla.",
+        keyDebounceKeyLabel: "Tecla",
+        keyDebounceWindowLabel: "Janela",
+        keyDebounceAddKey: "Adicionar tecla",
+        keyDebounceNoOverrides: "Nenhuma tecla específica configurada.",
+        keyDebounceRemoveKey: "Remover tecla",
         cleaningPanelCaption: "Bloqueia o teclado para limpar com segurança.",
         cleaningOverlayTitle: "Teclado bloqueado para limpeza",
         cleaningOverlaySubtitle: "Pressione a mesma tecla 5 vezes para desbloquear",
@@ -2018,6 +2052,8 @@ extension Strings {
         networkUpload: "Upload",
         networkThisSession: "This session",
         networkMeasuring: "Measuring…",
+        networkApps: "Apps using network",
+        networkAppsIdle: "No apps using network now",
 
         diskSection: "Disks",
         diskUsed: "used",
@@ -2061,6 +2097,8 @@ extension Strings {
         monitorShowCPUTemperature: "CPU temperature",
         monitorShowGPUTemperature: "GPU temperature",
         monitorShowBatteryTemperature: "Battery temperature",
+        monitorShowPeripheralBattery: "Peripheral battery",
+        peripheralBatteryNoDevices: "No devices found",
         monitorGraphsSection: "Graphs",
         monitorGraphsCaption: "Choose which metrics show a graph over time.",
 
@@ -2082,8 +2120,9 @@ extension Strings {
         memoryStyleBoth: "Both",
 
         systemUptime: "Up for",
+        batteryCharge: "Charge",
         powerHealth: "Battery health",
-        powerCycles: "cycles",
+        powerCycles: "Cycles",
         speedTestRun: "Speed test",
         speedTestAgain: "Test again",
         speedTestLatency: "Latency",
@@ -2118,6 +2157,18 @@ extension Strings {
         windowMaximizeCaption: "The green button maximizes without creating another Space.",
         windowMaximizeActiveNow: "Green button override active",
         windowMaximizeNeedsAccessibility: "Needs Accessibility to work.",
+        keyDebounceName: "Debounce",
+        keyDebounceEnable: "Filter duplicate keys",
+        keyDebounceCaption: "Filters very fast duplicate key presses.",
+        keyDebounceActiveNow: "Filter active",
+        keyDebounceGlobalWindow: "Global window",
+        keyDebouncePerKeySection: "Specific keys",
+        keyDebouncePerKeyCaption: "Per-key values override the global window. Use 0 ms to stop filtering a key.",
+        keyDebounceKeyLabel: "Key",
+        keyDebounceWindowLabel: "Window",
+        keyDebounceAddKey: "Add key",
+        keyDebounceNoOverrides: "No specific keys configured.",
+        keyDebounceRemoveKey: "Remove key",
         cleaningPanelCaption: "Locks the keyboard so you can clean safely.",
         cleaningOverlayTitle: "Keyboard locked for cleaning",
         cleaningOverlaySubtitle: "Press the same key 5 times to unlock",

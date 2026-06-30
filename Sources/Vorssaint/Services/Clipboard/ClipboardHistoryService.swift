@@ -59,6 +59,7 @@ final class ClipboardHistoryService: ObservableObject {
     @Published private(set) var entries: [ClipboardHistoryEntry] = []
     @Published private(set) var isRunning = false
     @Published private(set) var shortcutRegistrationFailed = false
+    @Published private(set) var quickBatchEntryIDs: Set<UUID> = []
     @Published var quickQuery = "" {
         didSet {
             if quickQuery != oldValue {
@@ -96,12 +97,29 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     func copy(_ entry: ClipboardHistoryEntry) {
+        copyText(entry.text, updating: [entry.id])
+    }
+
+    func copy(_ selectedEntries: [ClipboardHistoryEntry]) {
+        guard !selectedEntries.isEmpty else { return }
+        let text = ClipboardHistoryBatch.combinedText(selectedEntries.map(\.text))
+        copyText(text, updating: selectedEntries.map(\.id))
+    }
+
+    private func copyText(_ text: String, updating entryIDs: [UUID]) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(entry.text, forType: .string)
+        pasteboard.setString(text, forType: .string)
         lastChangeCount = pasteboard.changeCount
-        if let index = entries.firstIndex(where: { $0.id == entry.id }) {
-            entries[index].copiedAt = Date()
+        var didUpdate = false
+        let now = Date()
+        for entryID in entryIDs {
+            if let index = entries.firstIndex(where: { $0.id == entryID }) {
+                entries[index].copiedAt = now
+                didUpdate = true
+            }
+        }
+        if didUpdate {
             save()
         }
     }
@@ -122,11 +140,15 @@ final class ClipboardHistoryService: ObservableObject {
 
     func remove(_ entry: ClipboardHistoryEntry) {
         entries.removeAll { $0.id == entry.id }
+        var selected = quickBatchEntryIDs
+        selected.remove(entry.id)
+        quickBatchEntryIDs = selected
         save()
     }
 
     func clearRecent() {
         entries.removeAll { !$0.isPinned }
+        pruneQuickBatchSelection()
         save()
     }
 
@@ -162,10 +184,40 @@ final class ClipboardHistoryService: ObservableObject {
         selectedQuickEntry?.id
     }
 
+    var quickBatchCount: Int {
+        quickBatchEntries.count
+    }
+
     var selectedQuickEntry: ClipboardHistoryEntry? {
         let matches = filteredQuickEntries
         guard !matches.isEmpty else { return nil }
         return matches[clampedQuickSelectionIndex(for: matches.count)]
+    }
+
+    func isQuickBatchSelected(_ entry: ClipboardHistoryEntry) -> Bool {
+        quickBatchEntryIDs.contains(entry.id)
+    }
+
+    func toggleQuickBatchSelection(_ entry: ClipboardHistoryEntry) {
+        if let index = filteredQuickEntries.firstIndex(where: { $0.id == entry.id }) {
+            quickSelectionIndex = index
+        }
+        var selected = quickBatchEntryIDs
+        if selected.contains(entry.id) {
+            selected.remove(entry.id)
+        } else {
+            selected.insert(entry.id)
+        }
+        quickBatchEntryIDs = selected
+    }
+
+    func toggleSelectedQuickEntryBatchSelection() {
+        guard let entry = selectedQuickEntry else { return }
+        toggleQuickBatchSelection(entry)
+    }
+
+    func clearQuickBatchSelection() {
+        quickBatchEntryIDs = []
     }
 
     func filteredEntries(matching query: String) -> [ClipboardHistoryEntry] {
@@ -185,14 +237,23 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     func copySelectedQuickEntry() {
-        let count = filteredQuickEntries.count
-        guard count > 0 else { return }
-        copyQuickEntry(at: clampedQuickSelectionIndex(for: count))
+        let selectedEntries = quickEntriesForPrimaryAction()
+        guard !selectedEntries.isEmpty else { return }
+        if selectedEntries.count == 1 {
+            copyQuickEntry(selectedEntries[0])
+        } else {
+            copyQuickEntries(selectedEntries)
+        }
     }
 
     func copySelectedQuickEntryOnly() {
-        guard let entry = selectedQuickEntry else { return }
-        copyOnlyQuickEntry(entry)
+        let selectedEntries = quickEntriesForPrimaryAction()
+        guard !selectedEntries.isEmpty else { return }
+        if selectedEntries.count == 1 {
+            copyOnlyQuickEntry(selectedEntries[0])
+        } else {
+            copyOnlyQuickEntries(selectedEntries)
+        }
     }
 
     func togglePinSelectedQuickEntry() {
@@ -224,8 +285,22 @@ final class ClipboardHistoryService: ObservableObject {
         pasteIntoPreviousApp(target)
     }
 
+    func copyQuickEntries(_ selectedEntries: [ClipboardHistoryEntry]) {
+        copy(selectedEntries)
+        let target = pasteTargetApp
+        hideHistoryWindow()
+        pasteTargetApp = nil
+        pasteIntoPreviousApp(target)
+    }
+
     func copyOnlyQuickEntry(_ entry: ClipboardHistoryEntry) {
         copy(entry)
+        hideHistoryWindow()
+        pasteTargetApp = nil
+    }
+
+    func copyOnlyQuickEntries(_ selectedEntries: [ClipboardHistoryEntry]) {
+        copy(selectedEntries)
         hideHistoryWindow()
         pasteTargetApp = nil
     }
@@ -256,8 +331,32 @@ final class ClipboardHistoryService: ObservableObject {
         let pasteboard = NSPasteboard.general
         guard pasteboard.changeCount != lastChangeCount else { return }
         lastChangeCount = pasteboard.changeCount
-        guard let text = pasteboard.string(forType: .string) else { return }
+        guard let text = ClipboardHistoryPasteboardText.preferredText(
+            webURLString: Self.webURLString(from: pasteboard),
+            plainText: pasteboard.string(forType: .string)
+        ) else { return }
         promote(text)
+    }
+
+    private static func webURLString(from pasteboard: NSPasteboard) -> String? {
+        let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL]
+        if let url = urls?.first(where: { isWebURL($0) }) {
+            return url.absoluteString
+        }
+        for type in [NSPasteboard.PasteboardType("public.url"),
+                     NSPasteboard.PasteboardType("NSURLPboardType")] {
+            if let value = pasteboard.string(forType: type),
+               let url = URL(string: value),
+               isWebURL(url) {
+                return url.absoluteString
+            }
+        }
+        return nil
+    }
+
+    private static func isWebURL(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased() else { return false }
+        return (scheme == "http" || scheme == "https") && url.host != nil
     }
 
     private func promote(_ raw: String) {
@@ -331,17 +430,7 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     private func looksSensitive(_ text: String) -> Bool {
-        let lowered = text.lowercased()
-        let obviousWords = ["password", "passwd", "secret", "token", "apikey", "api_key", "authorization"]
-        if obviousWords.contains(where: lowered.contains) { return true }
-
-        guard text.count >= 20, text.count <= 160, !text.contains(where: { $0.isWhitespace }) else {
-            return false
-        }
-        let hasLetter = text.contains { $0.isLetter }
-        let hasDigit = text.contains { $0.isNumber }
-        let hasSymbol = text.contains { !$0.isLetter && !$0.isNumber && !$0.isWhitespace }
-        return hasLetter && hasDigit && hasSymbol
+        ClipboardHistorySensitiveText.looksSensitive(text)
     }
 
     private func load() {
@@ -425,6 +514,7 @@ final class ClipboardHistoryService: ObservableObject {
         let panel = ensurePanel()
         rememberPasteTarget()
         quickQuery = ""
+        clearQuickBatchSelection()
         resetQuickSelection()
         position(panel)
         installKeyMonitor(for: panel)
@@ -438,6 +528,7 @@ final class ClipboardHistoryService: ObservableObject {
         removeKeyMonitor()
         removeDismissMonitors()
         panel?.orderOut(nil)
+        clearQuickBatchSelection()
     }
 
     private func rememberPasteTarget() {
@@ -521,6 +612,10 @@ final class ClipboardHistoryService: ObservableObject {
             }
             if event.keyCode == UInt16(kVK_Return) || event.keyCode == UInt16(kVK_ANSI_KeypadEnter) {
                 let enterModifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
+                if enterModifiers == [.command] {
+                    self.toggleSelectedQuickEntryBatchSelection()
+                    return nil
+                }
                 if enterModifiers == [.shift] {
                     self.copySelectedQuickEntryOnly()
                     return nil
@@ -617,6 +712,25 @@ final class ClipboardHistoryService: ObservableObject {
         quickSelectionIndex = ClipboardHistorySelection.initialIndex(totalCount: filteredQuickEntries.count,
                                                                     pinnedCount: pinnedEntries.count,
                                                                     query: quickQuery)
+    }
+
+    private var quickBatchEntries: [ClipboardHistoryEntry] {
+        let allIDs = entries.map(\.id)
+        let indexes = ClipboardHistoryBatch.orderedSelectedIndexes(allIDs: allIDs,
+                                                                  selectedIDs: quickBatchEntryIDs)
+        return indexes.map { entries[$0] }
+    }
+
+    private func quickEntriesForPrimaryAction() -> [ClipboardHistoryEntry] {
+        let batch = quickBatchEntries
+        if !batch.isEmpty { return batch }
+        guard let entry = selectedQuickEntry else { return [] }
+        return [entry]
+    }
+
+    private func pruneQuickBatchSelection() {
+        let validIDs = Set(entries.map(\.id))
+        quickBatchEntryIDs = Set(quickBatchEntryIDs.filter { validIDs.contains($0) })
     }
 
     private static func digitIndex(for keyCode: UInt16) -> Int? {

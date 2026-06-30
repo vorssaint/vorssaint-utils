@@ -382,6 +382,9 @@ final class AppVolumeMixer: ObservableObject {
             let owner = ResponsibleProcess.owner(of: pid)
             guard let app = NSRunningApplication(processIdentifier: owner),
                   app.activationPolicy == .regular else { continue }
+            let name = ResponsibleProcess.displayName(pid: owner, fallback: app.localizedName ?? "pid \(owner)")
+            guard !MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: app.bundleIdentifier,
+                                                          name: name) else { continue }
 
             var running: UInt32 = 0
             _ = Self.read(object, kAudioProcessPropertyIsRunningOutput, &running)

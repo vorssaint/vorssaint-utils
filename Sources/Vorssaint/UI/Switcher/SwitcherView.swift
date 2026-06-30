@@ -3,6 +3,18 @@
 
 import SwiftUI
 
+private enum SwitcherIconStyle {
+    static let surface = Color(nsColor: .controlBackgroundColor)
+    static let surfaceRaised = Color(nsColor: .windowBackgroundColor)
+    static let tile = Color.primary.opacity(0.045)
+    static let tileSelected = Color.accentColor.opacity(0.15)
+    static let stroke = Color.primary.opacity(0.12)
+    static let text = Color.primary
+    static let secondaryText = Color.secondary
+    static let tertiaryText = Color.secondary.opacity(0.72)
+    static let thumbnailBackground = Color.primary.opacity(0.055)
+}
+
 /// Content of the switcher panel: a grid of large window cards with live
 /// thumbnails, hover/keyboard selection and a springy highlight.
 struct SwitcherView: View {
@@ -10,18 +22,25 @@ struct SwitcherView: View {
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.switcherIconRowMode) private var iconRowMode = false
     @AppStorage(DefaultsKey.switcherShortcut) private var switcherShortcutStorage = GlobalShortcut.switcherDefault.storageValue
+    @AppStorage(DefaultsKey.switcherWindowShortcut) private var switcherWindowShortcutStorage = GlobalShortcut.switcherWindowDefault.storageValue
 
     var body: some View {
+        if iconRowMode, !switcher.windows.isEmpty {
+            iconRowPanel
+        } else {
+            standardPanel
+        }
+    }
+
+    private var standardPanel: some View {
         Group {
             if switcher.windows.isEmpty {
                 emptyState
-            } else if iconRowMode {
-                iconRowSwitcher
             } else {
                 cardGrid
             }
         }
-        .padding(iconRowMode ? SwitcherIconRowLayout.padding : SwitcherGrid.padding)
+        .padding(SwitcherGrid.padding)
         .background(HUDBackdrop(cornerRadius: 24))
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(alignment: .topTrailing) {
@@ -57,6 +76,16 @@ struct SwitcherView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    private var iconRowPanel: some View {
+        iconRowSwitcher
+            .frame(width: switcher.iconRowLayout.panelSize.width,
+                   height: switcher.iconRowLayout.panelSize.height,
+                   alignment: .center)
+            .overlay(alignment: .topTrailing) {
+                searchChip
+            }
     }
 
     @ViewBuilder
@@ -127,33 +156,35 @@ struct SwitcherView: View {
             selectedAppPreviewPanel
             Spacer()
                 .frame(height: SwitcherIconRowLayout.previewGap)
-            iconRow
+            iconRowSurface
             Spacer()
                 .frame(height: SwitcherIconRowLayout.hintGap)
             shortcutHintBar
         }
+        .padding(SwitcherIconRowLayout.padding)
     }
 
     private var shortcutHintBar: some View {
         let shortcut = GlobalShortcut(storageValue: switcherShortcutStorage) ?? .switcherDefault
-        let hints = SwitcherSupport.shortcutHints(for: shortcut)
+        let windowShortcut = GlobalShortcut(storageValue: switcherWindowShortcutStorage) ?? .switcherWindowDefault
+        let hints = SwitcherSupport.shortcutHints(for: shortcut, windowShortcut: windowShortcut)
         return HStack(spacing: 12) {
             shortcutHint(label: l10n.s.switcherShortcutHintApps, value: hints.apps)
             Divider()
                 .frame(height: 16)
-                .overlay(Color.white.opacity(0.14))
+                .overlay(Color.white.opacity(0.18))
             shortcutHint(label: l10n.s.switcherShortcutHintWindows, value: hints.windows)
         }
         .padding(.horizontal, 12)
-        .frame(width: max(1, switcher.iconRowLayout.panelSize.width - SwitcherIconRowLayout.padding * 2),
+        .frame(width: min(SwitcherIconRowLayout.hintBarWidth, iconRowContentWidth),
                height: SwitcherIconRowLayout.hintHeight)
         .background(
             Capsule(style: .continuous)
-                .fill(Color.black.opacity(0.22))
+                .fill(SwitcherIconStyle.surfaceRaised)
         )
         .overlay(
             Capsule(style: .continuous)
-                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+                .strokeBorder(Color.white.opacity(0.14), lineWidth: 1)
         )
     }
 
@@ -161,10 +192,10 @@ struct SwitcherView: View {
         HStack(spacing: 6) {
             Text(label)
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(SwitcherIconStyle.secondaryText)
             Text(value)
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
-                .foregroundStyle(.primary)
+                .foregroundStyle(SwitcherIconStyle.text)
         }
         .lineLimit(1)
         .minimumScaleFactor(0.8)
@@ -174,85 +205,110 @@ struct SwitcherView: View {
     private var selectedAppPreviewPanel: some View {
         if let selected = selectedWindow {
             let appWindows = selectedAppWindows
-            VStack(spacing: 10) {
-                HStack(spacing: 8) {
-                    if let icon = selected.appIcon {
-                        Image(nsImage: icon)
-                            .resizable()
-                            .frame(width: 20, height: 20)
+            let placement = selectedPreviewPlacement
+            ZStack(alignment: .topLeading) {
+                VStack(spacing: 10) {
+                    HStack(spacing: 8) {
+                        if let icon = selected.appIcon {
+                            Image(nsImage: icon)
+                                .resizable()
+                                .frame(width: 20, height: 20)
+                        }
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(selected.appName)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(SwitcherIconStyle.text)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                            Text(selected.displayTitle)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(SwitcherIconStyle.secondaryText)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        Spacer(minLength: 0)
+                        Text("\(appWindows.count)")
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(SwitcherIconStyle.secondaryText)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(Capsule(style: .continuous).fill(SwitcherIconStyle.tile))
                     }
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(selected.appName)
-                            .font(.system(size: 13, weight: .semibold))
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                        Text(selected.displayTitle)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    Spacer(minLength: 0)
-                    Text("\(appWindows.count)")
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.08)))
-                }
 
-                ScrollViewReader { proxy in
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: SwitcherIconRowLayout.spacing) {
-                            ForEach(appWindows, id: \.element.id) { index, window in
-                                SwitcherWindowPreviewTile(window: window,
-                                                          preview: window.previewWindowID.flatMap { switcher.previews[$0] },
-                                                          isSelected: index == switcher.selectedIndex,
-                                                          onCommit: {
-                                                              switcher.select(index: index)
-                                                              switcher.commitSession()
-                                                          },
-                                                          onClose: {
-                                                              switcher.closeWindow(window)
-                                                          })
-                                    .id(window.id)
-                                    .onHover { hovering in
-                                        if hovering { switcher.hoverSelect(index: index) }
+                    ScrollViewReader { proxy in
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: SwitcherIconRowLayout.spacing) {
+                                ForEach(appWindows, id: \.element.id) { index, window in
+                                    SwitcherWindowPreviewTile(window: window,
+                                                              preview: window.previewWindowID.flatMap { switcher.previews[$0] },
+                                                              isSelected: index == switcher.selectedIndex,
+                                                              onCommit: {
+                                                                  switcher.select(index: index)
+                                                                  switcher.commitSession()
+                                                              },
+                                                              onClose: {
+                                                                  switcher.closeWindow(window)
+                                                              })
+                                        .id(window.id)
+                                        .onHover { hovering in
+                                            if hovering { switcher.hoverSelect(index: index) }
+                                        }
                                     }
+                                }
+                            .frame(height: SwitcherIconRowLayout.previewCardHeight, alignment: .center)
+                        }
+                        .scrollDisabled(appWindows.count <= Int(switcher.iconRowLayout.previewContentWidth / SwitcherIconRowLayout.previewCardWidth))
+                        .frame(width: switcher.iconRowLayout.previewContentWidth,
+                               height: SwitcherIconRowLayout.previewCardHeight)
+                        .onChange(of: switcher.selectedIndex) { _, newIndex in
+                            guard switcher.windows.indices.contains(newIndex) else { return }
+                            withAnimation(.easeOut(duration: 0.15)) {
+                                proxy.scrollTo(switcher.windows[newIndex].id, anchor: .center)
                             }
                         }
-                        .frame(height: SwitcherIconRowLayout.previewCardHeight, alignment: .center)
-                    }
-                    .scrollDisabled(appWindows.count <= Int(switcher.iconRowLayout.previewContentWidth / SwitcherIconRowLayout.previewCardWidth))
-                    .frame(width: switcher.iconRowLayout.previewContentWidth,
-                           height: SwitcherIconRowLayout.previewCardHeight)
-                    .onChange(of: switcher.selectedIndex) { _, newIndex in
-                        guard switcher.windows.indices.contains(newIndex) else { return }
-                        withAnimation(.easeOut(duration: 0.15)) {
-                            proxy.scrollTo(switcher.windows[newIndex].id, anchor: .center)
-                        }
                     }
                 }
+                .padding(SwitcherIconRowLayout.previewPanelPadding)
+                .frame(width: switcher.iconRowLayout.previewSurfaceWidth,
+                       height: SwitcherIconRowLayout.previewHeight)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(SwitcherIconStyle.surfaceRaised)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(SwitcherIconStyle.stroke, lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.24), radius: 10, x: 0, y: 5)
+                .offset(x: placement.leading)
             }
-            .padding(12)
-            .frame(width: switcher.iconRowLayout.previewContentWidth,
-                   height: SwitcherIconRowLayout.previewHeight)
+            .frame(width: placement.contentWidth,
+                   height: SwitcherIconRowLayout.previewHeight,
+                   alignment: .topLeading)
+        }
+    }
+
+    private var iconRowSurface: some View {
+        iconRow
+            .padding(.horizontal, SwitcherIconRowLayout.rowHorizontalPadding)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.white.opacity(0.06))
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(SwitcherIconStyle.surface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(SwitcherIconStyle.stroke, lineWidth: 1)
             )
-        }
+            .shadow(color: Color.black.opacity(0.22), radius: 10, x: 0, y: 5)
+            .frame(width: switcher.iconRowLayout.appRowSurfaceWidth,
+                   height: SwitcherIconRowLayout.rowHeight)
     }
 
     private var iconRow: some View {
         let groups = appGroups
         return ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .bottom, spacing: SwitcherIconRowLayout.spacing) {
+                HStack(alignment: .center, spacing: SwitcherIconRowLayout.spacing) {
                     ForEach(groups) { group in
                         let index = group.representativeIndex
                         let window = switcher.windows[index]
@@ -270,7 +326,7 @@ struct SwitcherView: View {
                     }
                 }
                 .padding(.horizontal, 2)
-                .frame(height: SwitcherIconRowLayout.rowHeight, alignment: .bottom)
+                .frame(height: SwitcherIconRowLayout.rowHeight, alignment: .center)
             }
             .scrollDisabled(groups.count <= switcher.iconRowLayout.visibleIconCount)
             .frame(width: switcher.iconRowLayout.appRowContentWidth,
@@ -298,6 +354,30 @@ struct SwitcherView: View {
     private var appGroups: [SwitcherAppGroup] {
         SwitcherSupport.appGroups(items: switcher.windows)
     }
+
+    private var iconRowContentWidth: CGFloat {
+        max(switcher.iconRowLayout.appRowSurfaceWidth,
+            switcher.iconRowLayout.previewSurfaceWidth,
+            SwitcherIconRowLayout.hintBarWidth)
+    }
+
+    private var selectedPreviewPlacement: SwitcherIconRowPreviewPlacement {
+        let groups = appGroups
+        let selectedIndex = selectedWindow
+            .flatMap { selected in groups.firstIndex { $0.pid == selected.pid } }
+            ?? 0
+        return SwitcherSupport.selectedPreviewPlacement(
+            appCount: groups.count,
+            selectedAppIndex: selectedIndex,
+            selectedWindowIndex: selectedAppWindows.firstIndex { $0.offset == switcher.selectedIndex } ?? 0,
+            selectedWindowCount: selectedAppWindows.count,
+            visibleIconCount: switcher.iconRowLayout.visibleIconCount,
+            appRowContentWidth: switcher.iconRowLayout.appRowContentWidth,
+            appRowSurfaceWidth: switcher.iconRowLayout.appRowSurfaceWidth,
+            previewContentWidth: switcher.iconRowLayout.previewContentWidth,
+            previewSurfaceWidth: switcher.iconRowLayout.previewSurfaceWidth
+        )
+    }
 }
 
 private struct SwitcherIconTile: View {
@@ -323,7 +403,7 @@ private struct SwitcherIconTile: View {
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
                         .background(Capsule(style: .continuous).fill(Color.accentColor))
-                        .offset(x: 5, y: -2)
+                        .offset(x: -2, y: 2)
                 } else if window.isMinimized || window.isFullscreen {
                     Circle()
                         .fill(Color.accentColor)
@@ -336,20 +416,20 @@ private struct SwitcherIconTile: View {
                    alignment: .bottom)
             Text(window.appName)
                 .font(.system(size: 11, weight: isSelected ? .semibold : .medium))
-                .foregroundStyle(isSelected ? .primary : .secondary)
+                .foregroundStyle(isSelected ? SwitcherIconStyle.text : SwitcherIconStyle.secondaryText)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .frame(width: max(SwitcherIconRowLayout.selectedIconSize + 12, 86 * PreviewSizing.scale))
+                .frame(width: SwitcherIconRowLayout.iconLabelWidth)
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 5)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(isSelected ? Color.white.opacity(0.15) : Color.clear)
+                .fill(isSelected ? SwitcherIconStyle.tileSelected : Color.clear)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
+                .strokeBorder(isSelected ? Color.accentColor.opacity(0.92) : Color.clear, lineWidth: 1.5)
         )
         .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .onTapGesture(perform: onCommit)
@@ -383,7 +463,7 @@ private struct SwitcherWindowPreviewTile: View {
         VStack(spacing: 6) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.white.opacity(0.07))
+                    .fill(SwitcherIconStyle.thumbnailBackground)
 
                 if let preview {
                     Image(decorative: preview, scale: 2)
@@ -423,7 +503,7 @@ private struct SwitcherWindowPreviewTile: View {
 
             Text(window.displayTitle)
                 .font(.system(size: 11, weight: isSelected ? .semibold : .medium))
-                .foregroundStyle(isSelected ? .primary : .secondary)
+                .foregroundStyle(isSelected ? SwitcherIconStyle.text : SwitcherIconStyle.secondaryText)
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .frame(maxWidth: SwitcherIconRowLayout.previewCardWidth - 20)
@@ -433,11 +513,12 @@ private struct SwitcherWindowPreviewTile: View {
                height: SwitcherIconRowLayout.previewCardHeight)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isSelected ? Color.white.opacity(0.14) : Color.clear)
+                .fill(isSelected ? SwitcherIconStyle.tileSelected : SwitcherIconStyle.tile)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(isSelected ? Color.accentColor : Color.white.opacity(0.08), lineWidth: isSelected ? 2 : 1)
+                .strokeBorder(isSelected ? Color.accentColor.opacity(0.9) : SwitcherIconStyle.stroke,
+                              lineWidth: isSelected ? 1.25 : 1)
         )
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .onTapGesture {
@@ -465,7 +546,7 @@ private struct SwitcherWindowPreviewTile: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .foregroundStyle(isCloseHovering ? Color.primary : Color.secondary)
+            .foregroundStyle(isCloseHovering ? SwitcherIconStyle.text : SwitcherIconStyle.secondaryText)
             .help(l10n.s.dockPreviewCloseWindow)
             .accessibilityLabel(l10n.s.dockPreviewCloseWindow)
             .onHover { isCloseHovering = $0 }

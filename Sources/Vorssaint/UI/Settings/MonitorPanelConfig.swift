@@ -21,6 +21,7 @@ struct MonitorPanelConfig: View {
 
     @AppStorage(DefaultsKey.monitorShowNetwork) private var showNetwork = true
     @AppStorage(DefaultsKey.monitorNetSpeed) private var netSpeed = true
+    @AppStorage(DefaultsKey.monitorNetApps) private var netApps = true
     @AppStorage(DefaultsKey.monitorNetTotals) private var netTotals = true
     @AppStorage(DefaultsKey.monitorNetTest) private var netTest = true
 
@@ -50,6 +51,7 @@ struct MonitorPanelConfig: View {
         }
         block(.network, title: l10n.s.networkSection, master: $showNetwork) {
             Toggle(l10n.s.monitorItemNetSpeed, isOn: $netSpeed)
+            Toggle(l10n.s.networkApps, isOn: $netApps)
             Toggle(l10n.s.monitorItemNetTotals, isOn: $netTotals)
             Toggle(l10n.s.monitorItemNetTest, isOn: $netTest)
         }

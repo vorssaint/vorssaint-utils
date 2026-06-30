@@ -41,6 +41,7 @@ struct SystemSnapshot {
 
     // Power
     var power: PowerReading?
+    var peripheralBatteries: [PeripheralBatteryDevice] = []
 
     // Disk
     var disk: DiskReading?
@@ -69,6 +70,7 @@ struct SystemMonitorPanelNeeds: Equatable {
     var gpu = false
     var memory = false
     var battery = false
+    var peripheralBattery = false
     var cpuTemperature = false
     var gpuTemperature = false
     var batteryTemperature = false
@@ -77,7 +79,7 @@ struct SystemMonitorPanelNeeds: Equatable {
 
     var any: Bool {
         system || network || disk || power || cpu || gpu || memory || battery ||
-            cpuTemperature || gpuTemperature || batteryTemperature
+            peripheralBattery || cpuTemperature || gpuTemperature || batteryTemperature
     }
 }
 
@@ -114,6 +116,7 @@ final class SystemMonitor: ObservableObject {
     // Samplers
     private let networkSampler = NetworkSampler()
     private let diskSampler = DiskSampler()
+    private let peripheralBatterySampler = PeripheralBatterySampler()
     private var powerSampler: PowerSampler?
 
     // Running state
@@ -298,6 +301,7 @@ final class SystemMonitor: ObservableObject {
         var needNetwork = false
         var needDisk = false
         var needPower = false
+        var needPeripheralBattery = false
         var needGPUUsage = false
         var gpuEveryTick = false
         var needCPUTemperature = false
@@ -311,7 +315,8 @@ final class SystemMonitor: ObservableObject {
         }
 
         var any: Bool {
-            needCPU || needMemory || needNetwork || needDisk || needPower || needGPUUsage || needTemperature
+            needCPU || needMemory || needNetwork || needDisk || needPower ||
+                needPeripheralBattery || needGPUUsage || needTemperature
         }
     }
 
@@ -358,6 +363,8 @@ final class SystemMonitor: ObservableObject {
             || defaults.bool(forKey: DefaultsKey.menuBarPower)
             || defaults.bool(forKey: DefaultsKey.menuBarBattery)
             || alertBattery
+        plan.needPeripheralBattery = menuPanelNeeds.peripheralBattery
+            || defaults.bool(forKey: DefaultsKey.menuBarPeripheralBattery)
         plan.needGPUUsage = panelGPU || defaults.bool(forKey: DefaultsKey.menuBarGPU)
         plan.gpuEveryTick = panelGPU
         plan.needCPUTemperature = panelTemps || menuPanelNeeds.cpuTemperature ||
@@ -481,6 +488,10 @@ final class SystemMonitor: ObservableObject {
                 next.power = power
                 if let watts = power.systemWatts { self.powerHistory.push(watts) }
                 if let charge = power.chargePercent { self.batteryHistory.push(Double(charge) / 100.0) }
+            }
+
+            if plan.needPeripheralBattery {
+                next.peripheralBatteries = self.peripheralBatterySampler.sample(now: now)
             }
 
             // GPU usage is the priciest normal monitor read. When the panel first

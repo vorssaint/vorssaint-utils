@@ -34,22 +34,15 @@ enum InstalledApps {
         return NSWorkspace.shared.icon(for: .applicationBundle)
     }
 
-    /// Running apps the user could sensibly pick (regular, named, not us),
-    /// sorted by name.
-    static func runningRegularApps() -> [NSRunningApplication] {
-        NSWorkspace.shared.runningApplications
-            .filter { $0.activationPolicy == .regular
-                && $0.bundleIdentifier != nil
-                && $0.processIdentifier != getpid() }
-            .sorted { ($0.localizedName ?? "") < ($1.localizedName ?? "") }
-    }
-
-    static func installedApplications() -> [InstalledApp] {
+    static func installedApplications(includeSystemApplications: Bool = false) -> [InstalledApp] {
         let fm = FileManager.default
-        let roots = [
+        var roots = [
             URL(fileURLWithPath: "/Applications", isDirectory: true),
             URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Applications", isDirectory: true),
         ]
+        if includeSystemApplications {
+            roots.append(URL(fileURLWithPath: "/System/Applications", isDirectory: true))
+        }
         let keys: [URLResourceKey] = [.isDirectoryKey, .isPackageKey]
         var seen = Set<String>()
         var apps: [InstalledApp] = []
@@ -76,6 +69,16 @@ enum InstalledApps {
 
         return apps.sorted {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
+
+    static func installedBundleApplications(excluding excludedBundleIDs: Set<String>) -> [InstalledApp] {
+        var seen = Set<String>()
+        return installedApplications(includeSystemApplications: true).filter { app in
+            guard let bundleID = app.bundleID,
+                  !excludedBundleIDs.contains(bundleID),
+                  seen.insert(bundleID).inserted else { return false }
+            return true
         }
     }
 }

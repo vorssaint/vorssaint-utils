@@ -89,3 +89,90 @@ enum ClipboardHistorySelection {
         return 1
     }
 }
+
+enum ClipboardHistoryBatch {
+    static func combinedText(_ texts: [String]) -> String {
+        texts.joined(separator: "\n")
+    }
+
+    static func orderedSelectedIndexes<ID: Hashable>(allIDs: [ID], selectedIDs: Set<ID>) -> [Int] {
+        allIDs.indices.filter { selectedIDs.contains(allIDs[$0]) }
+    }
+}
+
+enum ClipboardHistoryPasteboardText {
+    static func preferredText(webURLString: String?, plainText: String?) -> String? {
+        let plain = trimmed(plainText)
+        if let plain,
+           let normalizedPlain = normalizedWebURL(plain) {
+            return normalizedPlain
+        }
+
+        guard let webURL = normalizedWebURL(webURLString) else { return plain }
+        guard let plain else { return webURL }
+        return shouldPreferWebURL(webURL, over: plain) ? webURL : plain
+    }
+
+    private static func shouldPreferWebURL(_ webURL: String, over plain: String) -> Bool {
+        if plain.hasPrefix("//") { return true }
+        let stripped = stripWebScheme(webURL)
+        return plain == stripped.withSlashes || plain == stripped.withoutSlashes
+    }
+
+    private static func normalizedWebURL(_ raw: String?) -> String? {
+        guard let text = trimmed(raw),
+              let url = URL(string: text),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              url.host != nil else {
+            return nil
+        }
+        return url.absoluteString
+    }
+
+    private static func stripWebScheme(_ value: String) -> (withSlashes: String, withoutSlashes: String) {
+        let lower = value.lowercased()
+        let withSlashes: String
+        if lower.hasPrefix("http://") {
+            withSlashes = "//" + String(value.dropFirst("http://".count))
+        } else if lower.hasPrefix("https://") {
+            withSlashes = "//" + String(value.dropFirst("https://".count))
+        } else {
+            withSlashes = value
+        }
+        return (withSlashes, String(withSlashes.drop { $0 == "/" }))
+    }
+
+    private static func trimmed(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text
+    }
+}
+
+enum ClipboardHistorySensitiveText {
+    static func looksSensitive(_ text: String) -> Bool {
+        let lowered = text.lowercased()
+        let obviousWords = ["password", "passwd", "secret", "token", "apikey", "api_key", "authorization"]
+        if obviousWords.contains(where: lowered.contains) { return true }
+        if isWebURL(text) { return false }
+
+        guard text.count >= 20, text.count <= 160, !text.contains(where: { $0.isWhitespace }) else {
+            return false
+        }
+        let hasLetter = text.contains { $0.isLetter }
+        let hasDigit = text.contains { $0.isNumber }
+        let hasSymbol = text.contains { !$0.isLetter && !$0.isNumber && !$0.isWhitespace }
+        return hasLetter && hasDigit && hasSymbol
+    }
+
+    private static func isWebURL(_ text: String) -> Bool {
+        guard let url = URL(string: text.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let scheme = url.scheme?.lowercased(),
+              (scheme == "http" || scheme == "https"),
+              url.host != nil else {
+            return false
+        }
+        return true
+    }
+}

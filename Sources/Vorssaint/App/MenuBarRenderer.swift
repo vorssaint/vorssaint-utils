@@ -5,7 +5,7 @@ import AppKit
 
 /// A live reading the user can pin next to the menu bar icon.
 enum MenuBarMetric: String, CaseIterable, Identifiable {
-    case cpu, gpu, memory, cpuTemperature, gpuTemperature, batteryTemperature, network, diskUsage, diskActivity, battery, power
+    case cpu, gpu, memory, cpuTemperature, gpuTemperature, batteryTemperature, network, diskUsage, diskActivity, battery, peripheralBattery, power
 
     var id: String { rawValue }
 
@@ -21,6 +21,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .diskUsage: return DefaultsKey.menuBarDiskUsage
         case .diskActivity: return DefaultsKey.menuBarDiskActivity
         case .battery: return DefaultsKey.menuBarBattery
+        case .peripheralBattery: return DefaultsKey.menuBarPeripheralBattery
         case .power: return DefaultsKey.menuBarPower
         }
     }
@@ -37,6 +38,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .diskUsage: return "internaldrive"
         case .diskActivity: return "internaldrive.fill"
         case .battery: return "battery.100"
+        case .peripheralBattery: return "keyboard"
         case .power: return "powerplug.fill"
         }
     }
@@ -53,6 +55,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .diskUsage: return strings.monitorItemDiskUsage
         case .diskActivity: return strings.monitorItemDiskActivity
         case .battery: return strings.batteryLabel
+        case .peripheralBattery: return strings.monitorShowPeripheralBattery
         case .power: return strings.monitorShowPowerLabel
         }
     }
@@ -61,7 +64,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         .cpu, .cpuTemperature,
         .gpu, .gpuTemperature,
         .memory,
-        .battery, .batteryTemperature,
+        .battery, .batteryTemperature, .peripheralBattery,
         .network, .diskUsage, .diskActivity, .power,
     ]
 
@@ -327,6 +330,13 @@ enum MenuBarRenderer {
                                             segments: [.symbol(symbol), .text(" " + text)],
                                             width: reservedWidth(for: metric, preset: preset)))
                 }
+            case .peripheralBattery:
+                if let metricValue = PeripheralBatterySupport.menuBarMetric(for: snapshot.peripheralBatteries) {
+                    let text = metricValue.label + " " + metricValue.value
+                    items.append(MetricItem(metric: metric,
+                                            segments: [.symbol(metric.symbolName), .text(" " + text)],
+                                            width: reservedWidth(for: metric, preset: preset)))
+                }
             case .power:
                 if let watts = snapshot.power?.systemWatts {
                     let text = "PWR " + MetricFormat.wattsCompact(watts)
@@ -493,6 +503,14 @@ enum MenuBarRenderer {
                                                  isCharging: snapshot.power?.isCharging ?? false,
                                                  style: style)])
                 }
+            case .peripheralBattery:
+                if let metricValue = PeripheralBatterySupport.menuBarMetric(for: snapshot.peripheralBatteries) {
+                    groups.append([.metricBlock(label: metricValue.label,
+                                                value: metricValue.value,
+                                                minimumValue: "100%+9",
+                                                style: style,
+                                                pressure: nil)])
+                }
             case .power:
                 if let watts = snapshot.power?.systemWatts {
                     groups.append([.metricBlock(label: "PWR",
@@ -541,6 +559,8 @@ enum MenuBarRenderer {
             return MemoryMenuBarStyle.current.showsDot ? 13 : 11
         case (_, .cpuTemperature), (_, .gpuTemperature), (_, .batteryTemperature):
             return 11      // symbol + " CPU 999°" / " GPU 999°" / " BAT 999°"
+        case (_, .peripheralBattery):
+            return 12      // symbol + " KBD 100%+9"
         case (_, .network):
             return 15      // down symbol + 1.0G + up symbol + 1.0G
         case (_, .diskUsage):
@@ -887,6 +907,9 @@ enum MenuBarRenderer {
         power.chargePercent = 100
         power.isCharging = true
         snapshot.power = power
+        snapshot.peripheralBatteries = [
+            PeripheralBatteryDevice(id: "mouse", name: "Magic Mouse", percent: 100, kind: .mouse),
+        ]
         return snapshot
     }
 

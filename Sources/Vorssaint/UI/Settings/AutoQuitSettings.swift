@@ -8,6 +8,7 @@ struct AutoQuitSettings: View {
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var service = AutoQuitService.shared
     @AppStorage(DefaultsKey.autoQuitEnabled) private var enabled = false
+    @State private var showingAppPicker = false
 
     var body: some View {
         Form {
@@ -62,16 +63,11 @@ struct AutoQuitSettings: View {
                     }
                 }
 
-                Menu {
-                    ForEach(addableApps, id: \.bundleIdentifier) { app in
-                        Button(app.localizedName ?? app.bundleIdentifier ?? "") {
-                            if let id = app.bundleIdentifier { service.addException(id) }
-                        }
-                    }
+                Button {
+                    showingAppPicker = true
                 } label: {
                     Label(l10n.s.autoQuitAddApp, systemImage: "plus")
                 }
-                .disabled(addableApps.isEmpty)
 
                 Text(l10n.s.autoQuitExceptionsCaption)
                     .font(.caption)
@@ -85,15 +81,26 @@ struct AutoQuitSettings: View {
             }
         }
         .formStyle(.grouped)
+        .sheet(isPresented: $showingAppPicker) {
+            appPickerSheet
+        }
     }
 
     private var sortedExceptions: [String] {
         service.exceptions.sorted { InstalledApps.name(for: $0).localizedCaseInsensitiveCompare(InstalledApps.name(for: $1)) == .orderedAscending }
     }
 
-    private var addableApps: [NSRunningApplication] {
-        InstalledApps.runningRegularApps()
-            .filter { !service.exceptions.contains($0.bundleIdentifier ?? "") }
+    private var appPickerSheet: some View {
+        let excluded = Set(service.exceptions)
+        return AppPickerView {
+            showingAppPicker = false
+        } onSelect: { url in
+            showingAppPicker = false
+            guard let bundleID = Bundle(url: url)?.bundleIdentifier else { return }
+            service.addException(bundleID)
+        } loadApps: {
+            InstalledApps.installedBundleApplications(excluding: excluded)
+        }
     }
 
     private func bullet(_ icon: String, _ text: String) -> some View {

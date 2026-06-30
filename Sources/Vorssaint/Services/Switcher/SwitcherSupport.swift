@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import Carbon.HIToolbox
 import CoreGraphics
 import Foundation
 
@@ -37,25 +36,34 @@ struct SwitcherAppGroup: Identifiable, Equatable {
 struct SwitcherIconRowLayout: Equatable {
     let visibleIconCount: Int
     let appRowContentWidth: CGFloat
+    let appRowSurfaceWidth: CGFloat
     let previewContentWidth: CGFloat
+    let previewSurfaceWidth: CGFloat
     let panelSize: CGSize
 
-    static var iconSize: CGFloat { 74 * PreviewSizing.scale }
-    static var selectedIconSize: CGFloat { 86 * PreviewSizing.scale }
-    static var rowHeight: CGFloat { 108 * PreviewSizing.scale }
-    static var appTileWidth: CGFloat { max(selectedIconSize + 12, 86 * PreviewSizing.scale) + 12 }
-    static var previewCardWidth: CGFloat { 220 * PreviewSizing.scale }
-    static var previewCardHeight: CGFloat { 164 * PreviewSizing.scale }
-    static var previewHeight: CGFloat { 250 * PreviewSizing.scale }
-    static var hintHeight: CGFloat { 28 * PreviewSizing.scale }
-    static var hintGap: CGFloat { 10 * PreviewSizing.scale }
-    static var padding: CGFloat { 20 * PreviewSizing.scale }
-    static var spacing: CGFloat { 12 * PreviewSizing.scale }
-    static var previewGap: CGFloat { 14 * PreviewSizing.scale }
+    static var scale: CGFloat { min(PreviewSizing.scale, 1.15) }
+    static var iconSize: CGFloat { 68 * scale }
+    static var selectedIconSize: CGFloat { 78 * scale }
+    static var iconLabelWidth: CGFloat { max(selectedIconSize + 12, 86 * scale) }
+    static var rowHeight: CGFloat { 108 * scale }
+    static var appTileWidth: CGFloat { iconLabelWidth + 12 }
+    static var previewCardWidth: CGFloat { 220 * scale }
+    static var previewCardHeight: CGFloat { 164 * scale }
+    static var previewHeight: CGFloat { previewCardHeight + 76 * scale }
+    static var hintHeight: CGFloat { 28 * scale }
+    static var hintGap: CGFloat { 8 * scale }
+    static var hintBarWidth: CGFloat { 300 * scale }
+    static var rowHorizontalPadding: CGFloat { 8 * scale }
+    static var previewPanelPadding: CGFloat { 12 * scale }
+    static var padding: CGFloat { 20 * scale }
+    static var spacing: CGFloat { 12 * scale }
+    static var previewGap: CGFloat { 10 * scale }
 
     static let empty = SwitcherIconRowLayout(visibleIconCount: 1,
                                              appRowContentWidth: 0,
+                                             appRowSurfaceWidth: 0,
                                              previewContentWidth: 0,
+                                             previewSurfaceWidth: 0,
                                              panelSize: .zero)
 
     static func compute(appCount rawAppCount: Int,
@@ -68,15 +76,21 @@ struct SwitcherIconRowLayout: Equatable {
         let naturalAppRowWidth = CGFloat(appCount) * appTileWidth + CGFloat(max(0, appCount - 1)) * spacing
         let naturalPreviewWidth = CGFloat(windowCount) * previewCardWidth
             + CGFloat(max(0, windowCount - 1)) * spacing
-        let appRowWidth = min(naturalAppRowWidth, maxContentWidth)
-        let previewWidth = min(max(previewCardWidth, naturalPreviewWidth), maxContentWidth)
-        let contentWidth = min(max(appRowWidth, previewWidth), maxContentWidth)
-        let visibleIconCount = max(1, min(appCount, Int((maxContentWidth + spacing) / (appTileWidth + spacing))))
+        let maxAppContentWidth = max(appTileWidth, maxContentWidth - rowHorizontalPadding * 2)
+        let maxPreviewContentWidth = max(previewCardWidth, maxContentWidth - previewPanelPadding * 2)
+        let appRowWidth = min(naturalAppRowWidth, maxAppContentWidth)
+        let appRowSurfaceWidth = min(appRowWidth + rowHorizontalPadding * 2, maxContentWidth)
+        let previewWidth = min(max(previewCardWidth, naturalPreviewWidth), maxPreviewContentWidth)
+        let previewSurfaceWidth = min(previewWidth + previewPanelPadding * 2, maxContentWidth)
+        let contentWidth = min(max(appRowSurfaceWidth, previewSurfaceWidth, min(hintBarWidth, maxContentWidth)), maxContentWidth)
+        let visibleIconCount = max(1, min(appCount, Int((maxAppContentWidth + spacing) / (appTileWidth + spacing))))
         let width = contentWidth + padding * 2
         let height = previewHeight + previewGap + rowHeight + hintGap + hintHeight + padding * 2
         return SwitcherIconRowLayout(visibleIconCount: visibleIconCount,
                                      appRowContentWidth: appRowWidth,
+                                     appRowSurfaceWidth: appRowSurfaceWidth,
                                      previewContentWidth: previewWidth,
+                                     previewSurfaceWidth: previewSurfaceWidth,
                                      panelSize: CGSize(width: width, height: height))
     }
 
@@ -85,15 +99,67 @@ struct SwitcherIconRowLayout: Equatable {
     }
 }
 
+struct SwitcherIconRowPreviewPlacement: Equatable {
+    let contentWidth: CGFloat
+    let leading: CGFloat
+}
+
 struct SwitcherShortcutHints: Equatable {
     let apps: String
     let windows: String
 }
 
 enum SwitcherSupport {
-    static func shortcutHints(for switcherShortcut: GlobalShortcut) -> SwitcherShortcutHints {
-        let windowShortcut = GlobalShortcut(keyCode: Int64(kVK_ANSI_Grave),
-                                            modifiers: switcherShortcut.modifiers)
+    static func updatedMRU(afterActivating activatedID: String,
+                           previousID: String?,
+                           existing: [String],
+                           limit: Int = 64) -> [String] {
+        var list = existing
+        list.removeAll { $0 == activatedID }
+        list.insert(activatedID, at: 0)
+        if let previousID, previousID != activatedID {
+            list.removeAll { $0 == previousID }
+            list.insert(previousID, at: 1)
+        }
+        if list.count > limit {
+            list.removeLast(list.count - limit)
+        }
+        return list
+    }
+
+    static func selectedPreviewPlacement(appCount rawAppCount: Int,
+                                         selectedAppIndex rawSelectedAppIndex: Int,
+                                         selectedWindowIndex _: Int,
+                                         selectedWindowCount _: Int,
+                                         visibleIconCount rawVisibleIconCount: Int,
+                                         appRowContentWidth: CGFloat,
+                                         appRowSurfaceWidth: CGFloat,
+                                         previewContentWidth _: CGFloat,
+                                         previewSurfaceWidth: CGFloat) -> SwitcherIconRowPreviewPlacement {
+        let appCount = max(1, rawAppCount)
+        let visibleIconCount = max(1, rawVisibleIconCount)
+        let selectedAppIndex = min(max(0, rawSelectedAppIndex), appCount - 1)
+        let contentWidth = max(appRowSurfaceWidth, previewSurfaceWidth)
+        guard previewSurfaceWidth < contentWidth else {
+            return SwitcherIconRowPreviewPlacement(contentWidth: contentWidth, leading: 0)
+        }
+
+        let rowLeading = max(0, (contentWidth - appRowSurfaceWidth) / 2) + SwitcherIconRowLayout.rowHorizontalPadding
+        let selectedCenterInRow: CGFloat
+        if appCount > visibleIconCount {
+            selectedCenterInRow = rowLeading + appRowContentWidth / 2
+        } else {
+            selectedCenterInRow = rowLeading + SwitcherIconRowLayout.appTileWidth / 2
+                + CGFloat(selectedAppIndex) * (SwitcherIconRowLayout.appTileWidth + SwitcherIconRowLayout.spacing)
+        }
+
+        let rawLeading = selectedCenterInRow - previewSurfaceWidth / 2
+        let clampedLeading = min(max(0, rawLeading), contentWidth - previewSurfaceWidth)
+        return SwitcherIconRowPreviewPlacement(contentWidth: contentWidth, leading: clampedLeading)
+    }
+
+    static func shortcutHints(for switcherShortcut: GlobalShortcut,
+                              windowShortcut: GlobalShortcut) -> SwitcherShortcutHints {
         return SwitcherShortcutHints(apps: switcherShortcut.displayString,
                                      windows: windowShortcut.displayString)
     }

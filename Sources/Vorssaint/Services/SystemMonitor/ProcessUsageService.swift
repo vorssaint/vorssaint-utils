@@ -9,10 +9,24 @@ import IOKit
 struct ProcessUsage: Identifiable, Equatable {
     let pid: pid_t
     let name: String
-    /// CPU/GPU: percentage (0–100+). Memory: bytes.
+    /// CPU/GPU: percentage (0–100+). Memory: bytes. Network: total bytes/s.
     let value: Double
+    let networkDownBytesPerSec: Double?
+    let networkUpBytesPerSec: Double?
 
     var id: pid_t { pid }
+
+    init(pid: pid_t,
+         name: String,
+         value: Double,
+         networkDownBytesPerSec: Double? = nil,
+         networkUpBytesPerSec: Double? = nil) {
+        self.pid = pid
+        self.name = name
+        self.value = value
+        self.networkDownBytesPerSec = networkDownBytesPerSec
+        self.networkUpBytesPerSec = networkUpBytesPerSec
+    }
 }
 
 /// Answers "which apps are eating this resource?" for the panel's System
@@ -38,10 +52,16 @@ final class ProcessUsageService {
     private var memoryCache: CachedRows?
     private var gpuCache: CachedRows?
     private var energyCache: CachedRows?
+    private var networkCache: CachedRows?
     private var cpuLoading = false
     private var memoryLoading = false
     private var gpuLoading = false
     private var energyLoading = false
+    private var networkLoading = false
+    private var networkMonitorUsers = 0
+    private let networkSamplerLock = NSLock()
+    private var networkSamplerRunning = false
+    private var networkSamplerGeneration = 0
 
     private init() {}
 
@@ -55,6 +75,7 @@ final class ProcessUsageService {
         case .gpu: cache = gpuCache
         case .memory: cache = memoryCache
         case .energy: cache = energyCache
+        case .network: cache = networkCache
         }
         return limitedRows(cache, limit: limit, now: now, maxAge: maxAge)
     }
@@ -65,6 +86,7 @@ final class ProcessUsageService {
         case .gpu: return topGPU(limit: limit)
         case .memory: return topMemory(limit: limit)
         case .energy: return topEnergy(limit: limit)
+        case .network: return topNetwork(limit: limit)
         }
     }
 
@@ -74,7 +96,40 @@ final class ProcessUsageService {
         memoryCache = nil
         gpuCache = nil
         energyCache = nil
+        networkCache = nil
         cacheLock.unlock()
+    }
+
+    func startNetworkMonitoring() {
+        cacheLock.lock()
+        networkMonitorUsers += 1
+        networkLoading = true
+        let shouldStartSampler = networkMonitorUsers == 1
+        cacheLock.unlock()
+        if shouldStartSampler {
+            startNetworkSampler()
+        }
+    }
+
+    func stopNetworkMonitoring(force: Bool = false) {
+        var shouldStopSampler = false
+        cacheLock.lock()
+        networkMonitorUsers = force ? 0 : max(0, networkMonitorUsers - 1)
+        if networkMonitorUsers == 0 {
+            networkLoading = false
+            shouldStopSampler = true
+        }
+        cacheLock.unlock()
+        if shouldStopSampler {
+            stopNetworkSampler()
+        }
+    }
+
+    var networkMonitoringIsWarmingUp: Bool {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        let hasCachedRows = networkCache?.rows.isEmpty == false
+        return networkMonitorUsers > 0 && networkLoading && !hasCachedRows
     }
 
     func canActivate(_ row: ProcessUsage) -> Bool {
@@ -138,6 +193,93 @@ final class ProcessUsageService {
         energyLoading = false
         cacheLock.unlock()
         return Array(rows.prefix(limit))
+    }
+
+    // MARK: - Network
+
+    func topNetwork(limit: Int = 5) -> [ProcessUsage] {
+        let now = ProcessInfo.processInfo.systemUptime
+        cacheLock.lock()
+        let monitoring = networkMonitorUsers > 0
+        if let cached = limitedRows(networkCache, limit: limit, now: now, maxAge: monitoring ? staleCacheSeconds : cacheFreshSeconds) {
+            cacheLock.unlock()
+            return cached
+        }
+        if monitoring {
+            networkLoading = true
+            cacheLock.unlock()
+            startNetworkSampler()
+            return []
+        }
+        networkLoading = true
+        cacheLock.unlock()
+
+        let samples = NetworkProcessSupport.currentActivitySamples()
+        let rows = groupedNetworkByApp(samples)
+
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        networkLoading = false
+        if rows.isEmpty,
+           let cached = limitedRows(networkCache, limit: limit, now: now, maxAge: staleCacheSeconds),
+           !cached.isEmpty {
+            return cached
+        }
+        networkCache = cachedRows(from: rows)
+        return Array(rows.prefix(limit))
+    }
+
+    private func startNetworkSampler() {
+        networkSamplerLock.lock()
+        guard !networkSamplerRunning else {
+            networkSamplerLock.unlock()
+            return
+        }
+        networkSamplerRunning = true
+        networkSamplerGeneration &+= 1
+        let generation = networkSamplerGeneration
+        networkSamplerLock.unlock()
+        scheduleNetworkSample(generation: generation, delay: 0)
+    }
+
+    private func stopNetworkSampler() {
+        networkSamplerLock.lock()
+        networkSamplerRunning = false
+        networkSamplerGeneration &+= 1
+        networkSamplerLock.unlock()
+    }
+
+    private func scheduleNetworkSample(generation: Int, delay: TimeInterval) {
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, self.networkSamplerIsCurrent(generation) else { return }
+            let samples = NetworkProcessSupport.currentActivitySamples()
+            guard self.networkSamplerIsCurrent(generation) else { return }
+            self.publishNetworkSamples(samples)
+            self.scheduleNetworkSample(generation: generation, delay: 0.5)
+        }
+    }
+
+    private func networkSamplerIsCurrent(_ generation: Int) -> Bool {
+        networkSamplerLock.lock()
+        let current = networkSamplerRunning && networkSamplerGeneration == generation
+        networkSamplerLock.unlock()
+        return current
+    }
+
+    private func publishNetworkSamples(_ samples: [NetworkProcessSample]) {
+        let rows = groupedNetworkByApp(samples)
+        let now = ProcessInfo.processInfo.systemUptime
+        cacheLock.lock()
+        networkLoading = false
+        if rows.isEmpty,
+           let cache = networkCache,
+           !cache.rows.isEmpty,
+           now - cache.updatedAt <= cacheFreshSeconds {
+            cacheLock.unlock()
+            return
+        }
+        networkCache = cachedRows(from: rows)
+        cacheLock.unlock()
     }
 
     // MARK: - CPU
@@ -234,6 +376,34 @@ final class ProcessUsageService {
                                                                   fallback: fallbackNames[owner] ?? "pid \(owner)"),
                              value: value)
             }
+    }
+
+    private func groupedNetworkByApp(_ samples: [NetworkProcessSample]) -> [ProcessUsage] {
+        var totals: [pid_t: (down: Double, up: Double)] = [:]
+        var fallbackNames: [pid_t: String] = [:]
+
+        for sample in samples {
+            let owner = ResponsibleProcess.owner(of: sample.pid)
+            var total = totals[owner] ?? (0, 0)
+            total.down += sample.bytesIn
+            total.up += sample.bytesOut
+            totals[owner] = total
+            if fallbackNames[owner] == nil {
+                fallbackNames[owner] = sample.name
+            }
+        }
+
+        return totals
+            .map { owner, value in
+                ProcessUsage(pid: owner,
+                             name: ResponsibleProcess.displayName(pid: owner,
+                                                                  fallback: fallbackNames[owner] ?? "pid \(owner)"),
+                             value: value.down + value.up,
+                             networkDownBytesPerSec: value.down,
+                             networkUpBytesPerSec: value.up)
+            }
+            .filter { $0.value > 0 }
+            .sorted { $0.value > $1.value }
     }
 
     // MARK: - GPU

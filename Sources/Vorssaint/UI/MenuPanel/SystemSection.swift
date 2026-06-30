@@ -5,7 +5,7 @@ import SwiftUI
 
 /// Which per-app breakdown is expanded in the System section.
 enum BreakdownKind {
-    case cpu, gpu, memory, energy
+    case cpu, gpu, memory, energy, network
 }
 
 /// The "System" section of the panel: component temperatures, hardware usage
@@ -35,6 +35,7 @@ struct SystemSection: View {
     @AppStorage(DefaultsKey.menuBarBatteryTemperature) private var menuBarBatteryTemperature = false
     @AppStorage(DefaultsKey.menuBarNetwork) private var menuBarNetwork = false
     @AppStorage(DefaultsKey.menuBarBattery) private var menuBarBattery = false
+    @AppStorage(DefaultsKey.menuBarPeripheralBattery) private var menuBarPeripheralBattery = false
     @AppStorage(DefaultsKey.menuBarPower) private var menuBarPower = false
     @AppStorage(DefaultsKey.menuBarSeparateMetrics) private var separateMenuBarMetrics = false
     @AppStorage(DefaultsKey.monitorSysTemps) private var sysTemps = true
@@ -111,6 +112,7 @@ struct SystemSection: View {
         menuBarBatteryTemperature ||
         menuBarNetwork ||
         menuBarBattery ||
+        menuBarPeripheralBattery ||
         menuBarPower
     }
 
@@ -339,6 +341,9 @@ struct SystemSection: View {
                                    systemImage: "battery.100",
                                    isVisible: $sysBattery)
             }
+            if menuBarPeripheralBattery, !monitor.snapshot.peripheralBatteries.isEmpty {
+                peripheralBatteryRows
+            }
         }
     }
 
@@ -378,6 +383,45 @@ struct SystemSection: View {
                 energyAppsHeader
                 breakdownList(for: .energy)
             }
+        }
+    }
+
+    private var peripheralBatteryRows: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            subsectionLabel(l10n.s.monitorShowPeripheralBattery)
+            ForEach(PeripheralBatterySupport.sorted(monitor.snapshot.peripheralBatteries).prefix(5)) { device in
+                HStack(spacing: 8) {
+                    Image(systemName: peripheralIcon(for: device.kind))
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 10)
+                    Text(device.name)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer(minLength: 8)
+                    Text("\(device.percent)%")
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .monospacedDigit()
+                }
+            }
+            let extra = max(0, monitor.snapshot.peripheralBatteries.count - 5)
+            if extra > 0 {
+                Text("+\(extra)")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    private func peripheralIcon(for kind: PeripheralBatteryKind) -> String {
+        switch kind {
+        case .keyboard: return "keyboard"
+        case .mouse: return "computermouse"
+        case .trackpad: return "rectangle.and.hand.point.up.left"
+        case .audio: return "headphones"
+        case .device: return "battery.100"
         }
     }
 

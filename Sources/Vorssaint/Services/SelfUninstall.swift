@@ -67,6 +67,7 @@ enum SelfUninstall {
         DockPreviewService.shared.stop()
         AutoQuitService.shared.suspend()
         FinderCutPaste.shared.suspend()
+        KeyboardDebounceService.shared.suspend()
         CleaningModeManager.shared.deactivate()
     }
 

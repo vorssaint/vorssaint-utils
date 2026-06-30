@@ -95,7 +95,10 @@ struct ReleaseNotes {
             } else if rawLine.hasPrefix("  "), !currentItems.isEmpty, !trimmed.isEmpty,
                       case let .bullet(text) = currentItems[currentItems.count - 1] {
                 currentItems[currentItems.count - 1] = .bullet(text + " " + clean(trimmed))
-            } else if !currentTitle.isEmpty {
+            } else {
+                if currentTitle.isEmpty {
+                    currentTitle = "Summary"
+                }
                 currentParagraph.append(trimmed)
             }
         }

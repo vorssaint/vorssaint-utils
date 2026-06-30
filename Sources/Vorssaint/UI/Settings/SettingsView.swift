@@ -9,7 +9,7 @@ import SwiftUI
 /// the Features section, so every feature gets its own page.
 enum SettingsPage: Hashable {
     case general, energy, monitor
-    case mouse, switcher, cutPaste, autoQuit, uninstaller, urlCleaner, homebrew, media, clipboard, windowLayout, shelf
+    case mouse, switcher, keyDebounce, cutPaste, autoQuit, uninstaller, urlCleaner, homebrew, media, clipboard, windowLayout, shelf
     case advanced, about, releaseNotes, support
 }
 
@@ -56,6 +56,7 @@ struct SettingsView: View {
                     Label(l10n.s.urlCleanerName, systemImage: "link").tag(SettingsPage.urlCleaner)
                     Label(l10n.s.homebrewName, systemImage: "shippingbox").tag(SettingsPage.homebrew)
                     Label(l10n.s.mediaName, systemImage: "photo.on.rectangle.angled").tag(SettingsPage.media)
+                    Label(l10n.s.keyDebounceName, systemImage: "keyboard").tag(SettingsPage.keyDebounce)
                 }
 
                 Section(categories.app) {
@@ -83,6 +84,7 @@ struct SettingsView: View {
         case .monitor: MonitorSettings()
         case .mouse: MouseSettings()
         case .switcher: SwitcherSettings()
+        case .keyDebounce: KeyboardDebounceSettings()
         case .cutPaste: CutPasteSettings()
         case .autoQuit: AutoQuitSettings()
         case .uninstaller: UninstallerView()
@@ -400,7 +402,14 @@ struct SwitcherSettings: View {
                 Text(l10n.s.switcherEnableCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                ShortcutPreferenceRow(role: .switcher, isEnabled: switcherEnabled) {
+                ShortcutPreferenceRow(role: .switcher,
+                                      isEnabled: switcherEnabled,
+                                      label: l10n.s.switcherShortcutHintApps) {
+                    AppSwitcher.shared.syncWithPreferences()
+                }
+                ShortcutPreferenceRow(role: .switcherWindow,
+                                      isEnabled: switcherEnabled,
+                                      label: l10n.s.switcherShortcutHintWindows) {
                     AppSwitcher.shared.syncWithPreferences()
                 }
                 Text(String(format: l10n.s.switcherUsageHintFormat,

@@ -118,6 +118,8 @@ struct GlobalShortcut: Equatable, Hashable {
                                              modifiers: [.control, .option, .command])
     static let switcherDefault = GlobalShortcut(keyCode: Int64(kVK_Tab),
                                                 modifiers: [.command])
+    static let switcherWindowDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_Grave),
+                                                      modifiers: [.command])
     static let clipboardDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_V),
                                                  modifiers: [.control, .option, .command])
     static let soundOutputSwitcherDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_S),
@@ -162,7 +164,10 @@ struct GlobalShortcut: Equatable, Hashable {
     }
 
     var displayString: String {
-        keyCaps.joined()
+        let label = keyLabel ?? "Key \(keyCode)"
+        let needsSeparator = label.count == 1
+            && label.rangeOfCharacter(from: .alphanumerics) == nil
+        return modifiers.keyCaps.joined() + (needsSeparator ? " " : "") + label
     }
 
     var keyCaps: [String] {
@@ -273,6 +278,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case keepAwake
     case shelf
     case switcher
+    case switcherWindow
     case clipboard
     case soundOutputSwitcher
 
@@ -283,6 +289,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keepAwake: return DefaultsKey.keepAwakeShortcut
         case .shelf: return DefaultsKey.shelfShortcut
         case .switcher: return DefaultsKey.switcherShortcut
+        case .switcherWindow: return DefaultsKey.switcherWindowShortcut
         case .clipboard: return DefaultsKey.clipboardHistoryShortcut
         case .soundOutputSwitcher: return DefaultsKey.soundOutputSwitcherShortcut
         }
@@ -293,6 +300,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keepAwake: return .keepAwakeDefault
         case .shelf: return .shelfDefault
         case .switcher: return .switcherDefault
+        case .switcherWindow: return .switcherWindowDefault
         case .clipboard: return .clipboardDefault
         case .soundOutputSwitcher: return .soundOutputSwitcherDefault
         }
@@ -307,6 +315,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keepAwake: return strings.keepAwakeTitle
         case .shelf: return strings.shelfName
         case .switcher: return strings.switcherSection
+        case .switcherWindow: return strings.switcherShortcutHintWindows
         case .clipboard: return "Clipboard"
         case .soundOutputSwitcher: return strings.soundOutputSwitcherTitle
         }

@@ -763,7 +763,7 @@ struct UtilitiesSection: View {
 }
 
 private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
-    case mouseScroll, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview
+    case mouseScroll, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce
 
     var id: String { rawValue }
 }
@@ -777,6 +777,7 @@ struct QuickControlsSection: View {
     @ObservedObject private var cutPaste = FinderCutPaste.shared
     @ObservedObject private var autoQuit = AutoQuitService.shared
     @ObservedObject private var windowMaximizer = WindowMaximizer.shared
+    @ObservedObject private var keyDebounce = KeyboardDebounceService.shared
     @AppStorage(DefaultsKey.scrollInverterEnabled) private var scrollEnabled = false
     @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
     @AppStorage(DefaultsKey.switcherIconRowMode) private var switcherIconRowMode = false
@@ -785,6 +786,8 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.autoQuitEnabled) private var autoQuitEnabled = false
     @AppStorage(DefaultsKey.shelfEnabled) private var shelfEnabled = false
     @AppStorage(DefaultsKey.windowMaximizeEnabled) private var windowMaximizeEnabled = false
+    @AppStorage(DefaultsKey.keyboardDebounceEnabled) private var keyDebounceEnabled = false
+    @AppStorage(DefaultsKey.keyboardDebounceWindowMs) private var keyDebounceWindow = Defaults.defaultKeyboardDebounceWindowMs
     @AppStorage(DefaultsKey.panelControlMouseScroll) private var showScroll = true
     @AppStorage(DefaultsKey.panelControlSwitcher) private var showSwitcher = true
     @AppStorage(DefaultsKey.panelControlDockPreview) private var showDockPreview = true
@@ -792,6 +795,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.panelControlAutoQuit) private var showAutoQuit = true
     @AppStorage(DefaultsKey.panelControlShelf) private var showShelf = true
     @AppStorage(DefaultsKey.panelControlWindowMaximize) private var showWindowMaximize = true
+    @AppStorage(DefaultsKey.panelControlKeyDebounce) private var showKeyDebounce = true
     @AppStorage(DefaultsKey.panelControlOrder) private var controlOrderRaw = ""
     @State private var draggingItem: ControlPanelItem?
     var collapsible = true
@@ -862,6 +866,7 @@ struct QuickControlsSection: View {
         switch item {
         case .mouseScroll: return showScroll
         case .switcher: return showSwitcher
+        case .keyDebounce: return showKeyDebounce
         case .cutPaste: return showCutPaste
         case .autoQuit: return showAutoQuit
         case .shelf: return showShelf
@@ -914,6 +919,28 @@ struct QuickControlsSection: View {
                     }
                 if switcherEnabled && !editing {
                     switcherIconRowOption
+                }
+            }
+        case .keyDebounce:
+            VStack(alignment: .leading, spacing: 5) {
+                PanelToggleRow(title: l10n.s.keyDebounceName,
+                               caption: keyDebounceCaption,
+                               systemImage: "keyboard",
+                               isOn: $keyDebounceEnabled,
+                               isEditing: editing,
+                               showsDragHandle: true,
+                               visibility: $showKeyDebounce,
+                               isActive: keyDebounceEnabled && keyDebounce.isRunning,
+                               activeText: l10n.s.keyDebounceActiveNow,
+                               needsAttention: keyDebounceEnabled && !permissions.accessibility,
+                               permissionButtonTitle: l10n.s.permissionRequest,
+                               permissionAction: accessibilityPermissionAction(keyDebounceEnabled))
+                    .onChange(of: keyDebounceEnabled) { _, enabled in
+                        KeyboardDebounceService.shared.syncWithPreferences()
+                        requestAccessibilityIfNeeded(enabled)
+                    }
+                if keyDebounceEnabled && !editing {
+                    keyDebounceWindowControl
                 }
             }
         case .cutPaste:
@@ -1014,6 +1041,7 @@ struct QuickControlsSection: View {
         showShelf = true
         showWindowMaximize = true
         showDockPreview = true
+        showKeyDebounce = true
     }
 
     private func caption(_ text: String, needsAccessibility: Bool) -> String {
@@ -1029,6 +1057,39 @@ struct QuickControlsSection: View {
     private func requestAccessibilityIfNeeded(_ enabled: Bool) {
         guard enabled, !permissions.accessibility else { return }
         grantAccessibility()
+    }
+
+    private var keyDebounceCaption: String {
+        guard keyDebounceEnabled else { return l10n.s.keyDebounceCaption }
+        guard permissions.accessibility else { return missingPermission(l10n.s.permissionAccessibility) }
+        let window = Defaults.sanitizedKeyboardDebounceWindow(keyDebounceWindow)
+        return "\(l10n.s.keyDebounceGlobalWindow): \(window) ms"
+    }
+
+    private var keyDebounceWindowControl: some View {
+        Stepper(value: keyDebounceWindowBinding, in: Defaults.allowedKeyboardDebounceWindowRange, step: 5) {
+            HStack(spacing: 6) {
+                Text(l10n.s.keyDebounceGlobalWindow)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Text("\(Defaults.sanitizedKeyboardDebounceWindow(keyDebounceWindow)) ms")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+        }
+        .controlSize(.small)
+        .padding(.leading, 28)
+    }
+
+    private var keyDebounceWindowBinding: Binding<Int> {
+        Binding {
+            Defaults.sanitizedKeyboardDebounceWindow(keyDebounceWindow)
+        } set: { value in
+            keyDebounceWindow = Defaults.sanitizedKeyboardDebounceWindow(value)
+            KeyboardDebounceService.shared.syncWithPreferences()
+        }
     }
 
     private func accessibilityPermissionAction(_ enabled: Bool) -> (() -> Void)? {
