@@ -9,7 +9,7 @@ import SwiftUI
 /// the Features section, so every feature gets its own page.
 enum SettingsPage: Hashable {
     case general, energy, monitor
-    case mouse, switcher, keyDebounce, cutPaste, autoQuit, uninstaller, urlCleaner, homebrew, media, clipboard, windowLayout, shelf
+    case mouse, switcher, keyDebounce, cutPaste, autoQuit, uninstaller, urlCleaner, homebrew, media, clipboard, windowLayout, shelf, keyboardCleaning
     case advanced, about, releaseNotes, support
 }
 
@@ -56,6 +56,7 @@ struct SettingsView: View {
                     Label(l10n.s.urlCleanerName, systemImage: "link").tag(SettingsPage.urlCleaner)
                     Label(l10n.s.homebrewName, systemImage: "shippingbox").tag(SettingsPage.homebrew)
                     Label(l10n.s.mediaName, systemImage: "photo.on.rectangle.angled").tag(SettingsPage.media)
+                    Label(l10n.s.keyboardCleaningName, systemImage: "keyboard").tag(SettingsPage.keyboardCleaning)
                     Label(l10n.s.keyDebounceName, systemImage: "keyboard").tag(SettingsPage.keyDebounce)
                 }
 
@@ -94,6 +95,7 @@ struct SettingsView: View {
         case .clipboard: ClipboardSettings()
         case .windowLayout: WindowLayoutSettings()
         case .shelf: ShelfSettings()
+        case .keyboardCleaning: KeyboardCleaningSettings()
         case .advanced: AdvancedSettings()
         case .about: AboutSettings()
         case .releaseNotes: ReleaseNotesSettings()

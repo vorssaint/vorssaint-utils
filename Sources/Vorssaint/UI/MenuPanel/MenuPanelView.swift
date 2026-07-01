@@ -310,7 +310,7 @@ struct MenuPanelView: View {
         case .disk: if showDisk { DiskSection(collapsible: collapsible) }
         case .power: if showPower { PowerSection(collapsible: collapsible) }
         case .fanControl: if showFanControlBeta { FanControlSection(collapsible: collapsible) }
-        case .utilities: UtilitiesSection(collapsible: collapsible, startCleaning: startCleaning)
+        case .utilities: UtilitiesSection(collapsible: collapsible)
         case .controls: QuickControlsSection(collapsible: collapsible)
         }
     }
@@ -389,15 +389,6 @@ struct MenuPanelView: View {
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-    }
-
-    /// Starts cleaning mode and closes the panel so the lock overlay is the only
-    /// thing on screen. The footer button and the right-click menu both call this.
-    private func startCleaning() {
-        // Close the panel first so, if activate() has to show the Accessibility
-        // alert, it isn't stranded on top of the still-open panel.
-        appDelegate()?.closePopover()
-        CleaningModeManager.shared.activate()
     }
 
     private var header: some View {
@@ -502,21 +493,19 @@ struct MenuPanelView: View {
 }
 
 private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
-    case homebrew, media, clipboard, windowLayout, uninstaller, cleanURL, cleaning
+    case homebrew, media, clipboard, windowLayout, uninstaller, cleanURL
 
     var id: String { rawValue }
 }
 
 struct UtilitiesSection: View {
     @ObservedObject private var l10n = L10n.shared
-    @ObservedObject private var permissions = Permissions.shared
     @State private var showUninstaller = false
     @State private var showURLCleaner = false
     @State private var showHomebrewPanel = false
     @State private var showMediaPanel = false
     @State private var showClipboardPanel = false
     @State private var showWindowLayoutPanel = false
-    @AppStorage(DefaultsKey.panelUtilityCleaning) private var showCleaning = true
     @AppStorage(DefaultsKey.panelUtilityURLCleaner) private var showCleanURL = true
     @AppStorage(DefaultsKey.panelUtilityUninstaller) private var showUninstallerAction = true
     @AppStorage(DefaultsKey.panelUtilityHomebrew) private var showHomebrew = true
@@ -527,7 +516,6 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
     @State private var draggingItem: UtilityPanelItem?
     var collapsible = true
-    var startCleaning: () -> Void
 
     var body: some View {
         PanelSection(.utilities, title: l10n.s.utilitiesSection, collapsible: collapsible,
@@ -620,16 +608,6 @@ struct UtilitiesSection: View {
         }
     }
 
-    private var cleaningNeedsAccessibility: Bool {
-        showCleaning && !permissions.accessibility
-    }
-
-    private var cleaningCaption: String {
-        cleaningNeedsAccessibility
-            ? "\(l10n.s.permissionRequired): \(l10n.s.permissionAccessibility)"
-            : l10n.s.cleaningPanelCaption
-    }
-
     private var orderedItems: [UtilityPanelItem] {
         _ = utilityOrderRaw
         return PanelLayout.itemOrder(UtilityPanelItem.self, key: DefaultsKey.panelUtilityOrder)
@@ -655,7 +633,6 @@ struct UtilitiesSection: View {
         case .windowLayout: return showWindowLayout
         case .uninstaller: return showUninstallerAction
         case .cleanURL: return showCleanURL
-        case .cleaning: return showCleaning
         }
     }
 
@@ -730,17 +707,6 @@ struct UtilitiesSection: View {
                                     PanelInteractionState.shared.keepsPopoverOpen = true
                                     showURLCleaner = true
                                 })
-        case .cleaning:
-            UtilityActionButton(title: l10n.s.cleaningMenuItem,
-                                caption: cleaningCaption,
-                                systemImage: "keyboard",
-                                isEditing: editing,
-                                showsDragHandle: true,
-                                visibility: $showCleaning,
-                                needsAttention: cleaningNeedsAccessibility,
-                                permissionButtonTitle: l10n.s.permissionRequest,
-                                permissionAction: cleaningNeedsAccessibility ? grantAccessibility : nil,
-                                action: startCleaning)
         }
     }
 
@@ -753,17 +719,11 @@ struct UtilitiesSection: View {
         showWindowLayout = true
         showUninstallerAction = true
         showCleanURL = true
-        showCleaning = true
-    }
-
-    private func grantAccessibility() {
-        Permissions.shared.requestAccessibility()
-        Permissions.shared.openAccessibilitySettings()
     }
 }
 
 private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
-    case mouseScroll, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce
+    case mouseScroll, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce, cleaning
 
     var id: String { rawValue }
 }
@@ -778,6 +738,7 @@ struct QuickControlsSection: View {
     @ObservedObject private var autoQuit = AutoQuitService.shared
     @ObservedObject private var windowMaximizer = WindowMaximizer.shared
     @ObservedObject private var keyDebounce = KeyboardDebounceService.shared
+    @ObservedObject private var cleaning = CleaningModeManager.shared
     @AppStorage(DefaultsKey.scrollInverterEnabled) private var scrollEnabled = false
     @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
     @AppStorage(DefaultsKey.switcherIconRowMode) private var switcherIconRowMode = false
@@ -796,6 +757,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.panelControlShelf) private var showShelf = true
     @AppStorage(DefaultsKey.panelControlWindowMaximize) private var showWindowMaximize = true
     @AppStorage(DefaultsKey.panelControlKeyDebounce) private var showKeyDebounce = true
+    @AppStorage(DefaultsKey.panelControlCleaning) private var showCleaning = true
     @AppStorage(DefaultsKey.panelControlOrder) private var controlOrderRaw = ""
     @State private var draggingItem: ControlPanelItem?
     var collapsible = true
@@ -872,6 +834,7 @@ struct QuickControlsSection: View {
         case .shelf: return showShelf
         case .windowMaximize: return showWindowMaximize
         case .dockPreview: return showDockPreview
+        case .cleaning: return showCleaning
         }
     }
 
@@ -943,6 +906,19 @@ struct QuickControlsSection: View {
                     keyDebounceWindowControl
                 }
             }
+        case .cleaning:
+            PanelToggleRow(title: l10n.s.keyboardCleaningName,
+                           caption: cleaningCaption,
+                           systemImage: "keyboard",
+                           isOn: cleaningBinding,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showCleaning,
+                           isActive: cleaning.isActive,
+                           activeText: l10n.s.keyboardCleaningActive,
+                           needsAttention: cleaningNeedsAttention,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: cleaningPermissionAction)
         case .cutPaste:
             PanelToggleRow(title: l10n.s.cutPasteName,
                            caption: caption(l10n.s.cutPasteEnableCaption, needsAccessibility: cutPasteEnabled),
@@ -1042,6 +1018,7 @@ struct QuickControlsSection: View {
         showWindowMaximize = true
         showDockPreview = true
         showKeyDebounce = true
+        showCleaning = true
     }
 
     private func caption(_ text: String, needsAccessibility: Bool) -> String {
@@ -1064,6 +1041,45 @@ struct QuickControlsSection: View {
         guard permissions.accessibility else { return missingPermission(l10n.s.permissionAccessibility) }
         let window = Defaults.sanitizedKeyboardDebounceWindow(keyDebounceWindow)
         return "\(l10n.s.keyDebounceGlobalWindow): \(window) ms"
+    }
+
+    private var cleaningBinding: Binding<Bool> {
+        Binding {
+            cleaning.isActive
+        } set: { enabled in
+            if enabled {
+                CleaningModeManager.shared.activate()
+            } else {
+                CleaningModeManager.shared.deactivate()
+            }
+        }
+    }
+
+    private var cleaningCaption: String {
+        if !permissions.inputMonitoring {
+            return missingPermission(l10n.s.keyboardCleaningInputMonitoring)
+        }
+        if !permissions.accessibility {
+            return missingPermission(l10n.s.permissionAccessibility)
+        }
+        return CleaningModeManager.shared.statusText(l10n.s)
+    }
+
+    private var cleaningNeedsAttention: Bool {
+        !permissions.inputMonitoring || !permissions.accessibility
+    }
+
+    private var cleaningPermissionAction: (() -> Void)? {
+        if !permissions.inputMonitoring {
+            return {
+                Permissions.shared.requestInputMonitoring()
+                Permissions.shared.openInputMonitoringSettings()
+            }
+        }
+        if !permissions.accessibility {
+            return { grantAccessibility() }
+        }
+        return nil
     }
 
     private var keyDebounceWindowControl: some View {

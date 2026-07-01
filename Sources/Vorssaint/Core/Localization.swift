@@ -786,6 +786,17 @@ struct Strings {
     let cleaningOverlayMouseHint: String
     let cleaningNeedsAxTitle: String
     let cleaningNeedsAxBody: String
+    let keyboardCleaningName: String
+    let keyboardCleaningToggle: String
+    let keyboardCleaningCaption: String
+    let keyboardCleaningActive: String
+    let keyboardCleaningInactive: String
+    let keyboardCleaningInputMonitoring: String
+    let keyboardCleaningNeedsInputMonitoring: String
+    let keyboardCleaningNoKeyboard: String
+    let keyboardCleaningSeizeFailed: String
+    let keyboardCleaningPartialLock: String
+    let keyboardCleaningLockedByHID: String
 
     // MARK: Support / donate
     let tabSupport: String
@@ -1485,6 +1496,17 @@ extension Strings {
         cleaningOverlayMouseHint: "O mouse e o trackpad continuam funcionando",
         cleaningNeedsAxTitle: "Precisa de Acessibilidade",
         cleaningNeedsAxBody: "Para bloquear o teclado com segurança, o Vorssaint precisa da permissão de Acessibilidade. Conceda em Ajustes do Sistema e tente de novo.",
+        keyboardCleaningName: "Limpeza do teclado",
+        keyboardCleaningToggle: "Modo de limpeza do teclado",
+        keyboardCleaningCaption: "Bloqueia temporariamente o teclado para limpar as teclas do MacBook.",
+        keyboardCleaningActive: "Limpeza do teclado ativada",
+        keyboardCleaningInactive: "Limpeza do teclado desativada",
+        keyboardCleaningInputMonitoring: "Monitoramento de entrada",
+        keyboardCleaningNeedsInputMonitoring: "A permissão de Monitoramento de Entrada é necessária para bloquear o teclado.",
+        keyboardCleaningNoKeyboard: "Nenhum teclado disponível para bloquear.",
+        keyboardCleaningSeizeFailed: "Não foi possível assumir controle exclusivo do teclado interno.",
+        keyboardCleaningPartialLock: "Apenas alguns teclados estão bloqueados.",
+        keyboardCleaningLockedByHID: "Bloqueado com controle exclusivo HID.",
 
         tabSupport: "Apoiar",
         donateHeading: "Apoie o Vorssaint",
@@ -2182,6 +2204,17 @@ extension Strings {
         cleaningOverlayMouseHint: "Your mouse and trackpad still work",
         cleaningNeedsAxTitle: "Accessibility needed",
         cleaningNeedsAxBody: "To lock the keyboard safely, Vorssaint needs Accessibility permission. Grant it in System Settings and try again.",
+        keyboardCleaningName: "Keyboard Cleaning",
+        keyboardCleaningToggle: "Keyboard cleaning mode",
+        keyboardCleaningCaption: "Temporarily locks the keyboard so you can clean your MacBook keys.",
+        keyboardCleaningActive: "Keyboard cleaning is on",
+        keyboardCleaningInactive: "Keyboard cleaning is off",
+        keyboardCleaningInputMonitoring: "Input Monitoring",
+        keyboardCleaningNeedsInputMonitoring: "Input Monitoring is required to lock the keyboard.",
+        keyboardCleaningNoKeyboard: "No keyboard available to lock.",
+        keyboardCleaningSeizeFailed: "Could not take exclusive control of the built-in keyboard.",
+        keyboardCleaningPartialLock: "Only some keyboards are locked.",
+        keyboardCleaningLockedByHID: "Locked with HID exclusive control.",
 
         tabSupport: "Support",
         donateHeading: "Support Vorssaint",

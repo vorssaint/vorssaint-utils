@@ -5,6 +5,7 @@ import AppKit
 import ApplicationServices
 import Combine
 import CoreGraphics
+import IOKit.hidsystem
 
 /// Central place to check, request and watch the TCC permissions the app uses.
 /// Accessibility powers the scroll inverter and the switcher's event tap;
@@ -14,6 +15,7 @@ final class Permissions: ObservableObject {
 
     @Published private(set) var accessibility = false
     @Published private(set) var screenRecording = false
+    @Published private(set) var inputMonitoring = false
     /// Optional — only used to make the uninstaller's scan more thorough by
     /// reaching protected locations. There is no API prompt for it; the user
     /// grants it in System Settings.
@@ -24,9 +26,10 @@ final class Permissions: ObservableObject {
 
     private init() {
         refresh()
-        // Cheap always-on watch for Accessibility and Screen Recording: those are
-        // pure in-process status checks (no file access) and can be granted while
-        // the app runs, so features come alive moments after the toggle flips.
+        // Cheap always-on watch for Accessibility, Input Monitoring and Screen
+        // Recording: those are pure in-process status checks (no file access) and
+        // can be granted while the app runs, so features come alive moments after
+        // the toggle flips.
         // Full Disk Access is deliberately NOT polled here: it can only change
         // across a relaunch (a running process never gains or is meant to lose
         // it mid-session), and probing it touches protected paths, so polling it
@@ -60,13 +63,15 @@ final class Permissions: ObservableObject {
         }
     }
 
-    /// Accessibility and Screen Recording only — free, side-effect-free checks
+    /// Accessibility, Input Monitoring and Screen Recording only — free, side-effect-free checks
     /// suitable for frequent polling.
     private func refreshActivePermissions() {
         let ax = AXIsProcessTrusted()
+        let im = CGPreflightListenEventAccess()
         let sr = CGPreflightScreenCaptureAccess()
         DispatchQueue.main.async {
             if self.accessibility != ax { self.accessibility = ax }
+            if self.inputMonitoring != im { self.inputMonitoring = im }
             if self.screenRecording != sr { self.screenRecording = sr }
         }
     }
@@ -113,12 +118,20 @@ final class Permissions: ObservableObject {
         CGRequestScreenCaptureAccess()
     }
 
+    func requestInputMonitoring() {
+        CGRequestListenEventAccess()
+    }
+
     func openAccessibilitySettings() {
         open(pane: "Privacy_Accessibility")
     }
 
     func openScreenRecordingSettings() {
         open(pane: "Privacy_ScreenCapture")
+    }
+
+    func openInputMonitoringSettings() {
+        open(pane: "Privacy_ListenEvent")
     }
 
     func openFullDiskAccessSettings() {

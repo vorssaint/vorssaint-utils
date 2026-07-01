@@ -4,90 +4,87 @@
 import AppKit
 import Combine
 import CoreGraphics
-import SwiftUI
+import IOKit.hid
 
-/// "Cleaning mode" temporarily locks the keyboard so the user can wipe it down
-/// without typing gibberish, then restores it on a deliberate gesture. The lock
-/// is a HID-level event tap that swallows key events before the system handles
-/// them, including keyboard system keys such as brightness, media and volume.
-/// The very same tap watches for the unlock gesture, so there is always a way
-/// back.
-///
-/// Three independent escapes guarantee no one is ever stranded:
-///   1. press the same key five times in a row (deliberate, unlike random wiping),
-///   2. click Unlock on the overlay (the mouse is never locked),
-///   3. an automatic timeout after a minute.
-///
-/// Requires Accessibility, like the app's other event taps. If it is missing the
-/// tap can't be created, so we never lock the keyboard with no way to unlock it.
+/// Temporarily suppresses keyboard input so MacBook keys can be wiped without
+/// sending input to the system. The menu panel toggle is the only way to start
+/// and stop the mode; no overlay, shortcut or timed escape is shown.
 final class CleaningModeManager: ObservableObject {
+    enum Status: Equatable {
+        case inactive
+        case active
+        case failed(CleaningModeError)
+
+        var isActive: Bool {
+            if case .active = self { return true }
+            return false
+        }
+    }
+
+    enum CleaningModeError: Equatable {
+        case missingInputMonitoring
+        case missingAccessibility
+        case eventTapFailed
+    }
+
     static let shared = CleaningModeManager()
 
     private static let systemDefinedEventType = CGEventType(rawValue: CleaningSystemKeyEvent.systemDefinedEventTypeRawValue)!
 
-    @Published private(set) var isActive = false
-    /// Consecutive presses of the current key so far (0...unlockThreshold). The
-    /// overlay shows this as progress.
-    @Published private(set) var unlockProgress = 0
+    @Published private(set) var status: Status = .inactive
 
-    /// Deliberate presses of one key needed to unlock. Random wiping hits many
-    /// different keys, which keeps resetting the count, so it won't unlock by
-    /// accident while the keyboard is being cleaned.
-    let unlockThreshold = 5
-
-    /// Failsafe: the keyboard always comes back on its own after this long, even
-    /// if the overlay is somehow missed.
-    private let autoUnlockSeconds: TimeInterval = 60
+    var isActive: Bool { status.isActive }
 
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
-    private var overlay: NSPanel?
-    private var autoUnlockTimer: Timer?
-
-    /// The unlock-gesture state machine (pure, unit-tested separately).
-    private lazy var unlock = CleaningUnlockCounter(threshold: unlockThreshold, pressWindow: 2.0)
 
     private init() {}
 
     func toggle() { isActive ? deactivate() : activate() }
 
-    /// Starts the lock. No-op (and guides the user) when Accessibility is missing,
-    /// because without the tap there would be no way to unlock the keyboard.
     func activate() {
         guard !isActive else { return }
-        // Check Accessibility explicitly (same gate the other event taps use) so a
-        // missing grant is reported clearly, rather than inferred from a nil tap.
+
+        guard Permissions.shared.inputMonitoring else {
+            status = .failed(.missingInputMonitoring)
+            promptForInputMonitoring()
+            return
+        }
         guard Permissions.shared.accessibility else {
+            status = .failed(.missingAccessibility)
             promptForAccessibility()
             return
         }
-        guard installTap() else { return }
-        unlock.reset()
-        unlockProgress = 0
-        isActive = true
-        showOverlay()
-        // Add the failsafe to .common modes (not just the default mode) so it still
-        // fires while a tracking or modal run-loop is active — matching the tap's
-        // own run-loop source, so the 60 s "always unlocks" guarantee always holds.
-        let timer = Timer(timeInterval: autoUnlockSeconds, repeats: false) { [weak self] _ in
-            self?.deactivate()
+
+        guard installTap() else {
+            status = .failed(.eventTapFailed)
+            KeyboardDebounceService.shared.syncWithPreferences()
+            return
         }
-        RunLoop.main.add(timer, forMode: .common)
-        autoUnlockTimer = timer
+
+        KeyboardDebounceService.shared.suspend()
+        status = .active
     }
 
     func deactivate() {
         guard isActive else { return }
         removeTap()
-        autoUnlockTimer?.invalidate()
-        autoUnlockTimer = nil
-        hideOverlay()
-        unlock.reset()
-        unlockProgress = 0
-        isActive = false
+        status = .inactive
+        KeyboardDebounceService.shared.syncWithPreferences()
     }
 
-    // MARK: - Event tap
+    func statusText(_ strings: Strings) -> String {
+        switch status {
+        case .inactive:
+            return strings.keyboardCleaningInactive
+        case .active:
+            return strings.keyboardCleaningActive
+        case let .failed(error):
+            return error.localizedDescription(strings)
+        }
+    }
+
+    // MARK: - Event tap supplement
 
     private func installTap() -> Bool {
         let mask = (1 << CGEventType.keyDown.rawValue)
@@ -123,86 +120,28 @@ final class CleaningModeManager: ObservableObject {
         runLoopSource = nil
     }
 
-    /// The tap callback. Its run-loop source lives on the main run loop, so this
-    /// runs on the main thread and can touch published state and AppKit directly.
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
-        // The system disables taps that stall or when the session locks; re-arm so
-        // the keyboard stays locked instead of silently coming back.
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             return nil
         }
-
-        // Feed key-downs to the unlock state machine. Auto-repeat (holding a key)
-        // is ignored, so only distinct, deliberate taps of the same key count.
-        if type == .keyDown {
-            let code = event.getIntegerValueField(.keyboardEventKeycode)
-            let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
-            registerUnlockKeyDown(code: code, isRepeat: isRepeat)
-        } else if type == Self.systemDefinedEventType,
-                  let systemKey = systemKeyEvent(from: event),
-                  systemKey.isKeyDown {
-            registerUnlockKeyDown(code: systemKey.code, isRepeat: systemKey.isRepeat)
-        }
-
-        // Swallow every key event while the lock is on.
         return nil
     }
 
-    private func systemKeyEvent(from event: CGEvent) -> CleaningSystemKeyEvent? {
-        guard let nsEvent = NSEvent(cgEvent: event) else { return nil }
-        return CleaningSystemKeyEvent.decode(subtype: Int(nsEvent.subtype.rawValue),
-                                             data1: nsEvent.data1)
-    }
+    // MARK: - Permission prompts
 
-    private func registerUnlockKeyDown(code: Int64, isRepeat: Bool) {
-        let unlocked = unlock.registerKeyDown(code: code,
-                                              time: ProcessInfo.processInfo.systemUptime,
-                                              isRepeat: isRepeat)
-        unlockProgress = unlock.progress
-        if unlocked {
-            // Defer so we don't tear down the tap from inside its own callback.
-            DispatchQueue.main.async { [weak self] in self?.deactivate() }
+    private func promptForInputMonitoring() {
+        let strings = L10n.shared.s
+        let alert = NSAlert()
+        alert.messageText = strings.keyboardCleaningInputMonitoring
+        alert.informativeText = strings.keyboardCleaningNeedsInputMonitoring
+        alert.addButton(withTitle: strings.permissionOpenSettings)
+        alert.addButton(withTitle: strings.uninstallerCancel)
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn {
+            Permissions.shared.requestInputMonitoring()
+            Permissions.shared.openInputMonitoringSettings()
         }
-    }
-
-    // MARK: - Overlay
-
-    private func showOverlay() {
-        guard overlay == nil else { return }
-        let screen = NSScreen.main ?? NSScreen.screens.first
-        let frame = screen?.frame ?? NSRect(x: 0, y: 0, width: 800, height: 600)
-        let panel = NSPanel(contentRect: frame,
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered, defer: false)
-        panel.isFloatingPanel = true
-        // Above the menu bar and full-screen apps — the shielding level macOS uses
-        // for its own lock-style windows.
-        panel.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
-        panel.backgroundColor = .clear
-        panel.isOpaque = false
-        panel.hasShadow = false
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
-        // acceptsFirstMouse so the Unlock button fires on the very first click even
-        // though the panel never becomes key or activates the app — otherwise that
-        // click would just be absorbed as the window-activating click.
-        let host = OverlayHostingView(rootView: CleaningOverlayView())
-        host.frame = NSRect(origin: .zero, size: frame.size)
-        host.autoresizingMask = [.width, .height]
-        panel.contentView = host
-        panel.orderFrontRegardless()
-        overlay = panel
-    }
-
-    private func hideOverlay() {
-        overlay?.orderOut(nil)
-        overlay = nil
-    }
-
-    /// Hosting view that accepts the first click into the (non-key, non-activating)
-    /// overlay panel, so the Unlock button works without a throwaway activating click.
-    private final class OverlayHostingView: NSHostingView<CleaningOverlayView> {
-        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     }
 
     private func promptForAccessibility() {
@@ -216,6 +155,19 @@ final class CleaningModeManager: ObservableObject {
         if alert.runModal() == .alertFirstButtonReturn {
             Permissions.shared.requestAccessibility()
             Permissions.shared.openAccessibilitySettings()
+        }
+    }
+}
+
+extension CleaningModeManager.CleaningModeError {
+    func localizedDescription(_ strings: Strings) -> String {
+        switch self {
+        case .missingInputMonitoring:
+            return strings.keyboardCleaningNeedsInputMonitoring
+        case .missingAccessibility:
+            return "\(strings.permissionRequired): \(strings.permissionAccessibility)"
+        case .eventTapFailed:
+            return strings.cleaningNeedsAxBody
         }
     }
 }

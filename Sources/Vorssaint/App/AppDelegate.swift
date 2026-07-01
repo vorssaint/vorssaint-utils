@@ -605,13 +605,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             menu.addItem(durationsItem)
         }
 
-        let cleaningItem = NSMenuItem(title: strings.cleaningMenuItem,
-                                      action: #selector(menuCleaningMode), keyEquivalent: "")
-        cleaningItem.target = self
-        menu.addItem(cleaningItem)
-
-        menu.addItem(.separator())
-
         let settingsItem = NSMenuItem(title: strings.menuSettings, action: #selector(menuOpenSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
@@ -651,10 +644,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     @objc private func menuToggleAwake() {
         KeepAwakeManager.shared.toggle()
-    }
-
-    @objc private func menuCleaningMode() {
-        CleaningModeManager.shared.activate()
     }
 
     @objc private func menuActivateDuration(_ sender: NSMenuItem) {

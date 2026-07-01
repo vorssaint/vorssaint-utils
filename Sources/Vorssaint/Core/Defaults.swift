@@ -73,6 +73,7 @@ enum DefaultsKey {
     static let panelControlShelf = "panelControlShelf"
     static let panelControlWindowMaximize = "panelControlWindowMaximize"
     static let panelControlKeyDebounce = "panelControlKeyDebounce"
+    static let panelControlCleaning = "panelControlCleaning"
     // Show/hide whole panel sections that have no monitorShow* key of their own.
     static let panelShowKeepAwake = "panelShowKeepAwake"
     static let panelShowUtilities = "panelShowUtilities"
@@ -345,6 +346,7 @@ enum Defaults {
         DefaultsKey.panelControlShelf: true,
         DefaultsKey.panelControlWindowMaximize: true,
         DefaultsKey.panelControlKeyDebounce: true,
+        DefaultsKey.panelControlCleaning: true,
         DefaultsKey.panelShowKeepAwake: true,
         DefaultsKey.panelShowUtilities: true,
         DefaultsKey.panelShowControls: true,
