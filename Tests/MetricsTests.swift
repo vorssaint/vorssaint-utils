@@ -2070,6 +2070,7 @@ struct MetricsTests {
             (.enUS, .enUS),
             (.ptBR, .ptBR),
             (.tr, .tr),
+            (.ru, .ru),
             (.es, .es),
             (.de, .de),
             (.fr, .fr),
