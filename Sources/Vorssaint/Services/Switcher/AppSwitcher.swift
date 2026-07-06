@@ -5,6 +5,7 @@ import AppKit
 import ApplicationServices
 import Combine
 import CoreGraphics
+import QuartzCore
 import SwiftUI
 
 private struct SwitcherSourceContext {
@@ -64,6 +65,11 @@ final class AppSwitcher: ObservableObject {
     private var sessionSourceContext: SwitcherSourceContext?
     private var sessionShortcut: GlobalShortcut?
     private var shiftBackNavigationHeld = false
+    /// A Shift press already navigated backward via flagsChanged; the Tab of
+    /// that same shift+tab gesture is swallowed once so the gesture moves one
+    /// step, not two. A deadline, not a flag, so later Tabs keep navigating.
+    private var shiftNavigationTabSwallowDeadline: TimeInterval = 0
+    private static let shiftNavigationTabSwallowWindow: TimeInterval = 0.3
 
     // Virtual key codes handled during a session.
     private enum KeyCode {
@@ -196,7 +202,9 @@ final class AppSwitcher: ObservableObject {
                                                   fallback: .switcherWindowDefault)
         switch keyCode {
         case _ where keyCode == shortcut.keyCode && shortcut.matches(event: event, allowingExtraShift: true):
-            if shortcut.shiftIsNavigationModifier, flags.contains(.maskShift), shiftBackNavigationHeld {
+            if shortcut.shiftIsNavigationModifier, flags.contains(.maskShift),
+               CACurrentMediaTime() < shiftNavigationTabSwallowDeadline {
+                shiftNavigationTabSwallowDeadline = 0
                 break
             }
             let delta = shortcut.shiftIsNavigationModifier && flags.contains(.maskShift) ? -1 : 1
@@ -277,6 +285,7 @@ final class AppSwitcher: ObservableObject {
                                                                   isShiftHeld: shiftHeld)
         else { return false }
         advanceSelection(by: -1)
+        shiftNavigationTabSwallowDeadline = CACurrentMediaTime() + Self.shiftNavigationTabSwallowWindow
         return true
     }
 
@@ -618,6 +627,7 @@ final class AppSwitcher: ObservableObject {
         sessionSourceContext = nil
         sessionShortcut = nil
         shiftBackNavigationHeld = false
+        shiftNavigationTabSwallowDeadline = 0
     }
 
     // MARK: - Panel
