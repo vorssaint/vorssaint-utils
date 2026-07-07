@@ -188,6 +188,8 @@ extension Strings {
         dockPreviewEnableCaption: "将指针悬停在 Dock 中已打开的 App 上，即可查看并临时显示它的窗口。",
         dockClickMinimize: "点按 Dock 图标最小化",
         dockClickMinimizeCaption: "点按最前面 App 的 Dock 图标可将其窗口最小化。再次点按即可恢复。",
+        dockClickCycleWindows: "Click the Dock icon to cycle windows",
+        dockClickCycleWindowsCaption: "Click an active app's Dock icon to rotate through its windows, like ⌘`.",
         dockPreviewActiveNow: "已在 Dock 中启用",
         dockPreviewMagnificationBlocked: "请关闭 Dock 放大后再使用。",
         dockPreviewDockUnavailable: "无法读取 Dock 项目。",

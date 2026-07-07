@@ -188,6 +188,8 @@ extension Strings {
         dockPreviewEnableCaption: "Dock の開いているアプリにポインタを重ねると、ウインドウを確認して一時表示できます。",
         dockClickMinimize: "Dock クリックでしまう",
         dockClickMinimizeCaption: "手前のアプリの Dock アイコンをクリックするとウインドウをしまいます。もう一度クリックすると戻ります。",
+        dockClickCycleWindows: "Click the Dock icon to cycle windows",
+        dockClickCycleWindowsCaption: "Click an active app's Dock icon to rotate through its windows, like ⌘`.",
         dockPreviewActiveNow: "Dock で有効",
         dockPreviewMagnificationBlocked: "使用するには Dock の拡大をオフにしてください。",
         dockPreviewDockUnavailable: "Dock の項目を読み取れませんでした。",

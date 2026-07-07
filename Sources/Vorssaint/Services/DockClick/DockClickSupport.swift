@@ -7,6 +7,7 @@ import Foundation
 enum DockClickAction: Equatable {
     case minimize
     case restore
+    case cycleWindows
     case passThrough
 }
 
@@ -47,6 +48,7 @@ enum DockClickSupport {
         switch lastAction {
         case .minimize: return .toggle(.restore)
         case .restore: return .toggle(.minimize)
+        case .cycleWindows: return .deriveFromState
         case .passThrough: return .deriveFromState
         }
     }
@@ -63,10 +65,14 @@ enum DockClickSupport {
                        hasUnminimizedWindows: Bool,
                        hasMinimizedWindows: Bool,
                        hasFullscreenWindows: Bool,
-                       hasModifiers: Bool) -> DockClickAction {
+                       hasModifiers: Bool,
+                       minimizeEnabled: Bool = true,
+                       cycleWindowsEnabled: Bool = false,
+                       unminimizedWindowCount: Int = 0) -> DockClickAction {
         guard !hasModifiers, !hasFullscreenWindows else { return .passThrough }
-        if appIsFrontmost, hasUnminimizedWindows { return .minimize }
-        if !hasUnminimizedWindows, hasMinimizedWindows { return .restore }
+        if cycleWindowsEnabled, appIsFrontmost, unminimizedWindowCount > 1 { return .cycleWindows }
+        if minimizeEnabled, appIsFrontmost, hasUnminimizedWindows { return .minimize }
+        if minimizeEnabled, !hasUnminimizedWindows, hasMinimizedWindows { return .restore }
         return .passThrough
     }
 

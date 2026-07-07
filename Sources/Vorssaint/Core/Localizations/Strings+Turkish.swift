@@ -188,6 +188,8 @@ extension Strings {
         dockPreviewEnableCaption: "Pencerelerini önizlemek ve göz atmak için Dock'ta açık bir uygulamanın üzerine gel.",
         dockClickMinimize: "Dock simgesine tıklayınca küçült",
         dockClickMinimizeCaption: "Etkin uygulamanın pencereleri Dock simgesine tıklandığında küçülür. Geri getirmek için yeniden tıklayın.",
+        dockClickCycleWindows: "Click the Dock icon to cycle windows",
+        dockClickCycleWindowsCaption: "Click an active app's Dock icon to rotate through its windows, like ⌘`.",
         dockPreviewActiveNow: "Dock'ta etkin",
         dockPreviewMagnificationBlocked: "Bunu kullanmak için Dock büyütmeyi kapat.",
         dockPreviewDockUnavailable: "Dock öğeleri okunamadı.",

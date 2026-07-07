@@ -301,6 +301,8 @@ struct Strings {
     let dockPreviewEnableCaption: String
     let dockClickMinimize: String
     let dockClickMinimizeCaption: String
+    let dockClickCycleWindows: String
+    let dockClickCycleWindowsCaption: String
     let dockPreviewActiveNow: String
     let dockPreviewMagnificationBlocked: String
     let dockPreviewDockUnavailable: String
@@ -1054,6 +1056,8 @@ extension Strings {
         dockPreviewEnableCaption: "Passe o mouse em um app aberto no Dock para ver e espiar suas janelas.",
         dockClickMinimize: "Clicar no Dock minimiza",
         dockClickMinimizeCaption: "As janelas do app ativo são minimizadas ao clicar no ícone dele no Dock. Clique de novo para trazê-las de volta.",
+        dockClickCycleWindows: "Click the Dock icon to cycle windows",
+        dockClickCycleWindowsCaption: "Click an active app's Dock icon to rotate through its windows, like ⌘`.",
         dockPreviewActiveNow: "Ativo no Dock",
         dockPreviewMagnificationBlocked: "Desative a ampliação do Dock para usar.",
         dockPreviewDockUnavailable: "Não foi possível ler os itens do Dock.",
@@ -1784,6 +1788,8 @@ extension Strings {
         dockPreviewEnableCaption: "Hover over an open app in the Dock to preview and peek at its windows.",
         dockClickMinimize: "Click the Dock icon to minimize",
         dockClickMinimizeCaption: "The active app's windows minimize when you click its Dock icon. Click again to bring them back.",
+        dockClickCycleWindows: "Click the Dock icon to cycle windows",
+        dockClickCycleWindowsCaption: "Click an active app's Dock icon to rotate through its windows, like ⌘`.",
         dockPreviewActiveNow: "Active in the Dock",
         dockPreviewMagnificationBlocked: "Turn off Dock magnification to use this.",
         dockPreviewDockUnavailable: "Could not read Dock items.",

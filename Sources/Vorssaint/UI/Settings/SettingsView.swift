@@ -424,6 +424,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherShowWindowlessFinder) private var switcherShowWindowlessFinder = true
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
+    @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
     @AppStorage(DefaultsKey.previewSize) private var previewSize = "normal"
 
     var body: some View {
@@ -486,6 +487,13 @@ struct SwitcherSettings: View {
                         DockClickService.shared.syncWithPreferences()
                     }
                 Text(l10n.s.dockClickMinimizeCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Toggle(l10n.s.dockClickCycleWindows, isOn: $dockClickCycleWindows)
+                    .onChange(of: dockClickCycleWindows) { _, _ in
+                        DockClickService.shared.syncWithPreferences()
+                    }
+                Text(l10n.s.dockClickCycleWindowsCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } header: {

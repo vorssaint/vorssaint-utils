@@ -33,8 +33,9 @@ final class DockClickService {
     private init() {}
 
     func syncWithPreferences() {
-        let enabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickMinimize)
-        if enabled, Permissions.shared.accessibility {
+        let minimizeEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickMinimize)
+        let cycleEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickCycleWindows)
+        if (minimizeEnabled || cycleEnabled), Permissions.shared.accessibility {
             start()
         } else {
             stop()
@@ -136,6 +137,8 @@ final class DockClickService {
         let windows = Self.standardWindows(pid: pid)
         guard !windows.hasFullscreen else { return Unmanaged.passUnretained(event) }
 
+        let cycleEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickCycleWindows)
+        let minimizeEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickMinimize)
         let action: DockClickAction
         if case .toggle(let toggled) = decision {
             action = toggled
@@ -144,7 +147,10 @@ final class DockClickService {
                                              hasUnminimizedWindows: !windows.unminimized.isEmpty,
                                              hasMinimizedWindows: !windows.minimized.isEmpty,
                                              hasFullscreenWindows: false,
-                                             hasModifiers: false)
+                                             hasModifiers: false,
+                                             minimizeEnabled: minimizeEnabled,
+                                             cycleWindowsEnabled: cycleEnabled,
+                                             unminimizedWindowCount: windows.unminimized.count)
         }
 
         // Swallow handled clicks (or the Dock would fight us: re-activate on
@@ -153,6 +159,14 @@ final class DockClickService {
         // Dock Preview's listen-only tap, so tell it directly — otherwise its
         // open panel keeps a pre-click idea of which windows are minimized.
         switch action {
+        case .cycleWindows:
+            lastAction[pid] = ActionRecord(kind: .cycleWindows, time: now, targets: [])
+            let unminimized = windows.unminimized
+            DispatchQueue.main.async {
+                DockPreviewService.shared.dockClickWasHandled()
+                Self.cycleWindows(pid: pid, windows: unminimized)
+            }
+            return nil
         case .minimize:
             let targets = windows.unminimized
             lastAction[pid] = ActionRecord(kind: .minimize, time: now, targets: targets)
@@ -281,6 +295,34 @@ final class DockClickService {
                 AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, value)
             }
         }
+    }
+
+    /// Cycles through an app's unminimized windows by raising the rearmost one
+    /// to the front, mimicking ⌘` (Command-Tilde) behavior.
+    private static func cycleWindows(pid: pid_t, windows: [AXUIElement]) {
+        guard windows.count > 1 else { return }
+
+        // The AX windows array is typically front-to-back order.
+        // Raise the last (rearmost) window to bring it to front.
+        let app = AXUIElementCreateApplication(pid)
+        var focusedValue: CFTypeRef?
+        let rearWindow: AXUIElement
+        if AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &focusedValue) == .success,
+           let focused = focusedValue {
+            // Find the focused window in our list and pick the next one.
+            let focusedElement = focused as! AXUIElement
+            if let index = windows.firstIndex(where: { CFEqual($0, focusedElement) }) {
+                let nextIndex = (index + 1) % windows.count
+                rearWindow = windows[nextIndex]
+            } else {
+                rearWindow = windows.last!
+            }
+        } else {
+            rearWindow = windows.last!
+        }
+
+        AXUIElementPerformAction(rearWindow, kAXRaiseAction as CFString)
+        AXUIElementSetAttributeValue(app, kAXFocusedWindowAttribute as CFString, rearWindow)
     }
 
     // MARK: - Geometry

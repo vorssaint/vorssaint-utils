@@ -189,6 +189,8 @@ extension Strings {
         dockPreviewEnableCaption: "Наведите курсор на открытое приложение в Dock, чтобы увидеть превью и заглянуть в его окна.",
         dockClickMinimize: "Сворачивать кликом по Dock",
         dockClickMinimizeCaption: "Окна активного приложения сворачиваются при клике по его значку в Dock. Кликните ещё раз, чтобы вернуть их.",
+        dockClickCycleWindows: "Click the Dock icon to cycle windows",
+        dockClickCycleWindowsCaption: "Click an active app's Dock icon to rotate through its windows, like ⌘`.",
         dockPreviewActiveNow: "Активно в Dock",
         dockPreviewMagnificationBlocked: "Отключите увеличение Dock, чтобы использовать это.",
         dockPreviewDockUnavailable: "Не удалось прочитать элементы Dock.",

@@ -188,6 +188,8 @@ extension Strings {
         dockPreviewEnableCaption: "Survolez une app ouverte dans le Dock pour voir ses fenêtres et les afficher brièvement.",
         dockClickMinimize: "Réduire d'un clic sur le Dock",
         dockClickMinimizeCaption: "Les fenêtres de l'app active se réduisent d'un clic sur son icône du Dock. Cliquez à nouveau pour les faire revenir.",
+        dockClickCycleWindows: "Click the Dock icon to cycle windows",
+        dockClickCycleWindowsCaption: "Click an active app's Dock icon to rotate through its windows, like ⌘`.",
         dockPreviewActiveNow: "Actif dans le Dock",
         dockPreviewMagnificationBlocked: "Désactivez l’agrandissement du Dock pour l’utiliser.",
         dockPreviewDockUnavailable: "Impossible de lire les éléments du Dock.",
