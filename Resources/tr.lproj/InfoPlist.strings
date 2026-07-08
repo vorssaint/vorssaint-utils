@@ -3,3 +3,5 @@
 
 /* macOS Screen & System Audio Recording permission prompt. */
 "NSAudioCaptureUsageDescription" = "Vorssaint, mikserde her uygulamanın ses düzeyini ayarlamak için yalnızca tek tek uygulama seslerine dokunur. Hiçbir şey kaydedilmez veya Mac'inden çıkmaz.";
+/* macOS Bluetooth permission prompt. */
+"NSBluetoothAlwaysUsageDescription" = "Vorssaint, mikserde seçtiğinde eşleştirilmiş ses çıkışlarını bağlamak için Bluetooth kullanır.";
