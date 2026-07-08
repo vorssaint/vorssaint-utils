@@ -365,12 +365,16 @@ struct MetricsTests {
         expect(!bluetoothDevices.contains { $0.name == "Old Mouse" },
                "peripheral battery ignores disconnected Bluetooth devices")
         let bluetoothOutputs = MixerRoutingSupport.bluetoothAudioOutputs(fromSystemProfilerJSON: bluetoothJSON)
-        expect(bluetoothOutputs.contains(MixerDiscoveredOutputDevice(id: "Bluetooth:F4:9D:8A:A2:4C:12",
-                                                                     name: "soundcore Space Q45")),
+        expect(bluetoothOutputs.contains(MixerDiscoveredOutputDevice(id: "Bluetooth:f4-9d-8a-a2-4c-12",
+                                                                     name: "soundcore Space Q45",
+                                                                     bluetoothAddress: "f4-9d-8a-a2-4c-12")),
                "mixer output discovery includes connected Bluetooth audio")
-        expect(bluetoothOutputs.contains(MixerDiscoveredOutputDevice(id: "Bluetooth:A0:B1:C2:D3:E4:F5",
-                                                                     name: "Stereo")),
+        expect(bluetoothOutputs.contains(MixerDiscoveredOutputDevice(id: "Bluetooth:a0-b1-c2-d3-e4-f5",
+                                                                     name: "Stereo",
+                                                                     bluetoothAddress: "a0-b1-c2-d3-e4-f5")),
                "mixer output discovery includes paired Bluetooth audio")
+        expect(MixerRoutingSupport.bluetoothAddress(fromSelectionID: "Bluetooth:A0:B1:C2:D3:E4:F5") == "a0-b1-c2-d3-e4-f5",
+               "Bluetooth output selection normalizes colon addresses")
         expect(!bluetoothOutputs.contains { $0.name == "Old Mouse" },
                "mixer output discovery ignores non-audio Bluetooth devices")
         let keyboard = PeripheralBatteryDevice(id: "keyboard",

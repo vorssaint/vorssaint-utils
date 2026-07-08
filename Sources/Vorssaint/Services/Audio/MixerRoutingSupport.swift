@@ -17,10 +17,12 @@ struct MixerOutputPreferences: Equatable {
 struct MixerDiscoveredOutputDevice: Identifiable, Equatable {
     let id: String
     let name: String
+    let bluetoothAddress: String?
 }
 
 enum MixerRoutingSupport {
     static let systemDefaultSelectionID = "__system_default__"
+    static let bluetoothSelectionPrefix = "Bluetooth:"
 
     private static let forbiddenScalars = CharacterSet.controlCharacters.union(.newlines)
 
@@ -126,15 +128,34 @@ enum MixerRoutingSupport {
                     for (name, propertiesValue) in entry {
                         guard let properties = dictionary(from: propertiesValue),
                               bluetoothLooksLikeAudio(name: name, properties: properties) else { continue }
-                        let id = string(from: properties["device_address"])
-                            .map { "Bluetooth:\($0)" }
+                        let address = normalizedBluetoothAddress(string(from: properties["device_address"]))
+                        let id = address
+                            .map { bluetoothSelectionPrefix + $0 }
                             ?? "BluetoothName:\(name.lowercased())"
-                        devices.append(MixerDiscoveredOutputDevice(id: id, name: name))
+                        devices.append(MixerDiscoveredOutputDevice(id: id, name: name, bluetoothAddress: address))
                     }
                 }
             }
         }
         return sortedDiscoveredOutputs(devices)
+    }
+
+    static func bluetoothAddress(fromSelectionID id: String) -> String? {
+        guard id.hasPrefix(bluetoothSelectionPrefix) else { return nil }
+        return normalizedBluetoothAddress(String(id.dropFirst(bluetoothSelectionPrefix.count)))
+    }
+
+    static func normalizedBluetoothAddress(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let hex = raw.lowercased().filter { $0.isHexDigit }
+        guard hex.count == 12 else { return nil }
+        return stride(from: 0, to: 12, by: 2)
+            .map { index in
+                let start = hex.index(hex.startIndex, offsetBy: index)
+                let end = hex.index(start, offsetBy: 2)
+                return String(hex[start..<end])
+            }
+            .joined(separator: "-")
     }
 
     static func requiresEngine(volume: Double,

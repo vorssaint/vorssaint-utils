@@ -6,6 +6,7 @@ import AppKit
 import AudioToolbox
 import Combine
 import CoreAudio
+import IOBluetooth
 
 struct MixerOutputDevice: Identifiable, Equatable {
     let id: String
@@ -352,6 +353,30 @@ final class AppVolumeMixer: ObservableObject {
         clearPermissionIfNoActiveAdjustments()
         refreshApps()
         return true
+    }
+
+    func connectBluetoothOutputDevice(selectionID: String) {
+        guard let route = discoveredBluetoothOutputDevices.first(where: { $0.id == selectionID }),
+              let address = route.bluetoothAddress else {
+            outputSwitchError = L10n.shared.s.mixerOutputUnavailable
+            return
+        }
+
+        outputSwitchError = nil
+        routeDiscoveryQueue.async { [weak self] in
+            let status = Self.openPairedBluetoothConnection(address: address)
+            let uid = Self.waitForOutputDevice(matching: route, timeout: 6)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.refreshDiscoveredOutputRoutesIfNeeded(force: true)
+                guard let uid else {
+                    self.outputSwitchError = status == noErr ? L10n.shared.s.mixerOutputUnavailable : "Bluetooth \(status)"
+                    self.refreshApps()
+                    return
+                }
+                _ = self.setUniversalOutputDeviceUID(uid)
+            }
+        }
     }
 
     @discardableResult
@@ -803,6 +828,49 @@ final class AppVolumeMixer: ObservableObject {
         let data = output.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         return MixerRoutingSupport.bluetoothAudioOutputs(fromSystemProfilerJSON: data)
+    }
+
+    private static func openPairedBluetoothConnection(address: String) -> IOReturn {
+        let devices = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] ?? []
+        guard let device = devices.first(where: {
+            MixerRoutingSupport.normalizedBluetoothAddress($0.addressString) == address
+        }) else {
+            return kIOReturnNotFound
+        }
+        return device.isConnected() ? kIOReturnSuccess : device.openConnection()
+    }
+
+    private static func waitForOutputDevice(matching route: MixerDiscoveredOutputDevice,
+                                            timeout: TimeInterval) -> String? {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            let devices = outputDevices(defaultUID: defaultOutputDeviceUID())
+            if let device = outputDevice(matching: route, in: devices) {
+                return device.uid
+            }
+            Thread.sleep(forTimeInterval: 0.25)
+        } while Date() < deadline
+        return nil
+    }
+
+    private static func outputDevice(matching route: MixerDiscoveredOutputDevice,
+                                     in devices: [MixerOutputDevice]) -> MixerOutputDevice? {
+        if let address = route.bluetoothAddress,
+           let device = devices.first(where: {
+               $0.canBeDefaultOutput && MixerRoutingSupport.normalizedBluetoothAddress($0.uid) == address
+           }) {
+            return device
+        }
+        let name = normalizedOutputName(route.name)
+        return devices.first {
+            $0.canBeDefaultOutput && normalizedOutputName($0.name) == name
+        }
+    }
+
+    private static func normalizedOutputName(_ name: String) -> String {
+        name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func audioProcessObjects() -> [AudioObjectID] {

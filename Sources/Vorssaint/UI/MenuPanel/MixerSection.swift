@@ -84,6 +84,14 @@ struct MixerSection: View {
                         Text(outputDeviceTitle(device))
                             .tag(device.uid)
                     }
+                    if !connectableBluetoothOutputDevices.isEmpty {
+                        Section(l10n.s.mixerBluetoothOutputsTitle) {
+                            ForEach(connectableBluetoothOutputDevices) { device in
+                                Text(device.name)
+                                    .tag(device.id)
+                            }
+                        }
+                    }
                     if let selected = mixer.currentOutputDeviceUID,
                        !universalOutputDevices.contains(where: { $0.uid == selected }) {
                         Text(l10n.s.mixerOutputUnavailable)
@@ -94,7 +102,7 @@ struct MixerSection: View {
                 .pickerStyle(.menu)
                 .controlSize(.small)
                 .frame(width: 164)
-                .disabled(universalOutputDevices.isEmpty)
+                .disabled(universalOutputDevices.isEmpty && connectableBluetoothOutputDevices.isEmpty)
                 .help(l10n.s.mixerSystemOutputTooltip)
             }
 
@@ -231,6 +239,10 @@ struct MixerSection: View {
         return mixer.discoveredBluetoothOutputDevices.filter { !activeNames.contains(normalizedOutputName($0.name)) }
     }
 
+    private var connectableBluetoothOutputDevices: [MixerDiscoveredOutputDevice] {
+        inactiveBluetoothOutputDevices.filter { $0.bluetoothAddress != nil }
+    }
+
     private var bluetoothOutputRoutes: some View {
         VStack(alignment: .leading, spacing: 4) {
             Label {
@@ -272,6 +284,10 @@ struct MixerSection: View {
             get: { mixer.currentOutputDeviceUID ?? MixerRoutingSupport.systemDefaultSelectionID },
             set: { selection in
                 guard selection != MixerRoutingSupport.systemDefaultSelectionID else { return }
+                if MixerRoutingSupport.bluetoothAddress(fromSelectionID: selection) != nil {
+                    mixer.connectBluetoothOutputDevice(selectionID: selection)
+                    return
+                }
                 mixer.setUniversalOutputDeviceUID(selection)
             }
         )
