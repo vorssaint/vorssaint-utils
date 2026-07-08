@@ -602,6 +602,8 @@ struct Strings {
     let mixerSystemOutputVolumeReadOnly: String
     let mixerSystemOutputVolumeUnavailable: String
     let mixerSystemOutputErrorFormat: String
+    let mixerBluetoothOutputsTitle: String
+    let mixerBluetoothOutputsCaption: String
     let mixerLowerOnHeadphonesDisconnect: String
     let mixerLowerOnHeadphonesDisconnectCaption: String
     let mixerHeadphonesDisconnectVolume: String
@@ -1382,6 +1384,8 @@ extension Strings {
         mixerSystemOutputVolumeReadOnly: "Só leitura",
         mixerSystemOutputVolumeUnavailable: "Sem volume",
         mixerSystemOutputErrorFormat: "Não foi possível trocar: %@",
+        mixerBluetoothOutputsTitle: "Bluetooth emparelhados",
+        mixerBluetoothOutputsCaption: "Conecte no macOS",
         mixerLowerOnHeadphonesDisconnect: "Baixar volume ao desconectar fones",
         mixerLowerOnHeadphonesDisconnectCaption: "Ajusta a saída quando fones com fio ou Bluetooth desconectam.",
         mixerHeadphonesDisconnectVolume: "Volume ao desconectar",
@@ -2148,6 +2152,8 @@ extension Strings {
         mixerSystemOutputVolumeReadOnly: "Read-only",
         mixerSystemOutputVolumeUnavailable: "No volume",
         mixerSystemOutputErrorFormat: "Could not switch: %@",
+        mixerBluetoothOutputsTitle: "Paired Bluetooth",
+        mixerBluetoothOutputsCaption: "Connect in macOS",
         mixerLowerOnHeadphonesDisconnect: "Lower volume when headphones disconnect",
         mixerLowerOnHeadphonesDisconnectCaption: "Adjusts output when wired or Bluetooth headphones disconnect.",
         mixerHeadphonesDisconnectVolume: "Volume after disconnect",

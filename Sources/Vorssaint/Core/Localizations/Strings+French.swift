@@ -480,6 +480,8 @@ extension Strings {
         mixerSystemOutputVolumeReadOnly: "Lecture seule",
         mixerSystemOutputVolumeUnavailable: "Aucun volume",
         mixerSystemOutputErrorFormat: "Impossible de changer : %@",
+        mixerBluetoothOutputsTitle: "Bluetooth jumelés",
+        mixerBluetoothOutputsCaption: "Connecter dans macOS",
         mixerLowerOnHeadphonesDisconnect: "Baisser le volume quand les écouteurs se déconnectent",
         mixerLowerOnHeadphonesDisconnectCaption: "Ajuste la sortie quand des écouteurs filaires ou Bluetooth se déconnectent.",
         mixerHeadphonesDisconnectVolume: "Volume après déconnexion",

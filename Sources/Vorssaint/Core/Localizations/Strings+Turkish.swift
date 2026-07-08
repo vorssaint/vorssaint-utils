@@ -480,6 +480,8 @@ extension Strings {
         mixerSystemOutputVolumeReadOnly: "Salt okunur",
         mixerSystemOutputVolumeUnavailable: "Ses yok",
         mixerSystemOutputErrorFormat: "Geçiş yapılamadı: %@",
+        mixerBluetoothOutputsTitle: "Eşlenmiş Bluetooth",
+        mixerBluetoothOutputsCaption: "macOS'te bağla",
         mixerLowerOnHeadphonesDisconnect: "Kulaklık bağlantısı kesilince sesi düşür",
         mixerLowerOnHeadphonesDisconnectCaption: "Kablolu veya Bluetooth kulaklık bağlantısı kesildiğinde çıkışı seçilen seviyeye ayarlar.",
         mixerHeadphonesDisconnectVolume: "Bağlantı kesilince ses",

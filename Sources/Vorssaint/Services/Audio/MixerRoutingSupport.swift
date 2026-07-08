@@ -14,6 +14,11 @@ struct MixerOutputPreferences: Equatable {
     let volumes: [String: Double]
 }
 
+struct MixerDiscoveredOutputDevice: Identifiable, Equatable {
+    let id: String
+    let name: String
+}
+
 enum MixerRoutingSupport {
     static let systemDefaultSelectionID = "__system_default__"
 
@@ -102,6 +107,34 @@ enum MixerRoutingSupport {
             "sony wh", "sony wf", "jabra", "soundcore"
         ]
         return directTerms.contains { normalized.contains($0) }
+    }
+
+    static func bluetoothAudioOutputs(fromSystemProfilerJSON data: Data) -> [MixerDiscoveredOutputDevice] {
+        guard !data.isEmpty,
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let controllers = root["SPBluetoothDataType"] as? [Any] else {
+            return []
+        }
+
+        var devices: [MixerDiscoveredOutputDevice] = []
+        for controllerValue in controllers {
+            guard let controller = dictionary(from: controllerValue) else { continue }
+            for key in ["device_connected", "device_not_connected", "device_paired", "device_recently_used"] {
+                guard let entries = controller[key] as? [Any] else { continue }
+                for entryValue in entries {
+                    guard let entry = dictionary(from: entryValue) else { continue }
+                    for (name, propertiesValue) in entry {
+                        guard let properties = dictionary(from: propertiesValue),
+                              bluetoothLooksLikeAudio(name: name, properties: properties) else { continue }
+                        let id = string(from: properties["device_address"])
+                            .map { "Bluetooth:\($0)" }
+                            ?? "BluetoothName:\(name.lowercased())"
+                        devices.append(MixerDiscoveredOutputDevice(id: id, name: name))
+                    }
+                }
+            }
+        }
+        return sortedDiscoveredOutputs(devices)
     }
 
     static func requiresEngine(volume: Double,
@@ -203,5 +236,40 @@ enum MixerRoutingSupport {
             return nil
         }
         return trimmed
+    }
+
+    private static func bluetoothLooksLikeAudio(name: String, properties: [String: Any]) -> Bool {
+        let minorType = string(from: properties["device_minorType"])
+        let majorType = string(from: properties["device_majorType"])
+        let haystack = [name, minorType, majorType]
+            .compactMap { $0 }
+            .joined(separator: " ")
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .lowercased()
+        let terms = ["audio", "speaker", "headphone", "headset", "airpods", "buds", "stereo", "sonos"]
+        return terms.contains { haystack.contains($0) }
+    }
+
+    private static func sortedDiscoveredOutputs(_ devices: [MixerDiscoveredOutputDevice]) -> [MixerDiscoveredOutputDevice] {
+        var seen = Set<String>()
+        return devices
+            .filter { seen.insert($0.id).inserted }
+            .sorted { displayOrderedBefore(name: $0.name, id: $0.id, otherName: $1.name, otherID: $1.id) }
+    }
+
+    private static func dictionary(from value: Any) -> [String: Any]? {
+        if let dictionary = value as? [String: Any] {
+            return dictionary
+        }
+        if let dictionary = value as? NSDictionary {
+            return dictionary as? [String: Any]
+        }
+        return nil
+    }
+
+    private static func string(from value: Any?) -> String? {
+        guard let string = value as? String else { return nil }
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

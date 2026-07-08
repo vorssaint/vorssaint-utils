@@ -63,6 +63,7 @@ final class AppVolumeMixer: ObservableObject {
 
     @Published private(set) var apps: [MixerApp] = []
     @Published private(set) var outputDevices: [MixerOutputDevice] = []
+    @Published private(set) var discoveredBluetoothOutputDevices: [MixerDiscoveredOutputDevice] = []
     @Published private(set) var currentOutputDeviceUID: String?
     @Published private(set) var outputSwitchError: String?
     /// Set when tap creation fails with a permission error, so the panel can
@@ -85,7 +86,10 @@ final class AppVolumeMixer: ObservableObject {
     private var lastAutomaticLoweredOutputUID: String?
     private var refreshPending = false
     private var lastListenerRefreshAt: CFAbsoluteTime = 0
+    private var routeDiscoveryRunning = false
+    private var lastRouteDiscoveryAt: CFAbsoluteTime = -.greatestFiniteMagnitude
     private let buildQueue = DispatchQueue(label: "com.vorssaint.utils.mixer", qos: .userInitiated)
+    private let routeDiscoveryQueue = DispatchQueue(label: "com.vorssaint.utils.output-routes", qos: .utility)
 
     private struct OutputVolumeListenerKey: Hashable {
         let deviceID: AudioObjectID
@@ -116,6 +120,7 @@ final class AppVolumeMixer: ObservableObject {
         if Self.isSupported {
             installListener(selector: kAudioHardwarePropertyProcessObjectList)
         }
+        refreshDiscoveredOutputRoutesIfNeeded(force: true)
         refreshApps()
     }
 
@@ -228,6 +233,26 @@ final class AppVolumeMixer: ObservableObject {
     }
 
     private static let listenerRefreshInterval: CFAbsoluteTime = 0.2
+    private static let routeDiscoveryInterval: CFAbsoluteTime = 300
+
+    private func refreshDiscoveredOutputRoutesIfNeeded(force: Bool = false) {
+        let now = CFAbsoluteTimeGetCurrent()
+        guard force || now - lastRouteDiscoveryAt >= Self.routeDiscoveryInterval else { return }
+        guard !routeDiscoveryRunning else { return }
+        routeDiscoveryRunning = true
+        lastRouteDiscoveryAt = now
+
+        routeDiscoveryQueue.async { [weak self] in
+            let devices = Self.readBluetoothOutputRoutes()
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.routeDiscoveryRunning = false
+                if self.discoveredBluetoothOutputDevices != devices {
+                    self.discoveredBluetoothOutputDevices = devices
+                }
+            }
+        }
+    }
 
     // MARK: - Volume API (panel)
 
@@ -473,6 +498,7 @@ final class AppVolumeMixer: ObservableObject {
     // MARK: - Process discovery
 
     private func refreshApps() {
+        refreshDiscoveredOutputRoutesIfNeeded()
         let defaultUID = Self.defaultOutputDeviceUID()
         var nextOutputDevices = Self.outputDevices(defaultUID: defaultUID)
         if defaultUID != currentOutputDeviceUID, outputSwitchError != nil {
@@ -751,6 +777,33 @@ final class AppVolumeMixer: ObservableObject {
     }
 
     // MARK: - CoreAudio plumbing
+
+    private static func readBluetoothOutputRoutes(timeout: TimeInterval = 2) -> [MixerDiscoveredOutputDevice] {
+        let process = Process()
+        let output = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
+        process.arguments = ["SPBluetoothDataType", "-json"]
+        process.standardOutput = output
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+        } catch {
+            return []
+        }
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while process.isRunning && Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        if process.isRunning {
+            process.terminate()
+        }
+
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return MixerRoutingSupport.bluetoothAudioOutputs(fromSystemProfilerJSON: data)
+    }
 
     private static func audioProcessObjects() -> [AudioObjectID] {
         var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyProcessObjectList,

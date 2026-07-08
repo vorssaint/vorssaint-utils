@@ -127,6 +127,9 @@ struct MixerSection: View {
                 ForEach(mixer.outputDevices) { device in
                     outputVolumeRow(device)
                 }
+                if !inactiveBluetoothOutputDevices.isEmpty {
+                    bluetoothOutputRoutes
+                }
             }
         }
     }
@@ -221,6 +224,47 @@ struct MixerSection: View {
     private func outputVolumeHelp(for device: MixerOutputDevice) -> String {
         guard device.volume != nil else { return l10n.s.mixerSystemOutputVolumeUnavailable }
         return device.volumeSettable ? l10n.s.mixerSystemOutputVolume : l10n.s.mixerSystemOutputVolumeReadOnly
+    }
+
+    private var inactiveBluetoothOutputDevices: [MixerDiscoveredOutputDevice] {
+        let activeNames = Set(mixer.outputDevices.map { normalizedOutputName($0.name) })
+        return mixer.discoveredBluetoothOutputDevices.filter { !activeNames.contains(normalizedOutputName($0.name)) }
+    }
+
+    private var bluetoothOutputRoutes: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label {
+                Text(l10n.s.mixerBluetoothOutputsTitle)
+                    .font(.system(size: 10.5, weight: .medium))
+            } icon: {
+                Image(systemName: "bluetooth")
+                    .font(.system(size: 10, weight: .semibold))
+            }
+            .foregroundStyle(.secondary)
+
+            ForEach(inactiveBluetoothOutputDevices) { device in
+                HStack(spacing: 7) {
+                    Image(systemName: "speaker.fill")
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 14)
+                    Text(device.name)
+                        .font(.system(size: 10.5))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer(minLength: 6)
+                    Text(l10n.s.mixerBluetoothOutputsCaption)
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func normalizedOutputName(_ name: String) -> String {
+        name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var universalOutputSelectionBinding: Binding<String> {

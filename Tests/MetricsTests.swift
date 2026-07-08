@@ -347,7 +347,8 @@ struct MetricsTests {
           {"soundcore Space Q45":{"device_address":"F4:9D:8A:A2:4C:12","device_batteryLevelMain":"100%","device_minorType":"Headset"}},
           {"AirPods Pro":{"device_address":"E5:04:BE:68:C2:93","device_batteryLevelCase":"88%","device_batteryLevelLeft":"92%","device_batteryLevelRight":"90%"}}
         ],"device_not_connected":[
-          {"Old Mouse":{"device_address":"00:00:00:00:00:00","device_batteryLevelMain":"12%","device_minorType":"Mouse"}}
+          {"Old Mouse":{"device_address":"00:00:00:00:00:00","device_batteryLevelMain":"12%","device_minorType":"Mouse"}},
+          {"Stereo":{"device_address":"A0:B1:C2:D3:E4:F5","device_minorType":"Speakers"}}
         ]}]}
         """.utf8)
         let bluetoothDevices = PeripheralBatterySupport.bluetoothDevices(fromSystemProfilerJSON: bluetoothJSON)
@@ -363,6 +364,15 @@ struct MetricsTests {
                "peripheral battery uses the lowest connected AirPods component")
         expect(!bluetoothDevices.contains { $0.name == "Old Mouse" },
                "peripheral battery ignores disconnected Bluetooth devices")
+        let bluetoothOutputs = MixerRoutingSupport.bluetoothAudioOutputs(fromSystemProfilerJSON: bluetoothJSON)
+        expect(bluetoothOutputs.contains(MixerDiscoveredOutputDevice(id: "Bluetooth:F4:9D:8A:A2:4C:12",
+                                                                     name: "soundcore Space Q45")),
+               "mixer output discovery includes connected Bluetooth audio")
+        expect(bluetoothOutputs.contains(MixerDiscoveredOutputDevice(id: "Bluetooth:A0:B1:C2:D3:E4:F5",
+                                                                     name: "Stereo")),
+               "mixer output discovery includes paired Bluetooth audio")
+        expect(!bluetoothOutputs.contains { $0.name == "Old Mouse" },
+               "mixer output discovery ignores non-audio Bluetooth devices")
         let keyboard = PeripheralBatteryDevice(id: "keyboard",
                                                name: "Magic Keyboard",
                                                percent: 78,

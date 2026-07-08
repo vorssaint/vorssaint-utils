@@ -481,6 +481,8 @@ extension Strings {
         mixerSystemOutputVolumeReadOnly: "Только чтение",
         mixerSystemOutputVolumeUnavailable: "Нет громкости",
         mixerSystemOutputErrorFormat: "Не удалось переключить: %@",
+        mixerBluetoothOutputsTitle: "Сопряжённые Bluetooth",
+        mixerBluetoothOutputsCaption: "Подключите в macOS",
         mixerLowerOnHeadphonesDisconnect: "Снижать громкость при отключении наушников",
         mixerLowerOnHeadphonesDisconnectCaption: "Меняет громкость выхода при отключении проводных или Bluetooth-наушников.",
         mixerHeadphonesDisconnectVolume: "Громкость после отключения",
