@@ -89,7 +89,9 @@ final class AppVolumeMixer: ObservableObject {
     private var lastListenerRefreshAt: CFAbsoluteTime = 0
     private var routeDiscoveryRunning = false
     private var lastRouteDiscoveryAt: CFAbsoluteTime = -.greatestFiniteMagnitude
+    private var outputSwitchGeneration = 0
     private let buildQueue = DispatchQueue(label: "com.vorssaint.utils.mixer", qos: .userInitiated)
+    private let outputSwitchQueue = DispatchQueue(label: "com.vorssaint.utils.output-switch", qos: .userInitiated)
     private let routeDiscoveryQueue = DispatchQueue(label: "com.vorssaint.utils.output-routes", qos: .utility)
 
     private struct OutputVolumeListenerKey: Hashable {
@@ -262,6 +264,11 @@ final class AppVolumeMixer: ObservableObject {
     /// true passthrough; anything else (quieter or boosted) runs the gain engine.
     private func isUnity(_ volume: Double) -> Bool { MixerRoutingSupport.isUnity(volume) }
 
+    private func beginOutputSwitchRequest() -> Int {
+        outputSwitchGeneration += 1
+        return outputSwitchGeneration
+    }
+
     func setVolume(_ volume: Double, for app: MixerApp) {
         guard !app.isBypassed else { return }
         let clamped = Defaults.sanitizedAppVolume(volume)
@@ -301,17 +308,32 @@ final class AppVolumeMixer: ObservableObject {
             return false
         }
 
-        let status = Self.setDefaultDevice(device.audioObjectID,
-                                           selector: kAudioHardwarePropertyDefaultOutputDevice)
-        guard status == noErr else {
-            outputSwitchError = "OSStatus \(status)"
-            refreshApps()
-            return false
+        let generation = beginOutputSwitchRequest()
+        outputSwitchError = nil
+        outputSwitchQueue.async { [weak self] in
+            let status = Self.setDefaultDevice(device.audioObjectID,
+                                               selector: kAudioHardwarePropertyDefaultOutputDevice)
+            if status == noErr, device.canBeDefaultSystemOutput {
+                _ = Self.setDefaultDevice(device.audioObjectID,
+                                          selector: kAudioHardwarePropertyDefaultSystemOutputDevice)
+            }
+            DispatchQueue.main.async {
+                guard let self, self.outputSwitchGeneration == generation else { return }
+                guard status == noErr else {
+                    self.outputSwitchError = "OSStatus \(status)"
+                    self.refreshApps()
+                    return
+                }
+                self.finishUniversalOutputSwitch(deviceUID: sanitized)
+            }
         }
+        return true
+    }
 
-        if device.canBeDefaultSystemOutput {
-            _ = Self.setDefaultDevice(device.audioObjectID,
-                                      selector: kAudioHardwarePropertyDefaultSystemOutputDevice)
+    private func finishUniversalOutputSwitch(deviceUID uid: String) {
+        guard let device = outputDevices.first(where: { $0.uid == uid && $0.canBeDefaultOutput }) else {
+            refreshApps()
+            return
         }
 
         outputSwitchError = nil
@@ -352,7 +374,6 @@ final class AppVolumeMixer: ObservableObject {
         reconcileEngines(with: apps)
         clearPermissionIfNoActiveAdjustments()
         refreshApps()
-        return true
     }
 
     func connectBluetoothOutputDevice(selectionID: String) {
@@ -363,11 +384,12 @@ final class AppVolumeMixer: ObservableObject {
         }
 
         outputSwitchError = nil
+        let generation = beginOutputSwitchRequest()
         routeDiscoveryQueue.async { [weak self] in
             let status = Self.openPairedBluetoothConnection(address: address)
             let uid = Self.waitForOutputDevice(matching: route, timeout: 6)
             DispatchQueue.main.async {
-                guard let self else { return }
+                guard let self, self.outputSwitchGeneration == generation else { return }
                 self.refreshDiscoveredOutputRoutesIfNeeded(force: true)
                 guard let uid else {
                     self.outputSwitchError = status == noErr ? L10n.shared.s.mixerOutputUnavailable : "Bluetooth \(status)"
