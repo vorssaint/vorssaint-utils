@@ -375,6 +375,13 @@ struct MetricsTests {
                "mixer output discovery includes paired Bluetooth audio")
         expect(MixerRoutingSupport.bluetoothAddress(fromSelectionID: "Bluetooth:A0:B1:C2:D3:E4:F5") == "a0-b1-c2-d3-e4-f5",
                "Bluetooth output selection normalizes colon addresses")
+        expect(MixerRoutingSupport.outputMatchesDiscoveredBluetooth(
+            name: "Stereo",
+            uid: "a0-b1-c2-d3-e4-f5",
+            route: MixerDiscoveredOutputDevice(id: "Bluetooth:a0-b1-c2-d3-e4-f5",
+                                               name: "Stereo",
+                                               bluetoothAddress: "a0-b1-c2-d3-e4-f5")),
+               "active Bluetooth CoreAudio output matches discovered route")
         expect(!bluetoothOutputs.contains { $0.name == "Old Mouse" },
                "mixer output discovery ignores non-audio Bluetooth devices")
         let keyboard = PeripheralBatteryDevice(id: "keyboard",

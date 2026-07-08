@@ -145,6 +145,16 @@ enum MixerRoutingSupport {
         return normalizedBluetoothAddress(String(id.dropFirst(bluetoothSelectionPrefix.count)))
     }
 
+    static func outputMatchesDiscoveredBluetooth(name: String,
+                                                 uid: String,
+                                                 route: MixerDiscoveredOutputDevice) -> Bool {
+        if let address = route.bluetoothAddress,
+           normalizedBluetoothAddress(uid) == address {
+            return true
+        }
+        return normalizedOutputName(name) == normalizedOutputName(route.name)
+    }
+
     static func normalizedBluetoothAddress(_ raw: String?) -> String? {
         guard let raw else { return nil }
         let hex = raw.lowercased().filter { $0.isHexDigit }
@@ -156,6 +166,12 @@ enum MixerRoutingSupport {
                 return String(hex[start..<end])
             }
             .joined(separator: "-")
+    }
+
+    static func normalizedOutputName(_ name: String) -> String {
+        name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     static func requiresEngine(volume: Double,

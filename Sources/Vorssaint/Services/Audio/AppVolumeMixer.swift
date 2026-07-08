@@ -855,22 +855,12 @@ final class AppVolumeMixer: ObservableObject {
 
     private static func outputDevice(matching route: MixerDiscoveredOutputDevice,
                                      in devices: [MixerOutputDevice]) -> MixerOutputDevice? {
-        if let address = route.bluetoothAddress,
-           let device = devices.first(where: {
-               $0.canBeDefaultOutput && MixerRoutingSupport.normalizedBluetoothAddress($0.uid) == address
-           }) {
-            return device
-        }
-        let name = normalizedOutputName(route.name)
         return devices.first {
-            $0.canBeDefaultOutput && normalizedOutputName($0.name) == name
+            $0.canBeDefaultOutput
+                && MixerRoutingSupport.outputMatchesDiscoveredBluetooth(name: $0.name,
+                                                                        uid: $0.uid,
+                                                                        route: route)
         }
-    }
-
-    private static func normalizedOutputName(_ name: String) -> String {
-        name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
-            .lowercased()
-            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func audioProcessObjects() -> [AudioObjectID] {

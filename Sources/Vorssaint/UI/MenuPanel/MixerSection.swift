@@ -132,10 +132,10 @@ struct MixerSection: View {
                 }
                 .foregroundStyle(.secondary)
 
-                ForEach(mixer.outputDevices) { device in
+                ForEach(nonBluetoothOutputVolumeDevices) { device in
                     outputVolumeRow(device)
                 }
-                if !inactiveBluetoothOutputDevices.isEmpty {
+                if !mixer.discoveredBluetoothOutputDevices.isEmpty {
                     bluetoothOutputRoutes
                 }
             }
@@ -234,13 +234,20 @@ struct MixerSection: View {
         return device.volumeSettable ? l10n.s.mixerSystemOutputVolume : l10n.s.mixerSystemOutputVolumeReadOnly
     }
 
-    private var inactiveBluetoothOutputDevices: [MixerDiscoveredOutputDevice] {
-        let activeNames = Set(mixer.outputDevices.map { normalizedOutputName($0.name) })
-        return mixer.discoveredBluetoothOutputDevices.filter { !activeNames.contains(normalizedOutputName($0.name)) }
+    private var nonBluetoothOutputVolumeDevices: [MixerOutputDevice] {
+        mixer.outputDevices.filter { outputDevice in
+            mixer.discoveredBluetoothOutputDevices.allSatisfy {
+                !outputDeviceMatchesBluetoothRoute(outputDevice, route: $0)
+            }
+        }
+    }
+
+    private var disconnectedBluetoothOutputDevices: [MixerDiscoveredOutputDevice] {
+        mixer.discoveredBluetoothOutputDevices.filter { bluetoothOutputDevice(for: $0) == nil }
     }
 
     private var connectableBluetoothOutputDevices: [MixerDiscoveredOutputDevice] {
-        inactiveBluetoothOutputDevices.filter { $0.bluetoothAddress != nil }
+        disconnectedBluetoothOutputDevices.filter { $0.bluetoothAddress != nil }
     }
 
     private var bluetoothOutputRoutes: some View {
@@ -254,32 +261,41 @@ struct MixerSection: View {
             }
             .foregroundStyle(.secondary)
 
-            ForEach(inactiveBluetoothOutputDevices) { device in
-                HStack(spacing: 7) {
-                    Image(systemName: "speaker.fill")
-                        .font(.system(size: 9.5, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 14)
-                    Text(device.name)
-                        .font(.system(size: 10.5))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Spacer(minLength: 6)
-                    Button(l10n.s.mixerBluetoothOutputsCaption) {
-                        mixer.connectBluetoothOutputDevice(selectionID: device.id)
+            ForEach(mixer.discoveredBluetoothOutputDevices) { device in
+                if let outputDevice = bluetoothOutputDevice(for: device) {
+                    outputVolumeRow(outputDevice)
+                } else {
+                    HStack(spacing: 7) {
+                        Image(systemName: "speaker.fill")
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 14)
+                        Text(device.name)
+                            .font(.system(size: 10.5))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer(minLength: 6)
+                        Button(l10n.s.mixerBluetoothOutputsCaption) {
+                            mixer.connectBluetoothOutputDevice(selectionID: device.id)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(device.bluetoothAddress == nil)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(device.bluetoothAddress == nil)
                 }
             }
         }
     }
 
-    private func normalizedOutputName(_ name: String) -> String {
-        name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
-            .lowercased()
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+    private func bluetoothOutputDevice(for route: MixerDiscoveredOutputDevice) -> MixerOutputDevice? {
+        mixer.outputDevices.first { outputDeviceMatchesBluetoothRoute($0, route: route) }
+    }
+
+    private func outputDeviceMatchesBluetoothRoute(_ outputDevice: MixerOutputDevice,
+                                                   route: MixerDiscoveredOutputDevice) -> Bool {
+        MixerRoutingSupport.outputMatchesDiscoveredBluetooth(name: outputDevice.name,
+                                                            uid: outputDevice.uid,
+                                                            route: route)
     }
 
     private var universalOutputSelectionBinding: Binding<String> {
