@@ -481,7 +481,7 @@ extension Strings {
         mixerSystemOutputVolumeUnavailable: "Nessun volume",
         mixerSystemOutputErrorFormat: "Impossibile cambiare: %@",
         mixerBluetoothOutputsTitle: "Bluetooth abbinati",
-        mixerBluetoothOutputsCaption: "Connetti in macOS",
+        mixerBluetoothOutputsCaption: "Connetti",
         mixerLowerOnHeadphonesDisconnect: "Abbassa il volume quando le cuffie si scollegano",
         mixerLowerOnHeadphonesDisconnectCaption: "Regola l'uscita quando cuffie cablate o Bluetooth si scollegano.",
         mixerHeadphonesDisconnectVolume: "Volume dopo disconnessione",

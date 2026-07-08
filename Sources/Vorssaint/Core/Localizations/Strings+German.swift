@@ -481,7 +481,7 @@ extension Strings {
         mixerSystemOutputVolumeUnavailable: "Keine Lautstärke",
         mixerSystemOutputErrorFormat: "Wechsel fehlgeschlagen: %@",
         mixerBluetoothOutputsTitle: "Gekoppeltes Bluetooth",
-        mixerBluetoothOutputsCaption: "In macOS verbinden",
+        mixerBluetoothOutputsCaption: "Verbinden",
         mixerLowerOnHeadphonesDisconnect: "Lautstärke senken, wenn Kopfhörer getrennt werden",
         mixerLowerOnHeadphonesDisconnectCaption: "Passt die Ausgabe an, wenn kabelgebundene oder Bluetooth-Kopfhörer getrennt werden.",
         mixerHeadphonesDisconnectVolume: "Lautstärke nach Trennung",

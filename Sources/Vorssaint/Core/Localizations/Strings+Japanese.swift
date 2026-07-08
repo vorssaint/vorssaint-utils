@@ -481,7 +481,7 @@ extension Strings {
         mixerSystemOutputVolumeUnavailable: "音量なし",
         mixerSystemOutputErrorFormat: "変更できませんでした: %@",
         mixerBluetoothOutputsTitle: "ペアリング済みBluetooth",
-        mixerBluetoothOutputsCaption: "macOSで接続",
+        mixerBluetoothOutputsCaption: "接続",
         mixerLowerOnHeadphonesDisconnect: "ヘッドフォン切断時に音量を下げる",
         mixerLowerOnHeadphonesDisconnectCaption: "有線またはBluetoothヘッドフォンが切断されたら出力を調整します。",
         mixerHeadphonesDisconnectVolume: "切断後の音量",

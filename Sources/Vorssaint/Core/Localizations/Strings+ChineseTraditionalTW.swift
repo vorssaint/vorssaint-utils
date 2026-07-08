@@ -482,7 +482,7 @@ extension Strings {
         mixerSystemOutputVolumeUnavailable: "沒有音量",
         mixerSystemOutputErrorFormat: "無法切換：%@",
         mixerBluetoothOutputsTitle: "已配對藍牙",
-        mixerBluetoothOutputsCaption: "在 macOS 連線",
+        mixerBluetoothOutputsCaption: "連線",
         mixerLowerOnHeadphonesDisconnect: "耳機中斷連線時降低音量",
         mixerLowerOnHeadphonesDisconnectCaption: "有線或藍牙耳機中斷連線時，自動調整輸出音量。",
         mixerHeadphonesDisconnectVolume: "中斷連線後的音量",

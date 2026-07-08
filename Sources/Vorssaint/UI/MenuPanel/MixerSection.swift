@@ -265,9 +265,12 @@ struct MixerSection: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                     Spacer(minLength: 6)
-                    Text(l10n.s.mixerBluetoothOutputsCaption)
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundStyle(.secondary)
+                    Button(l10n.s.mixerBluetoothOutputsCaption) {
+                        mixer.connectBluetoothOutputDevice(selectionID: device.id)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(device.bluetoothAddress == nil)
                 }
             }
         }
