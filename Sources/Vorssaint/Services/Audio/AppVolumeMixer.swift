@@ -15,6 +15,8 @@ struct MixerOutputDevice: Identifiable, Equatable {
     let isHeadphones: Bool
     let canBeDefaultOutput: Bool
     let canBeDefaultSystemOutput: Bool
+    let volume: Double?
+    let volumeSettable: Bool
     fileprivate let audioObjectID: AudioObjectID
 }
 
@@ -78,11 +80,23 @@ final class AppVolumeMixer: ObservableObject {
     /// process disappears. Without removal, a week of app churn leaves
     /// thousands of dead listener blocks registered with the HAL.
     private var runningListeners: [AudioObjectID: AudioObjectPropertyListenerBlock] = [:]
+    private var outputVolumeListeners: [OutputVolumeListenerKey: AudioObjectPropertyListenerBlock] = [:]
     private var stopped = false
     private var lastAutomaticLoweredOutputUID: String?
     private var refreshPending = false
     private var lastListenerRefreshAt: CFAbsoluteTime = 0
     private let buildQueue = DispatchQueue(label: "com.vorssaint.utils.mixer", qos: .userInitiated)
+
+    private struct OutputVolumeListenerKey: Hashable {
+        let deviceID: AudioObjectID
+        let selector: AudioObjectPropertySelector
+        let element: AudioObjectPropertyElement
+    }
+
+    private struct OutputVolumeEndpoint: Hashable {
+        let selector: AudioObjectPropertySelector
+        let element: AudioObjectPropertyElement
+    }
 
     private init() {}
 
@@ -109,6 +123,7 @@ final class AppVolumeMixer: ObservableObject {
     func stopAll() {
         stopped = true
         buildingEngines.removeAll()
+        removeOutputVolumeListeners()
         for engine in engines.values { engine.stop() }
         engines.removeAll()
     }
@@ -148,6 +163,43 @@ final class AppVolumeMixer: ObservableObject {
         AudioObjectPropertyAddress(mSelector: kAudioProcessPropertyIsRunningOutput,
                                    mScope: kAudioObjectPropertyScopeGlobal,
                                    mElement: kAudioObjectPropertyElementMain)
+    }
+
+    private func syncOutputVolumeListeners(with devices: [MixerOutputDevice]) {
+        var expected = Set<OutputVolumeListenerKey>()
+        for device in devices {
+            for endpoint in Self.outputVolumeEndpoints(for: device.audioObjectID) {
+                var address = Self.outputVolumeAddress(endpoint)
+                guard AudioObjectHasProperty(device.audioObjectID, &address) else { continue }
+                let key = OutputVolumeListenerKey(deviceID: device.audioObjectID,
+                                                  selector: endpoint.selector,
+                                                  element: endpoint.element)
+                expected.insert(key)
+                guard outputVolumeListeners[key] == nil else { continue }
+                let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+                    self?.scheduleListenerRefresh()
+                }
+                if AudioObjectAddPropertyListenerBlock(device.audioObjectID, &address, .main, block) == noErr {
+                    outputVolumeListeners[key] = block
+                }
+            }
+        }
+
+        for (key, block) in outputVolumeListeners where !expected.contains(key) {
+            var address = Self.outputVolumeAddress(OutputVolumeEndpoint(selector: key.selector,
+                                                                        element: key.element))
+            AudioObjectRemovePropertyListenerBlock(key.deviceID, &address, .main, block)
+            outputVolumeListeners.removeValue(forKey: key)
+        }
+    }
+
+    private func removeOutputVolumeListeners() {
+        for (key, block) in outputVolumeListeners {
+            var address = Self.outputVolumeAddress(OutputVolumeEndpoint(selector: key.selector,
+                                                                        element: key.element))
+            AudioObjectRemovePropertyListenerBlock(key.deviceID, &address, .main, block)
+        }
+        outputVolumeListeners.removeAll()
     }
 
     /// One hardware event fires several of the listeners above back-to-back
@@ -252,6 +304,8 @@ final class AppVolumeMixer: ObservableObject {
                               isHeadphones: outputDevice.isHeadphones,
                               canBeDefaultOutput: outputDevice.canBeDefaultOutput,
                               canBeDefaultSystemOutput: outputDevice.canBeDefaultSystemOutput,
+                              volume: outputDevice.volume,
+                              volumeSettable: outputDevice.volumeSettable,
                               audioObjectID: outputDevice.audioObjectID)
         }
 
@@ -291,6 +345,28 @@ final class AppVolumeMixer: ObservableObject {
             setVolume(0, for: app)
         } else {
             setVolume(lastAudibleVolume[app.id] ?? 1, for: app)
+        }
+    }
+
+    func setOutputVolume(_ volume: Double, forOutputDeviceUID uid: String) {
+        let clamped = min(max(volume, 0), 1)
+        guard let device = outputDevices.first(where: { $0.uid == uid }),
+              device.volumeSettable,
+              Self.setOutputVolume(Float32(clamped), for: device.audioObjectID) else { return }
+
+        let actual = Self.outputVolume(for: device.audioObjectID) ?? clamped
+        outputDevices = outputDevices.map { outputDevice in
+            guard outputDevice.uid == uid else { return outputDevice }
+            return MixerOutputDevice(id: outputDevice.id,
+                                     uid: outputDevice.uid,
+                                     name: outputDevice.name,
+                                     isDefault: outputDevice.isDefault,
+                                     isHeadphones: outputDevice.isHeadphones,
+                                     canBeDefaultOutput: outputDevice.canBeDefaultOutput,
+                                     canBeDefaultSystemOutput: outputDevice.canBeDefaultSystemOutput,
+                                     volume: actual,
+                                     volumeSettable: outputDevice.volumeSettable,
+                                     audioObjectID: outputDevice.audioObjectID)
         }
     }
 
@@ -398,17 +474,20 @@ final class AppVolumeMixer: ObservableObject {
 
     private func refreshApps() {
         let defaultUID = Self.defaultOutputDeviceUID()
-        let nextOutputDevices = Self.outputDevices(defaultUID: defaultUID)
-        let availableUIDs = Set(nextOutputDevices.map(\.uid))
+        var nextOutputDevices = Self.outputDevices(defaultUID: defaultUID)
         if defaultUID != currentOutputDeviceUID, outputSwitchError != nil {
             outputSwitchError = nil
         }
-        lowerVolumeIfHeadphonesDisconnected(previousDefaultUID: currentOutputDeviceUID,
-                                            previousOutputDevices: outputDevices,
-                                            nextDefaultUID: defaultUID,
-                                            nextOutputDevices: nextOutputDevices)
+        if lowerVolumeIfHeadphonesDisconnected(previousDefaultUID: currentOutputDeviceUID,
+                                               previousOutputDevices: outputDevices,
+                                               nextDefaultUID: defaultUID,
+                                               nextOutputDevices: nextOutputDevices) {
+            nextOutputDevices = Self.outputDevices(defaultUID: defaultUID)
+        }
+        let availableUIDs = Set(nextOutputDevices.map(\.uid))
+        syncOutputVolumeListeners(with: nextOutputDevices)
         let audioEnvironmentChanged = currentOutputDeviceUID != nil
-            && (defaultUID != currentOutputDeviceUID || nextOutputDevices != outputDevices)
+            && (defaultUID != currentOutputDeviceUID || !Self.sameOutputTopology(nextOutputDevices, outputDevices))
         if audioEnvironmentChanged {
             buildingEngines.removeAll()
             for engine in engines.values { engine.stop() }
@@ -536,14 +615,26 @@ final class AppVolumeMixer: ObservableObject {
         return merged
     }
 
+    private static func sameOutputTopology(_ lhs: [MixerOutputDevice], _ rhs: [MixerOutputDevice]) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+        return zip(lhs, rhs).allSatisfy { left, right in
+            left.uid == right.uid
+                && left.name == right.name
+                && left.isDefault == right.isDefault
+                && left.isHeadphones == right.isHeadphones
+                && left.canBeDefaultOutput == right.canBeDefaultOutput
+                && left.canBeDefaultSystemOutput == right.canBeDefaultSystemOutput
+        }
+    }
+
     private func lowerVolumeIfHeadphonesDisconnected(previousDefaultUID: String?,
                                                      previousOutputDevices: [MixerOutputDevice],
                                                      nextDefaultUID: String?,
-                                                     nextOutputDevices: [MixerOutputDevice]) {
+                                                     nextOutputDevices: [MixerOutputDevice]) -> Bool {
         if let nextDefaultUID,
            nextOutputDevices.first(where: { $0.uid == nextDefaultUID })?.isHeadphones == true {
             lastAutomaticLoweredOutputUID = nil
-            return
+            return false
         }
 
         guard UserDefaults.standard.bool(forKey: DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect),
@@ -555,7 +646,7 @@ final class AppVolumeMixer: ObservableObject {
               let nextDefault = nextOutputDevices.first(where: { $0.uid == nextDefaultUID }),
               !nextDefault.isHeadphones,
               lastAutomaticLoweredOutputUID != nextDefaultUID else {
-            return
+            return false
         }
 
         let percent = Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(
@@ -563,7 +654,9 @@ final class AppVolumeMixer: ObservableObject {
         )
         if Self.setOutputVolume(Float32(Double(percent) / 100), for: nextDefault.audioObjectID) {
             lastAutomaticLoweredOutputUID = nextDefaultUID
+            return true
         }
+        return false
     }
 
     /// Brings the running engines in line with the current app list: drops
@@ -723,6 +816,8 @@ final class AppVolumeMixer: ObservableObject {
                                                 dataSourceName: dataSourceName),
                                              canBeDefaultOutput: canBeDefaultOutput,
                                              canBeDefaultSystemOutput: canBeDefaultSystemOutput,
+                                             volume: outputVolume(for: deviceID),
+                                             volumeSettable: outputVolumeSettable(for: deviceID),
                                              audioObjectID: deviceID))
         }
 
@@ -805,21 +900,99 @@ final class AppVolumeMixer: ObservableObject {
                                           &nextDeviceID)
     }
 
+    private static let outputVolumeSelectors: [AudioObjectPropertySelector] = [
+        kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
+        kAudioDevicePropertyVolumeScalar,
+    ]
+
+    private static let masterOutputVolumeEndpoints = outputVolumeSelectors.map {
+        OutputVolumeEndpoint(selector: $0, element: kAudioObjectPropertyElementMain)
+    }
+
+    private static func outputVolumeAddress(_ endpoint: OutputVolumeEndpoint) -> AudioObjectPropertyAddress {
+        AudioObjectPropertyAddress(mSelector: endpoint.selector,
+                                   mScope: kAudioObjectPropertyScopeOutput,
+                                   mElement: endpoint.element)
+    }
+
+    private static func outputVolumeEndpoints(for deviceID: AudioObjectID) -> [OutputVolumeEndpoint] {
+        masterOutputVolumeEndpoints + outputVolumeChannelElements(for: deviceID).map {
+            OutputVolumeEndpoint(selector: kAudioDevicePropertyVolumeScalar, element: $0)
+        }
+    }
+
+    private static func outputVolumeChannelElements(for deviceID: AudioObjectID) -> [AudioObjectPropertyElement] {
+        var elements: [AudioObjectPropertyElement] = []
+        var preferred = [UInt32](repeating: 0, count: 2)
+        var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyPreferredChannelsForStereo,
+                                                 mScope: kAudioObjectPropertyScopeOutput,
+                                                 mElement: kAudioObjectPropertyElementMain)
+        var size = UInt32(MemoryLayout<UInt32>.size * preferred.count)
+        let status = preferred.withUnsafeMutableBufferPointer { buffer in
+            guard let baseAddress = buffer.baseAddress else { return OSStatus(paramErr) }
+            return AudioObjectGetPropertyData(deviceID,
+                                              &address,
+                                              0,
+                                              nil,
+                                              &size,
+                                              baseAddress)
+        }
+        if status == noErr {
+            elements.append(contentsOf: preferred.compactMap {
+                $0 == 0 ? nil : AudioObjectPropertyElement($0)
+            })
+        }
+
+        // ponytail: stereo fallback; enumerate stream layouts if multi-channel precision matters.
+        elements.append(contentsOf: [1, 2])
+        var seen = Set<AudioObjectPropertyElement>()
+        return elements.filter { seen.insert($0).inserted }
+    }
+
+    private static func outputVolumeValue(for deviceID: AudioObjectID,
+                                          endpoint: OutputVolumeEndpoint) -> Double? {
+        var address = outputVolumeAddress(endpoint)
+        guard AudioObjectHasProperty(deviceID, &address) else { return nil }
+
+        var volume = Float32(0)
+        var size = UInt32(MemoryLayout<Float32>.size)
+        guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &volume) == noErr,
+              volume.isFinite else { return nil }
+        return Double(min(max(volume, 0), 1))
+    }
+
+    private static func outputVolume(for deviceID: AudioObjectID) -> Double? {
+        for endpoint in masterOutputVolumeEndpoints {
+            if let volume = outputVolumeValue(for: deviceID, endpoint: endpoint) { return volume }
+        }
+
+        let values = outputVolumeChannelElements(for: deviceID).compactMap {
+            outputVolumeValue(for: deviceID,
+                              endpoint: OutputVolumeEndpoint(selector: kAudioDevicePropertyVolumeScalar,
+                                                             element: $0))
+        }
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    private static func outputVolumeSettable(for deviceID: AudioObjectID,
+                                             endpoint: OutputVolumeEndpoint) -> Bool {
+        var address = outputVolumeAddress(endpoint)
+        guard AudioObjectHasProperty(deviceID, &address) else { return false }
+
+        var isSettable = DarwinBoolean(false)
+        return AudioObjectIsPropertySettable(deviceID, &address, &isSettable) == noErr
+            && isSettable.boolValue
+    }
+
+    private static func outputVolumeSettable(for deviceID: AudioObjectID) -> Bool {
+        outputVolumeEndpoints(for: deviceID).contains { outputVolumeSettable(for: deviceID, endpoint: $0) }
+    }
+
     private static func setOutputVolume(_ volume: Float32, for deviceID: AudioObjectID) -> Bool {
         let clamped = min(max(volume, 0), 1)
-        let selectors: [AudioObjectPropertySelector] = [
-            kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
-            kAudioDevicePropertyVolumeScalar,
-        ]
-        for selector in selectors {
-            var address = AudioObjectPropertyAddress(mSelector: selector,
-                                                     mScope: kAudioObjectPropertyScopeOutput,
-                                                     mElement: kAudioObjectPropertyElementMain)
-            guard AudioObjectHasProperty(deviceID, &address) else { continue }
-
-            var isSettable = DarwinBoolean(false)
-            guard AudioObjectIsPropertySettable(deviceID, &address, &isSettable) == noErr,
-                  isSettable.boolValue else { continue }
+        for endpoint in masterOutputVolumeEndpoints where outputVolumeSettable(for: deviceID, endpoint: endpoint) {
+            var address = outputVolumeAddress(endpoint)
 
             var nextVolume = clamped
             let status = AudioObjectSetPropertyData(deviceID,
@@ -832,7 +1005,23 @@ final class AppVolumeMixer: ObservableObject {
                 return true
             }
         }
-        return false
+
+        var wrote = false
+        for element in outputVolumeChannelElements(for: deviceID) {
+            let endpoint = OutputVolumeEndpoint(selector: kAudioDevicePropertyVolumeScalar, element: element)
+            guard outputVolumeSettable(for: deviceID, endpoint: endpoint) else { continue }
+            var address = outputVolumeAddress(endpoint)
+            var nextVolume = clamped
+            if AudioObjectSetPropertyData(deviceID,
+                                          &address,
+                                          0,
+                                          nil,
+                                          UInt32(MemoryLayout<Float32>.size),
+                                          &nextVolume) == noErr {
+                wrote = true
+            }
+        }
+        return wrote
     }
 
     @discardableResult

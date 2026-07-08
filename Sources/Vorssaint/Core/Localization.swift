@@ -598,6 +598,9 @@ struct Strings {
     let mixerSystemOutputTitle: String
     let mixerSystemOutputNoDevices: String
     let mixerSystemOutputTooltip: String
+    let mixerSystemOutputVolume: String
+    let mixerSystemOutputVolumeReadOnly: String
+    let mixerSystemOutputVolumeUnavailable: String
     let mixerSystemOutputErrorFormat: String
     let mixerLowerOnHeadphonesDisconnect: String
     let mixerLowerOnHeadphonesDisconnectCaption: String
@@ -1375,6 +1378,9 @@ extension Strings {
         mixerSystemOutputTitle: "Saída",
         mixerSystemOutputNoDevices: "Nenhuma saída encontrada",
         mixerSystemOutputTooltip: "Escolher saída do sistema",
+        mixerSystemOutputVolume: "Volume por saída",
+        mixerSystemOutputVolumeReadOnly: "Só leitura",
+        mixerSystemOutputVolumeUnavailable: "Sem volume",
         mixerSystemOutputErrorFormat: "Não foi possível trocar: %@",
         mixerLowerOnHeadphonesDisconnect: "Baixar volume ao desconectar fones",
         mixerLowerOnHeadphonesDisconnectCaption: "Ajusta a saída quando fones com fio ou Bluetooth desconectam.",
@@ -2138,6 +2144,9 @@ extension Strings {
         mixerSystemOutputTitle: "Output",
         mixerSystemOutputNoDevices: "No outputs found",
         mixerSystemOutputTooltip: "Choose system output",
+        mixerSystemOutputVolume: "Output volumes",
+        mixerSystemOutputVolumeReadOnly: "Read-only",
+        mixerSystemOutputVolumeUnavailable: "No volume",
         mixerSystemOutputErrorFormat: "Could not switch: %@",
         mixerLowerOnHeadphonesDisconnect: "Lower volume when headphones disconnect",
         mixerLowerOnHeadphonesDisconnectCaption: "Adjusts output when wired or Bluetooth headphones disconnect.",
