@@ -809,7 +809,7 @@ struct UtilitiesSection: View {
 
 private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
     case mouseScroll, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
-         dockClick, middleClick
+         dockClick, dockClickCycle, middleClick
 
     var id: String { rawValue }
 }
@@ -823,7 +823,7 @@ private enum ControlCategory: String, CaseIterable, Identifiable {
 
     static func category(for item: ControlPanelItem) -> ControlCategory {
         switch item {
-        case .switcher, .dockPreview, .dockClick, .windowMaximize, .autoQuit:
+        case .switcher, .dockPreview, .dockClick, .dockClickCycle, .windowMaximize, .autoQuit:
             return .windows
         case .mouseScroll, .middleClick, .keyDebounce:
             return .inputDevices
@@ -855,6 +855,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.keyboardDebounceEnabled) private var keyDebounceEnabled = false
     @AppStorage(DefaultsKey.keyboardDebounceWindowMs) private var keyDebounceWindow = Defaults.defaultKeyboardDebounceWindowMs
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickEnabled = false
+    @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.panelControlMouseScroll) private var showScroll = true
     @AppStorage(DefaultsKey.panelControlSwitcher) private var showSwitcher = true
@@ -865,6 +866,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.panelControlWindowMaximize) private var showWindowMaximize = true
     @AppStorage(DefaultsKey.panelControlKeyDebounce) private var showKeyDebounce = true
     @AppStorage(DefaultsKey.panelControlDockClick) private var showDockClick = true
+    @AppStorage(DefaultsKey.panelControlDockClickCycle) private var showDockClickCycle = true
     @AppStorage(DefaultsKey.panelControlMiddleClick) private var showMiddleClick = true
     @AppStorage(DefaultsKey.panelControlWindowsExpanded) private var windowsExpanded = false
     @AppStorage(DefaultsKey.panelControlInputExpanded) private var inputExpanded = false
@@ -974,6 +976,7 @@ struct QuickControlsSection: View {
         case .dockPreview: return dockPreviewEnabled
         case .keyDebounce: return keyDebounceEnabled
         case .dockClick: return dockClickEnabled
+        case .dockClickCycle: return dockClickCycleEnabled
         case .middleClick: return middleClickEnabled
         }
     }
@@ -1031,6 +1034,7 @@ struct QuickControlsSection: View {
         case .windowMaximize: return showWindowMaximize
         case .dockPreview: return showDockPreview
         case .dockClick: return showDockClick
+        case .dockClickCycle: return showDockClickCycle
         case .middleClick: return showMiddleClick
         }
     }
@@ -1186,6 +1190,21 @@ struct QuickControlsSection: View {
                            permissionButtonTitle: l10n.s.permissionRequest,
                            permissionAction: accessibilityPermissionAction(dockClickEnabled))
                 .onChange(of: dockClickEnabled) { _, enabled in
+                    DockClickService.shared.syncWithPreferences()
+                    requestAccessibilityIfNeeded(enabled)
+                }
+        case .dockClickCycle:
+            PanelToggleRow(title: l10n.s.dockClickCycleWindows,
+                           caption: caption(l10n.s.dockClickCycleWindowsCaption, needsAccessibility: dockClickCycleEnabled),
+                           systemImage: "dock.rectangle",
+                           isOn: $dockClickCycleEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showDockClickCycle,
+                           needsAttention: dockClickCycleEnabled && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: accessibilityPermissionAction(dockClickCycleEnabled))
+                .onChange(of: dockClickCycleEnabled) { _, enabled in
                     DockClickService.shared.syncWithPreferences()
                     requestAccessibilityIfNeeded(enabled)
                 }
