@@ -20,6 +20,17 @@ struct MixerDiscoveredOutputDevice: Identifiable, Equatable {
     let bluetoothAddress: String?
 }
 
+struct MixerVolumeEndpointSelection: Equatable {
+    enum Group: Equatable {
+        case master
+        case channels
+    }
+
+    let group: Group
+    let indexes: [Int]
+    let isSettable: Bool
+}
+
 enum MixerRoutingSupport {
     static let systemDefaultSelectionID = "__system_default__"
     static let bluetoothSelectionPrefix = "Bluetooth:"
@@ -148,11 +159,53 @@ enum MixerRoutingSupport {
     static func outputMatchesDiscoveredBluetooth(name: String,
                                                  uid: String,
                                                  route: MixerDiscoveredOutputDevice) -> Bool {
-        if let address = route.bluetoothAddress,
-           normalizedBluetoothAddress(uid) == address {
-            return true
+        if let address = route.bluetoothAddress {
+            return embeddedBluetoothAddress(in: uid) == address
         }
         return normalizedOutputName(name) == normalizedOutputName(route.name)
+    }
+
+    static func embeddedBluetoothAddress(in raw: String) -> String? {
+        let separatedPattern = #"(?i)(?<![0-9a-f])(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}(?![0-9a-f])"#
+        if let range = raw.range(of: separatedPattern, options: .regularExpression) {
+            return normalizedBluetoothAddress(String(raw[range]))
+        }
+
+        let compactPattern = #"(?i)(?<![0-9a-f])[0-9a-f]{12}(?![0-9a-f])"#
+        guard let range = raw.range(of: compactPattern, options: .regularExpression) else { return nil }
+        return normalizedBluetoothAddress(String(raw[range]))
+    }
+
+    static func outputDeviceIsStable(previousUID: String?, candidateUID: String?) -> Bool {
+        guard let candidateUID else { return false }
+        return previousUID == candidateUID
+    }
+
+    static func outputVolumeEndpointSelection(masterReadable: [Bool],
+                                              masterSettable: [Bool],
+                                              channelReadable: [Bool],
+                                              channelSettable: [Bool]) -> MixerVolumeEndpointSelection? {
+        if let index = masterReadable.indices.first(where: {
+            masterReadable[$0] && masterSettable.indices.contains($0) && masterSettable[$0]
+        }) {
+            return MixerVolumeEndpointSelection(group: .master, indexes: [index], isSettable: true)
+        }
+
+        let readableChannels = channelReadable.indices.filter { channelReadable[$0] }
+        if !readableChannels.isEmpty,
+           readableChannels.allSatisfy({ channelSettable.indices.contains($0) && channelSettable[$0] }) {
+            return MixerVolumeEndpointSelection(group: .channels,
+                                                indexes: readableChannels,
+                                                isSettable: true)
+        }
+
+        if let index = masterReadable.firstIndex(of: true) {
+            return MixerVolumeEndpointSelection(group: .master, indexes: [index], isSettable: false)
+        }
+        guard !readableChannels.isEmpty else { return nil }
+        return MixerVolumeEndpointSelection(group: .channels,
+                                            indexes: readableChannels,
+                                            isSettable: false)
     }
 
     static func normalizedBluetoothAddress(_ raw: String?) -> String? {

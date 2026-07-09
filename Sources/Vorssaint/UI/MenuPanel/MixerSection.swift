@@ -75,6 +75,12 @@ struct MixerSection: View {
 
                 Spacer(minLength: 6)
 
+                if mixer.outputSwitchInProgress {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .frame(width: 12, height: 12)
+                }
+
                 Picker(l10n.s.mixerSystemOutputTooltip, selection: universalOutputSelectionBinding) {
                     if mixer.currentOutputDeviceUID == nil {
                         Text(l10n.s.mixerOutputUnavailable)
@@ -102,7 +108,8 @@ struct MixerSection: View {
                 .pickerStyle(.menu)
                 .controlSize(.small)
                 .frame(width: 164)
-                .disabled(universalOutputDevices.isEmpty && connectableBluetoothOutputDevices.isEmpty)
+                .disabled(mixer.outputSwitchInProgress
+                    || (universalOutputDevices.isEmpty && connectableBluetoothOutputDevices.isEmpty))
                 .help(l10n.s.mixerSystemOutputTooltip)
             }
 
@@ -256,7 +263,7 @@ struct MixerSection: View {
                 Text(l10n.s.mixerBluetoothOutputsTitle)
                     .font(.system(size: 10.5, weight: .medium))
             } icon: {
-                Image(systemName: "bluetooth")
+                Image(systemName: "antenna.radiowaves.left.and.right")
                     .font(.system(size: 10, weight: .semibold))
             }
             .foregroundStyle(.secondary)
@@ -275,12 +282,18 @@ struct MixerSection: View {
                             .lineLimit(1)
                             .truncationMode(.middle)
                         Spacer(minLength: 6)
-                        Button(l10n.s.mixerBluetoothOutputsCaption) {
-                            mixer.connectBluetoothOutputDevice(selectionID: device.id)
+                        if mixer.connectingBluetoothSelectionID == device.id {
+                            ProgressView()
+                                .controlSize(.small)
+                                .frame(width: 18, height: 18)
+                        } else {
+                            Button(l10n.s.mixerBluetoothOutputsCaption) {
+                                mixer.connectBluetoothOutputDevice(selectionID: device.id)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(device.bluetoothAddress == nil || mixer.outputSwitchInProgress)
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .disabled(device.bluetoothAddress == nil)
                     }
                 }
             }
@@ -302,12 +315,14 @@ struct MixerSection: View {
         Binding(
             get: { mixer.currentOutputDeviceUID ?? MixerRoutingSupport.systemDefaultSelectionID },
             set: { selection in
-                guard selection != MixerRoutingSupport.systemDefaultSelectionID else { return }
-                if MixerRoutingSupport.bluetoothAddress(fromSelectionID: selection) != nil {
-                    mixer.connectBluetoothOutputDevice(selectionID: selection)
-                    return
+                DispatchQueue.main.async {
+                    guard selection != MixerRoutingSupport.systemDefaultSelectionID else { return }
+                    if MixerRoutingSupport.bluetoothAddress(fromSelectionID: selection) != nil {
+                        mixer.connectBluetoothOutputDevice(selectionID: selection)
+                        return
+                    }
+                    mixer.setUniversalOutputDeviceUID(selection)
                 }
-                mixer.setUniversalOutputDeviceUID(selection)
             }
         )
     }

@@ -382,6 +382,50 @@ struct MetricsTests {
                                                name: "Stereo",
                                                bluetoothAddress: "a0-b1-c2-d3-e4-f5")),
                "active Bluetooth CoreAudio output matches discovered route")
+        expect(MixerRoutingSupport.outputMatchesDiscoveredBluetooth(
+            name: "Bluetooth Speaker",
+            uid: "BluetoothDevice_A0:B1:C2:D3:E4:F5:output",
+            route: MixerDiscoveredOutputDevice(id: "Bluetooth:a0-b1-c2-d3-e4-f5",
+                                               name: "Stereo",
+                                               bluetoothAddress: "a0-b1-c2-d3-e4-f5")),
+               "Bluetooth output matching extracts an address embedded in a CoreAudio UID")
+        expect(!MixerRoutingSupport.outputMatchesDiscoveredBluetooth(
+            name: "Stereo",
+            uid: "11-22-33-44-55-66",
+            route: MixerDiscoveredOutputDevice(id: "Bluetooth:a0-b1-c2-d3-e4-f5",
+                                               name: "Stereo",
+                                               bluetoothAddress: "a0-b1-c2-d3-e4-f5")),
+               "same-name Bluetooth outputs with different addresses do not match")
+        expect(!MixerRoutingSupport.outputDeviceIsStable(previousUID: nil,
+                                                         candidateUID: "BluetoothOutput"),
+               "a newly discovered Bluetooth output is not used immediately")
+        expect(MixerRoutingSupport.outputDeviceIsStable(previousUID: "BluetoothOutput",
+                                                        candidateUID: "BluetoothOutput"),
+               "a Bluetooth output is ready after two consecutive discoveries")
+        expect(!MixerRoutingSupport.outputDeviceIsStable(previousUID: "BluetoothOutput",
+                                                         candidateUID: "DifferentOutput"),
+               "changing Bluetooth output candidates restarts readiness")
+        expect(MixerRoutingSupport.outputVolumeEndpointSelection(
+            masterReadable: [true],
+            masterSettable: [false],
+            channelReadable: [true, true],
+            channelSettable: [true, true]
+        ) == MixerVolumeEndpointSelection(group: .channels, indexes: [0, 1], isSettable: true),
+               "writable stereo channels take precedence over a read-only master volume")
+        expect(MixerRoutingSupport.outputVolumeEndpointSelection(
+            masterReadable: [true],
+            masterSettable: [false],
+            channelReadable: [true, true],
+            channelSettable: [true, false]
+        ) == MixerVolumeEndpointSelection(group: .master, indexes: [0], isSettable: false),
+               "partial channel volume control stays read-only instead of changing balance")
+        expect(MixerRoutingSupport.outputVolumeEndpointSelection(
+            masterReadable: [true, true],
+            masterSettable: [false, true],
+            channelReadable: [true, true],
+            channelSettable: [true, true]
+        ) == MixerVolumeEndpointSelection(group: .master, indexes: [1], isSettable: true),
+               "a writable master volume is preferred over channel controls")
         expect(!bluetoothOutputs.contains { $0.name == "Old Mouse" },
                "mixer output discovery ignores non-audio Bluetooth devices")
         let keyboard = PeripheralBatteryDevice(id: "keyboard",
