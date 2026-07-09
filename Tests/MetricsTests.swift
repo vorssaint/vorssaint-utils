@@ -549,6 +549,39 @@ struct MetricsTests {
             secondsSinceLastGesturePhase: nil
         ), "scroll inverter flips counted wheel events when no gesture was ever seen")
 
+        // MARK: Smooth scrolling
+
+        expect(SmoothScrollSupport.remaining(afterTicks: 1, step: 40, current: 0) == 40,
+               "one wheel tick queues one step of glide")
+        expect(SmoothScrollSupport.remaining(afterTicks: 2, step: 40, current: 30) == 110,
+               "same-direction ticks add to what is left")
+        expect(SmoothScrollSupport.remaining(afterTicks: -1, step: 40, current: 100) == -40,
+               "reversing direction abandons the leftover instead of fighting it")
+        expect(SmoothScrollSupport.remaining(afterTicks: 0, step: 40, current: 25) == 25,
+               "a tickless event leaves the glide untouched")
+        expect(SmoothScrollSupport.frameDelta(remaining: 100) == 18,
+               "a frame emits its fraction of the remaining distance")
+        expect(SmoothScrollSupport.frameDelta(remaining: -100) == -18,
+               "negative glides emit negative frames")
+        expect(SmoothScrollSupport.frameDelta(remaining: 0.8) == 0.8,
+               "small leftovers flush in one final frame")
+        expect(SmoothScrollSupport.frameDelta(remaining: 3) == 1,
+               "the glide never stalls below one pixel per frame")
+        expect(SmoothScrollSupport.frameDelta(remaining: 0) == 0,
+               "no remaining distance emits nothing")
+        expect(SmoothScrollSupport.sanitizedStep(0) == 40,
+               "an unset step falls back to the default")
+        expect(SmoothScrollSupport.sanitizedStep(500) == 100,
+               "the step clamps to its range")
+        expect(SmoothScrollSupport.postedDelta(18, naturalScrolling: true) == -18,
+               "natural scrolling pre-flips the glide so direction is preserved")
+        expect(SmoothScrollSupport.postedDelta(18, naturalScrolling: false) == 18,
+               "classic scrolling posts the glide as is")
+        expect(Defaults.registeredDefaults[DefaultsKey.smoothScrollEnabled] as? Bool == false,
+               "smooth scrolling ships off by default")
+        expect(Defaults.registeredDefaults[DefaultsKey.smoothScrollStep] as? Int == 40,
+               "smooth scrolling step registers its default")
+
         // MARK: Watts & percent
 
         expectEqual(MetricFormat.watts(8.5), "8.5 W", "watts under 10")
@@ -743,12 +776,14 @@ struct MetricsTests {
         expect(registeredDefaults[DefaultsKey.updateShowcaseMediaOverride] as? String == "",
                "update showcase media override is empty by default")
         expect(SupportUpdateIntroInfo.releaseVersion == "3.1.8",
-               "support prompt is deliberately pinned to this release (owner's call)")
+               "support prompt is deliberately pinned to 3.1.8 (owner's call); 3.1.9 does not ask again")
         // AppInfo.version falls back to "dev" in this bare harness, so read
-        // the plist the shipped app will actually carry.
+        // the plist the shipped app will actually carry. The pin is a
+        // per-release decision: this check fails on every version bump so the
+        // decision above is made consciously, never by omission.
         let plistVersion = (NSDictionary(contentsOfFile: "Resources/Info.plist")?["CFBundleShortVersionString"] as? String) ?? ""
-        expect(SupportUpdateIntroInfo.releaseVersion == plistVersion,
-               "a pin that lags the app version would silently never show the window")
+        expect(plistVersion == "3.1.9",
+               "bumping the app version requires re-deciding the support prompt pin above")
         expect(registeredDefaults[DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect] as? Bool == false,
                "headphone disconnect volume lowering is opt-in")
         expect(registeredDefaults[DefaultsKey.mixerHeadphonesDisconnectVolumePercent] as? Int == 0,
@@ -974,6 +1009,34 @@ struct MetricsTests {
             .compactMap { registeredDefaults[$0.storageKey] as? String }
         expect(Set(layoutShortcutValues).intersection(globalShortcutValues).isEmpty,
                "window layout shortcuts do not conflict with other global shortcuts by default")
+        expect(GlobalShortcut(keyCode: Int64(kVK_ISO_Section),
+                              modifiers: [.control, .option, .command]).isValid,
+               "the extra ISO key (paragraph/caret above Tab) is recordable as a shortcut")
+        expect(registeredDefaults[DefaultsKey.extraBrightnessEnabled] as? Bool == false,
+               "extra brightness is opt-in")
+        expect(registeredDefaults[DefaultsKey.extraBrightnessLevel] as? Int == 100,
+               "extra brightness starts at full intensity once enabled")
+        expect(ExtraBrightnessSupport.boostFactor(level: 0, maxEDR: 1.6) == 1.0,
+               "zero level applies no brightness boost")
+        expect(abs(ExtraBrightnessSupport.boostFactor(level: 1, maxEDR: 1.6) - 1.6) < 0.0001,
+               "full level uses the panel's whole EDR headroom")
+        expect(ExtraBrightnessSupport.boostFactor(level: 1, maxEDR: 8.0) == ExtraBrightnessSupport.factorCap,
+               "boost factor stays capped even when the panel reports huge headroom")
+        expect(ExtraBrightnessSupport.boostFactor(level: 0.5, maxEDR: 0.5) == 1.0,
+               "no headroom means no boost regardless of level")
+        expect(ExtraBrightnessSupport.renderFactor(level: 1, currentEDR: 1.0)
+               == ExtraBrightnessSupport.engagementFactor,
+               "before the panel engages, the overlay shows only the small engagement boost")
+        expect(abs(ExtraBrightnessSupport.renderFactor(level: 1, currentEDR: 2.0) - 2.0) < 0.0001,
+               "with full headroom engaged the overlay uses it all at full level")
+        expect(ExtraBrightnessSupport.renderFactor(level: 0, currentEDR: 2.0) == 1.0,
+               "zero level renders no boost even with headroom engaged")
+        expect(ExtraBrightnessSupport.isXDRPanelName("Built-in Liquid Retina XDR Display")
+               && ExtraBrightnessSupport.isXDRPanelName("Liquid Retina XDR"),
+               "MacBook Pro XDR panels are recognized by their product name")
+        expect(!ExtraBrightnessSupport.isXDRPanelName("Built-in Liquid Retina Display")
+               && !ExtraBrightnessSupport.isXDRPanelName("Built-in Retina Display"),
+               "Air and older panels without true headroom are excluded")
         expect(registeredDefaults[DefaultsKey.mediaLastTool] as? String == MediaTool.videoCompressor.rawValue,
                "Media defaults to video compressor")
         expect(registeredDefaults[DefaultsKey.mediaVideoCodec] as? String == MediaVideoCodec.h264.rawValue,
@@ -1499,6 +1562,12 @@ struct MetricsTests {
                                                   targetOutputDeviceUID: "ExternalDisplay",
                                                   defaultOutputDeviceUID: "BuiltInSpeakerDevice"),
                "specific non-default output at 100 percent uses an engine")
+        expect(MixerRoutingSupport.isHiddenFromMixer(bundleIdentifier: "com.apple.finder"),
+               "Finder never shows in the mixer, it has no volume of its own")
+        expect(!MixerRoutingSupport.isHiddenFromMixer(bundleIdentifier: "com.apple.Safari"),
+               "every other app still shows in the mixer")
+        expect(!MixerRoutingSupport.isHiddenFromMixer(bundleIdentifier: nil),
+               "apps without a bundle id still show in the mixer")
         expect(MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "us.zoom.xos", name: "zoom.us"),
                "Zoom is kept out of process-tap audio routing")
         expect(MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "us.zoom.ZoomAutoUpdater", name: "Zoom"),
@@ -1759,6 +1828,27 @@ struct MetricsTests {
                "settings search finds a page by an option living inside it")
         expect(!SettingsSearchSupport.matches(query: "lid", title: "Energy", keywords: []),
                "without keywords the same query stays a miss")
+
+        let freshSize = SettingsWindowSupport.initialContentSize(savedWidth: 0, savedHeight: 0,
+                                                                 availableHeight: 1200)
+        expect(freshSize.width == 772 && freshSize.height == 838,
+               "settings window opens at the tall default when nothing is saved")
+        let clampedSize = SettingsWindowSupport.initialContentSize(savedWidth: 0, savedHeight: 0,
+                                                                   availableHeight: 700)
+        expect(clampedSize.height == 700,
+               "the tall default shrinks to what the screen fits")
+        let tinyScreen = SettingsWindowSupport.initialContentSize(savedWidth: 0, savedHeight: 0,
+                                                                  availableHeight: 400)
+        expect(tinyScreen.height == 528,
+               "the default never goes below the design height")
+        let savedSize = SettingsWindowSupport.initialContentSize(savedWidth: 900, savedHeight: 950,
+                                                                 availableHeight: 700)
+        expect(savedSize.width == 900 && savedSize.height == 950,
+               "a user-chosen size is restored as is")
+        let bogusSaved = SettingsWindowSupport.initialContentSize(savedWidth: 300, savedHeight: 200,
+                                                                  availableHeight: 1200)
+        expect(bogusSaved.width == 772 && bogusSaved.height == 838,
+               "a saved size below the minimum falls back to the default")
 
         expect(UpdateInstallerSupport.shouldForceAdminInstall(afterFailureCode: "fail-copy"),
                "a copy failure retries through the admin prompt")
@@ -2392,6 +2482,21 @@ struct MetricsTests {
                                                      selectedIndex: 2,
                                                      delta: -1) == 0,
                "App Switcher icon-row app navigation wraps backward by app")
+        expect(SwitcherSupport.nextAppSelectionIndex(items: groupedSwitcherItems,
+                                                     selectedIndex: 2,
+                                                     delta: 1,
+                                                     wrapping: false) == 2,
+               "held key stops at the last app instead of wrapping, like the system switcher")
+        expect(SwitcherSupport.nextAppSelectionIndex(items: groupedSwitcherItems,
+                                                     selectedIndex: 0,
+                                                     delta: -1,
+                                                     wrapping: false) == 0,
+               "held key stops at the first app when navigating backward")
+        expect(SwitcherSupport.nextAppSelectionIndex(items: groupedSwitcherItems,
+                                                     selectedIndex: 0,
+                                                     delta: 1,
+                                                     wrapping: false) == 2,
+               "non-wrapping navigation still advances while not at the edge")
         expect(SwitcherSupport.nextWindowSelectionIndexWithinApp(items: groupedSwitcherItems,
                                                                  selectedIndex: 0,
                                                                  delta: 1) == 1,
@@ -2954,6 +3059,18 @@ struct MetricsTests {
         expect(HomebrewCommandBuilder.isValidToken("visual-studio-code"), "cask token is valid")
         expect(HomebrewCommandBuilder.isValidToken("homebrew/cask-fonts/font-iosevka"), "tapped token is valid")
         expect(!HomebrewCommandBuilder.isValidToken(""), "empty Homebrew token is invalid")
+        expect(HomebrewCommandBuilder.untrustedTapName(fromOutput:
+            "Error: Refusing to load formula foo from untrusted tap someone/sometap.\nRun `brew trust someone/sometap` to trust it.")
+            == "someone/sometap",
+               "untrusted tap name is extracted from Homebrew's refusal")
+        expect(HomebrewCommandBuilder.untrustedTapName(fromOutput: "Error: no such formula") == nil,
+               "other Homebrew errors extract no tap")
+        expect(HomebrewCommandBuilder.untrustedTapName(fromOutput:
+            "from untrusted tap ../evil") == nil,
+               "a tap name that fails token validation is rejected")
+        let trustCommand = HomebrewCommandBuilder.trustTap(brewPath: "/opt/homebrew/bin/brew", tap: "someone/sometap")
+        expect(trustCommand.arguments == ["trust", "--tap", "someone/sometap"],
+               "trust command targets the tap explicitly")
         expect(!HomebrewCommandBuilder.isValidToken("-bad"), "leading dash Homebrew token is invalid")
         expect(!HomebrewCommandBuilder.isValidToken("../bad"), "path traversal Homebrew token is invalid")
         expect(!HomebrewCommandBuilder.isValidToken("bad token"), "spaced Homebrew token is invalid")

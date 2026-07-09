@@ -29,6 +29,8 @@ enum DefaultsKey {
     static let hasOnboarded = "hasOnboarded"
     static let sleepDisabledFlag = "vorssDisabledSleep"   // internal guard for pmset disablesleep
     static let scrollInverterEnabled = "scrollInverterEnabled"
+    static let smoothScrollEnabled = "smoothScrollEnabled"
+    static let smoothScrollStep = "smoothScrollStep"      // pixels per wheel tick
     static let switcherEnabled = "switcherEnabled"
     static let switcherShortcut = "switcherShortcut"      // GlobalShortcut storage value
     static let switcherWindowShortcut = "switcherWindowShortcut" // GlobalShortcut storage value
@@ -58,6 +60,11 @@ enum DefaultsKey {
     static let shelfShortcutEnabled = "shelfShortcutEnabled"
     static let shelfShortcut = "shelfShortcut"            // GlobalShortcut storage value
     static let shelfShakeToOpen = "shelfShakeToOpen"
+    static let shelfDropZoneEnabled = "shelfDropZoneEnabled"
+    static let extraBrightnessEnabled = "extraBrightnessEnabled"
+    static let extraBrightnessLevel = "extraBrightnessLevel"   // Int percent 0-100
+    static let settingsWindowWidth = "settingsWindowWidth"     // last user-chosen content size (0 = unset)
+    static let settingsWindowHeight = "settingsWindowHeight"
     static let shelfItems = "shelfItems"                  // Data: [ShelfPersistedItem] JSON
     static let urlCleanerEnabled = "urlCleanerEnabled"
     static let windowMaximizeEnabled = "windowMaximizeEnabled"
@@ -353,6 +360,8 @@ enum Defaults {
         DefaultsKey.keepAwakeIconTint: KeepAwakeIconTint.orange.rawValue,
         DefaultsKey.showCountdown: false,
         DefaultsKey.scrollInverterEnabled: false,
+        DefaultsKey.smoothScrollEnabled: false,
+        DefaultsKey.smoothScrollStep: 40,
         DefaultsKey.switcherEnabled: true,
         DefaultsKey.switcherShortcut: "command:48",
         DefaultsKey.switcherWindowShortcut: GlobalShortcut.switcherWindowDefault.storageValue,
@@ -380,6 +389,11 @@ enum Defaults {
         DefaultsKey.shelfShortcutEnabled: true,
         DefaultsKey.shelfShortcut: "control+option+command:2",
         DefaultsKey.shelfShakeToOpen: true,
+        // On by default (owner's call): it costs nothing until the shelf itself
+        // is on, and then the shelf lives handily under the menu bar icon.
+        DefaultsKey.shelfDropZoneEnabled: true,
+        DefaultsKey.extraBrightnessEnabled: false,
+        DefaultsKey.extraBrightnessLevel: 100,
         DefaultsKey.urlCleanerEnabled: false,
         DefaultsKey.windowMaximizeEnabled: false,
         DefaultsKey.keyboardDebounceEnabled: false,

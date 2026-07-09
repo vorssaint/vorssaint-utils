@@ -136,6 +136,13 @@ enum MixerRoutingSupport {
         "com.motu.",             // Digital Performer
     ]
 
+    /// Apps that never belong in the mixer at all. Finder holds an audio
+    /// connection for interface sounds, but it has no volume of its own, so a
+    /// row for it only confuses (owner request).
+    static func isHiddenFromMixer(bundleIdentifier: String?) -> Bool {
+        bundleIdentifier == "com.apple.finder"
+    }
+
     static func bypassesProcessTap(bundleIdentifier: String?, name: String) -> Bool {
         let bundle = (bundleIdentifier ?? "")
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)

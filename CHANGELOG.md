@@ -4,6 +4,49 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [3.1.9] - 2026-07-08
+
+### Summary
+Vorssaint 3.1.9 gives the shelf a home under the menu bar icon, adds
+smooth mouse scrolling and extra brightness for XDR displays, and makes
+the Settings window resizable. It also fixes typing freezes while a
+password prompt is open.
+
+### Added
+- Drag a file toward the menu bar and the shelf opens under the app icon
+  to catch it. Dropped items stay in a small mark there that opens with a
+  click and leaves once the shelf is empty. On when the shelf is on, with
+  a switch in the shelf settings.
+- The XDR display of MacBook Pro models can now go past its maximum
+  brightness, using the reserve the panel saves for HDR. Off by default,
+  in the Energy settings, with an intensity slider.
+- Mouse wheel scrolling can glide smoothly instead of jumping line by
+  line. Off by default, in the Mouse settings, with an adjustable step.
+- The dock click to cycle windows option now has a toggle in the menu bar
+  panel too, next to the other quick controls.
+
+### Changed
+- The Settings window is now resizable, opens tall enough to show the
+  whole sidebar and remembers the size you choose.
+- Holding the switcher key now stops at the end of the list instead of
+  wrapping around, like the system switcher.
+
+### Fixed
+- Typing no longer freezes for a few seconds while an app shows a password
+  prompt, such as an unsigned app asking for the Keychain.
+- The switcher shortcut for windows now works in the plain grid too,
+  jumping between the selected app's windows while the switcher is open.
+- The extra key on ISO keyboards, such as the caret key on German ones,
+  can now be recorded as a shortcut.
+- Paste as plain text now asks for the Accessibility permission it needs
+  instead of silently swallowing the shortcut when it is missing, and the
+  paste lands more reliably once the shortcut keys are released.
+- Sidebar items no longer show through the Settings search field while
+  scrolling.
+- Updating Homebrew packages from a third party tap no longer fails
+  silently, offering a one click step to trust the tap and continue.
+- Finder no longer shows up in the Volume Mixer.
+
 ## [3.1.8] - 2026-07-07
 
 ### Summary

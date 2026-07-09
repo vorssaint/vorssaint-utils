@@ -134,6 +134,9 @@ final class WindowLayoutService: ObservableObject {
                   app.bundleIdentifier != ownBundleID
             else { continue }
             let axApp = AXUIElementCreateApplication(pid)
+            // Bounded AX: a hung app in the MRU list must not stall the main
+            // thread (and every event tap) for the 6 second default timeout.
+            AXUIElementSetMessagingTimeout(axApp, 0.35)
             for attribute in [kAXFocusedWindowAttribute, kAXMainWindowAttribute] {
                 if let window = windowAttribute(axApp, attribute as String),
                    let target = target(from: window) {

@@ -308,9 +308,12 @@ enum SwitcherSupport {
         return groups
     }
 
+    /// With wrapping off (key held on autorepeat, like the system switcher)
+    /// the selection stops at either end instead of cycling around.
     static func nextAppSelectionIndex(items: [SwitcherItem],
                                       selectedIndex: Int,
-                                      delta: Int) -> Int {
+                                      delta: Int,
+                                      wrapping: Bool = true) -> Int {
         let groups = appGroups(items: items)
         guard !groups.isEmpty else { return 0 }
         guard items.indices.contains(selectedIndex) else {
@@ -319,7 +322,11 @@ enum SwitcherSupport {
 
         let selectedID = items[selectedIndex].id
         let currentGroupIndex = groups.firstIndex { $0.itemIDs.contains(selectedID) } ?? 0
-        let targetGroupIndex = (currentGroupIndex + delta + groups.count) % groups.count
+        let unwrapped = currentGroupIndex + delta
+        if !wrapping, !groups.indices.contains(unwrapped) {
+            return groups[currentGroupIndex].representativeIndex
+        }
+        let targetGroupIndex = (unwrapped + groups.count) % groups.count
         return groups[targetGroupIndex].representativeIndex
     }
 

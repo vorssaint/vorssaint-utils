@@ -49,7 +49,11 @@ enum WindowEnumerator {
             regularApps[app.processIdentifier] = app.localizedName ?? ""
         }
         regularApps[pid_t(ownPid)] = AppInfo.name
-        let accessibilityWindows = accessibilityWindows(for: Set(regularApps.keys).subtracting([pid_t(ownPid)]))
+        // When enumerating a single app there is no point in paying the AX
+        // round trip for every other one.
+        let accessibilityPids = filterPID.map { Set([$0]) }
+            ?? Set(regularApps.keys).subtracting([pid_t(ownPid)])
+        let accessibilityWindows = accessibilityWindows(for: accessibilityPids)
 
         var seen = Set<CGWindowID>()
         var windows: [SwitcherItem] = []
@@ -171,18 +175,26 @@ enum WindowEnumerator {
 
     private static func accessibilityWindows(for pid: pid_t) -> AccessibilityWindowSnapshotList? {
         let app = AXUIElementCreateApplication(pid)
+        // This runs on the main thread (tap callback and activation warm-ups):
+        // an app that is not servicing its run loop would hold every AX call
+        // for the 6 second default timeout, and a blocked main thread stalls
+        // the event taps with it, freezing typing system wide (issue #189).
+        AXUIElementSetMessagingTimeout(app, 0.35)
         var axWindows: [AXUIElement] = []
         var value: CFTypeRef?
-        if AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value) == .success,
-           let windows = value as? [AXUIElement] {
-            for window in windows where isUserFacingWindow(window) {
-                appendUnique(window, to: &axWindows)
+        let windowsResult = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value)
+        // Not responding: skip the remaining calls, each would block again.
+        guard windowsResult != .cannotComplete else { return nil }
+        if windowsResult == .success, let windows = value as? [AXUIElement] {
+            for window in windows {
+                AXUIElementSetMessagingTimeout(window, 0.35)
+                if isUserFacingWindow(window) { appendUnique(window, to: &axWindows) }
             }
         }
         for attribute in [kAXMainWindowAttribute, kAXFocusedWindowAttribute] {
-            if let window = accessibilityWindowAttribute(app, attribute as String),
-               isUserFacingWindow(window) {
-                appendUnique(window, to: &axWindows)
+            if let window = accessibilityWindowAttribute(app, attribute as String) {
+                AXUIElementSetMessagingTimeout(window, 0.35)
+                if isUserFacingWindow(window) { appendUnique(window, to: &axWindows) }
             }
         }
 

@@ -453,7 +453,9 @@ final class AppVolumeMixer: ObservableObject {
             // they play and stay put between sounds.
             let owner = ResponsibleProcess.owner(of: pid)
             guard let app = NSRunningApplication(processIdentifier: owner),
-                  app.activationPolicy == .regular else { continue }
+                  app.activationPolicy == .regular,
+                  !MixerRoutingSupport.isHiddenFromMixer(bundleIdentifier: app.bundleIdentifier)
+            else { continue }
             let name = ResponsibleProcess.displayName(pid: owner, fallback: app.localizedName ?? "pid \(owner)")
             // Bypassed apps (Zoom, DAWs) still get a row — hiding them read
             // as a bug (issue #177) — but they are never tapped: volume

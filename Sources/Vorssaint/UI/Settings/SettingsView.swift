@@ -49,14 +49,16 @@ struct SettingsView: View {
                 SidebarItem(page: .general, title: l10n.s.tabGeneral, icon: "gearshape",
                             keywords: [l10n.s.launchAtLogin, l10n.s.languageLabel, l10n.s.showMenuBarIcon]),
                 SidebarItem(page: .energy, title: l10n.s.tabEnergy, icon: "bolt.fill",
-                            keywords: [l10n.s.keepAwakeTitle, l10n.s.clamshellTitle, l10n.s.defaultDurationLabel]),
+                            keywords: [l10n.s.keepAwakeTitle, l10n.s.clamshellTitle,
+                                       l10n.s.defaultDurationLabel, l10n.s.extraBrightnessName]),
                 SidebarItem(page: .monitor, title: l10n.s.tabMonitor, icon: "chart.line.uptrend.xyaxis",
                             keywords: [l10n.s.menuBarSpacingLabel, l10n.s.menuBarHideIconToggle,
                                        l10n.s.monitorMemoryPressureDot]),
             ]),
             (categories.windowsControls, [
                 SidebarItem(page: .mouse, title: l10n.s.tabMouse, icon: "computermouse",
-                            keywords: [l10n.s.invertMouseScroll, l10n.s.middleClickTapPicker]),
+                            keywords: [l10n.s.invertMouseScroll, l10n.s.middleClickTapPicker,
+                                       l10n.s.smoothScrollName]),
                 SidebarItem(page: .switcher, title: l10n.s.tabSwitcher, icon: "rectangle.on.rectangle",
                             keywords: [l10n.s.switcherEnable, l10n.s.dockClickMinimize,
                                        l10n.s.dockClickCycleWindows]),
@@ -72,7 +74,7 @@ struct SettingsView: View {
                 SidebarItem(page: .cutPaste, title: l10n.s.cutPasteName, icon: "scissors",
                             keywords: [l10n.s.cutPasteEnable]),
                 SidebarItem(page: .shelf, title: l10n.s.shelfName, icon: "tray.full",
-                            keywords: [l10n.s.shelfEnable]),
+                            keywords: [l10n.s.shelfEnable, l10n.s.shelfDropZoneToggle]),
                 SidebarItem(page: .media, title: l10n.s.mediaName, icon: "photo.on.rectangle.angled",
                             keywords: ["PDF", "GIF", l10n.s.mediaStartConvertPDF, l10n.s.ocrName]),
             ]),
@@ -119,13 +121,14 @@ struct SettingsView: View {
             .searchable(text: $searchQuery,
                         placement: .sidebar,
                         prompt: l10n.s.settingsSearchPlaceholder)
+            .settingsSidebarSearchEdge()
             .navigationSplitViewColumnWidth(min: 198, ideal: 210, max: 240)
         } detail: {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(width: 772, height: 528)
+        .frame(minWidth: 772, maxWidth: .infinity, minHeight: 528, maxHeight: .infinity)
     }
 
     @ViewBuilder
@@ -317,6 +320,9 @@ struct EnergySettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var awake = KeepAwakeManager.shared
     @ObservedObject private var permissions = Permissions.shared
+    @ObservedObject private var extraBrightness = ExtraBrightnessService.shared
+    @AppStorage(DefaultsKey.extraBrightnessEnabled) private var extraBrightnessEnabled = false
+    @AppStorage(DefaultsKey.extraBrightnessLevel) private var extraBrightnessLevel = 100
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration = 0
     @AppStorage(DefaultsKey.batteryLimit) private var batteryLimit = 10
     @AppStorage(DefaultsKey.keepAwakeAutoStart) private var keepAwakeAutoStart = false
@@ -385,6 +391,27 @@ struct EnergySettings: View {
                 }
                 SettingsCaptionText(l10n.s.clamshellExplanation)
             }
+            Section(l10n.s.extraBrightnessName) {
+                if extraBrightness.supported {
+                    Toggle(l10n.s.extraBrightnessName, isOn: $extraBrightnessEnabled)
+                        .onChange(of: extraBrightnessEnabled) { _, _ in
+                            ExtraBrightnessService.shared.syncWithPreferences()
+                        }
+                    SettingsCaptionText(l10n.s.extraBrightnessCaption)
+                    if extraBrightnessEnabled {
+                        HStack {
+                            Text(l10n.s.extraBrightnessLevelLabel)
+                            Slider(value: extraBrightnessLevelBinding, in: 10...100, step: 5)
+                            Text("\(extraBrightnessLevel)%")
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 52, alignment: .trailing)
+                        }
+                    }
+                } else {
+                    SettingsCaptionText(l10n.s.extraBrightnessUnsupported)
+                }
+            }
         }
         .formStyle(.grouped)
         .onAppear {
@@ -395,6 +422,14 @@ struct EnergySettings: View {
             awake.refreshPasswordlessStatus()
         }
     }
+
+    private var extraBrightnessLevelBinding: Binding<Double> {
+        Binding(get: { Double(extraBrightnessLevel) },
+                set: { newValue in
+                    extraBrightnessLevel = Int(newValue)
+                    ExtraBrightnessService.shared.levelDidChange()
+                })
+    }
 }
 
 // MARK: - Mouse
@@ -403,8 +438,11 @@ struct MouseSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var inverter = ScrollInverter.shared
+    @ObservedObject private var smoothScroll = SmoothScrollService.shared
     @ObservedObject private var middleClick = MiddleClickService.shared
     @AppStorage(DefaultsKey.scrollInverterEnabled) private var inverterEnabled = false
+    @AppStorage(DefaultsKey.smoothScrollEnabled) private var smoothScrollEnabled = false
+    @AppStorage(DefaultsKey.smoothScrollStep) private var smoothScrollStep = SmoothScrollSupport.defaultStep
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.middleClickTapFingers) private var middleClickTapFingers = 0
 
@@ -430,6 +468,28 @@ struct MouseSettings: View {
                 Text(l10n.s.scrollTrackpadNote)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+            Section(l10n.s.smoothScrollName) {
+                Toggle(l10n.s.smoothScrollName, isOn: $smoothScrollEnabled)
+                    .onChange(of: smoothScrollEnabled) { _, _ in
+                        SmoothScrollService.shared.syncWithPreferences()
+                    }
+                Text(l10n.s.smoothScrollCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if smoothScrollEnabled {
+                    HStack {
+                        Slider(value: smoothScrollStepBinding,
+                               in: Double(SmoothScrollSupport.stepRange.lowerBound)...Double(SmoothScrollSupport.stepRange.upperBound),
+                               step: 10) {
+                            Text(l10n.s.smoothScrollStepLabel)
+                        }
+                        Text("\(SmoothScrollSupport.sanitizedStep(smoothScrollStep))")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .frame(width: 34, alignment: .trailing)
+                    }
+                }
             }
             Section(l10n.s.middleClickSection) {
                 Toggle(l10n.s.middleClickEnable, isOn: $middleClickEnabled)
@@ -458,7 +518,7 @@ struct MouseSettings: View {
                         .foregroundStyle(.orange)
                 }
             }
-            if inverterEnabled || middleClickEnabled, !permissions.accessibility {
+            if inverterEnabled || smoothScrollEnabled || middleClickEnabled, !permissions.accessibility {
                 Section(l10n.s.permissionRequired) {
                     PermissionRow(kind: .accessibility)
                 }
@@ -468,6 +528,13 @@ struct MouseSettings: View {
         .onAppear {
             MiddleClickService.shared.refreshDragGestureConflict()
         }
+    }
+
+    private var smoothScrollStepBinding: Binding<Double> {
+        Binding(
+            get: { Double(SmoothScrollSupport.sanitizedStep(smoothScrollStep)) },
+            set: { smoothScrollStep = Int($0) }
+        )
     }
 }
 
@@ -506,6 +573,9 @@ struct SwitcherSettings: View {
                                       label: l10n.s.switcherShortcutHintWindows) {
                     AppSwitcher.shared.syncWithPreferences()
                 }
+                Text(l10n.s.switcherWindowShortcutCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Text(String(format: l10n.s.switcherUsageHintFormat,
                             GlobalShortcutRole.switcher.savedShortcut.displayString))
                     .font(.caption)
@@ -937,6 +1007,23 @@ struct PermissionRow: View {
                 }
                 .controlSize(.small)
             }
+        }
+    }
+}
+
+private extension View {
+    /// The sidebar search field is pinned to the top, so rows slide up behind it
+    /// as the list scrolls. On macOS 26 the pinned field has no backing of its
+    /// own, leaving the placeholder and the first rows overlapping (issue #183).
+    /// A hard top scroll-edge effect gives that band a defined glass blur, so the
+    /// rows fade out cleanly under the field. No-op on earlier systems, which
+    /// keep the classic opaque sidebar chrome.
+    @ViewBuilder
+    func settingsSidebarSearchEdge() -> some View {
+        if #available(macOS 26.0, *) {
+            scrollEdgeEffectStyle(.hard, for: .top)
+        } else {
+            self
         }
     }
 }

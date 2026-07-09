@@ -21,6 +21,11 @@ final class HomebrewManager: ObservableObject {
     @Published private(set) var log = ""
     @Published private(set) var errorMessage: String?
     @Published private(set) var terminalFallbackCommand: String?
+    /// A third-party tap Homebrew refused to load until the user trusts it,
+    /// with the interrupted work retried right after the one-click trust.
+    @Published private(set) var untrustedTap: String?
+    @Published private(set) var isTrustingTap = false
+    private var untrustedTapRetry: (() -> Void)?
     @Published private(set) var didOpenInstaller = false
     @Published private(set) var isShellConfigured = true
     @Published private(set) var shellConfigProfilePath: String?
@@ -75,13 +80,18 @@ final class HomebrewManager: ObservableObject {
         updateShellConfigStatus(brewPath: brewPath)
         isLoadingInstalled = true
         errorMessage = nil
+        clearUntrustedTap()
         let command = HomebrewCommandBuilder.installed(brewPath: brewPath)
         run(command) { [weak self] status, output in
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.isLoadingInstalled = false
                 guard status == 0 else {
-                    self.errorMessage = output.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if let tap = HomebrewCommandBuilder.untrustedTapName(fromOutput: output) {
+                        self.presentUntrustedTap(tap) { [weak self] in self?.refreshInstalled() }
+                    } else {
+                        self.errorMessage = output.trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
                     self.outdatedGeneration += 1
                     self.outdatedPackagesByID = [:]
                     self.isLoadingOutdated = false
@@ -157,7 +167,11 @@ final class HomebrewManager: ObservableObject {
                 guard let self, generation == self.detailsGeneration else { return }
                 self.isLoadingDetails = false
                 guard status == 0 else {
-                    self.errorMessage = output.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if let tap = HomebrewCommandBuilder.untrustedTapName(fromOutput: output) {
+                        self.presentUntrustedTap(tap) { [weak self] in self?.select(package) }
+                    } else {
+                        self.errorMessage = output.trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
                     return
                 }
                 do {
@@ -298,6 +312,7 @@ final class HomebrewManager: ObservableObject {
                                                   lastActivity: nil)
         terminalFallbackCommand = nil
         errorMessage = nil
+        clearUntrustedTap()
         cancelRequested = false
         completedOperationCleanup?.cancel()
         completedOperationCleanup = nil
@@ -328,6 +343,11 @@ final class HomebrewManager: ObservableObject {
                     self.markOperationComplete(result: .needsTerminal,
                                                phase: self.operationStatus?.phase ?? .finalizing,
                                                activity: HomebrewProgressParser.visibleError(from: output))
+                } else if let tap = HomebrewCommandBuilder.untrustedTapName(fromOutput: output) {
+                    self.presentUntrustedTap(tap) { [weak self] in self?.perform(action, package: package) }
+                    self.markOperationComplete(result: .failed,
+                                               phase: self.operationStatus?.phase ?? .finalizing,
+                                               activity: nil)
                 } else {
                     let message = HomebrewProgressParser.visibleError(from: output)
                     self.errorMessage = message.isEmpty ? output.trimmingCharacters(in: .whitespacesAndNewlines) : message
@@ -523,6 +543,39 @@ final class HomebrewManager: ObservableObject {
         }
         completedOperationCleanup = item
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+    }
+
+    /// One click on the trust card: marks the tap as trusted for Homebrew
+    /// and picks the interrupted work back up.
+    func trustTapAndContinue() {
+        guard let tap = untrustedTap, !isTrustingTap,
+              HomebrewCommandBuilder.isValidToken(tap),
+              let brewPath = brewPath ?? detectBrewPath() else { return }
+        isTrustingTap = true
+        let retry = untrustedTapRetry
+        run(HomebrewCommandBuilder.trustTap(brewPath: brewPath, tap: tap)) { [weak self] status, output in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.isTrustingTap = false
+                guard status == 0 else {
+                    self.errorMessage = output.trimmingCharacters(in: .whitespacesAndNewlines)
+                    return
+                }
+                self.clearUntrustedTap()
+                retry?()
+            }
+        }
+    }
+
+    private func presentUntrustedTap(_ tap: String, retry: @escaping () -> Void) {
+        untrustedTap = tap
+        untrustedTapRetry = retry
+        errorMessage = nil
+    }
+
+    private func clearUntrustedTap() {
+        untrustedTap = nil
+        untrustedTapRetry = nil
     }
 
     private func detectBrewPath() -> String? {

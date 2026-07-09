@@ -255,6 +255,9 @@ struct Strings {
     let invertMouseScrollCaption: String
     let scrollTrackpadNote: String
     let scrollActiveNow: String
+    let smoothScrollName: String
+    let smoothScrollCaption: String
+    let smoothScrollStepLabel: String
     let middleClickSection: String
     let middleClickEnable: String
     let middleClickEnableCaption: String
@@ -302,6 +305,7 @@ struct Strings {
     let switcherIconRowModeCaption: String
     let switcherShortcutHintApps: String
     let switcherShortcutHintWindows: String
+    let switcherWindowShortcutCaption: String
     let switcherMergeTabs: String
     let switcherMergeTabsCaption: String
     let switcherShowFinder: String
@@ -435,6 +439,9 @@ struct Strings {
     let homebrewShellSetupButton: String
     let homebrewShellSetupOpened: String
     let homebrewRefresh: String
+    let homebrewTrustTitle: String
+    let homebrewTrustCaption: String
+    let homebrewTrustButton: String
     let homebrewSearchPlaceholder: String
     let homebrewKeyboardHint: String
     let homebrewSearchButton: String
@@ -568,6 +575,14 @@ struct Strings {
     let shelfStep3: String
     let shelfShakeToggle: String
     let shelfShakeCaption: String
+    let shelfDropZoneToggle: String
+    let shelfDropZoneCaption: String
+    let shelfDropZoneLabel: String
+    let shelfCollapse: String
+    let extraBrightnessName: String
+    let extraBrightnessCaption: String
+    let extraBrightnessLevelLabel: String
+    let extraBrightnessUnsupported: String
     let shelfHotkeyLabel: String
     let shelfOpenNow: String
     let shelfNoPermission: String
@@ -1042,6 +1057,9 @@ extension Strings {
         invertMouseScrollCaption: "Inverte a direção da roda do mouse.",
         scrollTrackpadNote: "O trackpad não muda: continua com a rolagem natural do macOS.",
         scrollActiveNow: "Invertendo a rolagem do mouse agora",
+        smoothScrollName: "Rolagem suave",
+        smoothScrollCaption: "Transforma cada passo da rodinha do mouse em um deslize curto e macio. O trackpad não muda.",
+        smoothScrollStepLabel: "Distância por passo",
         middleClickSection: "Botão do meio",
         middleClickEnable: "Clique com três dedos vira botão do meio",
         middleClickEnableCaption: "Pressionar o trackpad com três dedos funciona como o clique da rodinha do mouse: abre links em nova aba, fecha abas e tudo mais que o botão do meio faz.",
@@ -1088,6 +1106,7 @@ extension Strings {
         switcherIconRowModeCaption: "Mostra um ícone por app com os previews das janelas do app acima.",
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Janelas",
+        switcherWindowShortcutCaption: "Com o seletor aberto, pula entre as janelas do app selecionado.",
         switcherMergeTabs: "Mostrar uma entrada por app",
         switcherMergeTabsCaption: "Junta todas as janelas de um app em uma só entrada no alternador, em vez de uma por janela.",
         switcherShowFinder: "Mostrar Finder sem janelas",
@@ -1216,6 +1235,9 @@ extension Strings {
         homebrewShellSetupButton: "Configurar Terminal",
         homebrewShellSetupOpened: "Comando aberto no Terminal. Depois volte aqui e clique em Atualizar.",
         homebrewRefresh: "Atualizar",
+        homebrewTrustTitle: "Tap ainda não confiável",
+        homebrewTrustCaption: "O Homebrew agora pede sua confirmação antes de usar taps de terceiros. Confie em %@ para continuar.",
+        homebrewTrustButton: "Confiar e continuar",
         homebrewSearchPlaceholder: "Pesquisar pacotes",
         homebrewKeyboardHint: "Espaço ou Enter fecham o painel do macOS. Use o botão de busca.",
         homebrewSearchButton: "Pesquisar",
@@ -1347,6 +1369,14 @@ extension Strings {
         shelfStep3: "Arraste cada item de volta para qualquer app quando precisar.",
         shelfShakeToggle: "Abrir sacudindo o mouse durante o arraste",
         shelfShakeCaption: "Sacuda o ponteiro rapidamente segurando um item para chamar a área perto do cursor.",
+        shelfDropZoneToggle: "Guardar arquivos na barra de menus ao arrastar",
+        shelfDropZoneCaption: "Ao arrastar um arquivo, a área aparece embaixo do ícone na barra de menus. O que você soltar fica guardado ali, num botão que você encolhe e abre com um clique e que some quando a área fica vazia.",
+        shelfDropZoneLabel: "Solte aqui",
+        shelfCollapse: "Encolher",
+        extraBrightnessName: "Brilho extra",
+        extraBrightnessCaption: "Usa a reserva HDR da tela para passar do brilho máximo. Consome mais bateria e o Mac pode esquentar.",
+        extraBrightnessLevelLabel: "Intensidade",
+        extraBrightnessUnsupported: "Disponível apenas em telas XDR, como as dos MacBook Pro de 14 e 16 polegadas.",
         shelfHotkeyLabel: "Atalho",
         shelfOpenNow: "Abrir agora",
         shelfNoPermission: "Não requer nenhuma permissão.",
@@ -1805,6 +1835,9 @@ extension Strings {
         invertMouseScrollCaption: "Reverses the mouse wheel direction.",
         scrollTrackpadNote: "The trackpad is untouched: it keeps macOS natural scrolling.",
         scrollActiveNow: "Inverting mouse scrolling right now",
+        smoothScrollName: "Smooth scrolling",
+        smoothScrollCaption: "Turns each mouse wheel step into a short, gentle glide. The trackpad is not affected.",
+        smoothScrollStepLabel: "Distance per step",
         middleClickSection: "Middle click",
         middleClickEnable: "Three-finger click acts as middle click",
         middleClickEnableCaption: "Pressing the trackpad with three fingers works like a mouse wheel click: open links in a new tab, close tabs and everything else the middle button does.",
@@ -1851,6 +1884,7 @@ extension Strings {
         switcherIconRowModeCaption: "Shows one icon per app with that app's window previews above it.",
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Windows",
+        switcherWindowShortcutCaption: "While the switcher is open, jumps between the selected app's windows.",
         switcherMergeTabs: "Show one entry per app",
         switcherMergeTabsCaption: "Collapses all of an app's windows into one entry in the switcher, instead of one entry per window.",
         switcherShowFinder: "Show Finder without windows",
@@ -1979,6 +2013,9 @@ extension Strings {
         homebrewShellSetupButton: "Set up Terminal",
         homebrewShellSetupOpened: "Command opened in Terminal. Then come back here and click Refresh.",
         homebrewRefresh: "Refresh",
+        homebrewTrustTitle: "Tap not trusted yet",
+        homebrewTrustCaption: "Homebrew now asks for your confirmation before using third party taps. Trust %@ to continue.",
+        homebrewTrustButton: "Trust and continue",
         homebrewSearchPlaceholder: "Search packages",
         homebrewKeyboardHint: "Space or Return closes the macOS panel. Use the search button.",
         homebrewSearchButton: "Search",
@@ -2110,6 +2147,14 @@ extension Strings {
         shelfStep3: "Drag each item back out to any app when you need it.",
         shelfShakeToggle: "Open by shaking the mouse while dragging",
         shelfShakeCaption: "Shake the pointer quickly while holding an item to summon it near the cursor.",
+        shelfDropZoneToggle: "Keep dragged files in the menu bar",
+        shelfDropZoneCaption: "While you drag a file, the shelf appears below the menu bar icon. Whatever you drop is kept right there, in a button you shrink and open with a click that goes away once the shelf is empty.",
+        shelfDropZoneLabel: "Drop here",
+        shelfCollapse: "Collapse",
+        extraBrightnessName: "Extra brightness",
+        extraBrightnessCaption: "Uses the display's HDR headroom to go past the maximum brightness. Uses more battery and the Mac can run warm.",
+        extraBrightnessLevelLabel: "Intensity",
+        extraBrightnessUnsupported: "Available only on XDR displays, such as the ones on the 14 and 16 inch MacBook Pro.",
         shelfHotkeyLabel: "Shortcut",
         shelfOpenNow: "Open now",
         shelfNoPermission: "Requires no permissions.",

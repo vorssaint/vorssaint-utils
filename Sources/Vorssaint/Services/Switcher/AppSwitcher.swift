@@ -200,10 +200,29 @@ final class AppSwitcher: ObservableObject {
                 break
             }
             let delta = shortcut.shiftIsNavigationModifier && flags.contains(.maskShift) ? -1 : 1
-            advanceSelection(by: delta)
-        case _ where iconRowModeEnabled && searchQuery.isEmpty
-            && windowShortcut.matches(event: event, allowingExtraShift: true):
-            let delta = windowShortcut.shiftIsNavigationModifier && flags.contains(.maskShift) ? -1 : 1
+            // Holding the key stops at the list's end instead of wrapping, like
+            // the system switcher; a fresh press wraps around (issue #187).
+            let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+            advanceSelection(by: delta, wrapping: !isRepeat)
+        case _ where searchQuery.isEmpty
+            && (windowShortcut.matches(event: event, allowingExtraShift: true,
+                                       tolerating: shortcut.modifiers)
+                || windowShortcut.matchesByCharacter(event: event,
+                                                     tolerating: shortcut.modifiers)):
+            // Jumps between the selected app's windows. In the icon row mode
+            // that is the grouped app; in the plain grid it hops across the
+            // same app's thumbnails, so the key works in both looks. The
+            // session shortcut's modifiers are necessarily held while the
+            // panel is up, so they never disqualify the window key (a window
+            // shortcut like ⌥Tab works during a ⌘Tab session). Matching by
+            // character too keeps the default ⌘` on the key that actually
+            // types ` on ABNT2, German and other non-US layouts (#187). Shift
+            // only means "backward" on a positional match: on a character
+            // match it may be part of typing the character itself.
+            let positional = windowShortcut.matches(event: event, allowingExtraShift: true,
+                                                    tolerating: shortcut.modifiers)
+            let delta = positional && windowShortcut.shiftIsNavigationModifier
+                && flags.contains(.maskShift) ? -1 : 1
             advanceWindowInSelectedApp(by: delta)
         case KeyCode.rightArrow:
             advanceSelection(by: 1)
@@ -351,6 +370,9 @@ final class AppSwitcher: ObservableObject {
     private func focusedWindowID(for pid: pid_t) -> CGWindowID? {
         guard Permissions.shared.accessibility else { return nil }
         let app = AXUIElementCreateApplication(pid)
+        // Runs inside the tap callback: a hung frontmost app must not hold
+        // the keyboard hostage for the 6 second default AX timeout.
+        AXUIElementSetMessagingTimeout(app, 0.35)
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value) == .success,
               let value,
@@ -456,21 +478,24 @@ final class AppSwitcher: ObservableObject {
         }
     }
 
-    private func advanceSelection(by delta: Int) {
+    private func advanceSelection(by delta: Int, wrapping: Bool = true) {
         guard !windows.isEmpty else { return }
         if iconRowModeEnabled {
-            advanceAppSelection(by: delta)
+            advanceAppSelection(by: delta, wrapping: wrapping)
             return
         }
         userNavigated = true
-        selectedIndex = (selectedIndex + delta + windows.count) % windows.count
+        let next = selectedIndex + delta
+        if !wrapping, !windows.indices.contains(next) { return }
+        selectedIndex = (next + windows.count) % windows.count
     }
 
-    private func advanceAppSelection(by delta: Int) {
+    private func advanceAppSelection(by delta: Int, wrapping: Bool = true) {
         userNavigated = true
         selectedIndex = SwitcherSupport.nextAppSelectionIndex(items: windows,
                                                               selectedIndex: selectedIndex,
-                                                              delta: delta)
+                                                              delta: delta,
+                                                              wrapping: wrapping)
     }
 
     private func advanceWindowInSelectedApp(by delta: Int) {

@@ -436,6 +436,9 @@ struct PanelHomebrewView: View {
 
     @ViewBuilder
     private var errorBanner: some View {
+        if let tap = homebrew.untrustedTap {
+            HomebrewTrustCard(tap: tap, compact: true)
+        }
         if let error = homebrew.errorMessage, !error.isEmpty {
             Label(error, systemImage: "exclamationmark.triangle.fill")
                 .font(.system(size: 10))

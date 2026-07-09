@@ -8,8 +8,21 @@ import UniformTypeIdentifiers
 /// and the item tiles. Dropping onto the card adds items; the tiles themselves
 /// are AppKit, so they can drag several selected items out at once.
 struct ShelfView: View {
+    /// The top-right button. The floating shelf closes; the docked shelf
+    /// collapses to its pill instead of vanishing.
+    var dismissSystemImage: String = "xmark"
+    var dismissHelp: String? = nil
+    var onDismiss: (() -> Void)? = nil
+    /// Called with the provider count after a drop is accepted, so the docked
+    /// shelf can flash and settle back to its pill.
+    var onAccept: ((Int) -> Void)? = nil
+    /// The docked shelf shows the brand mark as a quiet watermark, so it reads
+    /// as the app's own tray rather than a plain floating card.
+    var brandWatermark: Bool = false
+
     @EnvironmentObject private var shelf: ShelfService
     @ObservedObject private var l10n = L10n.shared
+    @Environment(\.colorScheme) private var colorScheme
     @State private var targeted = false
     @State private var clearButtonHovered = false
     @State private var closeButtonHovered = false
@@ -28,7 +41,12 @@ struct ShelfView: View {
         }
         .padding(14)
         .frame(width: Self.panelWidth)
-        .background(HUDBackdrop(cornerRadius: 18))
+        .background(
+            ZStack {
+                HUDBackdrop(cornerRadius: 18)
+                if brandWatermark { brandWatermarkLayer }
+            }
+        )
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -48,13 +66,27 @@ struct ShelfView: View {
         }
         .onDrop(of: Self.dropTypes, isTargeted: $targeted) { providers in
             let accepted = shelf.accept(providers: providers)
-            if accepted { shelf.noteInteraction() }
+            if accepted {
+                shelf.noteInteraction()
+                onAccept?(providers.count)
+            }
             return accepted
         }
     }
 
     private var isDropTargeted: Bool {
         targeted || shelf.dropTargeted
+    }
+
+    /// The official mark, large and faint in the corner: unmistakably ours,
+    /// never loud enough to fight the tiles.
+    private var brandWatermarkLayer: some View {
+        BrandMark(width: 128, tint: colorScheme == .light ? Color.black : Color.white)
+            .opacity(colorScheme == .light ? 0.05 : 0.08)
+            .rotationEffect(.degrees(-8))
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            .offset(x: 34, y: 26)
+            .allowsHitTesting(false)
     }
 
     private var header: some View {
@@ -90,8 +122,8 @@ struct ShelfView: View {
     }
 
     private var closeButton: some View {
-        Button { shelf.hide() } label: {
-            Image(systemName: "xmark")
+        Button { (onDismiss ?? { shelf.hide() })() } label: {
+            Image(systemName: dismissSystemImage)
                 .font(.system(size: 13, weight: .semibold))
                 .frame(width: 30, height: 30)
                 .background(
@@ -107,7 +139,7 @@ struct ShelfView: View {
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
         .onHover { closeButtonHovered = $0 }
-        .help(l10n.s.menuClose)
+        .help(dismissHelp ?? l10n.s.menuClose)
     }
 
     private var bottomBar: some View {

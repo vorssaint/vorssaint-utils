@@ -105,6 +105,7 @@ enum WindowActivator {
     static func focusedWindowID(for pid: pid_t) -> CGWindowID? {
         guard Permissions.shared.accessibility else { return nil }
         let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, 0.35)
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value) == .success,
               let value,
@@ -116,6 +117,7 @@ enum WindowActivator {
     static func windowIsMinimized(windowID: CGWindowID, pid: pid_t) -> Bool {
         guard Permissions.shared.accessibility else { return false }
         let axApp = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(axApp, 0.35)
         guard let axWindow = axElement(windowID: windowID, in: axApp) else { return false }
         return minimizedState(of: axWindow) == true
     }
@@ -134,6 +136,7 @@ enum WindowActivator {
 
         guard Permissions.shared.accessibility else { return false }
         let axApp = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(axApp, 0.35)
         guard let axWindow = axElement(windowID: windowID, in: axApp) else { return false }
         if minimizedState(of: axWindow) == minimized { return true }
 
@@ -165,6 +168,7 @@ enum WindowActivator {
 
         guard Permissions.shared.accessibility else { return false }
         let axApp = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(axApp, 0.35)
         guard let axWindow = axElement(windowID: windowID, in: axApp),
               let closeButton = elementAttribute(axWindow, kAXCloseButtonAttribute as String),
               boolAttribute(closeButton, kAXEnabledAttribute as String, default: true)
@@ -328,6 +332,7 @@ enum WindowActivator {
     private static func prepareWindowForActivation(windowID: CGWindowID, pid: pid_t) -> Bool {
         guard Permissions.shared.accessibility else { return false }
         let axApp = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(axApp, 0.35)
         guard let axWindow = axElement(windowID: windowID, in: axApp) else { return false }
 
         var minimized: CFTypeRef?
@@ -360,6 +365,8 @@ enum WindowActivator {
 
         let sourceApp = AXUIElementCreateApplication(sourcePID)
         let targetApp = AXUIElementCreateApplication(targetPID)
+        AXUIElementSetMessagingTimeout(sourceApp, 0.35)
+        AXUIElementSetMessagingTimeout(targetApp, 0.35)
         guard let sourceWindow = axElement(windowID: sourceWindowID, in: sourceApp),
               let targetWindow = axElement(windowID: targetWindowID, in: targetApp) else { return false }
 
@@ -382,6 +389,7 @@ enum WindowActivator {
     private static func focusWindow(windowID: CGWindowID, pid: pid_t, makeAppFrontmost: Bool = true) -> Bool {
         guard Permissions.shared.accessibility else { return false }
         let axApp = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(axApp, 0.35)
         guard let axWindow = axElement(windowID: windowID, in: axApp) else { return false }
 
         var minimized: CFTypeRef?
@@ -471,6 +479,7 @@ fileprivate final class SwitcherWindowMinimizeRestore {
         guard Permissions.shared.accessibility else { return nil }
 
         let axApp = AXUIElementCreateApplication(targetPID)
+        AXUIElementSetMessagingTimeout(axApp, 0.35)
         guard let axWindow = WindowActivator.axElementForMinimizeRestore(windowID: windowID, in: axApp) else {
             return nil
         }

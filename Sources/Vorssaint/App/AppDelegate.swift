@@ -49,6 +49,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         statusController.onMetricClick = { [weak self] metric, button in
             self?.showMetricPanel(for: metric, anchoredTo: button)
         }
+        // The shelf drop zone chip anchors itself under the menu bar icon.
+        ShelfService.shared.statusItemFrameProvider = { [weak self] in
+            guard let item = self?.statusController.statusItem, item.isVisible,
+                  let window = self?.statusController.button?.window else { return nil }
+            return window.frame
+        }
 
         setUpPopover()
         bindManagers()
@@ -61,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         AppActivationTracker.shared.start()
         ScrollInverter.shared.syncWithPreferences()
+        SmoothScrollService.shared.syncWithPreferences()
         AppSwitcher.shared.syncWithPreferences()
         DockPreviewService.shared.syncWithPreferences()
         FinderCutPaste.shared.syncWithPreferences()
@@ -73,6 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         MicMuteService.shared.syncWithPreferences()
         QuickLauncherService.shared.syncWithPreferences()
         ShelfService.shared.syncWithPreferences()
+        ExtraBrightnessService.shared.syncWithPreferences()
         URLCleanerService.shared.syncWithPreferences()
         WindowMaximizer.shared.syncWithPreferences()
         KeyboardDebounceService.shared.syncWithPreferences()
@@ -94,6 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             .receive(on: DispatchQueue.main)
             .sink { _ in
                 ScrollInverter.shared.syncWithPreferences()
+                SmoothScrollService.shared.syncWithPreferences()
                 AppSwitcher.shared.syncWithPreferences()
                 DockPreviewService.shared.syncWithPreferences()
                 FinderCutPaste.shared.syncWithPreferences()
@@ -135,11 +144,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
+        ExtraBrightnessService.shared.stop()
         ProcessUsageService.shared.stopNetworkMonitoring(force: true)
         URLCleanerService.shared.stop()
         WindowMaximizer.shared.stop()
         KeyboardDebounceService.shared.suspend()
         MiddleClickService.shared.suspend()
+        SmoothScrollService.shared.suspend()
         DockPreviewService.shared.stop()
         SoundOutputSwitcher.shared.stop()
         AppVolumeMixer.shared.stopAll()
@@ -688,7 +699,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     @objc private func menuOpenShelf() {
-        ShelfService.shared.summon()
+        ShelfService.shared.expandDocked()
     }
 
     @objc private func menuCheckUpdates() {
@@ -798,7 +809,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             let host = NSHostingController(rootView: SettingsView())
             let window = NSWindow(contentViewController: host)
             // .miniaturizable so the Window menu's Minimize (Cmd+M) actually works.
-            window.styleMask = [.titled, .closable, .miniaturizable]
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+            window.contentMinSize = NSSize(width: SettingsWindowSupport.minContentWidth,
+                                           height: SettingsWindowSupport.minContentHeight)
+            let visible = (NSScreen.main ?? NSScreen.withMouse).visibleFrame
+            let size = SettingsWindowSupport.initialContentSize(
+                savedWidth: UserDefaults.standard.double(forKey: DefaultsKey.settingsWindowWidth),
+                savedHeight: UserDefaults.standard.double(forKey: DefaultsKey.settingsWindowHeight),
+                availableHeight: Double(visible.height - 40))
+            window.setContentSize(NSSize(width: size.width, height: size.height))
             window.isReleasedWhenClosed = false
             window.isRestorable = false
             window.hidesOnDeactivate = false
@@ -1243,9 +1262,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
     }
 
+    func windowDidEndLiveResize(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === settingsWindow else { return }
+        saveSettingsWindowSize(window)
+    }
+
+    /// Remembers the user-chosen Settings size (as content size, so the
+    /// restore is title bar independent).
+    private func saveSettingsWindowSize(_ window: NSWindow) {
+        guard let size = window.contentView?.frame.size else { return }
+        UserDefaults.standard.set(Double(size.width), forKey: DefaultsKey.settingsWindowWidth)
+        UserDefaults.standard.set(Double(size.height), forKey: DefaultsKey.settingsWindowHeight)
+    }
+
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
         if window === settingsWindow {
+            // Covers size changes that end without a live resize (zoom).
+            saveSettingsWindowSize(window)
             return
         }
         if window === onboardingWindow {

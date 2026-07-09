@@ -828,6 +828,7 @@ struct QuickControlsSection: View {
     @ObservedObject private var windowMaximizer = WindowMaximizer.shared
     @ObservedObject private var keyDebounce = KeyboardDebounceService.shared
     @ObservedObject private var middleClick = MiddleClickService.shared
+    @ObservedObject private var shelf = ShelfService.shared
     @AppStorage(DefaultsKey.scrollInverterEnabled) private var scrollEnabled = false
     @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
     @AppStorage(DefaultsKey.switcherIconRowMode) private var switcherIconRowMode = false
@@ -1123,7 +1124,13 @@ struct QuickControlsSection: View {
                            isOn: $shelfEnabled,
                            isEditing: editing,
                            showsDragHandle: true,
-                           visibility: $showShelf)
+                           visibility: $showShelf,
+                           accessoryTitle: shelfEnabled && shelf.itemCount > 0
+                               ? "\(l10n.s.shelfMenuItem) (\(shelf.itemCount))" : nil,
+                           accessoryAction: {
+                               appDelegate()?.closePopover()
+                               ShelfService.shared.expandDocked()
+                           })
                 .onChange(of: shelfEnabled) { _, _ in
                     ShelfService.shared.syncWithPreferences()
                 }
@@ -1230,6 +1237,7 @@ struct QuickControlsSection: View {
         showDockPreview = true
         showKeyDebounce = true
         showDockClick = true
+        showDockClickCycle = true
         showMiddleClick = true
         windowsExpanded = false
         inputExpanded = false
@@ -1477,6 +1485,10 @@ private struct PanelToggleRow: View {
     var needsAttention = false
     var permissionButtonTitle: String? = nil
     var permissionAction: (() -> Void)? = nil
+    /// Optional inline action under the caption (e.g. "Open the shelf (3)"),
+    /// shown only outside edit mode.
+    var accessoryTitle: String? = nil
+    var accessoryAction: (() -> Void)? = nil
 
     var body: some View {
         rowContent
@@ -1518,6 +1530,16 @@ private struct PanelToggleRow: View {
                         permissionAction()
                     } label: {
                         Label(permissionButtonTitle ?? "", systemImage: "hand.raised.fill")
+                            .font(.system(size: 9.5, weight: .semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                }
+                if !isEditing, let accessoryTitle, let accessoryAction {
+                    Button {
+                        accessoryAction()
+                    } label: {
+                        Label(accessoryTitle, systemImage: "arrow.up.forward.square")
                             .font(.system(size: 9.5, weight: .semibold))
                     }
                     .buttonStyle(.bordered)

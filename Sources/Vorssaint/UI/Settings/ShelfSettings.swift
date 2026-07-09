@@ -9,6 +9,7 @@ struct ShelfSettings: View {
     @AppStorage(DefaultsKey.shelfEnabled) private var enabled = false
     @AppStorage(DefaultsKey.shelfShortcutEnabled) private var shortcutEnabled = true
     @AppStorage(DefaultsKey.shelfShakeToOpen) private var shake = true
+    @AppStorage(DefaultsKey.shelfDropZoneEnabled) private var dropZone = true
 
     var body: some View {
         Form {
@@ -48,9 +49,18 @@ struct ShelfSettings: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Toggle(l10n.s.shelfShakeToggle, isOn: $shake)
                             .onChange(of: shake) { _, _ in
-                                ShelfService.shared.syncShakeMonitor()
+                                ShelfService.shared.syncDragMonitor()
                             }
                         Text(l10n.s.shelfShakeCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Toggle(l10n.s.shelfDropZoneToggle, isOn: $dropZone)
+                            .onChange(of: dropZone) { _, _ in
+                                ShelfService.shared.syncDragMonitor()
+                            }
+                        Text(l10n.s.shelfDropZoneCaption)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

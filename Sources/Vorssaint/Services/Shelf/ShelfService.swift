@@ -64,6 +64,11 @@ final class ShelfService: ObservableObject {
         didSet {
             scheduleRefit()
             schedulePersist()
+            // Emptying the shelf (removing or dragging out the last item) always
+            // dismisses the docked shelf; only an explicit open holds an empty
+            // one, and that never runs through here.
+            if items.isEmpty { dockedForcedOpen = false }
+            scheduleDockedSync()
         }
     }
     /// Ids of tiles the user has selected; a drag of any selected tile drags
@@ -78,6 +83,34 @@ final class ShelfService: ObservableObject {
     private var mouseMonitor: Any?
     private var shakeSamples: [(t: TimeInterval, x: CGFloat)] = []
     private var lastSummon: TimeInterval = 0
+    /// Screen frame of the app's menu bar icon, set by the AppDelegate. The
+    /// docked shelf hangs right under it, so this service can anchor there
+    /// without reaching into the app layer.
+    var statusItemFrameProvider: (() -> NSRect?)?
+    /// The shelf docked under the menu bar icon (the "keep it in the menu bar"
+    /// option). It stays put while the shelf has items and only shrinks to a
+    /// pill or grows back to the full card in place, never a second window and
+    /// never a new menu bar icon.
+    private var dockedPanel: NSPanel?
+    /// Collapsed means the small pill; expanded means the full card. A drag in
+    /// flight forces it open so there is a real target to drop onto.
+    @Published private(set) var dockedCollapsed = true
+    @Published private(set) var dockedDragActive = false
+    /// During a drag the card only opens once the pointer comes near; far away
+    /// it stays a pill, so a drag across the screen never throws a big box open.
+    @Published private(set) var dockedProximate = false
+    /// A brief green tick after a drop lands, shown on the pill.
+    @Published private(set) var dockedJustCaught = false
+    private var dockedFlashWork: DispatchWorkItem?
+    private var dockedEndWork: DispatchWorkItem?
+    /// The global monitor cannot see every way a drag ends (drops on our own
+    /// windows, cancelled drags, mouse-ups the drag machinery consumes), so a
+    /// small timer watches the physical button while a drag holds the docked
+    /// shelf up. Alive only during a drag.
+    private var dockedWatchdog: Timer?
+    /// Set when the shortcut or a menu opens an empty shelf on purpose, so it
+    /// shows even with nothing in it yet. Items keep it up on their own.
+    private var dockedForcedOpen = false
     private let autoHideDelay: TimeInterval = 5
     private let autoHideFadeDuration: TimeInterval = 0.22
     private var autoHideTimer: Timer?
@@ -164,19 +197,26 @@ final class ShelfService: ObservableObject {
     func syncWithPreferences() {
         if UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) {
             syncHotkey()
-            syncShakeMonitor()
+            syncDragMonitor()
         } else {
             unregisterHotkey()
-            stopShakeMonitor()
+            stopDragMonitor()
             hide()
+            hideDocked()
         }
+        syncDockedShelf()
     }
 
-    /// Re-reads only the shake sub-preference (called when the user toggles it).
-    func syncShakeMonitor() {
-        let wanted = UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
-            && UserDefaults.standard.bool(forKey: DefaultsKey.shelfShakeToOpen)
-        if wanted { startShakeMonitor() } else { stopShakeMonitor() }
+    /// Re-reads the sub-preferences that need the global drag monitor (shake to
+    /// open and the docked shelf); the monitor lives only while the shelf is on
+    /// and at least one of them wants it.
+    func syncDragMonitor() {
+        let defaults = UserDefaults.standard
+        let wanted = defaults.bool(forKey: DefaultsKey.shelfEnabled)
+            && (defaults.bool(forKey: DefaultsKey.shelfShakeToOpen)
+                || defaults.bool(forKey: DefaultsKey.shelfDropZoneEnabled))
+        if wanted { startDragMonitor() } else { stopDragMonitor() }
+        syncDockedShelf()
     }
 
     // MARK: - Triggers
@@ -236,29 +276,45 @@ final class ShelfService: ObservableObject {
         hotkeyRegistrationFailed = false
     }
 
-    private func startShakeMonitor() {
+    private func startDragMonitor() {
         guard mouseMonitor == nil else { return }
         dragPasteboardBaseline = dragPasteboardSnapshot()
         dragBeganInDock = false
-        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .leftMouseDragged]) { [weak self] event in
+        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]) { [weak self] event in
             guard let self else { return }
-            if event.type == .leftMouseDown {
+            switch event.type {
+            case .leftMouseDown:
                 // Capture the drag pasteboard before any drag starts. Finder
-                // changes it after this; Dock stacks may already have filled it.
+                // changes it after this; Dock stacks can publish the drag
+                // contents first.
                 self.dragPasteboardBaseline = self.dragPasteboardSnapshot()
                 self.dragBeganInDock = self.eventBelongsToDock(event)
                 self.shakeSamples.removeAll()
-            } else {
+            case .leftMouseUp:
+                self.endDockedDrag()
+            default:
                 self.dragBeganInDock = self.dragBeganInDock || self.eventBelongsToDock(event)
-                self.handleDrag(event)
+                let defaults = UserDefaults.standard
+                if defaults.bool(forKey: DefaultsKey.shelfShakeToOpen) {
+                    self.handleDrag(event)
+                }
+                if defaults.bool(forKey: DefaultsKey.shelfDropZoneEnabled) {
+                    self.handleDragForDock()
+                }
             }
         }
     }
 
-    private func stopShakeMonitor() {
+    private func stopDragMonitor() {
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
         mouseMonitor = nil
         shakeSamples.removeAll()
+        dockedWatchdog?.invalidate()
+        dockedWatchdog = nil
+        dockedEndWork?.cancel()
+        dockedEndWork = nil
+        dockedDragActive = false
+        dockedProximate = false
     }
 
     /// Detects a back-and-forth shake of the pointer during a drag: enough
@@ -353,6 +409,207 @@ final class ShelfService: ObservableObject {
     private func isDockProcess(_ pid: pid_t) -> Bool {
         guard pid > 0 else { return false }
         return NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == "com.apple.dock"
+    }
+
+    // MARK: - Docked shelf (under the menu bar icon)
+
+    /// True while the docked shelf should show its full card rather than the
+    /// collapsed pill: either the user expanded it, or a drag needs a real
+    /// target to aim at.
+    /// Whether to show the full card rather than the pill. During a drag it is
+    /// governed by pointer proximity; otherwise by the user's own collapse.
+    var dockedExpanded: Bool {
+        dockedDragActive ? dockedProximate : !dockedCollapsed
+    }
+    var dockedVisible: Bool { dockedPanel?.isVisible == true }
+
+    private var dockedFeatureOn: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
+            && UserDefaults.standard.bool(forKey: DefaultsKey.shelfDropZoneEnabled)
+    }
+
+    /// A qualifying drag is in flight: keep the pill under the icon as a small,
+    /// minimized target, and let the card open only while the pointer is near
+    /// it. It never hides mid drag. With the classic shelf panel already on
+    /// screen (shake or shortcut), that panel is the target and the docked one
+    /// stays out of the way.
+    private func handleDragForDock() {
+        guard dockedFeatureOn, !isVisible, !isInternalDragActive, isContentDragActive() else { return }
+        // Drag events still flowing means the drag is alive: a pending end
+        // (queued by a mouse-up that turned out to start a new drag) is stale.
+        dockedEndWork?.cancel()
+        dockedEndWork = nil
+        var changed = false
+        if !dockedDragActive { dockedDragActive = true; changed = true }
+        let near = mouseNearDock(NSEvent.mouseLocation)
+        if near != dockedProximate { dockedProximate = near; changed = true }
+        startDockedWatchdog()
+        if changed { scheduleDockedSync() }
+    }
+
+    /// The drag ended. Drop the drag state; if a drop landed the shelf now has
+    /// items and settles to a pill, otherwise it goes away. The short delay
+    /// lets a drop that is still landing on the card claim it first; scheduled
+    /// as a single cancellable work item so the monitor and the watchdog can
+    /// both call this without racing each other.
+    private func endDockedDrag() {
+        guard dockedDragActive, dockedEndWork == nil else { return }
+        dockedWatchdog?.invalidate()
+        dockedWatchdog = nil
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.dockedEndWork = nil
+            self.dockedDragActive = false
+            self.dockedProximate = false
+            // A drop keeps the tick pill; a miss just collapses.
+            if !self.dockedJustCaught { self.dockedCollapsed = true }
+            self.syncDockedShelf()
+        }
+        dockedEndWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+    }
+
+    /// Ends the drag state even when no mouse-up ever reaches the global
+    /// monitor: the drag machinery can consume it, the drop may land on one of
+    /// our own windows, or the drag may be cancelled. The physical button is
+    /// the one truth that survives all of those.
+    private func startDockedWatchdog() {
+        guard dockedWatchdog == nil else { return }
+        dockedWatchdog = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            guard self.dockedDragActive else {
+                self.dockedWatchdog?.invalidate()
+                self.dockedWatchdog = nil
+                return
+            }
+            if NSEvent.pressedMouseButtons & 1 == 0 {
+                self.endDockedDrag()
+            }
+        }
+        dockedWatchdog?.tolerance = 0.05
+    }
+
+    /// True when the pointer is close enough to the docked shelf to open it. It
+    /// uses the shown card's own frame once open (so moving onto it to drop
+    /// keeps it open) and a generous band hanging under the icon while still a
+    /// pill (so a little approach is enough to trigger it).
+    private func mouseNearDock(_ mouse: NSPoint) -> Bool {
+        guard let anchor = statusItemFrameProvider?() else { return false }
+        if dockedProximate, let frame = dockedPanel?.frame {
+            return frame.insetBy(dx: -72, dy: -72).contains(mouse)
+        }
+        let screen = NSScreen.screens.first { $0.frame.intersects(anchor) } ?? NSScreen.withMouse
+        let band = NSRect(x: anchor.midX - 150,
+                          y: screen.frame.maxY - 200,
+                          width: 300, height: 200)
+        return band.contains(mouse)
+    }
+
+    /// Called by the docked view when a drop lands on it: settle back to the
+    /// pill with a brief green tick, so the catch reads without the card
+    /// staying in the way.
+    func dockDidAccept() {
+        dockedJustCaught = true
+        dockedCollapsed = true
+        dockedForcedOpen = false
+        dockedFlashWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.dockedJustCaught = false
+            self.scheduleDockedSync()
+        }
+        dockedFlashWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9, execute: work)
+        scheduleDockedSync()
+    }
+
+    func expandDocked() {
+        guard dockedFeatureOn else { summon(); return }
+        // One shelf at a time: an explicit docked open takes over from a
+        // classic panel left on screen.
+        if isVisible { hide() }
+        // Items keep the shelf up on their own; only forcing an empty one open
+        // (from a menu) needs the flag.
+        if itemCount == 0 { dockedForcedOpen = true }
+        dockedCollapsed = false
+        scheduleDockedSync()
+    }
+
+    func collapseDocked() {
+        dockedCollapsed = true
+        if itemCount == 0 { dockedForcedOpen = false }
+        scheduleDockedSync()
+    }
+
+    func toggleDocked() {
+        if dockedVisible, dockedExpanded {
+            collapseDocked()
+        } else {
+            expandDocked()
+        }
+    }
+
+    /// Shows the docked shelf exactly when the option is on and there is a
+    /// reason to (items to keep, a drag to catch, or an explicit open), keeps
+    /// it anchored under the menu bar icon, and hides it the moment the shelf
+    /// empties. While the classic panel is on screen (shake or shortcut) the
+    /// docked one steps aside: one shelf at a time.
+    func syncDockedShelf() {
+        let wanted = dockedFeatureOn && !isVisible
+            && (itemCount > 0 || dockedDragActive || dockedForcedOpen)
+        guard wanted else { hideDocked(); return }
+        let panel = ensureDockedPanel()
+        if panel.contentViewController == nil {
+            let host = NSHostingController(rootView: DockedShelfView().environmentObject(self))
+            host.sizingOptions = .preferredContentSize
+            panel.contentViewController = host
+        }
+        positionDocked(panel)
+    }
+
+    private func hideDocked() {
+        dockedForcedOpen = false
+        guard let dockedPanel, dockedPanel.isVisible else { return }
+        dockedPanel.orderOut(nil)
+    }
+
+    /// Anchors the docked panel under the menu bar icon, its top edge just
+    /// below the bar, and clamps it to that screen. The top edge stays put as
+    /// it grows and shrinks, so it reads as hanging from the icon. No frame
+    /// animation: the panel resize and the SwiftUI content swap cannot be kept
+    /// in step, and half-synced frames read as lag.
+    private func positionDocked(_ panel: NSPanel) {
+        let view = panel.contentViewController!.view
+        view.layoutSubtreeIfNeeded()
+        let size = view.fittingSize
+        let anchor = statusItemFrameProvider?()
+        let screen = anchor.flatMap { rect in
+            NSScreen.screens.first { $0.frame.intersects(rect) }
+        } ?? NSScreen.withMouse
+        let visible = screen.visibleFrame
+        var x = anchor.map { $0.midX - size.width / 2 } ?? (visible.maxX - size.width - 12)
+        x = min(max(visible.minX + 8, x), visible.maxX - size.width - 8)
+        let top = visible.maxY - 4
+        let frame = NSRect(x: x, y: top - size.height, width: size.width, height: size.height)
+        panel.setFrame(frame, display: true)
+        panel.alphaValue = 1
+        panel.orderFrontRegardless()
+    }
+
+    private func ensureDockedPanel() -> NSPanel {
+        if let dockedPanel { return dockedPanel }
+        let panel = NSPanel(contentRect: .zero,
+                            styleMask: [.borderless, .nonactivatingPanel],
+                            backing: .buffered, defer: false)
+        panel.level = .floating
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = false
+        panel.hidesOnDeactivate = false
+        panel.isReleasedWhenClosed = false
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        dockedPanel = panel
+        return panel
     }
 
     // MARK: - Items
@@ -1109,6 +1366,10 @@ final class ShelfService: ObservableObject {
         isVisible ? hide() : summon()
     }
 
+    /// Opens the classic shelf at the cursor. The shake and the shortcut mean
+    /// "bring it to me, here", so they keep working exactly the same with the
+    /// docked option on; the docked shelf just steps aside while this panel is
+    /// up and comes back when it closes.
     func summon() {
         let panel = ensurePanel()
         cancelAutoHide()
@@ -1117,11 +1378,13 @@ final class ShelfService: ObservableObject {
         panel.orderFrontRegardless()
         updatePointerInsidePanel()
         scheduleAutoHideIfIdle()
+        scheduleDockedSync()
     }
 
     func hide() {
         resetAutoHide()
         panel?.orderOut(nil)
+        scheduleDockedSync()
     }
 
     func noteInteraction() {
@@ -1246,6 +1509,8 @@ final class ShelfService: ObservableObject {
             self.pointerInsidePanel = false
             self.dropTargeted = false
             self.interactionDepth = 0
+            // The classic panel leaving is the docked shelf's cue to return.
+            self.scheduleDockedSync()
         }
         autoHideFadeTimer?.tolerance = 0.02
     }
@@ -1255,6 +1520,13 @@ final class ShelfService: ObservableObject {
     /// summoned empty by a shake. Deferred so SwiftUI lays out first.
     private func scheduleRefit() {
         DispatchQueue.main.async { [weak self] in self?.refitIfVisible() }
+    }
+
+    /// Keeps the docked shelf in step with the items: appears with the first
+    /// one, re-anchors as its height changes, and hides when the last leaves.
+    /// Deferred so SwiftUI has laid the new content out before we measure.
+    private func scheduleDockedSync() {
+        DispatchQueue.main.async { [weak self] in self?.syncDockedShelf() }
     }
 
     private func refitIfVisible() {

@@ -38,6 +38,17 @@ final class ClipboardHistoryService: ObservableObject {
 
     private var timer: Timer?
     private var lastChangeCount = NSPasteboard.general.changeCount
+    /// The poll reads the pasteboard off the main thread: while a password
+    /// prompt is up the pasteboard server can take seconds to answer, and a
+    /// blocked main thread stalls every event tap with it, so typing freezes
+    /// system wide (issue #189).
+    private let captureQueue = DispatchQueue(label: "Vorssaint.ClipboardHistory.capture",
+                                             qos: .utility)
+    private var captureInFlight = false
+    /// Each capture attempt carries a token so a read that wedged behind a
+    /// password prompt can be abandoned without a stale completion (or a stuck
+    /// in-flight flag) ever disabling history for good.
+    private var captureGeneration = 0
     private var panel: NSPanel?
     private var keyMonitor: Any?
     private var localClickMonitor: Any?
@@ -421,30 +432,69 @@ final class ClipboardHistoryService: ObservableObject {
         isRunning = false
     }
 
-    private func captureIfChanged() {
-        let pasteboard = NSPasteboard.general
-        guard pasteboard.changeCount != lastChangeCount else { return }
-        lastChangeCount = pasteboard.changeCount
+    /// What the background pasteboard read hands back to the main thread.
+    private enum CapturedContent {
+        case files([String])
+        case image((data: Data, width: Int, height: Int))
+        case text(String)
+    }
 
+    private func captureIfChanged() {
+        // Only ever one read in flight: while a password prompt holds the
+        // pasteboard server, a read can take seconds, and letting ticks pile
+        // up would spawn a thread each time.
+        guard !captureInFlight else { return }
+        let sinceChangeCount = lastChangeCount
+        let includeImagesFiles = UserDefaults.standard.bool(
+            forKey: DefaultsKey.clipboardHistoryIncludeImagesFiles)
+        captureInFlight = true
+        captureGeneration &+= 1
+        let generation = captureGeneration
+        // If the read wedges (a pasteboard server stuck behind a lingering
+        // password prompt), free the flag so later copies are still recorded;
+        // the abandoned read is ignored by its stale generation when it ends.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            guard let self, self.captureGeneration == generation, self.captureInFlight else { return }
+            self.captureInFlight = false
+        }
+        captureQueue.async { [weak self] in
+            let changeCount = NSPasteboard.general.changeCount
+            let content: CapturedContent? = changeCount != sinceChangeCount
+                ? Self.readPasteboard(includeImagesFiles: includeImagesFiles)
+                : nil
+            DispatchQueue.main.async {
+                guard let self, self.captureGeneration == generation else { return }
+                self.captureInFlight = false
+                // Strictly forward: never re-capture a change that
+                // ignoreNextChange() consumed while the read was running.
+                guard changeCount > self.lastChangeCount else { return }
+                self.lastChangeCount = changeCount
+                guard self.isRunning, let content else { return }
+                switch content {
+                case .files(let paths): self.promoteFiles(paths)
+                case .image(let image): self.promoteImage(image)
+                case .text(let text): self.promote(text)
+                }
+            }
+        }
+    }
+
+    /// Runs on the capture queue: everything in here may block behind the
+    /// pasteboard server, which is exactly why it stays off the main thread.
+    private static func readPasteboard(includeImagesFiles: Bool) -> CapturedContent? {
+        let pasteboard = NSPasteboard.general
         // Files first: a Finder copy also carries name strings, and a browser
         // image copy also carries URL text, so richer content wins over its
         // own textual fallbacks.
-        if UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryIncludeImagesFiles) {
-            if let paths = Self.copiedFilePaths(from: pasteboard) {
-                promoteFiles(paths)
-                return
-            }
-            if let image = Self.copiedPNGImage(from: pasteboard) {
-                promoteImage(image)
-                return
-            }
+        if includeImagesFiles {
+            if let paths = copiedFilePaths(from: pasteboard) { return .files(paths) }
+            if let image = copiedPNGImage(from: pasteboard) { return .image(image) }
         }
-
         guard let text = ClipboardHistoryPasteboardText.preferredText(
-            webURLString: Self.webURLString(from: pasteboard),
+            webURLString: webURLString(from: pasteboard),
             plainText: pasteboard.string(forType: .string)
-        ) else { return }
-        promote(text)
+        ) else { return nil }
+        return .text(text)
     }
 
     private static let maxCopiedFiles = 100
