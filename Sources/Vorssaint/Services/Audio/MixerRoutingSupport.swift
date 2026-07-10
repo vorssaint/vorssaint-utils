@@ -208,6 +208,18 @@ enum MixerRoutingSupport {
                                             isSettable: false)
     }
 
+    static func effectiveOutputVolume(base: Double, master: Double) -> Double {
+        min(max(base, 0), 1) * min(max(master, 0), 1)
+    }
+
+    static func baseOutputVolume(effective: Double,
+                                 master: Double,
+                                 previousBase: Double) -> Double {
+        let clampedMaster = min(max(master, 0), 1)
+        guard clampedMaster > 0.001 else { return min(max(previousBase, 0), 1) }
+        return min(max(effective / clampedMaster, 0), 1)
+    }
+
     static func normalizedBluetoothAddress(_ raw: String?) -> String? {
         guard let raw else { return nil }
         let hex = raw.lowercased().filter { $0.isHexDigit }

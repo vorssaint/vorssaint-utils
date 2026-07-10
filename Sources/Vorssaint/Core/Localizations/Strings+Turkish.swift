@@ -476,6 +476,7 @@ extension Strings {
         mixerSystemOutputTitle: "Çıkış",
         mixerSystemOutputNoDevices: "Çıkış bulunamadı",
         mixerSystemOutputTooltip: "Sistem çıkışını seç",
+        mixerSystemOutputMasterVolume: "Ana ses düzeyi",
         mixerSystemOutputVolume: "Çıkış sesleri",
         mixerSystemOutputVolumeReadOnly: "Salt okunur",
         mixerSystemOutputVolumeUnavailable: "Ses yok",

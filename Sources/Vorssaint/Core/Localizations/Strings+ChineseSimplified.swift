@@ -476,6 +476,7 @@ extension Strings {
         mixerSystemOutputTitle: "输出",
         mixerSystemOutputNoDevices: "未找到输出设备",
         mixerSystemOutputTooltip: "选择系统输出",
+        mixerSystemOutputMasterVolume: "主音量",
         mixerSystemOutputVolume: "各输出音量",
         mixerSystemOutputVolumeReadOnly: "只读",
         mixerSystemOutputVolumeUnavailable: "无音量",

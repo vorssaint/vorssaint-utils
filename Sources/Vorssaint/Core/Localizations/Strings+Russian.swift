@@ -477,6 +477,7 @@ extension Strings {
         mixerSystemOutputTitle: "Выход",
         mixerSystemOutputNoDevices: "Выходы не найдены",
         mixerSystemOutputTooltip: "Выбрать системный выход",
+        mixerSystemOutputMasterVolume: "Общая громкость",
         mixerSystemOutputVolume: "Громкость по выходам",
         mixerSystemOutputVolumeReadOnly: "Только чтение",
         mixerSystemOutputVolumeUnavailable: "Нет громкости",

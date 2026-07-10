@@ -476,6 +476,7 @@ extension Strings {
         mixerSystemOutputTitle: "Ausgabe",
         mixerSystemOutputNoDevices: "Keine Ausgabe gefunden",
         mixerSystemOutputTooltip: "Systemausgabe wählen",
+        mixerSystemOutputMasterVolume: "Gesamtlautstärke",
         mixerSystemOutputVolume: "Lautstärke je Ausgabe",
         mixerSystemOutputVolumeReadOnly: "Nur Lesen",
         mixerSystemOutputVolumeUnavailable: "Keine Lautstärke",

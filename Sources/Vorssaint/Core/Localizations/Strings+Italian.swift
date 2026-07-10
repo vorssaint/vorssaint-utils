@@ -476,6 +476,7 @@ extension Strings {
         mixerSystemOutputTitle: "Uscita",
         mixerSystemOutputNoDevices: "Nessuna uscita trovata",
         mixerSystemOutputTooltip: "Scegli uscita di sistema",
+        mixerSystemOutputMasterVolume: "Volume generale",
         mixerSystemOutputVolume: "Volumi per uscita",
         mixerSystemOutputVolumeReadOnly: "Solo lettura",
         mixerSystemOutputVolumeUnavailable: "Nessun volume",

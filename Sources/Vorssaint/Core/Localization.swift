@@ -598,6 +598,7 @@ struct Strings {
     let mixerSystemOutputTitle: String
     let mixerSystemOutputNoDevices: String
     let mixerSystemOutputTooltip: String
+    let mixerSystemOutputMasterVolume: String
     let mixerSystemOutputVolume: String
     let mixerSystemOutputVolumeReadOnly: String
     let mixerSystemOutputVolumeUnavailable: String
@@ -1380,6 +1381,7 @@ extension Strings {
         mixerSystemOutputTitle: "Saída",
         mixerSystemOutputNoDevices: "Nenhuma saída encontrada",
         mixerSystemOutputTooltip: "Escolher saída do sistema",
+        mixerSystemOutputMasterVolume: "Volume mestre",
         mixerSystemOutputVolume: "Volume por saída",
         mixerSystemOutputVolumeReadOnly: "Só leitura",
         mixerSystemOutputVolumeUnavailable: "Sem volume",
@@ -2148,6 +2150,7 @@ extension Strings {
         mixerSystemOutputTitle: "Output",
         mixerSystemOutputNoDevices: "No outputs found",
         mixerSystemOutputTooltip: "Choose system output",
+        mixerSystemOutputMasterVolume: "Master volume",
         mixerSystemOutputVolume: "Output volumes",
         mixerSystemOutputVolumeReadOnly: "Read-only",
         mixerSystemOutputVolumeUnavailable: "No volume",

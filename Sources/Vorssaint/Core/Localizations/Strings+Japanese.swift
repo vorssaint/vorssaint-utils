@@ -476,6 +476,7 @@ extension Strings {
         mixerSystemOutputTitle: "出力",
         mixerSystemOutputNoDevices: "出力が見つかりません",
         mixerSystemOutputTooltip: "システム出力を選択",
+        mixerSystemOutputMasterVolume: "マスター音量",
         mixerSystemOutputVolume: "出力ごとの音量",
         mixerSystemOutputVolumeReadOnly: "読み取り専用",
         mixerSystemOutputVolumeUnavailable: "音量なし",

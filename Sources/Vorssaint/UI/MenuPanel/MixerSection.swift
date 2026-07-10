@@ -130,6 +130,11 @@ struct MixerSection: View {
     private var universalOutputVolumeControl: some View {
         if !mixer.outputDevices.isEmpty {
             VStack(alignment: .leading, spacing: 5) {
+                masterOutputVolumeControl
+
+                Divider()
+                    .padding(.vertical, 1)
+
                 Label {
                     Text(l10n.s.mixerSystemOutputVolume)
                         .font(.system(size: 10.5, weight: .medium))
@@ -147,6 +152,50 @@ struct MixerSection: View {
                 }
             }
         }
+    }
+
+    private var masterOutputVolumeControl: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 7) {
+                Image(systemName: outputVolumeSymbol(for: mixer.outputMasterVolume))
+                    .font(.system(size: 9.5, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 14)
+
+                Text(l10n.s.mixerSystemOutputMasterVolume)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text("\(Int((mixer.outputMasterVolume * 100).rounded()))%")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .frame(minWidth: 38, alignment: .trailing)
+            }
+
+            HStack(spacing: 7) {
+                Color.clear.frame(width: 14, height: 1)
+                MixerVolumeSlider(value: outputMasterVolumeBinding,
+                                  normalTint: normalSliderTint,
+                                  boostTint: normalSliderTint,
+                                  isBoosting: false,
+                                  accentRevision: accentRevision,
+                                  accessibilityLabel: l10n.s.mixerSystemOutputMasterVolume,
+                                  maxValue: 1)
+                    .disabled(!hasSettableOutputVolume)
+                    .allowsHitTesting(hasSettableOutputVolume)
+            }
+        }
+        .help(l10n.s.mixerSystemOutputMasterVolume)
+    }
+
+    private var outputMasterVolumeBinding: Binding<Double> {
+        Binding(get: { mixer.outputMasterVolume },
+                set: { mixer.setOutputMasterVolume($0) })
+    }
+
+    private var hasSettableOutputVolume: Bool {
+        mixer.outputDevices.contains { $0.volume != nil && $0.volumeSettable }
     }
 
     @ViewBuilder
@@ -176,12 +225,12 @@ struct MixerSection: View {
                                       isBoosting: false,
                                       accentRevision: accentRevision,
                                       accessibilityLabel: outputDeviceTitle(device),
-                                      maxValue: 1,
+                                      maxValue: max(mixer.outputMasterVolume, 0.001),
                                       onEditingChanged: { editing in
                                           outputVolumeEditingChanged(for: device.uid, editing: editing)
                                       })
-                        .disabled(!device.volumeSettable)
-                        .allowsHitTesting(device.volumeSettable)
+                        .disabled(!device.volumeSettable || mixer.outputMasterVolume <= 0.001)
+                        .allowsHitTesting(device.volumeSettable && mixer.outputMasterVolume > 0.001)
                 }
             }
         }

@@ -45,6 +45,8 @@ enum DefaultsKey {
     static let releaseNotesOnUpdate = "releaseNotesOnUpdate" // show What's New after an update
     static let appVolumes = "appVolumes"                  // [bundle id: 0...2]
     static let appOutputDevices = "appOutputDevices"      // [bundle id: audio device UID]
+    static let mixerOutputMasterVolume = "mixerOutputMasterVolume" // 0...1
+    static let mixerOutputBaseVolumes = "mixerOutputBaseVolumes"   // [audio device UID: 0...1]
     static let mixerLowerVolumeOnHeadphonesDisconnect = "mixerLowerVolumeOnHeadphonesDisconnect"
     static let mixerHeadphonesDisconnectVolumePercent = "mixerHeadphonesDisconnectVolumePercent"
     static let soundOutputSwitcherEnabled = "soundOutputSwitcherEnabled"
@@ -368,6 +370,8 @@ enum Defaults {
         DefaultsKey.releaseNotesOnUpdate: true,
         DefaultsKey.updateShowcaseIntroVersion: "",
         DefaultsKey.updateShowcaseMediaOverride: "",
+        DefaultsKey.mixerOutputMasterVolume: 1.0,
+        DefaultsKey.mixerOutputBaseVolumes: [String: Double](),
         DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect: false,
         DefaultsKey.mixerHeadphonesDisconnectVolumePercent: 0,
         DefaultsKey.soundOutputSwitcherEnabled: false,
@@ -708,6 +712,29 @@ enum Defaults {
     static func sanitizedAppVolume(_ volume: Double) -> Double {
         guard volume.isFinite else { return 1 }
         return min(max(volume, 0), 2)
+    }
+
+    static func sanitizedOutputMasterVolume(_ volume: Double) -> Double {
+        guard volume.isFinite else { return 1 }
+        return min(max(volume, 0), 1)
+    }
+
+    static func sanitizedOutputBaseVolumes(_ raw: [String: Any]) -> [String: Double] {
+        var sanitized: [String: Double] = [:]
+        for (rawUID, value) in raw {
+            guard let uid = MixerRoutingSupport.sanitizedDeviceUID(rawUID) else { continue }
+            let volume: Double?
+            if let value = value as? Double {
+                volume = value
+            } else if let value = value as? NSNumber {
+                volume = value.doubleValue
+            } else {
+                volume = nil
+            }
+            guard let volume, volume.isFinite else { continue }
+            sanitized[uid] = sanitizedOutputMasterVolume(volume)
+        }
+        return sanitized
     }
 
     static func sanitizedMixerHeadphonesDisconnectVolumePercent(_ percent: Int) -> Int {

@@ -30,6 +30,20 @@ struct MixerOutputDevice: Identifiable, Equatable {
     let volumeSettable: Bool
     fileprivate let audioObjectID: AudioObjectID
     fileprivate let volumeControl: OutputVolumeControl?
+
+    fileprivate func replacingVolume(_ volume: Double) -> MixerOutputDevice {
+        MixerOutputDevice(id: id,
+                          uid: uid,
+                          name: name,
+                          isDefault: isDefault,
+                          isHeadphones: isHeadphones,
+                          canBeDefaultOutput: canBeDefaultOutput,
+                          canBeDefaultSystemOutput: canBeDefaultSystemOutput,
+                          volume: volume,
+                          volumeSettable: volumeSettable,
+                          audioObjectID: audioObjectID,
+                          volumeControl: volumeControl)
+    }
 }
 
 /// One app in the mixer: every audio-producing process it is responsible for,
@@ -80,6 +94,7 @@ final class AppVolumeMixer: ObservableObject {
     @Published private(set) var outputSwitchError: String?
     @Published private(set) var outputSwitchInProgress = false
     @Published private(set) var connectingBluetoothSelectionID: String?
+    @Published private(set) var outputMasterVolume: Double = 1
     /// Set when tap creation fails with a permission error, so the panel can
     /// point at the System Audio Recording consent.
     @Published private(set) var needsPermission = false
@@ -89,6 +104,7 @@ final class AppVolumeMixer: ObservableObject {
     /// while the slider keeps dragging.
     private var buildingEngines = Set<String>()
     private var lastAudibleVolume: [String: Double] = [:]
+    private var outputBaseVolumes: [String: Double] = [:]
     private var listenerInstalled = false
     /// One IsRunningOutput listener per live process object, kept so the block
     /// can be handed back to AudioObjectRemovePropertyListenerBlock when the
@@ -100,6 +116,8 @@ final class AppVolumeMixer: ObservableObject {
     private var lastAutomaticLoweredOutputUID: String?
     private var refreshPending = false
     private var lastListenerRefreshAt: CFAbsoluteTime = 0
+    private var masterVolumeApplyScheduled = false
+    private var lastMasterVolumeApplyAt: CFAbsoluteTime = 0
     private var routeDiscoveryRunning = false
     private var lastRouteDiscoveryAt: CFAbsoluteTime = -.greatestFiniteMagnitude
     private var outputSwitchGeneration = 0
@@ -115,7 +133,13 @@ final class AppVolumeMixer: ObservableObject {
         let element: AudioObjectPropertyElement
     }
 
-    private init() {}
+    private init() {
+        let defaults = UserDefaults.standard
+        let storedMaster = (defaults.object(forKey: DefaultsKey.mixerOutputMasterVolume) as? NSNumber)?.doubleValue ?? 1
+        outputMasterVolume = Defaults.sanitizedOutputMasterVolume(storedMaster)
+        outputBaseVolumes = Defaults.sanitizedOutputBaseVolumes(
+            defaults.dictionary(forKey: DefaultsKey.mixerOutputBaseVolumes) ?? [:])
+    }
 
     // MARK: - Lifecycle
 
@@ -259,6 +283,7 @@ final class AppVolumeMixer: ObservableObject {
 
     private static let listenerRefreshInterval: CFAbsoluteTime = 0.2
     private static let routeDiscoveryInterval: CFAbsoluteTime = 300
+    private static let masterVolumeApplyInterval: CFAbsoluteTime = 1.0 / 30.0
 
     private func refreshDiscoveredOutputRoutesIfNeeded(force: Bool = false) {
         let now = CFAbsoluteTimeGetCurrent()
@@ -486,26 +511,80 @@ final class AppVolumeMixer: ObservableObject {
         let clamped = min(max(volume, 0), 1)
         guard let device = outputDevices.first(where: { $0.uid == uid }),
               let volumeControl = device.volumeControl,
-              volumeControl.isSettable,
-              Self.setOutputVolume(Float32(clamped),
+              volumeControl.isSettable else { return }
+        let previousBase = outputBaseVolumes[uid] ?? device.volume ?? clamped
+        let base = MixerRoutingSupport.baseOutputVolume(effective: clamped,
+                                                        master: outputMasterVolume,
+                                                        previousBase: previousBase)
+        let effective = MixerRoutingSupport.effectiveOutputVolume(base: base,
+                                                                  master: outputMasterVolume)
+        guard Self.setOutputVolume(Float32(effective),
                                    for: device.audioObjectID,
                                    control: volumeControl) else { return }
 
-        let actual = Self.outputVolume(for: device.audioObjectID, control: volumeControl) ?? clamped
+        outputBaseVolumes[uid] = base
+        persistOutputMasterState()
+        let actual = Self.outputVolume(for: device.audioObjectID, control: volumeControl) ?? effective
         outputDevices = outputDevices.map { outputDevice in
             guard outputDevice.uid == uid else { return outputDevice }
-            return MixerOutputDevice(id: outputDevice.id,
-                                     uid: outputDevice.uid,
-                                     name: outputDevice.name,
-                                     isDefault: outputDevice.isDefault,
-                                     isHeadphones: outputDevice.isHeadphones,
-                                     canBeDefaultOutput: outputDevice.canBeDefaultOutput,
-                                     canBeDefaultSystemOutput: outputDevice.canBeDefaultSystemOutput,
-                                     volume: actual,
-                                     volumeSettable: outputDevice.volumeSettable,
-                                     audioObjectID: outputDevice.audioObjectID,
-                                     volumeControl: outputDevice.volumeControl)
+            return outputDevice.replacingVolume(actual)
         }
+    }
+
+    func setOutputMasterVolume(_ volume: Double) {
+        let clamped = min(max(volume, 0), 1)
+        guard abs(clamped - outputMasterVolume) > 0.0001 else { return }
+        for device in outputDevices where device.volumeSettable {
+            if outputBaseVolumes[device.uid] == nil, let current = device.volume {
+                outputBaseVolumes[device.uid] = current
+            }
+        }
+        outputMasterVolume = clamped
+        persistOutputMasterState()
+        scheduleOutputMasterVolumeApply()
+    }
+
+    private func scheduleOutputMasterVolumeApply() {
+        let now = CFAbsoluteTimeGetCurrent()
+        let elapsed = now - lastMasterVolumeApplyAt
+        if elapsed >= Self.masterVolumeApplyInterval {
+            lastMasterVolumeApplyAt = now
+            applyOutputMasterVolume()
+            return
+        }
+        guard !masterVolumeApplyScheduled else { return }
+        masterVolumeApplyScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.masterVolumeApplyInterval - elapsed) { [weak self] in
+            guard let self else { return }
+            self.masterVolumeApplyScheduled = false
+            self.lastMasterVolumeApplyAt = CFAbsoluteTimeGetCurrent()
+            self.applyOutputMasterVolume()
+        }
+    }
+
+    private func applyOutputMasterVolume() {
+        var updated = outputDevices
+        for index in updated.indices {
+            let device = updated[index]
+            guard let base = outputBaseVolumes[device.uid],
+                  let control = device.volumeControl,
+                  control.isSettable else { continue }
+            let target = MixerRoutingSupport.effectiveOutputVolume(base: base,
+                                                                   master: outputMasterVolume)
+            guard Self.setOutputVolume(Float32(target),
+                                       for: device.audioObjectID,
+                                       control: control) else { continue }
+            let actual = Self.outputVolume(for: device.audioObjectID, control: control) ?? target
+            updated[index] = device.replacingVolume(actual)
+        }
+        if updated != outputDevices {
+            outputDevices = updated
+        }
+    }
+
+    private func persistOutputMasterState() {
+        UserDefaults.standard.set(outputMasterVolume, forKey: DefaultsKey.mixerOutputMasterVolume)
+        UserDefaults.standard.set(outputBaseVolumes, forKey: DefaultsKey.mixerOutputBaseVolumes)
     }
 
     /// Main-thread only. Engine creation happens off-main (CoreAudio object
@@ -623,6 +702,8 @@ final class AppVolumeMixer: ObservableObject {
                                                nextOutputDevices: nextOutputDevices) {
             nextOutputDevices = Self.outputDevices(defaultUID: defaultUID)
         }
+        let shouldApplyMasterVolume = syncOutputBaseVolumes(previous: outputDevices,
+                                                           next: nextOutputDevices)
         let availableUIDs = Set(nextOutputDevices.map(\.uid))
         syncOutputVolumeListeners(with: nextOutputDevices)
         let audioEnvironmentChanged = currentOutputDeviceUID != nil
@@ -640,6 +721,9 @@ final class AppVolumeMixer: ObservableObject {
         }
         if nextOutputDevices != outputDevices {
             outputDevices = nextOutputDevices
+        }
+        if shouldApplyMasterVolume {
+            applyOutputMasterVolume()
         }
 
         guard Self.isSupported else {
@@ -765,6 +849,43 @@ final class AppVolumeMixer: ObservableObject {
                 && left.canBeDefaultOutput == right.canBeDefaultOutput
                 && left.canBeDefaultSystemOutput == right.canBeDefaultSystemOutput
         }
+    }
+
+    private func syncOutputBaseVolumes(previous: [MixerOutputDevice],
+                                       next: [MixerOutputDevice]) -> Bool {
+        let previousByUID = Dictionary(uniqueKeysWithValues: previous.map { ($0.uid, $0) })
+        var shouldApplyMaster = false
+        var baseVolumesChanged = false
+        for device in next where device.volumeSettable {
+            guard let volume = device.volume else { continue }
+            guard let base = outputBaseVolumes[device.uid] else {
+                outputBaseVolumes[device.uid] = volume
+                baseVolumesChanged = true
+                shouldApplyMaster = outputMasterVolume < 0.999 || shouldApplyMaster
+                continue
+            }
+            guard let oldDevice = previousByUID[device.uid] else {
+                shouldApplyMaster = outputMasterVolume < 0.999 || shouldApplyMaster
+                continue
+            }
+            if oldDevice.audioObjectID != device.audioObjectID {
+                shouldApplyMaster = outputMasterVolume < 0.999 || shouldApplyMaster
+            } else if let oldVolume = oldDevice.volume,
+                      abs(oldVolume - volume) > 0.005 {
+                if outputMasterVolume > 0.001 {
+                    outputBaseVolumes[device.uid] = MixerRoutingSupport.baseOutputVolume(
+                        effective: volume,
+                        master: outputMasterVolume,
+                        previousBase: base)
+                    baseVolumesChanged = true
+                }
+                shouldApplyMaster = outputMasterVolume < 0.999 || shouldApplyMaster
+            }
+        }
+        if baseVolumesChanged {
+            persistOutputMasterState()
+        }
+        return shouldApplyMaster
     }
 
     private func lowerVolumeIfHeadphonesDisconnected(previousDefaultUID: String?,

@@ -426,6 +426,22 @@ struct MetricsTests {
             channelSettable: [true, true]
         ) == MixerVolumeEndpointSelection(group: .master, indexes: [1], isSettable: true),
                "a writable master volume is preferred over channel controls")
+        expectClose(MixerRoutingSupport.effectiveOutputVolume(base: 1, master: 0.5),
+                    0.5,
+                    "master output volume scales a full-volume output")
+        expectClose(MixerRoutingSupport.effectiveOutputVolume(base: 0.5, master: 0.5),
+                    0.25,
+                    "master output volume preserves proportional output levels")
+        expectClose(MixerRoutingSupport.baseOutputVolume(effective: 0.3,
+                                                         master: 0.5,
+                                                         previousBase: 0.5),
+                    0.6,
+                    "editing an output under the master updates its unscaled base volume")
+        expectClose(MixerRoutingSupport.baseOutputVolume(effective: 0.3,
+                                                         master: 0,
+                                                         previousBase: 0.5),
+                    0.5,
+                    "editing while the master is muted preserves the previous base volume")
         expect(!bluetoothOutputs.contains { $0.name == "Old Mouse" },
                "mixer output discovery ignores non-audio Bluetooth devices")
         let keyboard = PeripheralBatteryDevice(id: "keyboard",
@@ -1456,6 +1472,19 @@ struct MetricsTests {
         expectClose(Defaults.sanitizedAppVolume(3), 2, "high app volume clamps to boost maximum")
         expectClose(Defaults.sanitizedAppVolume(-1), 0, "negative app volume clamps to mute")
         expectClose(Defaults.sanitizedAppVolume(.infinity), 1, "non-finite app volume falls back to unity")
+        expectClose(Defaults.sanitizedOutputMasterVolume(0.45), 0.45,
+                    "valid output master volume is preserved")
+        expectClose(Defaults.sanitizedOutputMasterVolume(2), 1,
+                    "output master volume clamps above unity")
+        expectClose(Defaults.sanitizedOutputMasterVolume(.infinity), 1,
+                    "invalid output master volume falls back to unity")
+        expect(Defaults.sanitizedOutputBaseVolumes([
+            " HDMI Output ": 0.5,
+            "Speakers": 2.0,
+            "bad\nuid": 0.25,
+            "Display": "loud",
+        ]) == ["HDMI Output": 0.5, "Speakers": 1],
+        "saved output base volumes keep valid UIDs and clamped numeric levels")
         expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(35) == 35,
                "headphone disconnect volume preserves valid percentages")
         expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(-5) == 0,
