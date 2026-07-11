@@ -616,13 +616,16 @@ struct MouseSettings: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if middleClickEnabled {
-                        Picker(l10n.s.middleClickTapPicker, selection: $middleClickTapFingers) {
-                            Text(l10n.s.middleClickTapOff).tag(0)
-                            Text(l10n.s.middleClickTapThreeFingers).tag(3)
-                            Text(l10n.s.middleClickTapFourFingers).tag(4)
-                        }
-                        .onChange(of: middleClickTapFingers) { _, _ in
-                            MiddleClickService.shared.syncWithPreferences()
+                        Toggle(l10n.s.middleClickTapPicker, isOn: middleClickTapEnabled)
+                        if middleClickTapFingers > 0 {
+                            Picker("", selection: $middleClickTapFingers) {
+                                Text(l10n.s.middleClickTapThreeFingers).tag(3)
+                                Text(l10n.s.middleClickTapFourFingers).tag(4)
+                            }
+                            .labelsHidden()
+                            .onChange(of: middleClickTapFingers) { _, _ in
+                                MiddleClickService.shared.syncWithPreferences()
+                            }
                         }
                         Text(l10n.s.middleClickTapCaption)
                             .font(.caption)
@@ -661,6 +664,16 @@ struct MouseSettings: View {
         Binding(
             get: { Double(SmoothScrollSupport.sanitizedStep(smoothScrollStep)) },
             set: { smoothScrollStep = Int($0) }
+        )
+    }
+
+    private var middleClickTapEnabled: Binding<Bool> {
+        Binding(
+            get: { middleClickTapFingers > 0 },
+            set: { enabled in
+                middleClickTapFingers = enabled ? 3 : 0
+                MiddleClickService.shared.syncWithPreferences()
+            }
         )
     }
 }
