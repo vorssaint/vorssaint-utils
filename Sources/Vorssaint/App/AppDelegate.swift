@@ -89,7 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                     .scrollInverter, .smoothScroll, .mouseNavigation, .switcher,
                     .dockPreview, .finderCutPaste, .autoQuit, .dockClick,
                     .middleClick, .windowMaximizer, .keyboardDebounce, .windowLayout,
-                    .textSnippets,
+                    .textSnippets, .brightness,
                 ])
             }
             .store(in: &cancellables)

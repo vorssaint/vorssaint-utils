@@ -68,6 +68,8 @@ enum DefaultsKey {
     static let shelfAutomaticExclusions = "shelfAutomaticExclusions" // [bundle id] blocks automatic opening only
     static let extraBrightnessEnabled = "extraBrightnessEnabled"
     static let extraBrightnessLevel = "extraBrightnessLevel"   // Int percent 0-100
+    static let brightnessControlEnabled = "brightnessControlEnabled" // sliders for every display
+    static let brightnessKeysEnabled = "brightnessKeysEnabled" // brightness keys act on the display under the pointer
     static let musicBlockEnabled = "musicBlockEnabled"
     static let musicBlockReplacementPath = "musicBlockReplacementPath"  // app bundle path ("" = none)
     static let cleanerScheduleFrequency = "cleanerScheduleFrequency"    // off | daily | weekly
@@ -113,6 +115,7 @@ enum DefaultsKey {
     static let panelControlFilesExpanded = "panelControlFilesExpanded"
     // Show/hide whole panel sections that have no monitorShow* key of their own.
     static let panelShowKeepAwake = "panelShowKeepAwake"
+    static let panelShowBrightness = "panelShowBrightness"
     static let panelShowUtilities = "panelShowUtilities"
     static let panelShowControls = "panelShowControls"
 
@@ -435,6 +438,8 @@ enum Defaults {
         DefaultsKey.shelfAutomaticExclusions: [],
         DefaultsKey.extraBrightnessEnabled: false,
         DefaultsKey.extraBrightnessLevel: 100,
+        DefaultsKey.brightnessControlEnabled: false,
+        DefaultsKey.brightnessKeysEnabled: false,
         DefaultsKey.musicBlockEnabled: false,
         DefaultsKey.musicBlockReplacementPath: "",
         DefaultsKey.cleanerScheduleFrequency: "off",
@@ -476,6 +481,7 @@ enum Defaults {
         DefaultsKey.panelControlInputExpanded: false,
         DefaultsKey.panelControlFilesExpanded: false,
         DefaultsKey.panelShowKeepAwake: true,
+        DefaultsKey.panelShowBrightness: true,
         DefaultsKey.panelShowUtilities: true,
         DefaultsKey.panelShowControls: true,
         // Menu bar metrics start off (the icon stays clean) and are opt-in.

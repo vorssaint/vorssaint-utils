@@ -10,7 +10,7 @@ protocol PanelOrderItem: RawRepresentable, CaseIterable, Hashable where RawValue
 /// stable identifiers persisted in the saved order and the collapsed set, so
 /// renaming a case would orphan a user's stored layout — keep them stable.
 enum PanelSectionID: String, CaseIterable, Identifiable {
-    case keepAwake, mixer, system, network, disk, power, fanControl, utilities, controls
+    case keepAwake, brightness, mixer, system, network, disk, power, fanControl, utilities, controls
 
     var id: String { rawValue }
 
@@ -18,6 +18,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
     func title(_ s: Strings) -> String {
         switch self {
         case .keepAwake: return s.keepAwakeTitle
+        case .brightness: return FeatureStrings.brightness(L10n.shared.language).pageTitle
         case .mixer: return s.mixerSection
         case .system: return s.systemSection
         case .network: return s.networkSection
@@ -32,6 +33,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
     var symbolName: String {
         switch self {
         case .keepAwake: return "moon.zzz.fill"
+        case .brightness: return "sun.max"
         case .mixer: return "slider.horizontal.3"
         case .system: return "cpu"
         case .network: return "network"
@@ -49,6 +51,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
     var visibilityKey: String {
         switch self {
         case .keepAwake: return DefaultsKey.panelShowKeepAwake
+        case .brightness: return DefaultsKey.panelShowBrightness
         case .mixer: return DefaultsKey.monitorShowMixer
         case .system: return DefaultsKey.monitorShowSystem
         case .network: return DefaultsKey.monitorShowNetwork
@@ -70,6 +73,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
     var featureGate: [AppFeature] {
         switch self {
         case .keepAwake: return [.keepAwake]
+        case .brightness: return [.brightness]
         case .mixer: return [.mixer]
         case .system: return [.monitorCPU, .monitorGPU, .monitorMemory]
         case .network: return [.monitorNetwork]
@@ -112,6 +116,10 @@ enum PanelLayout {
                 result.insert(id, at: networkIndex + 1)
             } else if id == .controls, let utilitiesIndex = result.firstIndex(of: .utilities) {
                 result.insert(id, at: utilitiesIndex + 1)
+            } else if id == .brightness, let keepAwakeIndex = result.firstIndex(of: .keepAwake) {
+                // New in 3.1.13: saved orders predate it, so it slots in at
+                // its canonical place instead of the end.
+                result.insert(id, at: keepAwakeIndex + 1)
             } else {
                 result.append(id)
             }

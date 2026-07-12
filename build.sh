@@ -95,6 +95,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/SettingsBackupSupport.swift \
         Sources/Vorssaint/Core/BackupStrings.swift \
         Sources/Vorssaint/Core/SnippetStrings.swift \
+        Sources/Vorssaint/Core/BrightnessStrings.swift \
         Sources/Vorssaint/Core/PermissionGuideStrings.swift \
         Sources/Vorssaint/Services/Snippets/TextSnippetSupport.swift \
         Sources/Vorssaint/Core/AppInfo.swift \
@@ -135,6 +136,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/WindowLayout/WindowLayoutSupport.swift \
         Sources/Vorssaint/Services/CleaningMode/CleaningUnlockCounter.swift \
         Sources/Vorssaint/Services/Display/ExtraBrightnessSupport.swift \
+        Sources/Vorssaint/Services/Display/BrightnessSupport.swift \
         Sources/Vorssaint/Services/Cleaner/CleanerSupport.swift \
         Sources/Vorssaint/Services/Cleaner/CleanerPolicy.swift \
         Sources/Vorssaint/Services/Cleaner/CleanerSchedule.swift \

@@ -22,7 +22,7 @@ enum AppFeature: String, CaseIterable {
     // Sound
     case mixer, soundOutputSwitcher, micMute, musicBlock
     // Energy and display
-    case keepAwake, extraBrightness
+    case keepAwake, brightness, extraBrightness
     // Tools
     case quickLauncher, colorPicker, screenOCR, cleaningMode, mediaTools,
          cleaner, uninstaller, homebrew
@@ -54,7 +54,7 @@ extension AppFeature {
             return .clipboardFiles
         case .mixer, .soundOutputSwitcher, .micMute, .musicBlock:
             return .sound
-        case .keepAwake, .extraBrightness:
+        case .keepAwake, .brightness, .extraBrightness:
             return .energyDisplay
         case .quickLauncher, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew:
@@ -88,6 +88,7 @@ extension AppFeature {
         case .micMute: return "mic.slash"
         case .musicBlock: return "music.note"
         case .keepAwake: return "moon.zzz.fill"
+        case .brightness: return "sun.max"
         case .extraBrightness: return "sun.max.fill"
         case .quickLauncher: return "wand.and.rays"
         case .colorPicker: return "eyedropper"
@@ -138,6 +139,7 @@ extension AppFeature {
         case .urlCleaner: return [DefaultsKey.urlCleanerEnabled]
         case .soundOutputSwitcher: return [DefaultsKey.soundOutputSwitcherEnabled]
         case .musicBlock: return [DefaultsKey.musicBlockEnabled]
+        case .brightness: return [DefaultsKey.brightnessControlEnabled]
         case .extraBrightness: return [DefaultsKey.extraBrightnessEnabled]
         case .windowLayout, .mixer, .micMute, .keepAwake,
              .quickLauncher, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
@@ -162,6 +164,7 @@ extension AppFeature {
         case .dockPreview: return [.accessibility, .screenRecording]
         case .screenOCR: return [.screenRecording]
         case .keepAwake: return [.accessibility]
+        case .brightness: return [.accessibility]
         case .cleaner: return [.fullDiskAccess, .notifications]
         case .uninstaller: return [.fullDiskAccess, .automationFinder]
         case .homebrew: return [.automationTerminal]
@@ -201,6 +204,8 @@ extension AppFeature {
                 return !boolFor(DefaultsKey.switcherSimpleMode)
             case (.keepAwake, .accessibility):
                 return boolFor(DefaultsKey.keepAwakeMouseJiggleEnabled)
+            case (.brightness, .accessibility):
+                return boolFor(DefaultsKey.brightnessKeysEnabled)
             case (.monitorCPU, .notifications):
                 return boolFor(DefaultsKey.monitorAlertCPU) || boolFor(DefaultsKey.monitorAlertCPUTemperature)
             case (.monitorMemory, .notifications):

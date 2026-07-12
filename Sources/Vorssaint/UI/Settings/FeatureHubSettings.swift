@@ -523,6 +523,7 @@ extension AppFeature {
         case .micMute: return s.micMuteName
         case .musicBlock: return hub.titleMusicBlock
         case .keepAwake: return s.keepAwakeTitle
+        case .brightness: return FeatureStrings.brightness(L10n.shared.language).pageTitle
         case .extraBrightness: return s.extraBrightnessName
         case .quickLauncher: return s.launcherName
         case .colorPicker: return s.colorPickerName
@@ -565,6 +566,7 @@ extension AppFeature {
         case .micMute: return hub.descMicMute
         case .musicBlock: return hub.descMusicBlock
         case .keepAwake: return hub.descKeepAwake
+        case .brightness: return FeatureStrings.brightness(L10n.shared.language).hubDescription
         case .extraBrightness: return hub.descExtraBrightness
         case .quickLauncher: return hub.descQuickLauncher
         case .colorPicker: return hub.descColorPicker

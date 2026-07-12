@@ -22,7 +22,7 @@ enum FeatureVisibilitySupport {
     /// always shows (General, Shortcuts, About and friends).
     static func features(for page: SettingsPage) -> [AppFeature] {
         switch page {
-        case .energy: return [.keepAwake, .extraBrightness]
+        case .energy: return [.keepAwake, .brightness, .extraBrightness]
         case .monitor: return monitorFeatures
         case .mouse: return [.scrollInverter, .smoothScroll, .mouseNavigation, .middleClick]
         case .switcher: return [.switcher, .dockPreview, .dockClick]

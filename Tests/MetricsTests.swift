@@ -818,13 +818,13 @@ struct MetricsTests {
         expect(registeredDefaults[DefaultsKey.updateShowcaseMediaOverride] as? String == "",
                "update showcase media override is empty by default")
         expect(SupportUpdateIntroInfo.releaseVersion == "3.1.12",
-               "support prompt is deliberately pinned to 3.1.12 (owner's call for this release)")
+               "support prompt stays pinned to 3.1.12 (3.1.13 deliberately shows no support ask)")
         // AppInfo.version falls back to "dev" in this bare harness, so read
         // the plist the shipped app will actually carry. The pin is a
         // per-release decision: this check fails on every version bump so the
         // decision above is made consciously, never by omission.
         let plistVersion = (NSDictionary(contentsOfFile: "Resources/Info.plist")?["CFBundleShortVersionString"] as? String) ?? ""
-        expect(plistVersion == "3.1.12",
+        expect(plistVersion == "3.1.13",
                "bumping the app version requires re-deciding the support prompt pin above")
         expect(registeredDefaults[DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect] as? Bool == false,
                "headphone disconnect volume lowering is opt-in")
@@ -1002,6 +1002,12 @@ struct MetricsTests {
                "panel text snippets control is visible by default")
         expect(registeredDefaults[DefaultsKey.panelShowKeepAwake] as? Bool == true,
                "Keep Awake panel section is shown by default")
+        expect(registeredDefaults[DefaultsKey.panelShowBrightness] as? Bool == true,
+               "brightness panel section is shown by default once the feature is on")
+        expect(registeredDefaults[DefaultsKey.brightnessControlEnabled] as? Bool == false,
+               "brightness control arrives switched off")
+        expect(registeredDefaults[DefaultsKey.brightnessKeysEnabled] as? Bool == false,
+               "pointer-following brightness keys arrive switched off")
         expect(registeredDefaults[DefaultsKey.panelShowUtilities] as? Bool == true,
                "Utilities panel section is shown by default")
         expect(registeredDefaults[DefaultsKey.panelShowControls] as? Bool == true,
@@ -4085,7 +4091,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 37, "feature catalog has 37 features")
+        expect(AppFeature.allCases.count == 38, "feature catalog has 38 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -4094,7 +4100,7 @@ struct MetricsTests {
             "textSnippets",
             "clipboardHistory", "pastePlain", "finderCutPaste", "shelf", "urlCleaner",
             "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
-            "keepAwake", "extraBrightness",
+            "keepAwake", "brightness", "extraBrightness",
             "quickLauncher", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
@@ -4131,6 +4137,12 @@ struct MetricsTests {
                "keep awake uses accessibility only with the mouse jiggle on")
         expect(!activeSet(.accessibility).contains(.keepAwake),
                "keep awake without jiggle does not use accessibility")
+        expect(activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled,
+                                              DefaultsKey.brightnessKeysEnabled]).contains(.brightness),
+               "brightness uses accessibility only for the key option")
+        expect(!activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled])
+                .contains(.brightness),
+               "brightness sliders alone never use accessibility")
 
         expect(activeSet(.screenRecording, on: [DefaultsKey.switcherEnabled]) == [.switcher, .screenOCR],
                "switcher with previews uses screen recording; OCR is on demand")
@@ -4220,6 +4232,12 @@ struct MetricsTests {
                    "every permission guide string is set for \(language.rawValue)")
             expect(guideValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in permission guide strings (\(language.rawValue))")
+            let brightnessValues = Mirror(reflecting: FeatureStrings.brightness(language)).children
+                .compactMap { $0.value as? String }
+            expect(!brightnessValues.isEmpty && brightnessValues.allSatisfy { !$0.isEmpty },
+                   "every brightness string is set for \(language.rawValue)")
+            expect(brightnessValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in visible brightness strings (\(language.rawValue))")
             let strings: Strings = {
                 switch language {
                 case .enUS: return .enUS
@@ -4275,7 +4293,8 @@ struct MetricsTests {
                 && AppFeature.dockPreview.energyProfile == .mouse
                 && AppFeature.switcher.energyProfile == .keyboard
                 && AppFeature.colorPicker.energyProfile == .idle
-                && AppFeature.keepAwake.energyProfile == .idle,
+                && AppFeature.keepAwake.energyProfile == .idle
+                && AppFeature.brightness.energyProfile == .idle,
                "energy badges tell the honest mechanism per feature")
 
         // MARK: Settings page visibility
@@ -4289,9 +4308,12 @@ struct MetricsTests {
                "one remaining mouse feature keeps the mouse page")
         expect(!pageVisible(.mouse, available: []),
                "the mouse page hides only with all four mouse features off")
-        expect(!pageVisible(.energy, available: allFeatures.subtracting([.keepAwake, .extraBrightness])),
-               "energy hides when keep awake and extra brightness are both off")
+        expect(!pageVisible(.energy, available: allFeatures.subtracting([.keepAwake, .brightness,
+                                                                         .extraBrightness])),
+               "energy hides when all three display features are off")
         expect(pageVisible(.energy, available: [.extraBrightness]), "XDR alone keeps the energy page")
+        expect(pageVisible(.energy, available: [.brightness]),
+               "brightness control alone keeps the energy page")
         expect(!pageVisible(.monitor, available: allFeatures.subtracting(Set(FeatureVisibilitySupport.monitorFeatures))),
                "monitor page hides with every metric off")
         expect(pageVisible(.monitor, available: [.monitorNetwork]), "one metric keeps the monitor page")
@@ -4300,6 +4322,124 @@ struct MetricsTests {
                "app pages never hide")
         expect(!pageVisible(.shelf, available: allFeatures.subtracting([.shelf])),
                "single-feature pages follow their feature")
+
+        // MARK: Display brightness (DDC/CI helpers)
+
+        let ddcWrite = BrightnessSupport.writePacket(code: 0x10, value: 0x1234)
+        expect(ddcWrite == [0x84, 0x03, 0x10, 0x12, 0x34,
+                            0x6E ^ 0x51 ^ 0x84 ^ 0x03 ^ 0x10 ^ 0x12 ^ 0x34],
+               "DDC write packet carries the set opcode, big-endian value and checksum")
+        let ddcRead = BrightnessSupport.readRequestPacket(code: 0x10)
+        expect(ddcRead == [0x82, 0x01, 0x10, 0x6E ^ 0x82 ^ 0x01 ^ 0x10],
+               "DDC read request omits the sub-address from its checksum seed")
+        expect(Array(BrightnessSupport.writePacket(code: 0x10, value: 100)[3...4]) == [0x00, 0x64],
+               "DDC values split into high and low bytes")
+
+        var ddcReply: [UInt8] = [0x6E, 0x88, 0x02, 0x00, 0x10, 0x00, 0x00, 0x64, 0x00, 0x32]
+        ddcReply.append(ddcReply.reduce(UInt8(0x50)) { $0 ^ $1 })
+        expect(BrightnessSupport.parseReply(ddcReply)?.current == 0x32
+                && BrightnessSupport.parseReply(ddcReply)?.maximum == 0x64,
+               "a valid DDC reply yields the current and maximum values")
+        var corrupted = ddcReply
+        corrupted[7] ^= 0xFF
+        expect(BrightnessSupport.parseReply(corrupted) == nil,
+               "a corrupted DDC reply fails its checksum and reads as no reply")
+        expect(BrightnessSupport.parseReply([0x6E, 0x88]) == nil,
+               "a short DDC reply reads as no reply")
+
+        expect(BrightnessSupport.sanitizedMaximum(0) == 100 && BrightnessSupport.sanitizedMaximum(255) == 255,
+               "a display reporting no range falls back to the conventional scale")
+        expect(BrightnessSupport.normalized(current: 50, maximum: 100) == 0.5,
+               "DDC values normalize to the slider scale")
+        expect(BrightnessSupport.normalized(current: 120, maximum: 0) == 1.0,
+               "normalization clamps against the fallback range")
+        expect(BrightnessSupport.deviceValue(for: 0.5, maximum: 100) == 50
+                && BrightnessSupport.deviceValue(for: 1.0, maximum: 255) == 255
+                && BrightnessSupport.deviceValue(for: -0.2, maximum: 100) == 0
+                && BrightnessSupport.deviceValue(for: 1.7, maximum: 100) == 100,
+               "slider values map onto the display's own scale with clamping")
+
+        // EDID UUID chunks at fixed positions: vendor, product (little endian),
+        // manufacture date, image size.
+        var serviceIdentity = BrightnessSupport.ServiceIdentity()
+        serviceIdentity.edidUUID = "10AC5FA0-0000-0000-1E19-0000003C2200"
+        serviceIdentity.ordinal = 1
+        var displayIdentity = BrightnessSupport.DisplayIdentity()
+        displayIdentity.vendorID = 0x10AC
+        displayIdentity.productID = 0xA05F
+        displayIdentity.weekOfManufacture = 30
+        displayIdentity.yearOfManufacture = 2015
+        displayIdentity.horizontalImageSize = 600
+        displayIdentity.verticalImageSize = 340
+        expect(BrightnessSupport.matchScore(service: serviceIdentity, display: displayIdentity) == 4,
+               "every EDID identity chunk scores one point")
+        serviceIdentity.ioDisplayLocation = "IOService:/some/path"
+        displayIdentity.ioDisplayLocation = "IOService:/some/path"
+        expect(BrightnessSupport.matchScore(service: serviceIdentity, display: displayIdentity) == 14,
+               "a registry path match is decisive on top of the EDID chunks")
+        expect(BrightnessSupport.matchScore(service: BrightnessSupport.ServiceIdentity(),
+                                            display: BrightnessSupport.DisplayIdentity()) == 0,
+               "empty identities never match")
+
+        let assignment = BrightnessSupport.assignServices(scores: [
+            (displayIndex: 0, serviceOrdinal: 1, score: 2),
+            (displayIndex: 0, serviceOrdinal: 2, score: 11),
+            (displayIndex: 1, serviceOrdinal: 1, score: 3),
+            (displayIndex: 1, serviceOrdinal: 2, score: 4),
+        ])
+        expect(assignment == [0: 2, 1: 1],
+               "greedy assignment gives each display its best free service")
+        expect(BrightnessSupport.assignServices(scores: [(displayIndex: 0, serviceOrdinal: 1, score: 0)])
+                .isEmpty,
+               "zero-score pairs never pair up")
+
+        expect(BrightnessSupport.channelOutcome(writeAccepted: true, replyParsed: true) == .live,
+               "a parsed reply means a live DDC channel")
+        expect(BrightnessSupport.channelOutcome(writeAccepted: true, replyParsed: false) == .writeOnly,
+               "accepted writes without replies keep a blind slider")
+        expect(BrightnessSupport.channelOutcome(writeAccepted: false, replyParsed: false) == .dead,
+               "rejected writes mean no DDC reaches the display (HDMI conversion)")
+
+        expect(BrightnessSupport.softwareDimFactor(for: 1.0) == 1.0
+                && BrightnessSupport.softwareDimFactor(for: 0.0) == 0.0,
+               "software dimming spans the whole range and zero really is black")
+        expect(BrightnessSupport.softwareDimFactor(for: 0.5) == 0.5
+                && BrightnessSupport.softwareDimFactor(for: -0.3) == 0.0
+                && BrightnessSupport.softwareDimFactor(for: 1.4) == 1.0,
+               "software dimming is linear with clamping")
+        expect(BrightnessSupport.scaledGammaTable([0.0, 0.5, 1.0], factor: 0.5) == [0.0, 0.25, 0.5],
+               "gamma tables scale toward black by the dim factor")
+        let untouched: [Float] = [0.0, 0.3, 1.0]
+        expect(BrightnessSupport.scaledGammaTable(untouched, factor: 1.0) == untouched,
+               "factor one returns the exact original table for bit-exact restores")
+
+        // Brightness keys arrive as system-defined auxiliary control events;
+        // data1 packs key code, press state and the repeat bit.
+        func brightnessData1(keyCode: Int, state: Int, repeated: Bool = false) -> Int {
+            (keyCode << 16) | (state << 8) | (repeated ? 1 : 0)
+        }
+        expect(BrightnessSupport.brightnessKeyEvent(subtype: 8,
+                                                    data1: brightnessData1(keyCode: 2, state: 10))
+                == BrightnessSupport.BrightnessKeyEvent(delta: BrightnessSupport.brightnessKeyStep,
+                                                        isKeyDown: true, isRepeat: false),
+               "brightness up decodes with a positive step")
+        expect(BrightnessSupport.brightnessKeyEvent(subtype: 8,
+                                                    data1: brightnessData1(keyCode: 3, state: 10, repeated: true))
+                == BrightnessSupport.BrightnessKeyEvent(delta: -BrightnessSupport.brightnessKeyStep,
+                                                        isKeyDown: true, isRepeat: true),
+               "brightness down decodes with a negative step and the repeat bit")
+        expect(BrightnessSupport.brightnessKeyEvent(subtype: 8,
+                                                    data1: brightnessData1(keyCode: 3, state: 11))?
+                .isKeyDown == false,
+               "the key release decodes too, so a handled press swallows both halves")
+        expect(BrightnessSupport.brightnessKeyEvent(subtype: 8,
+                                                    data1: brightnessData1(keyCode: 16, state: 10)) == nil,
+               "other media keys never decode as brightness")
+        expect(BrightnessSupport.brightnessKeyEvent(subtype: 1, data1: 0) == nil,
+               "other system-defined subtypes never decode as brightness")
+        expect(BrightnessSupport.steppedBrightness(0.97, delta: BrightnessSupport.brightnessKeyStep) == 1.0
+                && BrightnessSupport.steppedBrightness(0.03, delta: -BrightnessSupport.brightnessKeyStep) == 0.0,
+               "key steps clamp at both ends of the range")
 
         // MARK: Text snippets engine (issue #201)
 

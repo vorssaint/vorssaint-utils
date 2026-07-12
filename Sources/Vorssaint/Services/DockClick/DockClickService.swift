@@ -272,6 +272,11 @@ final class DockClickService {
             }
         case .minimize:
             lastAction[pid] = ActionRecord(kind: .minimize, time: now, targets: pending.unminimized)
+            // Some apps report success for the Minimize All menu action but
+            // leave their windows untouched. Start the per-window AX action
+            // immediately so those apps do not wait for the settling sweep;
+            // the menu path still covers AX-blind and multi-window apps.
+            Self.setMinimized(true, windows: pending.unminimized)
             DispatchQueue.main.async {
                 DockPreviewService.shared.dockClickWasHandled()
                 Self.postMinimizeAll(pid: pid)

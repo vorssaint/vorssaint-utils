@@ -53,7 +53,8 @@ struct SettingsView: View {
                             }),
                 SidebarItem(page: .energy, title: l10n.s.tabEnergy, icon: "bolt.fill",
                             keywords: [l10n.s.keepAwakeTitle, l10n.s.clamshellTitle,
-                                       l10n.s.defaultDurationLabel, l10n.s.extraBrightnessName]),
+                                       l10n.s.defaultDurationLabel, l10n.s.extraBrightnessName,
+                                       FeatureStrings.brightness(l10n.language).pageTitle]),
                 SidebarItem(page: .monitor, title: l10n.s.tabMonitor, icon: "chart.line.uptrend.xyaxis",
                             keywords: [l10n.s.menuBarSpacingLabel, l10n.s.menuBarHideIconToggle,
                                        l10n.s.monitorMemoryPressureDot]),
@@ -406,6 +407,9 @@ struct EnergySettings: View {
     @ObservedObject private var awake = KeepAwakeManager.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var extraBrightness = ExtraBrightnessService.shared
+    @ObservedObject private var brightness = BrightnessService.shared
+    @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
+    @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
     @AppStorage(DefaultsKey.extraBrightnessEnabled) private var extraBrightnessEnabled = false
     @AppStorage(DefaultsKey.extraBrightnessLevel) private var extraBrightnessLevel = 100
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration = 0
@@ -478,6 +482,37 @@ struct EnergySettings: View {
                     SettingsCaptionText(l10n.s.clamshellExplanation)
                 }
             }
+            if AppFeature.brightness.isAvailable {
+                let strings = FeatureStrings.brightness(l10n.language)
+                Section(strings.pageTitle) {
+                    SettingsToggleWithCaption(title: strings.enable,
+                                              caption: strings.enableCaption,
+                                              isOn: $brightnessEnabled)
+                        .onChange(of: brightnessEnabled) { _, _ in
+                            BrightnessService.shared.syncWithPreferences()
+                        }
+                    if brightnessEnabled {
+                        if brightness.displays.isEmpty {
+                            SettingsCaptionText(strings.noDisplays)
+                        } else {
+                            ForEach(brightness.displays) { display in
+                                brightnessRow(display)
+                            }
+                        }
+                        SettingsToggleWithCaption(title: strings.keysToggle,
+                                                  caption: strings.keysCaption,
+                                                  isOn: $brightnessKeysEnabled)
+                            .onChange(of: brightnessKeysEnabled) { _, isOn in
+                                if isOn { Permissions.shared.requestAccessibility() }
+                                BrightnessService.shared.syncWithPreferences()
+                            }
+                        if brightnessKeysEnabled, !permissions.accessibility {
+                            PermissionRow(kind: .accessibility)
+                        }
+                        SettingsCaptionText(strings.externalCaption)
+                    }
+                }
+            }
             if AppFeature.extraBrightness.isAvailable {
                 Section(l10n.s.extraBrightnessName) {
                     if extraBrightness.supported {
@@ -512,7 +547,28 @@ struct EnergySettings: View {
             // Displays may have changed since launch (docked, clamshell);
             // re-check so the section never shows a stale availability.
             ExtraBrightnessService.shared.syncWithPreferences()
+            BrightnessService.shared.refresh()
         }
+    }
+
+    private func brightnessRow(_ display: BrightnessDisplay) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: display.isBuiltIn ? "laptopcomputer" : "display")
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+            Text(display.name)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Slider(value: Binding(get: { display.brightness },
+                                  set: { BrightnessService.shared.setBrightness($0, for: display.id) }),
+                   in: 0...1)
+            Text("\(Int((display.brightness * 100).rounded()))%")
+                .font(.system(.body, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .frame(width: 52, alignment: .trailing)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(display.name)
     }
 
     private var extraBrightnessLevelBinding: Binding<Double> {

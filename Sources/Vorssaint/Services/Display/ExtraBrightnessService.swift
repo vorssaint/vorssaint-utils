@@ -44,7 +44,7 @@ final class ExtraBrightnessService: ObservableObject {
     private var commandQueue: MTLCommandQueue?
     private var pollTimer: Timer?
     private var screenObserver: NSObjectProtocol?
-    private var sleepObservers: [NSObjectProtocol] = []
+    private var workspaceObservers: [NSObjectProtocol] = []
     /// While the screens sleep the compositor stops recycling drawables and
     /// nextDrawable would stall the main thread, so presents pause and a
     /// fresh render happens on wake.
@@ -155,7 +155,7 @@ final class ExtraBrightnessService: ObservableObject {
             self?.handleScreenChange()
         }
         let workspace = NSWorkspace.shared.notificationCenter
-        sleepObservers = [
+        workspaceObservers = [
             workspace.addObserver(forName: NSWorkspace.screensDidSleepNotification,
                                   object: nil, queue: .main) { [weak self] _ in
                 self?.screensAsleep = true
@@ -165,6 +165,10 @@ final class ExtraBrightnessService: ObservableObject {
                 self?.screensAsleep = false
                 self?.renderIfNeeded()
             },
+            workspace.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
+                                  object: nil, queue: .main) { [weak self] _ in
+                self?.handleActiveSpaceChange()
+            },
         ]
     }
 
@@ -172,9 +176,21 @@ final class ExtraBrightnessService: ObservableObject {
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         screenObserver = nil
         let workspace = NSWorkspace.shared.notificationCenter
-        for observer in sleepObservers { workspace.removeObserver(observer) }
-        sleepObservers = []
+        for observer in workspaceObservers { workspace.removeObserver(observer) }
+        workspaceObservers = []
         screensAsleep = false
+    }
+
+    /// Fullscreen windows live in their own Space. Recreate the overlay pair
+    /// once the destination becomes active, preserving the current factor.
+    private func handleActiveSpaceChange() {
+        guard pollTimer != nil else { return }
+        guard let screen = Self.builtInXDRScreen() else {
+            handleScreenChange()
+            return
+        }
+        showOverlay(on: screen)
+        renderIfNeeded()
     }
 
     private func handleScreenChange() {
@@ -213,6 +229,12 @@ final class ExtraBrightnessService: ObservableObject {
         NSRect(x: screen.frame.maxX - 1, y: screen.frame.minY, width: 1, height: 1)
     }
 
+    /// Keep both windows bound to the current Space. The observer above creates
+    /// a fresh pair after a desktop or fullscreen transition completes.
+    private static let overlayCollectionBehavior: NSWindow.CollectionBehavior = [
+        .ignoresCycle, .fullScreenAuxiliary,
+    ]
+
     // MARK: - Overlay
 
     private func showOverlay(on screen: NSScreen) {
@@ -234,8 +256,7 @@ final class ExtraBrightnessService: ObservableObject {
         // Screenshots and recordings must show the real content, not the
         // boosted composite (the overlay would wash captures out).
         window.sharingType = .none
-        window.collectionBehavior = [.stationary, .canJoinAllSpaces, .ignoresCycle,
-                                     .fullScreenAuxiliary, .canJoinAllApplications]
+        window.collectionBehavior = Self.overlayCollectionBehavior
 
         guard let device = MTLCreateSystemDefaultDevice(),
               let queue = device.makeCommandQueue() else { return }
@@ -263,7 +284,7 @@ final class ExtraBrightnessService: ObservableObject {
         commandQueue = queue
         // First frame before the window shows: a rebuild mid-boost must come
         // up already multiplying, never with an empty (neutral) layer.
-        render(factor: renderedFactor)
+        render(factor: renderedFactor, waitUntilScheduled: true)
         window.orderFrontRegardless()
         showTrigger(on: screen, device: device, queue: queue)
     }
@@ -287,8 +308,7 @@ final class ExtraBrightnessService: ObservableObject {
         window.isReleasedWhenClosed = false
         window.animationBehavior = .none
         window.sharingType = .none
-        window.collectionBehavior = [.stationary, .canJoinAllSpaces, .ignoresCycle,
-                                     .fullScreenAuxiliary, .canJoinAllApplications]
+        window.collectionBehavior = Self.overlayCollectionBehavior
 
         let layer = CAMetalLayer()
         layer.device = device
@@ -304,14 +324,14 @@ final class ExtraBrightnessService: ObservableObject {
         window.contentView = view
         triggerWindow = window
         triggerLayer = layer
-        presentTrigger()
+        presentTrigger(waitUntilScheduled: true)
         window.orderFrontRegardless()
     }
 
     /// One clear pass of the extended range pixel. Called on every poll tick
     /// while the boost is on: the headroom grant follows recent presents, so
     /// a single frame engages it only to lose it a moment later.
-    private func presentTrigger() {
+    private func presentTrigger(waitUntilScheduled: Bool = false) {
         guard let layer = triggerLayer,
               let queue = commandQueue,
               let drawable = layer.nextDrawable(),
@@ -327,6 +347,7 @@ final class ExtraBrightnessService: ObservableObject {
         encoder.endEncoding()
         commands.present(drawable)
         commands.commit()
+        if waitUntilScheduled { commands.waitUntilScheduled() }
     }
 
     /// Renders the multiply color for the current level and headroom, every
@@ -366,7 +387,7 @@ final class ExtraBrightnessService: ObservableObject {
 
     /// One clear-only render pass, no shaders: the drawable is a uniform gray
     /// at `factor`, which the compositing filter multiplies with the screen.
-    private func render(factor: Double) {
+    private func render(factor: Double, waitUntilScheduled: Bool = false) {
         guard let layer = overlayLayer,
               let queue = commandQueue,
               let drawable = layer.nextDrawable(),
@@ -381,6 +402,7 @@ final class ExtraBrightnessService: ObservableObject {
         encoder.endEncoding()
         commands.present(drawable)
         commands.commit()
+        if waitUntilScheduled { commands.waitUntilScheduled() }
         let visible = factor > 1.001
         if boosting != visible { boosting = visible }
     }
