@@ -11,6 +11,7 @@ private struct SwitcherSourceContext {
     let itemID: String?
     let pid: pid_t
     let windowID: CGWindowID?
+    let windowOwnerPID: pid_t?
     let isFullscreen: Bool
 }
 
@@ -354,33 +355,36 @@ final class AppSwitcher: ObservableObject {
     /// focused window so the first ⌘Tab never targets the window the user is
     /// already in when the frontmost app has more than one window.
     private func currentItemID(in items: [SwitcherItem]) -> String? {
-        let frontPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let reportedFrontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
             ?? AppActivationTracker.shared.frontmostPid
-        if let frontPid,
-           let focusedID = focusedWindowID(for: frontPid),
+        let frontPID = reportedFrontPID.flatMap { reportedPID in
+            items.first(where: { $0.windowOwnerPID == reportedPID })?.pid ?? reportedPID
+        }
+        if let reportedFrontPID,
+           let focusedID = focusedWindowID(for: reportedFrontPID),
            items.contains(where: { $0.windowID == focusedID }) {
             return "w:\(focusedID)"
         }
-        let current = items.first { frontPid == nil || $0.pid == frontPid }
+        let current = items.first { frontPID == nil || $0.pid == frontPID }
         return current?.id ?? items.first?.id
     }
 
     private func sourceContext(in items: [SwitcherItem]) -> SwitcherSourceContext? {
-        guard let frontPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        guard let reportedFrontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
                 ?? AppActivationTracker.shared.frontmostPid else { return nil }
+        let frontPID = items.first(where: { $0.windowOwnerPID == reportedFrontPID })?.pid
+            ?? reportedFrontPID
 
-        let focusedID = focusedWindowID(for: frontPid)
-        let source = items.first { item in
-            guard item.pid == frontPid else { return false }
-            if let focusedID {
-                return item.windowID == focusedID
-            }
-            return true
-        } ?? items.first { $0.pid == frontPid }
+        let focusedID = focusedWindowID(for: reportedFrontPID)
+        let focusedSource = focusedID.flatMap { focusedID in
+            items.first { $0.pid == frontPID && $0.windowID == focusedID }
+        }
+        let source = focusedSource ?? items.first { $0.pid == frontPID }
 
         return SwitcherSourceContext(itemID: source?.id,
-                                     pid: frontPid,
-                                     windowID: focusedID ?? source?.windowID,
+                                     pid: frontPID,
+                                     windowID: source?.windowID,
+                                     windowOwnerPID: source?.windowOwnerPID,
                                      isFullscreen: source?.isFullscreen ?? false)
     }
 
@@ -484,7 +488,9 @@ final class AppSwitcher: ObservableObject {
         guard sessionActive,
               windows.contains(where: { $0.id == item.id }),
               let windowID = item.windowID,
-              WindowActivator.closeWindow(windowID: windowID, pid: item.pid)
+              WindowActivator.closeWindow(windowID: windowID,
+                                           appPID: item.pid,
+                                           windowOwnerPID: item.windowOwnerPID)
         else { return }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
@@ -631,7 +637,8 @@ final class AppSwitcher: ObservableObject {
             WindowActivator.activate(selection,
                                      sourceWasFullscreen: source?.isFullscreen ?? false,
                                      sourcePID: source?.pid,
-                                     sourceWindowID: source?.isFullscreen == true ? nil : source?.windowID)
+                                     sourceWindowID: source?.isFullscreen == true ? nil : source?.windowID,
+                                     sourceWindowOwnerPID: source?.windowOwnerPID)
         }
     }
 

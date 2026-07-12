@@ -807,6 +807,35 @@ struct MetricsTests {
                                                         simpleMode: true,
                                                         dockPreviewEnabled: true),
                "window previews still request Screen Recording where needed")
+        let regularBundlePaths: [pid_t: String] = [101: "/Applications/Primary.app"]
+        expect(SwitcherSupport.embeddedHostPID(
+            helperBundlePath: "/Applications/Primary.app/Contents/Frameworks/Window Helper.app",
+            regularBundlePaths: regularBundlePaths
+        ) == 101,
+               "App Switcher associates an embedded window helper with its regular host app")
+        expect(SwitcherSupport.embeddedHostPID(
+            helperBundlePath: "/Applications/Primary Tools.app/Contents/Helper.app",
+            regularBundlePaths: regularBundlePaths
+        ) == nil,
+               "App Switcher does not associate apps whose paths only share a prefix")
+        expect(SwitcherSupport.embeddedHostPID(
+            helperBundlePath: "/Applications/Independent Helper.app",
+            regularBundlePaths: regularBundlePaths
+        ) == nil,
+               "App Switcher leaves unrelated accessory apps independent")
+        let embeddedWindow = SwitcherItem.window(id: 77,
+                                                 title: "Project",
+                                                 appName: "Primary",
+                                                 pid: 101,
+                                                 windowOwnerPID: 202,
+                                                 isOnScreen: true,
+                                                 frame: CGRect(x: 20, y: 20, width: 900, height: 600))
+        expect(embeddedWindow.pid == 101
+               && embeddedWindow.windowOwnerPID == 202
+               && embeddedWindow.previewWindowID == 77,
+               "App Switcher keeps regular app identity separate from the window owner")
+        expect(embeddedWindow.withMinimized(true).windowOwnerPID == 202,
+               "App Switcher preserves the real window owner across state updates")
         expect(registeredDefaults[DefaultsKey.switcherShowWindowlessFinder] as? Bool == true,
                "Finder without windows stays visible in the switcher by default")
         expect(registeredDefaults[DefaultsKey.dockPreviewEnabled] as? Bool == false,

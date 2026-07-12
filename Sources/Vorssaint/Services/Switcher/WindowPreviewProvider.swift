@@ -71,7 +71,7 @@ final class WindowPreviewProvider {
             guard let id = item.previewWindowID, !seen.contains(id) else { return nil }
             seen.insert(id)
             return PreviewTarget(id: id,
-                                 pid: item.pid,
+                                 pid: item.windowOwnerPID,
                                  title: item.title,
                                  appName: item.appName,
                                  frame: item.frame)

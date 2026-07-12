@@ -139,6 +139,19 @@ enum SwitcherSupport {
         dockPreviewEnabled || (switcherEnabled && capturesPreviews(simpleMode: simpleMode))
     }
 
+    /// Finds the regular app that contains an accessory helper bundle.
+    static func embeddedHostPID(helperBundlePath: String,
+                                regularBundlePaths: [pid_t: String]) -> pid_t? {
+        let helperPath = URL(fileURLWithPath: helperBundlePath).standardizedFileURL.path
+        return regularBundlePaths
+            .filter { _, hostPath in
+                let normalizedHost = URL(fileURLWithPath: hostPath).standardizedFileURL.path
+                return helperPath.hasPrefix(normalizedHost + "/")
+            }
+            .max { lhs, rhs in lhs.value.count < rhs.value.count }?
+            .key
+    }
+
     /// Downsamples a capture into a small alpha grid for classification.
     static func alphaGrid(of image: CGImage, gridSize: Int = captureAlphaGridSize) -> [Double]? {
         guard gridSize > 0 else { return nil }

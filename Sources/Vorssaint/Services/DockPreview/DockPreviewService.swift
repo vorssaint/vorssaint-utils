@@ -193,7 +193,7 @@ final class DockPreviewService: ObservableObject {
             // peek is invisible, peeking an unverifiable window restores it.
             if let windowID = item.windowID {
                 let liveMinimized = WindowActivator.windowMinimizedState(windowID: windowID,
-                                                                         pid: item.pid)
+                                                                         pid: item.windowOwnerPID)
                 if item.isMinimized || liveMinimized != false {
                     if liveMinimized == true, !item.isMinimized {
                         windows = windows.map {
@@ -233,7 +233,9 @@ final class DockPreviewService: ObservableObject {
         guard isVisible,
               windows.contains(item),
               let windowID = item.windowID,
-              WindowActivator.closeWindow(windowID: windowID, pid: item.pid)
+              WindowActivator.closeWindow(windowID: windowID,
+                                           appPID: item.pid,
+                                           windowOwnerPID: item.windowOwnerPID)
         else { return }
 
         cancelPendingPeekReconcile()
@@ -263,13 +265,15 @@ final class DockPreviewService: ObservableObject {
             targetPID: item.pid,
             targetWindowID: windowID
         )
-        guard WindowActivator.setWindowMinimized(shouldMinimize, windowID: windowID, pid: item.pid) else { return }
+        guard WindowActivator.setWindowMinimized(shouldMinimize,
+                                                 windowID: windowID,
+                                                 pid: item.windowOwnerPID) else { return }
         if shouldMinimize && !restoreOriginAfterMinimize {
             sessionOrigin = nil
         }
-        touchedWindows[windowID] = TouchedWindow(pid: item.pid, wasMinimized: false)
+        touchedWindows[windowID] = TouchedWindow(pid: item.windowOwnerPID, wasMinimized: false)
         scheduleMinimizeConfirmation(windowID: windowID,
-                                     pid: item.pid,
+                                     pid: item.windowOwnerPID,
                                      minimized: shouldMinimize,
                                      restoreOriginAfterMinimize: restoreOriginAfterMinimize,
                                      attempt: 0)
@@ -810,8 +814,10 @@ final class DockPreviewService: ObservableObject {
         }
         if let windowID = item.windowID, touchedWindows[windowID] == nil {
             touchedWindows[windowID] = TouchedWindow(
-                pid: item.pid,
-                wasMinimized: item.isMinimized || WindowActivator.windowIsMinimized(windowID: windowID, pid: item.pid)
+                pid: item.windowOwnerPID,
+                wasMinimized: item.isMinimized
+                    || WindowActivator.windowIsMinimized(windowID: windowID,
+                                                         pid: item.windowOwnerPID)
             )
         }
     }
@@ -1369,7 +1375,9 @@ final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
     func close(_ item: SwitcherItem) {
         guard windows.contains(item),
               let windowID = item.windowID,
-              WindowActivator.closeWindow(windowID: windowID, pid: item.pid)
+              WindowActivator.closeWindow(windowID: windowID,
+                                           appPID: item.pid,
+                                           windowOwnerPID: item.windowOwnerPID)
         else { return }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
@@ -1384,9 +1392,11 @@ final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
         else { return }
 
         let shouldMinimize = !item.isMinimized
-        guard WindowActivator.setWindowMinimized(shouldMinimize, windowID: windowID, pid: item.pid) else { return }
+        guard WindowActivator.setWindowMinimized(shouldMinimize,
+                                                 windowID: windowID,
+                                                 pid: item.windowOwnerPID) else { return }
         scheduleMinimizeConfirmation(windowID: windowID,
-                                     pid: item.pid,
+                                     pid: item.windowOwnerPID,
                                      minimized: shouldMinimize,
                                      attempt: 0)
     }
