@@ -802,6 +802,26 @@ struct MetricsTests {
             sessionActive: true,
             automaticSessionActive: false
         ) == .none, "clearing automatic conditions does not end a manual session")
+        let passwordlessSudoListing = """
+        Sudoers entry: /private/etc/sudoers.d/vorssaint-clamshell
+            RunAsUsers: root
+            Options: !authenticate
+            Commands:
+                /usr/bin/pmset disablesleep 1
+        """
+        let passwordRequiredSudoListing = """
+        Sudoers entry: /private/etc/sudoers
+            RunAsUsers: ALL
+            Commands:
+                ALL
+            Matched: /usr/bin/pmset disablesleep 1
+        """
+        expect(SudoersSupport.allowsWithoutPassword(status: 0, output: passwordlessSudoListing),
+               "the closed-lid rule is recognized as passwordless")
+        expect(!SudoersSupport.allowsWithoutPassword(status: 0, output: passwordRequiredSudoListing),
+               "general administrator access is not mistaken for a passwordless rule")
+        expect(!SudoersSupport.allowsWithoutPassword(status: 1, output: passwordlessSudoListing),
+               "a failed sudo listing never reports passwordless access")
         expect(registeredDefaults[DefaultsKey.switcherEnabled] as? Bool == true,
                "window switcher is on for clean installs")
         expect(registeredDefaults[DefaultsKey.switcherShortcut] as? String == "command:48",

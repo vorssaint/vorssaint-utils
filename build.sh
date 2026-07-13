@@ -133,6 +133,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Switcher/SwitcherSupport.swift \
         Sources/Vorssaint/Services/Metrics/MetricFormat.swift \
         Sources/Vorssaint/Services/KeepAwakeAutomationSupport.swift \
+        Sources/Vorssaint/Services/SudoersSupport.swift \
         Sources/Vorssaint/Services/Metrics/BatteryTimeSupport.swift \
         Sources/Vorssaint/Services/Metrics/NetworkProcessSupport.swift \
         Sources/Vorssaint/Services/Metrics/PeripheralBatterySupport.swift \

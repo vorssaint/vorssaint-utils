@@ -101,13 +101,16 @@ enum Sudoers {
         return valid ? user : nil
     }
 
-    /// `sudo -n -l <cmd>` exits 0 only when the command can run without a password.
+    /// The verbose listing identifies the `NOPASSWD` rule as `!authenticate`.
+    /// A plain successful `sudo -l` is not enough because administrators may
+    /// run the command while still needing a password.
     static func isConfigured() -> Bool {
         canListDisableSleep("1") && canListDisableSleep("0")
     }
 
     private static func canListDisableSleep(_ value: String) -> Bool {
-        Shell.run("/usr/bin/sudo", ["-n", "-l", "/usr/bin/pmset", "disablesleep", value]).status == 0
+        let result = Shell.run("/usr/bin/sudo", ["-n", "-l", "-l", "/usr/bin/pmset", "disablesleep", value])
+        return SudoersSupport.allowsWithoutPassword(status: result.status, output: result.output)
     }
 
     static func install(completion: @escaping (Bool) -> Void) {

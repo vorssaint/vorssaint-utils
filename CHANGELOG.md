@@ -36,6 +36,7 @@ Finder to the Volume Mixer.
 ### Fixed
 - Dock click to minimize now reacts immediately in more apps and no longer
   opens unrelated windows.
+- Closed lid mode now asks for the administrator password only once.
 - Extra Brightness no longer flashes when video enters or leaves fullscreen.
 - App Switcher now includes apps that draw their windows separately, with
   working previews.
