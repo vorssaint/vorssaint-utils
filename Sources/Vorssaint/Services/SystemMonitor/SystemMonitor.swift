@@ -436,7 +436,11 @@ final class SystemMonitor: ObservableObject {
         let panelMemory = (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysMemory)) || menuPanelNeeds.memory
         let panelBattery = (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysBattery)) || menuPanelNeeds.battery
         let panelTemps = panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysTemps)
-        let panelSensors = panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysSensors)
+        // Only sample the Sensors block when it is both shown and expanded —
+        // a collapsed block reads nothing.
+        let panelSensors = panelNeedsSystem
+            && defaults.bool(forKey: DefaultsKey.monitorSysSensors)
+            && defaults.bool(forKey: DefaultsKey.monitorSysSensorsExpanded)
         let alertCPU = defaults.bool(forKey: DefaultsKey.monitorAlertCPU)
         let alertCPUTemperature = defaults.bool(forKey: DefaultsKey.monitorAlertCPUTemperature)
         let alertMemory = defaults.bool(forKey: DefaultsKey.monitorAlertMemory)

@@ -41,6 +41,7 @@ struct SystemSection: View {
     @AppStorage(DefaultsKey.menuBarSeparateMetrics) private var separateMenuBarMetrics = false
     @AppStorage(DefaultsKey.monitorSysTemps) private var sysTemps = true
     @AppStorage(DefaultsKey.monitorSysSensors) private var sysSensors = true
+    @AppStorage(DefaultsKey.monitorSysSensorsExpanded) private var sensorsExpanded = true
     @AppStorage(DefaultsKey.monitorSysCPU) private var sysCPU = true
     @AppStorage(DefaultsKey.monitorSysGPU) private var sysGPU = true
     @AppStorage(DefaultsKey.monitorSysBattery) private var sysBattery = true
@@ -182,6 +183,7 @@ struct SystemSection: View {
         systemOrderRaw = ""
         sysTemps = true
         sysSensors = true
+        sensorsExpanded = true
         sysCPU = true
         sysGPU = true
         sysBattery = true
@@ -339,44 +341,88 @@ struct SystemSection: View {
                                systemImage: "gauge.with.dots.needle.bottom.50percent",
                                isVisible: $sysSensors)
         } else {
-            let temps = monitor.snapshot.temperatureSensors
-            let fans = monitor.snapshot.fans
-            let watts = powerAvailable ? monitor.snapshot.power?.systemWatts : nil
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
-                    subsectionLabel(strings.section)
-                    Spacer(minLength: 0)
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) { sensorsExpanded.toggle() }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 8, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .rotationEffect(.degrees(sensorsExpanded ? 90 : 0))
+                            subsectionLabel(strings.section)
+                            Spacer(minLength: 0)
+                            if !sensorsExpanded { sensorsSummary }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                     if editing {
                         PanelInlineHideButton(isVisible: $sysSensors)
                     }
                 }
-                if !temps.isEmpty {
-                    sensorSubsection(strings.temperature) {
-                        ForEach(temps) { sensor in
-                            sensorRow(label: temperatureLabel(sensor.id, strings),
-                                      value: MetricFormat.temperature(sensor.celsius, unit: displayTemperatureUnit))
-                        }
-                    }
-                }
-                if let watts {
-                    sensorSubsection(strings.power) {
-                        sensorRow(label: strings.totalPower, value: MetricFormat.watts(watts))
-                    }
-                }
-                if !fans.isEmpty {
-                    sensorSubsection(strings.fans) {
-                        ForEach(fans) { fan in
-                            sensorRow(label: fanLabel(fan.index, count: fans.count, strings: strings),
-                                      value: fan.rpm == 0 ? strings.fanOff : "\(fan.rpm) RPM")
-                        }
-                    }
-                }
-                if temps.isEmpty, fans.isEmpty, watts == nil {
-                    Text(l10n.s.monitorUnavailable)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
+                if sensorsExpanded {
+                    sensorsBody(strings)
                 }
             }
+        }
+    }
+
+    /// Collapsed-state glance: the hottest sensor reading.
+    @ViewBuilder
+    private var sensorsSummary: some View {
+        if let hottest = monitor.snapshot.temperatureSensors.map(\.celsius).max() {
+            HStack(spacing: 5) {
+                SensorRing(celsius: hottest)
+                Text(MetricFormat.temperature(hottest, unit: displayTemperatureUnit))
+                    .font(.system(size: 10, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func sensorsBody(_ strings: SensorsFeatureStrings) -> some View {
+        let temps = monitor.snapshot.temperatureSensors
+        let fans = monitor.snapshot.fans
+        let watts = powerAvailable ? monitor.snapshot.power?.systemWatts : nil
+        if !temps.isEmpty {
+            sensorSubsection(strings.temperature) {
+                ForEach(temps) { sensor in
+                    HStack(spacing: 8) {
+                        Text(temperatureLabel(sensor.id, strings))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                        Spacer(minLength: 8)
+                        Text(MetricFormat.temperature(sensor.celsius, unit: displayTemperatureUnit))
+                            .font(.system(size: 11, weight: .medium))
+                            .monospacedDigit()
+                        SensorRing(celsius: sensor.celsius)
+                    }
+                }
+            }
+        }
+        if let watts {
+            sensorSubsection(strings.power) {
+                sensorRow(label: strings.totalPower, value: MetricFormat.watts(watts))
+            }
+        }
+        if !fans.isEmpty {
+            sensorSubsection(strings.fans) {
+                ForEach(fans) { fan in
+                    sensorRow(label: fanLabel(fan.index, count: fans.count, strings: strings),
+                              value: fan.rpm == 0 ? strings.fanOff : "\(fan.rpm) RPM")
+                }
+            }
+        }
+        if temps.isEmpty, fans.isEmpty, watts == nil {
+            Text(l10n.s.monitorUnavailable)
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
         }
     }
 
@@ -778,6 +824,34 @@ private struct UsageBar: View {
         switch fraction {
         case ..<0.6: return .accentColor
         case ..<0.85: return PanelMetricColor.yellow(for: colorScheme)
+        default: return PanelMetricColor.red(for: colorScheme)
+        }
+    }
+}
+
+/// Small iStat-style ring gauge: a track circle with a colored arc filled in
+/// proportion to the temperature, warming from cyan through yellow to red.
+private struct SensorRing: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let celsius: Double
+
+    var body: some View {
+        let fraction = min(1, max(0.02, celsius / 110))
+        ZStack {
+            Circle()
+                .stroke(Color.primary.opacity(0.1), lineWidth: 2.5)
+            Circle()
+                .trim(from: 0, to: fraction)
+                .stroke(color, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+        }
+        .frame(width: 16, height: 16)
+    }
+
+    private var color: Color {
+        switch celsius {
+        case ..<55: return PanelMetricColor.cyan(for: colorScheme)
+        case ..<75: return PanelMetricColor.yellow(for: colorScheme)
         default: return PanelMetricColor.red(for: colorScheme)
         }
     }
