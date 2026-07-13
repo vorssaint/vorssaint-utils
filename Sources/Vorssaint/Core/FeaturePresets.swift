@@ -85,8 +85,8 @@ extension AppFeature {
              .monitorNetwork, .monitorDisk, .monitorPower:
             return .periodic
         case .windowLayout, .pastePlain, .mixer, .soundOutputSwitcher, .micMute,
-             .musicBlock, .keepAwake, .brightness, .quickLauncher, .colorPicker, .screenOCR,
-             .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew:
+             .musicBlock, .keepAwake, .brightness, .quickLauncher, .quickToggles, .colorPicker,
+             .screenOCR, .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew:
             return .idle
         }
     }

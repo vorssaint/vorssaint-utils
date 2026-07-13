@@ -76,6 +76,7 @@ struct MenuPanelView: View {
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
     @AppStorage(DefaultsKey.panelShowUtilities) private var showUtilities = true
     @AppStorage(DefaultsKey.panelShowControls) private var showControls = true
+    @AppStorage(DefaultsKey.panelShowToggles) private var showToggles = true
     @AppStorage(DefaultsKey.panelSectionOrder) private var sectionOrderRaw = ""
     @AppStorage(DefaultsKey.cleanerBadgeSeen) private var cleanerBadgeSeen = false
     @AppStorage(DefaultsKey.panelUtilityCleaner) private var cleanerRowVisible = true
@@ -255,6 +256,7 @@ struct MenuPanelView: View {
         case .fanControl: return 92
         case .utilities: return 500
         case .controls: return 360
+        case .toggles: return 420
         }
     }
 
@@ -284,6 +286,7 @@ struct MenuPanelView: View {
         case .fanControl: if showFanControlBeta { FanControlSection(collapsible: collapsible) }
         case .utilities: UtilitiesSection(collapsible: collapsible, startCleaning: startCleaning)
         case .controls: QuickControlsSection(collapsible: collapsible)
+        case .toggles: QuickTogglesSection(collapsible: collapsible)
         }
     }
 
@@ -302,6 +305,7 @@ struct MenuPanelView: View {
         case .fanControl: return showFanControlBeta
         case .utilities: return showUtilities
         case .controls: return showControls
+        case .toggles: return showToggles
         }
     }
 
@@ -1503,7 +1507,9 @@ struct QuickControlsSection: View {
     }
 }
 
-private struct UtilityActionButton: View {
+// Internal (not private): the quick toggles tab builds its rows from the same
+// component, so every action row in the panel looks and behaves the same.
+struct UtilityActionButton: View {
     let title: String
     let caption: String
     let systemImage: String

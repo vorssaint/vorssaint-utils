@@ -103,6 +103,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 ### Everyday tools
 
 - **Quick panel.** ⌃⌘V opens a small floating palette with your favorite tools one key away.
+- **Quick toggles.** One-click system actions in their own panel tab: switch light and dark mode, empty the Trash, eject every disk, show hidden files, hide desktop icons, lock the screen and more.
 - **Copy text from screen.** Select any area and its text is recognized offline, straight onto the clipboard.
 - **Color picker.** Grab any pixel with the system loupe as HEX, RGB, HSL or SwiftUI code.
 - **Cleaner.** Sweeps app leftovers, caches and logs, by hand or on a schedule.
@@ -154,7 +155,7 @@ Permissions get the same treatment. Every one is optional, the app explains each
 | Full Disk Access, optional | Deeper cleaner and uninstaller scans | Only reachable places are scanned |
 | Administrator, once, optional | Password free closed lid toggling | A password prompt per toggle |
 
-The shelf needs no permission at all. Finder cut and paste, the uninstaller and the Homebrew terminal handoff ask macOS for Automation access the first time they talk to Finder or Terminal.
+The shelf and almost every quick toggle need no permission at all. Finder cut and paste, the uninstaller, emptying the Trash and the Homebrew terminal handoff ask macOS for Automation access the first time they talk to Finder or Terminal.
 
 ## What you need
 

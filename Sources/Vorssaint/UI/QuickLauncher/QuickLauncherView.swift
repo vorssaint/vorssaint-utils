@@ -94,6 +94,8 @@ struct QuickLauncherView: View {
                     PanelCleanerView { launcher.closeUtility() }
                 case .windowLayout:
                     PanelWindowLayoutView { launcher.closeUtility() }
+                case .toggles:
+                    PanelQuickTogglesView { launcher.closeUtility() }
                 default:
                     EmptyView()
                 }
@@ -435,6 +437,7 @@ struct QuickLauncherView: View {
     private func title(for item: QuickLauncherItem) -> String {
         switch item {
         case .keepAwake: return l10n.s.keepAwakeTitle
+        case .toggles: return FeatureStrings.quickToggles(l10n.language).pageTitle
         case .micMute: return micMute.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName
         case .screenOCR: return l10n.s.ocrName
         case .colorPicker: return l10n.s.colorPickerName
@@ -452,6 +455,7 @@ struct QuickLauncherView: View {
     private func icon(for item: QuickLauncherItem) -> String {
         switch item {
         case .keepAwake: return keepAwake.isActive ? "bolt.fill" : "bolt"
+        case .toggles: return "togglepower"
         case .micMute: return micMute.isMuted ? "mic.slash.fill" : "mic"
         case .screenOCR: return "text.viewfinder"
         case .colorPicker: return "eyedropper"

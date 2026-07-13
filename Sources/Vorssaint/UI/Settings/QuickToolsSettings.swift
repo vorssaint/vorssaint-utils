@@ -4,6 +4,7 @@
 import SwiftUI
 
 struct QuickToolsSettings: View {
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var permissions = Permissions.shared
@@ -49,6 +50,24 @@ struct QuickToolsSettings: View {
                     }
                 } header: {
                     Text(l10n.s.launcherName)
+                }
+            }
+
+            if AppFeature.quickToggles.isAvailable {
+                Section {
+                    Button {
+                        QuickTogglesService.shared.toggleDarkMode()
+                    } label: {
+                        Label(colorScheme == .dark
+                                ? FeatureStrings.quickToggles(l10n.language).darkModeToLight
+                                : FeatureStrings.quickToggles(l10n.language).darkModeToDark,
+                              systemImage: colorScheme == .dark ? "sun.max.fill" : "moon.fill")
+                    }
+                    Text(FeatureStrings.quickToggles(l10n.language).panelCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text(FeatureStrings.quickToggles(l10n.language).pageTitle)
                 }
             }
 

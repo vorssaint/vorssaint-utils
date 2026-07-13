@@ -1161,6 +1161,14 @@ struct MetricsTests {
                "Utilities panel section is shown by default")
         expect(registeredDefaults[DefaultsKey.panelShowControls] as? Bool == true,
                "Quick Controls panel section is shown by default")
+        expect(registeredDefaults[DefaultsKey.panelShowToggles] as? Bool == true,
+               "Quick toggles panel section is shown by default")
+        expect([DefaultsKey.panelToggleDarkMode, DefaultsKey.panelToggleEmptyTrash,
+                DefaultsKey.panelToggleEjectDisks, DefaultsKey.panelToggleHiddenFiles,
+                DefaultsKey.panelToggleDesktopIcons, DefaultsKey.panelToggleLockScreen,
+                DefaultsKey.panelToggleDisplayOff, DefaultsKey.panelToggleScreenSaver]
+                .allSatisfy { registeredDefaults[$0] as? Bool == true },
+               "every quick toggle row is visible by default")
         expect(registeredDefaults[DefaultsKey.monitorInterval] as? Int == 2,
                "monitor default interval stays at 2 seconds")
         expect(registeredDefaults[DefaultsKey.monitorShowDisk] as? Bool == true,
@@ -1579,6 +1587,8 @@ struct MetricsTests {
                "panel collapsed sections intentionally has no registered default")
         expect(registeredDefaults[DefaultsKey.panelUtilityOrder] == nil,
                "panel utility order intentionally has no registered default")
+        expect(registeredDefaults[DefaultsKey.panelToggleOrder] == nil,
+               "panel toggle order intentionally has no registered default")
         expect(Defaults.sanitizedDefaultDuration(60) == 60, "valid default duration is preserved")
         expect(Defaults.sanitizedDefaultDuration(999) == 0, "invalid default duration falls back to indefinite")
         expect(Defaults.sanitizedBatteryLimit(15) == 15, "valid battery limit is preserved")
@@ -4278,7 +4288,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 38, "feature catalog has 38 features")
+        expect(AppFeature.allCases.count == 39, "feature catalog has 39 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -4288,7 +4298,7 @@ struct MetricsTests {
             "clipboardHistory", "pastePlain", "finderCutPaste", "shelf", "urlCleaner",
             "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
             "keepAwake", "brightness", "extraBrightness",
-            "quickLauncher", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
+            "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -4359,8 +4369,10 @@ struct MetricsTests {
         expect(activeSet(.fullDiskAccess) == [.cleaner, .uninstaller],
                "cleaner and uninstaller are on-demand full disk users")
         expect(activeSet(.automationFinder, on: [DefaultsKey.finderCutPasteEnabled])
-                == [.finderCutPaste, .uninstaller],
-               "finder automation is used by cut and paste plus the uninstaller")
+                == [.finderCutPaste, .uninstaller, .quickToggles],
+               "finder automation is used by cut and paste, the uninstaller and the quick toggles")
+        expect(AppFeature.quickToggles.permissions == [.automationFinder],
+               "the quick toggles need no permission beyond the Trash's Finder ask")
         expect(activeSet(.automationTerminal) == [.homebrew], "homebrew drives the Terminal")
         expect(activeSet(.audioCapture) == [.mixer], "the mixer is the only audio capture user")
         expect(activeSet(.audioCapture, available: Set(AppFeature.allCases).subtracting([.mixer])) == [],
@@ -4425,6 +4437,12 @@ struct MetricsTests {
                    "every brightness string is set for \(language.rawValue)")
             expect(brightnessValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible brightness strings (\(language.rawValue))")
+            let quickToggleValues = Mirror(reflecting: FeatureStrings.quickToggles(language)).children
+                .compactMap { $0.value as? String }
+            expect(!quickToggleValues.isEmpty && quickToggleValues.allSatisfy { !$0.isEmpty },
+                   "every quick toggle string is set for \(language.rawValue)")
+            expect(quickToggleValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in visible quick toggle strings (\(language.rawValue))")
             let keepAwakeAutomationValues = Mirror(
                 reflecting: FeatureStrings.keepAwakeAutomation(language)
             ).children.compactMap { $0.value as? String }
@@ -4529,6 +4547,8 @@ struct MetricsTests {
                "app pages never hide")
         expect(!pageVisible(.shelf, available: allFeatures.subtracting([.shelf])),
                "single-feature pages follow their feature")
+        expect(pageVisible(.quickTools, available: [.quickToggles]),
+               "the quick toggles alone keep the quick tools page")
 
         // MARK: Display brightness (DDC/CI helpers)
 
@@ -4739,6 +4759,49 @@ struct MetricsTests {
                                                to: CGPoint(x: 100, y: 93)),
                "vertical pulls count as drags too")
 
+        // MARK: Quick toggles
+
+        expect(QuickTogglesSupport.emptyTrashSource == "tell application \"Finder\" to empty trash",
+               "the Trash script asks the Finder and nothing else")
+        expect(QuickTogglesSupport.isPermissionError(-1743)
+                && QuickTogglesSupport.isPermissionError(-1744),
+               "both Apple Event consent errors read as a permission problem")
+        expect(!QuickTogglesSupport.isPermissionError(-1728)
+                && !QuickTogglesSupport.isPermissionError(nil),
+               "other script errors and success never read as a permission problem")
+        expect(QuickTogglesSupport.finderFlag(true, default: false)
+                && !QuickTogglesSupport.finderFlag(false, default: true),
+               "real booleans win over the default")
+        expect(QuickTogglesSupport.finderFlag("YES", default: false)
+                && QuickTogglesSupport.finderFlag("true", default: false)
+                && QuickTogglesSupport.finderFlag("1", default: false),
+               "legacy YES, true and 1 strings read as on")
+        expect(!QuickTogglesSupport.finderFlag("NO", default: true)
+                && !QuickTogglesSupport.finderFlag("false", default: true)
+                && !QuickTogglesSupport.finderFlag("0", default: true),
+               "legacy NO, false and 0 strings read as off")
+        expect(QuickTogglesSupport.finderFlag(NSNumber(value: 1), default: false)
+                && !QuickTogglesSupport.finderFlag(NSNumber(value: 0), default: true),
+               "numeric preference values read by their truthiness")
+        expect(QuickTogglesSupport.finderFlag(nil, default: true)
+                && !QuickTogglesSupport.finderFlag(nil, default: false)
+                && QuickTogglesSupport.finderFlag("maybe", default: true),
+               "absent or unreadable values fall back to the given default")
+        expect(QuickTogglesSupport.shouldOfferEject(isInternal: false, isRemovable: true,
+                                                    isEjectable: false, isLocal: true)
+                && QuickTogglesSupport.shouldOfferEject(isInternal: false, isRemovable: false,
+                                                        isEjectable: true, isLocal: true),
+               "external removable or ejectable local volumes are offered")
+        expect(!QuickTogglesSupport.shouldOfferEject(isInternal: true, isRemovable: true,
+                                                     isEjectable: true, isLocal: true),
+               "internal volumes are never ejected")
+        expect(!QuickTogglesSupport.shouldOfferEject(isInternal: false, isRemovable: true,
+                                                     isEjectable: true, isLocal: false),
+               "network volumes are never ejected")
+        expect(!QuickTogglesSupport.shouldOfferEject(isInternal: false, isRemovable: false,
+                                                     isEjectable: false, isLocal: true),
+               "a fixed external volume without eject support is left alone")
+
         // MARK: Settings backup
 
         let backupKeys = SettingsBackupSupport.exportKeys()
@@ -4752,6 +4815,10 @@ struct MetricsTests {
         expect(backupKeys.contains(DefaultsKey.textSnippets)
                 && backupKeys.contains(DefaultsKey.textSnippetsEnabled),
                "snippets travel with the settings backup")
+        expect(backupKeys.contains(DefaultsKey.panelShowToggles)
+                && backupKeys.contains(DefaultsKey.panelToggleOrder)
+                && backupKeys.contains(DefaultsKey.panelToggleDarkMode),
+               "the quick toggles layout travels with the settings backup")
         expect(!backupKeys.contains(DefaultsKey.clipboardHistoryEntries)
                 && !backupKeys.contains(DefaultsKey.shelfItems)
                 && !backupKeys.contains(DefaultsKey.sleepDisabledFlag)

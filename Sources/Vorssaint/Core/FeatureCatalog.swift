@@ -24,7 +24,7 @@ enum AppFeature: String, CaseIterable {
     // Energy and display
     case keepAwake, brightness, extraBrightness
     // Tools
-    case quickLauncher, colorPicker, screenOCR, cleaningMode, mediaTools,
+    case quickLauncher, quickToggles, colorPicker, screenOCR, cleaningMode, mediaTools,
          cleaner, uninstaller, homebrew
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
@@ -56,7 +56,7 @@ extension AppFeature {
             return .sound
         case .keepAwake, .brightness, .extraBrightness:
             return .energyDisplay
-        case .quickLauncher, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
+        case .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew:
             return .tools
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
@@ -91,6 +91,7 @@ extension AppFeature {
         case .brightness: return "sun.max"
         case .extraBrightness: return "sun.max.fill"
         case .quickLauncher: return "wand.and.rays"
+        case .quickToggles: return "togglepower"
         case .colorPicker: return "eyedropper"
         case .screenOCR: return "text.viewfinder"
         case .cleaningMode: return "bubbles.and.sparkles"
@@ -142,7 +143,7 @@ extension AppFeature {
         case .brightness: return [DefaultsKey.brightnessControlEnabled]
         case .extraBrightness: return [DefaultsKey.extraBrightnessEnabled]
         case .windowLayout, .mixer, .micMute, .keepAwake,
-             .quickLauncher, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
+             .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew,
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
             return []
@@ -160,6 +161,9 @@ extension AppFeature {
              .cleaningMode, .pastePlain:
             return [.accessibility]
         case .finderCutPaste: return [.accessibility, .automationFinder]
+        // Only emptying the Trash asks the Finder; every other quick toggle
+        // (dark mode included) works without a permission.
+        case .quickToggles: return [.automationFinder]
         case .switcher: return [.accessibility, .screenRecording]
         case .dockPreview: return [.accessibility, .screenRecording]
         case .screenOCR: return [.screenRecording]

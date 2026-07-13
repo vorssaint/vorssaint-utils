@@ -10,7 +10,8 @@ protocol PanelOrderItem: RawRepresentable, CaseIterable, Hashable where RawValue
 /// stable identifiers persisted in the saved order and the collapsed set, so
 /// renaming a case would orphan a user's stored layout — keep them stable.
 enum PanelSectionID: String, CaseIterable, Identifiable {
-    case keepAwake, brightness, mixer, system, network, disk, power, fanControl, utilities, controls
+    case keepAwake, brightness, mixer, system, network, disk, power, fanControl, utilities, controls,
+         toggles
 
     var id: String { rawValue }
 
@@ -27,6 +28,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
         case .fanControl: return s.fanControlBetaSection
         case .utilities: return s.utilitiesSection
         case .controls: return s.quickControlsSection
+        case .toggles: return FeatureStrings.quickToggles(L10n.shared.language).pageTitle
         }
     }
 
@@ -42,6 +44,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
         case .fanControl: return "fanblades.fill"
         case .utilities: return "wrench.and.screwdriver.fill"
         case .controls: return "switch.2"
+        case .toggles: return "togglepower"
         }
     }
 
@@ -60,6 +63,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
         case .fanControl: return DefaultsKey.monitorShowFanControlBeta
         case .utilities: return DefaultsKey.panelShowUtilities
         case .controls: return DefaultsKey.panelShowControls
+        case .toggles: return DefaultsKey.panelShowToggles
         }
     }
 
@@ -88,6 +92,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
         case .controls: return [.scrollInverter, .mouseNavigation, .switcher, .finderCutPaste, .autoQuit,
                                 .shelf, .windowMaximizer, .dockPreview, .keyboardDebounce, .dockClick,
                                 .middleClick]
+        case .toggles: return [.quickToggles]
         }
     }
 

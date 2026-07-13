@@ -9,8 +9,9 @@ import SwiftUI
 /// the user's order and hidden set.
 enum QuickLauncherItem: String, PanelOrderItem, Identifiable {
     // Case order is the default grid order; the cleaner comes second, right
-    // after Keep awake, by the owner's decision. Saved orders are untouched.
-    case keepAwake, cleaner, micMute, screenOCR, colorPicker, clipboard, windowLayout,
+    // after Keep awake, by the owner's decision. Saved orders are untouched
+    // (a case added later joins a saved order at the end).
+    case keepAwake, cleaner, toggles, micMute, screenOCR, colorPicker, clipboard, windowLayout,
          cleaning, homebrew, media, urlCleaner, uninstaller
 
     var id: String { rawValue }
@@ -21,6 +22,7 @@ enum QuickLauncherItem: String, PanelOrderItem, Identifiable {
         switch self {
         case .keepAwake: return .keepAwake
         case .cleaner: return .cleaner
+        case .toggles: return .quickToggles
         case .micMute: return .micMute
         case .screenOCR: return .screenOCR
         case .colorPicker: return .colorPicker
@@ -259,7 +261,7 @@ final class QuickLauncherService: ObservableObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 CleaningModeManager.shared.activate()
             }
-        case .windowLayout, .homebrew, .media, .urlCleaner, .uninstaller, .cleaner:
+        case .windowLayout, .homebrew, .media, .urlCleaner, .uninstaller, .cleaner, .toggles:
             activeUtility = item
         }
     }

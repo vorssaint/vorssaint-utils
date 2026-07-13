@@ -169,13 +169,24 @@ enum AppleScriptRunner {
     /// process itself triggers the Automation prompt when consent is undetermined.
     @discardableResult
     static func run(_ source: String) -> (ok: Bool, output: String) {
-        guard let script = NSAppleScript(source: source) else { return (false, "") }
+        let result = runDetailed(source)
+        return (result.ok, result.ok ? result.output : result.message)
+    }
+
+    /// Same as `run`, keeping the AppleScript error number so callers can tell
+    /// a declined Automation consent (-1743/-1744) apart from a real failure.
+    @discardableResult
+    static func runDetailed(_ source: String) -> (ok: Bool, errorNumber: Int?, message: String, output: String) {
+        guard let script = NSAppleScript(source: source) else { return (false, nil, "", "") }
         var error: NSDictionary?
         let result = script.executeAndReturnError(&error)
         if let error {
-            return (false, (error[NSAppleScript.errorMessage] as? String) ?? "")
+            return (false,
+                    error[NSAppleScript.errorNumber] as? Int,
+                    (error[NSAppleScript.errorMessage] as? String) ?? "",
+                    "")
         }
-        return (true, result.stringValue ?? "")
+        return (true, nil, "", result.stringValue ?? "")
     }
 
     /// Escapes a value for embedding inside an AppleScript double-quoted string.

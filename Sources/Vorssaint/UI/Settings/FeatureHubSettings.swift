@@ -526,6 +526,7 @@ extension AppFeature {
         case .brightness: return FeatureStrings.brightness(L10n.shared.language).pageTitle
         case .extraBrightness: return s.extraBrightnessName
         case .quickLauncher: return s.launcherName
+        case .quickToggles: return FeatureStrings.quickToggles(L10n.shared.language).pageTitle
         case .colorPicker: return s.colorPickerName
         case .screenOCR: return s.ocrName
         case .cleaningMode: return s.cleaningMenuItem
@@ -569,6 +570,7 @@ extension AppFeature {
         case .brightness: return FeatureStrings.brightness(L10n.shared.language).hubDescription
         case .extraBrightness: return hub.descExtraBrightness
         case .quickLauncher: return hub.descQuickLauncher
+        case .quickToggles: return FeatureStrings.quickToggles(L10n.shared.language).hubDescription
         case .colorPicker: return hub.descColorPicker
         case .screenOCR: return hub.descScreenOCR
         case .cleaningMode: return hub.descCleaningMode

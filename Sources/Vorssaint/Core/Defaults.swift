@@ -121,6 +121,16 @@ enum DefaultsKey {
     static let panelShowBrightness = "panelShowBrightness"
     static let panelShowUtilities = "panelShowUtilities"
     static let panelShowControls = "panelShowControls"
+    static let panelShowToggles = "panelShowToggles"
+    // Quick toggles tab: per-action visibility (the order lives in panelToggleOrder).
+    static let panelToggleDarkMode = "panelToggleDarkMode"
+    static let panelToggleEmptyTrash = "panelToggleEmptyTrash"
+    static let panelToggleEjectDisks = "panelToggleEjectDisks"
+    static let panelToggleHiddenFiles = "panelToggleHiddenFiles"
+    static let panelToggleDesktopIcons = "panelToggleDesktopIcons"
+    static let panelToggleLockScreen = "panelToggleLockScreen"
+    static let panelToggleDisplayOff = "panelToggleDisplayOff"
+    static let panelToggleScreenSaver = "panelToggleScreenSaver"
 
     // System monitor — live metrics shown next to the menu bar icon (opt-in).
     static let menuBarCPU = "menuBarCPU"
@@ -208,6 +218,7 @@ enum DefaultsKey {
     static let panelSectionOrder = "panelSectionOrder"
     static let panelUtilityOrder = "panelUtilityOrder"
     static let panelControlOrder = "panelControlOrder"
+    static let panelToggleOrder = "panelToggleOrder"
     static let panelSystemOrder = "panelSystemOrder"
     static let panelNetworkOrder = "panelNetworkOrder"
     static let panelDiskOrder = "panelDiskOrder"
@@ -499,6 +510,15 @@ enum Defaults {
         DefaultsKey.panelShowBrightness: true,
         DefaultsKey.panelShowUtilities: true,
         DefaultsKey.panelShowControls: true,
+        DefaultsKey.panelShowToggles: true,
+        DefaultsKey.panelToggleDarkMode: true,
+        DefaultsKey.panelToggleEmptyTrash: true,
+        DefaultsKey.panelToggleEjectDisks: true,
+        DefaultsKey.panelToggleHiddenFiles: true,
+        DefaultsKey.panelToggleDesktopIcons: true,
+        DefaultsKey.panelToggleLockScreen: true,
+        DefaultsKey.panelToggleDisplayOff: true,
+        DefaultsKey.panelToggleScreenSaver: true,
         // Menu bar metrics start off (the icon stays clean) and are opt-in.
         // The panel shows every monitoring block by default; users hide what
         // they don't want.

@@ -44,6 +44,7 @@ enum SettingsBackupSupport {
         DefaultsKey.panelSectionOrder,
         DefaultsKey.panelUtilityOrder,
         DefaultsKey.panelControlOrder,
+        DefaultsKey.panelToggleOrder,
         DefaultsKey.panelSystemOrder,
         DefaultsKey.panelNetworkOrder,
         DefaultsKey.panelDiskOrder,
