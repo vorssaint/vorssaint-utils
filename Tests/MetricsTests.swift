@@ -609,6 +609,20 @@ struct MetricsTests {
                "reversing direction abandons the leftover instead of fighting it")
         expect(SmoothScrollSupport.remaining(afterTicks: 0, step: 40, current: 25) == 25,
                "a tickless event leaves the glide untouched")
+        expect(SmoothScrollSupport.axes(vertical: 2, horizontal: 0, shiftPressed: true)
+               == SmoothScrollSupport.Axes(vertical: 0, horizontal: -2),
+               "Shift routes a vertical wheel tick with the system's horizontal direction")
+        expect(SmoothScrollSupport.axes(vertical: 2, horizontal: 0, shiftPressed: false)
+               == SmoothScrollSupport.Axes(vertical: 2, horizontal: 0),
+               "a wheel tick without Shift keeps its vertical axis")
+        expect(SmoothScrollSupport.axes(vertical: 2, horizontal: -1, shiftPressed: true)
+               == SmoothScrollSupport.Axes(vertical: 2, horizontal: -1),
+               "Shift preserves a wheel event that already carries horizontal movement")
+        let shiftedNaturalAxes = SmoothScrollSupport.axes(
+            vertical: 2, horizontal: 0, shiftPressed: true)
+        expect(SmoothScrollSupport.postedDelta(
+            shiftedNaturalAxes.horizontal, naturalScrolling: true) == 2,
+               "Shift keeps the standard horizontal direction with natural scrolling")
         expect(SmoothScrollSupport.frameDelta(remaining: 100) == 18,
                "a frame emits its fraction of the remaining distance")
         expect(SmoothScrollSupport.frameDelta(remaining: -100) == -18,

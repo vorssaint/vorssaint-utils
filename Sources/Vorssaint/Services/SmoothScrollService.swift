@@ -31,7 +31,7 @@ final class SmoothScrollService: ObservableObject {
     private var remainingVertical: Double = 0
     private var remainingHorizontal: Double = 0
     /// Modifiers of the wheel event that started or fed the glide, replayed on
-    /// the synthetic events so shift or option scrolling keeps its meaning.
+    /// the synthetic events so apps can still react to them.
     private var currentFlags: CGEventFlags = []
     /// Sign correction for the system's natural scroll direction, sampled
     /// when a glide starts.
@@ -122,14 +122,26 @@ final class SmoothScrollService: ObservableObject {
         // scroll inverter never sees the glide stream: when it is on, the
         // wheel's vertical flip is applied here instead.
         let invert = ScrollInverter.shared.isRunning ? -1.0 : 1.0
-        let vertical = Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis1)) * invert
-        let horizontal = Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis2))
+        let shiftPressed = event.flags.contains(.maskShift)
+        let axes = SmoothScrollSupport.axes(
+            vertical: Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis1)) * invert,
+            horizontal: Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis2)),
+            shiftPressed: shiftPressed
+        )
+        let vertical = axes.vertical
+        let horizontal = axes.horizontal
         guard vertical != 0 || horizontal != 0 else {
             return Unmanaged.passUnretained(event)
         }
 
         let step = Double(SmoothScrollSupport.sanitizedStep(
             UserDefaults.standard.integer(forKey: DefaultsKey.smoothScrollStep)))
+        // Switching Shift while a glide is active changes the intended axis.
+        // Drop the old tail instead of briefly scrolling diagonally.
+        if currentFlags.contains(.maskShift) != shiftPressed {
+            remainingVertical = 0
+            remainingHorizontal = 0
+        }
         remainingVertical = SmoothScrollSupport.remaining(afterTicks: vertical,
                                                           step: step,
                                                           current: remainingVertical)

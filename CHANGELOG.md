@@ -34,6 +34,7 @@ Finder to the Volume Mixer.
   Thanks to hyo.c (@pshyomin) for the translation.
 
 ### Fixed
+- Smooth Scrolling now moves horizontally while Shift is held.
 - Dock click to minimize now reacts immediately in more apps and no longer
   opens unrelated windows.
 - Closed lid mode now asks for the administrator password only once.

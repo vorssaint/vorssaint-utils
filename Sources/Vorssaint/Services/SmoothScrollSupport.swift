@@ -10,6 +10,11 @@ import Foundation
 /// an animation frame then emits a fraction of what remains, which decays the
 /// jump into a short glide that slows down as it lands.
 enum SmoothScrollSupport {
+    struct Axes: Equatable {
+        let vertical: Double
+        let horizontal: Double
+    }
+
     /// Animation frame length. Sixty steps a second reads as continuous and
     /// stays far below what event posting can sustain.
     static let frameInterval: TimeInterval = 1.0 / 60.0
@@ -35,6 +40,19 @@ enum SmoothScrollSupport {
             return added
         }
         return current + added
+    }
+
+    /// The system normally treats Shift plus a vertical wheel tick as
+    /// horizontal scrolling. Once the original tick is swallowed, the glide
+    /// must perform that axis change itself. Pixel events use the opposite
+    /// sign for this redirected axis, so the tick is flipped to keep the
+    /// system's normal Shift direction. A wheel that already reports a
+    /// horizontal axis is left alone so its native direction is preserved.
+    static func axes(vertical: Double, horizontal: Double, shiftPressed: Bool) -> Axes {
+        guard shiftPressed, vertical != 0, horizontal == 0 else {
+            return Axes(vertical: vertical, horizontal: horizontal)
+        }
+        return Axes(vertical: 0, horizontal: -vertical)
     }
 
     /// The distance one frame should emit for this remaining budget: a
