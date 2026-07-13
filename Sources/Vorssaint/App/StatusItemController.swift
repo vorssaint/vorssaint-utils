@@ -384,7 +384,10 @@ final class StatusItemController {
 
         let toolTip: String
         if manager.isActive {
-            if let end = manager.endDate {
+            if manager.sessionTrigger == .automation {
+                toolTip = FeatureStrings.keepAwakeAutomation(L10n.shared.language)
+                    .activeStatus(for: manager.activeAutomationConditions)
+            } else if let end = manager.endDate {
                 toolTip = "\(strings.statusActiveUntil) \(Self.timeFormatter.string(from: end))"
             } else {
                 toolTip = strings.statusActiveIndefinite

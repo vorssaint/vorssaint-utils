@@ -7,10 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [3.1.13]
 
 ### Summary
-Vorssaint 3.1.13 adds brightness control for all your displays, battery time
-remaining and compact usage bars in the menu bar. It also keeps Extra
-Brightness steady around fullscreen video and returns Finder to the Volume
-Mixer.
+Vorssaint 3.1.13 adds brightness control for all your displays, automatic Keep
+Awake rules, battery time remaining and compact usage bars
+in the menu bar. It also keeps Extra Brightness steady around fullscreen video
+and returns Finder to the Volume Mixer.
 
 ### Added
 - Brightness sliders for the Mac screen and external monitors, in the menu
@@ -20,6 +20,8 @@ Mixer.
 - The battery's estimated time remaining can appear in the menu bar and the
   Power panel. The menu bar reading is off by default and can be enabled in
   Settings.
+- Keep Awake can start with an external display or while connected to power.
+  Combine both conditions in Options or Energy settings.
 - CPU, GPU, memory and disk use can appear as compact bars in the menu bar.
   Choose Values or Bars and adjust their colors and medium and high limits in
   Monitor settings.

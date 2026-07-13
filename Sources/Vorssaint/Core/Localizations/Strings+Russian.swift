@@ -128,8 +128,8 @@ extension Strings {
 
         sessionSection: "Сеанс",
         defaultDurationLabel: "Длительность по умолчанию",
-        keepAwakeAutoStart: "Включать при запуске приложения",
-        keepAwakeAutoStartCaption: "Автоматически включает режим «Не давать уснуть».",
+        keepAwakeAutoStart: "Не давать уснуть при запуске Vorssaint",
+        keepAwakeAutoStartCaption: "Запускает сеанс с длительностью по умолчанию.",
         batteryProtectionSection: "Защита батареи",
         batteryDisableBelow: "Отключать, когда заряд упадёт ниже",
         batteryNever: "Никогда",

@@ -128,8 +128,8 @@ extension Strings {
 
         sessionSection: "Sitzung",
         defaultDurationLabel: "Standarddauer",
-        keepAwakeAutoStart: "Beim Öffnen der App aktivieren",
-        keepAwakeAutoStartCaption: "Startet „Wach halten“ automatisch.",
+        keepAwakeAutoStart: "Beim Öffnen von Vorssaint wach halten",
+        keepAwakeAutoStartCaption: "Startet eine Sitzung mit der Standarddauer.",
         batteryProtectionSection: "Batterieschutz",
         batteryDisableBelow: "Deaktivieren bei Batterie unter",
         batteryNever: "Nie",

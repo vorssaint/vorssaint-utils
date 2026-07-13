@@ -128,8 +128,8 @@ extension Strings {
 
         sessionSection: "Oturum",
         defaultDurationLabel: "Varsayılan süre",
-        keepAwakeAutoStart: "Uygulama açılınca etkinleştir",
-        keepAwakeAutoStartCaption: "“Uyanık tut”u otomatik başlatır.",
+        keepAwakeAutoStart: "Vorssaint açılınca uyanık tut",
+        keepAwakeAutoStartCaption: "Varsayılan süreyle bir oturum başlatır.",
         batteryProtectionSection: "Pil koruması",
         batteryDisableBelow: "Pil şu seviyenin altına düşünce kapat",
         batteryNever: "Asla",

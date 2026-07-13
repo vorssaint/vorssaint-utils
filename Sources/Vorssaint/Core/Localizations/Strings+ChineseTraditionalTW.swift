@@ -128,8 +128,8 @@ extension Strings {
 
         sessionSection: "工作階段",
         defaultDurationLabel: "預設持續時間",
-        keepAwakeAutoStart: "開啟 App 時啟用",
-        keepAwakeAutoStartCaption: "自動啟動「保持喚醒」。",
+        keepAwakeAutoStart: "開啟 Vorssaint 時保持喚醒",
+        keepAwakeAutoStartCaption: "使用預設時間啟動工作階段。",
         batteryProtectionSection: "電池保護",
         batteryDisableBelow: "電量低於以下值時關閉",
         batteryNever: "從不",

@@ -128,8 +128,8 @@ extension Strings {
 
         sessionSection: "会话",
         defaultDurationLabel: "默认时长",
-        keepAwakeAutoStart: "打开 App 时启用",
-        keepAwakeAutoStartCaption: "自动启动“保持唤醒”。",
+        keepAwakeAutoStart: "打开 Vorssaint 时保持唤醒",
+        keepAwakeAutoStartCaption: "使用默认时长启动会话。",
         batteryProtectionSection: "电池保护",
         batteryDisableBelow: "电量低于以下值时关闭",
         batteryNever: "从不",

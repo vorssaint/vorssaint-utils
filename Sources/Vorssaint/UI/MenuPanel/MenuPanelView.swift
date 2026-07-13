@@ -1992,10 +1992,13 @@ struct KeepAwakeCard: View {
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration: Int = 0
     @AppStorage(DefaultsKey.keepAwakeAutoStart) private var keepAwakeAutoStart = false
+    @AppStorage(DefaultsKey.keepAwakeExternalDisplay) private var keepAwakeExternalDisplay = false
+    @AppStorage(DefaultsKey.keepAwakeConnectedToPower) private var keepAwakeConnectedToPower = false
     @AppStorage(DefaultsKey.keepAwakeIconTint) private var keepAwakeIconTint = KeepAwakeIconTint.orange.rawValue
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleEnabled) private var keepAwakeMouseJiggle = false
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleInterval) private var keepAwakeMouseJiggleInterval = 5
     @State private var optionsExpanded = false
+    @State private var automationExpanded = false
     var collapsible = true
 
     var body: some View {
@@ -2071,15 +2074,18 @@ struct KeepAwakeCard: View {
             if optionsExpanded {
                 VStack(alignment: .leading, spacing: 8) {
                     iconTintRow
-                    optionRow(title: l10n.s.keepAwakeAutoStart,
-                              caption: l10n.s.keepAwakeAutoStartCaption,
-                              isOn: $keepAwakeAutoStart,
-                              disabled: false)
-                    optionRow(title: l10n.s.keepAwakeMouseJiggle,
-                              caption: mouseJiggleCaption,
-                              isOn: $keepAwakeMouseJiggle,
-                              disabled: false,
-                              captionIsError: mouseJiggleNeedsAccessibility)
+                    compactOptionToggle(
+                        icon: "play.circle",
+                        title: l10n.s.keepAwakeAutoStart,
+                        isOn: $keepAwakeAutoStart
+                    )
+                    automationDisclosure
+                    compactOptionToggle(
+                        icon: "cursorarrow.motionlines",
+                        title: l10n.s.keepAwakeMouseJiggle,
+                        isOn: $keepAwakeMouseJiggle,
+                        errorText: mouseJiggleNeedsAccessibility ? mouseJiggleCaption : nil
+                    )
                     if keepAwakeMouseJiggle {
                         mouseJiggleIntervalRow
                         if mouseJiggleNeedsAccessibility {
@@ -2092,6 +2098,93 @@ struct KeepAwakeCard: View {
                     }
                 }
                 .padding(.leading, 19)
+            }
+        }
+    }
+
+    private var automationDisclosure: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Button {
+                automationExpanded.toggle()
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 15)
+                    Text(automationStrings.automationSection)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Spacer(minLength: 6)
+                    automationSummaryBadges
+                    Image(systemName: automationExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 8.5, weight: .bold))
+                        .foregroundStyle(.tertiary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if automationExpanded {
+                KeepAwakeAutomationEditor(compact: true)
+                    .padding(.leading, 22)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var automationSummaryBadges: some View {
+        if !keepAwakeExternalDisplay,
+           !keepAwakeConnectedToPower {
+            Text(automationStrings.automationOff)
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(.tertiary)
+        } else {
+            HStack(spacing: 4) {
+                if keepAwakeExternalDisplay {
+                    automationSystemBadge("display")
+                }
+                if keepAwakeConnectedToPower {
+                    automationSystemBadge("powerplug.fill")
+                }
+            }
+        }
+    }
+
+    private func automationSystemBadge(_ icon: String) -> some View {
+        Image(systemName: icon)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(Color.accentColor)
+            .frame(width: 17, height: 17)
+            .background(Circle().fill(Color.accentColor.opacity(0.12)))
+    }
+
+    private func compactOptionToggle(icon: String,
+                                     title: String,
+                                     isOn: Binding<Bool>,
+                                     errorText: String? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 7) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 15)
+                Text(title)
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(2)
+                Spacer(minLength: 8)
+                Toggle("", isOn: isOn)
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .labelsHidden()
+            }
+            if let errorText {
+                Text(errorText)
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.red)
+                    .padding(.leading, 22)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -2158,7 +2251,9 @@ struct KeepAwakeCard: View {
     private var statusLine: some View {
         Group {
             if awake.isActive {
-                if let end = awake.endDate {
+                if awake.sessionTrigger == .automation {
+                    Text(automationStrings.activeStatus(for: awake.activeAutomationConditions))
+                } else if let end = awake.endDate {
                     TimelineView(.periodic(from: .now, by: 1)) { _ in
                         Text("\(l10n.s.keepAwakeEndsIn) \(Self.remainingText(until: end))")
                     }
@@ -2171,6 +2266,10 @@ struct KeepAwakeCard: View {
         }
         .font(.system(size: 11))
         .foregroundStyle(.secondary)
+    }
+
+    private var automationStrings: KeepAwakeAutomationStrings {
+        FeatureStrings.keepAwakeAutomation(l10n.language)
     }
 
     private var clamshellCaption: String {
@@ -2195,8 +2294,8 @@ struct KeepAwakeCard: View {
             set: { on in
                 if on {
                     awake.activate(minutes: defaultDuration)
-                } else {
-                    awake.deactivate(reason: .manual)
+                } else if awake.isActive {
+                    awake.toggle()
                 }
             }
         )

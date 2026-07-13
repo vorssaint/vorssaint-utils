@@ -128,8 +128,8 @@ extension Strings {
 
         sessionSection: "Session",
         defaultDurationLabel: "Durée par défaut",
-        keepAwakeAutoStart: "Activer à l'ouverture de l'app",
-        keepAwakeAutoStartCaption: "Lance « Garder éveillé » automatiquement.",
+        keepAwakeAutoStart: "Garder éveillé à l'ouverture de Vorssaint",
+        keepAwakeAutoStartCaption: "Démarre une session avec la durée par défaut.",
         batteryProtectionSection: "Protection de la batterie",
         batteryDisableBelow: "Désactiver lorsque la batterie passe sous",
         batteryNever: "Jamais",

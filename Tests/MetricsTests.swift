@@ -748,6 +748,10 @@ struct MetricsTests {
         let registeredDefaults = Defaults.registeredDefaults
         expect(registeredDefaults[DefaultsKey.keepAwakeAutoStart] as? Bool == false,
                "Keep Awake launch restore is opt-in")
+        expect(registeredDefaults[DefaultsKey.keepAwakeExternalDisplay] as? Bool == false,
+               "external-display Keep Awake is opt-in")
+        expect(registeredDefaults[DefaultsKey.keepAwakeConnectedToPower] as? Bool == false,
+               "power-connected Keep Awake is opt-in")
         expect(registeredDefaults[DefaultsKey.hotkeyEnabled] as? Bool == true,
                "global hotkey is on for clean installs")
         expect(registeredDefaults[DefaultsKey.keepAwakeShortcut] as? String == "control+option+command:40",
@@ -766,6 +770,38 @@ struct MetricsTests {
                "valid keep-awake active icon tint is preserved")
         expect(Defaults.sanitizedKeepAwakeIconTint("bad") == .orange,
                "invalid keep-awake active icon tint falls back to orange")
+        expect(!KeepAwakeAutomationSupport.hasExternalDisplay(builtInFlags: []),
+               "no online display does not count as an external display")
+        expect(!KeepAwakeAutomationSupport.hasExternalDisplay(builtInFlags: [true]),
+               "the built-in screen does not count as an external display")
+        expect(KeepAwakeAutomationSupport.hasExternalDisplay(builtInFlags: [true, false]),
+               "an online non-built-in screen counts as an external display")
+        let combinedKeepAwakeConditions = KeepAwakeAutomationSupport.matchingConditions(
+            externalDisplayEnabled: true,
+            externalDisplayConnected: true,
+            powerEnabled: true,
+            connectedToPower: true
+        )
+        expect(combinedKeepAwakeConditions == [.externalDisplay, .power],
+               "enabled Keep Awake conditions combine with OR behavior")
+        expect(KeepAwakeAutomationSupport.action(
+            featureAvailable: true,
+            matchingConditions: [.externalDisplay],
+            sessionActive: false,
+            automaticSessionActive: false
+        ) == .activate, "an external display starts the automatic session")
+        expect(KeepAwakeAutomationSupport.action(
+            featureAvailable: true,
+            matchingConditions: [],
+            sessionActive: true,
+            automaticSessionActive: true
+        ) == .deactivate, "clearing every matching condition ends the automatic session")
+        expect(KeepAwakeAutomationSupport.action(
+            featureAvailable: true,
+            matchingConditions: [],
+            sessionActive: true,
+            automaticSessionActive: false
+        ) == .none, "clearing automatic conditions does not end a manual session")
         expect(registeredDefaults[DefaultsKey.switcherEnabled] as? Bool == true,
                "window switcher is on for clean installs")
         expect(registeredDefaults[DefaultsKey.switcherShortcut] as? String == "command:48",
@@ -4389,6 +4425,14 @@ struct MetricsTests {
                    "every brightness string is set for \(language.rawValue)")
             expect(brightnessValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible brightness strings (\(language.rawValue))")
+            let keepAwakeAutomationValues = Mirror(
+                reflecting: FeatureStrings.keepAwakeAutomation(language)
+            ).children.compactMap { $0.value as? String }
+            expect(!keepAwakeAutomationValues.isEmpty
+                    && keepAwakeAutomationValues.allSatisfy { !$0.isEmpty },
+                   "every Keep Awake automation string is set for \(language.rawValue)")
+            expect(keepAwakeAutomationValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in Keep Awake automation strings (\(language.rawValue))")
             let batteryTimeValues = Mirror(reflecting: FeatureStrings.batteryTime(language)).children
                 .compactMap { $0.value as? String }
             expect(!batteryTimeValues.isEmpty && batteryTimeValues.allSatisfy { !$0.isEmpty },

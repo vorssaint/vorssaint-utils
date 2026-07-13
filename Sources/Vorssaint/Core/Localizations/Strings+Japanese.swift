@@ -128,8 +128,8 @@ extension Strings {
 
         sessionSection: "セッション",
         defaultDurationLabel: "デフォルトの継続時間",
-        keepAwakeAutoStart: "アプリ起動時にオンにする",
-        keepAwakeAutoStartCaption: "「スリープ防止」を自動的に開始します。",
+        keepAwakeAutoStart: "Vorssaint起動時にスリープを防ぐ",
+        keepAwakeAutoStartCaption: "既定の時間でセッションを開始します。",
         batteryProtectionSection: "バッテリー保護",
         batteryDisableBelow: "バッテリーが次の値を下回ったらオフにする",
         batteryNever: "しない",

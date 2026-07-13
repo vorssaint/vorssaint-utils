@@ -54,7 +54,10 @@ struct SettingsView: View {
                 SidebarItem(page: .energy, title: l10n.s.tabEnergy, icon: "bolt.fill",
                             keywords: [l10n.s.keepAwakeTitle, l10n.s.clamshellTitle,
                                        l10n.s.defaultDurationLabel, l10n.s.extraBrightnessName,
-                                       FeatureStrings.brightness(l10n.language).pageTitle]),
+                                       FeatureStrings.brightness(l10n.language).pageTitle,
+                                       FeatureStrings.keepAwakeAutomation(l10n.language)
+                                           .externalDisplayToggle,
+                                       FeatureStrings.keepAwakeAutomation(l10n.language).powerToggle]),
                 SidebarItem(page: .monitor, title: l10n.s.tabMonitor, icon: "chart.line.uptrend.xyaxis",
                             keywords: [l10n.s.menuBarSpacingLabel, l10n.s.menuBarHideIconToggle,
                                        l10n.s.monitorMemoryPressureDot]),
@@ -436,6 +439,10 @@ struct EnergySettings: View {
                                               caption: l10n.s.keepAwakeAutoStartCaption,
                                               isOn: $keepAwakeAutoStart)
                 }
+                Section(automationStrings.automationSection) {
+                    SettingsCaptionText(automationStrings.automationCaption)
+                    KeepAwakeAutomationEditor()
+                }
                 Section(l10n.s.batteryProtectionSection) {
                     Picker(l10n.s.batteryDisableBelow, selection: $batteryLimit) {
                         Text(l10n.s.batteryNever).tag(0)
@@ -577,6 +584,10 @@ struct EnergySettings: View {
                     extraBrightnessLevel = Int(newValue)
                     ExtraBrightnessService.shared.levelDidChange()
                 })
+    }
+
+    private var automationStrings: KeepAwakeAutomationStrings {
+        FeatureStrings.keepAwakeAutomation(l10n.language)
     }
 }
 

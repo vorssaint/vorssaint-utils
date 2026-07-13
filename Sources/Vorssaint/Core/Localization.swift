@@ -1122,8 +1122,8 @@ extension Strings {
 
         sessionSection: "Sessão",
         defaultDurationLabel: "Duração padrão",
-        keepAwakeAutoStart: "Ativar ao abrir o app",
-        keepAwakeAutoStartCaption: "Inicia “Manter acordado” automaticamente.",
+        keepAwakeAutoStart: "Manter acordado ao abrir o Vorssaint",
+        keepAwakeAutoStartCaption: "Inicia uma sessão com a duração padrão.",
         batteryProtectionSection: "Proteção de bateria",
         batteryDisableBelow: "Desativar com bateria abaixo de",
         batteryNever: "Nunca",
@@ -1974,8 +1974,8 @@ extension Strings {
 
         sessionSection: "Session",
         defaultDurationLabel: "Default duration",
-        keepAwakeAutoStart: "Turn on when the app opens",
-        keepAwakeAutoStartCaption: "Starts “Keep awake” automatically.",
+        keepAwakeAutoStart: "Keep Awake when Vorssaint opens",
+        keepAwakeAutoStartCaption: "Starts a session with the default duration.",
         batteryProtectionSection: "Battery protection",
         batteryDisableBelow: "Disable when battery drops below",
         batteryNever: "Never",
