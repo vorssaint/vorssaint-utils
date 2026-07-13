@@ -14,6 +14,7 @@ struct MonitorPanelConfig: View {
 
     @AppStorage(DefaultsKey.monitorShowSystem) private var showSystem = true
     @AppStorage(DefaultsKey.monitorSysTemps) private var sysTemps = true
+    @AppStorage(DefaultsKey.monitorSysSensors) private var sysSensors = true
     @AppStorage(DefaultsKey.monitorSysCPU) private var sysCPU = true
     @AppStorage(DefaultsKey.monitorSysGPU) private var sysGPU = true
     @AppStorage(DefaultsKey.monitorSysBattery) private var sysBattery = true
@@ -48,6 +49,7 @@ struct MonitorPanelConfig: View {
                 if AppFeature.monitorCPU.isAvailable || AppFeature.monitorGPU.isAvailable
                     || AppFeature.monitorPower.isAvailable {
                     Toggle(l10n.s.temperatures, isOn: $sysTemps)
+                    Toggle(FeatureStrings.sensors(l10n.language).section, isOn: $sysSensors)
                 }
                 if AppFeature.monitorCPU.isAvailable {
                     Toggle(l10n.s.cpuLabel, isOn: $sysCPU)

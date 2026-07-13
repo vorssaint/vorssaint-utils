@@ -28,6 +28,12 @@ struct SystemSnapshot {
     var cpuTemperature: Double?
     var gpuTemperature: Double?
     var batteryTemperature: Double?
+
+    // Expanded hardware sensors (Sensors block): the curated per-component
+    // temperature list and per-fan speeds. Empty when the block is hidden or
+    // the hardware exposes none.
+    var temperatureSensors: [TemperatureSensor] = []
+    var fans: [FanReading] = []
     var cpuUsage: Double?          // 0...1
     var gpuUsage: Double?          // 0...1
     var memoryUsed: UInt64?
@@ -119,6 +125,15 @@ final class SystemMonitor: ObservableObject {
     private var batteryKeys: [SMCClient.Key] = []
     private var tempKeysPrepared = false
     private var cpuTemperaturePlatform: CPUTemperaturePlatform = .generic
+
+    // Expanded sensors: extra enclosure temperature keys (Wi-Fi, SSD, airflow)
+    // and the fan tachometers, discovered once when the Sensors block first
+    // needs them, plus a carry-over of the last list for stride-skipped ticks.
+    private var sensorKeysPrepared = false
+    private var extraSensorKeys: [SMCClient.Key] = []
+    private var fanKeys: [SMCClient.Key] = []
+    private var lastTemperatureSensors: [TemperatureSensor] = []
+    private var lastFans: [FanReading] = []
 
     // Samplers
     private let networkSampler = NetworkSampler()
@@ -381,8 +396,9 @@ final class SystemMonitor: ObservableObject {
         var needCPUTemperature = false
         var needGPUTemperature = false
         var needBatteryTemperature = false
+        var needSensors = false
 
-        var needSMC: Bool { needPower || needTemperature }
+        var needSMC: Bool { needPower || needTemperature || needSensors }
 
         var needTemperature: Bool {
             needCPUTemperature || needGPUTemperature || needBatteryTemperature
@@ -390,7 +406,7 @@ final class SystemMonitor: ObservableObject {
 
         var any: Bool {
             needCPU || needMemory || needNetwork || needDisk || needPower ||
-                needPeripheralBattery || needGPUUsage || needTemperature
+                needPeripheralBattery || needGPUUsage || needTemperature || needSensors
         }
     }
 
@@ -420,6 +436,7 @@ final class SystemMonitor: ObservableObject {
         let panelMemory = (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysMemory)) || menuPanelNeeds.memory
         let panelBattery = (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysBattery)) || menuPanelNeeds.battery
         let panelTemps = panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysTemps)
+        let panelSensors = panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysSensors)
         let alertCPU = defaults.bool(forKey: DefaultsKey.monitorAlertCPU)
         let alertCPUTemperature = defaults.bool(forKey: DefaultsKey.monitorAlertCPUTemperature)
         let alertMemory = defaults.bool(forKey: DefaultsKey.monitorAlertMemory)
@@ -433,7 +450,8 @@ final class SystemMonitor: ObservableObject {
             || defaults.bool(forKey: DefaultsKey.menuBarDiskUsage)
             || defaults.bool(forKey: DefaultsKey.menuBarDiskActivity)
             || alertDisk
-        plan.needPower = panelNeedsPower || panelBattery
+        // The Sensors block shows Total Power, so it needs the power sampler too.
+        plan.needPower = panelNeedsPower || panelBattery || panelSensors
             || defaults.bool(forKey: DefaultsKey.menuBarPower)
             || defaults.bool(forKey: DefaultsKey.menuBarBattery)
             || defaults.bool(forKey: DefaultsKey.menuBarBatteryTime)
@@ -447,6 +465,7 @@ final class SystemMonitor: ObservableObject {
             defaults.bool(forKey: DefaultsKey.menuBarGPUTemperature)
         plan.needBatteryTemperature = panelTemps || menuPanelNeeds.batteryTemperature ||
             defaults.bool(forKey: DefaultsKey.menuBarBatteryTemperature)
+        plan.needSensors = panelSensors
 
         // The hub gates whole metric families: an unavailable metric never
         // samples, no matter what is pinned, shown or alerting.
@@ -512,7 +531,9 @@ final class SystemMonitor: ObservableObject {
         if plan.needPower { kinds.append(.power) }
         if plan.needPeripheralBattery { kinds.append(.peripheralBattery) }
         if plan.needGPUUsage { kinds.append(.gpuUsage) }
-        if plan.needTemperature { kinds.append(.temperature) }
+        // The Sensors block reads its SMC temperatures/fans on the temperature
+        // stride, so it counts as a temperature consumer for cadence purposes.
+        if plan.needTemperature || plan.needSensors { kinds.append(.temperature) }
         return kinds
     }
 
@@ -562,7 +583,9 @@ final class SystemMonitor: ObservableObject {
         tickCount &+= scheduledWakeTicks
         queue.async { [weak self] in
             guard let self else { return }
-            self.prepareIfNeeded(needSMC: plan.needSMC, needTemperature: plan.needTemperature)
+            self.prepareIfNeeded(needSMC: plan.needSMC,
+                                 needTemperature: plan.needTemperature,
+                                 needSensors: plan.needSensors)
             let now = ProcessInfo.processInfo.systemUptime
 
             var next = SystemSnapshot()
@@ -716,6 +739,17 @@ final class SystemMonitor: ObservableObject {
                 }
             }
 
+            // Expanded sensor list + fans ride the temperature stride. On a
+            // skipped tick the last list carries over so the panel doesn't blink.
+            if plan.needSensors {
+                if take(.temperature) {
+                    self.lastTemperatureSensors = self.readSensorTemperatures()
+                    self.lastFans = self.readFans()
+                }
+                next.temperatureSensors = self.lastTemperatureSensors
+                next.fans = self.lastFans
+            }
+
             next.cpuHistory = plan.needCPU ? self.cpuHistory.values : []
             next.gpuHistory = plan.needGPUUsage ? self.gpuHistory.values : []
             next.memoryHistory = plan.needMemory ? self.memoryHistory.values : []
@@ -806,29 +840,66 @@ final class SystemMonitor: ObservableObject {
     /// Opens the SMC lazily. Temperature key discovery is heavier (it enumerates
     /// every SMC key) so it waits until the panel or a pinned temperature metric
     /// actually needs it.
-    private func prepareIfNeeded(needSMC: Bool, needTemperature: Bool) {
+    private func prepareIfNeeded(needSMC: Bool, needTemperature: Bool, needSensors: Bool) {
         if needSMC, !smcTried {
             smcTried = true
             smc = SMCClient()
             cpuTemperaturePlatform = TemperatureSensorSelector.currentPlatform()
             powerSampler = PowerSampler(smc: smc)
         }
-        guard needTemperature, !tempKeysPrepared else { return }
-        tempKeysPrepared = true
         guard let client = smc else { return }
 
-        let all = client.keys { name in
-            name.hasPrefix("Tp") || name.hasPrefix("Te") || name.hasPrefix("Tg")
-                || name.range(of: "^TB[0-9]T$", options: .regularExpression) != nil
+        // The Sensors block also needs the CPU/GPU/battery die keys (for its
+        // per-component rows), so discovery runs for it too.
+        if (needTemperature || needSensors), !tempKeysPrepared {
+            tempKeysPrepared = true
+            let all = client.keys { name in
+                name.hasPrefix("Tp") || name.hasPrefix("Te") || name.hasPrefix("Tg")
+                    || name.range(of: "^TB[0-9]T$", options: .regularExpression) != nil
+            }
+            cpuKeys = all.filter { $0.name.hasPrefix("Tp") || $0.name.hasPrefix("Te") }
+            preferredCPUKeys = cpuKeys.filter {
+                TemperatureSensorSelector.isCPUCoreKey($0.name, platform: cpuTemperaturePlatform)
+            }
+            let preferredNames = Set(preferredCPUKeys.map(\.name))
+            fallbackCPUKeys = cpuKeys.filter { !preferredNames.contains($0.name) }
+            gpuKeys = all.filter { $0.name.hasPrefix("Tg") }
+            batteryKeys = all.filter { $0.name.hasPrefix("TB") }
         }
-        cpuKeys = all.filter { $0.name.hasPrefix("Tp") || $0.name.hasPrefix("Te") }
-        preferredCPUKeys = cpuKeys.filter {
-            TemperatureSensorSelector.isCPUCoreKey($0.name, platform: cpuTemperaturePlatform)
+
+        if needSensors, !sensorKeysPrepared {
+            sensorKeysPrepared = true
+            // Enclosure sensors beyond the die keys: Wi-Fi (TW), SSD/NAND (TH),
+            // airflow (Ta). Only keys we can label survive into the list.
+            extraSensorKeys = client.keys { name in
+                name.hasPrefix("TW") || name.hasPrefix("TH") || name.hasPrefix("Ta")
+            }
+            // Fans: FNum gives the count, F0Ac/F1Ac/... the actual RPM.
+            var count = 0
+            if let fnum = client.key(named: "FNum"), let value = client.readValue(fnum),
+               value > 0, value < 12 {
+                count = Int(value)
+            }
+            fanKeys = (0..<count).compactMap { client.key(named: "F\($0)Ac") }
         }
-        let preferredNames = Set(preferredCPUKeys.map(\.name))
-        fallbackCPUKeys = cpuKeys.filter { !preferredNames.contains($0.name) }
-        gpuKeys = all.filter { $0.name.hasPrefix("Tg") }
-        batteryKeys = all.filter { $0.name.hasPrefix("TB") }
+    }
+
+    /// The Sensors block's curated temperature list. Reads the CPU core set
+    /// (split into performance/efficiency), the GPU, battery and enclosure keys,
+    /// then lets `SensorLabels` group and label them.
+    private func readSensorTemperatures() -> [TemperatureSensor] {
+        guard smc != nil else { return [] }
+        let cpuReadKeys = preferredCPUKeys.isEmpty ? cpuKeys : preferredCPUKeys
+        let keys = cpuReadKeys + gpuKeys + batteryKeys + extraSensorKeys
+        return SensorLabels.list(readings: temperatureReadings(of: keys))
+    }
+
+    private func readFans() -> [FanReading] {
+        guard let smc else { return [] }
+        return fanKeys.enumerated().compactMap { index, key in
+            guard let rpm = smc.readValue(key), rpm >= 0, rpm < 20000 else { return nil }
+            return FanReading(index: index, rpm: Int(rpm.rounded()))
+        }
     }
 
     private func cpuTemperature() -> Double? {

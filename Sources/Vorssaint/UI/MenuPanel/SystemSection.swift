@@ -40,6 +40,7 @@ struct SystemSection: View {
     @AppStorage(DefaultsKey.menuBarPower) private var menuBarPower = false
     @AppStorage(DefaultsKey.menuBarSeparateMetrics) private var separateMenuBarMetrics = false
     @AppStorage(DefaultsKey.monitorSysTemps) private var sysTemps = true
+    @AppStorage(DefaultsKey.monitorSysSensors) private var sysSensors = true
     @AppStorage(DefaultsKey.monitorSysCPU) private var sysCPU = true
     @AppStorage(DefaultsKey.monitorSysGPU) private var sysGPU = true
     @AppStorage(DefaultsKey.monitorSysBattery) private var sysBattery = true
@@ -120,7 +121,7 @@ struct SystemSection: View {
 
     /// Card subsections, in order, filtered by the per-item toggles (and whether a
     /// battery exists). Drives divider interleaving so only rendered blocks get one.
-    private enum Block: String, PanelOrderItem { case temps, usage, memory, alerts, uptime }
+    private enum Block: String, PanelOrderItem { case temps, sensors, usage, memory, alerts, uptime }
 
     // Hub availability per metric family: an unavailable metric leaves the
     // card entirely, including the edit-mode hidden rows.
@@ -144,7 +145,7 @@ struct SystemSection: View {
 
     private func isBlockAvailable(_ block: Block) -> Bool {
         switch block {
-        case .temps, .usage: return cpuAvailable || gpuAvailable || powerAvailable
+        case .temps, .sensors, .usage: return cpuAvailable || gpuAvailable || powerAvailable
         case .memory: return memoryAvailable
         case .alerts, .uptime: return true
         }
@@ -168,6 +169,7 @@ struct SystemSection: View {
     private func isVisible(_ block: Block) -> Bool {
         switch block {
         case .temps: return sysTemps
+        case .sensors: return sysSensors
         case .usage: return usageVisible
         case .memory: return sysMemory
         case .alerts: return sysAlerts
@@ -179,6 +181,7 @@ struct SystemSection: View {
         PanelLayout.resetItemOrder(key: DefaultsKey.panelSystemOrder)
         systemOrderRaw = ""
         sysTemps = true
+        sysSensors = true
         sysCPU = true
         sysGPU = true
         sysBattery = true
@@ -191,6 +194,7 @@ struct SystemSection: View {
     private func blockContent(_ block: Block, editing: Bool) -> some View {
         switch block {
         case .temps: temperatureGrid(editing: editing)
+        case .sensors: sensorsRows(editing: editing)
         case .usage: usageRows(editing: editing)
         case .memory: memoryRows(editing: editing)
         case .alerts: alertRows(editing: editing)
@@ -323,6 +327,99 @@ struct SystemSection: View {
 
     private var displayTemperatureUnit: TemperatureUnit {
         TemperatureUnit(rawValue: temperatureUnit) ?? .celsius
+    }
+
+    // MARK: Sensors (temperatures, power, fans)
+
+    @ViewBuilder
+    private func sensorsRows(editing: Bool) -> some View {
+        let strings = FeatureStrings.sensors(l10n.language)
+        if !sysSensors {
+            PanelHiddenItemRow(title: strings.section,
+                               systemImage: "gauge.with.dots.needle.bottom.50percent",
+                               isVisible: $sysSensors)
+        } else {
+            let temps = monitor.snapshot.temperatureSensors
+            let fans = monitor.snapshot.fans
+            let watts = powerAvailable ? monitor.snapshot.power?.systemWatts : nil
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    subsectionLabel(strings.section)
+                    Spacer(minLength: 0)
+                    if editing {
+                        PanelInlineHideButton(isVisible: $sysSensors)
+                    }
+                }
+                if !temps.isEmpty {
+                    sensorSubsection(strings.temperature) {
+                        ForEach(temps) { sensor in
+                            sensorRow(label: temperatureLabel(sensor.id, strings),
+                                      value: MetricFormat.temperature(sensor.celsius, unit: displayTemperatureUnit))
+                        }
+                    }
+                }
+                if let watts {
+                    sensorSubsection(strings.power) {
+                        sensorRow(label: strings.totalPower, value: MetricFormat.watts(watts))
+                    }
+                }
+                if !fans.isEmpty {
+                    sensorSubsection(strings.fans) {
+                        ForEach(fans) { fan in
+                            sensorRow(label: fanLabel(fan.index, count: fans.count, strings: strings),
+                                      value: fan.rpm == 0 ? strings.fanOff : "\(fan.rpm) RPM")
+                        }
+                    }
+                }
+                if temps.isEmpty, fans.isEmpty, watts == nil {
+                    Text(l10n.s.monitorUnavailable)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func sensorSubsection<Content: View>(_ title: String,
+                                                 @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            subsectionLabel(title)
+            content()
+        }
+    }
+
+    private func sensorRow(label: String, value: String) -> some View {
+        HStack(spacing: 8) {
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 8)
+            Text(value)
+                .font(.system(size: 11, weight: .medium))
+                .monospacedDigit()
+        }
+    }
+
+    private func temperatureLabel(_ id: SensorGroupID, _ s: SensorsFeatureStrings) -> String {
+        switch id {
+        case .cpuPerformance: return s.cpuPerformance
+        case .cpuEfficiency: return s.cpuEfficiency
+        case .graphics: return s.graphics
+        case .battery: return s.battery
+        case .ssd: return s.ssd
+        case .wifi: return s.wifi
+        case .airflow: return s.airflow
+        }
+    }
+
+    private func fanLabel(_ index: Int, count: Int, strings s: SensorsFeatureStrings) -> String {
+        if count == 2 {
+            return index == 0 ? s.leftFan : s.rightFan
+        }
+        return "\(s.fan) \(index + 1)"
     }
 
     // MARK: Hardware usage
