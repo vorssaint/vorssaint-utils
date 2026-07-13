@@ -26,7 +26,10 @@ struct TemperatureSensor: Identifiable, Equatable {
 struct FanReading: Identifiable, Equatable {
     let index: Int
     let rpm: Int
+    let maxRPM: Int
     var id: Int { index }
+    /// Speed as a fraction of this fan's maximum, for the headline Fans ring.
+    var fraction: Double { maxRPM > 0 ? min(1, max(0, Double(rpm) / Double(maxRPM))) : 0 }
 }
 
 /// Turns raw SMC temperature readings into a curated, labeled list.

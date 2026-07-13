@@ -122,7 +122,7 @@ struct SystemSection: View {
 
     /// Card subsections, in order, filtered by the per-item toggles (and whether a
     /// battery exists). Drives divider interleaving so only rendered blocks get one.
-    private enum Block: String, PanelOrderItem { case temps, sensors, usage, memory, alerts, uptime }
+    private enum Block: String, PanelOrderItem { case temps, usage, memory, sensors, alerts, uptime }
 
     // Hub availability per metric family: an unavailable metric leaves the
     // card entirely, including the edit-mode hidden rows.
@@ -263,7 +263,7 @@ struct SystemSection: View {
         kind == .memory ? formatMemory(UInt64(row.value)) : String(format: "%.1f%%", row.value)
     }
 
-    // MARK: Temperatures
+    // MARK: Gauges (CPU / GPU temperature + Fans)
 
     @ViewBuilder
     private func temperatureGrid(editing: Bool) -> some View {
@@ -273,58 +273,86 @@ struct SystemSection: View {
                                isVisible: $sysTemps)
         } else {
             VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    subsectionLabel(l10n.s.temperatures)
-                    Spacer(minLength: 0)
-                    if editing {
+                if editing {
+                    HStack(spacing: 6) {
+                        subsectionLabel(l10n.s.temperatures)
+                        Spacer(minLength: 0)
                         PanelInlineHideButton(isVisible: $sysTemps)
                     }
                 }
                 HStack(spacing: 8) {
                     if cpuAvailable {
-                        temperatureCell(icon: "cpu", label: l10n.s.cpuLabel,
-                                        value: monitor.snapshot.cpuTemperature)
+                        ringGauge(label: l10n.s.cpuLabel,
+                                  text: gaugeTemp(monitor.snapshot.cpuTemperature),
+                                  fraction: (monitor.snapshot.cpuTemperature ?? 0) / 110,
+                                  color: gaugeColor(monitor.snapshot.cpuTemperature))
                     }
                     if gpuAvailable {
-                        temperatureCell(icon: "memorychip", label: l10n.s.gpuLabel,
-                                        value: monitor.snapshot.gpuTemperature)
+                        ringGauge(label: l10n.s.gpuLabel,
+                                  text: gaugeTemp(monitor.snapshot.gpuTemperature),
+                                  fraction: (monitor.snapshot.gpuTemperature ?? 0) / 110,
+                                  color: gaugeColor(monitor.snapshot.gpuTemperature))
                     }
-                    if powerAvailable {
-                        temperatureCell(icon: "battery.100", label: l10n.s.batteryLabel,
-                                        value: monitor.snapshot.batteryTemperature)
+                    if let fans = fanSummary {
+                        ringGauge(label: FeatureStrings.sensors(l10n.language).fans,
+                                  text: "\(Int((fans * 100).rounded()))%",
+                                  fraction: fans,
+                                  color: PanelMetricColor.cyan(for: colorScheme))
+                    } else if powerAvailable {
+                        ringGauge(label: l10n.s.batteryLabel,
+                                  text: gaugeTemp(monitor.snapshot.batteryTemperature),
+                                  fraction: (monitor.snapshot.batteryTemperature ?? 0) / 110,
+                                  color: gaugeColor(monitor.snapshot.batteryTemperature))
                     }
-                }
-                if monitor.snapshot.cpuTemperature == nil,
-                   monitor.snapshot.gpuTemperature == nil,
-                   monitor.snapshot.batteryTemperature == nil {
-                    Text(l10n.s.monitorUnavailable)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
                 }
             }
         }
     }
 
-    private func temperatureCell(icon: String, label: String, value: Double?) -> some View {
-        VStack(spacing: 3) {
-            HStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-                Text(label)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
+    /// Average fan speed as a fraction of max; nil when the Mac has no fans.
+    private var fanSummary: Double? {
+        let fans = monitor.snapshot.fans
+        guard !fans.isEmpty else { return nil }
+        return fans.map(\.fraction).reduce(0, +) / Double(fans.count)
+    }
+
+    private func gaugeTemp(_ value: Double?) -> String {
+        value.map { MetricFormat.temperatureCompact($0, unit: displayTemperatureUnit) } ?? "–"
+    }
+
+    private func gaugeColor(_ value: Double?) -> Color {
+        guard let value else { return .secondary }
+        return Self.ringColor(value, scheme: colorScheme)
+    }
+
+    /// A big donut ring with a value centred and a caption beneath it.
+    private func ringGauge(label: String, text: String, fraction: Double, color: Color) -> some View {
+        VStack(spacing: 6) {
+            ZStack {
+                Circle().stroke(Color.primary.opacity(0.1), lineWidth: 4)
+                Circle()
+                    .trim(from: 0, to: min(1, max(0, fraction)))
+                    .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                Text(text)
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
             }
-            Text(value.map { MetricFormat.temperature($0, unit: displayTemperatureUnit) } ?? "-")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .monospacedDigit()
+            .frame(width: 58, height: 58)
+            Text(label)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(Color.primary.opacity(0.045))
-        )
+    }
+
+    /// Shared temperature → ring-colour ramp (cyan → yellow → red).
+    static func ringColor(_ celsius: Double, scheme: ColorScheme) -> Color {
+        switch celsius {
+        case ..<55: return PanelMetricColor.cyan(for: scheme)
+        case ..<75: return PanelMetricColor.yellow(for: scheme)
+        default: return PanelMetricColor.red(for: scheme)
+        }
     }
 
     private var displayTemperatureUnit: TemperatureUnit {
@@ -430,7 +458,7 @@ struct SystemSection: View {
     private func sensorSubsection<Content: View>(_ title: String,
                                                  @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            subsectionLabel(title)
+            sectionTitle(title)
             content()
         }
     }
@@ -468,50 +496,74 @@ struct SystemSection: View {
         return "\(s.fan) \(index + 1)"
     }
 
-    // MARK: Hardware usage
+    // MARK: Cores (per-core activity)
 
+    @ViewBuilder
     private func usageRows(editing: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            subsectionLabel(l10n.s.usageSection)
-            if sysCPU, cpuAvailable {
-                usageRow(label: l10n.s.cpuLabel, fraction: monitor.snapshot.cpuUsage,
-                         kind: .cpu, editing: editing, visible: $sysCPU)
-                if graphCPU, monitor.snapshot.cpuHistory.count >= 2 {
-                    Sparkline(values: monitor.snapshot.cpuHistory,
-                              color: .accentColor,
-                              maxValue: 1,
-                              showsZeroBaseline: true)
-                        .frame(height: 22)
+        if !sysCPU {
+            if editing {
+                PanelHiddenItemRow(title: l10n.s.usageSection, systemImage: "cpu", isVisible: $sysCPU)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 7) {
+                if editing {
+                    HStack(spacing: 6) {
+                        subsectionLabel(l10n.s.usageSection)
+                        Spacer(minLength: 0)
+                        PanelInlineHideButton(isVisible: $sysCPU)
+                    }
                 }
-                breakdownList(for: .cpu)
-            } else if editing, cpuAvailable {
-                PanelHiddenItemRow(title: l10n.s.cpuLabel, systemImage: "cpu", isVisible: $sysCPU)
-            }
-            if sysGPU, gpuAvailable {
-                usageRow(label: l10n.s.gpuLabel, fraction: monitor.snapshot.gpuUsage,
-                         kind: .gpu, editing: editing, visible: $sysGPU)
-                if graphGPU, monitor.snapshot.gpuHistory.count >= 2 {
-                    Sparkline(values: monitor.snapshot.gpuHistory,
-                              color: PanelMetricColor.cyan(for: colorScheme),
-                              maxValue: 1,
-                              showsZeroBaseline: true)
-                        .frame(height: 22)
-                }
-                breakdownList(for: .gpu)
-            } else if editing, gpuAvailable {
-                PanelHiddenItemRow(title: l10n.s.gpuLabel, systemImage: "memorychip", isVisible: $sysGPU)
-            }
-            if sysBattery, powerAvailable {
-                batteryUsageRow(editing: editing)
-            } else if editing, powerAvailable {
-                PanelHiddenItemRow(title: l10n.s.batteryLabel,
-                                   systemImage: "battery.100",
-                                   isVisible: $sysBattery)
-            }
-            if menuBarPeripheralBattery, powerAvailable, !monitor.snapshot.peripheralBatteries.isEmpty {
-                peripheralBatteryRows
+                if cpuAvailable { coreDotsView }
             }
         }
+    }
+
+    /// iStats-style per-core activity dots with an efficiency/performance legend.
+    @ViewBuilder
+    private var coreDotsView: some View {
+        let cores = monitor.snapshot.coreUsages
+        if cores.isEmpty {
+            usageRow(label: l10n.s.cpuLabel, fraction: monitor.snapshot.cpuUsage,
+                     kind: .cpu, editing: false, visible: $sysCPU)
+        } else {
+            let eCount = min(max(0, monitor.snapshot.efficiencyCoreCount), cores.count)
+            let ePink = PanelMetricColor.pink(for: colorScheme)
+            let pCyan = PanelMetricColor.cyan(for: colorScheme)
+            let s = FeatureStrings.sensors(l10n.language)
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 4) {
+                    ForEach(Array(cores.enumerated()), id: \.offset) { index, usage in
+                        Circle()
+                            .stroke(usage > 0.04 ? (index < eCount ? ePink : pCyan)
+                                                 : Color.primary.opacity(0.18),
+                                    lineWidth: 2)
+                            .frame(width: 11, height: 11)
+                    }
+                    Spacer(minLength: 0)
+                }
+                coreLegend(color: ePink, name: s.cpuEfficiency,
+                           fraction: clusterAverage(cores, efficiencyCount: eCount, efficiency: true))
+                coreLegend(color: pCyan, name: s.cpuPerformance,
+                           fraction: clusterAverage(cores, efficiencyCount: eCount, efficiency: false))
+            }
+        }
+    }
+
+    private func coreLegend(color: Color, name: String, fraction: Double) -> some View {
+        HStack(spacing: 7) {
+            Circle().fill(color).frame(width: 7, height: 7)
+            Text(name).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+            Spacer(minLength: 8)
+            Text("\(Int((fraction * 100).rounded()))%")
+                .font(.system(size: 11, weight: .medium)).monospacedDigit()
+        }
+    }
+
+    private func clusterAverage(_ cores: [Double], efficiencyCount: Int, efficiency: Bool) -> Double {
+        let slice = efficiency ? Array(cores.prefix(efficiencyCount))
+                               : Array(cores.suffix(max(0, cores.count - efficiencyCount)))
+        guard !slice.isEmpty else { return 0 }
+        return slice.reduce(0, +) / Double(slice.count)
     }
 
     // MARK: Battery (charge level, next to CPU/GPU) and uptime
@@ -694,7 +746,7 @@ struct SystemSection: View {
         }
     }
 
-    // MARK: Memory
+    // MARK: Memory + power donuts
 
     @ViewBuilder
     private func memoryRows(editing: Bool) -> some View {
@@ -703,34 +755,81 @@ struct SystemSection: View {
                                systemImage: "memorychip.fill",
                                isVisible: $sysMemory)
         } else {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    subsectionLabel(l10n.s.memorySection)
-                    Spacer(minLength: 0)
-                    if editing {
+            VStack(alignment: .leading, spacing: 11) {
+                if editing {
+                    HStack(spacing: 6) {
+                        subsectionLabel(l10n.s.memorySection)
+                        Spacer(minLength: 0)
                         PanelInlineHideButton(isVisible: $sysMemory)
                     }
                 }
-                if editing {
-                    memoryRowContent(isInteractive: false)
-                } else {
-                    Button {
-                        toggleBreakdown(.memory)
-                    } label: {
-                        memoryRowContent(isInteractive: true)
-                            .contentShape(Rectangle())
+                if memoryAvailable {
+                    HStack(spacing: 10) {
+                        Donut(caption: l10n.s.memoryPressure, percent: pressurePercent, color: pressureColor)
+                        Donut(caption: l10n.s.memorySection, percent: memoryPercent,
+                              color: PanelMetricColor.mint(for: colorScheme))
                     }
-                    .buttonStyle(.plain)
+                    memoryBreakdown
                 }
-                if graphMemory, monitor.snapshot.memoryHistory.count >= 2 {
-                    Sparkline(values: monitor.snapshot.memoryHistory,
-                              color: PanelMetricColor.mint(for: colorScheme),
-                              maxValue: 1,
-                              showsZeroBaseline: true)
-                        .frame(height: 22)
+                if powerAvailable, let charge = monitor.snapshot.power?.chargePercent {
+                    HStack(spacing: 10) {
+                        Donut(caption: l10n.s.batteryLabel, percent: charge, color: batteryDonutColor(charge))
+                        if let health = monitor.snapshot.power?.healthPercent {
+                            Donut(caption: l10n.s.powerHealth, percent: Int(health.rounded()),
+                                  color: PanelMetricColor.pink(for: colorScheme))
+                        }
+                    }
                 }
-                breakdownList(for: .memory)
             }
+        }
+    }
+
+    private var memoryPercent: Int {
+        guard let used = monitor.snapshot.memoryUsed, let total = monitor.snapshot.memoryTotal, total > 0
+        else { return 0 }
+        return Int((Double(used) / Double(total) * 100).rounded())
+    }
+
+    private var pressurePercent: Int {
+        guard let wired = monitor.snapshot.memoryWired, let comp = monitor.snapshot.memoryCompressed,
+              let total = monitor.snapshot.memoryTotal, total > 0 else { return 0 }
+        return Int((Double(wired + comp) / Double(total) * 100).rounded())
+    }
+
+    private var pressureColor: Color {
+        switch monitor.snapshot.memoryPressure {
+        case .warning: return PanelMetricColor.yellow(for: colorScheme)
+        case .critical: return PanelMetricColor.red(for: colorScheme)
+        default: return PanelMetricColor.cyan(for: colorScheme)
+        }
+    }
+
+    private func batteryDonutColor(_ charge: Int) -> Color {
+        if charge < 20 { return PanelMetricColor.red(for: colorScheme) }
+        if charge < 40 { return PanelMetricColor.yellow(for: colorScheme) }
+        return PanelMetricColor.green(for: colorScheme)
+    }
+
+    @ViewBuilder
+    private var memoryBreakdown: some View {
+        if let app = monitor.snapshot.memoryApp, let wired = monitor.snapshot.memoryWired,
+           let comp = monitor.snapshot.memoryCompressed, let free = monitor.snapshot.memoryFree {
+            let s = FeatureStrings.sensors(l10n.language)
+            VStack(alignment: .leading, spacing: 5) {
+                memoryLegend(PanelMetricColor.cyan(for: colorScheme), s.memApp, app)
+                memoryLegend(PanelMetricColor.pink(for: colorScheme), s.memWired, wired)
+                memoryLegend(PanelMetricColor.yellow(for: colorScheme), s.memCompressed, comp)
+                memoryLegend(.secondary, s.memFree, free)
+            }
+        }
+    }
+
+    private func memoryLegend(_ dot: Color, _ name: String, _ bytes: UInt64) -> some View {
+        HStack(spacing: 7) {
+            Circle().fill(dot).frame(width: 7, height: 7)
+            Text(name).font(.system(size: 11)).foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            Text(formatMemory(bytes)).font(.system(size: 11, weight: .medium)).monospacedDigit()
         }
     }
 
@@ -848,12 +947,35 @@ private struct SensorRing: View {
         .frame(width: 16, height: 16)
     }
 
-    private var color: Color {
-        switch celsius {
-        case ..<55: return PanelMetricColor.cyan(for: colorScheme)
-        case ..<75: return PanelMetricColor.yellow(for: colorScheme)
-        default: return PanelMetricColor.red(for: colorScheme)
+    private var color: Color { SystemSection.ringColor(celsius, scheme: colorScheme) }
+}
+
+/// Big iStat-style donut: a percentage centred with a caption beneath it.
+private struct Donut: View {
+    let caption: String
+    let percent: Int
+    let color: Color
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(Color.primary.opacity(0.09), lineWidth: 7)
+            Circle()
+                .trim(from: 0, to: min(1, max(0, Double(percent) / 100)))
+                .stroke(color, style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            VStack(spacing: 0) {
+                Text("\(percent)%")
+                    .font(.system(size: 22, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                Text(caption.uppercased())
+                    .font(.system(size: 8.5, weight: .semibold))
+                    .kerning(0.4)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         }
+        .frame(width: 92, height: 92)
+        .frame(maxWidth: .infinity)
     }
 }
 

@@ -36,9 +36,18 @@ struct SystemSnapshot {
     var fans: [FanReading] = []
     var cpuUsage: Double?          // 0...1
     var gpuUsage: Double?          // 0...1
+    // Per-logical-core usage (0...1) for the activity dots; efficiency cores
+    // occupy the first `efficiencyCoreCount` entries, performance cores the rest.
+    var coreUsages: [Double] = []
+    var efficiencyCoreCount: Int = 0
     var memoryUsed: UInt64?
     var memoryTotal: UInt64?
     var memoryPressure: MemoryPressure = .unknown
+    // Memory breakdown (bytes); app + wired + compressed + free == total.
+    var memoryApp: UInt64?
+    var memoryWired: UInt64?
+    var memoryCompressed: UInt64?
+    var memoryFree: UInt64?
 
     // Network
     var netDownBytesPerSec: Double?
@@ -130,10 +139,17 @@ final class SystemMonitor: ObservableObject {
     // and the fan tachometers, discovered once when the Sensors block first
     // needs them, plus a carry-over of the last list for stride-skipped ticks.
     private var sensorKeysPrepared = false
+    private var fanKeysPrepared = false
     private var extraSensorKeys: [SMCClient.Key] = []
-    private var fanKeys: [SMCClient.Key] = []
+    private var fanKeys: [(ac: SMCClient.Key, max: SMCClient.Key?)] = []
     private var lastTemperatureSensors: [TemperatureSensor] = []
     private var lastFans: [FanReading] = []
+
+    // Per-core CPU usage (dashboard dots): previous per-core busy/total ticks and
+    // the efficiency-core count (efficiency cores are the low-numbered logical CPUs).
+    private var previousCoreTicks: [(busy: UInt64, total: UInt64)] = []
+    private var efficiencyCoreCount = -1
+    private var lastCoreUsages: [Double] = []
 
     // Samplers
     private let networkSampler = NetworkSampler()
@@ -609,17 +625,21 @@ final class SystemMonitor: ObservableObject {
             }
 
             if plan.needCPU {
-                if take(.cpu),
-                   let cpu = self.readCPUUsage() {
-                    self.lastCPUUsage = cpu
-                    self.missedCPUUsageSamples = 0
-                    self.cpuHistory.push(cpu)
-                } else if self.missedCPUUsageSamples < 3 {
-                    self.missedCPUUsageSamples += 1
-                } else {
-                    self.lastCPUUsage = nil
+                if take(.cpu) {
+                    if let cpu = self.readCPUUsage() {
+                        self.lastCPUUsage = cpu
+                        self.missedCPUUsageSamples = 0
+                        self.cpuHistory.push(cpu)
+                    } else if self.missedCPUUsageSamples < 3 {
+                        self.missedCPUUsageSamples += 1
+                    } else {
+                        self.lastCPUUsage = nil
+                    }
+                    self.lastCoreUsages = self.readPerCoreUsage()
                 }
                 next.cpuUsage = self.lastCPUUsage
+                next.coreUsages = self.lastCoreUsages
+                next.efficiencyCoreCount = self.resolveEfficiencyCoreCount()
             }
 
             if plan.needMemory {
@@ -628,6 +648,12 @@ final class SystemMonitor: ObservableObject {
                     next.memoryUsed = memory.used
                     next.memoryTotal = memory.total
                     next.memoryPressure = memory.pressure
+                    if let detail = SystemInfo.memoryDetail() {
+                        next.memoryApp = detail.app
+                        next.memoryWired = detail.wired
+                        next.memoryCompressed = detail.compressed
+                        next.memoryFree = detail.free
+                    }
                     if memory.isFresh, memory.total > 0 {
                         self.memoryHistory.push(Double(memory.used) / Double(memory.total))
                     }
@@ -743,16 +769,15 @@ final class SystemMonitor: ObservableObject {
                 }
             }
 
-            // Expanded sensor list + fans ride the temperature stride. On a
-            // skipped tick the last list carries over so the panel doesn't blink.
-            if plan.needSensors {
-                if take(.temperature) {
-                    self.lastTemperatureSensors = self.readSensorTemperatures()
-                    self.lastFans = self.readFans()
-                }
-                next.temperatureSensors = self.lastTemperatureSensors
-                next.fans = self.lastFans
+            // Fans (headline ring + sensor list) and the expanded sensor list ride
+            // the temperature stride. On a skipped tick the last values carry over.
+            let needFans = plan.needTemperature || plan.needSensors
+            if take(.temperature) {
+                if needFans { self.lastFans = self.readFans() }
+                if plan.needSensors { self.lastTemperatureSensors = self.readSensorTemperatures() }
             }
+            if needFans { next.fans = self.lastFans }
+            if plan.needSensors { next.temperatureSensors = self.lastTemperatureSensors }
 
             next.cpuHistory = plan.needCPU ? self.cpuHistory.values : []
             next.gpuHistory = plan.needGPUUsage ? self.gpuHistory.values : []
@@ -871,6 +896,21 @@ final class SystemMonitor: ObservableObject {
             batteryKeys = all.filter { $0.name.hasPrefix("TB") }
         }
 
+        // Fans feed both the headline Fans ring (temps block) and the sensor
+        // list, so discover them for either.
+        if (needTemperature || needSensors), !fanKeysPrepared {
+            fanKeysPrepared = true
+            // FNum gives the count, F0Ac/F1Ac/... the actual RPM, F0Mx the max.
+            var count = 0
+            if let fnum = client.key(named: "FNum"), let value = client.readValue(fnum),
+               value > 0, value < 12 {
+                count = Int(value)
+            }
+            fanKeys = (0..<count).compactMap { i in
+                guard let ac = client.key(named: "F\(i)Ac") else { return nil }
+                return (ac, client.key(named: "F\(i)Mx"))
+            }
+        }
         if needSensors, !sensorKeysPrepared {
             sensorKeysPrepared = true
             // Enclosure sensors beyond the die keys: Wi-Fi (TW), SSD/NAND (TH),
@@ -878,13 +918,6 @@ final class SystemMonitor: ObservableObject {
             extraSensorKeys = client.keys { name in
                 name.hasPrefix("TW") || name.hasPrefix("TH") || name.hasPrefix("Ta")
             }
-            // Fans: FNum gives the count, F0Ac/F1Ac/... the actual RPM.
-            var count = 0
-            if let fnum = client.key(named: "FNum"), let value = client.readValue(fnum),
-               value > 0, value < 12 {
-                count = Int(value)
-            }
-            fanKeys = (0..<count).compactMap { client.key(named: "F\($0)Ac") }
         }
     }
 
@@ -900,9 +933,10 @@ final class SystemMonitor: ObservableObject {
 
     private func readFans() -> [FanReading] {
         guard let smc else { return [] }
-        return fanKeys.enumerated().compactMap { index, key in
-            guard let rpm = smc.readValue(key), rpm >= 0, rpm < 20000 else { return nil }
-            return FanReading(index: index, rpm: Int(rpm.rounded()))
+        return fanKeys.enumerated().compactMap { index, pair in
+            guard let rpm = smc.readValue(pair.ac), rpm >= 0, rpm < 20000 else { return nil }
+            let maxRPM = pair.max.flatMap { smc.readValue($0) }.map { Int($0.rounded()) } ?? 0
+            return FanReading(index: index, rpm: Int(rpm.rounded()), maxRPM: maxRPM)
         }
     }
 
@@ -968,6 +1002,61 @@ final class SystemMonitor: ObservableObject {
         defer { previousCPUTicks = (busy, total) }
         guard let previous = previousCPUTicks, total > previous.total else { return nil }
         return Double(busy - previous.busy) / Double(total - previous.total)
+    }
+
+    /// Busy fraction of each logical core since the previous sample, for the
+    /// activity dots. Uses host_processor_info(PROCESSOR_CPU_LOAD_INFO).
+    private func readPerCoreUsage() -> [Double] {
+        var cpuCount = natural_t(0)
+        var infoArray: processor_info_array_t?
+        var infoCount = mach_msg_type_number_t(0)
+        let host = mach_host_self()
+        defer { mach_port_deallocate(mach_task_self_, host) }
+        guard host_processor_info(host, PROCESSOR_CPU_LOAD_INFO, &cpuCount,
+                                  &infoArray, &infoCount) == KERN_SUCCESS,
+              let infoArray else { return lastCoreUsages }
+        defer {
+            vm_deallocate(mach_task_self_, vm_address_t(UInt(bitPattern: infoArray)),
+                          vm_size_t(Int(infoCount) * MemoryLayout<integer_t>.stride))
+        }
+        let cpus = Int(cpuCount)
+        var usages: [Double] = []
+        var newTicks: [(busy: UInt64, total: UInt64)] = []
+        usages.reserveCapacity(cpus)
+        infoArray.withMemoryRebound(to: processor_cpu_load_info.self, capacity: cpus) { load in
+            for i in 0..<cpus {
+                let t = load[i].cpu_ticks
+                let busy = UInt64(t.0) + UInt64(t.1) + UInt64(t.3) // user + system + nice
+                let total = busy + UInt64(t.2)                     // + idle
+                newTicks.append((busy, total))
+                if i < previousCoreTicks.count, total > previousCoreTicks[i].total {
+                    let dBusy = Double(busy - previousCoreTicks[i].busy)
+                    let dTotal = Double(total - previousCoreTicks[i].total)
+                    usages.append(dTotal > 0 ? min(1, dBusy / dTotal) : 0)
+                } else {
+                    usages.append(0)
+                }
+            }
+        }
+        previousCoreTicks = newTicks
+        lastCoreUsages = usages
+        return usages
+    }
+
+    /// Number of efficiency (low-numbered) logical cores; read once from the
+    /// perflevel that macOS names "Efficiency".
+    private func resolveEfficiencyCoreCount() -> Int {
+        if efficiencyCoreCount >= 0 { return efficiencyCoreCount }
+        // perflevel0 is Performance and perflevel1 Efficiency on Apple Silicon;
+        // fall back to 0 (all one cluster) on unknown hardware.
+        var value = 0
+        var size = MemoryLayout<Int>.size
+        if sysctlbyname("hw.perflevel1.logicalcpu", &value, &size, nil, 0) == 0, value > 0 {
+            efficiencyCoreCount = value
+        } else {
+            efficiencyCoreCount = 0
+        }
+        return efficiencyCoreCount
     }
 
     // MARK: - GPU usage
