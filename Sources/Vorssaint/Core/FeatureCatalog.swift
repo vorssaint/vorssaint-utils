@@ -88,7 +88,7 @@ extension AppFeature {
         case .micMute: return "mic.slash"
         case .musicBlock: return "music.note"
         case .keepAwake: return "moon.zzz.fill"
-        case .brightness: return "sun.max"
+        case .brightness: return "display.2"
         case .extraBrightness: return "sun.max.fill"
         case .quickLauncher: return "wand.and.rays"
         case .quickToggles: return "togglepower"

@@ -35,7 +35,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
     var symbolName: String {
         switch self {
         case .keepAwake: return "moon.zzz.fill"
-        case .brightness: return "sun.max"
+        case .brightness: return "display.2"
         case .mixer: return "slider.horizontal.3"
         case .system: return "cpu"
         case .network: return "network"

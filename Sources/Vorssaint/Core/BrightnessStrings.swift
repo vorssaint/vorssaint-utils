@@ -13,6 +13,12 @@ struct BrightnessFeatureStrings {
     let enableCaption: String
     let externalCaption: String
     let noDisplays: String
+    let displayOff: String
+    let turnOffDisplay: String
+    let turnOnDisplay: String
+    let lastDisplayCaption: String
+    let switchUnavailable: String
+    let switchFailed: String
     let keysToggle: String
     let keysCaption: String
 }
@@ -39,144 +45,222 @@ extension FeatureStrings {
 
 extension BrightnessFeatureStrings {
     static let enUS = BrightnessFeatureStrings(
-        pageTitle: "Screen brightness",
-        hubDescription: "Brightness sliders for every display",
-        enable: "Control display brightness",
-        enableCaption: "Sliders for the built-in screen and external monitors, here and in the menu bar panel.",
+        pageTitle: "Displays",
+        hubDescription: "Brightness and power controls for every display",
+        enable: "Control displays",
+        enableCaption: "Brightness and on or off controls for the built-in screen and external monitors, here and in the menu bar panel.",
         externalCaption: "External monitors are adjusted through the same protocol as their own buttons. When the connection cannot carry it, as with HDMI adapters, the slider dims the picture instead, so brightness control works either way.",
-        noDisplays: "No adjustable display found.",
+        noDisplays: "No display found.",
+        displayOff: "Off",
+        turnOffDisplay: "Turn off display",
+        turnOnDisplay: "Turn on display",
+        lastDisplayCaption: "At least one display must stay on.",
+        switchUnavailable: "Display switching is unavailable on this Mac.",
+        switchFailed: "Could not change this display.",
         keysToggle: "Brightness keys follow the pointer",
         keysCaption: "The keyboard brightness keys change the display under the pointer."
     )
 
     static let ptBR = BrightnessFeatureStrings(
-        pageTitle: "Brilho da tela",
-        hubDescription: "Controle de brilho para todas as telas",
-        enable: "Controlar o brilho das telas",
-        enableCaption: "Controles para a tela do Mac e monitores externos, aqui e no painel da barra de menus.",
+        pageTitle: "Telas",
+        hubDescription: "Brilho e controles para ligar ou desligar cada tela",
+        enable: "Controlar telas",
+        enableCaption: "Controles de brilho e de ligar ou desligar para a tela do Mac e monitores externos, aqui e no painel da barra de menus.",
         externalCaption: "Monitores externos são ajustados pelo mesmo protocolo dos botões do próprio monitor. Quando a conexão não transmite esse protocolo, como em adaptadores HDMI, o controle escurece a imagem, então o ajuste funciona de qualquer forma.",
-        noDisplays: "Nenhuma tela ajustável encontrada.",
+        noDisplays: "Nenhuma tela encontrada.",
+        displayOff: "Desligada",
+        turnOffDisplay: "Desligar tela",
+        turnOnDisplay: "Ligar tela",
+        lastDisplayCaption: "Pelo menos uma tela deve continuar ligada.",
+        switchUnavailable: "Não é possível ligar ou desligar telas neste Mac.",
+        switchFailed: "Não foi possível alterar esta tela.",
         keysToggle: "Teclas de brilho seguem o ponteiro",
         keysCaption: "As teclas de brilho do teclado mudam a tela onde o ponteiro está."
     )
 
     static let tr = BrightnessFeatureStrings(
-        pageTitle: "Ekran parlaklığı",
-        hubDescription: "Tüm ekranlar için parlaklık denetimi",
-        enable: "Ekran parlaklığını denetle",
-        enableCaption: "Yerleşik ekran ve harici monitörler için kaydırıcılar, burada ve menü çubuğu panelinde.",
+        pageTitle: "Ekranlar",
+        hubDescription: "Tüm ekranlar için parlaklık ve güç denetimleri",
+        enable: "Ekranları denetle",
+        enableCaption: "Yerleşik ekran ve harici monitörler için parlaklık ve açma kapatma denetimleri, burada ve menü çubuğu panelinde.",
         externalCaption: "Harici monitörler, kendi düğmelerinin kullandığı protokolle ayarlanır. Bağlantı bu protokolü taşıyamadığında, örneğin HDMI adaptörlerinde, kaydırıcı bunun yerine görüntüyü karartır; parlaklık denetimi her durumda çalışır.",
-        noDisplays: "Ayarlanabilir ekran bulunamadı.",
+        noDisplays: "Ekran bulunamadı.",
+        displayOff: "Kapalı",
+        turnOffDisplay: "Ekranı kapat",
+        turnOnDisplay: "Ekranı aç",
+        lastDisplayCaption: "En az bir ekran açık kalmalıdır.",
+        switchUnavailable: "Bu Mac'te ekran açma ve kapatma kullanılamıyor.",
+        switchFailed: "Bu ekran değiştirilemedi.",
         keysToggle: "Parlaklık tuşları imleci izler",
         keysCaption: "Klavyedeki parlaklık tuşları imlecin bulunduğu ekranı değiştirir."
     )
 
     static let ru = BrightnessFeatureStrings(
-        pageTitle: "Яркость экрана",
-        hubDescription: "Регулировка яркости всех экранов",
-        enable: "Управлять яркостью экранов",
-        enableCaption: "Ползунки для встроенного экрана и внешних мониторов, здесь и в панели строки меню.",
+        pageTitle: "Экраны",
+        hubDescription: "Яркость и включение всех экранов",
+        enable: "Управлять экранами",
+        enableCaption: "Настройки яркости и включения встроенного экрана и внешних мониторов здесь и в панели строки меню.",
         externalCaption: "Внешние мониторы настраиваются тем же протоколом, что и их собственные кнопки. Если соединение не передаёт этот протокол, например через адаптеры HDMI, ползунок затемняет изображение, так что регулировка работает в любом случае.",
-        noDisplays: "Настраиваемый экран не найден.",
+        noDisplays: "Экраны не найдены.",
+        displayOff: "Выключен",
+        turnOffDisplay: "Выключить экран",
+        turnOnDisplay: "Включить экран",
+        lastDisplayCaption: "Хотя бы один экран должен оставаться включённым.",
+        switchUnavailable: "Управление включением экранов недоступно на этом Mac.",
+        switchFailed: "Не удалось изменить состояние экрана.",
         keysToggle: "Клавиши яркости следуют за указателем",
         keysCaption: "Клавиши яркости на клавиатуре меняют экран, на котором находится указатель."
     )
 
     static let es = BrightnessFeatureStrings(
-        pageTitle: "Brillo de la pantalla",
-        hubDescription: "Control de brillo para todas las pantallas",
-        enable: "Controlar el brillo de las pantallas",
-        enableCaption: "Controles para la pantalla integrada y los monitores externos, aquí y en el panel de la barra de menús.",
+        pageTitle: "Pantallas",
+        hubDescription: "Brillo y encendido para todas las pantallas",
+        enable: "Controlar las pantallas",
+        enableCaption: "Controles de brillo y encendido para la pantalla integrada y los monitores externos, aquí y en el panel de la barra de menús.",
         externalCaption: "Los monitores externos se ajustan con el mismo protocolo que sus propios botones. Cuando la conexión no transmite ese protocolo, como con adaptadores HDMI, el control oscurece la imagen, así que el ajuste funciona igualmente.",
-        noDisplays: "No se encontró ninguna pantalla ajustable.",
+        noDisplays: "No se encontró ninguna pantalla.",
+        displayOff: "Apagada",
+        turnOffDisplay: "Apagar pantalla",
+        turnOnDisplay: "Encender pantalla",
+        lastDisplayCaption: "Al menos una pantalla debe permanecer encendida.",
+        switchUnavailable: "El encendido de pantallas no está disponible en este Mac.",
+        switchFailed: "No se pudo cambiar esta pantalla.",
         keysToggle: "Las teclas de brillo siguen al puntero",
         keysCaption: "Las teclas de brillo del teclado cambian la pantalla donde está el puntero."
     )
 
     static let de = BrightnessFeatureStrings(
-        pageTitle: "Bildschirmhelligkeit",
-        hubDescription: "Helligkeitsregler für alle Displays",
-        enable: "Displayhelligkeit steuern",
-        enableCaption: "Regler für das eingebaute Display und externe Monitore, hier und im Menüleistenpanel.",
+        pageTitle: "Displays",
+        hubDescription: "Helligkeit und Ein oder Aus für alle Displays",
+        enable: "Displays steuern",
+        enableCaption: "Regler für Helligkeit und Ein oder Aus für das eingebaute Display und externe Monitore, hier und im Menüleistenpanel.",
         externalCaption: "Externe Monitore werden über dasselbe Protokoll wie ihre eigenen Tasten eingestellt. Trägt die Verbindung es nicht, etwa bei HDMI-Adaptern, dunkelt der Regler stattdessen das Bild ab, sodass die Helligkeit in jedem Fall steuerbar bleibt.",
-        noDisplays: "Kein einstellbares Display gefunden.",
+        noDisplays: "Kein Display gefunden.",
+        displayOff: "Aus",
+        turnOffDisplay: "Display ausschalten",
+        turnOnDisplay: "Display einschalten",
+        lastDisplayCaption: "Mindestens ein Display muss eingeschaltet bleiben.",
+        switchUnavailable: "Die Displaysteuerung ist auf diesem Mac nicht verfügbar.",
+        switchFailed: "Dieses Display konnte nicht geändert werden.",
         keysToggle: "Helligkeitstasten folgen dem Zeiger",
         keysCaption: "Die Helligkeitstasten der Tastatur ändern das Display, auf dem der Zeiger steht."
     )
 
     static let fr = BrightnessFeatureStrings(
-        pageTitle: "Luminosité de l'écran",
-        hubDescription: "Réglage de la luminosité de tous les écrans",
-        enable: "Contrôler la luminosité des écrans",
-        enableCaption: "Curseurs pour l'écran intégré et les moniteurs externes, ici et dans le panneau de la barre des menus.",
+        pageTitle: "Écrans",
+        hubDescription: "Luminosité et alimentation de tous les écrans",
+        enable: "Contrôler les écrans",
+        enableCaption: "Contrôles de luminosité et d'alimentation pour l'écran intégré et les moniteurs externes, ici et dans le panneau de la barre des menus.",
         externalCaption: "Les moniteurs externes sont réglés par le même protocole que leurs propres boutons. Quand la connexion ne le transmet pas, comme avec les adaptateurs HDMI, le curseur assombrit l'image, le réglage fonctionne donc dans tous les cas.",
-        noDisplays: "Aucun écran réglable trouvé.",
+        noDisplays: "Aucun écran détecté.",
+        displayOff: "Éteint",
+        turnOffDisplay: "Éteindre l'écran",
+        turnOnDisplay: "Allumer l'écran",
+        lastDisplayCaption: "Au moins un écran doit rester allumé.",
+        switchUnavailable: "Le contrôle d'alimentation des écrans n'est pas disponible sur ce Mac.",
+        switchFailed: "Impossible de modifier cet écran.",
         keysToggle: "Les touches de luminosité suivent le pointeur",
         keysCaption: "Les touches de luminosité du clavier règlent l'écran où se trouve le pointeur."
     )
 
     static let it = BrightnessFeatureStrings(
-        pageTitle: "Luminosità dello schermo",
-        hubDescription: "Regolazione della luminosità di tutti gli schermi",
-        enable: "Controlla la luminosità degli schermi",
-        enableCaption: "Cursori per lo schermo integrato e i monitor esterni, qui e nel pannello della barra dei menu.",
+        pageTitle: "Schermi",
+        hubDescription: "Luminosità e accensione per tutti gli schermi",
+        enable: "Controlla gli schermi",
+        enableCaption: "Controlli di luminosità e accensione per lo schermo integrato e i monitor esterni, qui e nel pannello della barra dei menu.",
         externalCaption: "I monitor esterni vengono regolati con lo stesso protocollo dei loro pulsanti. Quando il collegamento non lo trasmette, come con gli adattatori HDMI, il cursore scurisce l'immagine, quindi la regolazione funziona comunque.",
-        noDisplays: "Nessuno schermo regolabile trovato.",
+        noDisplays: "Nessuno schermo trovato.",
+        displayOff: "Spento",
+        turnOffDisplay: "Spegni schermo",
+        turnOnDisplay: "Accendi schermo",
+        lastDisplayCaption: "Almeno uno schermo deve rimanere acceso.",
+        switchUnavailable: "Il controllo di accensione degli schermi non è disponibile su questo Mac.",
+        switchFailed: "Non è stato possibile modificare questo schermo.",
         keysToggle: "I tasti di luminosità seguono il puntatore",
         keysCaption: "I tasti di luminosità della tastiera regolano lo schermo dove si trova il puntatore."
     )
 
     static let ja = BrightnessFeatureStrings(
-        pageTitle: "画面の輝度",
-        hubDescription: "すべてのディスプレイの輝度を調整",
-        enable: "ディスプレイの輝度を調整",
-        enableCaption: "内蔵ディスプレイと外部モニタのスライダを、こことメニューバーパネルに表示します。",
+        pageTitle: "ディスプレイ",
+        hubDescription: "すべてのディスプレイの明るさと電源を操作",
+        enable: "ディスプレイを操作",
+        enableCaption: "内蔵ディスプレイと外部モニタの明るさと電源を、こことメニューバーパネルで操作します。",
         externalCaption: "外部モニタは本体のボタンと同じプロトコルで調整します。HDMI変換アダプタなどでこのプロトコルが通らない場合は、スライダが代わりに画面を暗くするため、どの接続でも輝度を調整できます。",
-        noDisplays: "調整できるディスプレイが見つかりません。",
+        noDisplays: "ディスプレイが見つかりません。",
+        displayOff: "オフ",
+        turnOffDisplay: "ディスプレイの電源を切る",
+        turnOnDisplay: "ディスプレイの電源を入れる",
+        lastDisplayCaption: "少なくとも1台のディスプレイをオンのままにしてください。",
+        switchUnavailable: "このMacではディスプレイの切り替えを利用できません。",
+        switchFailed: "このディスプレイを切り替えられませんでした。",
         keysToggle: "輝度キーはポインタに従う",
         keysCaption: "キーボードの輝度キーが、ポインタのあるディスプレイを調整します。"
     )
 
     static let ko = BrightnessFeatureStrings(
-        pageTitle: "화면 밝기",
-        hubDescription: "모든 디스플레이의 밝기 조절",
-        enable: "디스플레이 밝기 조절",
-        enableCaption: "내장 화면과 외부 모니터의 밝기 슬라이더를 여기와 메뉴 막대 패널에 표시합니다.",
+        pageTitle: "디스플레이",
+        hubDescription: "모든 디스플레이의 밝기와 전원 제어",
+        enable: "디스플레이 제어",
+        enableCaption: "내장 화면과 외부 모니터의 밝기와 전원을 여기와 메뉴 막대 패널에서 제어합니다.",
         externalCaption: "외부 모니터는 자체 버튼과 동일한 프로토콜로 조절됩니다. HDMI 어댑터처럼 연결이 이 프로토콜을 지원하지 않으면 슬라이더가 대신 화면을 어둡게 하므로 어느 경우든 밝기를 조절할 수 있습니다.",
-        noDisplays: "조절할 수 있는 디스플레이를 찾을 수 없습니다.",
+        noDisplays: "디스플레이를 찾을 수 없습니다.",
+        displayOff: "꺼짐",
+        turnOffDisplay: "디스플레이 끄기",
+        turnOnDisplay: "디스플레이 켜기",
+        lastDisplayCaption: "최소 한 대의 디스플레이는 켜져 있어야 합니다.",
+        switchUnavailable: "이 Mac에서는 디스플레이 전원 제어를 사용할 수 없습니다.",
+        switchFailed: "이 디스플레이를 변경할 수 없습니다.",
         keysToggle: "밝기 키가 포인터를 따라감",
         keysCaption: "키보드의 밝기 키로 포인터가 있는 디스플레이를 조절합니다."
     )
 
     static let zhHans = BrightnessFeatureStrings(
-        pageTitle: "屏幕亮度",
-        hubDescription: "为所有显示器调节亮度",
-        enable: "控制显示器亮度",
-        enableCaption: "内置屏幕和外接显示器的亮度滑块，显示在这里和菜单栏面板中。",
+        pageTitle: "显示器",
+        hubDescription: "控制所有显示器的亮度和开关",
+        enable: "控制显示器",
+        enableCaption: "内置屏幕和外接显示器的亮度与开关控制，显示在这里和菜单栏面板中。",
         externalCaption: "外接显示器通过与其自身按键相同的协议调节。当连接无法传输该协议时（例如 HDMI 转接器），滑块会改为调暗画面，因此亮度调节始终可用。",
-        noDisplays: "未找到可调节的显示器。",
+        noDisplays: "未找到显示器。",
+        displayOff: "已关闭",
+        turnOffDisplay: "关闭显示器",
+        turnOnDisplay: "打开显示器",
+        lastDisplayCaption: "至少要保留一台显示器开启。",
+        switchUnavailable: "此 Mac 不支持显示器开关。",
+        switchFailed: "无法更改这台显示器。",
         keysToggle: "亮度键跟随指针",
         keysCaption: "键盘上的亮度键调节指针所在的显示器。"
     )
 
     static let zhTW = BrightnessFeatureStrings(
-        pageTitle: "螢幕亮度",
-        hubDescription: "調整所有顯示器的亮度",
-        enable: "控制顯示器亮度",
-        enableCaption: "內建螢幕和外接顯示器的亮度滑桿，顯示在這裡和選單列面板中。",
+        pageTitle: "顯示器",
+        hubDescription: "控制所有顯示器的亮度和開關",
+        enable: "控制顯示器",
+        enableCaption: "內建螢幕和外接顯示器的亮度與開關控制，顯示在這裡和選單列面板中。",
         externalCaption: "外接顯示器透過與其本身按鍵相同的協定調整。當連接無法傳輸該協定時（例如 HDMI 轉接器），滑桿會改為調暗畫面，因此亮度調整始終可用。",
-        noDisplays: "找不到可調整的顯示器。",
+        noDisplays: "找不到顯示器。",
+        displayOff: "已關閉",
+        turnOffDisplay: "關閉顯示器",
+        turnOnDisplay: "開啟顯示器",
+        lastDisplayCaption: "至少要保留一台顯示器開啟。",
+        switchUnavailable: "此 Mac 不支援顯示器開關。",
+        switchFailed: "無法更改這台顯示器。",
         keysToggle: "亮度鍵跟隨指標",
         keysCaption: "鍵盤上的亮度鍵調整指標所在的顯示器。"
     )
 
     static let zhHK = BrightnessFeatureStrings(
-        pageTitle: "螢幕亮度",
-        hubDescription: "調整所有顯示器的亮度",
-        enable: "控制顯示器亮度",
-        enableCaption: "內置螢幕和外接顯示器的亮度滑桿，顯示在這裏和選單列面板中。",
+        pageTitle: "顯示器",
+        hubDescription: "控制所有顯示器的亮度和開關",
+        enable: "控制顯示器",
+        enableCaption: "內置螢幕和外接顯示器的亮度與開關控制，顯示在這裏和選單列面板中。",
         externalCaption: "外接顯示器透過與其本身按鍵相同的協定調整。當連接無法傳輸該協定時（例如 HDMI 轉接器），滑桿會改為調暗畫面，因此亮度調整始終可用。",
-        noDisplays: "找不到可調整的顯示器。",
+        noDisplays: "找不到顯示器。",
+        displayOff: "已關閉",
+        turnOffDisplay: "關閉顯示器",
+        turnOnDisplay: "開啟顯示器",
+        lastDisplayCaption: "至少要保留一台顯示器開啟。",
+        switchUnavailable: "此 Mac 不支援顯示器開關。",
+        switchFailed: "無法更改這部顯示器。",
         keysToggle: "亮度鍵跟隨指標",
         keysCaption: "鍵盤上的亮度鍵調整指標所在的顯示器。"
     )

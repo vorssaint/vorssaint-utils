@@ -21,7 +21,10 @@ struct BrightnessDisplay: Identifiable, Equatable {
     let id: CGDirectDisplayID
     let name: String
     let isBuiltIn: Bool
-    let method: Method
+    /// Nil while the display is off, or when it can be switched but does not
+    /// expose a brightness route of its own.
+    var method: Method?
+    var isActive: Bool
     /// 0...1 for the UI slider.
     var brightness: Double
     /// False when the monitor never answered a brightness read: the slider
@@ -44,6 +47,14 @@ final class BrightnessService: ObservableObject {
     static let shared = BrightnessService()
 
     @Published private(set) var displays: [BrightnessDisplay] = []
+    @Published private(set) var pendingDisplayIDs = Set<CGDirectDisplayID>()
+    @Published private(set) var displayControlFailure: DisplayControlFailure?
+
+    enum DisplayControlFailure: Equatable {
+        case unavailable
+        case lastActive
+        case failed
+    }
 
     private struct Route {
         var method: BrightnessDisplay.Method
@@ -80,6 +91,14 @@ final class BrightnessService: ObservableObject {
         var count: UInt32
     }
     private var knownTopology = Set<CGDirectDisplayID>()
+    private var knownActiveTopology = Set<CGDirectDisplayID>()
+    /// Only displays disabled by this process are restored when the feature
+    /// is switched off. A display another app disabled is never changed
+    /// without a direct click from the user.
+    private var managedDisabledIDs = Set<CGDirectDisplayID>()
+    /// A disabled display leaves even CoreGraphics' online list. Keep its
+    /// last row so the panel still offers the button that brings it back.
+    private var managedDisabledDisplays: [CGDirectDisplayID: BrightnessDisplay] = [:]
     private var running = false
     /// Stale rebuilds (an unplug mid-scan) must not overwrite fresh state.
     private var rebuildGeneration = 0
@@ -118,13 +137,24 @@ final class BrightnessService: ObservableObject {
         pendingLevels = [:]
         lastApplied = [:]
         knownTopology = []
+        knownActiveTopology = []
         stateLock.unlock()
+        pendingDisplayIDs = []
+        displayControlFailure = nil
         if !displays.isEmpty { displays = [] }
-        // Undo any gamma dimming on the work queue, AFTER an apply that may
-        // already be in flight there; quitting outright needs nothing (the
-        // window server drops a dead process's gamma on its own).
+        // Restore displays and gamma on the work queue, AFTER any operation
+        // already in flight. Normal app termination uses the synchronous
+        // restoration below; gamma also reverts with the process.
         workQueue.async { [weak self] in
             guard let self else { return }
+            self.stateLock.lock()
+            let displaysToRestore = self.managedDisabledIDs
+            self.managedDisabledIDs = []
+            self.managedDisabledDisplays = [:]
+            self.stateLock.unlock()
+            for id in displaysToRestore {
+                _ = Self.configureDisplay(id, enabled: true)
+            }
             for (id, baseline) in self.gammaBaselines {
                 CGSetDisplayTransferByTable(id, baseline.count, baseline.red,
                                             baseline.green, baseline.blue)
@@ -165,6 +195,139 @@ final class BrightnessService: ObservableObject {
         guard schedule else { return }
         workQueue.async { [weak self] in
             self?.drainPendingLevels()
+        }
+    }
+
+    // MARK: - Display power
+
+    var displaySwitchingAvailable: Bool { DisplayConfigurationBridge.configureEnabled != nil }
+
+    func isDisplayPending(_ id: CGDirectDisplayID) -> Bool {
+        pendingDisplayIDs.contains(id)
+    }
+
+    func canToggleDisplay(_ display: BrightnessDisplay) -> Bool {
+        guard displaySwitchingAvailable, !isDisplayPending(display.id) else { return false }
+        guard display.isActive else { return true }
+        stateLock.lock()
+        let active = knownActiveTopology
+        stateLock.unlock()
+        return BrightnessSupport.canDisableDisplay(activeDisplayIDs: active, target: display.id)
+    }
+
+    /// Enables or disables one connected display without changing the saved
+    /// system arrangement. The transaction is app-only and never overwrites
+    /// the user's saved display configuration.
+    func toggleDisplay(_ display: BrightnessDisplay) {
+        guard !isDisplayPending(display.id) else { return }
+        guard displaySwitchingAvailable else {
+            displayControlFailure = .unavailable
+            return
+        }
+        let targetEnabled = !display.isActive
+        if !targetEnabled {
+            stateLock.lock()
+            let active = knownActiveTopology
+            stateLock.unlock()
+            guard BrightnessSupport.canDisableDisplay(activeDisplayIDs: active,
+                                                       target: display.id) else {
+                displayControlFailure = .lastActive
+                return
+            }
+        }
+
+        displayControlFailure = nil
+        pendingDisplayIDs.insert(display.id)
+        workQueue.async { [weak self] in
+            guard let self else { return }
+            if !targetEnabled {
+                let active = Self.activeDisplayIDs()
+                guard BrightnessSupport.canDisableDisplay(activeDisplayIDs: active,
+                                                           target: display.id) else {
+                    self.finishDisplayToggle(id: display.id, enabled: targetEnabled,
+                                             failure: .lastActive)
+                    return
+                }
+                // A software-dimmed screen should return with its clean gamma
+                // before the saved dim level is reapplied by the rebuild.
+                if let baseline = self.gammaBaselines[display.id] {
+                    CGSetDisplayTransferByTable(display.id, baseline.count, baseline.red,
+                                                baseline.green, baseline.blue)
+                }
+            }
+
+            guard Self.configureDisplay(display.id, enabled: targetEnabled) else {
+                self.finishDisplayToggle(id: display.id, enabled: targetEnabled,
+                                         failure: .failed)
+                return
+            }
+
+            self.stateLock.lock()
+            self.pendingLevels.removeValue(forKey: display.id)
+            if targetEnabled {
+                self.managedDisabledIDs.remove(display.id)
+                self.managedDisabledDisplays.removeValue(forKey: display.id)
+                self.knownActiveTopology.insert(display.id)
+            } else {
+                self.managedDisabledIDs.insert(display.id)
+                var disabled = display
+                disabled.method = nil
+                disabled.isActive = false
+                self.managedDisabledDisplays[display.id] = disabled
+                self.knownActiveTopology.remove(display.id)
+            }
+            self.stateLock.unlock()
+            self.finishDisplayToggle(id: display.id, enabled: targetEnabled, failure: nil)
+        }
+    }
+
+    private func finishDisplayToggle(id: CGDirectDisplayID, enabled: Bool,
+                                     failure: DisplayControlFailure?) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.pendingDisplayIDs.remove(id)
+            self.displayControlFailure = failure
+            if failure == nil, let index = self.displays.firstIndex(where: { $0.id == id }) {
+                self.displays[index].isActive = enabled
+                if !enabled { self.displays[index].method = nil }
+                self.refresh()
+            }
+        }
+    }
+
+    private static func configureDisplay(_ id: CGDirectDisplayID, enabled: Bool) -> Bool {
+        guard let configure = DisplayConfigurationBridge.configureEnabled else { return false }
+        var reference: CGDisplayConfigRef?
+        guard CGBeginDisplayConfiguration(&reference) == .success,
+              let configuration = reference else { return false }
+        guard configure(configuration, id, enabled) == 0 else {
+            CGCancelDisplayConfiguration(configuration)
+            return false
+        }
+        return CGCompleteDisplayConfiguration(configuration, .forAppOnly) == .success
+    }
+
+    private static func activeDisplayIDs() -> Set<CGDirectDisplayID> {
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
+        var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetActiveDisplayList(count, &ids, &count) == .success else { return [] }
+        return Set(ids.prefix(Int(count)))
+    }
+
+    /// AppKit gives termination hooks only a brief synchronous window. Queue
+    /// behind any toggle already in flight, then restore every display this
+    /// process disabled before the process exits.
+    func restoreDisplaysBeforeTermination() {
+        workQueue.sync {
+            stateLock.lock()
+            let ids = managedDisabledIDs
+            managedDisabledIDs = []
+            managedDisabledDisplays = [:]
+            stateLock.unlock()
+            for id in ids {
+                _ = Self.configureDisplay(id, enabled: true)
+            }
         }
     }
 
@@ -261,8 +424,10 @@ final class BrightnessService: ObservableObject {
             var count: UInt32 = 0
             CGGetOnlineDisplayList(16, &ids, &count)
             let topology = Set(ids.prefix(Int(count)))
+            let activeTopology = Self.activeDisplayIDs()
             self.stateLock.lock()
             let changed = topology != self.knownTopology
+                || activeTopology != self.knownActiveTopology
             self.stateLock.unlock()
             if changed { self.refresh() }
         }
@@ -279,6 +444,7 @@ final class BrightnessService: ObservableObject {
         let onlineIDs = Array(ids.prefix(Int(count)))
 
         let seenTopology = Set(onlineIDs)
+        let activeTopology = Self.activeDisplayIDs()
         var built: [BrightnessDisplay] = []
         var newRoutes: [CGDirectDisplayID: Route] = [:]
         var ddcCandidates: [(index: Int, identity: BrightnessSupport.DisplayIdentity)] = []
@@ -295,13 +461,25 @@ final class BrightnessService: ObservableObject {
             }
             let isBuiltIn = CGDisplayIsBuiltin(id) != 0
             let name = Self.displayName(id, info: info)
+            let isActive = activeTopology.contains(id)
+
+            if !isActive {
+                stateLock.lock()
+                let level = lastApplied[id] ?? 1.0
+                stateLock.unlock()
+                built.append(BrightnessDisplay(id: id, name: name, isBuiltIn: isBuiltIn,
+                                               method: nil, isActive: false,
+                                               brightness: level, readable: false))
+                continue
+            }
 
             var level: Float = -1
             if let read = BrightnessBridge.getBrightness, read(id, &level) == 0, level >= 0, level <= 1 {
                 // The system pipeline answers for this display (built-in
                 // panel or an Apple external display).
                 built.append(BrightnessDisplay(id: id, name: name, isBuiltIn: isBuiltIn,
-                                               method: .system, brightness: Double(level),
+                                               method: .system, isActive: true,
+                                               brightness: Double(level),
                                                readable: true))
                 newRoutes[id] = Route(method: .system, service: nil, maximum: 100)
                 continue
@@ -310,7 +488,15 @@ final class BrightnessService: ObservableObject {
             ddcCandidates.append((built.count, Self.displayIdentity(id, info: info)))
             // Placeholder; the DDC pass below fills brightness and route.
             built.append(BrightnessDisplay(id: id, name: name, isBuiltIn: false,
-                                           method: .ddc, brightness: 0.5, readable: false))
+                                           method: .ddc, isActive: true,
+                                           brightness: 0.5, readable: false))
+        }
+
+        stateLock.lock()
+        let disabledSnapshots = managedDisabledDisplays
+        stateLock.unlock()
+        for (id, display) in disabledSnapshots where !seenTopology.contains(id) {
+            built.append(display)
         }
 
         // DDC pass: walk the IORegistry once, score services against the
@@ -345,7 +531,7 @@ final class BrightnessService: ObservableObject {
                     let ceiling = BrightnessSupport.sanitizedMaximum(maximum)
                     built[candidate.index] = BrightnessDisplay(
                         id: id, name: built[candidate.index].name, isBuiltIn: false,
-                        method: .ddc,
+                        method: .ddc, isActive: true,
                         brightness: BrightnessSupport.normalized(current: current,
                                                                  maximum: ceiling),
                         readable: true)
@@ -359,7 +545,7 @@ final class BrightnessService: ObservableObject {
                     stateLock.unlock()
                     built[candidate.index] = BrightnessDisplay(
                         id: id, name: built[candidate.index].name, isBuiltIn: false,
-                        method: .ddc, brightness: seed, readable: false)
+                        method: .ddc, isActive: true, brightness: seed, readable: false)
                     newRoutes[id] = Route(method: .ddc, service: matched.service, maximum: 100)
                     softwareIndices.remove(candidate.index)
                 case .dead:
@@ -384,17 +570,34 @@ final class BrightnessService: ObservableObject {
             guard gammaBaselines[id] != nil else { continue }
             built[index] = BrightnessDisplay(
                 id: id, name: built[index].name, isBuiltIn: false,
-                method: .software, brightness: value, readable: true)
+                method: .software, isActive: true, brightness: value, readable: true)
             newRoutes[id] = Route(method: .software, service: nil, maximum: 100)
             if value < 0.999 { applySoftwareDim(id, value: value) }
         }
-        let resolved = built.filter { newRoutes[$0.id] != nil }
+        let resolved = built.compactMap { display -> BrightnessDisplay? in
+            if !display.isActive || newRoutes[display.id] != nil { return display }
+            // Even without a brightness route, an active physical display is
+            // useful in the generalized Displays surface when it can be
+            // switched on or off.
+            guard DisplayConfigurationBridge.configureEnabled != nil else { return nil }
+            var display = display
+            display.method = nil
+            return display
+        }
 
         stateLock.lock()
         let stale = generation != rebuildGeneration
         if !stale {
             routes = newRoutes
             knownTopology = seenTopology
+            knownActiveTopology = activeTopology
+            managedDisabledIDs.subtract(activeTopology)
+            for id in activeTopology {
+                managedDisabledDisplays.removeValue(forKey: id)
+            }
+            for display in resolved where display.method != nil {
+                lastApplied[display.id] = display.brightness
+            }
         }
         stateLock.unlock()
         guard !stale else { return }
@@ -677,4 +880,21 @@ private enum BrightnessBridge {
         guard let handle, let pointer = dlsym(handle, name) else { return nil }
         return unsafeBitCast(pointer, to: T.self)
     }
+}
+
+/// CoreGraphics exposes display reconfiguration publicly but keeps the one
+/// operation that marks a connected display enabled or disabled private. The
+/// symbol is resolved dynamically so an OS that removes it simply disables
+/// the button instead of preventing the app from launching.
+private enum DisplayConfigurationBridge {
+    typealias ConfigureEnabledFn = @convention(c) (CGDisplayConfigRef, UInt32, Bool) -> Int32
+
+    private static let coreGraphicsHandle = dlopen(
+        "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", RTLD_LAZY)
+
+    static let configureEnabled: ConfigureEnabledFn? = {
+        guard let coreGraphicsHandle,
+              let pointer = dlsym(coreGraphicsHandle, "CGSConfigureDisplayEnabled") else { return nil }
+        return unsafeBitCast(pointer, to: ConfigureEnabledFn.self)
+    }()
 }

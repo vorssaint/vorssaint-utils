@@ -123,6 +123,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
+        if AppFeature.brightness.isAvailable {
+            BrightnessService.shared.restoreDisplaysBeforeTermination()
+        }
         ExtraBrightnessService.shared.stop()
         ProcessUsageService.shared.stopNetworkMonitoring(force: true)
         URLCleanerService.shared.stop()

@@ -7,17 +7,17 @@ All notable changes to this project are documented here. The format follows
 ## [3.1.13]
 
 ### Summary
-Vorssaint 3.1.13 adds brightness control for all your displays, a Quick
-toggles tab with one-click actions like dark mode and Trash, automatic Keep
+Vorssaint 3.1.13 adds brightness and power controls for all your displays, a
+Quick toggles tab with one-click actions like dark mode and Trash, automatic Keep
 Awake rules, battery time remaining and compact usage bars in the menu bar.
 It also keeps Extra Brightness steady around fullscreen video and returns
 Finder to the Volume Mixer.
 
 ### Added
-- Brightness sliders for the Mac screen and external monitors, in the menu
-  bar panel and in Settings. The keyboard brightness keys can follow the
-  pointer, changing whichever display it is on. Turn it on in Settings
-  under Energy.
+- Display controls for the Mac screen and external monitors in the menu bar
+  panel and Settings. Adjust brightness, turn a display on or off and
+  optionally let the keyboard brightness keys follow the pointer. Enable
+  Displays under Energy settings.
 - A new Quick toggles tab offers one-click actions such as switching between
   light and dark mode, emptying the Trash, ejecting all disks and hiding
   desktop icons. It appears in the menu bar panel and in the quick panel.

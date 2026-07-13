@@ -84,6 +84,15 @@ enum BrightnessSupport {
         return writeAccepted ? .writeOnly : .dead
     }
 
+    // MARK: - Display switching
+
+    /// Turning off the final drawable display would leave no UI path to turn
+    /// it back on. The target must be active and another active display must
+    /// remain after the transaction.
+    static func canDisableDisplay(activeDisplayIDs: Set<UInt32>, target: UInt32) -> Bool {
+        activeDisplayIDs.contains(target) && activeDisplayIDs.count > 1
+    }
+
     // MARK: - Software dimming (gamma curve)
 
     /// Displays with no DDC channel are dimmed in the video pipeline instead:

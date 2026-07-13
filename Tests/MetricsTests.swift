@@ -4660,6 +4660,12 @@ struct MetricsTests {
                "accepted writes without replies keep a blind slider")
         expect(BrightnessSupport.channelOutcome(writeAccepted: false, replyParsed: false) == .dead,
                "rejected writes mean no DDC reaches the display (HDMI conversion)")
+        expect(BrightnessSupport.canDisableDisplay(activeDisplayIDs: [1, 3], target: 3),
+               "one display can be disabled while another remains active")
+        expect(!BrightnessSupport.canDisableDisplay(activeDisplayIDs: [1], target: 1),
+               "the final active display can never be disabled")
+        expect(!BrightnessSupport.canDisableDisplay(activeDisplayIDs: [1, 3], target: 8),
+               "an inactive display cannot enter the disable path")
 
         expect(BrightnessSupport.softwareDimFactor(for: 1.0) == 1.0
                 && BrightnessSupport.softwareDimFactor(for: 0.0) == 0.0,

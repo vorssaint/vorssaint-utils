@@ -25,6 +25,11 @@ struct BrightnessSection: View {
                         row(display)
                     }
                 }
+                if let failure = service.displayControlFailure {
+                    Text(displayControlFailureText(failure, strings: strings))
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.red)
+                }
             }
             .panelCard()
             .onAppear { service.refresh() }
@@ -43,18 +48,81 @@ struct BrightnessSection: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer(minLength: 4)
-                Text("\(Int((display.brightness * 100).rounded()))%")
-                    .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(.secondary)
+                if display.isActive, display.method != nil {
+                    Text("\(Int((display.brightness * 100).rounded()))%")
+                        .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(.secondary)
+                } else if !display.isActive {
+                    Text(strings.displayOff)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                DisplayPowerButton(display: display, compact: true)
             }
-            Slider(value: brightnessBinding(display), in: 0...1)
-                .controlSize(.small)
-                .accessibilityLabel(display.name)
+            if display.isActive, display.method != nil {
+                Slider(value: brightnessBinding(display), in: 0...1)
+                    .controlSize(.small)
+                    .disabled(service.isDisplayPending(display.id))
+                    .accessibilityLabel(display.name)
+            }
         }
     }
 
     private func brightnessBinding(_ display: BrightnessDisplay) -> Binding<Double> {
         Binding(get: { display.brightness },
                 set: { service.setBrightness($0, for: display.id) })
+    }
+}
+
+/// Shared power affordance used by Settings and the menu bar panel. It stays
+/// icon-only in the row, with a localized tooltip and accessibility label.
+struct DisplayPowerButton: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var service = BrightnessService.shared
+    let display: BrightnessDisplay
+    var compact = false
+
+    private var strings: BrightnessFeatureStrings { FeatureStrings.brightness(l10n.language) }
+    private var pending: Bool { service.isDisplayPending(display.id) }
+    private var enabled: Bool { service.canToggleDisplay(display) }
+
+    private var label: String {
+        if !service.displaySwitchingAvailable { return strings.switchUnavailable }
+        if display.isActive, !enabled { return strings.lastDisplayCaption }
+        return display.isActive ? strings.turnOffDisplay : strings.turnOnDisplay
+    }
+
+    var body: some View {
+        Group {
+            if pending {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(width: compact ? 16 : 20, height: 18)
+                    .accessibilityLabel(label)
+            } else {
+                Button {
+                    service.toggleDisplay(display)
+                } label: {
+                    Image(systemName: display.isActive ? "power" : "power.circle.fill")
+                        .font(.system(size: compact ? 10.5 : 12, weight: .semibold))
+                        .foregroundStyle(display.isActive ? AnyShapeStyle(.secondary)
+                                                         : AnyShapeStyle(.green))
+                        .frame(width: compact ? 16 : 20, height: 18)
+                }
+                .buttonStyle(.plain)
+                .disabled(!enabled)
+                .help(label)
+                .accessibilityLabel(label)
+            }
+        }
+    }
+}
+
+func displayControlFailureText(_ failure: BrightnessService.DisplayControlFailure,
+                               strings: BrightnessFeatureStrings) -> String {
+    switch failure {
+    case .unavailable: return strings.switchUnavailable
+    case .lastActive: return strings.lastDisplayCaption
+    case .failed: return strings.switchFailed
     }
 }

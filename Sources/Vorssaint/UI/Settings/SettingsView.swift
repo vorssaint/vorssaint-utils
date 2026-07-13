@@ -509,6 +509,10 @@ struct EnergySettings: View {
                                 brightnessRow(display)
                             }
                         }
+                        if let failure = brightness.displayControlFailure {
+                            SettingsCaptionText(displayControlFailureText(failure, strings: strings))
+                                .foregroundStyle(.red)
+                        }
                         SettingsToggleWithCaption(title: strings.keysToggle,
                                                   caption: strings.keysCaption,
                                                   isOn: $brightnessKeysEnabled)
@@ -569,16 +573,27 @@ struct EnergySettings: View {
             Text(display.name)
                 .lineLimit(1)
                 .truncationMode(.middle)
-            Slider(value: Binding(get: { display.brightness },
-                                  set: { BrightnessService.shared.setBrightness($0, for: display.id) }),
-                   in: 0...1)
-            Text("\(Int((display.brightness * 100).rounded()))%")
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .frame(width: 52, alignment: .trailing)
+            if display.isActive, display.method != nil {
+                Slider(value: Binding(get: { display.brightness },
+                                      set: { BrightnessService.shared.setBrightness($0,
+                                                                                    for: display.id) }),
+                       in: 0...1)
+                    .disabled(brightness.isDisplayPending(display.id))
+                    .accessibilityLabel(display.name)
+                Text("\(Int((display.brightness * 100).rounded()))%")
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 52, alignment: .trailing)
+            } else {
+                Spacer()
+                if !display.isActive {
+                    Text(FeatureStrings.brightness(l10n.language).displayOff)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 52, alignment: .trailing)
+                }
+            }
+            DisplayPowerButton(display: display)
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(display.name)
     }
 
     private var extraBrightnessLevelBinding: Binding<Double> {
