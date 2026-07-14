@@ -188,6 +188,7 @@ enum DefaultsKey {
     static let monitorSysGPU = "monitorSysGPU"
     static let monitorSysBattery = "monitorSysBattery"
     static let monitorSysMemory = "monitorSysMemory"
+    static let monitorSysDisk = "monitorSysDisk"
     static let monitorSysAlerts = "monitorSysAlerts"
     static let monitorSysUptime = "monitorSysUptime"
     static let monitorNetSpeed = "monitorNetSpeed"
@@ -605,6 +606,7 @@ enum Defaults {
         DefaultsKey.monitorSysGPU: true,
         DefaultsKey.monitorSysBattery: true,
         DefaultsKey.monitorSysMemory: true,
+        DefaultsKey.monitorSysDisk: true,
         DefaultsKey.monitorSysAlerts: true,
         DefaultsKey.monitorSysUptime: true,
         DefaultsKey.monitorNetSpeed: true,

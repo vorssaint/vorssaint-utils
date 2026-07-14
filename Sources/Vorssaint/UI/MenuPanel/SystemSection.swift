@@ -19,6 +19,7 @@ struct SystemSection: View {
     @State private var expanded: BreakdownKind?
     @State private var alertsExpanded = false
     @State private var uptimeExpanded = false
+    @State private var diskExpanded = false
     @State private var breakdownRows: [ProcessUsage] = []
     @State private var breakdownIsLoading = false
     @State private var lastBreakdownRefresh = Date.distantPast
@@ -47,6 +48,7 @@ struct SystemSection: View {
     @AppStorage(DefaultsKey.monitorSysGPU) private var sysGPU = true
     @AppStorage(DefaultsKey.monitorSysBattery) private var sysBattery = true
     @AppStorage(DefaultsKey.monitorSysMemory) private var sysMemory = true
+    @AppStorage(DefaultsKey.monitorSysDisk) private var sysDisk = true
     @AppStorage(DefaultsKey.monitorSysAlerts) private var sysAlerts = true
     @AppStorage(DefaultsKey.monitorSysUptime) private var sysUptime = true
     @AppStorage(DefaultsKey.panelSystemOrder) private var systemOrderRaw = ""
@@ -123,7 +125,7 @@ struct SystemSection: View {
 
     /// Card subsections, in order, filtered by the per-item toggles (and whether a
     /// battery exists). Drives divider interleaving so only rendered blocks get one.
-    private enum Block: String, PanelOrderItem { case temps, usage, memory, sensors, alerts, uptime }
+    private enum Block: String, PanelOrderItem { case temps, usage, memory, disk, sensors, alerts, uptime }
 
     // Hub availability per metric family: an unavailable metric leaves the
     // card entirely, including the edit-mode hidden rows.
@@ -131,6 +133,7 @@ struct SystemSection: View {
     private var gpuAvailable: Bool { AppFeature.monitorGPU.isAvailable }
     private var memoryAvailable: Bool { AppFeature.monitorMemory.isAvailable }
     private var powerAvailable: Bool { AppFeature.monitorPower.isAvailable }
+    private var diskAvailable: Bool { AppFeature.monitorDisk.isAvailable }
 
     private var usageVisible: Bool {
         (sysCPU && cpuAvailable) || (sysGPU && gpuAvailable)
@@ -149,6 +152,7 @@ struct SystemSection: View {
         switch block {
         case .temps, .sensors, .usage: return cpuAvailable || gpuAvailable || powerAvailable
         case .memory: return memoryAvailable
+        case .disk: return diskAvailable
         case .alerts, .uptime: return true
         }
     }
@@ -174,6 +178,7 @@ struct SystemSection: View {
         case .sensors: return sysSensors
         case .usage: return usageVisible
         case .memory: return sysMemory
+        case .disk: return sysDisk
         case .alerts: return sysAlerts
         case .uptime: return sysUptime
         }
@@ -189,6 +194,7 @@ struct SystemSection: View {
         sysGPU = true
         sysBattery = true
         sysMemory = true
+        sysDisk = true
         sysAlerts = true
         sysUptime = true
     }
@@ -200,6 +206,7 @@ struct SystemSection: View {
         case .sensors: sensorsRows(editing: editing)
         case .usage: usageRows(editing: editing)
         case .memory: memoryRows(editing: editing)
+        case .disk: diskRows(editing: editing)
         case .alerts: alertRows(editing: editing)
         case .uptime: uptimeRow(editing: editing)
         }
@@ -843,6 +850,60 @@ struct SystemSection: View {
                 .monospacedDigit()
                 .frame(width: 38, alignment: .trailing)
             trailing()
+        }
+    }
+
+    // MARK: Disk
+
+    private var primaryDisk: DiskDeviceReading? {
+        let devices = monitor.snapshot.disk?.uniqueIODevices ?? []
+        return devices.first { $0.isInternal } ?? devices.first
+    }
+
+    @ViewBuilder
+    private func diskRows(editing: Bool) -> some View {
+        if !sysDisk {
+            if editing {
+                PanelHiddenItemRow(title: l10n.s.diskSection, systemImage: "internaldrive", isVisible: $sysDisk)
+            }
+        } else if let device = primaryDisk {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 8) {
+                    if let temp = device.smart?.temperatureCelsius {
+                        Text("\(Int(temp.rounded()))")
+                            .font(.system(size: 9, weight: .bold, design: .rounded)).monospacedDigit()
+                            .frame(width: 22, height: 22)
+                            .overlay(Circle().stroke(Self.ringColor(temp, scheme: colorScheme), lineWidth: 1.5))
+                    } else {
+                        Image(systemName: "internaldrive")
+                            .font(.system(size: 12)).foregroundStyle(.secondary).frame(width: 22)
+                    }
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(device.name).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                        Text("\(MetricFormat.diskBytes(device.freeBytes)) \(l10n.s.diskFree)")
+                            .font(.system(size: 10)).foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 8)
+                    if editing { PanelInlineHideButton(isVisible: $sysDisk) }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { if !editing { diskExpanded.toggle() } }
+                if diskExpanded, !editing {
+                    VStack(alignment: .leading, spacing: 3) {
+                        sensorRow(label: l10n.s.diskRead,
+                                  value: MetricFormat.bytesPerSec(device.readBytesPerSec ?? 0))
+                        sensorRow(label: l10n.s.diskWrite,
+                                  value: MetricFormat.bytesPerSec(device.writeBytesPerSec ?? 0))
+                        if let temp = device.smart?.temperatureCelsius {
+                            sensorRow(label: l10n.s.diskTemperature,
+                                      value: MetricFormat.temperature(temp, unit: displayTemperatureUnit))
+                        }
+                        if let health = device.smart?.healthPercent {
+                            sensorRow(label: l10n.s.diskHealth, value: "\(health)%")
+                        }
+                    }
+                }
+            }
         }
     }
 

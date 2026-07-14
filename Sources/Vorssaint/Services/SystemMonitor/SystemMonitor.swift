@@ -470,6 +470,7 @@ final class SystemMonitor: ObservableObject {
         plan.needMemory = panelMemory || defaults.bool(forKey: DefaultsKey.menuBarMemory) || alertMemory
         plan.needNetwork = panelNeedsNetwork || defaults.bool(forKey: DefaultsKey.menuBarNetwork)
         plan.needDisk = panelNeedsDisk
+            || (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysDisk))
             || defaults.bool(forKey: DefaultsKey.menuBarDiskUsage)
             || defaults.bool(forKey: DefaultsKey.menuBarDiskActivity)
             || alertDisk
