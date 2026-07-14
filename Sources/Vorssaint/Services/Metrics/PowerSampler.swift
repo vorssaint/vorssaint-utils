@@ -16,6 +16,10 @@ struct PowerReading {
     var timeRemainingSeconds: TimeInterval? // system estimate while discharging
     var healthPercent: Double?     // max capacity vs design (battery health)
     var cycleCount: Int?
+    var voltage: Double?           // volts
+    var amperage: Double?          // mA, signed (- while discharging)
+    var designCapacity: Int?       // mAh
+    var fullChargeCapacity: Int?   // mAh
     var isCharging = false
     var externalConnected = false
     var hasBattery = false
@@ -80,6 +84,8 @@ final class PowerSampler {
                 // Power = V x I, signed by the amperage (negative while discharging).
                 reading.batteryWatts = (Double(voltageMv) / 1000.0) * (Double(amperageMa) / 1000.0)
             }
+            if voltageMv > 0 { reading.voltage = Double(voltageMv) / 1000.0 }
+            if amperageMa != 0 { reading.amperage = Double(amperageMa) }
 
             if let adapter = props["AdapterDetails"] as? [String: Any],
                let rated = adapter["Watts"] as? Int, rated > 0 {
@@ -92,12 +98,14 @@ final class PowerSampler {
             }
             if let cycles = props["CycleCount"] as? Int { reading.cycleCount = cycles }
             if let design = batteryInt("DesignCapacity", in: props), design > 0 {
+                reading.designCapacity = design
                 // Fallback estimate from IORegistry: a full-charge capacity over
                 // design. NominalChargeCapacity is the smoothed value (closest of
                 // the raw fields); fall back to AppleRawMaxCapacity when absent.
                 let fullCharge = batteryInt("NominalChargeCapacity", in: props)
                     ?? batteryInt("FullChargeCapacity", in: props)
                     ?? batteryInt("AppleRawMaxCapacity", in: props)
+                reading.fullChargeCapacity = fullCharge
                 if let fullCharge, fullCharge > 0 {
                     reading.healthPercent = min(100, Double(fullCharge) / Double(design) * 100)
                 }

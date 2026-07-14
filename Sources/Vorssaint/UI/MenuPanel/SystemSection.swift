@@ -18,6 +18,7 @@ struct SystemSection: View {
     var collapsible = true
     @State private var expanded: BreakdownKind?
     @State private var alertsExpanded = false
+    @State private var uptimeExpanded = false
     @State private var breakdownRows: [ProcessUsage] = []
     @State private var breakdownIsLoading = false
     @State private var lastBreakdownRefresh = Date.distantPast
@@ -365,7 +366,29 @@ struct SystemSection: View {
                               maxValue: 1, showsZeroBaseline: true)
                         .frame(height: 26)
                 }
+                if kind == .energy { batteryDetail }
                 breakdownList(for: kind)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var batteryDetail: some View {
+        if let p = monitor.snapshot.power {
+            let s = FeatureStrings.sensors(l10n.language)
+            VStack(alignment: .leading, spacing: 3) {
+                if let w = p.batteryWatts { sensorRow(label: s.power, value: MetricFormat.watts(abs(w))) }
+                if let a = p.amperage { sensorRow(label: s.amperage, value: String(format: "%.0f mA", a)) }
+                if let v = p.voltage { sensorRow(label: s.voltage, value: String(format: "%.2f V", v)) }
+                if let t = monitor.snapshot.batteryTemperature {
+                    sensorRow(label: s.temperature,
+                              value: MetricFormat.temperature(t, unit: displayTemperatureUnit))
+                }
+                if let c = p.cycleCount { sensorRow(label: s.cycles, value: "\(c)") }
+                sensorRow(label: s.condition, value: s.conditionNormal)
+                if let full = p.fullChargeCapacity, let design = p.designCapacity {
+                    sensorRow(label: s.capacity, value: "\(full) / \(design) mAh")
+                }
             }
         }
     }
@@ -719,16 +742,36 @@ struct SystemSection: View {
         if !sysUptime {
             PanelHiddenItemRow(title: l10n.s.monitorItemUptime, systemImage: "clock", isVisible: $sysUptime)
         } else {
-            HStack(spacing: 6) {
-                Image(systemName: "clock")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-                Text("\(l10n.s.systemUptime) \(Self.uptimeString())")
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                if editing {
-                    PanelInlineHideButton(isVisible: $sysUptime)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 6) {
+                    if editing {
+                        Image(systemName: "clock").font(.system(size: 9)).foregroundStyle(.secondary)
+                        Text("\(l10n.s.systemUptime) \(Self.uptimeString())")
+                            .font(.system(size: 10.5, weight: .medium)).foregroundStyle(.secondary)
+                        Spacer()
+                        PanelInlineHideButton(isVisible: $sysUptime)
+                    } else {
+                        Button {
+                            uptimeExpanded.toggle()
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "clock").font(.system(size: 9)).foregroundStyle(.secondary)
+                                Text("\(l10n.s.systemUptime) \(Self.uptimeString())")
+                                    .font(.system(size: 10.5, weight: .medium)).foregroundStyle(.secondary)
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                if uptimeExpanded, !editing, let detail = Self.uptimeDetail() {
+                    let s = FeatureStrings.sensors(l10n.language)
+                    VStack(alignment: .leading, spacing: 3) {
+                        sensorRow(label: s.poweredOn, value: detail.poweredOn)
+                        sensorRow(label: s.awake, value: MetricFormat.uptime(detail.awake))
+                        sensorRow(label: s.sleeping, value: MetricFormat.uptime(detail.sleeping))
+                    }
                 }
             }
         }
@@ -737,6 +780,19 @@ struct SystemSection: View {
     static func uptimeString() -> String {
         let total = SystemInfo.wallClockUptimeSeconds() ?? Int(ProcessInfo.processInfo.systemUptime)
         return MetricFormat.uptime(total)
+    }
+
+    /// Boot date, awake time and (derived) sleeping time. `systemUptime` excludes
+    /// sleep; wall-clock uptime includes it, so sleeping = wall − awake.
+    static func uptimeDetail() -> (poweredOn: String, awake: Int, sleeping: Int)? {
+        guard let wall = SystemInfo.wallClockUptimeSeconds() else { return nil }
+        let awake = Int(ProcessInfo.processInfo.systemUptime)
+        let sleeping = max(0, wall - awake)
+        let bootDate = Date(timeIntervalSinceNow: -Double(wall))
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return (formatter.string(from: bootDate), awake, sleeping)
     }
 
     private static let memoryFormatter: ByteCountFormatter = {

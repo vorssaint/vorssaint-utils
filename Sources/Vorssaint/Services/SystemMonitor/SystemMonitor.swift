@@ -182,7 +182,10 @@ final class SystemMonitor: ObservableObject {
     private var lastPublishedForeground: Bool?
 
     // History
-    private let historyCapacity = 120
+    // Longer buffer so the drill-down graphs show more history. Sampling still
+    // pauses when nothing needs it (zero idle), so this only fills while a metric
+    // is actively watched — a true 1-hour window would need continuous sampling.
+    private let historyCapacity = 600
     private var cpuHistory: MetricHistory
     private var gpuHistory: MetricHistory
     private var memoryHistory: MetricHistory

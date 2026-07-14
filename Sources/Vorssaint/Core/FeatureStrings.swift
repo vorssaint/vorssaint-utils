@@ -1889,6 +1889,15 @@ struct SensorsFeatureStrings {
     let memWired: String
     let memCompressed: String
     let memFree: String
+    let voltage: String
+    let amperage: String
+    let cycles: String
+    let condition: String
+    let conditionNormal: String
+    let capacity: String
+    let poweredOn: String
+    let awake: String
+    let sleeping: String
 
     static let enUS = SensorsFeatureStrings(
         section: "Sensors", temperature: "Temperature", power: "Power", fans: "Fans",
@@ -1896,7 +1905,8 @@ struct SensorsFeatureStrings {
         leftFan: "Left Fan", rightFan: "Right Fan", fan: "Fan",
         cpuPerformance: "CPU Performance Cores", cpuEfficiency: "CPU Efficiency Cores",
         graphics: "Graphics", battery: "Battery", ssd: "SSD", wifi: "Wi-Fi", airflow: "Airflow",
-        memApp: "App", memWired: "Wired", memCompressed: "Compressed", memFree: "Free"
+        memApp: "App", memWired: "Wired", memCompressed: "Compressed", memFree: "Free",
+        voltage: "Voltage", amperage: "Amperage", cycles: "Cycles", condition: "Condition", conditionNormal: "Normal", capacity: "Capacity", poweredOn: "Powered On", awake: "Awake", sleeping: "Sleeping"
     )
 
     static let ptBR = SensorsFeatureStrings(
@@ -1905,7 +1915,8 @@ struct SensorsFeatureStrings {
         leftFan: "Ventoinha esquerda", rightFan: "Ventoinha direita", fan: "Ventoinha",
         cpuPerformance: "Núcleos de desempenho", cpuEfficiency: "Núcleos de eficiência",
         graphics: "Gráficos", battery: "Bateria", ssd: "SSD", wifi: "Wi-Fi", airflow: "Fluxo de ar",
-        memApp: "App", memWired: "Reservada", memCompressed: "Comprimida", memFree: "Livre"
+        memApp: "App", memWired: "Reservada", memCompressed: "Comprimida", memFree: "Livre",
+        voltage: "Tensão", amperage: "Amperagem", cycles: "Ciclos", condition: "Condição", conditionNormal: "Normal", capacity: "Capacidade", poweredOn: "Ligado em", awake: "Ativo", sleeping: "Suspenso"
     )
 
     static let tr = SensorsFeatureStrings(
@@ -1914,7 +1925,8 @@ struct SensorsFeatureStrings {
         leftFan: "Sol Fan", rightFan: "Sağ Fan", fan: "Fan",
         cpuPerformance: "CPU Performans Çekirdekleri", cpuEfficiency: "CPU Verimlilik Çekirdekleri",
         graphics: "Grafik", battery: "Pil", ssd: "SSD", wifi: "Wi-Fi", airflow: "Hava Akışı",
-        memApp: "Uygulama", memWired: "Sabit", memCompressed: "Sıkıştırılmış", memFree: "Boş"
+        memApp: "Uygulama", memWired: "Sabit", memCompressed: "Sıkıştırılmış", memFree: "Boş",
+        voltage: "Voltaj", amperage: "Amperaj", cycles: "Döngü", condition: "Durum", conditionNormal: "Normal", capacity: "Kapasite", poweredOn: "Açılış", awake: "Uyanık", sleeping: "Uyku"
     )
 
     static let ru = SensorsFeatureStrings(
@@ -1923,7 +1935,8 @@ struct SensorsFeatureStrings {
         leftFan: "Левый вентилятор", rightFan: "Правый вентилятор", fan: "Вентилятор",
         cpuPerformance: "Производительные ядра ЦП", cpuEfficiency: "Энергоэффективные ядра ЦП",
         graphics: "Графика", battery: "Батарея", ssd: "SSD", wifi: "Wi-Fi", airflow: "Поток воздуха",
-        memApp: "Прил.", memWired: "Резерв", memCompressed: "Сжатая", memFree: "Свободно"
+        memApp: "Прил.", memWired: "Резерв", memCompressed: "Сжатая", memFree: "Свободно",
+        voltage: "Напряжение", amperage: "Ток", cycles: "Циклы", condition: "Состояние", conditionNormal: "Норма", capacity: "Ёмкость", poweredOn: "Включён", awake: "Активно", sleeping: "Сон"
     )
 
     static let es = SensorsFeatureStrings(
@@ -1932,7 +1945,8 @@ struct SensorsFeatureStrings {
         leftFan: "Ventilador izquierdo", rightFan: "Ventilador derecho", fan: "Ventilador",
         cpuPerformance: "Núcleos de rendimiento", cpuEfficiency: "Núcleos de eficiencia",
         graphics: "Gráficos", battery: "Batería", ssd: "SSD", wifi: "Wi-Fi", airflow: "Flujo de aire",
-        memApp: "Apps", memWired: "Residente", memCompressed: "Comprimida", memFree: "Libre"
+        memApp: "Apps", memWired: "Residente", memCompressed: "Comprimida", memFree: "Libre",
+        voltage: "Voltaje", amperage: "Amperaje", cycles: "Ciclos", condition: "Estado", conditionNormal: "Normal", capacity: "Capacidad", poweredOn: "Encendido", awake: "Activo", sleeping: "Reposo"
     )
 
     static let de = SensorsFeatureStrings(
@@ -1941,7 +1955,8 @@ struct SensorsFeatureStrings {
         leftFan: "Linker Lüfter", rightFan: "Rechter Lüfter", fan: "Lüfter",
         cpuPerformance: "CPU-Leistungskerne", cpuEfficiency: "CPU-Effizienzkerne",
         graphics: "Grafik", battery: "Batterie", ssd: "SSD", wifi: "WLAN", airflow: "Luftstrom",
-        memApp: "Apps", memWired: "Belegt", memCompressed: "Komprimiert", memFree: "Frei"
+        memApp: "Apps", memWired: "Belegt", memCompressed: "Komprimiert", memFree: "Frei",
+        voltage: "Spannung", amperage: "Stromstärke", cycles: "Zyklen", condition: "Zustand", conditionNormal: "Normal", capacity: "Kapazität", poweredOn: "Eingeschaltet", awake: "Aktiv", sleeping: "Ruhezustand"
     )
 
     static let fr = SensorsFeatureStrings(
@@ -1950,7 +1965,8 @@ struct SensorsFeatureStrings {
         leftFan: "Ventilateur gauche", rightFan: "Ventilateur droit", fan: "Ventilateur",
         cpuPerformance: "Cœurs performance", cpuEfficiency: "Cœurs efficacité",
         graphics: "Graphismes", battery: "Batterie", ssd: "SSD", wifi: "Wi-Fi", airflow: "Flux d'air",
-        memApp: "Apps", memWired: "Résident", memCompressed: "Compressée", memFree: "Libre"
+        memApp: "Apps", memWired: "Résident", memCompressed: "Compressée", memFree: "Libre",
+        voltage: "Tension", amperage: "Ampérage", cycles: "Cycles", condition: "État", conditionNormal: "Normal", capacity: "Capacité", poweredOn: "Allumé", awake: "Actif", sleeping: "Veille"
     )
 
     static let it = SensorsFeatureStrings(
@@ -1959,7 +1975,8 @@ struct SensorsFeatureStrings {
         leftFan: "Ventola sinistra", rightFan: "Ventola destra", fan: "Ventola",
         cpuPerformance: "Core prestazioni", cpuEfficiency: "Core efficienza",
         graphics: "Grafica", battery: "Batteria", ssd: "SSD", wifi: "Wi-Fi", airflow: "Flusso d'aria",
-        memApp: "App", memWired: "Residente", memCompressed: "Compressa", memFree: "Libera"
+        memApp: "App", memWired: "Residente", memCompressed: "Compressa", memFree: "Libera",
+        voltage: "Tensione", amperage: "Amperaggio", cycles: "Cicli", condition: "Condizione", conditionNormal: "Normale", capacity: "Capacità", poweredOn: "Acceso", awake: "Attivo", sleeping: "Sospeso"
     )
 
     static let ja = SensorsFeatureStrings(
@@ -1968,7 +1985,8 @@ struct SensorsFeatureStrings {
         leftFan: "左ファン", rightFan: "右ファン", fan: "ファン",
         cpuPerformance: "CPU パフォーマンスコア", cpuEfficiency: "CPU 効率コア",
         graphics: "グラフィックス", battery: "バッテリー", ssd: "SSD", wifi: "Wi-Fi", airflow: "エアフロー",
-        memApp: "アプリ", memWired: "確保領域", memCompressed: "圧縮", memFree: "空き"
+        memApp: "アプリ", memWired: "確保領域", memCompressed: "圧縮", memFree: "空き",
+        voltage: "電圧", amperage: "電流", cycles: "サイクル", condition: "状態", conditionNormal: "正常", capacity: "容量", poweredOn: "起動", awake: "稼働", sleeping: "スリープ"
     )
 
     static let ko = SensorsFeatureStrings(
@@ -1977,7 +1995,8 @@ struct SensorsFeatureStrings {
         leftFan: "왼쪽 팬", rightFan: "오른쪽 팬", fan: "팬",
         cpuPerformance: "CPU 성능 코어", cpuEfficiency: "CPU 효율 코어",
         graphics: "그래픽", battery: "배터리", ssd: "SSD", wifi: "Wi-Fi", airflow: "공기 흐름",
-        memApp: "앱", memWired: "유선", memCompressed: "압축됨", memFree: "사용 가능"
+        memApp: "앱", memWired: "유선", memCompressed: "압축됨", memFree: "사용 가능",
+        voltage: "전압", amperage: "전류", cycles: "사이클", condition: "상태", conditionNormal: "정상", capacity: "용량", poweredOn: "켜짐", awake: "가동", sleeping: "잠자기"
     )
 
     static let zhHans = SensorsFeatureStrings(
@@ -1986,7 +2005,8 @@ struct SensorsFeatureStrings {
         leftFan: "左风扇", rightFan: "右风扇", fan: "风扇",
         cpuPerformance: "CPU 性能核心", cpuEfficiency: "CPU 能效核心",
         graphics: "显卡", battery: "电池", ssd: "SSD", wifi: "Wi-Fi", airflow: "气流",
-        memApp: "应用", memWired: "联动", memCompressed: "已压缩", memFree: "可用"
+        memApp: "应用", memWired: "联动", memCompressed: "已压缩", memFree: "可用",
+        voltage: "电压", amperage: "电流", cycles: "循环次数", condition: "状况", conditionNormal: "正常", capacity: "容量", poweredOn: "开机", awake: "唤醒", sleeping: "睡眠"
     )
 
     static let zhTW = SensorsFeatureStrings(
@@ -1995,7 +2015,8 @@ struct SensorsFeatureStrings {
         leftFan: "左風扇", rightFan: "右風扇", fan: "風扇",
         cpuPerformance: "CPU 效能核心", cpuEfficiency: "CPU 節能核心",
         graphics: "顯示卡", battery: "電池", ssd: "SSD", wifi: "Wi-Fi", airflow: "氣流",
-        memApp: "應用程式", memWired: "聯動", memCompressed: "已壓縮", memFree: "可用"
+        memApp: "應用程式", memWired: "聯動", memCompressed: "已壓縮", memFree: "可用",
+        voltage: "電壓", amperage: "電流", cycles: "循環次數", condition: "狀況", conditionNormal: "正常", capacity: "容量", poweredOn: "開機", awake: "喚醒", sleeping: "睡眠"
     )
 
     static let zhHK = SensorsFeatureStrings(
@@ -2004,6 +2025,7 @@ struct SensorsFeatureStrings {
         leftFan: "左風扇", rightFan: "右風扇", fan: "風扇",
         cpuPerformance: "CPU 效能核心", cpuEfficiency: "CPU 節能核心",
         graphics: "顯示卡", battery: "電池", ssd: "SSD", wifi: "Wi-Fi", airflow: "氣流",
-        memApp: "應用程式", memWired: "聯動", memCompressed: "已壓縮", memFree: "可用"
+        memApp: "應用程式", memWired: "聯動", memCompressed: "已壓縮", memFree: "可用",
+        voltage: "電壓", amperage: "電流", cycles: "循環次數", condition: "狀況", conditionNormal: "正常", capacity: "容量", poweredOn: "開機", awake: "喚醒", sleeping: "睡眠"
     )
 }
