@@ -204,12 +204,18 @@ struct MetricsTests {
                    && !layoutStrings.gestureRaiseWindow.isEmpty,
                    "\(language.rawValue) window gesture controls are localized")
             let alertStrings = FeatureStrings.monitorAlerts(language)
+            expect(alertStrings.caption.contains("12"),
+                   "\(language.rawValue) monitor alert caption explains the CPU spike window")
             expectFormat(alertStrings.cpuBodyFormat, ["d"], "\(language.rawValue) CPU alert format")
             expectFormat(alertStrings.cpuTemperatureBodyFormat, ["d"],
                          "\(language.rawValue) CPU temperature alert format")
             expectFormat(alertStrings.diskBodyFormat, ["@", "d"], "\(language.rawValue) disk alert format")
             expectFormat(alertStrings.batteryBodyFormat, ["d"], "\(language.rawValue) battery alert format")
         }
+        expect(FeatureStrings.monitorAlerts(.enUS).cooldown == "Repeat the same alert after",
+               "English monitor repeat control is explicit")
+        expect(FeatureStrings.monitorAlerts(.ptBR).cooldown == "Repetir o mesmo alerta depois de",
+               "Portuguese monitor repeat control is explicit")
         expect(ClipboardHistorySelection.initialIndex(totalCount: 3) == 0,
                "clipboard quick window starts keyboard navigation on the first item")
         expect(ClipboardHistorySelection.initialIndex(totalCount: 0) == 0,

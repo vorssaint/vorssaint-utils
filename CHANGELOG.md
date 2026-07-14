@@ -41,6 +41,8 @@ Finder to the Volume Mixer.
 ### Changed
 - Package updates now stay at the top of the installed list, with clearly
   labeled controls in the panel.
+- Monitor alerts now explain when limits trigger a notification, when short CPU
+  spikes are ignored and that the time setting only delays repeated alerts.
 
 ### Fixed
 - Smooth Scrolling now moves horizontally while Shift is held.

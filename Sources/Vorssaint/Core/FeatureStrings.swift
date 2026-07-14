@@ -189,7 +189,7 @@ extension WindowLayoutFeatureStrings {
 extension MonitorAlertFeatureStrings {
     static let ko = MonitorAlertFeatureStrings(
         section: "알림",
-        caption: "기본적으로 꺼져 있습니다. 켜면 모니터가 유의미한 상태가 계속될 때만 경고하고 알림 간격을 지킵니다.",
+        caption: "선택한 기준에 도달하면 알림이 표시됩니다. CPU 사용량은 기준을 약 12초 동안 계속 넘어야 하므로 짧은 급증은 무시됩니다. 반복 설정은 같은 알림의 반복만 제한합니다.",
         notificationsDenied: "시스템 설정에서 Vorssaint 알림이 꺼져 있어 경고를 표시할 수 없습니다.",
         cpu: "높은 CPU 사용량",
         cpuTemperature: "높은 CPU 온도",
@@ -200,7 +200,7 @@ extension MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "온도",
         diskThreshold: "남은 공간",
         batteryThreshold: "배터리 잔량",
-        cooldown: "알림 간격",
+        cooldown: "같은 알림을 다시 보내기까지",
         cooldown2: "2분",
         cooldown5: "5분",
         cooldown15: "15분",
@@ -1590,7 +1590,7 @@ struct MonitorAlertFeatureStrings {
 
     static let enUS = MonitorAlertFeatureStrings(
         section: "Alerts",
-        caption: "Off by default. When enabled, Monitor warns only after a useful condition and respects the alert interval.",
+        caption: "Alerts fire when their selected limits are reached. High CPU ignores spikes shorter than about 12 seconds. The repeat setting only limits repeats of the same alert.",
         notificationsDenied: "Notifications for Vorssaint are off in System Settings, so alerts cannot appear.",
         cpu: "High CPU",
         cpuTemperature: "High CPU temperature",
@@ -1601,7 +1601,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "Temperature above",
         diskThreshold: "Free space below",
         batteryThreshold: "Battery below",
-        cooldown: "Alert interval",
+        cooldown: "Repeat the same alert after",
         cooldown2: "2 minutes",
         cooldown5: "5 minutes",
         cooldown15: "15 minutes",
@@ -1621,7 +1621,7 @@ struct MonitorAlertFeatureStrings {
 
     static let ptBR = MonitorAlertFeatureStrings(
         section: "Alertas",
-        caption: "Desligado por padrão. Quando ligado, o Monitor avisa só depois de uma condição relevante e respeita o intervalo entre avisos.",
+        caption: "Os alertas disparam quando os limites escolhidos são atingidos. A CPU ignora picos com menos de 12 segundos. A opção de repetição só limita o mesmo alerta.",
         notificationsDenied: "As notificações do Vorssaint estão desativadas nos Ajustes do Sistema, então os alertas não aparecem.",
         cpu: "CPU alta",
         cpuTemperature: "Temperatura alta da CPU",
@@ -1632,7 +1632,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "Temperatura acima de",
         diskThreshold: "Espaço livre abaixo de",
         batteryThreshold: "Bateria abaixo de",
-        cooldown: "Intervalo entre avisos",
+        cooldown: "Repetir o mesmo alerta depois de",
         cooldown2: "2 minutos",
         cooldown5: "5 minutos",
         cooldown15: "15 minutos",
@@ -1652,7 +1652,7 @@ struct MonitorAlertFeatureStrings {
 
     static let tr = MonitorAlertFeatureStrings(
         section: "Uyarılar",
-        caption: "Varsayılan olarak kapalıdır. Etkinleştirildiğinde Monitör yalnızca anlamlı bir koşuldan sonra uyarır ve uyarı aralığına uyar.",
+        caption: "Uyarılar seçilen eşiklere ulaşıldığında gönderilir. CPU yaklaşık 12 saniyeden kısa sıçramaları yok sayar. Tekrarlama ayarı yalnızca aynı uyarının tekrarlanmasını sınırlar.",
         notificationsDenied: "Sistem Ayarları'nda Vorssaint bildirimleri kapalı, bu yüzden uyarılar görünemez.",
         cpu: "Yüksek CPU",
         cpuTemperature: "Yüksek CPU sıcaklığı",
@@ -1663,7 +1663,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "Sıcaklık şu değerin üstünde",
         diskThreshold: "Boş alan şu değerin altında",
         batteryThreshold: "Pil şu değerin altında",
-        cooldown: "Uyarı aralığı",
+        cooldown: "Aynı uyarıyı şu süre sonra yinele",
         cooldown2: "2 dakika",
         cooldown5: "5 dakika",
         cooldown15: "15 dakika",
@@ -1683,7 +1683,7 @@ struct MonitorAlertFeatureStrings {
 
     static let ru = MonitorAlertFeatureStrings(
         section: "Оповещения",
-        caption: "По умолчанию выключено. Когда функция включена, Monitor предупреждает только после полезного условия и соблюдает интервал между оповещениями.",
+        caption: "Оповещения появляются при достижении выбранных порогов. CPU игнорирует скачки короче примерно 12 секунд. Настройка повтора ограничивает только повтор одного и того же оповещения.",
         notificationsDenied: "Уведомления Vorssaint выключены в Системных настройках, поэтому оповещения не появятся.",
         cpu: "Высокая нагрузка CPU",
         cpuTemperature: "Высокая температура CPU",
@@ -1694,7 +1694,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "Температура выше",
         diskThreshold: "Свободного места меньше",
         batteryThreshold: "Батарея ниже",
-        cooldown: "Интервал оповещений",
+        cooldown: "Повторить то же оповещение через",
         cooldown2: "2 минуты",
         cooldown5: "5 минут",
         cooldown15: "15 минут",
@@ -1714,7 +1714,7 @@ struct MonitorAlertFeatureStrings {
 
     static let es = MonitorAlertFeatureStrings(
         section: "Alertas",
-        caption: "Desactivado por defecto. Al activarlo, Monitor avisa solo tras una condición relevante y respeta el intervalo entre avisos.",
+        caption: "Las alertas aparecen cuando se alcanzan los límites elegidos. La CPU ignora los picos de menos de unos 12 segundos. El ajuste de repetición solo limita la repetición de la misma alerta.",
         notificationsDenied: "Las notificaciones de Vorssaint están desactivadas en Ajustes del Sistema, así que las alertas no aparecen.",
         cpu: "CPU alta",
         cpuTemperature: "Temperatura de CPU alta",
@@ -1725,7 +1725,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "Temperatura por encima de",
         diskThreshold: "Espacio libre por debajo de",
         batteryThreshold: "Batería por debajo de",
-        cooldown: "Intervalo entre avisos",
+        cooldown: "Repetir la misma alerta después de",
         cooldown2: "2 minutos",
         cooldown5: "5 minutos",
         cooldown15: "15 minutos",
@@ -1745,7 +1745,7 @@ struct MonitorAlertFeatureStrings {
 
     static let de = MonitorAlertFeatureStrings(
         section: "Warnungen",
-        caption: "Standardmäßig aus. Wenn aktiviert, warnt der Monitor nur nach einem relevanten Zustand und beachtet das Warnintervall.",
+        caption: "Warnungen erscheinen, wenn die gewählten Grenzwerte erreicht werden. Die CPU ignoriert Spitzen, die kürzer als etwa 12 Sekunden dauern. Die Wiederholungseinstellung begrenzt nur die Wiederholung derselben Warnung.",
         notificationsDenied: "Mitteilungen für Vorssaint sind in den Systemeinstellungen aus, daher können keine Warnungen erscheinen.",
         cpu: "Hohe CPU",
         cpuTemperature: "Hohe CPU-Temperatur",
@@ -1756,7 +1756,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "Temperatur über",
         diskThreshold: "Freier Platz unter",
         batteryThreshold: "Akku unter",
-        cooldown: "Warnintervall",
+        cooldown: "Dieselbe Warnung erneut nach",
         cooldown2: "2 Minuten",
         cooldown5: "5 Minuten",
         cooldown15: "15 Minuten",
@@ -1776,7 +1776,7 @@ struct MonitorAlertFeatureStrings {
 
     static let fr = MonitorAlertFeatureStrings(
         section: "Alertes",
-        caption: "Désactivé par défaut. Une fois activé, Monitor avertit seulement après une condition utile et respecte l'intervalle d'alerte.",
+        caption: "Les alertes apparaissent lorsque les seuils choisis sont atteints. Le processeur ignore les pics de moins de 12 secondes environ. Le réglage de répétition limite uniquement la répétition de la même alerte.",
         notificationsDenied: "Les notifications de Vorssaint sont désactivées dans Réglages Système, les alertes ne peuvent donc pas apparaître.",
         cpu: "CPU élevé",
         cpuTemperature: "Température CPU élevée",
@@ -1787,7 +1787,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "Température au-dessus de",
         diskThreshold: "Espace libre sous",
         batteryThreshold: "Batterie sous",
-        cooldown: "Intervalle d'alerte",
+        cooldown: "Répéter la même alerte après",
         cooldown2: "2 minutes",
         cooldown5: "5 minutes",
         cooldown15: "15 minutes",
@@ -1807,7 +1807,7 @@ struct MonitorAlertFeatureStrings {
 
     static let it = MonitorAlertFeatureStrings(
         section: "Avvisi",
-        caption: "Disattivato per impostazione predefinita. Quando attivo, Monitor avvisa solo dopo una condizione utile e rispetta l'intervallo tra gli avvisi.",
+        caption: "Gli avvisi compaiono quando vengono raggiunte le soglie scelte. La CPU ignora i picchi più brevi di circa 12 secondi. L'impostazione di ripetizione limita solo la ripetizione dello stesso avviso.",
         notificationsDenied: "Le notifiche di Vorssaint sono disattivate in Impostazioni di Sistema, quindi gli avvisi non compaiono.",
         cpu: "CPU alta",
         cpuTemperature: "Temperatura CPU alta",
@@ -1818,7 +1818,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "Temperatura sopra",
         diskThreshold: "Spazio libero sotto",
         batteryThreshold: "Batteria sotto",
-        cooldown: "Intervallo avvisi",
+        cooldown: "Ripeti lo stesso avviso dopo",
         cooldown2: "2 minuti",
         cooldown5: "5 minuti",
         cooldown15: "15 minuti",
@@ -1838,7 +1838,7 @@ struct MonitorAlertFeatureStrings {
 
     static let ja = MonitorAlertFeatureStrings(
         section: "アラート",
-        caption: "デフォルトではオフです。有効にすると、Monitor は意味のある状態が続いた場合だけ通知し、通知間隔を守ります。",
+        caption: "選択したしきい値に達すると通知します。CPU は約 12 秒未満の短い急上昇を無視します。繰り返し設定は同じ通知の繰り返しだけを制限します。",
         notificationsDenied: "システム設定でVorssaintの通知がオフのため、アラートは表示されません。",
         cpu: "CPU 高負荷",
         cpuTemperature: "CPU 温度が高い",
@@ -1849,7 +1849,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "温度が次を超過",
         diskThreshold: "空き容量が次を下回る",
         batteryThreshold: "バッテリーが次を下回る",
-        cooldown: "通知間隔",
+        cooldown: "同じ通知を再度送るまで",
         cooldown2: "2 分",
         cooldown5: "5 分",
         cooldown15: "15 分",
@@ -1869,7 +1869,7 @@ struct MonitorAlertFeatureStrings {
 
     static let zhHans = MonitorAlertFeatureStrings(
         section: "提醒",
-        caption: "默认关闭。启用后，监视器只会在出现有意义的状态时提醒，并遵守提醒间隔。",
+        caption: "达到所选阈值时会发出提醒。CPU 会忽略短于约 12 秒的短暂峰值。重复设置仅限制同一提醒的重复频率。",
         notificationsDenied: "Vorssaint 的通知已在系统设置中关闭，警报无法显示。",
         cpu: "CPU 过高",
         cpuTemperature: "CPU 温度过高",
@@ -1880,7 +1880,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "温度高于",
         diskThreshold: "可用空间低于",
         batteryThreshold: "电量低于",
-        cooldown: "提醒间隔",
+        cooldown: "再次发送同一提醒的间隔",
         cooldown2: "2 分钟",
         cooldown5: "5 分钟",
         cooldown15: "15 分钟",
@@ -1900,7 +1900,7 @@ struct MonitorAlertFeatureStrings {
 
     static let zhTW = MonitorAlertFeatureStrings(
         section: "提醒",
-        caption: "預設為關閉。開啟後，監控功能只會在出現需要注意的狀態時提醒，並依照提醒間隔發送通知。",
+        caption: "達到所選門檻時會發出提醒。CPU 會忽略短於約 12 秒的短暫尖峰。重複設定只限制相同提醒的重複頻率。",
         notificationsDenied: "Vorssaint 的通知已在系統設定中關閉，警示無法顯示。",
         cpu: "CPU 使用率過高",
         cpuTemperature: "CPU 溫度過高",
@@ -1911,7 +1911,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "溫度高於",
         diskThreshold: "可用空間低於",
         batteryThreshold: "電量低於",
-        cooldown: "提醒間隔",
+        cooldown: "再次發送相同提醒的間隔",
         cooldown2: "2 分鐘",
         cooldown5: "5 分鐘",
         cooldown15: "15 分鐘",
@@ -1931,7 +1931,7 @@ struct MonitorAlertFeatureStrings {
 
     static let zhHK = MonitorAlertFeatureStrings(
         section: "提示",
-        caption: "預設為關閉。開啟後，監察功能只會在出現需要注意的狀態時提示，並會遵循提示間隔。",
+        caption: "達到所選門檻時會發出提示。CPU 會忽略短於約 12 秒的短暫尖峰。重複設定只限制相同提示的重複頻率。",
         notificationsDenied: "Vorssaint 的通知已在系統設定中關閉，警示無法顯示。",
         cpu: "CPU 使用率過高",
         cpuTemperature: "CPU 溫度過高",
@@ -1942,7 +1942,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "溫度高於",
         diskThreshold: "可用空間低於",
         batteryThreshold: "電量低於",
-        cooldown: "提示間隔",
+        cooldown: "再次發出相同提示的間隔",
         cooldown2: "2 分鐘",
         cooldown5: "5 分鐘",
         cooldown15: "15 分鐘",
