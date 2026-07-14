@@ -541,6 +541,7 @@ extension AppFeature {
         case .monitorNetwork: return s.monitorShowNetwork
         case .monitorDisk: return s.diskSection
         case .monitorPower: return s.powerSection
+        case .screenshot: return "Screenshots"
         }
     }
 
@@ -585,6 +586,7 @@ extension AppFeature {
         case .monitorNetwork: return hub.descMonitorNetwork
         case .monitorDisk: return hub.descMonitorDisk
         case .monitorPower: return hub.descMonitorPower
+        case .screenshot: return "Take screenshots, snap window areas, and manage clipboard & output configurations."
         }
     }
 }

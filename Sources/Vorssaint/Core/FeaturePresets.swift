@@ -90,7 +90,7 @@ extension AppFeature {
             return .periodic
         case .pastePlain, .mixer, .soundOutputSwitcher, .micMute,
              .musicBlock, .keepAwake, .brightness, .quickLauncher, .quickToggles, .colorPicker,
-             .screenOCR, .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew:
+             .screenOCR, .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew, .screenshot:
             return .idle
         }
     }

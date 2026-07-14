@@ -25,6 +25,13 @@ enum DefaultsKey {
     static let keepAwakeMouseJiggleInterval = "keepAwakeMouseJiggleIntervalMinutes"
     static let hotkeyEnabled = "hotkeyEnabled"
     static let keepAwakeShortcut = "keepAwakeShortcut"    // GlobalShortcut storage value
+    static let screenshotEnabled = "screenshotEnabled"
+    static let screenshotShortcut = "screenshotShortcut"
+    static let screenshotShowThumbnail = "screenshotShowThumbnail"
+    static let screenshotQuickCaptureMode = "screenshotQuickCaptureMode"
+    static let screenshotHideInstructions = "screenshotHideInstructions"
+    static let screenshotSaveAction = "screenshotSaveAction"
+    static let screenshotSaveDirectory = "screenshotSaveDirectory"
     static let keepAwakeIconTint = "keepAwakeIconTint"    // KeepAwakeIconTint.rawValue
     static let keepAwakeActiveIcon = "keepAwakeActiveIcon" // KeepAwakeActiveIcon.rawValue
     static let showCountdown = "showCountdownInMenuBar"
@@ -513,6 +520,13 @@ enum Defaults {
         DefaultsKey.cleanerLastAutoRun: 0.0,
         DefaultsKey.cleanerLastAutoFreed: 0,
         DefaultsKey.cleanerBadgeSeen: false,
+        DefaultsKey.screenshotEnabled: true,
+        DefaultsKey.screenshotShortcut: "command+shift:23",
+        DefaultsKey.screenshotShowThumbnail: true,
+        DefaultsKey.screenshotQuickCaptureMode: 2,
+        DefaultsKey.screenshotHideInstructions: false,
+        DefaultsKey.screenshotSaveAction: 0,
+        DefaultsKey.screenshotSaveDirectory: defaultScreenshotDirectoryPath,
         DefaultsKey.urlCleanerEnabled: false,
         DefaultsKey.textSnippetsEnabled: false,
         DefaultsKey.windowMaximizeEnabled: false,
@@ -914,5 +928,10 @@ enum Defaults {
 
     static func sanitizedPreferredInputDeviceUID(_ value: Any?) -> String? {
         MixerRoutingSupport.sanitizedDeviceUID(value)
+    }
+
+    static var defaultScreenshotDirectoryPath: String {
+        let picturesURL = FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask)[0]
+        return picturesURL.appendingPathComponent("Vorssaint Screenshots").path
     }
 }

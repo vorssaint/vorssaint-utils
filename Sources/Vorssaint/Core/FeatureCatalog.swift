@@ -25,7 +25,7 @@ enum AppFeature: String, CaseIterable {
     case keepAwake, brightness, extraBrightness
     // Tools
     case quickLauncher, quickToggles, colorPicker, screenOCR, cleaningMode, mediaTools,
-         cleaner, uninstaller, homebrew
+         cleaner, uninstaller, homebrew, screenshot
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
     case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower
@@ -57,7 +57,7 @@ extension AppFeature {
         case .keepAwake, .brightness, .extraBrightness:
             return .energyDisplay
         case .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
-             .cleaner, .uninstaller, .homebrew:
+             .cleaner, .uninstaller, .homebrew, .screenshot:
             return .tools
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
             return .monitor
@@ -105,6 +105,7 @@ extension AppFeature {
         case .monitorNetwork: return "network"
         case .monitorDisk: return "internaldrive"
         case .monitorPower: return "bolt.fill"
+        case .screenshot: return "crop"
         }
     }
 
@@ -144,7 +145,7 @@ extension AppFeature {
         case .extraBrightness: return [DefaultsKey.extraBrightnessEnabled]
         case .windowLayout, .mixer, .micMute, .keepAwake,
              .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
-             .cleaner, .uninstaller, .homebrew,
+             .cleaner, .uninstaller, .homebrew, .screenshot,
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
             return []
         }
@@ -176,7 +177,7 @@ extension AppFeature {
         case .monitorCPU, .monitorMemory, .monitorDisk, .monitorPower: return [.notifications]
         case .clipboardHistory, .shelf, .urlCleaner, .soundOutputSwitcher, .musicBlock,
              .extraBrightness, .quickLauncher, .colorPicker, .micMute, .mediaTools,
-             .monitorGPU, .monitorNetwork:
+             .screenshot, .monitorGPU, .monitorNetwork:
             return []
         }
     }

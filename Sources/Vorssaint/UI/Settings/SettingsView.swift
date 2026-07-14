@@ -7,6 +7,7 @@ import SwiftUI
 
 /// One entry in the Settings sidebar. New features add a case here and a row in
 /// the Features section, so every feature gets its own page.
+
 /// Selects the visible Settings page; the menu bar uses it to open Settings
 /// directly on a specific page.
 final class SettingsRouter: ObservableObject {
@@ -106,6 +107,8 @@ struct SettingsView: View {
                             icon: "text.append",
                             keywords: [FeatureStrings.snippets(l10n.language).triggerLabel,
                                        FeatureStrings.snippets(l10n.language).addButton]),
+                SidebarItem(page: .screenshot, title: "Screenshots", icon: "crop",
+                            keywords: ["screenshot", "capture", "snapping", "thumbnail", "quick capture"]),
             ]),
             (categories.app, [
                 SidebarItem(page: .shortcuts, title: l10n.s.shortcutsPageTitle, icon: "command",
@@ -184,6 +187,7 @@ struct SettingsView: View {
         case .windowLayout: WindowLayoutSettings()
         case .shelf: ShelfSettings()
         case .shortcuts: ShortcutsSettings()
+        case .screenshot: ScreenshotSettings()
         case .advanced: AdvancedSettings()
         case .about: AboutSettings()
         case .releaseNotes: ReleaseNotesSettings()
