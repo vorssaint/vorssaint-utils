@@ -17,7 +17,7 @@ enum OnboardingMode {
         // per-feature showcase pages moved into that page as plain toggles;
         // each feature's Settings page still teaches the details.
         [.welcome, .accessibility, .screenRecording, .monitor, .menuBarSetup,
-         .panelSetup, .quickPanel, .optionalFeatures,
+         .panelSetup, .quickPanel, .optionalFeatures, .purpose,
          .status, .done]
     }
 
@@ -29,6 +29,7 @@ enum OnboardingMode {
 enum OnboardingStep {
     case welcome, accessibility, screenRecording, monitor, menuBarSetup, panelSetup, optionalFeatures
     case quickPanel
+    case purpose
     case status, done
 }
 
@@ -62,6 +63,12 @@ struct OnboardingView: View {
         .frame(width: 540, height: 600)
         .onAppear {
             if !steps.indices.contains(index) { index = 0 }
+            // Onboarding narrates the permission trip itself; the floating
+            // guide card would just double the voice.
+            PermissionGuideOverlay.suppressed = true
+        }
+        .onDisappear {
+            PermissionGuideOverlay.suppressed = false
         }
     }
 
@@ -84,6 +91,7 @@ struct OnboardingView: View {
         case .panelSetup: PanelSetupStep()
         case .quickPanel: QuickPanelShowcaseStep()
         case .optionalFeatures: OptionalFeaturesStep()
+        case .purpose: PurposeStep()
         case .status: StatusStep()
         case .done: DoneStep()
         }
@@ -253,6 +261,97 @@ private struct PermissionStep: View {
     }
 }
 
+// MARK: - Purpose step: one answer shapes the whole app
+
+/// "What brought you here?" — the answers are the hub's own bundles, same
+/// names and descriptions, so onboarding and the Features hub speak one
+/// language. One click applies the bundle and the app leaves setup already
+/// shaped for it. Skipping keeps everything at hand.
+private struct PurposeStep: View {
+    @ObservedObject private var l10n = L10n.shared
+    @State private var chosen: FeaturePreset?
+
+    private var hub: FeatureHubStrings { FeatureStrings.hub(l10n.language) }
+
+    var body: some View {
+        VStack(spacing: 18) {
+            StepHeader(icon: "sparkles.rectangle.stack",
+                       title: l10n.s.obPurposeTitle,
+                       subtitle: l10n.s.obPurposeBody)
+
+            VStack(spacing: 8) {
+                ForEach(FeaturePreset.allCases) { preset in
+                    bundleCard(preset)
+                }
+            }
+            .padding(.horizontal, 28)
+
+            Text(l10n.s.obPurposeSkip)
+                .font(.system(size: 11.5))
+                .foregroundStyle(.secondary)
+
+            Spacer()
+        }
+    }
+
+    private func name(_ preset: FeaturePreset) -> String {
+        switch preset {
+        case .essential: return hub.presetEssentialName
+        case .windows: return hub.presetWindowsName
+        case .battery: return hub.presetBatteryName
+        }
+    }
+
+    private func caption(_ preset: FeaturePreset) -> String {
+        switch preset {
+        case .essential: return hub.presetEssentialDesc
+        case .windows: return hub.presetWindowsDesc
+        case .battery: return hub.presetBatteryDesc
+        }
+    }
+
+    private func bundleCard(_ preset: FeaturePreset) -> some View {
+        let selected = chosen == preset
+        return Button {
+            guard !selected else { return }
+            chosen = preset
+            withAnimation(.easeOut(duration: 0.2)) {
+                FeatureRuntime.shared.apply(preset)
+            }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: preset.symbolName)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(selected ? AnyShapeStyle(.white) : AnyShapeStyle(Color.accentColor))
+                    .frame(width: 26)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name(preset))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(selected ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+                    Text(caption(preset))
+                        .font(.system(size: 11))
+                        .foregroundStyle(selected ? AnyShapeStyle(Color.white.opacity(0.85)) : AnyShapeStyle(.secondary))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                if selected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.white)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(selected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color.primary.opacity(0.05)))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .animation(.easeOut(duration: 0.15), value: chosen)
+    }
+}
+
 // MARK: - Step 4: system monitor
 
 private struct MonitorStep: View {
@@ -303,6 +402,7 @@ private struct MenuBarSetupStep: View {
     @AppStorage(DefaultsKey.menuBarDiskUsage) private var diskUsage = false
     @AppStorage(DefaultsKey.menuBarDiskActivity) private var diskActivity = false
     @AppStorage(DefaultsKey.menuBarBattery) private var battery = false
+    @AppStorage(DefaultsKey.menuBarBatteryTime) private var batteryTime = false
     @AppStorage(DefaultsKey.menuBarPeripheralBattery) private var peripheralBattery = false
     @AppStorage(DefaultsKey.menuBarPower) private var power = false
 
@@ -335,6 +435,8 @@ private struct MenuBarSetupStep: View {
                 toggle(l10n.s.monitorItemDiskActivity, $diskActivity)
                 Divider()
                 toggle(l10n.s.batteryLabel, $battery)
+                Divider()
+                toggle(FeatureStrings.batteryTime(l10n.language).title, $batteryTime)
                 Divider()
                 toggle(l10n.s.monitorShowPeripheralBattery, $peripheralBattery)
                 Divider()

@@ -16,6 +16,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case fr = "fr"
     case it = "it"
     case ja = "ja"
+    case ko = "ko"
     case zhHans = "zh-Hans"
     case zhTW = "zh-TW"
     case zhHK = "zh-HK"
@@ -34,6 +35,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .fr: return "Français"
         case .it: return "Italiano"
         case .ja: return "日本語"
+        case .ko: return "한국어"
         case .zhHans: return "简体中文"
         case .zhHK: return "繁體中文（香港）"
         case .zhTW: return "繁體中文（台灣）"
@@ -54,7 +56,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 
         let matches: [(String, AppLanguage)] = [
             ("pt", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es), ("de", .de), ("fr", .fr),
-            ("it", .it), ("ja", .ja), ("zh", .zhHans),
+            ("it", .it), ("ja", .ja), ("ko", .ko), ("zh", .zhHans),
         ]
         for (prefix, language) in matches where preferred.hasPrefix(prefix) { return language }
         return .enUS
@@ -81,6 +83,7 @@ final class L10n: ObservableObject {
         case .fr: return .fr
         case .it: return .it
         case .ja: return .ja
+        case .ko: return .ko
         case .zhHans: return .zhHans
         case .zhHK: return .zhHK
         case .zhTW: return .zhTW
@@ -152,6 +155,12 @@ struct Strings {
     let keepAwakeMouseJiggle: String
     let keepAwakeMouseJiggleCaption: String
     let keepAwakeMouseJiggleInterval: String
+    let keepAwakeActiveIconLabel: String
+    let keepAwakeActiveIconVorssaint: String
+    let keepAwakeActiveIconCoffee: String
+    let keepAwakeActiveIconEye: String
+    let keepAwakeActiveIconMoon: String
+    let keepAwakeActiveIconLight: String
     let keepAwakeIconTintLabel: String
     let keepAwakeIconTintOrange: String
     let keepAwakeIconTintGreen: String
@@ -255,6 +264,13 @@ struct Strings {
     let invertMouseScrollCaption: String
     let scrollTrackpadNote: String
     let scrollActiveNow: String
+    let mouseNavigationActiveNow: String
+    let smoothScrollName: String
+    let smoothScrollCaption: String
+    let smoothScrollStepLabel: String
+    let mouseNavigationSection: String
+    let mouseNavigationEnable: String
+    let mouseNavigationCaption: String
     let middleClickSection: String
     let middleClickEnable: String
     let middleClickEnableCaption: String
@@ -300,8 +316,11 @@ struct Strings {
     let switcherNoWindows: String
     let switcherIconRowMode: String
     let switcherIconRowModeCaption: String
+    let switcherSimpleMode: String
+    let switcherSimpleModeCaption: String
     let switcherShortcutHintApps: String
     let switcherShortcutHintWindows: String
+    let switcherWindowShortcutCaption: String
     let switcherMergeTabs: String
     let switcherMergeTabsCaption: String
     let switcherShowFinder: String
@@ -435,6 +454,10 @@ struct Strings {
     let homebrewShellSetupButton: String
     let homebrewShellSetupOpened: String
     let homebrewRefresh: String
+    let homebrewCheckPackages: String
+    let homebrewTrustTitle: String
+    let homebrewTrustCaption: String
+    let homebrewTrustButton: String
     let homebrewSearchPlaceholder: String
     let homebrewKeyboardHint: String
     let homebrewSearchButton: String
@@ -568,6 +591,24 @@ struct Strings {
     let shelfStep3: String
     let shelfShakeToggle: String
     let shelfShakeCaption: String
+    let shelfDropZoneToggle: String
+    let shelfDropZoneCaption: String
+    let shelfDropZoneLabel: String
+    let shelfCollapse: String
+    let shelfBehaviorTitle: String
+    let shelfCloseAfterDrop: String
+    let shelfCloseAfterDropCaption: String
+    let shelfRemoveAfterDrop: String
+    let shelfRemoveAfterDropCaption: String
+    let shelfExclusionsTitle: String
+    let shelfExclusionsEmpty: String
+    let shelfExclusionsCaption: String
+    let shelfPin: String
+    let shelfUnpin: String
+    let extraBrightnessName: String
+    let extraBrightnessCaption: String
+    let extraBrightnessLevelLabel: String
+    let extraBrightnessUnsupported: String
     let shelfHotkeyLabel: String
     let shelfOpenNow: String
     let shelfNoPermission: String
@@ -579,6 +620,9 @@ struct Strings {
     let shelfSelectedFormat: String      // + count
     let shelfHint: String
     let shelfItemImage: String
+    let shelfActionOpen: String
+    let shelfActionOpenWith: String
+    let shelfActionAirDrop: String
 
     // MARK: Panel — per-app breakdown
     let breakdownMeasuring: String
@@ -619,6 +663,7 @@ struct Strings {
     let mixerInputFallback: String
     let mixerInputTooltip: String
     let mixerInputErrorFormat: String
+    let mixerShowFinder: String
 
     // MARK: Settings — updates
     let updatesSection: String
@@ -689,6 +734,9 @@ struct Strings {
     let obWhatsNewFallback: String
     let obLanguageUpdateTitle: String
     let obLanguageUpdateBody: String
+    let obPurposeTitle: String
+    let obPurposeBody: String
+    let obPurposeSkip: String
 
     // MARK: Settings — monitor / menu bar metrics
     let tabMonitor: String
@@ -904,6 +952,61 @@ struct Strings {
     let shortcutUnavailable: String
     let shelfShortcutToggle: String
     let switcherUsageHintFormat: String
+
+    // MARK: Media keys
+    let musicBlockSection: String
+    let musicBlockTitle: String
+    let musicBlockCaption: String
+    let musicBlockReplacementLabel: String
+    let musicBlockReplacementNone: String
+    let musicBlockChooseApp: String
+
+    // MARK: Cleaner
+    let cleanerName: String
+    let cleanerIntroTitle: String
+    let cleanerIntroCaption: String
+    let cleanerScan: String
+    let cleanerScanning: String
+    let cleanerCleaning: String
+    let cleanerCatLeftovers: String
+    let cleanerCatLoginItems: String
+    let cleanerCatCaches: String
+    let cleanerCatLogs: String
+    let cleanerCatDeveloper: String
+    let cleanerCatTrash: String
+    let cleanerLeftoversNote: String
+    let cleanerLoginItemsNote: String
+    let cleanerTrashNote: String
+    let cleanerCatDeviceBackups: String
+    let cleanerDeviceBackupsCaption: String
+    let cleanerNothingFound: String
+    let cleanerClean: String
+    let cleanerDoneNote: String
+    let cleanerAgain: String
+    let cleanerRevealInFinder: String
+    let cleanerPanelCaption: String
+    let cleanerSafeSection: String
+    let cleanerOptionalSection: String
+    let cleanerCatOtherCaches: String
+    let cleanerCachesCaption: String
+    let cleanerLogsCaption: String
+    let cleanerDeveloperCaption: String
+    let cleanerLoginItemsCaption: String
+    let cleanerLeftoversCaption: String
+    let cleanerOtherCachesCaption: String
+    let cleanerCleanSizeFormat: String      // + size string
+    let cleanerScheduleTitle: String
+    let cleanerScheduleOff: String
+    let cleanerScheduleDaily: String
+    let cleanerScheduleWeekly: String
+    let cleanerScheduleCaption: String
+    let cleanerScheduleLastFormat: String   // + size string
+    let cleanerAutoNotificationFormat: String  // + size string
+    let cleanerScheduleNextFormat: String   // + relative date and time
+    let cleanerScheduleRanFormat: String    // + relative date and time
+    let cleanerScheduleNotifyToggle: String
+    let cleanerNotifDenied: String
+    let cleanerNotifOpenSettings: String
 }
 
 // MARK: - Português (Brasil)
@@ -955,6 +1058,12 @@ extension Strings {
         keepAwakeMouseJiggle: "Mover cursor levemente",
         keepAwakeMouseJiggleCaption: "Durante uma sessão, move o cursor um pouco no intervalo escolhido.",
         keepAwakeMouseJiggleInterval: "Intervalo",
+        keepAwakeActiveIconLabel: "Ícone ativo",
+        keepAwakeActiveIconVorssaint: "Vorssaint",
+        keepAwakeActiveIconCoffee: "Café",
+        keepAwakeActiveIconEye: "Olho",
+        keepAwakeActiveIconMoon: "Lua",
+        keepAwakeActiveIconLight: "Lâmpada",
         keepAwakeIconTintLabel: "Cor do ícone ativo",
         keepAwakeIconTintOrange: "Laranja",
         keepAwakeIconTintGreen: "Verde",
@@ -1032,8 +1141,8 @@ extension Strings {
 
         sessionSection: "Sessão",
         defaultDurationLabel: "Duração padrão",
-        keepAwakeAutoStart: "Ativar ao abrir o app",
-        keepAwakeAutoStartCaption: "Inicia “Manter acordado” automaticamente.",
+        keepAwakeAutoStart: "Manter acordado ao abrir o Vorssaint",
+        keepAwakeAutoStartCaption: "Inicia uma sessão com a duração padrão.",
         batteryProtectionSection: "Proteção de bateria",
         batteryDisableBelow: "Desativar com bateria abaixo de",
         batteryNever: "Nunca",
@@ -1048,6 +1157,13 @@ extension Strings {
         invertMouseScrollCaption: "Inverte a direção da roda do mouse.",
         scrollTrackpadNote: "O trackpad não muda: continua com a rolagem natural do macOS.",
         scrollActiveNow: "Invertendo a rolagem do mouse agora",
+        mouseNavigationActiveNow: "Botões laterais ativos agora",
+        smoothScrollName: "Rolagem suave",
+        smoothScrollCaption: "Transforma cada passo da rodinha do mouse em um deslize curto e macio. O trackpad não muda.",
+        smoothScrollStepLabel: "Distância por passo",
+        mouseNavigationSection: "Navegação",
+        mouseNavigationEnable: "Usar botões laterais para voltar e avançar",
+        mouseNavigationCaption: "Converte os botões Voltar e Avançar do mouse em comandos de navegação no Finder, navegadores e apps compatíveis.",
         middleClickSection: "Botão do meio",
         middleClickEnable: "Clique com três dedos vira botão do meio",
         middleClickEnableCaption: "Pressionar o trackpad com três dedos funciona como o clique da rodinha do mouse: abre links em nova aba, fecha abas e tudo mais que o botão do meio faz.",
@@ -1087,13 +1203,16 @@ extension Strings {
 
         switcherSection: "Alternador de apps",
         switcherEnable: "Usar o alternador do Vorssaint",
-        switcherEnableCaption: "Troque de janela vendo miniaturas reais, inclusive entre várias janelas do mesmo app.",
+        switcherEnableCaption: "Troque de app ou janela, inclusive janelas minimizadas e várias janelas do mesmo app.",
         switcherUsageHint: "Segure o atalho para navegar; solte para ativar a janela. Shift ou ← volta; Q fecha o app selecionado; Esc cancela.",
         switcherNoWindows: "Nenhuma janela aberta",
         switcherIconRowMode: "Mostrar ⌘Tab com ícones grandes",
         switcherIconRowModeCaption: "Mostra um ícone por app com os previews das janelas do app acima.",
+        switcherSimpleMode: "Alternador simples",
+        switcherSimpleModeCaption: "Mostra ícones de apps e títulos das janelas, sem previews nem captura da tela pelo alternador.",
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Janelas",
+        switcherWindowShortcutCaption: "Com o seletor aberto, pula entre as janelas do app selecionado.",
         switcherMergeTabs: "Mostrar uma entrada por app",
         switcherMergeTabsCaption: "Junta todas as janelas de um app em uma só entrada no alternador, em vez de uma por janela.",
         switcherShowFinder: "Mostrar Finder sem janelas",
@@ -1222,6 +1341,10 @@ extension Strings {
         homebrewShellSetupButton: "Configurar Terminal",
         homebrewShellSetupOpened: "Comando aberto no Terminal. Depois volte aqui e clique em Atualizar.",
         homebrewRefresh: "Atualizar",
+        homebrewCheckPackages: "Verificar pacotes",
+        homebrewTrustTitle: "Tap ainda não confiável",
+        homebrewTrustCaption: "O Homebrew agora pede sua confirmação antes de usar taps de terceiros. Confie em %@ para continuar.",
+        homebrewTrustButton: "Confiar e continuar",
         homebrewSearchPlaceholder: "Pesquisar pacotes",
         homebrewKeyboardHint: "Espaço ou Enter fecham o painel do macOS. Use o botão de busca.",
         homebrewSearchButton: "Pesquisar",
@@ -1353,6 +1476,24 @@ extension Strings {
         shelfStep3: "Arraste cada item de volta para qualquer app quando precisar.",
         shelfShakeToggle: "Abrir sacudindo o mouse durante o arraste",
         shelfShakeCaption: "Sacuda o ponteiro rapidamente segurando um item para chamar a área perto do cursor.",
+        shelfDropZoneToggle: "Guardar arquivos na barra de menus ao arrastar",
+        shelfDropZoneCaption: "Ao arrastar um arquivo, a área aparece embaixo do ícone na barra de menus. O que você soltar fica guardado ali, num botão que você encolhe e abre com um clique e que some quando a área fica vazia.",
+        shelfDropZoneLabel: "Solte aqui",
+        shelfCollapse: "Encolher",
+        shelfBehaviorTitle: "Depois de usar",
+        shelfCloseAfterDrop: "Fechar depois de soltar em outro app",
+        shelfCloseAfterDropCaption: "Fecha a área quando o destino aceita os itens. O alfinete no painel a mantém aberta.",
+        shelfRemoveAfterDrop: "Remover itens depois de soltar",
+        shelfRemoveAfterDropCaption: "Itens aceitos por outro app saem da área. Desative para manter uma cópia nela.",
+        shelfExclusionsTitle: "Exceções automáticas",
+        shelfExclusionsEmpty: "Nenhum app adicionado.",
+        shelfExclusionsCaption: "Sacudir e a área da barra de menus não abrem durante arrastes iniciados nesses apps. O atalho e Abrir agora continuam funcionando.",
+        shelfPin: "Manter aberta",
+        shelfUnpin: "Deixar fechar após o uso",
+        extraBrightnessName: "Brilho extra",
+        extraBrightnessCaption: "Usa a reserva HDR da tela para passar do brilho máximo. Consome mais bateria e o Mac pode esquentar.",
+        extraBrightnessLevelLabel: "Intensidade",
+        extraBrightnessUnsupported: "Disponível apenas em telas XDR, como as dos MacBook Pro de 14 e 16 polegadas.",
         shelfHotkeyLabel: "Atalho",
         shelfOpenNow: "Abrir agora",
         shelfNoPermission: "Não requer nenhuma permissão.",
@@ -1362,8 +1503,11 @@ extension Strings {
         shelfClearAll: "Limpar tudo",
         shelfRemoveSelected: "Remover selecionados",
         shelfSelectedFormat: "%d selecionados",
-        shelfHint: "Clique para selecionar. Arraste para fora para usar.",
+        shelfHint: "Clique para selecionar. Arraste para usar ou clique com o botão direito para mais ações.",
         shelfItemImage: "Imagem",
+        shelfActionOpen: "Abrir",
+        shelfActionOpenWith: "Abrir com",
+        shelfActionAirDrop: "Compartilhar por AirDrop",
 
         breakdownMeasuring: "Medindo…",
 
@@ -1402,6 +1546,7 @@ extension Strings {
         mixerInputFallback: "Usando o padrão até esse microfone voltar.",
         mixerInputTooltip: "Escolher microfone",
         mixerInputErrorFormat: "Não foi possível trocar: %@",
+        mixerShowFinder: "Mostrar Finder",
 
         updatesSection: "Atualizações",
         autoCheckToggle: "Procurar atualizações automaticamente",
@@ -1468,6 +1613,9 @@ extension Strings {
         obWhatsNewFallback: "Esta atualização inclui as correções e melhorias mais recentes.",
         obLanguageUpdateTitle: "Agora no seu idioma",
         obLanguageUpdateBody: "O Vorssaint agora fala vários idiomas. Escolha o que você prefere usar; dá para mudar quando quiser nos Ajustes.",
+        obPurposeTitle: "O que te trouxe aqui?",
+        obPurposeBody: "Escolha uma opção e o app se monta sozinho. O resto continua a um clique nos Ajustes.",
+        obPurposeSkip: "Deixar tudo à mão",
 
         tabMonitor: "Monitor",
         monitorMenuBarSection: "Na barra de menus",
@@ -1671,7 +1819,58 @@ extension Strings {
         shortcutConflictFormat: "Este atalho já está em uso por %@.",
         shortcutUnavailable: "O macOS recusou este atalho. Escolha outro.",
         shelfShortcutToggle: "Atalho da área temporária",
-        switcherUsageHintFormat: "Segure %@ para navegar; solte para ativar a janela. Shift ou ← volta; Q fecha o app selecionado; Esc cancela."
+        switcherUsageHintFormat: "Segure %@ para navegar; solte para ativar a janela. Shift ou ← volta; Q fecha o app selecionado; Esc cancela.",
+        musicBlockSection: "Teclas de mídia",
+        musicBlockTitle: "Impedir que o Música abra sozinho",
+        musicBlockCaption: "O app Música deixa de abrir ao tocar nas teclas de mídia. Desative para voltar a usar o Música.",
+        musicBlockReplacementLabel: "Abrir no lugar",
+        musicBlockReplacementNone: "Nenhum",
+        musicBlockChooseApp: "Escolher app…",
+        cleanerName: "Limpeza",
+        cleanerIntroTitle: "Limpe o lixo do Mac",
+        cleanerIntroCaption: "Procura restos de apps desinstalados, caches, registros e a Lixeira. Você revisa tudo antes e os itens removidos vão para a Lixeira.",
+        cleanerScan: "Verificar",
+        cleanerScanning: "Verificando…",
+        cleanerCleaning: "Limpando…",
+        cleanerCatLeftovers: "Restos de apps desinstalados",
+        cleanerCatLoginItems: "Itens de início órfãos",
+        cleanerCatCaches: "Caches",
+        cleanerCatLogs: "Registros",
+        cleanerCatDeveloper: "Lixo de desenvolvimento",
+        cleanerCatTrash: "Lixeira",
+        cleanerLeftoversNote: "Encontrados por análise e começam desmarcados. Confira o caminho antes de marcar.",
+        cleanerLoginItemsNote: "A entrada em Itens de Início some depois de reiniciar o Mac.",
+        cleanerTrashNote: "Esvaziar a Lixeira é permanente.",
+        cleanerCatDeviceBackups: "Backups de iPhone",
+        cleanerDeviceBackupsCaption: "Backups antigos de iPhone e iPad ocupam boa parte do que o macOS chama de Outros. Remova só os que você não precisa mais; um novo backup é feito quando o aparelho for conectado de novo.",
+        cleanerNothingFound: "Nada para limpar. Seu Mac está em ordem.",
+        cleanerClean: "Limpar",
+        cleanerDoneNote: "Os itens foram para a Lixeira e podem ser recuperados de lá.",
+        cleanerAgain: "Verificar de novo",
+        cleanerRevealInFinder: "Mostrar no Finder",
+        cleanerPanelCaption: "Restos de apps, caches e logs",
+        cleanerSafeSection: "Limpeza segura",
+        cleanerOptionalSection: "Opcional, revise antes",
+        cleanerCatOtherCaches: "Outros caches",
+        cleanerCachesCaption: "Arquivos temporários que os apps refazem sozinhos.",
+        cleanerLogsCaption: "Registros antigos de diagnóstico.",
+        cleanerDeveloperCaption: "Restos de compilações e simuladores do Xcode.",
+        cleanerLoginItemsCaption: "Entradas de início deixadas por apps que não existem mais.",
+        cleanerLeftoversCaption: "Arquivos deixados por apps que você desinstalou.",
+        cleanerOtherCachesCaption: "Seguro apagar, nada quebra. Apps podem abrir mais devagar na primeira vez e conteúdo baixado, como músicas offline, baixa de novo.",
+        cleanerCleanSizeFormat: "Limpar %@",
+        cleanerScheduleTitle: "Limpeza automática",
+        cleanerScheduleOff: "Desativada",
+        cleanerScheduleDaily: "Diária",
+        cleanerScheduleWeekly: "Semanal",
+        cleanerScheduleCaption: "Limpa sozinha só a parte segura no horário escolhido e manda tudo para a Lixeira.",
+        cleanerScheduleLastFormat: "A última limpeza automática liberou %@.",
+        cleanerAutoNotificationFormat: "%@ liberados e enviados para a Lixeira.",
+        cleanerScheduleNextFormat: "Próxima limpeza %@.",
+        cleanerScheduleRanFormat: "Última limpeza automática %@.",
+        cleanerScheduleNotifyToggle: "Avisar quando terminar",
+        cleanerNotifDenied: "As notificações do Vorssaint estão desativadas no sistema.",
+        cleanerNotifOpenSettings: "Abrir Ajustes de Notificações…"
     )
 }
 
@@ -1724,6 +1923,12 @@ extension Strings {
         keepAwakeMouseJiggle: "Move pointer slightly",
         keepAwakeMouseJiggleCaption: "During a session, moves the pointer a little at the chosen interval.",
         keepAwakeMouseJiggleInterval: "Interval",
+        keepAwakeActiveIconLabel: "Active icon",
+        keepAwakeActiveIconVorssaint: "Vorssaint",
+        keepAwakeActiveIconCoffee: "Coffee",
+        keepAwakeActiveIconEye: "Eye",
+        keepAwakeActiveIconMoon: "Moon",
+        keepAwakeActiveIconLight: "Lightbulb",
         keepAwakeIconTintLabel: "Active icon color",
         keepAwakeIconTintOrange: "Orange",
         keepAwakeIconTintGreen: "Green",
@@ -1801,8 +2006,8 @@ extension Strings {
 
         sessionSection: "Session",
         defaultDurationLabel: "Default duration",
-        keepAwakeAutoStart: "Turn on when the app opens",
-        keepAwakeAutoStartCaption: "Starts “Keep awake” automatically.",
+        keepAwakeAutoStart: "Keep Awake when Vorssaint opens",
+        keepAwakeAutoStartCaption: "Starts a session with the default duration.",
         batteryProtectionSection: "Battery protection",
         batteryDisableBelow: "Disable when battery drops below",
         batteryNever: "Never",
@@ -1817,6 +2022,13 @@ extension Strings {
         invertMouseScrollCaption: "Reverses the mouse wheel direction.",
         scrollTrackpadNote: "The trackpad is untouched: it keeps macOS natural scrolling.",
         scrollActiveNow: "Inverting mouse scrolling right now",
+        mouseNavigationActiveNow: "Side buttons active right now",
+        smoothScrollName: "Smooth scrolling",
+        smoothScrollCaption: "Turns each mouse wheel step into a short, gentle glide. The trackpad is not affected.",
+        smoothScrollStepLabel: "Distance per step",
+        mouseNavigationSection: "Navigation",
+        mouseNavigationEnable: "Use side buttons for Back and Forward",
+        mouseNavigationCaption: "Turns the mouse Back and Forward buttons into navigation commands in Finder, browsers and compatible apps.",
         middleClickSection: "Middle click",
         middleClickEnable: "Three-finger click acts as middle click",
         middleClickEnableCaption: "Pressing the trackpad with three fingers works like a mouse wheel click: open links in a new tab, close tabs and everything else the middle button does.",
@@ -1856,13 +2068,16 @@ extension Strings {
 
         switcherSection: "App switcher",
         switcherEnable: "Use the Vorssaint switcher",
-        switcherEnableCaption: "Switch windows with real thumbnails, including between multiple windows of the same app.",
+        switcherEnableCaption: "Switch between apps and windows, including minimized windows and multiple windows from the same app.",
         switcherUsageHint: "Hold the shortcut to navigate; release to activate the window. Shift or ← goes back; Q quits the selected app; Esc cancels.",
         switcherNoWindows: "No open windows",
         switcherIconRowMode: "Show ⌘Tab with large icons",
         switcherIconRowModeCaption: "Shows one icon per app with that app's window previews above it.",
+        switcherSimpleMode: "Simple app switcher",
+        switcherSimpleModeCaption: "Shows app icons and window titles, without previews or screen capture by the switcher.",
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Windows",
+        switcherWindowShortcutCaption: "While the switcher is open, jumps between the selected app's windows.",
         switcherMergeTabs: "Show one entry per app",
         switcherMergeTabsCaption: "Collapses all of an app's windows into one entry in the switcher, instead of one entry per window.",
         switcherShowFinder: "Show Finder without windows",
@@ -1991,6 +2206,10 @@ extension Strings {
         homebrewShellSetupButton: "Set up Terminal",
         homebrewShellSetupOpened: "Command opened in Terminal. Then come back here and click Refresh.",
         homebrewRefresh: "Refresh",
+        homebrewCheckPackages: "Check packages",
+        homebrewTrustTitle: "Tap not trusted yet",
+        homebrewTrustCaption: "Homebrew now asks for your confirmation before using third party taps. Trust %@ to continue.",
+        homebrewTrustButton: "Trust and continue",
         homebrewSearchPlaceholder: "Search packages",
         homebrewKeyboardHint: "Space or Return closes the macOS panel. Use the search button.",
         homebrewSearchButton: "Search",
@@ -2122,6 +2341,24 @@ extension Strings {
         shelfStep3: "Drag each item back out to any app when you need it.",
         shelfShakeToggle: "Open by shaking the mouse while dragging",
         shelfShakeCaption: "Shake the pointer quickly while holding an item to summon it near the cursor.",
+        shelfDropZoneToggle: "Keep dragged files in the menu bar",
+        shelfDropZoneCaption: "While you drag a file, the shelf appears below the menu bar icon. Whatever you drop is kept right there, in a button you shrink and open with a click that goes away once the shelf is empty.",
+        shelfDropZoneLabel: "Drop here",
+        shelfCollapse: "Collapse",
+        shelfBehaviorTitle: "After use",
+        shelfCloseAfterDrop: "Close after dropping into another app",
+        shelfCloseAfterDropCaption: "Closes the shelf when the destination accepts the items. The pin in the panel keeps it open.",
+        shelfRemoveAfterDrop: "Remove items after dropping",
+        shelfRemoveAfterDropCaption: "Items accepted by another app leave the shelf. Turn this off to keep a copy there.",
+        shelfExclusionsTitle: "Automatic exceptions",
+        shelfExclusionsEmpty: "No apps added.",
+        shelfExclusionsCaption: "Shake and the menu bar drop zone stay off for drags started in these apps. The shortcut and Open now still work.",
+        shelfPin: "Keep open",
+        shelfUnpin: "Allow closing after use",
+        extraBrightnessName: "Extra brightness",
+        extraBrightnessCaption: "Uses the display's HDR headroom to go past the maximum brightness. Uses more battery and the Mac can run warm.",
+        extraBrightnessLevelLabel: "Intensity",
+        extraBrightnessUnsupported: "Available only on XDR displays, such as the ones on the 14 and 16 inch MacBook Pro.",
         shelfHotkeyLabel: "Shortcut",
         shelfOpenNow: "Open now",
         shelfNoPermission: "Requires no permissions.",
@@ -2131,8 +2368,11 @@ extension Strings {
         shelfClearAll: "Clear all",
         shelfRemoveSelected: "Remove selected",
         shelfSelectedFormat: "%d selected",
-        shelfHint: "Click to select. Drag out to use.",
+        shelfHint: "Click to select. Drag out to use or right-click for more actions.",
         shelfItemImage: "Image",
+        shelfActionOpen: "Open",
+        shelfActionOpenWith: "Open With",
+        shelfActionAirDrop: "Share with AirDrop",
 
         breakdownMeasuring: "Measuring…",
 
@@ -2171,6 +2411,7 @@ extension Strings {
         mixerInputFallback: "Using default until this microphone returns.",
         mixerInputTooltip: "Choose microphone",
         mixerInputErrorFormat: "Could not switch: %@",
+        mixerShowFinder: "Show Finder",
 
         updatesSection: "Updates",
         autoCheckToggle: "Check for updates automatically",
@@ -2237,6 +2478,9 @@ extension Strings {
         obWhatsNewFallback: "This update includes the latest fixes and improvements.",
         obLanguageUpdateTitle: "Now in your language",
         obLanguageUpdateBody: "Vorssaint now speaks several languages. Choose the one you’d like to use; you can change it anytime in Settings.",
+        obPurposeTitle: "What brought you here?",
+        obPurposeBody: "Pick one and the app sets itself up. Everything else stays one click away in Settings.",
+        obPurposeSkip: "Keep everything at hand",
 
         tabMonitor: "Monitor",
         monitorMenuBarSection: "In the menu bar",
@@ -2440,6 +2684,57 @@ extension Strings {
         shortcutConflictFormat: "This shortcut is already used by %@.",
         shortcutUnavailable: "macOS rejected this shortcut. Choose another one.",
         shelfShortcutToggle: "Shelf shortcut",
-        switcherUsageHintFormat: "Hold %@ to navigate; release to activate the window. Shift or ← goes back; Q quits the selected app; Esc cancels."
+        switcherUsageHintFormat: "Hold %@ to navigate; release to activate the window. Shift or ← goes back; Q quits the selected app; Esc cancels.",
+        musicBlockSection: "Media keys",
+        musicBlockTitle: "Stop Music from opening on its own",
+        musicBlockCaption: "The Music app no longer opens when you press the media keys. Turn this off to use Music again.",
+        musicBlockReplacementLabel: "Open instead",
+        musicBlockReplacementNone: "None",
+        musicBlockChooseApp: "Choose app…",
+        cleanerName: "Cleaner",
+        cleanerIntroTitle: "Clean up your Mac",
+        cleanerIntroCaption: "Scans for leftovers from uninstalled apps, caches, logs and the Trash. You review everything first and removed items go to the Trash.",
+        cleanerScan: "Scan",
+        cleanerScanning: "Scanning…",
+        cleanerCleaning: "Cleaning…",
+        cleanerCatLeftovers: "Leftovers from uninstalled apps",
+        cleanerCatLoginItems: "Orphaned startup items",
+        cleanerCatCaches: "Caches",
+        cleanerCatLogs: "Logs",
+        cleanerCatDeveloper: "Developer junk",
+        cleanerCatTrash: "Trash",
+        cleanerLeftoversNote: "Found by analysis and left unchecked. Check the path before ticking.",
+        cleanerLoginItemsNote: "The entry under Login Items disappears after restarting the Mac.",
+        cleanerTrashNote: "Emptying the Trash is permanent.",
+        cleanerCatDeviceBackups: "iPhone backups",
+        cleanerDeviceBackupsCaption: "Old iPhone and iPad backups take a big slice of the storage macOS calls Other. Remove only the ones you no longer need; a new backup is made when you plug the device in again.",
+        cleanerNothingFound: "Nothing to clean. Your Mac is tidy.",
+        cleanerClean: "Clean",
+        cleanerDoneNote: "Items went to the Trash and can be recovered from there.",
+        cleanerAgain: "Scan again",
+        cleanerRevealInFinder: "Reveal in Finder",
+        cleanerPanelCaption: "App leftovers, caches and logs",
+        cleanerSafeSection: "Safe cleanup",
+        cleanerOptionalSection: "Optional, review first",
+        cleanerCatOtherCaches: "Other caches",
+        cleanerCachesCaption: "Temporary files apps rebuild on their own.",
+        cleanerLogsCaption: "Old diagnostic logs.",
+        cleanerDeveloperCaption: "Xcode build and simulator leftovers.",
+        cleanerLoginItemsCaption: "Startup entries left by apps that no longer exist.",
+        cleanerLeftoversCaption: "Files left behind by apps you uninstalled.",
+        cleanerOtherCachesCaption: "Safe to remove, nothing breaks. Apps may open slower once and downloaded content, like offline music, downloads again.",
+        cleanerCleanSizeFormat: "Clean %@",
+        cleanerScheduleTitle: "Automatic cleanup",
+        cleanerScheduleOff: "Off",
+        cleanerScheduleDaily: "Daily",
+        cleanerScheduleWeekly: "Weekly",
+        cleanerScheduleCaption: "Cleans only the safe part on its own at the chosen time and sends everything to the Trash.",
+        cleanerScheduleLastFormat: "The last automatic cleanup freed %@.",
+        cleanerAutoNotificationFormat: "%@ freed and sent to the Trash.",
+        cleanerScheduleNextFormat: "Next cleanup %@.",
+        cleanerScheduleRanFormat: "Last automatic cleanup %@.",
+        cleanerScheduleNotifyToggle: "Notify when done",
+        cleanerNotifDenied: "Vorssaint notifications are turned off in the system.",
+        cleanerNotifOpenSettings: "Open Notification Settings…"
     )
 }

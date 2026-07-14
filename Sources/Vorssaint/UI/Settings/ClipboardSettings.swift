@@ -5,6 +5,7 @@ import SwiftUI
 
 struct ClipboardSettings: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var history = ClipboardHistoryService.shared
     @ObservedObject private var pastePlain = PastePlainService.shared
     @ObservedObject private var permissions = Permissions.shared
@@ -22,65 +23,84 @@ struct ClipboardSettings: View {
 
     var body: some View {
         Form {
-            Section {
-                Toggle(text.enable, isOn: $enabled)
-                    .onChange(of: enabled) { _, _ in
-                        ClipboardHistoryService.shared.syncWithPreferences()
-                    }
-                Text(text.caption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(text.localNote)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                if enabled, history.isRunning {
-                    Label(text.active, systemImage: "checkmark.circle.fill")
+            if AppFeature.clipboardHistory.isAvailable {
+                Section {
+                    Toggle(text.enable, isOn: $enabled)
+                        .onChange(of: enabled) { _, _ in
+                            ClipboardHistoryService.shared.syncWithPreferences()
+                        }
+                    Text(text.caption)
                         .font(.caption)
-                        .foregroundStyle(.green)
-                }
-            }
-
-            Section {
-                Toggle(text.includeImagesFiles, isOn: $includeImagesFiles)
-                Text(text.includeImagesFilesCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Toggle(text.skipSensitive, isOn: $skipSensitive)
-                Text(text.skipSensitiveCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Picker(text.limit, selection: $limit) {
-                    ForEach(Defaults.allowedClipboardHistoryLimits, id: \.self) { value in
-                        Text("\(value)").tag(value)
+                        .foregroundStyle(.secondary)
+                    Text(text.localNote)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    if enabled, history.isRunning {
+                        Label(text.active, systemImage: "checkmark.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.green)
                     }
                 }
-                Toggle(text.showInPanel, isOn: $showInPanel)
+
+                Section {
+                    Toggle(text.includeImagesFiles, isOn: $includeImagesFiles)
+                    Text(text.includeImagesFilesCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(text.skipSensitive, isOn: $skipSensitive)
+                    Text(text.skipSensitiveCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Picker(text.limit, selection: $limit) {
+                        ForEach(Defaults.allowedClipboardHistoryLimits, id: \.self) { value in
+                            Text("\(value)").tag(value)
+                        }
+                    }
+                    Toggle(text.showInPanel, isOn: $showInPanel)
+                }
             }
 
-            Section {
-                Toggle(l10n.s.pastePlainName, isOn: $pastePlainEnabled)
-                    .onChange(of: pastePlainEnabled) { _, _ in
+            if AppFeature.pastePlain.isAvailable {
+                Section {
+                    Toggle(l10n.s.pastePlainName, isOn: $pastePlainEnabled)
+                        .onChange(of: pastePlainEnabled) { _, _ in
+                            PastePlainService.shared.syncWithPreferences()
+                        }
+                    Text(l10n.s.pastePlainCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    ShortcutPreferenceRow(role: .pastePlain,
+                                          isEnabled: pastePlainEnabled) {
                         PastePlainService.shared.syncWithPreferences()
                     }
-                Text(l10n.s.pastePlainCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                ShortcutPreferenceRow(role: .pastePlain,
-                                      isEnabled: pastePlainEnabled) {
-                    PastePlainService.shared.syncWithPreferences()
+                    if pastePlainEnabled, pastePlain.shortcutRegistrationFailed {
+                        Text(l10n.s.shortcutUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                    if pastePlainEnabled, !permissions.accessibility {
+                        PermissionRow(kind: .accessibility)
+                    }
+                } header: {
+                    Text(l10n.s.pastePlainName)
                 }
-                if pastePlainEnabled, pastePlain.shortcutRegistrationFailed {
-                    Text(l10n.s.shortcutUnavailable)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
-                if pastePlainEnabled, !permissions.accessibility {
-                    PermissionRow(kind: .accessibility)
-                }
-            } header: {
-                Text(l10n.s.pastePlainName)
             }
 
+            if AppFeature.clipboardHistory.isAvailable {
+                clipboardShortcutAndStatsSections
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear {
+            limit = Defaults.sanitizedClipboardHistoryLimit(limit)
+        }
+        .onChange(of: limit) { _, value in
+            limit = Defaults.sanitizedClipboardHistoryLimit(value)
+        }
+    }
+
+    @ViewBuilder
+    private var clipboardShortcutAndStatsSections: some View {
             Section(text.shortcut) {
                 Toggle(text.shortcut, isOn: $shortcutEnabled)
                     .onChange(of: shortcutEnabled) { _, _ in
@@ -128,13 +148,5 @@ struct ClipboardSettings: View {
                     .disabled(history.recentEntries.isEmpty)
                 }
             }
-        }
-        .formStyle(.grouped)
-        .onAppear {
-            limit = Defaults.sanitizedClipboardHistoryLimit(limit)
-        }
-        .onChange(of: limit) { _, value in
-            limit = Defaults.sanitizedClipboardHistoryLimit(value)
-        }
     }
 }

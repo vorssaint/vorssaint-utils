@@ -15,6 +15,7 @@ enum FeatureStrings {
         case .fr: return .fr
         case .it: return .it
         case .ja: return .ja
+        case .ko: return .ko
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
@@ -32,6 +33,7 @@ enum FeatureStrings {
         case .fr: return .fr
         case .it: return .it
         case .ja: return .ja
+        case .ko: return .ko
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
@@ -49,6 +51,7 @@ enum FeatureStrings {
         case .fr: return .fr
         case .it: return .it
         case .ja: return .ja
+        case .ko: return .ko
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
@@ -66,11 +69,154 @@ enum FeatureStrings {
         case .fr: return .fr
         case .it: return .it
         case .ja: return .ja
+        case .ko: return .ko
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         }
     }
+}
+
+extension SettingsCategoryStrings {
+    static let ko = SettingsCategoryStrings(
+        essentials: "기본 기능",
+        windowsControls: "윈도우 및 제어",
+        files: "파일",
+        utilities: "유틸리티",
+        app: "앱"
+    )
+}
+
+extension ClipboardFeatureStrings {
+    static let ko = ClipboardFeatureStrings(
+        title: "클립보드",
+        enable: "클립보드 기록 저장",
+        caption: "복사한 텍스트를 저장하여 나중에 다시 사용할 수 있습니다. 모든 항목은 로컬에 보관되며 언제든 지울 수 있습니다.",
+        localNote: "모든 항목은 이 Mac에만 저장됩니다. 너무 큰 항목은 무시됩니다.",
+        skipSensitive: "민감해 보이는 텍스트 건너뛰기",
+        skipSensitiveCaption: "암호, 토큰, 키처럼 보이는 짧고 공백 없는 문자열을 저장하지 않습니다.",
+        limit: "제한",
+        showInPanel: "패널에 표시",
+        shortcut: "기록 단축키",
+        shortcutCaption: "검색, 고정 항목 및 이전 앱에 붙여넣기 위한 ⌘1~⌘9 단축키가 있는 빠른 윈도우를 엽니다.",
+        shortcutHint: "행을 클릭하면 이전 앱에 붙여넣습니다. ⌘-클릭으로 여러 항목을 선택하고, ⌘C로 붙여넣지 않고 복사합니다.",
+        clickRowShortcut: "행 클릭",
+        commandClickShortcut: "⌘ 클릭",
+        pinned: "고정됨",
+        recent: "최근 항목",
+        pin: "고정",
+        unpin: "고정 해제",
+        clearRecent: "최근 항목 지우기",
+        clearAll: "고정되지 않은 항목 지우기",
+        empty: "저장한 텍스트가 없습니다",
+        disabled: "복사한 텍스트를 저장하려면 기록을 켜세요.",
+        search: "복사한 텍스트 검색",
+        copy: "복사",
+        copied: "복사됨",
+        delete: "항목 삭제",
+        selectMultiple: "묶음에 추가",
+        unselectMultiple: "묶음에서 제거",
+        selectShortcutAction: "선택",
+        pasteSelectedFormat: "%d개 붙여넣기",
+        copySelectedFormat: "%d개 복사",
+        clearSelection: "선택 해제",
+        moveUp: "위로 이동",
+        moveDown: "아래로 이동",
+        noResults: "결과 없음",
+        newestFirst: "최신순",
+        active: "새 텍스트 저장 중",
+        includeImagesFiles: "복사한 이미지와 파일도 저장",
+        includeImagesFilesCaption: "이미지는 기록에 추가되고 파일은 위치 링크로 저장됩니다. 텍스트 항목처럼 고정하고 붙여넣을 수 있습니다.",
+        imageEntryLabel: "이미지",
+        fileCountFormat: "파일 %d개"
+    )
+}
+
+extension WindowLayoutFeatureStrings {
+    static let ko = WindowLayoutFeatureStrings(
+        title: "윈도우 정렬",
+        caption: "윈도우를 화면 구역에 배치하거나 트랙패드 또는 마우스로 이동하고 크기를 조절합니다.",
+        showInPanel: "패널에 표시",
+        gestureSection: "윈도우 드래그",
+        gestureEnable: "드래그로 윈도우 이동 및 크기 조절",
+        gestureCaption: "트랙패드 또는 마우스에서 표시된 보조 키를 누른 채 윈도우 안의 아무 곳이나 드래그합니다.",
+        gestureModifiers: "이동 키",
+        gestureMove: "드래그하여 이동",
+        gestureResize: "Shift를 추가하고 드래그하여 크기 조절",
+        gestureResizeHint: "시작 위치가 가장 가까운 가장자리나 모서리를 선택합니다. 마우스에서는 오른쪽 버튼 드래그도 크기를 조절합니다.",
+        gestureRaiseWindow: "드래그한 윈도우를 앞으로 가져오기",
+        shortcuts: "단축키",
+        shortcutsCaption: "패널을 열지 않고 전역 단축키로 활성 윈도우를 정렬합니다.",
+        permissionCaption: "손쉬운 사용 권한은 윈도우를 이동하고 크기를 조절하는 데만 사용합니다.",
+        noWindow: "활성 윈도우를 찾을 수 없습니다.",
+        missingPermission: "윈도우를 이동하려면 손쉬운 사용 권한을 허용하세요.",
+        failed: "이 윈도우를 이동할 수 없습니다.",
+        done: "윈도우를 정렬했습니다.",
+        restored: "윈도우를 복원했습니다.",
+        noRestore: "복원할 이전 정렬이 없습니다.",
+        target: "활성 윈도우",
+        halves: "2등분",
+        thirds: "3등분",
+        sixths: "6등분",
+        corners: "모서리",
+        other: "동작",
+        leftHalf: "왼쪽",
+        rightHalf: "오른쪽",
+        topHalf: "위쪽",
+        bottomHalf: "아래쪽",
+        leftThird: "왼쪽 1/3",
+        centerThird: "가운데 1/3",
+        rightThird: "오른쪽 1/3",
+        leftTwoThirds: "왼쪽 2/3",
+        rightTwoThirds: "오른쪽 2/3",
+        topLeftSixth: "왼쪽 위 1/6",
+        topCenterSixth: "위쪽 가운데 1/6",
+        topRightSixth: "오른쪽 위 1/6",
+        bottomLeftSixth: "왼쪽 아래 1/6",
+        bottomCenterSixth: "아래쪽 가운데 1/6",
+        bottomRightSixth: "오른쪽 아래 1/6",
+        topLeft: "왼쪽 위",
+        topRight: "오른쪽 위",
+        bottomLeft: "왼쪽 아래",
+        bottomRight: "오른쪽 아래",
+        maximize: "최대화",
+        center: "가운데",
+        nextDisplay: "다음 디스플레이",
+        restore: "복원"
+    )
+}
+
+extension MonitorAlertFeatureStrings {
+    static let ko = MonitorAlertFeatureStrings(
+        section: "알림",
+        caption: "선택한 기준에 도달하면 알림이 표시됩니다. CPU 사용량은 기준을 약 12초 동안 계속 넘어야 하므로 짧은 급증은 무시됩니다. 반복 설정은 같은 알림의 반복만 제한합니다.",
+        notificationsDenied: "시스템 설정에서 Vorssaint 알림이 꺼져 있어 경고를 표시할 수 없습니다.",
+        cpu: "높은 CPU 사용량",
+        cpuTemperature: "높은 CPU 온도",
+        memory: "위험한 메모리 압력",
+        disk: "부족한 디스크 공간",
+        battery: "낮은 배터리",
+        cpuThreshold: "CPU 사용량",
+        cpuTemperatureThreshold: "온도",
+        diskThreshold: "남은 공간",
+        batteryThreshold: "배터리 잔량",
+        cooldown: "같은 알림을 다시 보내기까지",
+        cooldown2: "2분",
+        cooldown5: "5분",
+        cooldown15: "15분",
+        cooldown30: "30분",
+        cooldown60: "1시간",
+        cpuTitle: "높은 CPU 사용량",
+        cpuBodyFormat: "CPU 사용량이 몇 초 동안 %d%%를 넘었습니다.",
+        cpuTemperatureTitle: "CPU 과열",
+        cpuTemperatureBodyFormat: "CPU 온도가 %d °C에 도달했습니다.",
+        memoryTitle: "위험한 메모리",
+        memoryBody: "메모리 압력이 위험 수준에 도달했습니다.",
+        diskTitle: "부족한 디스크 공간",
+        diskBodyFormat: "%@의 여유 공간이 %d%% 미만입니다.",
+        batteryTitle: "낮은 배터리",
+        batteryBodyFormat: "배터리 잔량이 %d%%입니다."
+    )
 }
 
 struct SettingsCategoryStrings {
@@ -740,6 +886,14 @@ struct WindowLayoutFeatureStrings {
     let title: String
     let caption: String
     let showInPanel: String
+    let gestureSection: String
+    let gestureEnable: String
+    let gestureCaption: String
+    let gestureModifiers: String
+    let gestureMove: String
+    let gestureResize: String
+    let gestureResizeHint: String
+    let gestureRaiseWindow: String
     let shortcuts: String
     let shortcutsCaption: String
     let permissionCaption: String
@@ -752,6 +906,7 @@ struct WindowLayoutFeatureStrings {
     let target: String
     let halves: String
     let thirds: String
+    let sixths: String
     let corners: String
     let other: String
     let leftHalf: String
@@ -763,6 +918,12 @@ struct WindowLayoutFeatureStrings {
     let rightThird: String
     let leftTwoThirds: String
     let rightTwoThirds: String
+    let topLeftSixth: String
+    let topCenterSixth: String
+    let topRightSixth: String
+    let bottomLeftSixth: String
+    let bottomCenterSixth: String
+    let bottomRightSixth: String
     let topLeft: String
     let topRight: String
     let bottomLeft: String
@@ -774,11 +935,19 @@ struct WindowLayoutFeatureStrings {
 
     static let enUS = WindowLayoutFeatureStrings(
         title: "Window layout",
-        caption: "Moves the active window to halves, thirds, corners, another display, center or the usable screen.",
+        caption: "Arrange windows into screen sections or move and resize them with a trackpad or mouse.",
         showInPanel: "Show in panel",
+        gestureSection: "Window dragging",
+        gestureEnable: "Move and resize by dragging",
+        gestureCaption: "On a trackpad or mouse, hold the shown modifier keys and drag anywhere inside a window.",
+        gestureModifiers: "Keys to move",
+        gestureMove: "Drag to move",
+        gestureResize: "Add Shift and drag to resize",
+        gestureResizeHint: "The starting point chooses the nearest edge or corner. On a mouse, right-button drag also resizes.",
+        gestureRaiseWindow: "Bring the dragged window to front",
         shortcuts: "Shortcuts",
         shortcutsCaption: "Use global shortcuts to arrange the active window without opening the panel.",
-        permissionCaption: "Uses Accessibility to move only the active window.",
+        permissionCaption: "Uses Accessibility only to move and resize windows.",
         noWindow: "No active window found.",
         missingPermission: "Grant Accessibility to move windows.",
         failed: "Could not move this window.",
@@ -788,6 +957,7 @@ struct WindowLayoutFeatureStrings {
         target: "Active window",
         halves: "Halves",
         thirds: "Thirds",
+        sixths: "Sixths",
         corners: "Corners",
         other: "Actions",
         leftHalf: "Left",
@@ -799,6 +969,12 @@ struct WindowLayoutFeatureStrings {
         rightThird: "Right 1/3",
         leftTwoThirds: "Left 2/3",
         rightTwoThirds: "Right 2/3",
+        topLeftSixth: "Top left 1/6",
+        topCenterSixth: "Top center 1/6",
+        topRightSixth: "Top right 1/6",
+        bottomLeftSixth: "Bottom left 1/6",
+        bottomCenterSixth: "Bottom center 1/6",
+        bottomRightSixth: "Bottom right 1/6",
         topLeft: "Top left",
         topRight: "Top right",
         bottomLeft: "Bottom left",
@@ -811,11 +987,19 @@ struct WindowLayoutFeatureStrings {
 
     static let ptBR = WindowLayoutFeatureStrings(
         title: "Layout de janelas",
-        caption: "Reposiciona a janela ativa em metades, terços, cantos, outro display, centro ou tela útil.",
+        caption: "Organize janelas em áreas da tela ou mova e redimensione com o trackpad ou mouse.",
         showInPanel: "Mostrar no painel",
+        gestureSection: "Arraste de janelas",
+        gestureEnable: "Mover e redimensionar por arraste",
+        gestureCaption: "No trackpad ou mouse, segure as teclas indicadas e arraste em qualquer ponto da janela.",
+        gestureModifiers: "Teclas para mover",
+        gestureMove: "Arraste para mover",
+        gestureResize: "Adicione Shift e arraste para redimensionar",
+        gestureResizeHint: "O ponto inicial escolhe a borda ou o canto. No mouse, o botão direito também redimensiona.",
+        gestureRaiseWindow: "Trazer a janela arrastada para a frente",
         shortcuts: "Atalhos",
         shortcutsCaption: "Use atalhos globais para organizar a janela ativa sem abrir o painel.",
-        permissionCaption: "Usa Acessibilidade para mover apenas a janela ativa.",
+        permissionCaption: "Usa Acessibilidade apenas para mover e redimensionar janelas.",
         noWindow: "Nenhuma janela ativa encontrada.",
         missingPermission: "Conceda Acessibilidade para mover janelas.",
         failed: "Não foi possível mover esta janela.",
@@ -825,6 +1009,7 @@ struct WindowLayoutFeatureStrings {
         target: "Janela ativa",
         halves: "Metades",
         thirds: "Terços",
+        sixths: "Sextos",
         corners: "Cantos",
         other: "Ações",
         leftHalf: "Esquerda",
@@ -836,6 +1021,12 @@ struct WindowLayoutFeatureStrings {
         rightThird: "1/3 direita",
         leftTwoThirds: "2/3 esquerda",
         rightTwoThirds: "2/3 direita",
+        topLeftSixth: "1/6 topo esquerdo",
+        topCenterSixth: "1/6 topo central",
+        topRightSixth: "1/6 topo direito",
+        bottomLeftSixth: "1/6 base esquerda",
+        bottomCenterSixth: "1/6 base central",
+        bottomRightSixth: "1/6 base direita",
         topLeft: "Topo esquerdo",
         topRight: "Topo direito",
         bottomLeft: "Base esquerda",
@@ -848,11 +1039,19 @@ struct WindowLayoutFeatureStrings {
 
     static let tr = WindowLayoutFeatureStrings(
         title: "Pencere yerleşimi",
-        caption: "Etkin pencereyi yarımlara, üçlü bölümlere, köşelere, başka ekrana, merkeze veya kullanılabilir ekrana taşır.",
+        caption: "Pencereleri ekran bölümlerine yerleştirin veya izleme dörtgeni ya da fareyle taşıyıp yeniden boyutlandırın.",
         showInPanel: "Panelde göster",
+        gestureSection: "Pencere sürükleme",
+        gestureEnable: "Sürükleyerek taşı ve boyutlandır",
+        gestureCaption: "İzleme dörtgeni veya farede gösterilen değiştirici tuşları basılı tutup pencerenin herhangi bir yerinden sürükleyin.",
+        gestureModifiers: "Taşıma tuşları",
+        gestureMove: "Taşımak için sürükleyin",
+        gestureResize: "Shift ekleyip boyutlandırmak için sürükleyin",
+        gestureResizeHint: "Başlangıç noktası en yakın kenarı veya köşeyi seçer. Farede sağ düğmeyle sürüklemek de boyutlandırır.",
+        gestureRaiseWindow: "Sürüklenen pencereyi öne getir",
         shortcuts: "Kısayollar",
         shortcutsCaption: "Paneli açmadan etkin pencereyi düzenlemek için genel kısayollar kullan.",
-        permissionCaption: "Yalnızca etkin pencereyi taşımak için Erişilebilirlik kullanır.",
+        permissionCaption: "Erişilebilirliği yalnızca pencereleri taşımak ve yeniden boyutlandırmak için kullanır.",
         noWindow: "Etkin pencere bulunamadı.",
         missingPermission: "Pencereleri taşımak için Erişilebilirlik izni ver.",
         failed: "Bu pencere taşınamadı.",
@@ -862,6 +1061,7 @@ struct WindowLayoutFeatureStrings {
         target: "Etkin pencere",
         halves: "Yarımlar",
         thirds: "Üçlüler",
+        sixths: "Altıda birler",
         corners: "Köşeler",
         other: "Eylemler",
         leftHalf: "Sol",
@@ -873,6 +1073,12 @@ struct WindowLayoutFeatureStrings {
         rightThird: "Sağ 1/3",
         leftTwoThirds: "Sol 2/3",
         rightTwoThirds: "Sağ 2/3",
+        topLeftSixth: "Sol üst 1/6",
+        topCenterSixth: "Üst orta 1/6",
+        topRightSixth: "Sağ üst 1/6",
+        bottomLeftSixth: "Sol alt 1/6",
+        bottomCenterSixth: "Alt orta 1/6",
+        bottomRightSixth: "Sağ alt 1/6",
         topLeft: "Sol üst",
         topRight: "Sağ üst",
         bottomLeft: "Sol alt",
@@ -885,11 +1091,19 @@ struct WindowLayoutFeatureStrings {
 
     static let ru = WindowLayoutFeatureStrings(
         title: "Раскладка окон",
-        caption: "Перемещает активное окно в половины, трети, углы, на другой дисплей, в центр или в полезную область экрана.",
+        caption: "Размещайте окна по областям экрана или перемещайте и меняйте их размер трекпадом или мышью.",
         showInPanel: "Показывать в панели",
+        gestureSection: "Перетаскивание окон",
+        gestureEnable: "Перемещать и менять размер перетаскиванием",
+        gestureCaption: "На трекпаде или мыши удерживайте показанные клавиши и тяните из любой точки окна.",
+        gestureModifiers: "Клавиши для перемещения",
+        gestureMove: "Перетащите для перемещения",
+        gestureResize: "Добавьте Shift и тяните для изменения размера",
+        gestureResizeHint: "Начальная точка выбирает ближайшую сторону или угол. На мыши размер также меняется перетаскиванием правой кнопкой.",
+        gestureRaiseWindow: "Выводить перетаскиваемое окно вперёд",
         shortcuts: "Горячие клавиши",
         shortcutsCaption: "Используйте глобальные сочетания клавиш, чтобы раскладывать активное окно без открытия панели.",
-        permissionCaption: "Использует Универсальный доступ, чтобы перемещать только активное окно.",
+        permissionCaption: "Использует Универсальный доступ только для перемещения и изменения размера окон.",
         noWindow: "Активное окно не найдено.",
         missingPermission: "Выдайте Универсальный доступ для управления окнами.",
         failed: "Не удалось переместить это окно.",
@@ -899,6 +1113,7 @@ struct WindowLayoutFeatureStrings {
         target: "Активное окно",
         halves: "Половины",
         thirds: "Трети",
+        sixths: "Шестые",
         corners: "Углы",
         other: "Действия",
         leftHalf: "Левая половина",
@@ -910,6 +1125,12 @@ struct WindowLayoutFeatureStrings {
         rightThird: "Правая 1/3",
         leftTwoThirds: "Левые 2/3",
         rightTwoThirds: "Правые 2/3",
+        topLeftSixth: "1/6 слева сверху",
+        topCenterSixth: "1/6 сверху по центру",
+        topRightSixth: "1/6 справа сверху",
+        bottomLeftSixth: "1/6 слева снизу",
+        bottomCenterSixth: "1/6 снизу по центру",
+        bottomRightSixth: "1/6 справа снизу",
         topLeft: "Верхний левый угол",
         topRight: "Верхний правый угол",
         bottomLeft: "Нижний левый угол",
@@ -922,11 +1143,19 @@ struct WindowLayoutFeatureStrings {
 
     static let es = WindowLayoutFeatureStrings(
         title: "Diseño de ventanas",
-        caption: "Mueve la ventana activa a mitades, tercios, esquinas, otra pantalla, el centro o el área útil.",
+        caption: "Organiza ventanas en zonas de la pantalla o muévelas y cambia su tamaño con el trackpad o el ratón.",
         showInPanel: "Mostrar en el panel",
+        gestureSection: "Arrastre de ventanas",
+        gestureEnable: "Mover y cambiar tamaño al arrastrar",
+        gestureCaption: "En el trackpad o el ratón, mantén las teclas indicadas y arrastra desde cualquier punto de una ventana.",
+        gestureModifiers: "Teclas para mover",
+        gestureMove: "Arrastra para mover",
+        gestureResize: "Añade Shift y arrastra para cambiar el tamaño",
+        gestureResizeHint: "El punto inicial elige el borde o la esquina. Con ratón, arrastrar con el botón derecho también cambia el tamaño.",
+        gestureRaiseWindow: "Traer al frente la ventana arrastrada",
         shortcuts: "Atajos",
         shortcutsCaption: "Usa atajos globales para organizar la ventana activa sin abrir el panel.",
-        permissionCaption: "Usa Accesibilidad para mover solo la ventana activa.",
+        permissionCaption: "Usa Accesibilidad solo para mover y cambiar el tamaño de las ventanas.",
         noWindow: "No se encontró una ventana activa.",
         missingPermission: "Concede Accesibilidad para mover ventanas.",
         failed: "No se pudo mover esta ventana.",
@@ -936,6 +1165,7 @@ struct WindowLayoutFeatureStrings {
         target: "Ventana activa",
         halves: "Mitades",
         thirds: "Tercios",
+        sixths: "Sextos",
         corners: "Esquinas",
         other: "Acciones",
         leftHalf: "Izquierda",
@@ -947,6 +1177,12 @@ struct WindowLayoutFeatureStrings {
         rightThird: "1/3 derecha",
         leftTwoThirds: "2/3 izquierda",
         rightTwoThirds: "2/3 derecha",
+        topLeftSixth: "1/6 arriba izquierda",
+        topCenterSixth: "1/6 arriba centro",
+        topRightSixth: "1/6 arriba derecha",
+        bottomLeftSixth: "1/6 abajo izquierda",
+        bottomCenterSixth: "1/6 abajo centro",
+        bottomRightSixth: "1/6 abajo derecha",
         topLeft: "Arriba izquierda",
         topRight: "Arriba derecha",
         bottomLeft: "Abajo izquierda",
@@ -959,11 +1195,19 @@ struct WindowLayoutFeatureStrings {
 
     static let de = WindowLayoutFeatureStrings(
         title: "Fensterlayout",
-        caption: "Verschiebt das aktive Fenster in Hälften, Drittel, Ecken, auf ein anderes Display, in die Mitte oder auf die nutzbare Fläche.",
+        caption: "Ordne Fenster in Bildschirmbereiche ein oder verschiebe und skaliere sie mit Trackpad oder Maus.",
         showInPanel: "Im Panel anzeigen",
+        gestureSection: "Fenster ziehen",
+        gestureEnable: "Durch Ziehen verschieben und skalieren",
+        gestureCaption: "Halte auf Trackpad oder Maus die angezeigten Sondertasten und ziehe an einer beliebigen Stelle im Fenster.",
+        gestureModifiers: "Tasten zum Verschieben",
+        gestureMove: "Zum Verschieben ziehen",
+        gestureResize: "Shift hinzufügen und zum Skalieren ziehen",
+        gestureResizeHint: "Der Startpunkt wählt die nächste Kante oder Ecke. Mit der Maus skaliert auch Ziehen mit der rechten Taste.",
+        gestureRaiseWindow: "Gezogenes Fenster nach vorne bringen",
         shortcuts: "Kurzbefehle",
         shortcutsCaption: "Nutze globale Kurzbefehle, um das aktive Fenster ohne Panel zu arrangieren.",
-        permissionCaption: "Nutzt Bedienungshilfen, um nur das aktive Fenster zu bewegen.",
+        permissionCaption: "Nutzt Bedienungshilfen nur zum Verschieben und Skalieren von Fenstern.",
         noWindow: "Kein aktives Fenster gefunden.",
         missingPermission: "Erlaube Bedienungshilfen, um Fenster zu bewegen.",
         failed: "Dieses Fenster konnte nicht bewegt werden.",
@@ -973,6 +1217,7 @@ struct WindowLayoutFeatureStrings {
         target: "Aktives Fenster",
         halves: "Hälften",
         thirds: "Drittel",
+        sixths: "Sechstel",
         corners: "Ecken",
         other: "Aktionen",
         leftHalf: "Links",
@@ -984,6 +1229,12 @@ struct WindowLayoutFeatureStrings {
         rightThird: "Rechtes 1/3",
         leftTwoThirds: "Linke 2/3",
         rightTwoThirds: "Rechte 2/3",
+        topLeftSixth: "1/6 oben links",
+        topCenterSixth: "1/6 oben mittig",
+        topRightSixth: "1/6 oben rechts",
+        bottomLeftSixth: "1/6 unten links",
+        bottomCenterSixth: "1/6 unten mittig",
+        bottomRightSixth: "1/6 unten rechts",
         topLeft: "Oben links",
         topRight: "Oben rechts",
         bottomLeft: "Unten links",
@@ -996,11 +1247,19 @@ struct WindowLayoutFeatureStrings {
 
     static let fr = WindowLayoutFeatureStrings(
         title: "Disposition des fenêtres",
-        caption: "Déplace la fenêtre active vers les moitiés, tiers, coins, un autre écran, le centre ou la zone utile.",
+        caption: "Organisez les fenêtres dans des zones de l’écran ou déplacez-les et redimensionnez-les au trackpad ou à la souris.",
         showInPanel: "Afficher dans le panneau",
+        gestureSection: "Glissement des fenêtres",
+        gestureEnable: "Déplacer et redimensionner par glissement",
+        gestureCaption: "Au trackpad ou à la souris, maintenez les touches indiquées et faites glisser depuis n’importe quel point d’une fenêtre.",
+        gestureModifiers: "Touches pour déplacer",
+        gestureMove: "Faites glisser pour déplacer",
+        gestureResize: "Ajoutez Maj et faites glisser pour redimensionner",
+        gestureResizeHint: "Le point de départ choisit le bord ou le coin. À la souris, le glissement avec le bouton droit redimensionne aussi.",
+        gestureRaiseWindow: "Placer la fenêtre déplacée au premier plan",
         shortcuts: "Raccourcis",
         shortcutsCaption: "Utilisez des raccourcis globaux pour organiser la fenêtre active sans ouvrir le panneau.",
-        permissionCaption: "Utilise Accessibilité pour déplacer uniquement la fenêtre active.",
+        permissionCaption: "Utilise Accessibilité uniquement pour déplacer et redimensionner les fenêtres.",
         noWindow: "Aucune fenêtre active trouvée.",
         missingPermission: "Autorisez Accessibilité pour déplacer les fenêtres.",
         failed: "Impossible de déplacer cette fenêtre.",
@@ -1010,6 +1269,7 @@ struct WindowLayoutFeatureStrings {
         target: "Fenêtre active",
         halves: "Moitiés",
         thirds: "Tiers",
+        sixths: "Sixièmes",
         corners: "Coins",
         other: "Actions",
         leftHalf: "Gauche",
@@ -1021,6 +1281,12 @@ struct WindowLayoutFeatureStrings {
         rightThird: "1/3 droite",
         leftTwoThirds: "2/3 gauche",
         rightTwoThirds: "2/3 droite",
+        topLeftSixth: "1/6 en haut à gauche",
+        topCenterSixth: "1/6 en haut au centre",
+        topRightSixth: "1/6 en haut à droite",
+        bottomLeftSixth: "1/6 en bas à gauche",
+        bottomCenterSixth: "1/6 en bas au centre",
+        bottomRightSixth: "1/6 en bas à droite",
         topLeft: "Haut gauche",
         topRight: "Haut droite",
         bottomLeft: "Bas gauche",
@@ -1033,11 +1299,19 @@ struct WindowLayoutFeatureStrings {
 
     static let it = WindowLayoutFeatureStrings(
         title: "Layout finestre",
-        caption: "Sposta la finestra attiva in metà, terzi, angoli, su un altro display, al centro o nell'area utilizzabile.",
+        caption: "Disponi le finestre nelle aree dello schermo oppure spostale e ridimensionale con trackpad o mouse.",
         showInPanel: "Mostra nel pannello",
+        gestureSection: "Trascinamento finestre",
+        gestureEnable: "Sposta e ridimensiona trascinando",
+        gestureCaption: "Sul trackpad o con il mouse, tieni premuti i tasti indicati e trascina da qualsiasi punto della finestra.",
+        gestureModifiers: "Tasti per spostare",
+        gestureMove: "Trascina per spostare",
+        gestureResize: "Aggiungi Maiusc e trascina per ridimensionare",
+        gestureResizeHint: "Il punto iniziale sceglie il bordo o l’angolo. Con il mouse, anche il trascinamento destro ridimensiona.",
+        gestureRaiseWindow: "Porta in primo piano la finestra trascinata",
         shortcuts: "Scorciatoie",
         shortcutsCaption: "Usa scorciatoie globali per organizzare la finestra attiva senza aprire il pannello.",
-        permissionCaption: "Usa Accessibilità per spostare solo la finestra attiva.",
+        permissionCaption: "Usa Accessibilità solo per spostare e ridimensionare le finestre.",
         noWindow: "Nessuna finestra attiva trovata.",
         missingPermission: "Concedi Accessibilità per spostare le finestre.",
         failed: "Impossibile spostare questa finestra.",
@@ -1047,6 +1321,7 @@ struct WindowLayoutFeatureStrings {
         target: "Finestra attiva",
         halves: "Metà",
         thirds: "Terzi",
+        sixths: "Sesti",
         corners: "Angoli",
         other: "Azioni",
         leftHalf: "Sinistra",
@@ -1058,6 +1333,12 @@ struct WindowLayoutFeatureStrings {
         rightThird: "1/3 destra",
         leftTwoThirds: "2/3 sinistra",
         rightTwoThirds: "2/3 destra",
+        topLeftSixth: "1/6 in alto a sinistra",
+        topCenterSixth: "1/6 in alto al centro",
+        topRightSixth: "1/6 in alto a destra",
+        bottomLeftSixth: "1/6 in basso a sinistra",
+        bottomCenterSixth: "1/6 in basso al centro",
+        bottomRightSixth: "1/6 in basso a destra",
         topLeft: "Alto sinistra",
         topRight: "Alto destra",
         bottomLeft: "Basso sinistra",
@@ -1070,11 +1351,19 @@ struct WindowLayoutFeatureStrings {
 
     static let ja = WindowLayoutFeatureStrings(
         title: "ウインドウ配置",
-        caption: "アクティブなウインドウを半分、3分割、四隅、別のディスプレイ、中央、または作業領域に移動します。",
+        caption: "ウインドウを画面の領域に配置したり、トラックパッドやマウスで移動やサイズ変更ができます。",
         showInPanel: "パネルに表示",
+        gestureSection: "ウインドウのドラッグ",
+        gestureEnable: "ドラッグで移動とサイズ変更",
+        gestureCaption: "トラックパッドまたはマウスで表示された修飾キーを押し、ウインドウ内の任意の場所からドラッグします。",
+        gestureModifiers: "移動用キー",
+        gestureMove: "ドラッグして移動",
+        gestureResize: "Shiftを加えてドラッグしサイズ変更",
+        gestureResizeHint: "開始位置に最も近い辺または角が選ばれます。マウスでは右ボタンのドラッグでもサイズ変更できます。",
+        gestureRaiseWindow: "ドラッグしたウインドウを手前に表示",
         shortcuts: "ショートカット",
         shortcutsCaption: "パネルを開かずにグローバルショートカットでアクティブなウインドウを配置します。",
-        permissionCaption: "アクセシビリティを使い、アクティブなウインドウだけを移動します。",
+        permissionCaption: "アクセシビリティはウインドウの移動とサイズ変更にのみ使用します。",
         noWindow: "アクティブなウインドウが見つかりません。",
         missingPermission: "ウインドウを移動するにはアクセシビリティを許可してください。",
         failed: "このウインドウを移動できませんでした。",
@@ -1084,6 +1373,7 @@ struct WindowLayoutFeatureStrings {
         target: "アクティブなウインドウ",
         halves: "半分",
         thirds: "3分割",
+        sixths: "6分割",
         corners: "四隅",
         other: "操作",
         leftHalf: "左",
@@ -1095,6 +1385,12 @@ struct WindowLayoutFeatureStrings {
         rightThird: "右 1/3",
         leftTwoThirds: "左 2/3",
         rightTwoThirds: "右 2/3",
+        topLeftSixth: "左上 1/6",
+        topCenterSixth: "上中央 1/6",
+        topRightSixth: "右上 1/6",
+        bottomLeftSixth: "左下 1/6",
+        bottomCenterSixth: "下中央 1/6",
+        bottomRightSixth: "右下 1/6",
         topLeft: "左上",
         topRight: "右上",
         bottomLeft: "左下",
@@ -1107,11 +1403,19 @@ struct WindowLayoutFeatureStrings {
 
     static let zhHans = WindowLayoutFeatureStrings(
         title: "窗口布局",
-        caption: "将当前窗口移动到半屏、三分屏、角落、另一台显示器、居中位置或可用屏幕区域。",
+        caption: "将窗口排列到屏幕区域，或用触控板或鼠标移动和调整大小。",
         showInPanel: "在面板中显示",
+        gestureSection: "窗口拖动",
+        gestureEnable: "拖动以移动和调整大小",
+        gestureCaption: "在触控板或鼠标上按住显示的修饰键，从窗口内任意位置拖动。",
+        gestureModifiers: "移动按键",
+        gestureMove: "拖动以移动",
+        gestureResize: "加按 Shift 并拖动以调整大小",
+        gestureResizeHint: "起点决定最近的边缘或角落。使用鼠标时，按住右键拖动也可调整大小。",
+        gestureRaiseWindow: "将拖动的窗口置于最前",
         shortcuts: "快捷键",
         shortcutsCaption: "使用全局快捷键整理当前窗口，无需打开面板。",
-        permissionCaption: "使用辅助功能权限，仅移动当前窗口。",
+        permissionCaption: "辅助功能权限仅用于移动窗口和调整窗口大小。",
         noWindow: "未找到当前窗口。",
         missingPermission: "请授予辅助功能权限以移动窗口。",
         failed: "无法移动此窗口。",
@@ -1121,6 +1425,7 @@ struct WindowLayoutFeatureStrings {
         target: "当前窗口",
         halves: "半屏",
         thirds: "三分屏",
+        sixths: "六分屏",
         corners: "角落",
         other: "操作",
         leftHalf: "左半屏",
@@ -1132,6 +1437,12 @@ struct WindowLayoutFeatureStrings {
         rightThird: "右侧 1/3",
         leftTwoThirds: "左侧 2/3",
         rightTwoThirds: "右侧 2/3",
+        topLeftSixth: "左上 1/6",
+        topCenterSixth: "上中 1/6",
+        topRightSixth: "右上 1/6",
+        bottomLeftSixth: "左下 1/6",
+        bottomCenterSixth: "下中 1/6",
+        bottomRightSixth: "右下 1/6",
         topLeft: "左上角",
         topRight: "右上角",
         bottomLeft: "左下角",
@@ -1144,11 +1455,19 @@ struct WindowLayoutFeatureStrings {
 
     static let zhTW = WindowLayoutFeatureStrings(
         title: "視窗排列",
-        caption: "將目前視窗移到半邊、三等分、角落、另一台顯示器、置中位置或可用螢幕範圍。",
+        caption: "將視窗排列到螢幕區域，或用觸控板或滑鼠移動及調整大小。",
         showInPanel: "在面板中顯示",
+        gestureSection: "視窗拖移",
+        gestureEnable: "拖移以移動及調整大小",
+        gestureCaption: "在觸控板或滑鼠上按住顯示的輔助鍵，從視窗內任何位置拖移。",
+        gestureModifiers: "移動按鍵",
+        gestureMove: "拖移以移動",
+        gestureResize: "加按 Shift 並拖移以調整大小",
+        gestureResizeHint: "起點會選擇最近的邊緣或角落。使用滑鼠時，按住右鍵拖移也可調整大小。",
+        gestureRaiseWindow: "將拖移的視窗帶到最前方",
         shortcuts: "快速鍵",
         shortcutsCaption: "使用全域快速鍵整理目前視窗，不需要打開面板。",
-        permissionCaption: "使用輔助使用權限，只會移動目前視窗。",
+        permissionCaption: "輔助使用權限只用於移動視窗及調整大小。",
         noWindow: "找不到目前視窗。",
         missingPermission: "請允許輔助使用權限以移動視窗。",
         failed: "無法移動此視窗。",
@@ -1158,6 +1477,7 @@ struct WindowLayoutFeatureStrings {
         target: "目前視窗",
         halves: "半邊",
         thirds: "三等分",
+        sixths: "六等分",
         corners: "角落",
         other: "其他操作",
         leftHalf: "左半邊",
@@ -1169,6 +1489,12 @@ struct WindowLayoutFeatureStrings {
         rightThird: "右側 1/3",
         leftTwoThirds: "左側 2/3",
         rightTwoThirds: "右側 2/3",
+        topLeftSixth: "左上 1/6",
+        topCenterSixth: "上方中央 1/6",
+        topRightSixth: "右上 1/6",
+        bottomLeftSixth: "左下 1/6",
+        bottomCenterSixth: "下方中央 1/6",
+        bottomRightSixth: "右下 1/6",
         topLeft: "左上角",
         topRight: "右上角",
         bottomLeft: "左下角",
@@ -1181,11 +1507,19 @@ struct WindowLayoutFeatureStrings {
 
     static let zhHK = WindowLayoutFeatureStrings(
         title: "視窗排列",
-        caption: "將目前視窗移到半邊、三等分、角落、另一部顯示器、置中位置或可用螢幕範圍。",
+        caption: "將視窗排列到螢幕區域，或用觸控板或滑鼠移動及調整大小。",
         showInPanel: "在面板中顯示",
+        gestureSection: "視窗拖動",
+        gestureEnable: "拖動以移動及調整大小",
+        gestureCaption: "在觸控板或滑鼠上按住顯示的輔助鍵，從視窗內任何位置拖動。",
+        gestureModifiers: "移動按鍵",
+        gestureMove: "拖動以移動",
+        gestureResize: "加按 Shift 並拖動以調整大小",
+        gestureResizeHint: "起點會選擇最近的邊緣或角落。使用滑鼠時，按住右鍵拖動也可調整大小。",
+        gestureRaiseWindow: "將拖動的視窗帶到最前方",
         shortcuts: "快捷鍵",
         shortcutsCaption: "使用全域快捷鍵整理目前視窗，毋須打開面板。",
-        permissionCaption: "使用輔助使用權限，只會移動目前視窗。",
+        permissionCaption: "輔助使用權限只用於移動視窗及調整大小。",
         noWindow: "找不到目前視窗。",
         missingPermission: "請同意輔助使用權限以移動視窗。",
         failed: "無法移動此視窗。",
@@ -1195,6 +1529,7 @@ struct WindowLayoutFeatureStrings {
         target: "目前視窗",
         halves: "半邊",
         thirds: "三等分",
+        sixths: "六等分",
         corners: "角落",
         other: "其他操作",
         leftHalf: "左半邊",
@@ -1206,6 +1541,12 @@ struct WindowLayoutFeatureStrings {
         rightThird: "右側 1/3",
         leftTwoThirds: "左側 2/3",
         rightTwoThirds: "右側 2/3",
+        topLeftSixth: "左上 1/6",
+        topCenterSixth: "上方中央 1/6",
+        topRightSixth: "右上 1/6",
+        bottomLeftSixth: "左下 1/6",
+        bottomCenterSixth: "下方中央 1/6",
+        bottomRightSixth: "右下 1/6",
         topLeft: "左上角",
         topRight: "右上角",
         bottomLeft: "左下角",
@@ -1249,7 +1590,7 @@ struct MonitorAlertFeatureStrings {
 
     static let enUS = MonitorAlertFeatureStrings(
         section: "Alerts",
-        caption: "Off by default. When enabled, Monitor warns only after a useful condition and respects the alert interval.",
+        caption: "Alerts fire when their selected limits are reached. High CPU ignores spikes shorter than about 12 seconds. The repeat setting only limits repeats of the same alert.",
         notificationsDenied: "Notifications for Vorssaint are off in System Settings, so alerts cannot appear.",
         cpu: "High CPU",
         cpuTemperature: "High CPU temperature",
@@ -1260,7 +1601,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "Temperature above",
         diskThreshold: "Free space below",
         batteryThreshold: "Battery below",
-        cooldown: "Alert interval",
+        cooldown: "Repeat the same alert after",
         cooldown2: "2 minutes",
         cooldown5: "5 minutes",
         cooldown15: "15 minutes",
@@ -1280,7 +1621,7 @@ struct MonitorAlertFeatureStrings {
 
     static let ptBR = MonitorAlertFeatureStrings(
         section: "Alertas",
-        caption: "Desligado por padrão. Quando ligado, o Monitor avisa só depois de uma condição relevante e respeita o intervalo entre avisos.",
+        caption: "Os alertas disparam quando os limites escolhidos são atingidos. A CPU ignora picos com menos de 12 segundos. A opção de repetição só limita o mesmo alerta.",
         notificationsDenied: "As notificações do Vorssaint estão desativadas nos Ajustes do Sistema, então os alertas não aparecem.",
         cpu: "CPU alta",
         cpuTemperature: "Temperatura alta da CPU",
@@ -1291,7 +1632,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "Temperatura acima de",
         diskThreshold: "Espaço livre abaixo de",
         batteryThreshold: "Bateria abaixo de",
-        cooldown: "Intervalo entre avisos",
+        cooldown: "Repetir o mesmo alerta depois de",
         cooldown2: "2 minutos",
         cooldown5: "5 minutos",
         cooldown15: "15 minutos",
@@ -1311,7 +1652,7 @@ struct MonitorAlertFeatureStrings {
 
     static let tr = MonitorAlertFeatureStrings(
         section: "Uyarılar",
-        caption: "Varsayılan olarak kapalıdır. Etkinleştirildiğinde Monitör yalnızca anlamlı bir koşuldan sonra uyarır ve uyarı aralığına uyar.",
+        caption: "Uyarılar seçilen eşiklere ulaşıldığında gönderilir. CPU yaklaşık 12 saniyeden kısa sıçramaları yok sayar. Tekrarlama ayarı yalnızca aynı uyarının tekrarlanmasını sınırlar.",
         notificationsDenied: "Sistem Ayarları'nda Vorssaint bildirimleri kapalı, bu yüzden uyarılar görünemez.",
         cpu: "Yüksek CPU",
         cpuTemperature: "Yüksek CPU sıcaklığı",
@@ -1322,7 +1663,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "Sıcaklık şu değerin üstünde",
         diskThreshold: "Boş alan şu değerin altında",
         batteryThreshold: "Pil şu değerin altında",
-        cooldown: "Uyarı aralığı",
+        cooldown: "Aynı uyarıyı şu süre sonra yinele",
         cooldown2: "2 dakika",
         cooldown5: "5 dakika",
         cooldown15: "15 dakika",
@@ -1342,7 +1683,7 @@ struct MonitorAlertFeatureStrings {
 
     static let ru = MonitorAlertFeatureStrings(
         section: "Оповещения",
-        caption: "По умолчанию выключено. Когда функция включена, Monitor предупреждает только после полезного условия и соблюдает интервал между оповещениями.",
+        caption: "Оповещения появляются при достижении выбранных порогов. CPU игнорирует скачки короче примерно 12 секунд. Настройка повтора ограничивает только повтор одного и того же оповещения.",
         notificationsDenied: "Уведомления Vorssaint выключены в Системных настройках, поэтому оповещения не появятся.",
         cpu: "Высокая нагрузка CPU",
         cpuTemperature: "Высокая температура CPU",
@@ -1353,7 +1694,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "Температура выше",
         diskThreshold: "Свободного места меньше",
         batteryThreshold: "Батарея ниже",
-        cooldown: "Интервал оповещений",
+        cooldown: "Повторить то же оповещение через",
         cooldown2: "2 минуты",
         cooldown5: "5 минут",
         cooldown15: "15 минут",
@@ -1373,7 +1714,7 @@ struct MonitorAlertFeatureStrings {
 
     static let es = MonitorAlertFeatureStrings(
         section: "Alertas",
-        caption: "Desactivado por defecto. Al activarlo, Monitor avisa solo tras una condición relevante y respeta el intervalo entre avisos.",
+        caption: "Las alertas aparecen cuando se alcanzan los límites elegidos. La CPU ignora los picos de menos de unos 12 segundos. El ajuste de repetición solo limita la repetición de la misma alerta.",
         notificationsDenied: "Las notificaciones de Vorssaint están desactivadas en Ajustes del Sistema, así que las alertas no aparecen.",
         cpu: "CPU alta",
         cpuTemperature: "Temperatura de CPU alta",
@@ -1384,7 +1725,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "Temperatura por encima de",
         diskThreshold: "Espacio libre por debajo de",
         batteryThreshold: "Batería por debajo de",
-        cooldown: "Intervalo entre avisos",
+        cooldown: "Repetir la misma alerta después de",
         cooldown2: "2 minutos",
         cooldown5: "5 minutos",
         cooldown15: "15 minutos",
@@ -1404,7 +1745,7 @@ struct MonitorAlertFeatureStrings {
 
     static let de = MonitorAlertFeatureStrings(
         section: "Warnungen",
-        caption: "Standardmäßig aus. Wenn aktiviert, warnt der Monitor nur nach einem relevanten Zustand und beachtet das Warnintervall.",
+        caption: "Warnungen erscheinen, wenn die gewählten Grenzwerte erreicht werden. Die CPU ignoriert Spitzen, die kürzer als etwa 12 Sekunden dauern. Die Wiederholungseinstellung begrenzt nur die Wiederholung derselben Warnung.",
         notificationsDenied: "Mitteilungen für Vorssaint sind in den Systemeinstellungen aus, daher können keine Warnungen erscheinen.",
         cpu: "Hohe CPU",
         cpuTemperature: "Hohe CPU-Temperatur",
@@ -1415,7 +1756,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "Temperatur über",
         diskThreshold: "Freier Platz unter",
         batteryThreshold: "Akku unter",
-        cooldown: "Warnintervall",
+        cooldown: "Dieselbe Warnung erneut nach",
         cooldown2: "2 Minuten",
         cooldown5: "5 Minuten",
         cooldown15: "15 Minuten",
@@ -1435,7 +1776,7 @@ struct MonitorAlertFeatureStrings {
 
     static let fr = MonitorAlertFeatureStrings(
         section: "Alertes",
-        caption: "Désactivé par défaut. Une fois activé, Monitor avertit seulement après une condition utile et respecte l'intervalle d'alerte.",
+        caption: "Les alertes apparaissent lorsque les seuils choisis sont atteints. Le processeur ignore les pics de moins de 12 secondes environ. Le réglage de répétition limite uniquement la répétition de la même alerte.",
         notificationsDenied: "Les notifications de Vorssaint sont désactivées dans Réglages Système, les alertes ne peuvent donc pas apparaître.",
         cpu: "CPU élevé",
         cpuTemperature: "Température CPU élevée",
@@ -1446,7 +1787,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "Température au-dessus de",
         diskThreshold: "Espace libre sous",
         batteryThreshold: "Batterie sous",
-        cooldown: "Intervalle d'alerte",
+        cooldown: "Répéter la même alerte après",
         cooldown2: "2 minutes",
         cooldown5: "5 minutes",
         cooldown15: "15 minutes",
@@ -1466,7 +1807,7 @@ struct MonitorAlertFeatureStrings {
 
     static let it = MonitorAlertFeatureStrings(
         section: "Avvisi",
-        caption: "Disattivato per impostazione predefinita. Quando attivo, Monitor avvisa solo dopo una condizione utile e rispetta l'intervallo tra gli avvisi.",
+        caption: "Gli avvisi compaiono quando vengono raggiunte le soglie scelte. La CPU ignora i picchi più brevi di circa 12 secondi. L'impostazione di ripetizione limita solo la ripetizione dello stesso avviso.",
         notificationsDenied: "Le notifiche di Vorssaint sono disattivate in Impostazioni di Sistema, quindi gli avvisi non compaiono.",
         cpu: "CPU alta",
         cpuTemperature: "Temperatura CPU alta",
@@ -1477,7 +1818,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "Temperatura sopra",
         diskThreshold: "Spazio libero sotto",
         batteryThreshold: "Batteria sotto",
-        cooldown: "Intervallo avvisi",
+        cooldown: "Ripeti lo stesso avviso dopo",
         cooldown2: "2 minuti",
         cooldown5: "5 minuti",
         cooldown15: "15 minuti",
@@ -1497,7 +1838,7 @@ struct MonitorAlertFeatureStrings {
 
     static let ja = MonitorAlertFeatureStrings(
         section: "アラート",
-        caption: "デフォルトではオフです。有効にすると、Monitor は意味のある状態が続いた場合だけ通知し、通知間隔を守ります。",
+        caption: "選択したしきい値に達すると通知します。CPU は約 12 秒未満の短い急上昇を無視します。繰り返し設定は同じ通知の繰り返しだけを制限します。",
         notificationsDenied: "システム設定でVorssaintの通知がオフのため、アラートは表示されません。",
         cpu: "CPU 高負荷",
         cpuTemperature: "CPU 温度が高い",
@@ -1508,7 +1849,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "温度が次を超過",
         diskThreshold: "空き容量が次を下回る",
         batteryThreshold: "バッテリーが次を下回る",
-        cooldown: "通知間隔",
+        cooldown: "同じ通知を再度送るまで",
         cooldown2: "2 分",
         cooldown5: "5 分",
         cooldown15: "15 分",
@@ -1528,7 +1869,7 @@ struct MonitorAlertFeatureStrings {
 
     static let zhHans = MonitorAlertFeatureStrings(
         section: "提醒",
-        caption: "默认关闭。启用后，监视器只会在出现有意义的状态时提醒，并遵守提醒间隔。",
+        caption: "达到所选阈值时会发出提醒。CPU 会忽略短于约 12 秒的短暂峰值。重复设置仅限制同一提醒的重复频率。",
         notificationsDenied: "Vorssaint 的通知已在系统设置中关闭，警报无法显示。",
         cpu: "CPU 过高",
         cpuTemperature: "CPU 温度过高",
@@ -1539,7 +1880,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "温度高于",
         diskThreshold: "可用空间低于",
         batteryThreshold: "电量低于",
-        cooldown: "提醒间隔",
+        cooldown: "再次发送同一提醒的间隔",
         cooldown2: "2 分钟",
         cooldown5: "5 分钟",
         cooldown15: "15 分钟",
@@ -1559,7 +1900,7 @@ struct MonitorAlertFeatureStrings {
 
     static let zhTW = MonitorAlertFeatureStrings(
         section: "提醒",
-        caption: "預設為關閉。開啟後，監控功能只會在出現需要注意的狀態時提醒，並依照提醒間隔發送通知。",
+        caption: "達到所選門檻時會發出提醒。CPU 會忽略短於約 12 秒的短暫尖峰。重複設定只限制相同提醒的重複頻率。",
         notificationsDenied: "Vorssaint 的通知已在系統設定中關閉，警示無法顯示。",
         cpu: "CPU 使用率過高",
         cpuTemperature: "CPU 溫度過高",
@@ -1570,7 +1911,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "溫度高於",
         diskThreshold: "可用空間低於",
         batteryThreshold: "電量低於",
-        cooldown: "提醒間隔",
+        cooldown: "再次發送相同提醒的間隔",
         cooldown2: "2 分鐘",
         cooldown5: "5 分鐘",
         cooldown15: "15 分鐘",
@@ -1590,7 +1931,7 @@ struct MonitorAlertFeatureStrings {
 
     static let zhHK = MonitorAlertFeatureStrings(
         section: "提示",
-        caption: "預設為關閉。開啟後，監察功能只會在出現需要注意的狀態時提示，並會遵循提示間隔。",
+        caption: "達到所選門檻時會發出提示。CPU 會忽略短於約 12 秒的短暫尖峰。重複設定只限制相同提示的重複頻率。",
         notificationsDenied: "Vorssaint 的通知已在系統設定中關閉，警示無法顯示。",
         cpu: "CPU 使用率過高",
         cpuTemperature: "CPU 溫度過高",
@@ -1601,7 +1942,7 @@ struct MonitorAlertFeatureStrings {
         cpuTemperatureThreshold: "溫度高於",
         diskThreshold: "可用空間低於",
         batteryThreshold: "電量低於",
-        cooldown: "提示間隔",
+        cooldown: "再次發出相同提示的間隔",
         cooldown2: "2 分鐘",
         cooldown5: "5 分鐘",
         cooldown15: "15 分鐘",

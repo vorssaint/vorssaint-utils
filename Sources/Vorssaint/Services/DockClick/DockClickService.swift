@@ -21,13 +21,34 @@ final class DockClickService {
         let targets: [AXUIElement]
     }
 
+    /// A click decided on mouse down, waiting for its mouse up. Acting on the
+    /// down used to swallow the very event the Dock needs to start an icon
+    /// drag, so the icon of any app the click would act on could never be
+    /// reordered (reported with Terminal and Activity Monitor). The action
+    /// now commits on a clean mouse up, and movement past the slop replays
+    /// the down so the press turns back into a native Dock drag.
+    private struct PendingClick {
+        let pid: pid_t
+        let app: NSRunningApplication
+        let origin: CGPoint
+        let action: DockClickAction
+        let unminimized: [AXUIElement]
+        let minimized: [AXUIElement]
+        let priorRecord: ActionRecord?
+    }
+
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var dockPIDCache: pid_t?
+    private var pendingClick: PendingClick?
     /// Last handled click per app: follow-up clicks toggle from this record
     /// instead of re-deriving from ambiguous mid-animation AX state. The tap
     /// runs on the main run loop, so both dictionaries are main-thread-only.
     private var lastAction: [pid_t: ActionRecord] = [:]
+
+    /// Marks the replayed mouse down so the tap lets its own event through
+    /// (same magic the snippets tap uses for its synthetic events).
+    private static let syntheticEventMarker: Int64 = 0x564F5253
     private var pendingSweeps: [pid_t: DispatchWorkItem] = [:]
 
     private init() {}
@@ -35,7 +56,7 @@ final class DockClickService {
     func syncWithPreferences() {
         let minimizeEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickMinimize)
         let cycleEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickCycleWindows)
-        if (minimizeEnabled || cycleEnabled), Permissions.shared.accessibility {
+        if AppFeature.dockClick.isAvailable, (minimizeEnabled || cycleEnabled), Permissions.shared.accessibility {
             start()
         } else {
             stop()
@@ -53,7 +74,9 @@ final class DockClickService {
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
             options: .defaultTap,
-            eventsOfInterest: CGEventMask(1 << CGEventType.leftMouseDown.rawValue),
+            eventsOfInterest: CGEventMask(1 << CGEventType.leftMouseDown.rawValue)
+                | CGEventMask(1 << CGEventType.leftMouseDragged.rawValue)
+                | CGEventMask(1 << CGEventType.leftMouseUp.rawValue),
             callback: { _, type, event, userInfo in
                 guard let userInfo else { return Unmanaged.passUnretained(event) }
                 let service = Unmanaged<DockClickService>.fromOpaque(userInfo).takeUnretainedValue()
@@ -81,6 +104,7 @@ final class DockClickService {
         for (_, sweep) in pendingSweeps { sweep.cancel() }
         pendingSweeps = [:]
         lastAction = [:]
+        pendingClick = nil
     }
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
@@ -88,7 +112,25 @@ final class DockClickService {
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             return Unmanaged.passUnretained(event)
         }
-        guard type == .leftMouseDown else { return Unmanaged.passUnretained(event) }
+        // The replayed down of a press that became a drag: the Dock must
+        // receive it untouched.
+        if event.getIntegerValueField(.eventSourceUserData) == Self.syntheticEventMarker {
+            return Unmanaged.passUnretained(event)
+        }
+        switch type {
+        case .leftMouseDragged:
+            return handleDragged(event)
+        case .leftMouseUp:
+            return handleUp(event)
+        case .leftMouseDown:
+            break
+        default:
+            return Unmanaged.passUnretained(event)
+        }
+
+        // A fresh press always starts clean; a stale pending click (the tap
+        // missed an up during a timeout) must never block the new one.
+        pendingClick = nil
 
         // Modifier clicks keep the Dock's native shortcuts (⌘ reveal, ⌥ hide…).
         guard event.flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]).isEmpty
@@ -134,17 +176,38 @@ final class DockClickService {
                                                        elapsed: record.map { now - $0.time })
         if decision == .swallow { return nil }
 
-        let windows = Self.standardWindows(pid: pid)
+        var windows = Self.standardWindows(pid: pid)
+        var windowServerSeesWindows = false
+        if windows.unminimized.isEmpty, windows.minimized.isEmpty {
+            // The AX list came back empty; the window server is the cheap,
+            // AX-free truth about whether the app really is windowless. Java
+            // and Eclipse apps (DBeaver, issue #200) regularly fail or time
+            // out the AX side while their windows sit right there.
+            windowServerSeesWindows = Self.windowServerHasStandardWindows(pid: pid)
+            if windowServerSeesWindows {
+                // One slower retry: a busy JVM often just missed the 0.35 s
+                // leash. Rare path, so the extra wait never taxes normal apps.
+                windows = Self.standardWindows(pid: pid, timeout: 0.7)
+            }
+        }
         guard !windows.hasFullscreen else { return Unmanaged.passUnretained(event) }
 
         let cycleEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickCycleWindows)
         let minimizeEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickMinimize)
+        // Launcher-style apps can misreport isActive; the workspace's idea of
+        // the frontmost app is the tiebreaker.
+        let frontmost = app.isActive
+            || NSWorkspace.shared.frontmostApplication?.processIdentifier == pid
+        let hasUnminimized = DockClickSupport.effectiveHasUnminimized(
+            unminimizedCount: windows.unminimized.count,
+            minimizedCount: windows.minimized.count,
+            windowServerSeesWindows: windowServerSeesWindows)
         let action: DockClickAction
         if case .toggle(let toggled) = decision {
             action = toggled
         } else {
-            action = DockClickSupport.action(appIsFrontmost: app.isActive,
-                                             hasUnminimizedWindows: !windows.unminimized.isEmpty,
+            action = DockClickSupport.action(appIsFrontmost: frontmost,
+                                             hasUnminimizedWindows: hasUnminimized,
                                              hasMinimizedWindows: !windows.minimized.isEmpty,
                                              hasFullscreenWindows: false,
                                              hasModifiers: false,
@@ -153,36 +216,79 @@ final class DockClickService {
                                              unminimizedWindowCount: windows.unminimized.count)
         }
 
-        // Swallow handled clicks (or the Dock would fight us: re-activate on
-        // minimize, open a brand-new window on restore) and apply the window
-        // changes outside the tap callback. A swallowed click never reaches
-        // Dock Preview's listen-only tap, so tell it directly — otherwise its
-        // open panel keeps a pre-click idea of which windows are minimized.
-        switch action {
+        // Handled clicks are swallowed (or the Dock would fight us:
+        // re-activate on minimize, open a brand-new window on restore), but
+        // the action only commits when the button lifts without moving: the
+        // press may still turn out to be the start of an icon drag.
+        guard action != .passThrough else { return Unmanaged.passUnretained(event) }
+        pendingClick = PendingClick(pid: pid, app: app, origin: point, action: action,
+                                    unminimized: windows.unminimized,
+                                    minimized: windows.minimized,
+                                    priorRecord: record)
+        return nil
+    }
+
+    /// Movement while a click is pending: past the slop the press is a Dock
+    /// icon drag, so the swallowed down is replayed (marked, letting it
+    /// through) and the Dock takes over; jitter below the slop stays part of
+    /// the pending click.
+    private func handleDragged(_ event: CGEvent) -> Unmanaged<CGEvent>? {
+        guard let pending = pendingClick else { return Unmanaged.passUnretained(event) }
+        let point = event.location
+        if DockClickSupport.isDragMovement(from: pending.origin, to: point) {
+            pendingClick = nil
+            guard let down = CGEvent(mouseEventSource: CGEventSource(stateID: .hidSystemState),
+                                     mouseType: .leftMouseDown,
+                                     mouseCursorPosition: point,
+                                     mouseButton: .left) else { return nil }
+            down.setIntegerValueField(.eventSourceUserData, value: Self.syntheticEventMarker)
+            down.post(tap: .cghidEventTap)
+        }
+        return nil
+    }
+
+    /// A clean release commits the pending action; the up is swallowed like
+    /// the down was, so the Dock never sees half a click.
+    private func handleUp(_ event: CGEvent) -> Unmanaged<CGEvent>? {
+        guard let pending = pendingClick else { return Unmanaged.passUnretained(event) }
+        pendingClick = nil
+        commit(pending)
+        return nil
+    }
+
+    /// Applies a decided click. A Dock Preview panel keeps a pre-click idea
+    /// of which windows are minimized, and a swallowed click never reaches
+    /// its listen-only tap, so it is told directly.
+    private func commit(_ pending: PendingClick) {
+        let pid = pending.pid
+        let now = CFAbsoluteTimeGetCurrent()
+        switch pending.action {
         case .cycleWindows:
             lastAction[pid] = ActionRecord(kind: .cycleWindows, time: now, targets: [])
-            let unminimized = windows.unminimized
+            let unminimized = pending.unminimized
             DispatchQueue.main.async {
                 DockPreviewService.shared.dockClickWasHandled()
                 Self.cycleWindows(pid: pid, windows: unminimized)
             }
-            return nil
         case .minimize:
-            let targets = windows.unminimized
-            lastAction[pid] = ActionRecord(kind: .minimize, time: now, targets: targets)
+            lastAction[pid] = ActionRecord(kind: .minimize, time: now, targets: pending.unminimized)
+            // Some apps report success for the Minimize All menu action but
+            // leave their windows untouched. Start the per-window AX action
+            // immediately so those apps do not wait for the settling sweep;
+            // the menu path still covers AX-blind and multi-window apps.
+            Self.setMinimized(true, windows: pending.unminimized)
             DispatchQueue.main.async {
                 DockPreviewService.shared.dockClickWasHandled()
                 Self.postMinimizeAll(pid: pid)
             }
-            scheduleSweep(pid: pid, targets: targets, minimized: true,
+            scheduleSweep(pid: pid, targets: pending.unminimized, minimized: true,
                           delay: DockClickSupport.minimizeSweepDelay)
-            return nil
         case .restore:
             // A toggle right after a minimize also re-opens the captured
             // windows whose AX state hasn't flipped yet; duplicates with the
             // live minimized list are harmless (the set is idempotent).
-            var targets = windows.minimized
-            if let record, record.kind == .minimize {
+            var targets = pending.minimized
+            if let record = pending.priorRecord, record.kind == .minimize {
                 targets += record.targets
             }
             lastAction[pid] = ActionRecord(kind: .restore, time: now, targets: targets)
@@ -191,11 +297,10 @@ final class DockClickService {
                           delay: DockClickSupport.restoreSweepDelay)
             DispatchQueue.main.async {
                 DockPreviewService.shared.dockClickWasHandled()
-                app.activate()
+                pending.app.activate()
             }
-            return nil
         case .passThrough:
-            return Unmanaged.passUnretained(event)
+            break
         }
     }
 
@@ -214,7 +319,10 @@ final class DockClickService {
             self?.pendingSweeps.removeValue(forKey: pid)
             let value: CFBoolean = minimized ? kCFBooleanTrue : kCFBooleanFalse
             DispatchQueue.global(qos: .userInteractive).async {
-                for window in targets where Self.isMinimized(window) == !minimized {
+                // != also sweeps windows whose state cannot be read (nil):
+                // setting an already-correct state is a no-op, while skipping
+                // an unreadable one leaves Java app windows behind (#200).
+                for window in targets where Self.isMinimized(window) != minimized {
                     AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, value)
                 }
             }
@@ -229,7 +337,7 @@ final class DockClickService {
             // ⌥⌘M: it targets the right app even if focus shifts, skips every
             // event tap in between, and is layout-independent (kVK_ANSI_M is a
             // physical key — on AZERTY it doesn't type an M at all).
-            guard !pressMinimizeAllMenuItem(pid: pid) else { return }
+            guard !handleMinimizeMenu(pid: pid) else { return }
             DispatchQueue.main.async {
                 Self.postMinimizeAllShortcut()
             }
@@ -240,29 +348,62 @@ final class DockClickService {
     /// the app's menu bar two levels deep — the item lives directly in the
     /// Window menu, so submenus are never entered. Matching by command
     /// character + modifiers instead of the localized title works in every
-    /// language the target app ships.
-    private static func pressMinimizeAllMenuItem(pid: pid_t) -> Bool {
+    /// language the target app ships. Apps without a Minimize All (Java and
+    /// Eclipse apps like DBeaver, issue #200) fall back to their plain
+    /// Minimize item (⌘M): one window per click, but the click works. This
+    /// runs off the tap, so it can afford a longer leash than the tap-side
+    /// window enumeration — busy JVMs routinely need it.
+    /// Returns true when a menu action ran or when a conflicting Option-Command-M
+    /// item makes the synthetic shortcut unsafe. False means the shortcut is a
+    /// safe last resort because the menu hierarchy did not expose a usable action.
+    private static func handleMinimizeMenu(pid: pid_t) -> Bool {
         let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(app, 0.35)
+        AXUIElementSetMessagingTimeout(app, 1.0)
         guard let menuBar = elementAttribute(app, kAXMenuBarAttribute as String),
               let topLevel = elementArray(menuBar, kAXChildrenAttribute as String)
         else { return false }
 
+        var plainMinimize: AXUIElement?
+        var minimizeAll: AXUIElement?
+        var hasConflictingOptionM = false
         // The Window menu sits near the end of the menu bar.
         for barItem in topLevel.reversed() {
             guard let menus = elementArray(barItem, kAXChildrenAttribute as String) else { continue }
             for menu in menus {
                 guard let items = elementArray(menu, kAXChildrenAttribute as String) else { continue }
                 for item in items {
-                    guard stringAttribute(item, "AXMenuItemCmdChar")?.uppercased() == "M",
-                          intAttribute(item, "AXMenuItemCmdModifiers") == 2 // ⌥⌘
-                    else { continue }
-                    guard boolAttribute(item, kAXEnabledAttribute as String) != false else { return false }
-                    return AXUIElementPerformAction(item, kAXPressAction as CFString) == .success
+                    let commandCharacter = stringAttribute(item, "AXMenuItemCmdChar")
+                    let modifiers = intAttribute(item, "AXMenuItemCmdModifiers")
+                    let isVerifiedMinimizeAll = DockClickSupport.isVerifiedMinimizeAll(
+                        commandCharacter: commandCharacter,
+                        modifiers: modifiers,
+                        identifier: stringAttribute(item, kAXIdentifierAttribute as String)
+                    )
+                    if isVerifiedMinimizeAll, minimizeAll == nil {
+                        minimizeAll = item
+                    } else if commandCharacter?.uppercased() == "M", modifiers == 2 {
+                        hasConflictingOptionM = true
+                    }
+                    if commandCharacter?.uppercased() == "M",
+                       modifiers == 0, plainMinimize == nil { // ⌘M: plain Minimize
+                        plainMinimize = item
+                    }
                 }
             }
         }
-        return false
+        if let minimizeAll {
+            guard boolAttribute(minimizeAll, kAXEnabledAttribute as String) != false else { return true }
+            if AXUIElementPerformAction(minimizeAll, kAXPressAction as CFString) == .success {
+                return true
+            }
+        }
+        if let plainMinimize,
+           boolAttribute(plainMinimize, kAXEnabledAttribute as String) != false {
+            if AXUIElementPerformAction(plainMinimize, kAXPressAction as CFString) == .success {
+                return true
+            }
+        }
+        return hasConflictingOptionM
     }
 
     private static func postMinimizeAllShortcut() {
@@ -517,16 +658,28 @@ final class DockClickService {
         return value as? Bool
     }
 
+    /// Whether the window server lists any normal on-screen window for the
+    /// pid. AX-free, so it stays truthful for apps whose accessibility side
+    /// is busy or unresponsive.
+    private static func windowServerHasStandardWindows(pid: pid_t) -> Bool {
+        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                                    kCGNullWindowID) as? [[String: Any]] else { return false }
+        return list.contains { entry in
+            entry[kCGWindowOwnerPID as String] as? pid_t == pid
+                && entry[kCGWindowLayer as String] as? Int == 0
+        }
+    }
+
     /// The app's standard windows split by minimized state, plus whether any
     /// window is fullscreen (those can't minimize and must veto the action).
-    private static func standardWindows(pid: pid_t)
+    private static func standardWindows(pid: pid_t, timeout: Float = 0.35)
         -> (unminimized: [AXUIElement], minimized: [AXUIElement], hasFullscreen: Bool) {
         let appElement = AXUIElementCreateApplication(pid)
         // This runs inside the tap callback against the app the user just
         // clicked — often one that is busy or hung. Without an explicit
         // timeout every call here would wait out the multi-second AX default
         // and stall click delivery system-wide.
-        AXUIElementSetMessagingTimeout(appElement, 0.35)
+        AXUIElementSetMessagingTimeout(appElement, timeout)
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &value) == .success,
               let windows = value as? [AXUIElement]
@@ -535,11 +688,17 @@ final class DockClickService {
         var minimized: [AXUIElement] = []
         var hasFullscreen = false
         for window in windows {
-            AXUIElementSetMessagingTimeout(window, 0.35)
+            AXUIElementSetMessagingTimeout(window, timeout)
             // Role must be a real window: Finder also lists the desktop here
             // (an AXScrollArea) and it would otherwise count as a window.
             guard Self.roleString(window) == (kAXWindowRole as String) else { continue }
-            guard let isWindowMinimized = isMinimized(window) else { continue }
+            // An unreadable minimized state (busy JVM, SWT quirks) must not
+            // erase the window from BOTH lists — a frontmost app whose
+            // windows all fail this read would look windowless and the click
+            // would do nothing (issue #200). Unknown reads as "not
+            // minimized": over-including a minimize target is harmless, and
+            // the restore action never fires while one exists.
+            let isWindowMinimized = isMinimized(window) ?? false
             if isWindowMinimized {
                 // No subrole check: macOS flips a minimized window's subrole
                 // from AXStandardWindow to AXDialog.

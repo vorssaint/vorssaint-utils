@@ -3,6 +3,7 @@
 
 import Foundation
 import IOKit
+import IOKit.ps
 
 /// One power reading. Every field is optional: a Mac mini has no battery, a
 /// desktop may expose no SMC power key, so the UI shows only what is real.
@@ -12,6 +13,7 @@ struct PowerReading {
     var adapterMaxWatts: Double?   // the charger's rated wattage
     var batteryWatts: Double?      // + charging, - discharging
     var chargePercent: Int?        // current charge level
+    var timeRemainingSeconds: TimeInterval? // system estimate while discharging
     var healthPercent: Double?     // max capacity vs design (battery health)
     var cycleCount: Int?
     var isCharging = false
@@ -67,6 +69,10 @@ final class PowerSampler {
             reading.hasBattery = true
             reading.externalConnected = (props["ExternalConnected"] as? Bool) ?? false
             reading.isCharging = (props["IsCharging"] as? Bool) ?? false
+            reading.timeRemainingSeconds = BatteryTimeSupport.remainingSeconds(
+                timeToEmptyMinutes: timeToEmptyMinutes(),
+                externalConnected: reading.externalConnected,
+                isCharging: reading.isCharging)
 
             let voltageMv = (props["Voltage"] as? Int) ?? 0
             let amperageMa = (props["Amperage"] as? Int) ?? (props["InstantAmperage"] as? Int) ?? 0
@@ -136,6 +142,23 @@ final class PowerSampler {
             return nil
         }
         return dict
+    }
+
+    /// Uses the same public power-source field as the established battery
+    /// monitor users are likely to compare against. A negative value means the
+    /// system is still calculating, so the UI keeps that state instead of
+    /// substituting a more volatile private estimate.
+    private func timeToEmptyMinutes() -> Int? {
+        let info = IOPSCopyPowerSourcesInfo().takeRetainedValue()
+        let sources = IOPSCopyPowerSourcesList(info).takeRetainedValue() as [CFTypeRef]
+        for source in sources {
+            guard let description = IOPSGetPowerSourceDescription(info, source)?.takeUnretainedValue()
+                    as? [String: Any],
+                  description[kIOPSPowerSourceStateKey] as? String == kIOPSBatteryPowerValue,
+                  let minutes = intValue(description[kIOPSTimeToEmptyKey]) else { continue }
+            return minutes
+        }
+        return nil
     }
 
     private func batteryInt(_ key: String, in props: [String: Any]) -> Int? {

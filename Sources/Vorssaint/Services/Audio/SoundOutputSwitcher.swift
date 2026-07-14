@@ -19,7 +19,8 @@ final class SoundOutputSwitcher: ObservableObject {
     private init() {}
 
     func syncWithPreferences() {
-        UserDefaults.standard.bool(forKey: DefaultsKey.soundOutputSwitcherEnabled)
+        AppFeature.soundOutputSwitcher.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.soundOutputSwitcherEnabled)
             ? registerHotkey()
             : unregisterHotkey()
     }

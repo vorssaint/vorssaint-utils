@@ -20,6 +20,7 @@ struct QuickLauncherView: View {
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration = 0
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.clipboardHistoryLimit) private var clipboardLimit = 50
+    @AppStorage(DefaultsKey.cleanerBadgeSeen) private var cleanerBadgeSeen = false
 
     private var columns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: 10), count: QuickLauncherService.columns)
@@ -89,8 +90,12 @@ struct QuickLauncherView: View {
                     PanelURLCleanerView { launcher.closeUtility() }
                 case .uninstaller:
                     PanelUninstallerView { launcher.closeUtility() }
+                case .cleaner:
+                    PanelCleanerView { launcher.closeUtility() }
                 case .windowLayout:
                     PanelWindowLayoutView { launcher.closeUtility() }
+                case .toggles:
+                    PanelQuickTogglesView { launcher.closeUtility() }
                 default:
                     EmptyView()
                 }
@@ -232,6 +237,15 @@ struct QuickLauncherView: View {
                                 .fill(Color.green)
                                 .frame(width: 8, height: 8)
                                 .offset(x: 3, y: -3)
+                        }
+                        // Red dot pointing at the brand new feature; it
+                        // retires everywhere the first time the cleaner opens.
+                        if item == .cleaner, !cleanerBadgeSeen {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 8, height: 8)
+                                .offset(x: 3, y: -3)
+                                .accessibilityHidden(true)
                         }
                         // Keys 1-9 activate the first nine tiles; the badge is
                         // the only hint that shortcut exists.
@@ -423,6 +437,7 @@ struct QuickLauncherView: View {
     private func title(for item: QuickLauncherItem) -> String {
         switch item {
         case .keepAwake: return l10n.s.keepAwakeTitle
+        case .toggles: return FeatureStrings.quickToggles(l10n.language).pageTitle
         case .micMute: return micMute.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName
         case .screenOCR: return l10n.s.ocrName
         case .colorPicker: return l10n.s.colorPickerName
@@ -433,12 +448,14 @@ struct QuickLauncherView: View {
         case .media: return l10n.s.mediaName
         case .urlCleaner: return l10n.s.urlCleanerName
         case .uninstaller: return l10n.s.uninstallerName
+        case .cleaner: return l10n.s.cleanerName
         }
     }
 
     private func icon(for item: QuickLauncherItem) -> String {
         switch item {
         case .keepAwake: return keepAwake.isActive ? "bolt.fill" : "bolt"
+        case .toggles: return "togglepower"
         case .micMute: return micMute.isMuted ? "mic.slash.fill" : "mic"
         case .screenOCR: return "text.viewfinder"
         case .colorPicker: return "eyedropper"
@@ -449,6 +466,7 @@ struct QuickLauncherView: View {
         case .media: return "photo.on.rectangle.angled"
         case .urlCleaner: return "link"
         case .uninstaller: return "trash"
+        case .cleaner: return "sparkle"
         }
     }
 

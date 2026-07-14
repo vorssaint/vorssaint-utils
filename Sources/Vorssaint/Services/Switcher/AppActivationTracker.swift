@@ -16,6 +16,16 @@ final class AppActivationTracker {
 
     private init() {}
 
+    /// The MRU feeds the switcher and Window Layout's "every app" actions;
+    /// with both features off in the hub, the observers have no consumer.
+    func syncWithFeatures() {
+        if AppFeature.switcher.isAvailable || AppFeature.windowLayout.isAvailable {
+            start()
+        } else {
+            stop()
+        }
+    }
+
     func start() {
         guard !started else { return }
         started = true
@@ -27,6 +37,13 @@ final class AppActivationTracker {
         if let front = NSWorkspace.shared.frontmostApplication {
             record(front.processIdentifier)
         }
+    }
+
+    func stop() {
+        guard started else { return }
+        started = false
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+        mru.removeAll()
     }
 
     deinit {

@@ -8,6 +8,8 @@ struct PanelWindowLayoutView: View {
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var service = WindowLayoutService.shared
     @AppStorage(DefaultsKey.windowLayoutShortcutsEnabled) private var shortcutsEnabled = true
+    @AppStorage(DefaultsKey.windowGestureEnabled) private var gestureEnabled = false
+    @AppStorage(DefaultsKey.windowGestureModifiers) private var gestureModifiers = WindowGestureSupport.defaultModifierStorageValue
     @AppStorage(DefaultsKey.windowLayoutHiddenActions) private var hiddenActionsRaw = ""
     @State private var editingActions = false
 
@@ -28,6 +30,10 @@ struct PanelWindowLayoutView: View {
             intro
             actionGroup(title: text.halves, actions: [.leftHalf, .rightHalf, .topHalf, .bottomHalf])
             actionGroup(title: text.thirds, actions: [.leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds])
+            actionGroup(title: text.sixths, actions: [
+                .topLeftSixth, .topCenterSixth, .topRightSixth,
+                .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
+            ])
             actionGroup(title: text.corners, actions: [.topLeft, .topRight, .bottomLeft, .bottomRight])
             actionGroup(title: text.other, actions: [.maximize, .center, .nextDisplay, .restore])
             if let message = resultMessage {
@@ -97,6 +103,30 @@ struct PanelWindowLayoutView: View {
                 }
             if shortcutsEnabled {
                 Text(text.shortcutsCaption)
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Divider()
+            Toggle(text.gestureEnable, isOn: $gestureEnabled)
+                .toggleStyle(.checkbox)
+                .controlSize(.small)
+                .font(.system(size: 10.5, weight: .medium))
+                .onChange(of: gestureEnabled) { _, _ in
+                    WindowLayoutService.shared.syncWithPreferences()
+                }
+            if gestureEnabled {
+                WindowGestureModifierPicker(storageValue: $gestureModifiers,
+                                            title: text.gestureModifiers,
+                                            compact: true)
+                    .onChange(of: gestureModifiers) { _, _ in
+                        WindowLayoutService.shared.syncWithPreferences()
+                    }
+                WindowGestureHints(modifierStorage: gestureModifiers,
+                                   moveText: text.gestureMove,
+                                   resizeText: text.gestureResize,
+                                   compact: true)
+                Text(text.gestureResizeHint)
                     .font(.system(size: 9.5))
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -177,6 +207,12 @@ struct PanelWindowLayoutView: View {
         case .rightThird: return "rectangle.rightthird.inset.filled"
         case .leftTwoThirds: return "rectangle.leadinghalf.filled"
         case .rightTwoThirds: return "rectangle.trailinghalf.filled"
+        case .topLeftSixth: return "arrow.up.left"
+        case .topCenterSixth: return "arrow.up"
+        case .topRightSixth: return "arrow.up.right"
+        case .bottomLeftSixth: return "arrow.down.left"
+        case .bottomCenterSixth: return "arrow.down"
+        case .bottomRightSixth: return "arrow.down.right"
         case .topLeft: return "arrow.up.left"
         case .topRight: return "arrow.up.right"
         case .bottomLeft: return "arrow.down.left"

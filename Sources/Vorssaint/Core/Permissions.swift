@@ -5,6 +5,7 @@ import AppKit
 import ApplicationServices
 import Combine
 import CoreGraphics
+import UserNotifications
 
 /// Central place to check, request and watch the TCC permissions the app uses.
 /// Accessibility powers the scroll inverter and the switcher's event tap;
@@ -18,45 +19,95 @@ final class Permissions: ObservableObject {
     /// reaching protected locations. There is no API prompt for it; the user
     /// grants it in System Settings.
     @Published private(set) var fullDiskAccess = false
+    /// Refreshed inside refresh() only (launch and activation); notifications
+    /// have no cheap poll and the portal calls refresh() when it appears.
+    @Published private(set) var notifications: NotificationPermissionState = .unknown
+
+    enum NotificationPermissionState {
+        case granted, denied, undetermined, unknown
+    }
 
     private var activePermissionTimer: Timer?
     private var activationObserver: NSObjectProtocol?
+    private var resignObserver: NSObjectProtocol?
+    private var currentPollInterval: TimeInterval = 0
 
     private init() {
         refresh()
-        // Cheap always-on watch for Accessibility and Screen Recording: those are
-        // pure in-process status checks (no file access) and can be granted while
-        // the app runs, so features come alive moments after the toggle flips.
+        // Watch for Accessibility and Screen Recording flips so features come
+        // alive moments after the toggle flips. Both checks are TCC daemon
+        // round-trips, so the cadence adapts: fast only while a flip is
+        // plausible (the app is active — Settings, onboarding or the panel is
+        // up — or a grant is still missing, meaning the user may be in System
+        // Settings right now); slow in the steady state where everything is
+        // granted and the app sits in the background, which is where the app
+        // spends nearly its whole life.
         // Full Disk Access is deliberately NOT polled here: it can only change
         // across a relaunch (a running process never gains or is meant to lose
         // it mid-session), and probing it touches protected paths, so polling it
         // would just be repeated denied accesses for no gain.
-        let timer = Timer(timeInterval: 2.5, repeats: true) { [weak self] _ in
-            self?.refreshActivePermissions()
-        }
-        timer.tolerance = 1
-        RunLoop.main.add(timer, forMode: .common)
-        activePermissionTimer = timer
+        scheduleActivePermissionPolling()
         // Re-check everything the instant the user returns from System Settings
         // (e.g. after relaunching for Full Disk Access), so the state reflects
-        // immediately instead of waiting for the next launch.
+        // immediately instead of waiting for the next poll.
         activationObserver = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification,
                                                                     object: nil, queue: .main) { [weak self] _ in
             self?.refresh()
+            self?.scheduleActivePermissionPolling()
+        }
+        resignObserver = NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification,
+                                                                object: nil, queue: .main) { [weak self] _ in
+            self?.scheduleActivePermissionPolling()
         }
     }
 
     deinit {
         activePermissionTimer?.invalidate()
         if let activationObserver { NotificationCenter.default.removeObserver(activationObserver) }
+        if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
+    }
+
+    private var desiredPollInterval: TimeInterval {
+        if NSApp.isActive { return 2.5 }
+        if !accessibility || !screenRecording { return 2.5 }
+        return 60
+    }
+
+    private func scheduleActivePermissionPolling() {
+        let interval = desiredPollInterval
+        guard interval != currentPollInterval else { return }
+        currentPollInterval = interval
+        activePermissionTimer?.invalidate()
+        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
+            self?.refreshActivePermissions()
+        }
+        timer.tolerance = interval * 0.4
+        RunLoop.main.add(timer, forMode: .common)
+        activePermissionTimer = timer
     }
 
     /// Full refresh including Full Disk Access. Runs at launch and on activation.
     func refresh() {
         let fda = Self.probeFullDiskAccess()
         refreshActivePermissions()
+        refreshNotificationPermission()
         DispatchQueue.main.async {
             if self.fullDiskAccess != fda { self.fullDiskAccess = fda }
+        }
+    }
+
+    private func refreshNotificationPermission() {
+        UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
+            let state: NotificationPermissionState
+            switch settings.authorizationStatus {
+            case .authorized, .provisional: state = .granted
+            case .denied: state = .denied
+            case .notDetermined: state = .undetermined
+            @unknown default: state = .unknown
+            }
+            DispatchQueue.main.async {
+                if self?.notifications != state { self?.notifications = state }
+            }
         }
     }
 
@@ -68,6 +119,9 @@ final class Permissions: ObservableObject {
         DispatchQueue.main.async {
             if self.accessibility != ax { self.accessibility = ax }
             if self.screenRecording != sr { self.screenRecording = sr }
+            // A flip can change which cadence applies (e.g. the last grant
+            // landed while the app was in the background).
+            self.scheduleActivePermissionPolling()
         }
     }
 
@@ -102,15 +156,23 @@ final class Permissions: ObservableObject {
         return gatedDirs.contains { (try? fm.contentsOfDirectory(atPath: $0)) != nil }
     }
 
-    /// Shows the system Accessibility prompt (once per TCC reset).
+    /// Shows the system Accessibility prompt (once per TCC reset) and floats
+    /// the little guide card for the System Settings round trip.
     func requestAccessibility() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
+        if !accessibility {
+            PermissionGuideOverlay.shared.show(for: .accessibility)
+        }
     }
 
-    /// Shows the system Screen Recording prompt (once per TCC reset).
+    /// Shows the system Screen Recording prompt (once per TCC reset) and
+    /// floats the guide card, like the Accessibility path.
     func requestScreenRecording() {
         CGRequestScreenCaptureAccess()
+        if !screenRecording {
+            PermissionGuideOverlay.shared.show(for: .screenRecording)
+        }
     }
 
     func openAccessibilitySettings() {
@@ -163,8 +225,51 @@ final class Permissions: ObservableObject {
         }
     }
 
+    func openNotificationSettings() {
+        let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!
+        NSWorkspace.shared.open(url)
+    }
+
+    func openAutomationSettings() {
+        open(pane: "Privacy_Automation")
+    }
+
+    func openAudioCaptureSettings() {
+        open(pane: "Privacy_AudioCapture")
+    }
+
     private func open(pane: String) {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)")!
         NSWorkspace.shared.open(url)
+    }
+
+    // MARK: - Automation (Apple Events)
+
+    enum AutomationTarget: String, CaseIterable {
+        case finder = "com.apple.finder"
+        case terminal = "com.apple.Terminal"
+    }
+
+    enum AutomationStatus {
+        case granted, denied, undetermined, notDeterminable
+    }
+
+    /// Never prompts (askUserIfNeeded false). A target that is not running
+    /// cannot be checked and reads as notDeterminable. Call off the main
+    /// thread; the check can block briefly.
+    static func automationStatus(for target: AutomationTarget) -> AutomationStatus {
+        var descriptor = AEAddressDesc()
+        let bundleID = target.rawValue
+        let created = bundleID.withCString { pointer in
+            AECreateDesc(typeApplicationBundleID, pointer, bundleID.utf8.count, &descriptor)
+        }
+        guard created == noErr else { return .notDeterminable }
+        defer { AEDisposeDesc(&descriptor) }
+        switch AEDeterminePermissionToAutomateTarget(&descriptor, typeWildCard, typeWildCard, false) {
+        case noErr: return .granted
+        case OSStatus(errAEEventNotPermitted): return .denied
+        case OSStatus(errAEEventWouldRequireUserConsent): return .undetermined
+        default: return .notDeterminable
+        }
     }
 }

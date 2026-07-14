@@ -10,7 +10,8 @@ protocol PanelOrderItem: RawRepresentable, CaseIterable, Hashable where RawValue
 /// stable identifiers persisted in the saved order and the collapsed set, so
 /// renaming a case would orphan a user's stored layout — keep them stable.
 enum PanelSectionID: String, CaseIterable, Identifiable {
-    case keepAwake, mixer, system, network, disk, power, fanControl, utilities, controls
+    case keepAwake, brightness, mixer, system, network, disk, power, fanControl, utilities, controls,
+         toggles
 
     var id: String { rawValue }
 
@@ -18,6 +19,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
     func title(_ s: Strings) -> String {
         switch self {
         case .keepAwake: return s.keepAwakeTitle
+        case .brightness: return FeatureStrings.brightness(L10n.shared.language).pageTitle
         case .mixer: return s.mixerSection
         case .system: return s.systemSection
         case .network: return s.networkSection
@@ -26,12 +28,14 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
         case .fanControl: return s.fanControlBetaSection
         case .utilities: return s.utilitiesSection
         case .controls: return s.quickControlsSection
+        case .toggles: return FeatureStrings.quickToggles(L10n.shared.language).pageTitle
         }
     }
 
     var symbolName: String {
         switch self {
         case .keepAwake: return "moon.zzz.fill"
+        case .brightness: return "display.2"
         case .mixer: return "slider.horizontal.3"
         case .system: return "cpu"
         case .network: return "network"
@@ -40,6 +44,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
         case .fanControl: return "fanblades.fill"
         case .utilities: return "wrench.and.screwdriver.fill"
         case .controls: return "switch.2"
+        case .toggles: return "togglepower"
         }
     }
 
@@ -49,6 +54,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
     var visibilityKey: String {
         switch self {
         case .keepAwake: return DefaultsKey.panelShowKeepAwake
+        case .brightness: return DefaultsKey.panelShowBrightness
         case .mixer: return DefaultsKey.monitorShowMixer
         case .system: return DefaultsKey.monitorShowSystem
         case .network: return DefaultsKey.monitorShowNetwork
@@ -57,11 +63,40 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
         case .fanControl: return DefaultsKey.monitorShowFanControlBeta
         case .utilities: return DefaultsKey.panelShowUtilities
         case .controls: return DefaultsKey.panelShowControls
+        case .toggles: return DefaultsKey.panelShowToggles
         }
     }
 
     /// Fan Control is a beta opt-in (default hidden); everything else shows by default.
     var shownByDefault: Bool { self != .fanControl }
+
+    /// Hub features that keep this section alive: with all of them off, the
+    /// section leaves the panel, the section navigation and the layout
+    /// editors, regardless of its visibility key (which is preserved for the
+    /// feature's return).
+    var featureGate: [AppFeature] {
+        switch self {
+        case .keepAwake: return [.keepAwake]
+        case .brightness: return [.brightness]
+        case .mixer: return [.mixer]
+        case .system: return [.monitorCPU, .monitorGPU, .monitorMemory]
+        case .network: return [.monitorNetwork]
+        case .disk: return [.monitorDisk]
+        case .power: return [.monitorPower]
+        // The fan curves read the same thermal picture as the monitor, so the
+        // beta rides on the monitor family being present at all.
+        case .fanControl: return FeatureVisibilitySupport.monitorFeatures
+        case .utilities: return [.quickLauncher, .cleaner, .homebrew, .mediaTools, .clipboardHistory,
+                                 .windowLayout, .uninstaller, .urlCleaner, .cleaningMode, .screenOCR,
+                                 .colorPicker, .micMute]
+        case .controls: return [.scrollInverter, .mouseNavigation, .switcher, .finderCutPaste, .autoQuit,
+                                .shelf, .windowMaximizer, .dockPreview, .keyboardDebounce, .dockClick,
+                                .middleClick]
+        case .toggles: return [.quickToggles]
+        }
+    }
+
+    var isAvailable: Bool { featureGate.contains(where: \.isAvailable) }
 }
 
 /// Persisted panel layout: the order the sections appear in and which ones are
@@ -86,6 +121,10 @@ enum PanelLayout {
                 result.insert(id, at: networkIndex + 1)
             } else if id == .controls, let utilitiesIndex = result.firstIndex(of: .utilities) {
                 result.insert(id, at: utilitiesIndex + 1)
+            } else if id == .brightness, let keepAwakeIndex = result.firstIndex(of: .keepAwake) {
+                // New in 3.1.13: saved orders predate it, so it slots in at
+                // its canonical place instead of the end.
+                result.insert(id, at: keepAwakeIndex + 1)
             } else {
                 result.append(id)
             }

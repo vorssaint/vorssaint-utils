@@ -11,7 +11,12 @@ struct SwitcherItem: Identifiable, Equatable {
     let id: String
     let title: String
     let appName: String
+    /// The regular app represented by this entry. App grouping, icons, MRU,
+    /// activation and quit actions use this process.
     let pid: pid_t
+    /// The process that actually owns `windowID`. Multi-process apps can render
+    /// their user-facing windows in an embedded accessory helper.
+    let windowOwnerPID: pid_t
     /// The backing CGWindow: thumbnails and AX raising go through it.
     let windowID: CGWindowID?
     let isOnScreen: Bool
@@ -55,6 +60,7 @@ struct SwitcherItem: Identifiable, Equatable {
                      title: title,
                      appName: appName,
                      pid: pid,
+                     windowOwnerPID: windowOwnerPID,
                      windowID: windowID,
                      isOnScreen: minimized ? false : true,
                      isMinimized: minimized,
@@ -63,17 +69,19 @@ struct SwitcherItem: Identifiable, Equatable {
     }
 
     static func window(id: CGWindowID, title: String, appName: String, pid: pid_t,
+                       windowOwnerPID: pid_t? = nil,
                        isOnScreen: Bool, isMinimized: Bool = false,
                        isFullscreen: Bool = false, frame: CGRect) -> SwitcherItem {
         SwitcherItem(id: "w:\(id)", title: title, appName: appName,
-                     pid: pid, windowID: id, isOnScreen: isOnScreen,
+                     pid: pid, windowOwnerPID: windowOwnerPID ?? pid,
+                     windowID: id, isOnScreen: isOnScreen,
                      isMinimized: isMinimized, isFullscreen: isFullscreen,
                      frame: frame)
     }
 
     static func appOnly(appName: String, pid: pid_t) -> SwitcherItem {
         SwitcherItem(id: "a:\(pid)", title: appName, appName: appName,
-                     pid: pid, windowID: nil, isOnScreen: false,
+                     pid: pid, windowOwnerPID: pid, windowID: nil, isOnScreen: false,
                      isMinimized: false, isFullscreen: false, frame: .zero)
     }
 }

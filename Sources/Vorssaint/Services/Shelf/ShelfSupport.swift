@@ -3,6 +3,34 @@
 
 import Foundation
 
+enum ShelfInteractionSupport {
+    /// App exclusions only suppress automatic Shelf appearances. A deliberate
+    /// shortcut or "Open now" action remains an escape hatch everywhere.
+    static func allowsAutomaticOpen(sourceBundleIdentifier: String?,
+                                    excludedBundleIdentifiers: Set<String>) -> Bool {
+        guard let sourceBundleIdentifier, !sourceBundleIdentifier.isEmpty else { return true }
+        return !excludedBundleIdentifiers.contains(sourceBundleIdentifier)
+    }
+
+    /// A successful drag that really left the Shelf can dismiss it. Cancelled
+    /// drags and internal merges never do, and pinning always wins.
+    static func shouldCloseAfterDrag(dropAccepted: Bool,
+                                     draggedItemCount: Int,
+                                     closeAfterDrop: Bool,
+                                     pinned: Bool) -> Bool {
+        dropAccepted && draggedItemCount > 0 && closeAfterDrop && !pinned
+    }
+
+    /// Keeping an item after it was dragged out is safe only when the source
+    /// offers copy semantics; the live AppKit source uses this preference to
+    /// avoid a target moving the underlying file away from its persisted URL.
+    static func shouldRemoveAfterDrag(dropAccepted: Bool,
+                                      draggedItemCount: Int,
+                                      removeAfterDrop: Bool) -> Bool {
+        dropAccepted && draggedItemCount > 0 && removeAfterDrop
+    }
+}
+
 /// Persisted form of one shelf item, so the shelf survives relaunches (and app
 /// updates, which relaunch the app). Payloads and titles are stored; icons and
 /// image flags are rebuilt from the payload at load.

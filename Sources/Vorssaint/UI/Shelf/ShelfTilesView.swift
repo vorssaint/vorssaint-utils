@@ -293,6 +293,58 @@ final class ShelfTileView: NSView, NSDraggingSource {
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
+    override func menu(for event: NSEvent) -> NSMenu? {
+        ShelfService.shared.noteInteraction()
+        let urls = ShelfService.shared.fileURLsForActions(startingAt: item)
+        guard !urls.isEmpty else { return nil }
+
+        let strings = L10n.shared.s
+        let menu = NSMenu()
+        let open = NSMenuItem(title: strings.shelfActionOpen,
+                              action: #selector(openFiles),
+                              keyEquivalent: "")
+        open.target = self
+        menu.addItem(open)
+
+        let openWith = NSMenuItem(title: strings.shelfActionOpenWith,
+                                  action: nil,
+                                  keyEquivalent: "")
+        let applications = commonApplications(for: urls)
+        if applications.isEmpty {
+            openWith.isEnabled = false
+        } else {
+            let submenu = NSMenu(title: strings.shelfActionOpenWith)
+            for applicationURL in applications.prefix(40) {
+                let entry = NSMenuItem(title: FileManager.default.displayName(atPath: applicationURL.path),
+                                       action: #selector(openFilesWithApplication(_:)),
+                                       keyEquivalent: "")
+                entry.target = self
+                entry.representedObject = applicationURL
+                let icon = NSWorkspace.shared.icon(forFile: applicationURL.path)
+                icon.size = NSSize(width: 16, height: 16)
+                entry.image = icon
+                submenu.addItem(entry)
+            }
+            openWith.submenu = submenu
+        }
+        menu.addItem(openWith)
+
+        let airDrop = NSMenuItem(title: strings.shelfActionAirDrop,
+                                 action: #selector(shareWithAirDrop),
+                                 keyEquivalent: "")
+        airDrop.target = self
+        airDrop.isEnabled = NSSharingService(named: .sendViaAirDrop) != nil
+        menu.addItem(airDrop)
+        menu.addItem(.separator())
+
+        let reveal = NSMenuItem(title: strings.cleanerRevealInFinder,
+                                action: #selector(revealFiles),
+                                keyEquivalent: "")
+        reveal.target = self
+        menu.addItem(reveal)
+        return menu
+    }
+
     override func mouseDown(with event: NSEvent) {
         ShelfService.shared.noteInteraction()
         mouseDownPoint = event.locationInWindow
@@ -325,6 +377,50 @@ final class ShelfTileView: NSView, NSDraggingSource {
         ShelfService.shared.toggleBatchExpansion(item.id)
     }
 
+    @objc private func openFiles() {
+        for url in ShelfService.shared.fileURLsForActions(startingAt: item) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    @objc private func openFilesWithApplication(_ sender: NSMenuItem) {
+        guard let applicationURL = sender.representedObject as? URL else { return }
+        let urls = ShelfService.shared.fileURLsForActions(startingAt: item)
+        guard !urls.isEmpty else { return }
+        let configuration = NSWorkspace.OpenConfiguration()
+        NSWorkspace.shared.open(urls,
+                                withApplicationAt: applicationURL,
+                                configuration: configuration)
+    }
+
+    @objc private func shareWithAirDrop() {
+        let urls = ShelfService.shared.fileURLsForActions(startingAt: item)
+        guard !urls.isEmpty,
+              let service = NSSharingService(named: .sendViaAirDrop) else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        service.perform(withItems: urls)
+    }
+
+    @objc private func revealFiles() {
+        let urls = ShelfService.shared.fileURLsForActions(startingAt: item)
+        guard !urls.isEmpty else { return }
+        NSWorkspace.shared.activateFileViewerSelecting(urls)
+    }
+
+    private func commonApplications(for urls: [URL]) -> [URL] {
+        guard let first = urls.first else { return [] }
+        var common = Set(NSWorkspace.shared.urlsForApplications(toOpen: first))
+        for url in urls.dropFirst() {
+            common.formIntersection(NSWorkspace.shared.urlsForApplications(toOpen: url))
+        }
+        return common.filter { FileManager.default.fileExists(atPath: $0.path) }
+            .sorted {
+                FileManager.default.displayName(atPath: $0.path)
+                    .localizedCaseInsensitiveCompare(
+                        FileManager.default.displayName(atPath: $1.path)) == .orderedAscending
+            }
+    }
+
     private func beginItemDrag(with event: NSEvent) {
         let shelf = ShelfService.shared
         let candidates = shelf.selection.contains(item.id) ? shelf.selectedItems() : [item]
@@ -347,16 +443,14 @@ final class ShelfTileView: NSView, NSDraggingSource {
 
     func draggingSession(_ session: NSDraggingSession,
                          sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
-        [.copy, .move]
+        ShelfService.shared.sourceOperationMask(for: context)
     }
 
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
         // A non-empty operation means the drop was accepted somewhere — pull the
         // dragged tiles out of the shelf. A cancelled drag leaves them.
         DispatchQueue.main.async {
-            let ids = ShelfService.shared.finishInternalDrag(dropAccepted: operation != [])
-            ShelfService.shared.endInteraction()
-            if !ids.isEmpty { ShelfService.shared.removeItems(ids) }
+            ShelfService.shared.completeInternalDrag(dropAccepted: operation != [])
         }
     }
 

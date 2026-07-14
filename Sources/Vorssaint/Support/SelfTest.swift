@@ -75,6 +75,16 @@ enum SelfTest {
         }
         UserDefaults.standard.removeObject(forKey: "selftest")
 
+        for style in KeepAwakeActiveIcon.allCases {
+            guard let image = BlackHoleGlyph.activeImage(style: style, tint: .orange) else {
+                failures.append("Keep Awake icon \(style.rawValue)")
+                continue
+            }
+            if image.size != NSSize(width: 20, height: 14) {
+                failures.append("Keep Awake icon size \(style.rawValue)")
+            }
+        }
+
         for warning in warnings {
             print("SELFTEST WARNING: \(warning)")
         }

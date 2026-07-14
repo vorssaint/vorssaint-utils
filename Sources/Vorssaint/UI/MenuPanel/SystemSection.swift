@@ -35,6 +35,7 @@ struct SystemSection: View {
     @AppStorage(DefaultsKey.menuBarBatteryTemperature) private var menuBarBatteryTemperature = false
     @AppStorage(DefaultsKey.menuBarNetwork) private var menuBarNetwork = false
     @AppStorage(DefaultsKey.menuBarBattery) private var menuBarBattery = false
+    @AppStorage(DefaultsKey.menuBarBatteryTime) private var menuBarBatteryTime = false
     @AppStorage(DefaultsKey.menuBarPeripheralBattery) private var menuBarPeripheralBattery = false
     @AppStorage(DefaultsKey.menuBarPower) private var menuBarPower = false
     @AppStorage(DefaultsKey.menuBarSeparateMetrics) private var separateMenuBarMetrics = false
@@ -112,6 +113,7 @@ struct SystemSection: View {
         menuBarBatteryTemperature ||
         menuBarNetwork ||
         menuBarBattery ||
+        menuBarBatteryTime ||
         menuBarPeripheralBattery ||
         menuBarPower
     }
@@ -120,16 +122,32 @@ struct SystemSection: View {
     /// battery exists). Drives divider interleaving so only rendered blocks get one.
     private enum Block: String, PanelOrderItem { case temps, usage, memory, alerts, uptime }
 
+    // Hub availability per metric family: an unavailable metric leaves the
+    // card entirely, including the edit-mode hidden rows.
+    private var cpuAvailable: Bool { AppFeature.monitorCPU.isAvailable }
+    private var gpuAvailable: Bool { AppFeature.monitorGPU.isAvailable }
+    private var memoryAvailable: Bool { AppFeature.monitorMemory.isAvailable }
+    private var powerAvailable: Bool { AppFeature.monitorPower.isAvailable }
+
     private var usageVisible: Bool {
-        sysCPU || sysGPU || (sysBattery && monitor.snapshot.power?.chargePercent != nil)
+        (sysCPU && cpuAvailable) || (sysGPU && gpuAvailable)
+            || (sysBattery && powerAvailable && monitor.snapshot.power?.chargePercent != nil)
     }
 
     private var visibleBlocks: [Block] {
-        orderedBlocks.filter(isVisible)
+        orderedBlocks.filter { isBlockAvailable($0) && isVisible($0) }
     }
 
     private func blocks(editing: Bool) -> [Block] {
-        editing ? orderedBlocks : visibleBlocks
+        editing ? orderedBlocks.filter(isBlockAvailable) : visibleBlocks
+    }
+
+    private func isBlockAvailable(_ block: Block) -> Bool {
+        switch block {
+        case .temps, .usage: return cpuAvailable || gpuAvailable || powerAvailable
+        case .memory: return memoryAvailable
+        case .alerts, .uptime: return true
+        }
     }
 
     private var orderedBlocks: [Block] {
@@ -257,12 +275,18 @@ struct SystemSection: View {
                     }
                 }
                 HStack(spacing: 8) {
-                    temperatureCell(icon: "cpu", label: l10n.s.cpuLabel,
-                                    value: monitor.snapshot.cpuTemperature)
-                    temperatureCell(icon: "memorychip", label: l10n.s.gpuLabel,
-                                    value: monitor.snapshot.gpuTemperature)
-                    temperatureCell(icon: "battery.100", label: l10n.s.batteryLabel,
-                                    value: monitor.snapshot.batteryTemperature)
+                    if cpuAvailable {
+                        temperatureCell(icon: "cpu", label: l10n.s.cpuLabel,
+                                        value: monitor.snapshot.cpuTemperature)
+                    }
+                    if gpuAvailable {
+                        temperatureCell(icon: "memorychip", label: l10n.s.gpuLabel,
+                                        value: monitor.snapshot.gpuTemperature)
+                    }
+                    if powerAvailable {
+                        temperatureCell(icon: "battery.100", label: l10n.s.batteryLabel,
+                                        value: monitor.snapshot.batteryTemperature)
+                    }
                 }
                 if monitor.snapshot.cpuTemperature == nil,
                    monitor.snapshot.gpuTemperature == nil,
@@ -306,7 +330,7 @@ struct SystemSection: View {
     private func usageRows(editing: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             subsectionLabel(l10n.s.usageSection)
-            if sysCPU {
+            if sysCPU, cpuAvailable {
                 usageRow(label: l10n.s.cpuLabel, fraction: monitor.snapshot.cpuUsage,
                          kind: .cpu, editing: editing, visible: $sysCPU)
                 if graphCPU, monitor.snapshot.cpuHistory.count >= 2 {
@@ -317,10 +341,10 @@ struct SystemSection: View {
                         .frame(height: 22)
                 }
                 breakdownList(for: .cpu)
-            } else if editing {
+            } else if editing, cpuAvailable {
                 PanelHiddenItemRow(title: l10n.s.cpuLabel, systemImage: "cpu", isVisible: $sysCPU)
             }
-            if sysGPU {
+            if sysGPU, gpuAvailable {
                 usageRow(label: l10n.s.gpuLabel, fraction: monitor.snapshot.gpuUsage,
                          kind: .gpu, editing: editing, visible: $sysGPU)
                 if graphGPU, monitor.snapshot.gpuHistory.count >= 2 {
@@ -331,17 +355,17 @@ struct SystemSection: View {
                         .frame(height: 22)
                 }
                 breakdownList(for: .gpu)
-            } else if editing {
+            } else if editing, gpuAvailable {
                 PanelHiddenItemRow(title: l10n.s.gpuLabel, systemImage: "memorychip", isVisible: $sysGPU)
             }
-            if sysBattery {
+            if sysBattery, powerAvailable {
                 batteryUsageRow(editing: editing)
-            } else if editing {
+            } else if editing, powerAvailable {
                 PanelHiddenItemRow(title: l10n.s.batteryLabel,
                                    systemImage: "battery.100",
                                    isVisible: $sysBattery)
             }
-            if menuBarPeripheralBattery, !monitor.snapshot.peripheralBatteries.isEmpty {
+            if menuBarPeripheralBattery, powerAvailable, !monitor.snapshot.peripheralBatteries.isEmpty {
                 peripheralBatteryRows
             }
         }

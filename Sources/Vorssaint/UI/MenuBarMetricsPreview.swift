@@ -18,10 +18,17 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.menuBarDiskUsage) private var diskUsage = false
     @AppStorage(DefaultsKey.menuBarDiskActivity) private var diskActivity = false
     @AppStorage(DefaultsKey.menuBarBattery) private var battery = false
+    @AppStorage(DefaultsKey.menuBarBatteryTime) private var batteryTime = false
     @AppStorage(DefaultsKey.menuBarPeripheralBattery) private var peripheralBattery = false
     @AppStorage(DefaultsKey.menuBarPower) private var power = false
     @AppStorage(DefaultsKey.menuBarMetricOrder) private var metricOrder = ""
     @AppStorage(DefaultsKey.menuBarCombineTemperatures) private var combineTemperatures = true
+    @AppStorage(DefaultsKey.menuBarMetricAppearance) private var metricAppearance = "values"
+    @AppStorage(DefaultsKey.menuBarUsageBarNormalColor) private var usageBarNormalColor = "#64D2FF"
+    @AppStorage(DefaultsKey.menuBarUsageBarElevatedColor) private var usageBarElevatedColor = "#FFD60A"
+    @AppStorage(DefaultsKey.menuBarUsageBarCriticalColor) private var usageBarCriticalColor = "#FF453A"
+    @AppStorage(DefaultsKey.menuBarUsageBarMediumThreshold) private var usageBarMediumThreshold = 70
+    @AppStorage(DefaultsKey.menuBarUsageBarHighThreshold) private var usageBarHighThreshold = 90
     @AppStorage(DefaultsKey.menuBarLabelStyle) private var labelStyle = "compact"
     @AppStorage(DefaultsKey.menuBarNetworkUploadFirst) private var networkUploadFirst = false
     @AppStorage(DefaultsKey.menuBarMemoryStyle) private var memoryStyle = "percent"
@@ -30,6 +37,12 @@ struct MenuBarMetricsPreview: View {
     var body: some View {
         let _ = metricOrder
         let _ = combineTemperatures
+        let _ = metricAppearance
+        let _ = usageBarNormalColor
+        let _ = usageBarElevatedColor
+        let _ = usageBarCriticalColor
+        let _ = usageBarMediumThreshold
+        let _ = usageBarHighThreshold
         let _ = labelStyle
         let _ = networkUploadFirst
         let _ = memoryStyle
@@ -81,6 +94,7 @@ struct MenuBarMetricsPreview: View {
         let _ = diskUsage
         let _ = diskActivity
         let _ = battery
+        let _ = batteryTime
         let _ = peripheralBattery
         let _ = power
         return MenuBarMetric.enabled(in: .standard)
@@ -113,6 +127,11 @@ struct MenuBarMetricsPreview: View {
                         minimumValue: minimumValue,
                         style: style,
                         pressure: pressure)
+        case let .usageBarBlock(label, fraction, style, pressure):
+            usageBarBlock(label: label,
+                          fraction: fraction,
+                          style: style,
+                          pressure: pressure)
         case let .networkBlock(down, up, style):
             let rows = networkUploadFirst ? [("↑", up), ("↓", down)] : [("↓", down), ("↑", up)]
             VStack(alignment: .trailing, spacing: -0.6) {
@@ -195,6 +214,65 @@ struct MenuBarMetricsPreview: View {
         }
         .foregroundStyle(.white)
         .fixedSize(horizontal: true, vertical: true)
+    }
+
+    private func usageBarBlock(label: String,
+                               fraction: Double?,
+                               style: MenuBarBlockStyle,
+                               pressure: MemoryPressure?) -> some View {
+        let size = MenuBarRenderer.usageBarSize(style: style, showsPressure: pressure != nil)
+        let barWidth: CGFloat = style == .readable ? 10 : 9
+        let barHeight: CGFloat = style == .readable ? 20 : 18
+        let innerHeight = barHeight - 4.2
+        let clamped = fraction.map(MenuBarUsageBarSupport.clampedFraction)
+
+        return HStack(spacing: 2) {
+            VStack(spacing: -1.8) {
+                ForEach(Array(label.prefix(3).enumerated()), id: \.offset) { _, character in
+                    Text(String(character))
+                        .font(.system(size: style == .readable ? 6.5 : 6.1,
+                                      weight: .semibold))
+                        .frame(height: (size.height - 2) / 3)
+                }
+            }
+            .frame(width: style == .readable ? 6.5 : 6)
+
+            if let pressure {
+                Circle()
+                    .fill(dotColor(pressure))
+                    .frame(width: style == .readable ? 4.8 : 4.4,
+                           height: style == .readable ? 4.8 : 4.4)
+                    .padding(.trailing, 0.2)
+            }
+
+            ZStack(alignment: .bottom) {
+                RoundedRectangle(cornerRadius: 2.2, style: .continuous)
+                    .stroke(Color.white, lineWidth: 1.15)
+                if let clamped, clamped > 0 {
+                    RoundedRectangle(cornerRadius: 1.2, style: .continuous)
+                        .fill(usageBarColor(for: clamped))
+                        .frame(width: barWidth - 4.2,
+                               height: max(1, innerHeight * clamped))
+                        .padding(.bottom, 2.1)
+                } else if clamped == nil {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.55))
+                        .frame(width: barWidth - 4.8, height: 1)
+                }
+            }
+            .frame(width: barWidth, height: barHeight)
+        }
+        .foregroundStyle(.white)
+        .frame(width: size.width, height: size.height)
+        .fixedSize(horizontal: true, vertical: true)
+    }
+
+    private func usageBarColor(for fraction: Double) -> Color {
+        let level = MenuBarUsageBarSupport.currentLevel(for: fraction)
+        let hex = MenuBarUsageBarSupport.currentColorHex(for: level)
+        let rgb = MenuBarUsageBarSupport.rgb(for: hex,
+                                             fallback: MenuBarUsageBarSupport.defaultNormalColor)
+        return Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
     }
 
     private func metricValueMinWidth(minimumValue: String, style: MenuBarBlockStyle) -> CGFloat {

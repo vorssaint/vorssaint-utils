@@ -12,9 +12,56 @@ struct AdvancedSettings: View {
     @State private var showUninstallConfirm = false
     @State private var working = false
     @State private var cleared = false
+    @State private var exported = false
+    @State private var importFailed = false
+    @State private var pendingImport: [String: Any]?
+    @State private var showImportConfirm = false
+
+    private var backup: BackupFeatureStrings {
+        FeatureStrings.backup(l10n.language)
+    }
 
     var body: some View {
         Form {
+            Section(backup.title) {
+                Text(backup.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 10) {
+                    Button {
+                        importFailed = false
+                        exported = SettingsBackup.runExportPanel() == true
+                    } label: {
+                        Label(backup.exportButton, systemImage: "square.and.arrow.up")
+                    }
+                    Button {
+                        exported = false
+                        importFailed = false
+                        guard let url = SettingsBackup.runImportPanel() else { return }
+                        if let settings = SettingsBackup.readSettings(at: url) {
+                            pendingImport = settings
+                            showImportConfirm = true
+                        } else {
+                            importFailed = true
+                        }
+                    } label: {
+                        Label(backup.importButton, systemImage: "square.and.arrow.down")
+                    }
+                }
+                if exported {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                        Text(backup.exported).font(.caption).foregroundStyle(.green)
+                    }
+                }
+                if importFailed {
+                    Text(backup.invalidFile)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+
             Section(l10n.s.advancedResetSection) {
                 Text(l10n.s.advancedResetDescription)
                     .font(.caption)
@@ -69,6 +116,16 @@ struct AdvancedSettings: View {
             }
         } message: {
             Text(l10n.s.advancedUninstallConfirmBody)
+        }
+        .alert(backup.importConfirmTitle, isPresented: $showImportConfirm) {
+            Button(l10n.s.uninstallerCancel, role: .cancel) { pendingImport = nil }
+            Button(backup.importAction) {
+                if let pendingImport {
+                    SettingsBackup.applyAndRelaunch(settings: pendingImport)
+                }
+            }
+        } message: {
+            Text(backup.importConfirmBody)
         }
     }
 }

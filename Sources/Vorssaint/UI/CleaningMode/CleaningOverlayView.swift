@@ -13,7 +13,7 @@ struct CleaningOverlayView: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.5).ignoresSafeArea()
+            Color.black.ignoresSafeArea()
 
             VStack(spacing: 18) {
                 Image(systemName: "keyboard")
@@ -34,11 +34,17 @@ struct CleaningOverlayView: View {
 
                 Button(action: { manager.deactivate() }) {
                     Text(l10n.s.cleaningOverlayUnlock)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.black)
                         .frame(minWidth: 130)
+                        .padding(.vertical, 10)
+                        .padding(.horizontal, 18)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.white)
+                        )
                 }
-                .controlSize(.large)
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.plain)
                 .padding(.top, 6)
 
                 Text(l10n.s.cleaningOverlayMouseHint)
@@ -47,11 +53,6 @@ struct CleaningOverlayView: View {
             }
             .padding(44)
             .frame(maxWidth: 460)
-            .background(
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .environment(\.colorScheme, .dark)
-            )
         }
     }
 

@@ -58,6 +58,18 @@ struct SwitcherIconRowLayout: Equatable {
     static var padding: CGFloat { 20 * scale }
     static var spacing: CGFloat { 12 * scale }
     static var previewGap: CGFloat { 10 * scale }
+    static var simpleTitleHeight: CGFloat { 66 * scale }
+    static var simpleTitleGap: CGFloat { 10 * scale }
+    static var simpleTitleChipMaxWidth: CGFloat { 180 * scale }
+
+    /// App-only mode keeps the same icon and shortcut surfaces, but removes
+    /// the entire preview area so no blank space remains where captures were.
+    var simplePanelSize: CGSize {
+        CGSize(width: max(appRowSurfaceWidth, Self.hintBarWidth) + Self.padding * 2,
+               height: Self.simpleTitleHeight + Self.simpleTitleGap
+                        + Self.rowHeight + Self.hintGap + Self.hintHeight
+                        + Self.padding * 2)
+    }
 
     static let empty = SwitcherIconRowLayout(visibleIconCount: 1,
                                              appRowContentWidth: 0,
@@ -112,6 +124,33 @@ struct SwitcherShortcutHints: Equatable {
 enum SwitcherSupport {
     /// Grid resolution used to classify window captures.
     static let captureAlphaGridSize = 8
+
+    static func usesIconRowLayout(iconRowMode: Bool, simpleMode: Bool) -> Bool {
+        iconRowMode || simpleMode
+    }
+
+    static func capturesPreviews(simpleMode: Bool) -> Bool {
+        !simpleMode
+    }
+
+    static func needsScreenRecording(switcherEnabled: Bool,
+                                     simpleMode: Bool,
+                                     dockPreviewEnabled: Bool) -> Bool {
+        dockPreviewEnabled || (switcherEnabled && capturesPreviews(simpleMode: simpleMode))
+    }
+
+    /// Finds the regular app that contains an accessory helper bundle.
+    static func embeddedHostPID(helperBundlePath: String,
+                                regularBundlePaths: [pid_t: String]) -> pid_t? {
+        let helperPath = URL(fileURLWithPath: helperBundlePath).standardizedFileURL.path
+        return regularBundlePaths
+            .filter { _, hostPath in
+                let normalizedHost = URL(fileURLWithPath: hostPath).standardizedFileURL.path
+                return helperPath.hasPrefix(normalizedHost + "/")
+            }
+            .max { lhs, rhs in lhs.value.count < rhs.value.count }?
+            .key
+    }
 
     /// Downsamples a capture into a small alpha grid for classification.
     static func alphaGrid(of image: CGImage, gridSize: Int = captureAlphaGridSize) -> [Double]? {
@@ -308,9 +347,12 @@ enum SwitcherSupport {
         return groups
     }
 
+    /// With wrapping off (key held on autorepeat, like the system switcher)
+    /// the selection stops at either end instead of cycling around.
     static func nextAppSelectionIndex(items: [SwitcherItem],
                                       selectedIndex: Int,
-                                      delta: Int) -> Int {
+                                      delta: Int,
+                                      wrapping: Bool = true) -> Int {
         let groups = appGroups(items: items)
         guard !groups.isEmpty else { return 0 }
         guard items.indices.contains(selectedIndex) else {
@@ -319,7 +361,11 @@ enum SwitcherSupport {
 
         let selectedID = items[selectedIndex].id
         let currentGroupIndex = groups.firstIndex { $0.itemIDs.contains(selectedID) } ?? 0
-        let targetGroupIndex = (currentGroupIndex + delta + groups.count) % groups.count
+        let unwrapped = currentGroupIndex + delta
+        if !wrapping, !groups.indices.contains(unwrapped) {
+            return groups[currentGroupIndex].representativeIndex
+        }
+        let targetGroupIndex = (unwrapped + groups.count) % groups.count
         return groups[targetGroupIndex].representativeIndex
     }
 

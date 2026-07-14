@@ -95,7 +95,7 @@ extension MenuBarMetric {
             return .disk
         case .battery, .batteryTemperature, .peripheralBattery:
             return .battery
-        case .power:
+        case .batteryTime, .power:
             return .power
         }
     }
@@ -367,11 +367,19 @@ struct MetricDetailView: View {
             return rows
         case .power:
             let power = snapshot.power
-            return [
+            var rows = [
                 row(l10n.s.powerSystem, power?.systemWatts.map(MetricFormat.watts) ?? l10n.s.networkMeasuring),
                 row(l10n.s.powerAdapter, adapterText(power)),
                 row(l10n.s.powerBattery, batteryFlowText(power)),
             ]
+            if let power, power.hasBattery,
+               !power.externalConnected, !power.isCharging {
+                let strings = FeatureStrings.batteryTime(l10n.language)
+                rows.append(row(strings.title,
+                                power.timeRemainingSeconds.flatMap(BatteryTimeSupport.formatted)
+                                    ?? strings.calculating))
+            }
+            return rows
         }
     }
 

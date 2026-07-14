@@ -163,6 +163,7 @@ struct MetricsTests {
             (.fr, "Presse-papiers", "Disposition des fenêtres", "Utilitaires", "Alertes"),
             (.it, "Appunti", "Layout finestre", "Utilità", "Avvisi"),
             (.ja, "クリップボード", "ウインドウ配置", "ユーティリティ", "アラート"),
+            (.ko, "클립보드", "윈도우 정렬", "유틸리티", "알림"),
             (.ru, "Буфер обмена", "Раскладка окон", "Утилиты", "Оповещения"),
             (.zhHans, "剪贴板", "窗口布局", "实用工具", "提醒"),
             (.zhTW, "剪貼簿", "視窗排列", "工具程式", "提醒"),
@@ -184,13 +185,37 @@ struct MetricsTests {
                          "\(language.rawValue) paste-selected button format")
             expectFormat(clipboardStrings.copySelectedFormat, ["d"],
                          "\(language.rawValue) copy-selected button format")
+            let layoutStrings = FeatureStrings.windowLayout(language)
+            expect(!layoutStrings.sixths.isEmpty
+                   && !layoutStrings.topLeftSixth.isEmpty
+                   && !layoutStrings.topCenterSixth.isEmpty
+                   && !layoutStrings.topRightSixth.isEmpty
+                   && !layoutStrings.bottomLeftSixth.isEmpty
+                   && !layoutStrings.bottomCenterSixth.isEmpty
+                   && !layoutStrings.bottomRightSixth.isEmpty,
+                   "\(language.rawValue) window sixth layout labels are localized")
+            expect(!layoutStrings.gestureSection.isEmpty
+                   && !layoutStrings.gestureEnable.isEmpty
+                   && !layoutStrings.gestureCaption.isEmpty
+                   && !layoutStrings.gestureModifiers.isEmpty
+                   && !layoutStrings.gestureMove.isEmpty
+                   && !layoutStrings.gestureResize.isEmpty
+                   && !layoutStrings.gestureResizeHint.isEmpty
+                   && !layoutStrings.gestureRaiseWindow.isEmpty,
+                   "\(language.rawValue) window gesture controls are localized")
             let alertStrings = FeatureStrings.monitorAlerts(language)
+            expect(alertStrings.caption.contains("12"),
+                   "\(language.rawValue) monitor alert caption explains the CPU spike window")
             expectFormat(alertStrings.cpuBodyFormat, ["d"], "\(language.rawValue) CPU alert format")
             expectFormat(alertStrings.cpuTemperatureBodyFormat, ["d"],
                          "\(language.rawValue) CPU temperature alert format")
             expectFormat(alertStrings.diskBodyFormat, ["@", "d"], "\(language.rawValue) disk alert format")
             expectFormat(alertStrings.batteryBodyFormat, ["d"], "\(language.rawValue) battery alert format")
         }
+        expect(FeatureStrings.monitorAlerts(.enUS).cooldown == "Repeat the same alert after",
+               "English monitor repeat control is explicit")
+        expect(FeatureStrings.monitorAlerts(.ptBR).cooldown == "Repetir o mesmo alerta depois de",
+               "Portuguese monitor repeat control is explicit")
         expect(ClipboardHistorySelection.initialIndex(totalCount: 3) == 0,
                "clipboard quick window starts keyboard navigation on the first item")
         expect(ClipboardHistorySelection.initialIndex(totalCount: 0) == 0,
@@ -309,6 +334,38 @@ struct MetricsTests {
         expect(ClipboardHistorySensitiveText.looksSensitive("abc1234567890-xyz-abc"),
                "clipboard history still skips compact secret-looking text")
 
+        let pasteboardAccess = GeneralPasteboardAccess(label: "Vorssaint.Tests.PasteboardAccess")
+        let pasteboardGroup = DispatchGroup()
+        let pasteboardStateLock = NSLock()
+        var activePasteboardOperations = 0
+        var maximumPasteboardOperations = 0
+        for _ in 0..<16 {
+            pasteboardGroup.enter()
+            DispatchQueue.global(qos: .userInitiated).async {
+                pasteboardAccess.sync {
+                    pasteboardStateLock.lock()
+                    activePasteboardOperations += 1
+                    maximumPasteboardOperations = max(maximumPasteboardOperations,
+                                                       activePasteboardOperations)
+                    pasteboardStateLock.unlock()
+                    usleep(1_000)
+                    pasteboardStateLock.lock()
+                    activePasteboardOperations -= 1
+                    pasteboardStateLock.unlock()
+                }
+                pasteboardGroup.leave()
+            }
+        }
+        expect(pasteboardGroup.wait(timeout: .now() + 2) == .success,
+               "pasteboard access operations finish without deadlock")
+        expect(maximumPasteboardOperations == 1,
+               "pasteboard access serializes concurrent service work")
+        let nestedPasteboardValue = pasteboardAccess.sync {
+            pasteboardAccess.sync { 230 }
+        }
+        expect(nestedPasteboardValue == 230,
+               "pasteboard access permits nested work without deadlock")
+
         let maxCapacityStringJSON = Data(#"{"SPPowerDataType":[{"sppower_battery_health_info":{"sppower_battery_health_maximum_capacity":"93%"}}]}"#.utf8)
         expect(MaxCapacityProbe.percent(fromSystemProfilerJSON: maxCapacityStringJSON) == 93,
                "battery maximum capacity parses percentage strings")
@@ -321,6 +378,31 @@ struct MetricsTests {
         let maxCapacityUnavailableJSON = Data(#"{"SPPowerDataType":[{"sppower_battery_health_info":{"sppower_battery_health_maximum_capacity":"EM_DASH"}}]}"#.utf8)
         expect(MaxCapacityProbe.percent(fromSystemProfilerJSON: maxCapacityUnavailableJSON) == nil,
                "battery maximum capacity ignores placeholder values")
+
+        expect(BatteryTimeSupport.remainingSeconds(timeToEmptyMinutes: 222,
+                                                   externalConnected: false,
+                                                   isCharging: false) == 13_320,
+               "battery time converts the public time-to-empty minutes")
+        expect(BatteryTimeSupport.remainingSeconds(timeToEmptyMinutes: -1,
+                                                   externalConnected: false,
+                                                   isCharging: false) == nil,
+               "battery time preserves the system calculating state")
+        expect(BatteryTimeSupport.remainingSeconds(timeToEmptyMinutes: 222,
+                                                   externalConnected: true,
+                                                   isCharging: false) == nil,
+               "battery time stays hidden on external power")
+        expect(BatteryTimeSupport.remainingSeconds(timeToEmptyMinutes: 222,
+                                                   externalConnected: false,
+                                                   isCharging: true) == nil,
+               "battery time stays hidden while charging")
+        expect(BatteryTimeSupport.remainingSeconds(timeToEmptyMinutes: 65_535,
+                                                   externalConnected: false,
+                                                   isCharging: false) == nil,
+               "battery time ignores the public unavailable sentinel")
+        expect(BatteryTimeSupport.formatted(seconds: 13_320) == "3h 42m",
+               "battery time formats hours and minutes")
+        expect(BatteryTimeSupport.formatted(seconds: 30) == "0h 1m",
+               "battery time keeps a positive final minute visible")
 
         // MARK: Peripheral battery helpers
 
@@ -640,6 +722,68 @@ struct MetricsTests {
             secondsSinceLastGesturePhase: nil
         ), "scroll inverter flips counted wheel events when no gesture was ever seen")
 
+        expect(MouseNavigationSupport.direction(
+            forButtonNumber: MouseNavigationSupport.backButtonNumber) == .back,
+               "the first standard mouse side button maps to Back")
+        expect(MouseNavigationSupport.direction(
+            forButtonNumber: MouseNavigationSupport.forwardButtonNumber) == .forward,
+               "the second standard mouse side button maps to Forward")
+        expect(MouseNavigationSupport.direction(forButtonNumber: 2) == nil,
+               "the middle mouse button is never consumed as navigation")
+        expect(MouseNavigationSupport.direction(forButtonNumber: 9) == nil,
+               "unrelated extra mouse buttons pass through")
+        expect(MouseNavigationSupport.commandCharacter(for: .back) == "[",
+               "Back uses the standard Command left bracket menu command")
+        expect(MouseNavigationSupport.commandCharacter(for: .forward) == "]",
+               "Forward uses the standard Command right bracket menu command")
+
+        // MARK: Smooth scrolling
+
+        expect(SmoothScrollSupport.remaining(afterTicks: 1, step: 40, current: 0) == 40,
+               "one wheel tick queues one step of glide")
+        expect(SmoothScrollSupport.remaining(afterTicks: 2, step: 40, current: 30) == 110,
+               "same-direction ticks add to what is left")
+        expect(SmoothScrollSupport.remaining(afterTicks: -1, step: 40, current: 100) == -40,
+               "reversing direction abandons the leftover instead of fighting it")
+        expect(SmoothScrollSupport.remaining(afterTicks: 0, step: 40, current: 25) == 25,
+               "a tickless event leaves the glide untouched")
+        expect(SmoothScrollSupport.axes(vertical: 2, horizontal: 0, shiftPressed: true)
+               == SmoothScrollSupport.Axes(vertical: 0, horizontal: -2),
+               "Shift routes a vertical wheel tick with the system's horizontal direction")
+        expect(SmoothScrollSupport.axes(vertical: 2, horizontal: 0, shiftPressed: false)
+               == SmoothScrollSupport.Axes(vertical: 2, horizontal: 0),
+               "a wheel tick without Shift keeps its vertical axis")
+        expect(SmoothScrollSupport.axes(vertical: 2, horizontal: -1, shiftPressed: true)
+               == SmoothScrollSupport.Axes(vertical: 2, horizontal: -1),
+               "Shift preserves a wheel event that already carries horizontal movement")
+        let shiftedNaturalAxes = SmoothScrollSupport.axes(
+            vertical: 2, horizontal: 0, shiftPressed: true)
+        expect(SmoothScrollSupport.postedDelta(
+            shiftedNaturalAxes.horizontal, naturalScrolling: true) == 2,
+               "Shift keeps the standard horizontal direction with natural scrolling")
+        expect(SmoothScrollSupport.frameDelta(remaining: 100) == 18,
+               "a frame emits its fraction of the remaining distance")
+        expect(SmoothScrollSupport.frameDelta(remaining: -100) == -18,
+               "negative glides emit negative frames")
+        expect(SmoothScrollSupport.frameDelta(remaining: 0.8) == 0.8,
+               "small leftovers flush in one final frame")
+        expect(SmoothScrollSupport.frameDelta(remaining: 3) == 1,
+               "the glide never stalls below one pixel per frame")
+        expect(SmoothScrollSupport.frameDelta(remaining: 0) == 0,
+               "no remaining distance emits nothing")
+        expect(SmoothScrollSupport.sanitizedStep(0) == 40,
+               "an unset step falls back to the default")
+        expect(SmoothScrollSupport.sanitizedStep(500) == 100,
+               "the step clamps to its range")
+        expect(SmoothScrollSupport.postedDelta(18, naturalScrolling: true) == -18,
+               "natural scrolling pre-flips the glide so direction is preserved")
+        expect(SmoothScrollSupport.postedDelta(18, naturalScrolling: false) == 18,
+               "classic scrolling posts the glide as is")
+        expect(Defaults.registeredDefaults[DefaultsKey.smoothScrollEnabled] as? Bool == false,
+               "smooth scrolling ships off by default")
+        expect(Defaults.registeredDefaults[DefaultsKey.smoothScrollStep] as? Int == 40,
+               "smooth scrolling step registers its default")
+
         // MARK: Watts & percent
 
         expectEqual(MetricFormat.watts(8.5), "8.5 W", "watts under 10")
@@ -756,12 +900,18 @@ struct MetricsTests {
         let registeredDefaults = Defaults.registeredDefaults
         expect(registeredDefaults[DefaultsKey.keepAwakeAutoStart] as? Bool == false,
                "Keep Awake launch restore is opt-in")
+        expect(registeredDefaults[DefaultsKey.keepAwakeExternalDisplay] as? Bool == false,
+               "external-display Keep Awake is opt-in")
+        expect(registeredDefaults[DefaultsKey.keepAwakeConnectedToPower] as? Bool == false,
+               "power-connected Keep Awake is opt-in")
         expect(registeredDefaults[DefaultsKey.hotkeyEnabled] as? Bool == true,
                "global hotkey is on for clean installs")
         expect(registeredDefaults[DefaultsKey.keepAwakeShortcut] as? String == "control+option+command:40",
                "keep awake shortcut defaults to Ctrl+Opt+Cmd+K")
         expect(registeredDefaults[DefaultsKey.keepAwakeIconTint] as? String == KeepAwakeIconTint.orange.rawValue,
                "keep-awake active icon tint defaults to orange")
+        expect(registeredDefaults[DefaultsKey.keepAwakeActiveIcon] as? String == KeepAwakeActiveIcon.vorssaint.rawValue,
+               "keep-awake active icon defaults to the Vorssaint glyph")
         expect(registeredDefaults[DefaultsKey.keepAwakeMouseJiggleEnabled] as? Bool == false,
                "Keep Awake mouse movement is opt-in")
         expect(registeredDefaults[DefaultsKey.keepAwakeMouseJiggleInterval] as? Int == 5,
@@ -774,6 +924,64 @@ struct MetricsTests {
                "valid keep-awake active icon tint is preserved")
         expect(Defaults.sanitizedKeepAwakeIconTint("bad") == .orange,
                "invalid keep-awake active icon tint falls back to orange")
+        expect(Defaults.sanitizedKeepAwakeActiveIcon("coffee") == .coffee,
+               "valid keep-awake active icon is preserved")
+        expect(Defaults.sanitizedKeepAwakeActiveIcon("bad") == .vorssaint,
+               "invalid keep-awake active icon falls back to the Vorssaint glyph")
+        expect(KeepAwakeActiveIcon.eye.systemSymbolName == "eye.fill",
+               "keep-awake eye option maps to its menu bar symbol")
+        expect(!KeepAwakeAutomationSupport.hasExternalDisplay(builtInFlags: []),
+               "no online display does not count as an external display")
+        expect(!KeepAwakeAutomationSupport.hasExternalDisplay(builtInFlags: [true]),
+               "the built-in screen does not count as an external display")
+        expect(KeepAwakeAutomationSupport.hasExternalDisplay(builtInFlags: [true, false]),
+               "an online non-built-in screen counts as an external display")
+        let combinedKeepAwakeConditions = KeepAwakeAutomationSupport.matchingConditions(
+            externalDisplayEnabled: true,
+            externalDisplayConnected: true,
+            powerEnabled: true,
+            connectedToPower: true
+        )
+        expect(combinedKeepAwakeConditions == [.externalDisplay, .power],
+               "enabled Keep Awake conditions combine with OR behavior")
+        expect(KeepAwakeAutomationSupport.action(
+            featureAvailable: true,
+            matchingConditions: [.externalDisplay],
+            sessionActive: false,
+            automaticSessionActive: false
+        ) == .activate, "an external display starts the automatic session")
+        expect(KeepAwakeAutomationSupport.action(
+            featureAvailable: true,
+            matchingConditions: [],
+            sessionActive: true,
+            automaticSessionActive: true
+        ) == .deactivate, "clearing every matching condition ends the automatic session")
+        expect(KeepAwakeAutomationSupport.action(
+            featureAvailable: true,
+            matchingConditions: [],
+            sessionActive: true,
+            automaticSessionActive: false
+        ) == .none, "clearing automatic conditions does not end a manual session")
+        let passwordlessSudoListing = """
+        Sudoers entry: /private/etc/sudoers.d/vorssaint-clamshell
+            RunAsUsers: root
+            Options: !authenticate
+            Commands:
+                /usr/bin/pmset disablesleep 1
+        """
+        let passwordRequiredSudoListing = """
+        Sudoers entry: /private/etc/sudoers
+            RunAsUsers: ALL
+            Commands:
+                ALL
+            Matched: /usr/bin/pmset disablesleep 1
+        """
+        expect(SudoersSupport.allowsWithoutPassword(status: 0, output: passwordlessSudoListing),
+               "the closed-lid rule is recognized as passwordless")
+        expect(!SudoersSupport.allowsWithoutPassword(status: 0, output: passwordRequiredSudoListing),
+               "general administrator access is not mistaken for a passwordless rule")
+        expect(!SudoersSupport.allowsWithoutPassword(status: 1, output: passwordlessSudoListing),
+               "a failed sudo listing never reports passwordless access")
         expect(registeredDefaults[DefaultsKey.switcherEnabled] as? Bool == true,
                "window switcher is on for clean installs")
         expect(registeredDefaults[DefaultsKey.switcherShortcut] as? String == "command:48",
@@ -823,6 +1031,52 @@ struct MetricsTests {
         }
         expect(registeredDefaults[DefaultsKey.switcherIconRowMode] as? Bool == false,
                "App Switcher icon-row mode is optional")
+        expect(registeredDefaults[DefaultsKey.switcherSimpleMode] as? Bool == false,
+               "App Switcher simple mode preserves previews until requested")
+        expect(SwitcherSupport.usesIconRowLayout(iconRowMode: false, simpleMode: true),
+               "App Switcher simple mode always uses the app icon row")
+        expect(!SwitcherSupport.capturesPreviews(simpleMode: true),
+               "App Switcher simple mode never captures window previews")
+        expect(!SwitcherSupport.needsScreenRecording(switcherEnabled: true,
+                                                      simpleMode: true,
+                                                      dockPreviewEnabled: false),
+               "App Switcher simple mode alone does not request Screen Recording")
+        expect(SwitcherSupport.needsScreenRecording(switcherEnabled: true,
+                                                    simpleMode: false,
+                                                    dockPreviewEnabled: false)
+               && SwitcherSupport.needsScreenRecording(switcherEnabled: false,
+                                                        simpleMode: true,
+                                                        dockPreviewEnabled: true),
+               "window previews still request Screen Recording where needed")
+        let regularBundlePaths: [pid_t: String] = [101: "/Applications/Primary.app"]
+        expect(SwitcherSupport.embeddedHostPID(
+            helperBundlePath: "/Applications/Primary.app/Contents/Frameworks/Window Helper.app",
+            regularBundlePaths: regularBundlePaths
+        ) == 101,
+               "App Switcher associates an embedded window helper with its regular host app")
+        expect(SwitcherSupport.embeddedHostPID(
+            helperBundlePath: "/Applications/Primary Tools.app/Contents/Helper.app",
+            regularBundlePaths: regularBundlePaths
+        ) == nil,
+               "App Switcher does not associate apps whose paths only share a prefix")
+        expect(SwitcherSupport.embeddedHostPID(
+            helperBundlePath: "/Applications/Independent Helper.app",
+            regularBundlePaths: regularBundlePaths
+        ) == nil,
+               "App Switcher leaves unrelated accessory apps independent")
+        let embeddedWindow = SwitcherItem.window(id: 77,
+                                                 title: "Project",
+                                                 appName: "Primary",
+                                                 pid: 101,
+                                                 windowOwnerPID: 202,
+                                                 isOnScreen: true,
+                                                 frame: CGRect(x: 20, y: 20, width: 900, height: 600))
+        expect(embeddedWindow.pid == 101
+               && embeddedWindow.windowOwnerPID == 202
+               && embeddedWindow.previewWindowID == 77,
+               "App Switcher keeps regular app identity separate from the window owner")
+        expect(embeddedWindow.withMinimized(true).windowOwnerPID == 202,
+               "App Switcher preserves the real window owner across state updates")
         expect(registeredDefaults[DefaultsKey.switcherShowWindowlessFinder] as? Bool == true,
                "Finder without windows stays visible in the switcher by default")
         expect(registeredDefaults[DefaultsKey.dockPreviewEnabled] as? Bool == false,
@@ -833,17 +1087,21 @@ struct MetricsTests {
                "update showcase intro starts unseen")
         expect(registeredDefaults[DefaultsKey.updateShowcaseMediaOverride] as? String == "",
                "update showcase media override is empty by default")
-        expect(SupportUpdateIntroInfo.releaseVersion == "3.1.8",
-               "support prompt is deliberately pinned to this release (owner's call)")
+        expect(SupportUpdateIntroInfo.releaseVersion == "3.1.12",
+               "support prompt stays pinned to 3.1.12 (3.1.13 deliberately shows no support ask)")
         // AppInfo.version falls back to "dev" in this bare harness, so read
-        // the plist the shipped app will actually carry.
+        // the plist the shipped app will actually carry. The pin is a
+        // per-release decision: this check fails on every version bump so the
+        // decision above is made consciously, never by omission.
         let plistVersion = (NSDictionary(contentsOfFile: "Resources/Info.plist")?["CFBundleShortVersionString"] as? String) ?? ""
-        expect(SupportUpdateIntroInfo.releaseVersion == plistVersion,
-               "a pin that lags the app version would silently never show the window")
+        expect(plistVersion == "3.1.13",
+               "bumping the app version requires re-deciding the support prompt pin above")
         expect(registeredDefaults[DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect] as? Bool == false,
                "headphone disconnect volume lowering is opt-in")
         expect(registeredDefaults[DefaultsKey.mixerHeadphonesDisconnectVolumePercent] as? Int == 0,
                "headphone disconnect volume keeps the existing mute behavior by default")
+        expect(registeredDefaults[DefaultsKey.mixerShowFinder] as? Bool == true,
+               "Finder returns to the mixer by default")
         expect(registeredDefaults[DefaultsKey.soundOutputSwitcherEnabled] as? Bool == false,
                "sound output switcher is opt-in")
         expect(registeredDefaults[DefaultsKey.soundOutputSwitcherShortcut] as? String
@@ -855,11 +1113,27 @@ struct MetricsTests {
                "shelf shortcut defaults to Ctrl+Opt+Cmd+D")
         expect(registeredDefaults[DefaultsKey.shelfShakeToOpen] as? Bool == true,
                "shelf shake opens by default once shelf is enabled")
+        expect(registeredDefaults[DefaultsKey.shelfCloseAfterDrop] as? Bool == false,
+               "closing after a drop is new behavior and must arrive off in an update")
+        expect(registeredDefaults[DefaultsKey.shelfRemoveAfterDrop] as? Bool == true,
+               "shelf removes accepted items after a drop by default")
+        expect((registeredDefaults[DefaultsKey.shelfAutomaticExclusions] as? [String])?.isEmpty == true,
+               "shelf automatic exclusions start empty")
+        expect(registeredDefaults[DefaultsKey.mouseNavigationEnabled] as? Bool == false,
+               "mouse side-button navigation is opt-in")
         expect(registeredDefaults[DefaultsKey.clipboardHistoryShortcutEnabled] as? Bool == true,
                "clipboard history shortcut is ready when clipboard history is enabled")
         expect(registeredDefaults[DefaultsKey.clipboardHistoryShortcut] as? String
                == GlobalShortcut.clipboardDefault.storageValue,
                "clipboard history shortcut defaults to Ctrl+Opt+Cmd+V")
+        expect(GlobalShortcut(keyCode: Int64(kVK_ANSI_V), modifiers: [.command])
+                   .isStandardPasteCommand,
+               "Cmd+V is recognized when plain-text paste must release its own hotkey")
+        expect(!GlobalShortcut.pastePlainDefault.isStandardPasteCommand,
+               "the default plain-text paste shortcut does not intercept synthesized Cmd+V")
+        expect(!GlobalShortcut(keyCode: Int64(kVK_ANSI_C), modifiers: [.command])
+                   .isStandardPasteCommand,
+               "other Command shortcuts never release the plain-text paste hotkey")
         expect(registeredDefaults[DefaultsKey.urlCleanerEnabled] as? Bool == false,
                "URL cleaner clipboard watching is opt-in")
         expect(registeredDefaults[DefaultsKey.windowMaximizeEnabled] as? Bool == false,
@@ -882,6 +1156,8 @@ struct MetricsTests {
                "panel Media utility is visible by default")
         expect(registeredDefaults[DefaultsKey.panelControlMouseScroll] as? Bool == true,
                "panel mouse scroll control is visible by default")
+        expect(registeredDefaults[DefaultsKey.panelControlMouseNavigation] as? Bool == true,
+               "panel mouse navigation control is visible by default")
         expect(registeredDefaults[DefaultsKey.panelControlSwitcher] as? Bool == true,
                "panel switcher control is visible by default")
         expect(registeredDefaults[DefaultsKey.panelControlDockPreview] as? Bool == true,
@@ -894,6 +1170,16 @@ struct MetricsTests {
                "mic mute menu bar indicator ships on by default (badge only shows while muted)")
         expect(registeredDefaults[DefaultsKey.menuBarMetricSpacing] as? String == "compact",
                "menu bar metric spacing defaults to the compact look")
+        expect(registeredDefaults[DefaultsKey.menuBarMetricAppearance] as? String == "values",
+               "menu bar usage metrics keep numeric values by default")
+        expect(registeredDefaults[DefaultsKey.menuBarUsageBarNormalColor] as? String == "#64D2FF",
+               "menu bar bars use a bright normal color by default")
+        expect(registeredDefaults[DefaultsKey.menuBarUsageBarElevatedColor] as? String == "#FFD60A"
+               && registeredDefaults[DefaultsKey.menuBarUsageBarCriticalColor] as? String == "#FF453A",
+               "menu bar bars keep visible elevated and critical defaults")
+        expect(registeredDefaults[DefaultsKey.menuBarUsageBarMediumThreshold] as? Int == 70
+               && registeredDefaults[DefaultsKey.menuBarUsageBarHighThreshold] as? Int == 90,
+               "menu bar bar thresholds default to seventy and ninety percent")
         expect(Defaults.sanitizedMonitorAlertCooldown(2) == 2,
                "the two minute alert cooldown is a valid stored choice")
         expect(Defaults.sanitizedMonitorAlertCooldown(7) == 15,
@@ -902,6 +1188,53 @@ struct MetricsTests {
                "standard menu bar spacing is a valid stored choice")
         expect(Defaults.sanitizedMenuBarMetricSpacing("banana") == "compact",
                "unknown menu bar spacing values fall back to the compact default")
+        expect(Defaults.sanitizedMenuBarMetricAppearance("bars") == "bars",
+               "bar appearance is a valid stored choice")
+        expect(Defaults.sanitizedMenuBarMetricAppearance("banana") == "values",
+               "unknown menu bar appearances fall back to numeric values")
+        expect(MenuBarMetricAppearance.values.allowsCombinedTemperatures,
+               "numeric menu bar values may combine usage and temperature")
+        expect(!MenuBarMetricAppearance.bars.allowsCombinedTemperatures,
+               "menu bar bars keep usage and temperature separate")
+        expectClose(MenuBarUsageBarSupport.memoryFraction(used: 3, total: 4) ?? -1, 0.75,
+                    "menu bar memory bars use the current used fraction")
+        expect(MenuBarUsageBarSupport.memoryFraction(used: 3, total: 0) == nil,
+               "menu bar memory bars keep missing totals unavailable")
+        expectClose(MenuBarUsageBarSupport.clampedFraction(-0.2), 0,
+                    "menu bar bars clamp negative readings")
+        expectClose(MenuBarUsageBarSupport.clampedFraction(1.4), 1,
+                    "menu bar bars clamp readings above full")
+        expect(MenuBarUsageBarSupport.fillLevel(for: 0.5, steps: 16) == 8,
+               "menu bar bars quantize fractions to visible fill steps")
+        expect(MenuBarUsageBarSupport.level(for: 0.69) == .normal,
+               "menu bar usage stays blue below seventy percent")
+        expect(MenuBarUsageBarSupport.level(for: 0.70) == .elevated,
+               "menu bar usage turns yellow at seventy percent")
+        expect(MenuBarUsageBarSupport.level(for: 0.89) == .elevated,
+               "menu bar usage stays yellow below ninety percent")
+        expect(MenuBarUsageBarSupport.level(for: 0.90) == .critical,
+               "menu bar usage turns red at ninety percent")
+        expect(MenuBarUsageBarSupport.level(for: 0.50,
+                                            mediumPercent: 40,
+                                            highPercent: 80) == .elevated,
+               "custom menu bar medium thresholds change the bar level")
+        expect(MenuBarUsageBarSupport.level(for: 0.80,
+                                            mediumPercent: 40,
+                                            highPercent: 80) == .critical,
+               "custom menu bar high thresholds change the bar level")
+        let repairedBarThresholds = MenuBarUsageBarSupport.thresholds(medium: 100, high: 20)
+        expect(repairedBarThresholds.medium == 99 && repairedBarThresholds.high == 100,
+               "invalid menu bar thresholds keep medium below high")
+        expect(MenuBarUsageBarSupport.sanitizedColorHex(" 64d2ff ", fallback: "#000000") == "#64D2FF",
+               "menu bar colors normalize stored hex values")
+        expect(MenuBarUsageBarSupport.sanitizedColorHex("bad", fallback: "#FFD60A") == "#FFD60A",
+               "invalid menu bar colors use their visible fallback")
+        let customBarRGB = MenuBarUsageBarSupport.rgb(for: "#804020", fallback: "#000000")
+        expectClose(customBarRGB.red, 128.0 / 255.0, "menu bar color parses red")
+        expectClose(customBarRGB.green, 64.0 / 255.0, "menu bar color parses green")
+        expectClose(customBarRGB.blue, 32.0 / 255.0, "menu bar color parses blue")
+        expect(MenuBarUsageBarSupport.hex(red: 1, green: 0.5, blue: 0) == "#FF8000",
+               "menu bar color picker writes stable hex values")
         expect(MenuBarSpacingSupport.digitMatchedReserve(for: "14%") == "88%",
                "compact spacing reserves the current digit count for percentages")
         expect(MenuBarSpacingSupport.digitMatchedReserve(for: "999°") == "888°",
@@ -928,6 +1261,18 @@ struct MetricsTests {
                "compact dense spacing joins blocks with a hair space")
         expect(MenuBarSpacingSupport.blockGlue(readableStyle: true, spacing: .compact) == " ",
                "compact readable spacing tightens the double space to a single one")
+        expect(StatusItemAnchorSupport.anchorDriftX(clickX: 1135, reportedMidX: 1452, buttonWidth: 38) == -317,
+               "a click far left of the status item's reported frame re-anchors the panel at the click")
+        expect(StatusItemAnchorSupport.anchorDriftX(clickX: 1452, reportedMidX: 1135, buttonWidth: 38) == 317,
+               "a click far right of the status item's reported frame re-anchors the panel at the click")
+        expect(StatusItemAnchorSupport.anchorDriftX(clickX: 1150, reportedMidX: 1144, buttonWidth: 38) == nil,
+               "a click inside the status button never counts as drift")
+        expect(StatusItemAnchorSupport.anchorDriftX(clickX: 1186, reportedMidX: 1144, buttonWidth: 38) == nil,
+               "a sloppy click just past the button edge stays within the drift slack")
+        expect(StatusItemAnchorSupport.anchorDriftX(clickX: 1188, reportedMidX: 1144, buttonWidth: 38) == 44,
+               "a click beyond the slack re-anchors by the full offset")
+        expect(StatusItemAnchorSupport.anchorDriftX(clickX: 1240, reportedMidX: 1144, buttonWidth: 197) == nil,
+               "clicks near the edge of a wide metrics item stay anchored to the item")
         expect(registeredDefaults[DefaultsKey.menuBarHideIconWithMetrics] as? Bool == false,
                "the menu bar icon stays visible by default")
         expect(MenuBarSpacingSupport.shouldHideStatusIcon(optionEnabled: true, separateMetrics: false,
@@ -982,12 +1327,28 @@ struct MetricsTests {
                "panel window maximize control is visible by default")
         expect(registeredDefaults[DefaultsKey.panelControlKeyDebounce] as? Bool == true,
                "panel keyboard debounce control is visible by default")
+        expect(registeredDefaults[DefaultsKey.panelControlTextSnippets] as? Bool == true,
+               "panel text snippets control is visible by default")
         expect(registeredDefaults[DefaultsKey.panelShowKeepAwake] as? Bool == true,
                "Keep Awake panel section is shown by default")
+        expect(registeredDefaults[DefaultsKey.panelShowBrightness] as? Bool == true,
+               "brightness panel section is shown by default once the feature is on")
+        expect(registeredDefaults[DefaultsKey.brightnessControlEnabled] as? Bool == false,
+               "brightness control arrives switched off")
+        expect(registeredDefaults[DefaultsKey.brightnessKeysEnabled] as? Bool == false,
+               "pointer-following brightness keys arrive switched off")
         expect(registeredDefaults[DefaultsKey.panelShowUtilities] as? Bool == true,
                "Utilities panel section is shown by default")
         expect(registeredDefaults[DefaultsKey.panelShowControls] as? Bool == true,
                "Quick Controls panel section is shown by default")
+        expect(registeredDefaults[DefaultsKey.panelShowToggles] as? Bool == true,
+               "Quick toggles panel section is shown by default")
+        expect([DefaultsKey.panelToggleDarkMode, DefaultsKey.panelToggleEmptyTrash,
+                DefaultsKey.panelToggleEjectDisks, DefaultsKey.panelToggleHiddenFiles,
+                DefaultsKey.panelToggleDesktopIcons, DefaultsKey.panelToggleLockScreen,
+                DefaultsKey.panelToggleDisplayOff, DefaultsKey.panelToggleScreenSaver]
+                .allSatisfy { registeredDefaults[$0] as? Bool == true },
+               "every quick toggle row is visible by default")
         expect(registeredDefaults[DefaultsKey.monitorInterval] as? Int == 2,
                "monitor default interval stays at 2 seconds")
         expect(registeredDefaults[DefaultsKey.monitorShowDisk] as? Bool == true,
@@ -1016,6 +1377,8 @@ struct MetricsTests {
                "menu bar GPU temperature is opt-in")
         expect(registeredDefaults[DefaultsKey.menuBarBatteryTemperature] as? Bool == false,
                "menu bar battery temperature is opt-in")
+        expect(registeredDefaults[DefaultsKey.menuBarBatteryTime] as? Bool == false,
+               "menu bar battery time is opt-in")
         expect(registeredDefaults[DefaultsKey.menuBarDiskUsage] as? Bool == false,
                "menu bar disk usage is opt-in")
         expect(registeredDefaults[DefaultsKey.menuBarDiskActivity] as? Bool == false,
@@ -1023,7 +1386,7 @@ struct MetricsTests {
         expect(registeredDefaults[DefaultsKey.menuBarPeripheralBattery] as? Bool == false,
                "menu bar peripheral battery is opt-in")
         expect(registeredDefaults[DefaultsKey.menuBarMetricOrder] as? String
-               == "cpu,cpuTemperature,gpu,gpuTemperature,memory,battery,batteryTemperature,peripheralBattery,network,diskUsage,diskActivity,power",
+               == "cpu,cpuTemperature,gpu,gpuTemperature,memory,battery,batteryTime,batteryTemperature,peripheralBattery,network,diskUsage,diskActivity,power",
                "menu bar metric order keeps temperature sensors next to their components and disk near live I/O")
         expect(registeredDefaults[DefaultsKey.menuBarCombineTemperatures] as? Bool == true,
                "menu bar combines usage and temperature by default")
@@ -1035,9 +1398,17 @@ struct MetricsTests {
                "menu bar label style defaults to compact")
         expect(registeredDefaults[DefaultsKey.menuBarMemoryStyle] as? String == "percent",
                "memory menu bar style defaults to percent")
+        expect(registeredDefaults[DefaultsKey.monitorPwrTimeRemaining] as? Bool == true,
+               "battery time is shown in the Power panel by default")
         expect(registeredDefaults[DefaultsKey.windowLayoutShortcutsEnabled] as? Bool == false,
                "window layout shortcuts stay off until enabled")
-        let layoutShortcutKeys = [
+        expect(registeredDefaults[DefaultsKey.windowGestureEnabled] as? Bool == false,
+               "window move and resize gestures are opt-in")
+        expect(registeredDefaults[DefaultsKey.windowGestureModifiers] as? String == "control+command",
+               "window gestures start with the deliberate control-command chord")
+        expect(registeredDefaults[DefaultsKey.windowGestureRaiseWindow] as? Bool == false,
+               "window gestures do not change app focus unless requested")
+        let assignedLayoutShortcutKeys = [
             DefaultsKey.windowLayoutShortcutLeft,
             DefaultsKey.windowLayoutShortcutRight,
             DefaultsKey.windowLayoutShortcutTop,
@@ -1056,15 +1427,340 @@ struct MetricsTests {
             DefaultsKey.windowLayoutShortcutRightTwoThirds,
             DefaultsKey.windowLayoutShortcutNextDisplay,
         ]
-        let layoutShortcutValues = layoutShortcutKeys.compactMap { registeredDefaults[$0] as? String }
-        expect(layoutShortcutValues.count == layoutShortcutKeys.count,
-               "every window layout action has a registered shortcut")
-        expect(Set(layoutShortcutValues).count == layoutShortcutValues.count,
+        let assignedLayoutShortcutValues = assignedLayoutShortcutKeys.compactMap {
+            registeredDefaults[$0] as? String
+        }
+        expect(assignedLayoutShortcutValues.count == assignedLayoutShortcutKeys.count,
+               "every established window layout action has a registered shortcut")
+        let unassignedSixthShortcutKeys = [
+            DefaultsKey.windowLayoutShortcutTopLeftSixth,
+            DefaultsKey.windowLayoutShortcutTopCenterSixth,
+            DefaultsKey.windowLayoutShortcutTopRightSixth,
+            DefaultsKey.windowLayoutShortcutBottomLeftSixth,
+            DefaultsKey.windowLayoutShortcutBottomCenterSixth,
+            DefaultsKey.windowLayoutShortcutBottomRightSixth,
+        ]
+        expect(unassignedSixthShortcutKeys.allSatisfy {
+                   registeredDefaults[$0] as? String == WindowLayoutAction.clearedShortcutStorageValue
+               },
+               "sixth layout shortcuts start unassigned")
+        expect(Set(assignedLayoutShortcutValues).count == assignedLayoutShortcutValues.count,
                "window layout shortcuts do not conflict with each other by default")
         let globalShortcutValues = GlobalShortcutRole.allCases
             .compactMap { registeredDefaults[$0.storageKey] as? String }
-        expect(Set(layoutShortcutValues).intersection(globalShortcutValues).isEmpty,
+        expect(Set(assignedLayoutShortcutValues).intersection(globalShortcutValues).isEmpty,
                "window layout shortcuts do not conflict with other global shortcuts by default")
+        expect(GlobalShortcut(keyCode: Int64(kVK_ISO_Section),
+                              modifiers: [.control, .option, .command]).isValid,
+               "the extra ISO key (paragraph/caret above Tab) is recordable as a shortcut")
+        expect(registeredDefaults[DefaultsKey.extraBrightnessEnabled] as? Bool == false,
+               "extra brightness is opt-in")
+        expect(registeredDefaults[DefaultsKey.extraBrightnessLevel] as? Int == 100,
+               "extra brightness starts at full intensity once enabled")
+        expect(registeredDefaults[DefaultsKey.musicBlockEnabled] as? Bool == false,
+               "blocking the music app from launching is opt-in")
+        expect(registeredDefaults[DefaultsKey.musicBlockReplacementPath] as? String == "",
+               "the music replacement app starts unset")
+        expect(registeredDefaults[DefaultsKey.panelUtilityCleaner] as? Bool == true,
+               "the cleaner row is visible in the panel utilities like its siblings")
+        expect(registeredDefaults[DefaultsKey.cleanerScheduleFrequency] as? String == "off",
+               "automatic cleanup is opt-in")
+        expect(registeredDefaults[DefaultsKey.cleanerScheduleHour] as? Int == 9
+               && registeredDefaults[DefaultsKey.cleanerScheduleMinute] as? Int == 0
+               && registeredDefaults[DefaultsKey.cleanerScheduleWeekday] as? Int == 2,
+               "the schedule defaults to nine in the morning on Mondays")
+        expect(registeredDefaults[DefaultsKey.cleanerScheduleNotify] as? Bool == true,
+               "the schedule reports its outcome unless the user opts out")
+        expect(registeredDefaults[DefaultsKey.cleanerBadgeSeen] as? Bool == false,
+               "the red dot guiding to the cleaner shows until the cleaner opens once")
+        var utcCalendar = Calendar(identifier: .gregorian)
+        utcCalendar.timeZone = TimeZone(identifier: "UTC") ?? .current
+        func scheduleDate(_ day: Int, _ hour: Int, _ minute: Int) -> Date {
+            utcCalendar.date(from: DateComponents(year: 2026, month: 7, day: day,
+                                                  hour: hour, minute: minute)) ?? Date()
+        }
+        expect(CleanerSchedule.nextFireDate(after: scheduleDate(9, 8, 0), frequency: .daily,
+                                            hour: 9, minute: 0, weekday: 2,
+                                            calendar: utcCalendar) == scheduleDate(9, 9, 0),
+               "a daily schedule still due today fires today")
+        expect(CleanerSchedule.nextFireDate(after: scheduleDate(9, 10, 0), frequency: .daily,
+                                            hour: 9, minute: 0, weekday: 2,
+                                            calendar: utcCalendar) == scheduleDate(10, 9, 0),
+               "a daily schedule already past fires tomorrow")
+        expect(CleanerSchedule.nextFireDate(after: scheduleDate(9, 10, 0), frequency: .weekly,
+                                            hour: 9, minute: 0, weekday: 2,
+                                            calendar: utcCalendar) == scheduleDate(13, 9, 0),
+               "a weekly Monday schedule queried on Thursday fires next Monday")
+        expect(CleanerSchedule.nextFireDate(after: scheduleDate(9, 10, 0), frequency: .off,
+                                            hour: 9, minute: 0, weekday: 2,
+                                            calendar: utcCalendar) == nil,
+               "an off schedule never fires")
+        expect(CleanerSchedule.missedRun(now: scheduleDate(9, 10, 0),
+                                         lastRun: scheduleDate(8, 9, 30),
+                                         frequency: .daily, hour: 9, minute: 0, weekday: 2,
+                                         calendar: utcCalendar),
+               "a fire that passed while the Mac was off counts as missed")
+        expect(!CleanerSchedule.missedRun(now: scheduleDate(9, 10, 0),
+                                          lastRun: scheduleDate(9, 9, 30),
+                                          frequency: .daily, hour: 9, minute: 0, weekday: 2,
+                                          calendar: utcCalendar),
+               "a run that already happened today is not missed")
+        expect(!CleanerSchedule.missedRun(now: scheduleDate(9, 10, 0), lastRun: nil,
+                                          frequency: .daily, hour: 9, minute: 0, weekday: 2,
+                                          calendar: utcCalendar),
+               "enabling the schedule never triggers a surprise first run")
+        expect(CleanerSchedule.hour24(hour12: 12, isPM: false) == 0
+               && CleanerSchedule.hour24(hour12: 12, isPM: true) == 12
+               && CleanerSchedule.hour24(hour12: 1, isPM: true) == 13
+               && CleanerSchedule.hour24(hour12: 11, isPM: false) == 11,
+               "twelve hour picks map to the right clock hours, midnight and noon included")
+        expect(CleanerSchedule.hour12Components(fromHour24: 0) == (12, false)
+               && CleanerSchedule.hour12Components(fromHour24: 12) == (12, true)
+               && CleanerSchedule.hour12Components(fromHour24: 18) == (6, true)
+               && CleanerSchedule.hour12Components(fromHour24: 9) == (9, false),
+               "clock hours split back into the twelve hour pickers")
+        expect((0...23).allSatisfy { hour in
+                   let parts = CleanerSchedule.hour12Components(fromHour24: hour)
+                   return CleanerSchedule.hour24(hour12: parts.hour12, isPM: parts.isPM) == hour
+               },
+               "every hour of the day round trips through the twelve hour pickers")
+        let panel500 = ExtraBrightnessSupport.panelReference(model: "MacBookPro18,1")
+        let panel600 = ExtraBrightnessSupport.panelReference(model: "Mac16,7")
+        expect(panel500.referenceEDR == 3.2 && panel500.bonus == 0.58,
+               "the 2021/2023 500 nit panels take the stronger curve")
+        expect(panel600.referenceEDR == 2.66 && panel600.bonus == 0.48,
+               "600 nit panels from M3 onwards take the gentler curve")
+        expect(ExtraBrightnessSupport.panelReference(model: "Mac99,9").bonus == 0.48
+               && ExtraBrightnessSupport.panelReference(model: nil).bonus == 0.48,
+               "unknown and future models fall back to the conservative curve")
+        expect(ExtraBrightnessSupport.boostFactor(level: 0, maxEDR: 2.66, reference: panel600) == 1.0,
+               "zero level applies no brightness boost")
+        expect(abs(ExtraBrightnessSupport.boostFactor(level: 1, maxEDR: 2.66, reference: panel600) - 1.48) < 0.0001,
+               "full level on a 600 nit panel tops out at the sustainable 1.48x")
+        expect(abs(ExtraBrightnessSupport.boostFactor(level: 1, maxEDR: 16.0, reference: panel600) - 1.48) < 0.0001,
+               "huge reported headroom never pushes past what the panel sustains")
+        expect(abs(ExtraBrightnessSupport.boostFactor(level: 1, maxEDR: 3.2, reference: panel500) - 1.58) < 0.0001,
+               "full level on a 500 nit panel tops out at 1.58x")
+        expect(abs(ExtraBrightnessSupport.boostFactor(level: 1, maxEDR: 1.33, reference: panel600) - 1.24) < 0.0001,
+               "a partial headroom grant scales the boost down proportionally")
+        expect(abs(ExtraBrightnessSupport.boostFactor(level: 0.5, maxEDR: 2.66, reference: panel600) - 1.24) < 0.0001,
+               "half level applies half the panel bonus")
+        expect(ExtraBrightnessSupport.renderFactor(level: 1, currentEDR: 1.0, potentialEDR: 16.0,
+                                                   reference: panel600)
+               == ExtraBrightnessSupport.engagementFactor,
+               "before the panel engages, the overlay shows only the small engagement boost")
+        expect(abs(ExtraBrightnessSupport.renderFactor(level: 0.1, currentEDR: 1.0, potentialEDR: 16.0,
+                                                       reference: panel600) - 1.048) < 0.0001,
+               "the engagement nudge never exceeds the level's own target")
+        expect(abs(ExtraBrightnessSupport.renderFactor(level: 1, currentEDR: 2.66, potentialEDR: 16.0,
+                                                       reference: panel600) - 1.48) < 0.0001,
+               "with the reference headroom engaged the full level renders the full bonus")
+        expect(ExtraBrightnessSupport.renderFactor(level: 0, currentEDR: 2.66, potentialEDR: 16.0,
+                                                   reference: panel600) == 1.0,
+               "zero level renders no boost even with headroom engaged")
+        expect(abs(ExtraBrightnessSupport.renderFactor(level: 1, currentEDR: 1.2, potentialEDR: 16.0,
+                                                       reference: panel600) - 1.2) < 0.0001,
+               "the rendered factor never exceeds the headroom macOS is granting right now")
+        expect(ExtraBrightnessSupport.renderFactor(level: 1, currentEDR: 1.0, potentialEDR: 1.0,
+                                                   reference: panel600) == 1.0,
+               "a mode without any potential headroom gets no boost attempt at all")
+        for model in ["MacBookPro18,1", "MacBookPro18,4", "Mac14,5", "Mac14,10",
+                      "Mac15,3", "Mac15,11", "Mac16,1", "Mac16,7", "Mac17,2", "Mac17,9"] {
+            expect(ExtraBrightnessSupport.isSupportedPanel(model: model,
+                                                           localizedName: "Built-in Retina Display",
+                                                           potentialEDR: 2.0),
+                   "\(model) is a MacBook Pro with an XDR panel, whatever the screen reports")
+        }
+        for model in ["Mac16,12", "Mac16,13", "Mac15,12", "Mac14,2", "Mac14,7",
+                      "Mac17,3", "MacBookPro17,1", "Mac16,2"] {
+            expect(!ExtraBrightnessSupport.isSupportedPanel(model: model,
+                                                            localizedName: "Built-in Retina Display",
+                                                            potentialEDR: 2.0),
+                   "\(model) has no XDR panel and its fake 2x headroom does not qualify")
+        }
+        expect(ExtraBrightnessSupport.isSupportedPanel(model: "Mac99,1",
+                                                       localizedName: "Built-in Display",
+                                                       potentialEDR: 16.0),
+               "future XDR MacBooks qualify by real headroom without a model list update")
+        expect(!ExtraBrightnessSupport.isSupportedPanel(model: nil,
+                                                        localizedName: "Built-in Retina Display",
+                                                        potentialEDR: 1.0),
+               "unknown model without headroom or an XDR name stays unsupported")
+        expect(ExtraBrightnessSupport.isSupportedPanel(model: nil,
+                                                       localizedName: "Liquid Retina XDR Display",
+                                                       potentialEDR: 1.0),
+               "an explicit XDR product name is accepted even without other signals")
+        expect(ExtraBrightnessSupport.isXDRPanelName("Built-in Liquid Retina XDR Display")
+               && ExtraBrightnessSupport.isXDRPanelName("Liquid Retina XDR"),
+               "the XDR token is recognized wherever a product name exposes it")
+        expect(!ExtraBrightnessSupport.isXDRPanelName("Built-in Liquid Retina Display")
+               && !ExtraBrightnessSupport.isXDRPanelName("Built-in Retina Display"),
+               "generic built-in panel names do not qualify by name")
+        expect(abs(ExtraBrightnessSupport.rampedFactor(previous: 1.0, target: 1.48) - 1.03) < 0.0001,
+               "the factor climbs one small step per tick")
+        expect(ExtraBrightnessSupport.rampedFactor(previous: 1.46, target: 1.48) == 1.48,
+               "the last upward step lands exactly on the target")
+        expect(abs(ExtraBrightnessSupport.rampedFactor(previous: 1.48, target: 1.10) - 1.385) < 0.0001,
+               "downward moves take a share of the gap, never the whole drop at once")
+        expect(ExtraBrightnessSupport.rampedFactor(previous: 1.105, target: 1.10) == 1.10,
+               "tiny downward gaps snap to the target instead of hovering")
+        expect(ExtraBrightnessSupport.rampedFactor(previous: 1.48, target: 1.48) == 1.48,
+               "a settled factor stays put")
+        expect(ExtraBrightnessSupport.gracedTarget(instantaneous: 1.10, previous: 1.48,
+                                                   engaged: false, disengagedTicks: 1) == 1.48
+               && ExtraBrightnessSupport.gracedTarget(instantaneous: 1.10, previous: 1.48,
+                                                      engaged: false,
+                                                      disengagedTicks: ExtraBrightnessSupport.dropoutGraceTicks) == 1.48,
+               "a grant that just vanished keeps the previous factor through the grace window")
+        expect(ExtraBrightnessSupport.gracedTarget(instantaneous: 1.10, previous: 1.48,
+                                                   engaged: false,
+                                                   disengagedTicks: ExtraBrightnessSupport.dropoutGraceTicks + 1) == 1.10,
+               "a dropout that outlives the grace window is believed")
+        expect(ExtraBrightnessSupport.gracedTarget(instantaneous: 1.40, previous: 1.48,
+                                                   engaged: true, disengagedTicks: 0) == 1.40,
+               "an engaged reading is always taken at face value")
+        expect(ExtraBrightnessSupport.gracedTarget(instantaneous: 1.10, previous: 1.0,
+                                                   engaged: false, disengagedTicks: 1) == 1.10,
+               "grace never lifts a factor that had no boost to protect")
+        var ebFactor = 1.48
+        var ebLow = 0
+        for ebEngaged in [true, false, false, false, true, true] {
+            ebLow = ebEngaged ? 0 : ebLow + 1
+            let ebTarget = ExtraBrightnessSupport.gracedTarget(instantaneous: ebEngaged ? 1.48 : 1.10,
+                                                               previous: ebFactor,
+                                                               engaged: ebEngaged, disengagedTicks: ebLow)
+            ebFactor = ExtraBrightnessSupport.rampedFactor(previous: ebFactor, target: ebTarget)
+            expect(ebFactor == 1.48,
+                   "a fullscreen transition blackout leaves the boost visually untouched")
+        }
+        var ebDrop = 1.48
+        var ebDropLow = 0
+        var ebBiggestStep = 0.0
+        for _ in 0..<12 {
+            ebDropLow += 1
+            let ebTarget = ExtraBrightnessSupport.gracedTarget(instantaneous: 1.10, previous: ebDrop,
+                                                               engaged: false, disengagedTicks: ebDropLow)
+            let ebNext = ExtraBrightnessSupport.rampedFactor(previous: ebDrop, target: ebTarget)
+            ebBiggestStep = max(ebBiggestStep, ebDrop - ebNext)
+            ebDrop = ebNext
+        }
+        expect(ebDrop >= 1.10 && ebDrop < 1.13 && ebBiggestStep < 0.0951,
+               "a real revocation ramps the boost down over seconds without one visible slam")
+        var ebWobble = 1.48
+        var ebWobbleStep = 0.0
+        for tick in 0..<20 {
+            let ebNext = ExtraBrightnessSupport.rampedFactor(previous: ebWobble,
+                                                             target: tick % 4 < 2 ? 1.48 : 1.40)
+            ebWobbleStep = max(ebWobbleStep, abs(ebNext - ebWobble))
+            ebWobble = ebNext
+            expect(ebWobble >= 1.40 && ebWobble <= 1.48,
+                   "a wobbling grant keeps the factor inside the grant's own range")
+        }
+        expect(ebWobbleStep < 0.0301,
+               "a wobbling grant moves the factor in imperceptible steps, not flashes")
+        var ebGlide = 1.0
+        for _ in 0..<16 { ebGlide = ExtraBrightnessSupport.rampedFactor(previous: ebGlide, target: 1.48) }
+        expect(ebGlide == 1.48,
+               "switching the boost on glides to full strength within about four seconds")
+        expect(CleanerSupport.isProtectedBundleID("com.apple.Music")
+               && CleanerSupport.isProtectedBundleID("com.apple")
+               && CleanerSupport.isProtectedBundleID("group.com.apple.notes")
+               && CleanerSupport.isProtectedBundleID("com.vorssaint.utils"),
+               "system domains and this app can never be junk owners")
+        expect(!CleanerSupport.isProtectedBundleID("com.vendor.editor"),
+               "third party identifiers are eligible for the leftover check")
+        expect(CleanerSupport.isProtectedBundleID("systemgroup.com.apple.icloud.searchpartyd.sharedsettings")
+               && CleanerSupport.isProtectedBundleID("243LU875E5.groups.com.apple.podcasts")
+               && CleanerSupport.isProtectedBundleID("developer.apple.wwdc")
+               && CleanerSupport.isProtectedBundleID("is.workflow.my.app")
+               && CleanerSupport.isProtectedBundleID("vorss.tests.switcher.shortcut"),
+               "system domains stay protected in every wrapping, team prefixes included")
+        expect(CleanerSupport.sharedInfrastructurePrefixes.allSatisfy {
+                   CleanerSupport.isProtectedBundleID($0)
+               },
+               "embedded updaters and crash reporters can never be junk owners")
+        expect(CleanerSupport.bundleIDCandidate(fromEntryName: "systemgroup.com.apple.icloud.sharedsettings.plist")
+               == "com.apple.icloud.sharedsettings",
+               "systemgroup wrappers unwrap to the real owner")
+        expect(CleanerSupport.bundleIDCandidate(fromEntryName:
+               "com.vendor.editor.Helper.B787EFF9-B8E2-5296-96AF-DF9D3CD3AC4F.plist") == nil,
+               "names carrying a UUID are unattributable and never candidates")
+        expect(CleanerSupport.containsUUIDComponent("x.B787EFF9-B8E2-5296-96AF-DF9D3CD3AC4F")
+               && !CleanerSupport.containsUUIDComponent("com.vendor.editor"),
+               "the UUID detector matches dashed UUIDs and nothing else")
+        expect(CleanerSupport.sharesVendorNamespace(candidate: "com.vendor.backgroundtool",
+                                                    withInstalled: ["com.vendor.editor"])
+               && CleanerSupport.sharesVendorNamespace(candidate: "com.publisher.agent",
+                                                       withInstalled: ["com.publisher.browser"]),
+               "a vendor's updaters are owned while any app of that vendor is installed")
+        expect(!CleanerSupport.sharesVendorNamespace(candidate: "com.vendor.editor",
+                                                     withInstalled: ["com.publisher.browser"]),
+               "different vendors never own each other")
+        expect(!CleanerSupport.sharesVendorNamespace(candidate: "io.github.account.tool",
+                                                     withInstalled: ["io.github.other.app"]),
+               "code hosting namespaces are shared by unrelated developers and never match")
+        expect(CleanerPolicy.precheckCacheEntry("Homebrew")
+               && CleanerPolicy.precheckCacheEntry("com.vendor.editor"),
+               "download caches and third party app caches start checked")
+        expect(!CleanerPolicy.precheckCacheEntry("PlainVendorFolder")
+               && !CleanerPolicy.precheckCacheEntry("com.apple.Music")
+               && !CleanerPolicy.precheckCacheEntry("com.spotify.client")
+               && !CleanerPolicy.precheckCacheEntry("ms-playwright"),
+               "system, sensitive and unattributable caches start unchecked")
+        expect(CleanerSupport.Category.deviceBackups.rawValue == 6
+               && CleanerSupport.Category.allCases.count == 7,
+               "device backups joined the cleaner with a stable category id")
+        expect(!CleanerPolicy.precheckDeviceBackups,
+               "device backups never start checked, they are the user's safety net")
+        expect(CleanerPolicy.developerJunkPaths.contains("/Library/Developer/Xcode/iOS DeviceSupport")
+               && CleanerPolicy.developerJunkPaths.contains("/Library/Developer/Xcode/watchOS DeviceSupport"),
+               "stale DeviceSupport symbol caches count as developer junk")
+        expect(CleanerSupport.looksLikeBundleID("com.vendor.editor")
+               && CleanerSupport.looksLikeBundleID("com.foo.Bar-Helper_2"),
+               "reverse DNS names are recognized")
+        expect(!CleanerSupport.looksLikeBundleID("VendorFolder")
+               && !CleanerSupport.looksLikeBundleID("com.foo")
+               && !CleanerSupport.looksLikeBundleID("com..foo")
+               && !CleanerSupport.looksLikeBundleID("com.foo.bár"),
+               "plain names, short names and odd characters never match by name")
+        expect(CleanerSupport.bundleIDCandidate(fromEntryName: "com.vendor.editor.plist") == "com.vendor.editor"
+               && CleanerSupport.bundleIDCandidate(fromEntryName: "group.com.foo.bar") == "com.foo.bar"
+               && CleanerSupport.bundleIDCandidate(fromEntryName: "com.foo.bar.savedState") == "com.foo.bar"
+               && CleanerSupport.bundleIDCandidate(fromEntryName: "com.foo.bar.binarycookies") == "com.foo.bar",
+               "entry names map to their owning bundle identifier")
+        expect(CleanerSupport.bundleIDCandidate(fromEntryName: "VendorFolder") == nil,
+               "folders without a bundle shaped name are never candidates")
+        expect(CleanerSupport.isOwned(candidate: "com.vendor.editor.startuphelper",
+                                      byInstalled: ["com.vendor.editor"]),
+               "embedded helper identifiers are owned by their installed app")
+        expect(CleanerSupport.isOwned(candidate: "com.maker",
+                                      byInstalled: ["com.maker.app"]),
+               "a family prefix of an installed app counts as owned")
+        expect(!CleanerSupport.isOwned(candidate: "com.vendor.editor", byInstalled: ["com.publisher.browser"]),
+               "identifiers with no installed relative are unowned")
+        expect(!CleanerSupport.isOwned(candidate: "com.makerapp.tool", byInstalled: ["com.maker.app"]),
+               "prefix ownership requires a dot boundary, not a string prefix")
+        expect(CleanerSupport.executablePaths(inLaunchPlist: [
+                   "Program": "/Applications/Gone.app/Contents/MacOS/agent",
+                   "ProgramArguments": ["/usr/local/bin/gone-tool", "--flag"],
+                   "BundleProgram": "Contents/MacOS/relative",
+               ]) == ["/Applications/Gone.app/Contents/MacOS/agent", "/usr/local/bin/gone-tool"],
+               "launch plists yield their absolute executables and skip relative ones")
+        expect(CleanerSupport.launchPlistIsRemovableOrphan(label: "com.vendor.editor.launchdaemon",
+                                                           executables: ["/Applications/Gone.app/x"],
+                                                           executableExists: { _ in false }),
+               "a plist whose executables are all gone is a removable orphan")
+        expect(!CleanerSupport.launchPlistIsRemovableOrphan(label: "com.vendor.editor.launchdaemon",
+                                                            executables: ["/bin/ls"],
+                                                            executableExists: { _ in true }),
+               "a plist with a living executable is never an orphan")
+        expect(!CleanerSupport.launchPlistIsRemovableOrphan(label: "com.apple.something",
+                                                            executables: ["/gone"],
+                                                            executableExists: { _ in false })
+               && !CleanerSupport.launchPlistIsRemovableOrphan(label: nil,
+                                                               executables: [],
+                                                               executableExists: { _ in false }),
+               "system agents and undecidable plists are never offered")
         expect(registeredDefaults[DefaultsKey.mediaLastTool] as? String == MediaTool.videoCompressor.rawValue,
                "Media defaults to video compressor")
         expect(registeredDefaults[DefaultsKey.mediaVideoCodec] as? String == MediaVideoCodec.h264.rawValue,
@@ -1077,6 +1773,8 @@ struct MetricsTests {
                "panel collapsed sections intentionally has no registered default")
         expect(registeredDefaults[DefaultsKey.panelUtilityOrder] == nil,
                "panel utility order intentionally has no registered default")
+        expect(registeredDefaults[DefaultsKey.panelToggleOrder] == nil,
+               "panel toggle order intentionally has no registered default")
         expect(Defaults.sanitizedDefaultDuration(60) == 60, "valid default duration is preserved")
         expect(Defaults.sanitizedDefaultDuration(999) == 0, "invalid default duration falls back to indefinite")
         expect(Defaults.sanitizedBatteryLimit(15) == 15, "valid battery limit is preserved")
@@ -1095,11 +1793,11 @@ struct MetricsTests {
         expect(Defaults.sanitizedMenuBarMemoryStyle("bad") == "percent", "invalid memory style falls back to percent")
         expect(Defaults.sanitizedMenuBarMetricOrder("cpu,gpu,memory,network,battery,power")
                == ["cpu", "gpu", "memory", "network", "battery", "power",
-                   "cpuTemperature", "gpuTemperature", "batteryTemperature", "peripheralBattery", "diskUsage", "diskActivity"],
+                   "cpuTemperature", "gpuTemperature", "batteryTime", "batteryTemperature", "peripheralBattery", "diskUsage", "diskActivity"],
                "menu bar metric order appends temperature sensors without rewriting existing saved order")
         expect(Defaults.sanitizedMenuBarMetricOrder("temperature,cpu,cpu,bad")
                == ["cpuTemperature", "gpuTemperature", "batteryTemperature",
-                   "cpu", "gpu", "memory", "battery", "peripheralBattery", "network", "diskUsage", "diskActivity", "power"],
+                   "cpu", "gpu", "memory", "battery", "batteryTime", "peripheralBattery", "network", "diskUsage", "diskActivity", "power"],
                "menu bar metric order migrates the old generic temperature value")
         expect(Defaults.sanitizedBundleIdentifierList([" com.example.One ", "", "com.example.One", "com.example.Two"])
                == ["com.example.One", "com.example.Two"],
@@ -1199,6 +1897,10 @@ struct MetricsTests {
                                                    defaultShortcut: .windowLayoutLeftDefault)
                == .windowLayoutRightDefault,
                "a saved window layout shortcut wins over the default")
+        expect(WindowLayoutAction.resolvedShortcut(storedValue: nil, defaultShortcut: nil) == nil,
+               "a window layout action without a default shortcut stays unassigned")
+        expect(WindowLayoutAction.resolvedShortcut(storedValue: "garbage-value", defaultShortcut: nil) == nil,
+               "a corrupt shortcut cannot assign an action that has no default")
 
         // MARK: Window layout geometry
 
@@ -1231,6 +1933,42 @@ struct MetricsTests {
         expect(WindowLayoutGeometry.rect(for: .rightTwoThirds, current: currentWindow, visibleFrame: visibleFrame)
                == CGRect(x: 480, y: 40, width: 960, height: 860),
                "window layout right two thirds targets the final two thirds")
+        let sixthLayouts: [(WindowLayoutAction, CGRect, CGRect)] = [
+            (.topLeftSixth,
+             CGRect(x: 0, y: 470, width: 480, height: 430),
+             CGRect(x: 0, y: 400, width: 600, height: 500)),
+            (.topCenterSixth,
+             CGRect(x: 480, y: 470, width: 480, height: 430),
+             CGRect(x: 420, y: 400, width: 600, height: 500)),
+            (.topRightSixth,
+             CGRect(x: 960, y: 470, width: 480, height: 430),
+             CGRect(x: 840, y: 400, width: 600, height: 500)),
+            (.bottomLeftSixth,
+             CGRect(x: 0, y: 40, width: 480, height: 430),
+             CGRect(x: 0, y: 40, width: 600, height: 500)),
+            (.bottomCenterSixth,
+             CGRect(x: 480, y: 40, width: 480, height: 430),
+             CGRect(x: 420, y: 40, width: 600, height: 500)),
+            (.bottomRightSixth,
+             CGRect(x: 960, y: 40, width: 480, height: 430),
+             CGRect(x: 840, y: 40, width: 600, height: 500)),
+        ]
+        for (action, target, anchored) in sixthLayouts {
+            expect(WindowLayoutGeometry.rect(for: action,
+                                             current: currentWindow,
+                                             visibleFrame: visibleFrame) == target,
+                   "\(action.rawValue) targets its cell in the 3 by 2 grid")
+            expect(WindowLayoutGeometry.anchoredRect(for: action,
+                                                     targetRect: target,
+                                                     actualSize: CGSize(width: 600, height: 500),
+                                                     visibleFrame: visibleFrame) == anchored,
+                   "\(action.rawValue) preserves its requested horizontal and vertical anchors")
+            expect(WindowLayoutGeometry.accepts(actualRect: anchored,
+                                                targetRect: target,
+                                                action: action,
+                                                anchorTolerance: 36),
+                   "\(action.rawValue) accepts a larger minimum-sized window on the same anchors")
+        }
         let nextDisplayFrame = CGRect(x: 1440, y: 80, width: 1920, height: 1000)
         let rightHalfWindow = CGRect(x: 720, y: 40, width: 720, height: 860)
         expect(WindowLayoutGeometry.rectForNextDisplay(current: rightHalfWindow,
@@ -1253,6 +1991,10 @@ struct MetricsTests {
                "every window layout shortcut has its own defaults key")
         expect(WindowLayoutAction.shortcutActions.contains(.leftHalf),
                "existing half actions keep global shortcuts")
+        expect([WindowLayoutAction.topLeftSixth, .topCenterSixth, .topRightSixth,
+                .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth]
+               .allSatisfy { $0.supportsShortcut && $0.defaultShortcut == nil },
+               "sixth actions support optional shortcuts without claiming defaults")
         expect(WindowLayoutGeometry.rect(for: .topLeft, current: currentWindow, visibleFrame: visibleFrame)
                == CGRect(x: 0, y: 470, width: 720, height: 430),
                "window layout top left targets the upper-left quadrant")
@@ -1383,6 +2125,89 @@ struct MetricsTests {
                == CGRect(x: 540, y: 40, width: 900, height: 620),
                "window layout bottom right anchors the accepted app size to both requested edges")
 
+        // MARK: Window move and resize gestures
+
+        expect(WindowGestureSupport.modifiers(from: nil) == [.control, .command],
+               "window gestures fall back to control-command")
+        expect(WindowGestureSupport.modifiers(from: "option+shift") == [.option],
+               "shift stays reserved for trackpad resizing")
+        expect(WindowGestureSupport.modifiers(from: "shift") == [.control, .command],
+               "shift alone never takes over ordinary system dragging")
+        expect(WindowGestureSupport.modifiers(from: "invalid") == [.control, .command],
+               "corrupt window gesture modifiers fall back safely")
+        expect(WindowGestureSupport.storageValue(for: [.command, .control]) == "control+command",
+               "window gesture modifiers serialize in stable order")
+        expect(WindowGestureSupport.modifiersMatch(eventFlags: [.maskControl, .maskCommand],
+                                                   expected: [.control, .command]),
+               "window gestures match their exact modifier chord")
+        expect(!WindowGestureSupport.modifiersMatch(eventFlags: [.maskControl, .maskCommand, .maskShift],
+                                                    expected: [.control, .command]),
+               "the resize chord does not trigger window movement")
+        let resizeModifiers = WindowGestureSupport.resizeModifiers(from: [.control, .command])
+        expect(resizeModifiers == [.control, .shift, .command],
+               "trackpad resizing adds shift to the chosen move chord")
+        expect(WindowGestureSupport.modifiersMatch(eventFlags: [.maskControl, .maskCommand, .maskShift],
+                                                   expected: resizeModifiers),
+               "trackpad resizing matches its exact primary-drag chord")
+        expect(!WindowGestureSupport.modifiersMatch(eventFlags: [.maskControl, .maskCommand, .maskShift, .maskAlternate],
+                                                    expected: resizeModifiers),
+               "unexpected extra modifiers do not trigger trackpad resizing")
+        expect(WindowGestureSupport.movedOrigin(from: CGPoint(x: 100, y: 80),
+                                                pointerStart: CGPoint(x: 300, y: 200),
+                                                pointerNow: CGPoint(x: 345, y: 175))
+               == CGPoint(x: 145, y: 55),
+               "window movement follows the full pointer delta")
+        let gestureFrame = CGRect(x: 100, y: 80, width: 600, height: 420)
+        expect(WindowGestureSupport.resizeEdges(at: CGPoint(x: 110, y: 90), in: gestureFrame)
+               == [.left, .top],
+               "a top-left press resizes from both matching edges")
+        expect(WindowGestureSupport.resizeEdges(at: CGPoint(x: 400, y: 90), in: gestureFrame)
+               == [.top],
+               "a top-center press resizes only the top edge")
+        expect(!WindowGestureSupport.resizeEdges(at: CGPoint(x: 400, y: 290), in: gestureFrame).isEmpty,
+               "the center region always chooses a usable nearest edge")
+        expect(WindowGestureSupport.resizedFrame(from: gestureFrame,
+                                                 pointerStart: CGPoint(x: 110, y: 90),
+                                                 pointerNow: CGPoint(x: 160, y: 120),
+                                                 edges: [.left, .top])
+               == CGRect(x: 150, y: 110, width: 550, height: 390),
+               "top-left resizing keeps the opposite corner anchored")
+        expect(WindowGestureSupport.resizedFrame(from: gestureFrame,
+                                                 pointerStart: CGPoint(x: 690, y: 490),
+                                                 pointerNow: CGPoint(x: 760, y: 540),
+                                                 edges: [.right, .bottom])
+               == CGRect(x: 100, y: 80, width: 670, height: 470),
+               "bottom-right resizing grows in both axes")
+        expect(WindowGestureSupport.resizedFrame(from: gestureFrame,
+                                                 pointerStart: CGPoint(x: 100, y: 80),
+                                                 pointerNow: CGPoint(x: 900, y: 700),
+                                                 edges: [.left, .top])
+               == CGRect(x: 580, y: 420, width: 120, height: 80),
+               "gesture minimum size keeps the far corner fixed")
+        expect(WindowGestureSupport.anchoredOrigin(original: gestureFrame,
+                                                   requestedOrigin: CGPoint(x: 580, y: 420),
+                                                   acceptedSize: CGSize(width: 260, height: 180),
+                                                   edges: [.left, .top])
+               == CGPoint(x: 440, y: 320),
+               "an app-specific minimum size keeps the opposite corner anchored")
+        expect(WindowGestureSupport.anchoredOrigin(original: gestureFrame,
+                                                   requestedOrigin: gestureFrame.origin,
+                                                   acceptedSize: CGSize(width: 760, height: 540),
+                                                   edges: [.right, .bottom])
+               == gestureFrame.origin,
+               "right and bottom resizing keep the original window origin")
+        expect(WindowGestureSupport.anchoredOriginIfNeeded(original: gestureFrame,
+                                                           requestedOrigin: gestureFrame.origin,
+                                                           acceptedSize: CGSize(width: 760, height: 540),
+                                                           edges: [.right, .bottom]) == nil,
+               "right and bottom resizing never adds a redundant position mutation")
+        expect(WindowGestureSupport.anchoredOriginIfNeeded(original: gestureFrame,
+                                                           requestedOrigin: CGPoint(x: 580, y: 420),
+                                                           acceptedSize: CGSize(width: 260, height: 180),
+                                                           edges: [.left, .top])
+               == CGPoint(x: 440, y: 320),
+               "left and top resizing reanchors only after the accepted size is known")
+
         expect(MediaImageFormat.sanitized("pdf") == .pdf,
                "Image converter accepts the PDF format")
         expect(MediaImageFormat.pdf.fileExtension == "pdf",
@@ -1478,6 +2303,8 @@ struct MetricsTests {
                "Media OCR language defaults include the app language and English")
         expect(MediaSupport.recognitionLanguages(for: "tr") == ["tr-TR", "en-US"],
                "Media OCR language defaults include Turkish and English")
+        expect(MediaSupport.recognitionLanguages(for: "ko") == ["ko-KR", "en-US"],
+               "Media OCR language defaults include Korean and English")
         expectClose(Defaults.sanitizedAppVolume(1.5), 1.5, "valid app volume is preserved")
         expectClose(Defaults.sanitizedAppVolume(3), 2, "high app volume clamps to boost maximum")
         expectClose(Defaults.sanitizedAppVolume(-1), 0, "negative app volume clamps to mute")
@@ -1603,6 +2430,31 @@ struct MetricsTests {
                                                   targetOutputDeviceUID: "ExternalDisplay",
                                                   defaultOutputDeviceUID: "BuiltInSpeakerDevice"),
                "specific non-default output at 100 percent uses an engine")
+        expect(!MixerRoutingSupport.requiresEngine(hasAudioObjects: false,
+                                                   volume: 0.5,
+                                                   selectedOutputDeviceUID: nil,
+                                                   targetOutputDeviceUID: "BuiltInSpeakerDevice",
+                                                   defaultOutputDeviceUID: "BuiltInSpeakerDevice"),
+               "a persistent mixer row waits for an audio connection before building a tap")
+        expect(!MixerRoutingSupport.isHiddenFromMixer(bundleIdentifier: "com.apple.finder",
+                                                      showFinder: true),
+               "Finder shows in the mixer when enabled")
+        expect(MixerRoutingSupport.isHiddenFromMixer(bundleIdentifier: "com.apple.finder",
+                                                     showFinder: false),
+               "Finder can be hidden from the mixer")
+        expect(!MixerRoutingSupport.isHiddenFromMixer(bundleIdentifier: "com.example.Player",
+                                                      showFinder: false),
+               "hiding Finder leaves every other app visible")
+        expect(!MixerRoutingSupport.isHiddenFromMixer(bundleIdentifier: nil, showFinder: false),
+               "apps without a bundle id still show in the mixer")
+        expect(MixerRoutingSupport.needsPersistentFinderRow(showFinder: true,
+                                                            hasFinderRow: false),
+               "Finder gets a persistent row before Quick Look opens")
+        expect(!MixerRoutingSupport.needsPersistentFinderRow(showFinder: true,
+                                                             hasFinderRow: true)
+                && !MixerRoutingSupport.needsPersistentFinderRow(showFinder: false,
+                                                                 hasFinderRow: false),
+               "Finder is never duplicated and stays absent when hidden")
         expect(MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "us.zoom.xos", name: "zoom.us"),
                "Zoom is kept out of process-tap audio routing")
         expect(MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "us.zoom.ZoomAutoUpdater", name: "Zoom"),
@@ -1681,6 +2533,37 @@ struct MetricsTests {
                "identically named devices order deterministically by uid")
 
         // MARK: Shelf persistence
+
+        expect(ShelfInteractionSupport.allowsAutomaticOpen(
+            sourceBundleIdentifier: "com.example.Editor",
+            excludedBundleIdentifiers: ["com.example.Browser"]),
+               "shelf automatic opening allows apps outside the exclusion list")
+        expect(!ShelfInteractionSupport.allowsAutomaticOpen(
+            sourceBundleIdentifier: "com.example.Browser",
+            excludedBundleIdentifiers: ["com.example.Browser"]),
+               "shelf automatic opening stays off for an excluded source app")
+        expect(ShelfInteractionSupport.allowsAutomaticOpen(
+            sourceBundleIdentifier: nil,
+            excludedBundleIdentifiers: ["com.example.Browser"]),
+               "shelf automatic opening does not false-block an unknown drag source")
+        expect(ShelfInteractionSupport.shouldCloseAfterDrag(
+            dropAccepted: true, draggedItemCount: 2, closeAfterDrop: true, pinned: false),
+               "shelf closes after a real accepted external drag")
+        expect(!ShelfInteractionSupport.shouldCloseAfterDrag(
+            dropAccepted: false, draggedItemCount: 2, closeAfterDrop: true, pinned: false),
+               "shelf stays open after a cancelled drag")
+        expect(!ShelfInteractionSupport.shouldCloseAfterDrag(
+            dropAccepted: true, draggedItemCount: 0, closeAfterDrop: true, pinned: false),
+               "shelf internal merges do not dismiss the panel")
+        expect(!ShelfInteractionSupport.shouldCloseAfterDrag(
+            dropAccepted: true, draggedItemCount: 2, closeAfterDrop: true, pinned: true),
+               "shelf pin overrides close after drop")
+        expect(ShelfInteractionSupport.shouldRemoveAfterDrag(
+            dropAccepted: true, draggedItemCount: 1, removeAfterDrop: true),
+               "shelf removes an accepted item when automatic removal is on")
+        expect(!ShelfInteractionSupport.shouldRemoveAfterDrag(
+            dropAccepted: true, draggedItemCount: 1, removeAfterDrop: false),
+               "shelf retains an accepted item when automatic removal is off")
 
         let shelfFile = ShelfPersistedItem(id: UUID(), kind: .file, title: "notes.pdf",
                                            path: "/tmp/notes.pdf")
@@ -1863,6 +2746,27 @@ struct MetricsTests {
                "settings search finds a page by an option living inside it")
         expect(!SettingsSearchSupport.matches(query: "lid", title: "Energy", keywords: []),
                "without keywords the same query stays a miss")
+
+        let freshSize = SettingsWindowSupport.initialContentSize(savedWidth: 0, savedHeight: 0,
+                                                                 availableHeight: 1200)
+        expect(freshSize.width == 772 && freshSize.height == 838,
+               "settings window opens at the tall default when nothing is saved")
+        let clampedSize = SettingsWindowSupport.initialContentSize(savedWidth: 0, savedHeight: 0,
+                                                                   availableHeight: 700)
+        expect(clampedSize.height == 700,
+               "the tall default shrinks to what the screen fits")
+        let tinyScreen = SettingsWindowSupport.initialContentSize(savedWidth: 0, savedHeight: 0,
+                                                                  availableHeight: 400)
+        expect(tinyScreen.height == 528,
+               "the default never goes below the design height")
+        let savedSize = SettingsWindowSupport.initialContentSize(savedWidth: 900, savedHeight: 950,
+                                                                 availableHeight: 700)
+        expect(savedSize.width == 900 && savedSize.height == 950,
+               "a user-chosen size is restored as is")
+        let bogusSaved = SettingsWindowSupport.initialContentSize(savedWidth: 300, savedHeight: 200,
+                                                                  availableHeight: 1200)
+        expect(bogusSaved.width == 772 && bogusSaved.height == 838,
+               "a saved size below the minimum falls back to the default")
 
         expect(UpdateInstallerSupport.shouldForceAdminInstall(afterFailureCode: "fail-copy"),
                "a copy failure retries through the admin prompt")
@@ -2067,6 +2971,18 @@ struct MetricsTests {
                + SwitcherIconRowLayout.hintHeight
                + SwitcherIconRowLayout.padding * 2,
                "App Switcher icon-row mode reserves preview, icon row and shortcut hint height")
+        expect(iconRowLayout.simplePanelSize.height
+               == SwitcherIconRowLayout.simpleTitleHeight
+               + SwitcherIconRowLayout.simpleTitleGap
+               + SwitcherIconRowLayout.rowHeight
+               + SwitcherIconRowLayout.hintGap
+               + SwitcherIconRowLayout.hintHeight
+               + SwitcherIconRowLayout.padding * 2,
+               "App Switcher simple mode replaces previews with a compact title rail")
+        expect(iconRowLayout.simplePanelSize.width
+               == max(iconRowLayout.appRowSurfaceWidth, SwitcherIconRowLayout.hintBarWidth)
+               + SwitcherIconRowLayout.padding * 2,
+               "App Switcher simple mode fits the app row and shortcut hints")
         let previousPreviewSize = UserDefaults.standard.object(forKey: DefaultsKey.previewSize)
         UserDefaults.standard.set("xlarge", forKey: DefaultsKey.previewSize)
         let xlargeIconRowLayout = SwitcherIconRowLayout.compute(appCount: 6,
@@ -2344,6 +3260,19 @@ struct MetricsTests {
         expect(DockClickSupport.repeatDecision(lastAction: .minimize, elapsed: 2.0) == .deriveFromState,
                "dock click trusts settled window state once the intent window passes")
 
+        expect(DockClickSupport.isVerifiedMinimizeAll(commandCharacter: "M",
+                                                       modifiers: 2,
+                                                       identifier: "miniaturizeAll:"),
+               "dock click recognizes the standard Minimize All menu action")
+        expect(!DockClickSupport.isVerifiedMinimizeAll(commandCharacter: "M",
+                                                        modifiers: 2,
+                                                        identifier: "toggleCompactWindow:"),
+               "dock click rejects an unrelated action that shares the Minimize All shortcut")
+        expect(!DockClickSupport.isVerifiedMinimizeAll(commandCharacter: "M",
+                                                        modifiers: 2,
+                                                        identifier: nil),
+               "dock click never guesses when an Option-Command-M action has no identifier")
+
         // Bottom Dock reserving ~70 pt: only the reserved strip counts, so a
         // click on a preview panel floating just above the Dock passes through.
         let dockScreen = CGRect(x: 0, y: 0, width: 1512, height: 982)
@@ -2496,6 +3425,21 @@ struct MetricsTests {
                                                      selectedIndex: 2,
                                                      delta: -1) == 0,
                "App Switcher icon-row app navigation wraps backward by app")
+        expect(SwitcherSupport.nextAppSelectionIndex(items: groupedSwitcherItems,
+                                                     selectedIndex: 2,
+                                                     delta: 1,
+                                                     wrapping: false) == 2,
+               "held key stops at the last app instead of wrapping, like the system switcher")
+        expect(SwitcherSupport.nextAppSelectionIndex(items: groupedSwitcherItems,
+                                                     selectedIndex: 0,
+                                                     delta: -1,
+                                                     wrapping: false) == 0,
+               "held key stops at the first app when navigating backward")
+        expect(SwitcherSupport.nextAppSelectionIndex(items: groupedSwitcherItems,
+                                                     selectedIndex: 0,
+                                                     delta: 1,
+                                                     wrapping: false) == 2,
+               "non-wrapping navigation still advances while not at the edge")
         expect(SwitcherSupport.nextWindowSelectionIndexWithinApp(items: groupedSwitcherItems,
                                                                  selectedIndex: 0,
                                                                  delta: 1) == 1,
@@ -3058,6 +4002,18 @@ struct MetricsTests {
         expect(HomebrewCommandBuilder.isValidToken("visual-studio-code"), "cask token is valid")
         expect(HomebrewCommandBuilder.isValidToken("homebrew/cask-fonts/font-iosevka"), "tapped token is valid")
         expect(!HomebrewCommandBuilder.isValidToken(""), "empty Homebrew token is invalid")
+        expect(HomebrewCommandBuilder.untrustedTapName(fromOutput:
+            "Error: Refusing to load formula foo from untrusted tap someone/sometap.\nRun `brew trust someone/sometap` to trust it.")
+            == "someone/sometap",
+               "untrusted tap name is extracted from Homebrew's refusal")
+        expect(HomebrewCommandBuilder.untrustedTapName(fromOutput: "Error: no such formula") == nil,
+               "other Homebrew errors extract no tap")
+        expect(HomebrewCommandBuilder.untrustedTapName(fromOutput:
+            "from untrusted tap ../evil") == nil,
+               "a tap name that fails token validation is rejected")
+        let trustCommand = HomebrewCommandBuilder.trustTap(brewPath: "/opt/homebrew/bin/brew", tap: "someone/sometap")
+        expect(trustCommand.arguments == ["trust", "--tap", "someone/sometap"],
+               "trust command targets the tap explicitly")
         expect(!HomebrewCommandBuilder.isValidToken("-bad"), "leading dash Homebrew token is invalid")
         expect(!HomebrewCommandBuilder.isValidToken("../bad"), "path traversal Homebrew token is invalid")
         expect(!HomebrewCommandBuilder.isValidToken("bad token"), "spaced Homebrew token is invalid")
@@ -3238,6 +4194,25 @@ struct MetricsTests {
         let noisyOutdatedPackages = (try? HomebrewParser.parseOutdatedCommandOutput(noisyOutdatedOutput)) ?? [:]
         expect(noisyOutdatedPackages["formula:fmt"]?.currentVersion == "12.2.0",
                "Homebrew outdated command output parser accepts warnings around JSON")
+        let orderingPackages = [
+            HomebrewPackage(kind: .cask, name: "alpha-tool", displayName: "Alpha Tool",
+                            desc: nil, installedVersion: "1.0", stableVersion: nil, homepage: nil),
+            HomebrewPackage(kind: .cask, name: "beta-tool", displayName: "Beta Tool",
+                            desc: nil, installedVersion: "1.0", stableVersion: nil, homepage: nil,
+                            update: HomebrewPackageUpdate(kind: .cask, name: "beta-tool",
+                                                          installedVersions: ["1.0"],
+                                                          currentVersion: "2.0", isPinned: false)),
+            HomebrewPackage(kind: .formula, name: "gamma-tool", displayName: "Gamma Tool",
+                            desc: nil, installedVersion: "1.0", stableVersion: nil, homepage: nil,
+                            update: HomebrewPackageUpdate(kind: .formula, name: "gamma-tool",
+                                                          installedVersions: ["1.0"],
+                                                          currentVersion: "2.0", isPinned: false)),
+            HomebrewPackage(kind: .formula, name: "delta-tool", displayName: "Delta Tool",
+                            desc: nil, installedVersion: "1.0", stableVersion: nil, homepage: nil)
+        ]
+        expect(HomebrewPackageOrdering.updatesFirst(orderingPackages).map(\.name)
+               == ["beta-tool", "gamma-tool", "alpha-tool", "delta-tool"],
+               "Homebrew installed packages keep all pending updates first without reordering either group")
         let searchPackages = HomebrewParser.parseSearchOutput("sample-formula\nbad token\nsample-filter\nsample-tool\n",
                                                               kind: .formula,
                                                               installed: homebrewPackages)
@@ -3280,6 +4255,7 @@ struct MetricsTests {
             (.fr, .fr),
             (.it, .it),
             (.ja, .ja),
+            (.ko, .ko),
             (.zhHans, .zhHans),
             (.zhTW, .zhTW),
             (.zhHK, .zhHK)
@@ -3300,6 +4276,8 @@ struct MetricsTests {
             expect(!strings.homebrewUpdateHomebrew.isEmpty, "\(prefix) Homebrew update Homebrew title is present")
             expect(!strings.switcherIconRowMode.isEmpty, "\(prefix) App Switcher icon-row title is present")
             expect(!strings.switcherIconRowModeCaption.isEmpty, "\(prefix) App Switcher icon-row caption is present")
+            expect(!strings.switcherSimpleMode.isEmpty, "\(prefix) App Switcher simple-mode title is present")
+            expect(!strings.switcherSimpleModeCaption.isEmpty, "\(prefix) App Switcher simple-mode caption is present")
             expect(!strings.switcherShortcutHintApps.isEmpty, "\(prefix) App Switcher app shortcut hint is present")
             expect(!strings.switcherShortcutHintWindows.isEmpty, "\(prefix) App Switcher window shortcut hint is present")
             expect(!strings.networkApps.isEmpty, "\(prefix) network app usage title is present")
@@ -3350,6 +4328,7 @@ struct MetricsTests {
         let infoPlist = NSDictionary(contentsOfFile: "Resources/Info.plist") as? [String: Any]
         let bundleLocalizations = infoPlist?["CFBundleLocalizations"] as? [String] ?? []
         expect(bundleLocalizations.contains("tr"), "Info.plist declares Turkish as a bundle localization")
+        expect(bundleLocalizations.contains("ko"), "Info.plist declares Korean as a bundle localization")
         let baseAudioPrompt = infoPlist?["NSAudioCaptureUsageDescription"] as? String ?? ""
         expect(baseAudioPrompt.contains("Vorssaint taps individual app audio"),
                "base audio permission prompt is an English fallback")
@@ -3358,6 +4337,11 @@ struct MetricsTests {
         expect(turkishInfoPlistStrings.contains("NSAudioCaptureUsageDescription")
                && turkishInfoPlistStrings.contains("Hiçbir şey kaydedilmez"),
                "Turkish InfoPlist.strings localizes the audio permission prompt")
+        let koreanInfoPlistStrings = (try? String(contentsOfFile: "Resources/ko.lproj/InfoPlist.strings",
+                                                  encoding: .utf8)) ?? ""
+        expect(koreanInfoPlistStrings.contains("NSAudioCaptureUsageDescription")
+               && koreanInfoPlistStrings.contains("어떤 오디오도 녹음되거나"),
+               "Korean InfoPlist.strings localizes the audio permission prompt")
 
         // MARK: Network speed math
 
@@ -3602,6 +4586,599 @@ struct MetricsTests {
 
         let unrelatedSystemEvent = CleaningSystemKeyEvent.decode(subtype: 99, data1: 0)
         expect(unrelatedSystemEvent == nil, "unrelated system-defined events do not count as unlock keys")
+
+        // MARK: Features hub catalog
+
+        expect(AppFeature.allCases.count == 39, "feature catalog has 39 features")
+        expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
+               "feature ids are unique")
+        expect(AppFeature.allCases.map(\.rawValue) == [
+            "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit",
+            "scrollInverter", "smoothScroll", "mouseNavigation", "middleClick", "keyboardDebounce",
+            "textSnippets",
+            "clipboardHistory", "pastePlain", "finderCutPaste", "shelf", "urlCleaner",
+            "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
+            "keepAwake", "brightness", "extraBrightness",
+            "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
+            "cleaner", "uninstaller", "homebrew",
+            "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
+        ], "feature ids are stable (they persist inside availability keys)")
+        expect(AppFeature.switcher.availabilityKey == "featureAvailable.switcher",
+               "availability key derives from the raw value")
+        expect(AppFeature.availabilityDefaults.count == AppFeature.allCases.count
+                && AppFeature.availabilityDefaults.values.allSatisfy { ($0 as? Bool) == true },
+               "every feature registers as available by default")
+        expect(FeatureGroup.allCases.map { AppFeature.features(in: $0).count }.reduce(0, +)
+                == AppFeature.allCases.count,
+               "every feature belongs to exactly one group")
+        expect(!FeatureGroup.allCases.contains { AppFeature.features(in: $0).isEmpty },
+               "no hub group is empty")
+
+        func activeSet(_ permission: AppPermission,
+                       available: Set<AppFeature> = Set(AppFeature.allCases),
+                       on: Set<String> = [],
+                       strings: [String: String] = [:]) -> Set<AppFeature> {
+            Set(AppFeature.activeFeatures(using: permission,
+                                          isAvailable: { available.contains($0) },
+                                          boolFor: { on.contains($0) },
+                                          stringFor: { strings[$0] }))
+        }
+
+        expect(activeSet(.accessibility) == [.windowLayout, .cleaningMode],
+               "with nothing enabled only on-demand features use accessibility")
+        expect(activeSet(.accessibility, on: [DefaultsKey.scrollInverterEnabled]).contains(.scrollInverter),
+               "an enabled feature counts as using its permission")
+        expect(!activeSet(.accessibility, available: [], on: [DefaultsKey.scrollInverterEnabled])
+                .contains(.scrollInverter),
+               "an unavailable feature never uses a permission")
+        expect(activeSet(.accessibility, on: [DefaultsKey.keepAwakeMouseJiggleEnabled]).contains(.keepAwake),
+               "keep awake uses accessibility only with the mouse jiggle on")
+        expect(!activeSet(.accessibility).contains(.keepAwake),
+               "keep awake without jiggle does not use accessibility")
+        expect(activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled,
+                                              DefaultsKey.brightnessKeysEnabled]).contains(.brightness),
+               "brightness uses accessibility only for the key option")
+        expect(!activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled])
+                .contains(.brightness),
+               "brightness sliders alone never use accessibility")
+
+        expect(activeSet(.screenRecording, on: [DefaultsKey.switcherEnabled]) == [.switcher, .screenOCR],
+               "switcher with previews uses screen recording; OCR is on demand")
+        expect(activeSet(.screenRecording,
+                         on: [DefaultsKey.switcherEnabled, DefaultsKey.switcherSimpleMode]) == [.screenOCR],
+               "simple-mode switcher stops using screen recording")
+        expect(activeSet(.screenRecording,
+                         on: [DefaultsKey.switcherSimpleMode, DefaultsKey.dockPreviewEnabled])
+                .contains(.dockPreview),
+               "dock preview keeps screen recording in use regardless of switcher mode")
+
+        expect(activeSet(.notifications) == [],
+               "no alerts and no schedule means notifications are unused")
+        expect(activeSet(.notifications, on: [DefaultsKey.monitorAlertCPUTemperature]) == [.monitorCPU],
+               "a CPU temperature alert marks the CPU monitor as notifying")
+        expect(activeSet(.notifications,
+                         available: Set(AppFeature.allCases).subtracting([.monitorCPU]),
+                         on: [DefaultsKey.monitorAlertCPU]) == [],
+               "an alert whose metric is unavailable does not notify")
+        expect(activeSet(.notifications, on: [DefaultsKey.cleanerScheduleNotify],
+                         strings: [DefaultsKey.cleanerScheduleFrequency: "weekly"]) == [.cleaner],
+               "a scheduled cleaner with notice enabled uses notifications")
+        expect(activeSet(.notifications, on: [DefaultsKey.cleanerScheduleNotify],
+                         strings: [DefaultsKey.cleanerScheduleFrequency: "off"]) == [],
+               "an unscheduled cleaner does not use notifications")
+
+        expect(activeSet(.fullDiskAccess) == [.cleaner, .uninstaller],
+               "cleaner and uninstaller are on-demand full disk users")
+        expect(activeSet(.automationFinder, on: [DefaultsKey.finderCutPasteEnabled])
+                == [.finderCutPaste, .uninstaller, .quickToggles],
+               "finder automation is used by cut and paste, the uninstaller and the quick toggles")
+        expect(AppFeature.quickToggles.permissions == [.automationFinder],
+               "the quick toggles need no permission beyond the Trash's Finder ask")
+        expect(activeSet(.automationTerminal) == [.homebrew], "homebrew drives the Terminal")
+        expect(activeSet(.audioCapture) == [.mixer], "the mixer is the only audio capture user")
+        expect(activeSet(.audioCapture, available: Set(AppFeature.allCases).subtracting([.mixer])) == [],
+               "audio capture reads as unused once the mixer is off in the hub")
+
+        expect(!AppFeature.anyMonitorAlertEnabled(isAvailable: { _ in true }, boolFor: { _ in false }),
+               "no alert keys means no monitor alerts")
+        expect(AppFeature.anyMonitorAlertEnabled(isAvailable: { _ in true },
+                                                 boolFor: { $0 == DefaultsKey.monitorAlertDisk }),
+               "one alert on an available metric arms the alert service")
+        expect(!AppFeature.anyMonitorAlertEnabled(isAvailable: { $0 != .monitorDisk },
+                                                  boolFor: { $0 == DefaultsKey.monitorAlertDisk }),
+               "an alert with its metric off in the hub stays disarmed")
+
+        expect(GlobalShortcutRole.activeRoles(isOn: { _ in true }).count == GlobalShortcutRole.allCases.count,
+               "the availability-free overload keeps every enabled role")
+        expect(!GlobalShortcutRole.activeRoles(isOn: { _ in true },
+                                               isAvailable: { $0 != .shelf }).contains(.shelf),
+               "a role leaves the shortcuts page when its feature is off in the hub")
+        expect(GlobalShortcutRole.activeRoles(isOn: { _ in true },
+                                              isAvailable: { $0 != .switcher })
+                .allSatisfy { $0 != .switcher && $0 != .switcherWindow },
+               "both switcher roles follow the switcher feature")
+
+        // MARK: Features hub strings
+
+        for language in AppLanguage.allCases {
+            let hub = FeatureStrings.hub(language)
+            let values = Mirror(reflecting: hub).children.compactMap { $0.value as? String }
+            expect(!values.isEmpty && values.allSatisfy { !$0.isEmpty },
+                   "every hub string is set for \(language.rawValue)")
+            expect(values.allSatisfy { !$0.contains("—") },
+                   "no em-dash in visible hub strings (\(language.rawValue))")
+            expect(hub.activeCountFormat.contains("%1$d") && hub.activeCountFormat.contains("%2$d"),
+                   "count format keeps positional specifiers (\(language.rawValue))")
+        }
+        expect(FeatureStrings.hub(.ptBR).pageTitle == "Recursos"
+                && FeatureStrings.hub(.enUS).pageTitle == "Features",
+               "hub page title reads naturally in the owner languages")
+        for language in AppLanguage.allCases {
+            let snippetValues = Mirror(reflecting: FeatureStrings.snippets(language)).children
+                .compactMap { $0.value as? String }
+            expect(!snippetValues.isEmpty && snippetValues.allSatisfy { !$0.isEmpty },
+                   "every snippet string is set for \(language.rawValue)")
+            expect(snippetValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in visible snippet strings (\(language.rawValue))")
+            let backupValues = Mirror(reflecting: FeatureStrings.backup(language)).children
+                .compactMap { $0.value as? String }
+            expect(!backupValues.isEmpty && backupValues.allSatisfy { !$0.isEmpty },
+                   "every backup string is set for \(language.rawValue)")
+            expect(backupValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in visible backup strings (\(language.rawValue))")
+            let guideValues = Mirror(reflecting: FeatureStrings.permissionGuide(language)).children
+                .compactMap { $0.value as? String }
+            expect(!guideValues.isEmpty && guideValues.allSatisfy { !$0.isEmpty },
+                   "every permission guide string is set for \(language.rawValue)")
+            expect(guideValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in permission guide strings (\(language.rawValue))")
+            let brightnessValues = Mirror(reflecting: FeatureStrings.brightness(language)).children
+                .compactMap { $0.value as? String }
+            expect(!brightnessValues.isEmpty && brightnessValues.allSatisfy { !$0.isEmpty },
+                   "every brightness string is set for \(language.rawValue)")
+            expect(brightnessValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in visible brightness strings (\(language.rawValue))")
+            let quickToggleValues = Mirror(reflecting: FeatureStrings.quickToggles(language)).children
+                .compactMap { $0.value as? String }
+            expect(!quickToggleValues.isEmpty && quickToggleValues.allSatisfy { !$0.isEmpty },
+                   "every quick toggle string is set for \(language.rawValue)")
+            expect(quickToggleValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in visible quick toggle strings (\(language.rawValue))")
+            let keepAwakeAutomationValues = Mirror(
+                reflecting: FeatureStrings.keepAwakeAutomation(language)
+            ).children.compactMap { $0.value as? String }
+            expect(!keepAwakeAutomationValues.isEmpty
+                    && keepAwakeAutomationValues.allSatisfy { !$0.isEmpty },
+                   "every Keep Awake automation string is set for \(language.rawValue)")
+            expect(keepAwakeAutomationValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in Keep Awake automation strings (\(language.rawValue))")
+            let batteryTimeValues = Mirror(reflecting: FeatureStrings.batteryTime(language)).children
+                .compactMap { $0.value as? String }
+            expect(!batteryTimeValues.isEmpty && batteryTimeValues.allSatisfy { !$0.isEmpty },
+                   "every battery time string is set for \(language.rawValue)")
+            expect(batteryTimeValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in visible battery time strings (\(language.rawValue))")
+            let menuBarAppearanceValues = Mirror(reflecting: FeatureStrings.menuBarAppearance(language)).children
+                .compactMap { $0.value as? String }
+            expect(!menuBarAppearanceValues.isEmpty && menuBarAppearanceValues.allSatisfy { !$0.isEmpty },
+                   "every menu bar appearance string is set for \(language.rawValue)")
+            expect(menuBarAppearanceValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in visible menu bar appearance strings (\(language.rawValue))")
+            let strings: Strings = {
+                switch language {
+                case .enUS: return .enUS
+                case .ptBR: return .ptBR
+                case .tr: return .tr
+                case .ru: return .ru
+                case .es: return .es
+                case .de: return .de
+                case .fr: return .fr
+                case .it: return .it
+                case .ja: return .ja
+                case .ko: return .ko
+                case .zhHans: return .zhHans
+                case .zhTW: return .zhTW
+                case .zhHK: return .zhHK
+                }
+            }()
+            expect(!strings.obPurposeTitle.isEmpty && !strings.obPurposeBody.isEmpty
+                    && !strings.obPurposeSkip.isEmpty,
+                   "the purpose step speaks \(language.rawValue)")
+        }
+
+        // MARK: Hub presets and energy badges
+
+        expect(FeaturePreset.allCases.count == 3,
+               "three starting points, not another wall of decisions")
+        expect(FeaturePreset.allCases.allSatisfy { !$0.features.isEmpty },
+               "every preset installs something")
+        expect(FeaturePreset.essential.features.contains(.mixer)
+                && FeaturePreset.essential.features.contains(.keepAwake)
+                && FeaturePreset.essential.features.contains(.monitorPower),
+               "the essential preset covers mixer, monitor and keep awake")
+        expect(FeaturePreset.windows.features.allSatisfy { $0.group == .windowsDock },
+               "the windows preset stays inside the windows and Dock group")
+        expect(FeaturePreset.battery.features.allSatisfy {
+                   $0.energyProfile != .mouse && $0.energyProfile != .pointer
+                       && $0.energyProfile != .keyboard
+                       && $0.energyProfile != .inputs
+               },
+               "battery and quiet installs nothing that listens to input")
+        expect(FeaturePreset.battery.features.allSatisfy {
+                   !$0.permissions.contains(.accessibility)
+               },
+               "battery and quiet needs no accessibility permission at all")
+        for preset in FeaturePreset.allCases {
+            expect(preset.enableKeys.allSatisfy { key in
+                       preset.features.contains { $0.enabledKeys.contains(key) }
+                   },
+                   "preset enable keys belong to its own features (\(preset.rawValue))")
+        }
+        expect(AppFeature.monitorCPU.energyProfile == .periodic
+                && AppFeature.clipboardHistory.energyProfile == .periodic
+                && AppFeature.textSnippets.energyProfile == .inputs
+                && AppFeature.dockPreview.energyProfile == .mouse
+                && AppFeature.switcher.energyProfile == .keyboard
+                && AppFeature.colorPicker.energyProfile == .idle
+                && AppFeature.keepAwake.energyProfile == .idle
+                && AppFeature.brightness.energyProfile == .idle,
+               "energy badges tell the honest mechanism per feature")
+        let previousWindowGestureEnergy = UserDefaults.standard.object(
+            forKey: DefaultsKey.windowGestureEnabled
+        )
+        UserDefaults.standard.set(true, forKey: DefaultsKey.windowGestureEnabled)
+        expect(AppFeature.windowLayout.energyProfile == .pointer,
+               "window dragging reports trackpad and mouse pointer input")
+        if let previousWindowGestureEnergy {
+            UserDefaults.standard.set(previousWindowGestureEnergy,
+                                      forKey: DefaultsKey.windowGestureEnabled)
+        } else {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.windowGestureEnabled)
+        }
+
+        // MARK: Settings page visibility
+
+        func pageVisible(_ page: SettingsPage, available: Set<AppFeature>) -> Bool {
+            FeatureVisibilitySupport.isPageVisible(page) { available.contains($0) }
+        }
+        let allFeatures = Set(AppFeature.allCases)
+        expect(pageVisible(.mouse, available: allFeatures), "mouse page shows with everything available")
+        expect(pageVisible(.mouse, available: [.middleClick]),
+               "one remaining mouse feature keeps the mouse page")
+        expect(!pageVisible(.mouse, available: []),
+               "the mouse page hides only with all four mouse features off")
+        expect(!pageVisible(.energy, available: allFeatures.subtracting([.keepAwake, .brightness,
+                                                                         .extraBrightness])),
+               "energy hides when all three display features are off")
+        expect(pageVisible(.energy, available: [.extraBrightness]), "XDR alone keeps the energy page")
+        expect(pageVisible(.energy, available: [.brightness]),
+               "brightness control alone keeps the energy page")
+        expect(!pageVisible(.monitor, available: allFeatures.subtracting(Set(FeatureVisibilitySupport.monitorFeatures))),
+               "monitor page hides with every metric off")
+        expect(pageVisible(.monitor, available: [.monitorNetwork]), "one metric keeps the monitor page")
+        expect(pageVisible(.general, available: []) && pageVisible(.about, available: [])
+                && pageVisible(.shortcuts, available: []),
+               "app pages never hide")
+        expect(!pageVisible(.shelf, available: allFeatures.subtracting([.shelf])),
+               "single-feature pages follow their feature")
+        expect(pageVisible(.quickTools, available: [.quickToggles]),
+               "the quick toggles alone keep the quick tools page")
+
+        // MARK: Display brightness (DDC/CI helpers)
+
+        let ddcWrite = BrightnessSupport.writePacket(code: 0x10, value: 0x1234)
+        expect(ddcWrite == [0x84, 0x03, 0x10, 0x12, 0x34,
+                            0x6E ^ 0x51 ^ 0x84 ^ 0x03 ^ 0x10 ^ 0x12 ^ 0x34],
+               "DDC write packet carries the set opcode, big-endian value and checksum")
+        let ddcRead = BrightnessSupport.readRequestPacket(code: 0x10)
+        expect(ddcRead == [0x82, 0x01, 0x10, 0x6E ^ 0x82 ^ 0x01 ^ 0x10],
+               "DDC read request omits the sub-address from its checksum seed")
+        expect(Array(BrightnessSupport.writePacket(code: 0x10, value: 100)[3...4]) == [0x00, 0x64],
+               "DDC values split into high and low bytes")
+
+        var ddcReply: [UInt8] = [0x6E, 0x88, 0x02, 0x00, 0x10, 0x00, 0x00, 0x64, 0x00, 0x32]
+        ddcReply.append(ddcReply.reduce(UInt8(0x50)) { $0 ^ $1 })
+        expect(BrightnessSupport.parseReply(ddcReply)?.current == 0x32
+                && BrightnessSupport.parseReply(ddcReply)?.maximum == 0x64,
+               "a valid DDC reply yields the current and maximum values")
+        var corrupted = ddcReply
+        corrupted[7] ^= 0xFF
+        expect(BrightnessSupport.parseReply(corrupted) == nil,
+               "a corrupted DDC reply fails its checksum and reads as no reply")
+        expect(BrightnessSupport.parseReply([0x6E, 0x88]) == nil,
+               "a short DDC reply reads as no reply")
+
+        expect(BrightnessSupport.sanitizedMaximum(0) == 100 && BrightnessSupport.sanitizedMaximum(255) == 255,
+               "a display reporting no range falls back to the conventional scale")
+        expect(BrightnessSupport.normalized(current: 50, maximum: 100) == 0.5,
+               "DDC values normalize to the slider scale")
+        expect(BrightnessSupport.normalized(current: 120, maximum: 0) == 1.0,
+               "normalization clamps against the fallback range")
+        expect(BrightnessSupport.deviceValue(for: 0.5, maximum: 100) == 50
+                && BrightnessSupport.deviceValue(for: 1.0, maximum: 255) == 255
+                && BrightnessSupport.deviceValue(for: -0.2, maximum: 100) == 0
+                && BrightnessSupport.deviceValue(for: 1.7, maximum: 100) == 100,
+               "slider values map onto the display's own scale with clamping")
+
+        // EDID UUID chunks at fixed positions: vendor, product (little endian),
+        // manufacture date, image size.
+        var serviceIdentity = BrightnessSupport.ServiceIdentity()
+        serviceIdentity.edidUUID = "10AC5FA0-0000-0000-1E19-0000003C2200"
+        serviceIdentity.ordinal = 1
+        var displayIdentity = BrightnessSupport.DisplayIdentity()
+        displayIdentity.vendorID = 0x10AC
+        displayIdentity.productID = 0xA05F
+        displayIdentity.weekOfManufacture = 30
+        displayIdentity.yearOfManufacture = 2015
+        displayIdentity.horizontalImageSize = 600
+        displayIdentity.verticalImageSize = 340
+        expect(BrightnessSupport.matchScore(service: serviceIdentity, display: displayIdentity) == 4,
+               "every EDID identity chunk scores one point")
+        serviceIdentity.ioDisplayLocation = "IOService:/some/path"
+        displayIdentity.ioDisplayLocation = "IOService:/some/path"
+        expect(BrightnessSupport.matchScore(service: serviceIdentity, display: displayIdentity) == 14,
+               "a registry path match is decisive on top of the EDID chunks")
+        expect(BrightnessSupport.matchScore(service: BrightnessSupport.ServiceIdentity(),
+                                            display: BrightnessSupport.DisplayIdentity()) == 0,
+               "empty identities never match")
+
+        let assignment = BrightnessSupport.assignServices(scores: [
+            (displayIndex: 0, serviceOrdinal: 1, score: 2),
+            (displayIndex: 0, serviceOrdinal: 2, score: 11),
+            (displayIndex: 1, serviceOrdinal: 1, score: 3),
+            (displayIndex: 1, serviceOrdinal: 2, score: 4),
+        ])
+        expect(assignment == [0: 2, 1: 1],
+               "greedy assignment gives each display its best free service")
+        expect(BrightnessSupport.assignServices(scores: [(displayIndex: 0, serviceOrdinal: 1, score: 0)])
+                .isEmpty,
+               "zero-score pairs never pair up")
+
+        expect(BrightnessSupport.channelOutcome(writeAccepted: true, replyParsed: true) == .live,
+               "a parsed reply means a live DDC channel")
+        expect(BrightnessSupport.channelOutcome(writeAccepted: true, replyParsed: false) == .writeOnly,
+               "accepted writes without replies keep a blind slider")
+        expect(BrightnessSupport.channelOutcome(writeAccepted: false, replyParsed: false) == .dead,
+               "rejected writes mean no DDC reaches the display (HDMI conversion)")
+        expect(BrightnessSupport.canDisableDisplay(activeDisplayIDs: [1, 3], target: 3),
+               "one display can be disabled while another remains active")
+        expect(!BrightnessSupport.canDisableDisplay(activeDisplayIDs: [1], target: 1),
+               "the final active display can never be disabled")
+        expect(!BrightnessSupport.canDisableDisplay(activeDisplayIDs: [1, 3], target: 8),
+               "an inactive display cannot enter the disable path")
+
+        expect(BrightnessSupport.softwareDimFactor(for: 1.0) == 1.0
+                && BrightnessSupport.softwareDimFactor(for: 0.0) == 0.0,
+               "software dimming spans the whole range and zero really is black")
+        expect(BrightnessSupport.softwareDimFactor(for: 0.5) == 0.5
+                && BrightnessSupport.softwareDimFactor(for: -0.3) == 0.0
+                && BrightnessSupport.softwareDimFactor(for: 1.4) == 1.0,
+               "software dimming is linear with clamping")
+        expect(BrightnessSupport.scaledGammaTable([0.0, 0.5, 1.0], factor: 0.5) == [0.0, 0.25, 0.5],
+               "gamma tables scale toward black by the dim factor")
+        let untouched: [Float] = [0.0, 0.3, 1.0]
+        expect(BrightnessSupport.scaledGammaTable(untouched, factor: 1.0) == untouched,
+               "factor one returns the exact original table for bit-exact restores")
+
+        // Brightness keys arrive as system-defined auxiliary control events;
+        // data1 packs key code, press state and the repeat bit.
+        func brightnessData1(keyCode: Int, state: Int, repeated: Bool = false) -> Int {
+            (keyCode << 16) | (state << 8) | (repeated ? 1 : 0)
+        }
+        expect(BrightnessSupport.brightnessKeyEvent(subtype: 8,
+                                                    data1: brightnessData1(keyCode: 2, state: 10))
+                == BrightnessSupport.BrightnessKeyEvent(delta: BrightnessSupport.brightnessKeyStep,
+                                                        isKeyDown: true, isRepeat: false),
+               "brightness up decodes with a positive step")
+        expect(BrightnessSupport.brightnessKeyEvent(subtype: 8,
+                                                    data1: brightnessData1(keyCode: 3, state: 10, repeated: true))
+                == BrightnessSupport.BrightnessKeyEvent(delta: -BrightnessSupport.brightnessKeyStep,
+                                                        isKeyDown: true, isRepeat: true),
+               "brightness down decodes with a negative step and the repeat bit")
+        expect(BrightnessSupport.brightnessKeyEvent(subtype: 8,
+                                                    data1: brightnessData1(keyCode: 3, state: 11))?
+                .isKeyDown == false,
+               "the key release decodes too, so a handled press swallows both halves")
+        expect(BrightnessSupport.brightnessKeyEvent(subtype: 8,
+                                                    data1: brightnessData1(keyCode: 16, state: 10)) == nil,
+               "other media keys never decode as brightness")
+        expect(BrightnessSupport.brightnessKeyEvent(subtype: 1, data1: 0) == nil,
+               "other system-defined subtypes never decode as brightness")
+        expect(BrightnessSupport.steppedBrightness(0.97, delta: BrightnessSupport.brightnessKeyStep) == 1.0
+                && BrightnessSupport.steppedBrightness(0.03, delta: -BrightnessSupport.brightnessKeyStep) == 0.0,
+               "key steps clamp at both ends of the range")
+
+        // MARK: Text snippets engine (issue #201)
+
+        expect(TextSnippetSupport.sanitizedTrigger("  ;e mail\n") == ";email", "triggers lose whitespace")
+        expect(TextSnippetSupport.bufferAppending(String(repeating: "a", count: 64), typed: "b").count
+                == TextSnippetSupport.bufferLimit,
+               "the buffer stays capped")
+        expect(TextSnippetSupport.bufferAppending("abc", typed: "d") == "abcd", "the buffer appends typing")
+
+        let email = TextSnippet(name: "Email", trigger: ";email", replacement: "me@x.com",
+                                expansion: .afterDelimiter, enabled: true)
+        let email2 = TextSnippet(name: "Email 2", trigger: ";email2", replacement: "us@x.com",
+                                 expansion: .afterDelimiter, enabled: true)
+        let dateSnippet = TextSnippet(name: "Now", trigger: ";;dt", replacement: "{{datetime}}",
+                                      expansion: .immediate, enabled: true)
+        let disabledSnippet = TextSnippet(name: "Off", trigger: ";off", replacement: "x",
+                                          expansion: .afterDelimiter, enabled: false)
+
+        expect(TextSnippetSupport.match(buffer: "hello ;email", expansion: .afterDelimiter,
+                                        snippets: [email, email2, disabledSnippet]) == email,
+               "a completed trigger matches at the buffer's end")
+        expect(TextSnippetSupport.match(buffer: "x ;email2", expansion: .afterDelimiter,
+                                        snippets: [email, email2]) == email2,
+               "the longest trigger wins")
+        expect(TextSnippetSupport.match(buffer: ";emai", expansion: .afterDelimiter,
+                                        snippets: [email]) == nil,
+               "a half-typed trigger stays quiet")
+        expect(TextSnippetSupport.match(buffer: "abc ;off", expansion: .afterDelimiter,
+                                        snippets: [disabledSnippet]) == nil,
+               "disabled snippets never fire")
+        expect(TextSnippetSupport.match(buffer: "a;;dt", expansion: .afterDelimiter,
+                                        snippets: [dateSnippet]) == nil,
+               "modes do not cross: immediate snippets ignore the delimiter path")
+        expect(TextSnippetSupport.match(buffer: "a;;dt", expansion: .immediate,
+                                        snippets: [dateSnippet]) == dateSnippet,
+               "immediate snippets fire the moment the trigger completes")
+
+        let fixedDate = Date(timeIntervalSince1970: 1_752_000_000)
+        let expandedText = TextSnippetSupport.expand("Report on {{date}} at {{time}}.",
+                                                     date: fixedDate, clipboard: nil,
+                                                     locale: Locale(identifier: "en_US"))
+        expect(expandedText.contains("2025") && !expandedText.contains("{{date}}")
+                && !expandedText.contains("{{time}}"),
+               "date and time variables expand")
+        expect(TextSnippetSupport.expand("clip: {{clipboard}}", date: fixedDate, clipboard: "X")
+                == "clip: X",
+               "the clipboard variable expands to the copied text")
+        expect(TextSnippetSupport.expand("clip: {{clipboard}}", date: fixedDate, clipboard: nil)
+                == "clip: ",
+               "a missing clipboard expands to nothing")
+        expect(TextSnippetSupport.expand("keep {{unknown}}", date: fixedDate, clipboard: nil)
+                == "keep {{unknown}}",
+               "unknown variables stay visible")
+        expect(TextSnippetSupport.expand("plain", date: fixedDate, clipboard: nil) == "plain",
+               "text without variables passes through untouched")
+
+        let storedSnippets = [email, dateSnippet]
+        expect(TextSnippetSupport.decode(TextSnippetSupport.encode(storedSnippets)) == storedSnippets,
+               "snippets round-trip through persistence")
+        expect(TextSnippetSupport.decode(nil).isEmpty, "no stored data means no snippets")
+
+        // MARK: Dock click with AX-blind apps (issue #200)
+
+        expect(DockClickSupport.effectiveHasUnminimized(unminimizedCount: 2,
+                                                        minimizedCount: 0,
+                                                        windowServerSeesWindows: false),
+               "AX-visible windows count as always")
+        expect(DockClickSupport.effectiveHasUnminimized(unminimizedCount: 0,
+                                                        minimizedCount: 0,
+                                                        windowServerSeesWindows: true),
+               "an AX-blind app with on-screen windows still minimizes")
+        expect(!DockClickSupport.effectiveHasUnminimized(unminimizedCount: 0,
+                                                         minimizedCount: 3,
+                                                         windowServerSeesWindows: true),
+               "minimized-only apps keep the restore path")
+        expect(!DockClickSupport.effectiveHasUnminimized(unminimizedCount: 0,
+                                                         minimizedCount: 0,
+                                                         windowServerSeesWindows: false),
+               "a truly windowless app passes the click through")
+        expect(!DockClickSupport.isDragMovement(from: CGPoint(x: 100, y: 100),
+                                                to: CGPoint(x: 103, y: 103)),
+               "click jitter stays a click")
+        expect(!DockClickSupport.isDragMovement(from: CGPoint(x: 100, y: 100),
+                                                to: CGPoint(x: 106, y: 100)),
+               "movement at the slop boundary still counts as a click")
+        expect(DockClickSupport.isDragMovement(from: CGPoint(x: 100, y: 100),
+                                               to: CGPoint(x: 105, y: 105)),
+               "a real drag crosses the slop and hands the press to the Dock")
+        expect(DockClickSupport.isDragMovement(from: CGPoint(x: 100, y: 100),
+                                               to: CGPoint(x: 100, y: 93)),
+               "vertical pulls count as drags too")
+
+        // MARK: Quick toggles
+
+        expect(QuickTogglesSupport.emptyTrashSource == "tell application \"Finder\" to empty trash",
+               "the Trash script asks the Finder and nothing else")
+        expect(QuickTogglesSupport.isPermissionError(-1743)
+                && QuickTogglesSupport.isPermissionError(-1744),
+               "both Apple Event consent errors read as a permission problem")
+        expect(!QuickTogglesSupport.isPermissionError(-1728)
+                && !QuickTogglesSupport.isPermissionError(nil),
+               "other script errors and success never read as a permission problem")
+        expect(QuickTogglesSupport.finderFlag(true, default: false)
+                && !QuickTogglesSupport.finderFlag(false, default: true),
+               "real booleans win over the default")
+        expect(QuickTogglesSupport.finderFlag("YES", default: false)
+                && QuickTogglesSupport.finderFlag("true", default: false)
+                && QuickTogglesSupport.finderFlag("1", default: false),
+               "legacy YES, true and 1 strings read as on")
+        expect(!QuickTogglesSupport.finderFlag("NO", default: true)
+                && !QuickTogglesSupport.finderFlag("false", default: true)
+                && !QuickTogglesSupport.finderFlag("0", default: true),
+               "legacy NO, false and 0 strings read as off")
+        expect(QuickTogglesSupport.finderFlag(NSNumber(value: 1), default: false)
+                && !QuickTogglesSupport.finderFlag(NSNumber(value: 0), default: true),
+               "numeric preference values read by their truthiness")
+        expect(QuickTogglesSupport.finderFlag(nil, default: true)
+                && !QuickTogglesSupport.finderFlag(nil, default: false)
+                && QuickTogglesSupport.finderFlag("maybe", default: true),
+               "absent or unreadable values fall back to the given default")
+        expect(QuickTogglesSupport.shouldOfferEject(isInternal: false, isRemovable: true,
+                                                    isEjectable: false, isLocal: true)
+                && QuickTogglesSupport.shouldOfferEject(isInternal: false, isRemovable: false,
+                                                        isEjectable: true, isLocal: true),
+               "external removable or ejectable local volumes are offered")
+        expect(!QuickTogglesSupport.shouldOfferEject(isInternal: true, isRemovable: true,
+                                                     isEjectable: true, isLocal: true),
+               "internal volumes are never ejected")
+        expect(!QuickTogglesSupport.shouldOfferEject(isInternal: false, isRemovable: true,
+                                                     isEjectable: true, isLocal: false),
+               "network volumes are never ejected")
+        expect(!QuickTogglesSupport.shouldOfferEject(isInternal: false, isRemovable: false,
+                                                     isEjectable: false, isLocal: true),
+               "a fixed external volume without eject support is left alone")
+
+        // MARK: Settings backup
+
+        let backupKeys = SettingsBackupSupport.exportKeys()
+        expect(backupKeys.contains(DefaultsKey.switcherEnabled)
+                && backupKeys.contains(DefaultsKey.menuBarCPU)
+                && backupKeys.contains(DefaultsKey.language)
+                && backupKeys.contains(DefaultsKey.appVolumes)
+                && backupKeys.contains(DefaultsKey.mixerShowFinder)
+                && backupKeys.contains(DefaultsKey.keepAwakeActiveIcon)
+                && backupKeys.contains(AppFeature.dockPreview.availabilityKey),
+               "backup carries preferences, menu bar pins, Keep Awake appearance, language and hub availability")
+        expect(backupKeys.contains(DefaultsKey.textSnippets)
+                && backupKeys.contains(DefaultsKey.textSnippetsEnabled),
+               "snippets travel with the settings backup")
+        expect(backupKeys.contains(DefaultsKey.windowGestureEnabled)
+                && backupKeys.contains(DefaultsKey.windowGestureModifiers)
+                && backupKeys.contains(DefaultsKey.windowGestureRaiseWindow),
+               "window gesture choices travel with the settings backup")
+        expect(backupKeys.contains(DefaultsKey.panelShowToggles)
+                && backupKeys.contains(DefaultsKey.panelToggleOrder)
+                && backupKeys.contains(DefaultsKey.panelToggleDarkMode),
+               "the quick toggles layout travels with the settings backup")
+        expect(!backupKeys.contains(DefaultsKey.clipboardHistoryEntries)
+                && !backupKeys.contains(DefaultsKey.shelfItems)
+                && !backupKeys.contains(DefaultsKey.sleepDisabledFlag)
+                && !backupKeys.contains(DefaultsKey.micMuteActive)
+                && !backupKeys.contains(DefaultsKey.cleanerLastAutoRun)
+                && !backupKeys.contains(DefaultsKey.statusItemPlacementGeneration),
+               "backup never carries private content, live state or machine markers")
+        expect(backupKeys.contains(DefaultsKey.hasOnboarded)
+                && backupKeys.contains(DefaultsKey.dockPreviewIntroVersion)
+                && backupKeys.contains(DefaultsKey.featuresOnboardingVersion)
+                && backupKeys.contains(DefaultsKey.lastUpdateIntroVersion),
+               "a restored Mac does not replay onboarding or the intros already seen")
+        let backupPayload = SettingsBackupSupport.payload(appVersion: "test") { key in
+            key == DefaultsKey.switcherEnabled ? true : nil
+        }
+        expect(backupPayload[SettingsBackupSupport.formatVersionKey] as? Int
+                == SettingsBackupSupport.formatVersion,
+               "backup envelope carries the format version")
+        let roundTrip = SettingsBackupSupport.sanitizedSettings(from: backupPayload)
+        expect(roundTrip?[DefaultsKey.switcherEnabled] as? Bool == true,
+               "a backup round-trips its settings")
+        expect(SettingsBackupSupport.sanitizedSettings(from: [SettingsBackupSupport.settingsKey: [String: Any]()]) == nil,
+               "a file without the version envelope is rejected")
+        let tampered: [String: Any] = [
+            SettingsBackupSupport.formatVersionKey: 1,
+            SettingsBackupSupport.settingsKey: ["evilKey": "x", DefaultsKey.autoQuitEnabled: true] as [String: Any],
+        ]
+        let filteredImport = SettingsBackupSupport.sanitizedSettings(from: tampered)
+        expect(filteredImport?["evilKey"] == nil
+                && filteredImport?[DefaultsKey.autoQuitEnabled] as? Bool == true,
+               "unknown keys are dropped on import")
+        expect(SettingsBackupSupport.sanitizedSettings(from: [
+            SettingsBackupSupport.formatVersionKey: 99,
+            SettingsBackupSupport.settingsKey: [String: Any](),
+        ]) == nil, "a future format version is rejected")
 
         // MARK: Result
 

@@ -19,20 +19,27 @@ enum DefaultsKey {
     static let defaultDuration = "defaultDurationMinutes" // 0 = indefinite
     static let batteryLimit = "batteryLimitPercent"       // 0 = never
     static let keepAwakeAutoStart = "keepAwakeAutoStart"  // start Keep Awake when the app launches
+    static let keepAwakeExternalDisplay = "keepAwakeExternalDisplay"
+    static let keepAwakeConnectedToPower = "keepAwakeConnectedToPower"
     static let keepAwakeMouseJiggleEnabled = "keepAwakeMouseJiggleEnabled"
     static let keepAwakeMouseJiggleInterval = "keepAwakeMouseJiggleIntervalMinutes"
     static let hotkeyEnabled = "hotkeyEnabled"
     static let keepAwakeShortcut = "keepAwakeShortcut"    // GlobalShortcut storage value
     static let keepAwakeIconTint = "keepAwakeIconTint"    // KeepAwakeIconTint.rawValue
+    static let keepAwakeActiveIcon = "keepAwakeActiveIcon" // KeepAwakeActiveIcon.rawValue
     static let showCountdown = "showCountdownInMenuBar"
     static let statusItemPlacementGeneration = "statusItemPlacementGeneration"
     static let hasOnboarded = "hasOnboarded"
     static let sleepDisabledFlag = "vorssDisabledSleep"   // internal guard for pmset disablesleep
     static let scrollInverterEnabled = "scrollInverterEnabled"
+    static let smoothScrollEnabled = "smoothScrollEnabled"
+    static let smoothScrollStep = "smoothScrollStep"      // pixels per wheel tick
+    static let mouseNavigationEnabled = "mouseNavigationEnabled" // side buttons trigger Back and Forward
     static let switcherEnabled = "switcherEnabled"
     static let switcherShortcut = "switcherShortcut"      // GlobalShortcut storage value
     static let switcherWindowShortcut = "switcherWindowShortcut" // GlobalShortcut storage value
     static let switcherIconRowMode = "switcherIconRowMode"
+    static let switcherSimpleMode = "switcherSimpleMode"  // app-only row without window captures
     static let switcherMergeTabs = "switcherMergeTabs"     // show one switcher entry per app (collapse all of an app's windows)
     static let switcherShowWindowlessFinder = "switcherShowWindowlessFinder"
     static let dockPreviewEnabled = "dockPreviewEnabled"
@@ -47,6 +54,7 @@ enum DefaultsKey {
     static let appOutputDevices = "appOutputDevices"      // [bundle id: audio device UID]
     static let mixerOutputMasterVolume = "mixerOutputMasterVolume" // 0...1
     static let mixerOutputBaseVolumes = "mixerOutputBaseVolumes"   // [audio device UID: 0...1]
+    static let mixerShowFinder = "mixerShowFinder"
     static let mixerLowerVolumeOnHeadphonesDisconnect = "mixerLowerVolumeOnHeadphonesDisconnect"
     static let mixerHeadphonesDisconnectVolumePercent = "mixerHeadphonesDisconnectVolumePercent"
     static let soundOutputSwitcherEnabled = "soundOutputSwitcherEnabled"
@@ -60,6 +68,26 @@ enum DefaultsKey {
     static let shelfShortcutEnabled = "shelfShortcutEnabled"
     static let shelfShortcut = "shelfShortcut"            // GlobalShortcut storage value
     static let shelfShakeToOpen = "shelfShakeToOpen"
+    static let shelfDropZoneEnabled = "shelfDropZoneEnabled"
+    static let shelfCloseAfterDrop = "shelfCloseAfterDrop"
+    static let shelfRemoveAfterDrop = "shelfRemoveAfterDrop"
+    static let shelfAutomaticExclusions = "shelfAutomaticExclusions" // [bundle id] blocks automatic opening only
+    static let extraBrightnessEnabled = "extraBrightnessEnabled"
+    static let extraBrightnessLevel = "extraBrightnessLevel"   // Int percent 0-100
+    static let brightnessControlEnabled = "brightnessControlEnabled" // sliders for every display
+    static let brightnessKeysEnabled = "brightnessKeysEnabled" // brightness keys act on the display under the pointer
+    static let musicBlockEnabled = "musicBlockEnabled"
+    static let musicBlockReplacementPath = "musicBlockReplacementPath"  // app bundle path ("" = none)
+    static let cleanerScheduleFrequency = "cleanerScheduleFrequency"    // off | daily | weekly
+    static let cleanerScheduleHour = "cleanerScheduleHour"
+    static let cleanerScheduleMinute = "cleanerScheduleMinute"
+    static let cleanerScheduleWeekday = "cleanerScheduleWeekday"        // 1 Sunday ... 7 Saturday
+    static let cleanerScheduleNotify = "cleanerScheduleNotify"
+    static let cleanerLastAutoRun = "cleanerLastAutoRun"                // Double, epoch seconds
+    static let cleanerLastAutoFreed = "cleanerLastAutoFreed"            // Int bytes
+    static let cleanerBadgeSeen = "cleanerBadgeSeen"                    // red dot guiding to the new cleaner
+    static let settingsWindowWidth = "settingsWindowWidth"     // last user-chosen content size (0 = unset)
+    static let settingsWindowHeight = "settingsWindowHeight"
     static let shelfItems = "shelfItems"                  // Data: [ShelfPersistedItem] JSON
     static let urlCleanerEnabled = "urlCleanerEnabled"
     static let windowMaximizeEnabled = "windowMaximizeEnabled"
@@ -69,11 +97,13 @@ enum DefaultsKey {
     static let panelUtilityCleaning = "panelUtilityCleaning"
     static let panelUtilityURLCleaner = "panelUtilityURLCleaner"
     static let panelUtilityUninstaller = "panelUtilityUninstaller"
+    static let panelUtilityCleaner = "panelUtilityCleaner"
     static let panelUtilityHomebrew = "panelUtilityHomebrew"
     static let panelUtilityMedia = "panelUtilityMedia"
     static let panelUtilityClipboard = "panelUtilityClipboard"
     static let panelUtilityWindowLayout = "panelUtilityWindowLayout"
     static let panelControlMouseScroll = "panelControlMouseScroll"
+    static let panelControlMouseNavigation = "panelControlMouseNavigation"
     static let panelControlSwitcher = "panelControlSwitcher"
     static let panelControlDockPreview = "panelControlDockPreview"
     static let panelControlCutPaste = "panelControlCutPaste"
@@ -82,15 +112,28 @@ enum DefaultsKey {
     static let panelControlWindowMaximize = "panelControlWindowMaximize"
     static let panelControlKeyDebounce = "panelControlKeyDebounce"
     static let panelControlDockClick = "panelControlDockClick"
+    static let panelControlDockClickCycle = "panelControlDockClickCycle"
     static let panelControlMiddleClick = "panelControlMiddleClick"
+    static let panelControlTextSnippets = "panelControlTextSnippets"
     // Quick-control categories start collapsed and remember being opened.
     static let panelControlWindowsExpanded = "panelControlWindowsExpanded"
     static let panelControlInputExpanded = "panelControlInputExpanded"
     static let panelControlFilesExpanded = "panelControlFilesExpanded"
     // Show/hide whole panel sections that have no monitorShow* key of their own.
     static let panelShowKeepAwake = "panelShowKeepAwake"
+    static let panelShowBrightness = "panelShowBrightness"
     static let panelShowUtilities = "panelShowUtilities"
     static let panelShowControls = "panelShowControls"
+    static let panelShowToggles = "panelShowToggles"
+    // Quick toggles tab: per-action visibility (the order lives in panelToggleOrder).
+    static let panelToggleDarkMode = "panelToggleDarkMode"
+    static let panelToggleEmptyTrash = "panelToggleEmptyTrash"
+    static let panelToggleEjectDisks = "panelToggleEjectDisks"
+    static let panelToggleHiddenFiles = "panelToggleHiddenFiles"
+    static let panelToggleDesktopIcons = "panelToggleDesktopIcons"
+    static let panelToggleLockScreen = "panelToggleLockScreen"
+    static let panelToggleDisplayOff = "panelToggleDisplayOff"
+    static let panelToggleScreenSaver = "panelToggleScreenSaver"
 
     // System monitor — live metrics shown next to the menu bar icon (opt-in).
     static let menuBarCPU = "menuBarCPU"
@@ -104,10 +147,17 @@ enum DefaultsKey {
     static let menuBarDiskUsage = "menuBarDiskUsage"
     static let menuBarDiskActivity = "menuBarDiskActivity"
     static let menuBarBattery = "menuBarBattery"
+    static let menuBarBatteryTime = "menuBarBatteryTime"
     static let menuBarPeripheralBattery = "menuBarPeripheralBattery"
     static let menuBarPower = "menuBarPower"
     static let menuBarPreset = "menuBarPreset"           // dense
     static let menuBarMetricSpacing = "menuBarMetricSpacing" // standard | compact
+    static let menuBarMetricAppearance = "menuBarMetricAppearance" // values | bars
+    static let menuBarUsageBarNormalColor = "menuBarUsageBarNormalColor" // #RRGGBB
+    static let menuBarUsageBarElevatedColor = "menuBarUsageBarElevatedColor" // #RRGGBB
+    static let menuBarUsageBarCriticalColor = "menuBarUsageBarCriticalColor" // #RRGGBB
+    static let menuBarUsageBarMediumThreshold = "menuBarUsageBarMediumThreshold" // percent
+    static let menuBarUsageBarHighThreshold = "menuBarUsageBarHighThreshold" // percent
     static let menuBarHideIconWithMetrics = "menuBarHideIconWithMetrics" // glyph hides while metrics render in the main item
     static let menuBarMetricOrder = "menuBarMetricOrder" // comma-separated MenuBarMetric raw values
     static let menuBarCombineTemperatures = "menuBarCombineTemperatures" // usage/charge + temperature in one block when possible
@@ -152,6 +202,7 @@ enum DefaultsKey {
     static let monitorPwrSystem = "monitorPwrSystem"
     static let monitorPwrAdapter = "monitorPwrAdapter"
     static let monitorPwrBattery = "monitorPwrBattery"
+    static let monitorPwrTimeRemaining = "monitorPwrTimeRemaining"
     static let monitorPwrHealth = "monitorPwrHealth"
     // System monitor — optional notifications for sustained or actionable conditions.
     static let monitorAlertCPU = "monitorAlertCPU"
@@ -170,6 +221,7 @@ enum DefaultsKey {
     static let panelSectionOrder = "panelSectionOrder"
     static let panelUtilityOrder = "panelUtilityOrder"
     static let panelControlOrder = "panelControlOrder"
+    static let panelToggleOrder = "panelToggleOrder"
     static let panelSystemOrder = "panelSystemOrder"
     static let panelNetworkOrder = "panelNetworkOrder"
     static let panelDiskOrder = "panelDiskOrder"
@@ -233,8 +285,11 @@ enum DefaultsKey {
     static let clipboardHistoryShortcutEnabled = "clipboardHistoryShortcutEnabled"
     static let clipboardHistoryShortcut = "clipboardHistoryShortcut"
 
-    // Window Layout — manual window snapping and optional global shortcuts.
+    // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
+    static let windowGestureEnabled = "windowGestureEnabled"
+    static let windowGestureModifiers = "windowGestureModifiers"
+    static let windowGestureRaiseWindow = "windowGestureRaiseWindow"
     static let windowLayoutShortcutLeft = "windowLayoutShortcutLeft"
     static let windowLayoutShortcutRight = "windowLayoutShortcutRight"
     static let windowLayoutShortcutTop = "windowLayoutShortcutTop"
@@ -252,9 +307,24 @@ enum DefaultsKey {
     static let windowLayoutShortcutLeftTwoThirds = "windowLayoutShortcutLeftTwoThirds"
     static let windowLayoutShortcutRightTwoThirds = "windowLayoutShortcutRightTwoThirds"
     static let windowLayoutShortcutNextDisplay = "windowLayoutShortcutNextDisplay"
+    static let windowLayoutShortcutTopLeftSixth = "windowLayoutShortcutTopLeftSixth"
+    static let windowLayoutShortcutTopCenterSixth = "windowLayoutShortcutTopCenterSixth"
+    static let windowLayoutShortcutTopRightSixth = "windowLayoutShortcutTopRightSixth"
+    static let windowLayoutShortcutBottomLeftSixth = "windowLayoutShortcutBottomLeftSixth"
+    static let windowLayoutShortcutBottomCenterSixth = "windowLayoutShortcutBottomCenterSixth"
+    static let windowLayoutShortcutBottomRightSixth = "windowLayoutShortcutBottomRightSixth"
+
+    // Text snippets: type a trigger, get the expansion.
+    static let textSnippetsEnabled = "textSnippetsEnabled"
+    static let textSnippets = "textSnippets"              // Data: [TextSnippet] JSON
 
     // Dev-build only: force the "update available" UI for local testing.
     static let simulateUpdate = "simulateUpdate"
+
+    /// Features hub availability layer, one key per AppFeature raw value.
+    /// Registered true: unavailable features vanish from every surface and
+    /// hold no resources, without ever touching their own enable keys.
+    static func featureAvailable(_ id: String) -> String { "featureAvailable.\(id)" }
 }
 
 /// Bump `currentFeatureSet` when first-run feature defaults need a quiet marker.
@@ -273,8 +343,8 @@ enum SupportUpdateIntroInfo {
     /// The single release whose first launch shows the support window (star,
     /// follow, coffee). It used to track AppInfo.version, which re-showed the
     /// ask on EVERY update; now a release only asks when this constant is
-    /// deliberately bumped to it. Bumped to 3.1.8 on the owner's call.
-    static let releaseVersion = "3.1.8"
+    /// deliberately bumped to it. Bumped to 3.1.12 on the owner's call.
+    static let releaseVersion = "3.1.12"
 }
 
 enum KeepAwakeIconTint: String, CaseIterable, Identifiable {
@@ -296,6 +366,38 @@ enum KeepAwakeIconTint: String, CaseIterable, Identifiable {
         case .purple: return strings.keepAwakeIconTintPurple
         case .pink: return strings.keepAwakeIconTintPink
         case .none: return strings.keepAwakeIconTintNone
+        }
+    }
+}
+
+enum KeepAwakeActiveIcon: String, CaseIterable, Identifiable {
+    case vorssaint, coffee, eye, moon, light
+
+    var id: String { rawValue }
+
+    static var current: KeepAwakeActiveIcon {
+        Defaults.sanitizedKeepAwakeActiveIcon(
+            UserDefaults.standard.string(forKey: DefaultsKey.keepAwakeActiveIcon)
+        )
+    }
+
+    var systemSymbolName: String? {
+        switch self {
+        case .vorssaint: return nil
+        case .coffee: return "cup.and.saucer.fill"
+        case .eye: return "eye.fill"
+        case .moon: return "moon.fill"
+        case .light: return "lightbulb.fill"
+        }
+    }
+
+    func title(_ strings: Strings) -> String {
+        switch self {
+        case .vorssaint: return strings.keepAwakeActiveIconVorssaint
+        case .coffee: return strings.keepAwakeActiveIconCoffee
+        case .eye: return strings.keepAwakeActiveIconEye
+        case .moon: return strings.keepAwakeActiveIconMoon
+        case .light: return strings.keepAwakeActiveIconLight
         }
     }
 }
@@ -329,11 +431,12 @@ enum Defaults {
     static let allowedKeyboardDebounceWindowRange = 0...500
     static let allowedMenuBarPresets = ["dense"]
     static let allowedMenuBarMetricSpacings = ["standard", "compact"]
+    static let allowedMenuBarMetricAppearances = ["values", "bars"]
     static let defaultMenuBarMetricOrder = [
         "cpu", "cpuTemperature",
         "gpu", "gpuTemperature",
         "memory",
-        "battery", "batteryTemperature", "peripheralBattery",
+        "battery", "batteryTime", "batteryTemperature", "peripheralBattery",
         "network", "diskUsage", "diskActivity", "power",
     ]
     static let allowedMenuBarLabelStyles = ["compact", "classic"]
@@ -347,17 +450,24 @@ enum Defaults {
         DefaultsKey.defaultDuration: 0,
         DefaultsKey.batteryLimit: 10,
         DefaultsKey.keepAwakeAutoStart: false,
+        DefaultsKey.keepAwakeExternalDisplay: false,
+        DefaultsKey.keepAwakeConnectedToPower: false,
         DefaultsKey.keepAwakeMouseJiggleEnabled: false,
         DefaultsKey.keepAwakeMouseJiggleInterval: 5,
         DefaultsKey.hotkeyEnabled: true,
         DefaultsKey.keepAwakeShortcut: "control+option+command:40",
         DefaultsKey.keepAwakeIconTint: KeepAwakeIconTint.orange.rawValue,
+        DefaultsKey.keepAwakeActiveIcon: KeepAwakeActiveIcon.vorssaint.rawValue,
         DefaultsKey.showCountdown: false,
         DefaultsKey.scrollInverterEnabled: false,
+        DefaultsKey.smoothScrollEnabled: false,
+        DefaultsKey.smoothScrollStep: 40,
+        DefaultsKey.mouseNavigationEnabled: false,
         DefaultsKey.switcherEnabled: true,
         DefaultsKey.switcherShortcut: "command:48",
         DefaultsKey.switcherWindowShortcut: GlobalShortcut.switcherWindowDefault.storageValue,
         DefaultsKey.switcherIconRowMode: false,
+        DefaultsKey.switcherSimpleMode: false,
         DefaultsKey.switcherMergeTabs: false,
         DefaultsKey.switcherShowWindowlessFinder: true,
         DefaultsKey.dockPreviewEnabled: false,
@@ -372,6 +482,7 @@ enum Defaults {
         DefaultsKey.updateShowcaseMediaOverride: "",
         DefaultsKey.mixerOutputMasterVolume: 1.0,
         DefaultsKey.mixerOutputBaseVolumes: [String: Double](),
+        DefaultsKey.mixerShowFinder: true,
         DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect: false,
         DefaultsKey.mixerHeadphonesDisconnectVolumePercent: 0,
         DefaultsKey.soundOutputSwitcherEnabled: false,
@@ -383,7 +494,31 @@ enum Defaults {
         DefaultsKey.shelfShortcutEnabled: true,
         DefaultsKey.shelfShortcut: "control+option+command:2",
         DefaultsKey.shelfShakeToOpen: true,
+        // On by default (owner's call): it costs nothing until the shelf itself
+        // is on, and then the shelf lives handily under the menu bar icon.
+        DefaultsKey.shelfDropZoneEnabled: true,
+        // Closing after a drop is new behavior, so it arrives OFF for people
+        // who already rely on the panel staying put; removing after a drop
+        // keeps the value shipped releases always had.
+        DefaultsKey.shelfCloseAfterDrop: false,
+        DefaultsKey.shelfRemoveAfterDrop: true,
+        DefaultsKey.shelfAutomaticExclusions: [],
+        DefaultsKey.extraBrightnessEnabled: false,
+        DefaultsKey.extraBrightnessLevel: 100,
+        DefaultsKey.brightnessControlEnabled: false,
+        DefaultsKey.brightnessKeysEnabled: false,
+        DefaultsKey.musicBlockEnabled: false,
+        DefaultsKey.musicBlockReplacementPath: "",
+        DefaultsKey.cleanerScheduleFrequency: "off",
+        DefaultsKey.cleanerScheduleHour: 9,
+        DefaultsKey.cleanerScheduleMinute: 0,
+        DefaultsKey.cleanerScheduleWeekday: 2,
+        DefaultsKey.cleanerScheduleNotify: true,
+        DefaultsKey.cleanerLastAutoRun: 0.0,
+        DefaultsKey.cleanerLastAutoFreed: 0,
+        DefaultsKey.cleanerBadgeSeen: false,
         DefaultsKey.urlCleanerEnabled: false,
+        DefaultsKey.textSnippetsEnabled: false,
         DefaultsKey.windowMaximizeEnabled: false,
         DefaultsKey.keyboardDebounceEnabled: false,
         DefaultsKey.keyboardDebounceWindowMs: defaultKeyboardDebounceWindowMs,
@@ -391,11 +526,13 @@ enum Defaults {
         DefaultsKey.panelUtilityCleaning: true,
         DefaultsKey.panelUtilityURLCleaner: true,
         DefaultsKey.panelUtilityUninstaller: true,
+        DefaultsKey.panelUtilityCleaner: true,
         DefaultsKey.panelUtilityHomebrew: true,
         DefaultsKey.panelUtilityMedia: true,
         DefaultsKey.panelUtilityClipboard: true,
         DefaultsKey.panelUtilityWindowLayout: true,
         DefaultsKey.panelControlMouseScroll: true,
+        DefaultsKey.panelControlMouseNavigation: true,
         DefaultsKey.panelControlSwitcher: true,
         DefaultsKey.panelControlDockPreview: true,
         DefaultsKey.panelControlCutPaste: true,
@@ -404,13 +541,25 @@ enum Defaults {
         DefaultsKey.panelControlWindowMaximize: true,
         DefaultsKey.panelControlKeyDebounce: true,
         DefaultsKey.panelControlDockClick: true,
+        DefaultsKey.panelControlDockClickCycle: true,
         DefaultsKey.panelControlMiddleClick: true,
+        DefaultsKey.panelControlTextSnippets: true,
         DefaultsKey.panelControlWindowsExpanded: false,
         DefaultsKey.panelControlInputExpanded: false,
         DefaultsKey.panelControlFilesExpanded: false,
         DefaultsKey.panelShowKeepAwake: true,
+        DefaultsKey.panelShowBrightness: true,
         DefaultsKey.panelShowUtilities: true,
         DefaultsKey.panelShowControls: true,
+        DefaultsKey.panelShowToggles: true,
+        DefaultsKey.panelToggleDarkMode: true,
+        DefaultsKey.panelToggleEmptyTrash: true,
+        DefaultsKey.panelToggleEjectDisks: true,
+        DefaultsKey.panelToggleHiddenFiles: true,
+        DefaultsKey.panelToggleDesktopIcons: true,
+        DefaultsKey.panelToggleLockScreen: true,
+        DefaultsKey.panelToggleDisplayOff: true,
+        DefaultsKey.panelToggleScreenSaver: true,
         // Menu bar metrics start off (the icon stays clean) and are opt-in.
         // The panel shows every monitoring block by default; users hide what
         // they don't want.
@@ -419,11 +568,18 @@ enum Defaults {
         DefaultsKey.menuBarCPUTemperature: false,
         DefaultsKey.menuBarGPUTemperature: false,
         DefaultsKey.menuBarBatteryTemperature: false,
+        DefaultsKey.menuBarBatteryTime: false,
         DefaultsKey.menuBarDiskUsage: false,
         DefaultsKey.menuBarDiskActivity: false,
         DefaultsKey.menuBarPeripheralBattery: false,
         DefaultsKey.menuBarPreset: "dense",
         DefaultsKey.menuBarMetricSpacing: "compact",  // owner's call: compact by default in 3.1.8
+        DefaultsKey.menuBarMetricAppearance: "values",
+        DefaultsKey.menuBarUsageBarNormalColor: "#64D2FF",
+        DefaultsKey.menuBarUsageBarElevatedColor: "#FFD60A",
+        DefaultsKey.menuBarUsageBarCriticalColor: "#FF453A",
+        DefaultsKey.menuBarUsageBarMediumThreshold: 70,
+        DefaultsKey.menuBarUsageBarHighThreshold: 90,
         DefaultsKey.menuBarHideIconWithMetrics: false,
         DefaultsKey.windowLayoutHiddenActions: "",
         DefaultsKey.menuBarMetricOrder: defaultMenuBarMetricOrder.joined(separator: ","),
@@ -466,6 +622,7 @@ enum Defaults {
         DefaultsKey.monitorPwrSystem: true,
         DefaultsKey.monitorPwrAdapter: true,
         DefaultsKey.monitorPwrBattery: true,
+        DefaultsKey.monitorPwrTimeRemaining: true,
         DefaultsKey.monitorPwrHealth: true,
         DefaultsKey.monitorAlertCPU: false,
         DefaultsKey.monitorAlertCPUTemperature: false,
@@ -524,6 +681,9 @@ enum Defaults {
         DefaultsKey.clipboardHistoryShortcutEnabled: true,
         DefaultsKey.clipboardHistoryShortcut: GlobalShortcut.clipboardDefault.storageValue,
         DefaultsKey.windowLayoutShortcutsEnabled: false,
+        DefaultsKey.windowGestureEnabled: false,
+        DefaultsKey.windowGestureModifiers: WindowGestureSupport.defaultModifierStorageValue,
+        DefaultsKey.windowGestureRaiseWindow: false,
         DefaultsKey.windowLayoutShortcutLeft: GlobalShortcut.windowLayoutLeftDefault.storageValue,
         DefaultsKey.windowLayoutShortcutRight: GlobalShortcut.windowLayoutRightDefault.storageValue,
         DefaultsKey.windowLayoutShortcutTop: GlobalShortcut.windowLayoutTopDefault.storageValue,
@@ -541,11 +701,18 @@ enum Defaults {
         DefaultsKey.windowLayoutShortcutLeftTwoThirds: GlobalShortcut.windowLayoutLeftTwoThirdsDefault.storageValue,
         DefaultsKey.windowLayoutShortcutRightTwoThirds: GlobalShortcut.windowLayoutRightTwoThirdsDefault.storageValue,
         DefaultsKey.windowLayoutShortcutNextDisplay: GlobalShortcut.windowLayoutNextDisplayDefault.storageValue,
+        DefaultsKey.windowLayoutShortcutTopLeftSixth: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutTopCenterSixth: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutTopRightSixth: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutBottomLeftSixth: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutBottomCenterSixth: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutBottomRightSixth: WindowLayoutAction.clearedShortcutStorageValue,
     ]
 
     static func register() {
         let defaults = UserDefaults.standard
         defaults.register(defaults: registeredDefaults)
+        defaults.register(defaults: AppFeature.availabilityDefaults)
         migrateLegacyMenuBarTemperatureMetric(in: defaults)
         migrateLegacySwitcherWindowShortcut(in: defaults)
         migrateLegacyKeyboardDebounceWindow(in: defaults)
@@ -590,6 +757,14 @@ enum Defaults {
         return tint
     }
 
+    static func sanitizedKeepAwakeActiveIcon(_ rawValue: String?) -> KeepAwakeActiveIcon {
+        guard let rawValue,
+              let icon = KeepAwakeActiveIcon(rawValue: rawValue) else {
+            return .vorssaint
+        }
+        return icon
+    }
+
     static func sanitizedMonitorInterval(_ seconds: Int) -> Int {
         allowedMonitorIntervals.contains(seconds) ? seconds : 2
     }
@@ -613,6 +788,10 @@ enum Defaults {
     static func sanitizedMenuBarMetricSpacing(_ spacing: String) -> String {
         // Corrupt values fall back to the registered default (compact).
         allowedMenuBarMetricSpacings.contains(spacing) ? spacing : "compact"
+    }
+
+    static func sanitizedMenuBarMetricAppearance(_ appearance: String) -> String {
+        allowedMenuBarMetricAppearances.contains(appearance) ? appearance : "values"
     }
 
     static func sanitizedMenuBarMetricOrder(_ raw: String) -> [String] {

@@ -15,6 +15,7 @@ struct PowerSection: View {
     @AppStorage(DefaultsKey.monitorPwrSystem) private var pwrSystem = true
     @AppStorage(DefaultsKey.monitorPwrAdapter) private var pwrAdapter = true
     @AppStorage(DefaultsKey.monitorPwrBattery) private var pwrBattery = true
+    @AppStorage(DefaultsKey.monitorPwrTimeRemaining) private var pwrTimeRemaining = true
     @AppStorage(DefaultsKey.monitorPwrHealth) private var pwrHealth = true
     @AppStorage(DefaultsKey.panelPowerOrder) private var powerOrderRaw = ""
     @State private var draggingBlock: Block?
@@ -44,7 +45,7 @@ struct PowerSection: View {
         }
     }
 
-    private enum Block: String, PanelOrderItem { case system, adapter, battery, health }
+    private enum Block: String, PanelOrderItem { case system, adapter, battery, remaining, health }
 
     private var orderedBlocks: [Block] {
         _ = powerOrderRaw
@@ -70,6 +71,9 @@ struct PowerSection: View {
         case .system: return pwrSystem && power.systemWatts != nil
         case .adapter: return pwrAdapter && power.externalConnected && power.adapterWatts != nil
         case .battery: return pwrBattery && power.hasBattery && power.batteryWatts != nil
+        case .remaining:
+            return pwrTimeRemaining && power.hasBattery
+                && !power.externalConnected && !power.isCharging
         case .health: return pwrHealth && power.healthPercent != nil
         }
     }
@@ -130,6 +134,21 @@ struct PowerSection: View {
                                    systemImage: "heart.fill",
                                    isVisible: $pwrHealth)
             }
+            case .remaining:
+            if pwrTimeRemaining, power.hasBattery,
+               !power.externalConnected, !power.isCharging {
+                let strings = FeatureStrings.batteryTime(l10n.language)
+                let value = power.timeRemainingSeconds.flatMap(BatteryTimeSupport.formatted)
+                row(icon: "clock", color: PanelMetricColor.green(for: colorScheme),
+                    label: strings.title,
+                    value: value ?? "...",
+                    caption: value == nil ? strings.calculating : strings.systemEstimate,
+                    visible: $pwrTimeRemaining, editing: editing)
+            } else if editing && !pwrTimeRemaining {
+                PanelHiddenItemRow(title: FeatureStrings.batteryTime(l10n.language).title,
+                                   systemImage: "clock",
+                                   isVisible: $pwrTimeRemaining)
+            }
             }
         } else {
             if block == orderedBlocks.first {
@@ -161,6 +180,10 @@ struct PowerSection: View {
             PanelHiddenItemRow(title: l10n.s.powerHealth,
                                systemImage: "heart.fill",
                                isVisible: $pwrHealth)
+        case .remaining:
+            PanelHiddenItemRow(title: FeatureStrings.batteryTime(l10n.language).title,
+                               systemImage: "clock",
+                               isVisible: $pwrTimeRemaining)
         }
     }
 
@@ -170,6 +193,7 @@ struct PowerSection: View {
         pwrSystem = true
         pwrAdapter = true
         pwrBattery = true
+        pwrTimeRemaining = true
         pwrHealth = true
     }
 

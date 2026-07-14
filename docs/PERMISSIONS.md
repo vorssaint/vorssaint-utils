@@ -12,16 +12,16 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Notifications | Yes | Keep awake, battery, Monitor and update alerts |
 | Full Disk Access | Yes | A deeper uninstaller scan |
 | Administrator (one time) | Yes | Password free closed lid toggling |
-| Automation | Yes | Finder cut and paste, moving leftovers to the Trash and Homebrew Terminal handoff |
+| Automation | Yes | Finder cut and paste, moving leftovers to the Trash, emptying the Trash and Homebrew Terminal handoff |
 
 ## Accessibility
 
-**Why it comes up.** macOS keeps control of the keyboard and mouse, along with the ability to read other apps' windows, behind the Accessibility permission.
+**Why it comes up.** macOS keeps control of keyboard and pointer input, along with the ability to read other apps' windows, behind the Accessibility permission.
 
 **What uses it.**
 
 - **Scroll direction inverter**, which flips the mouse wheel.
-- **Window Layout**, which moves the active window when you use a layout action or shortcut.
+- **Window Layout**, which moves or resizes windows when you use a layout action, shortcut or optional trackpad or mouse gesture.
 - **App and window switcher**, which captures the switcher hotkey and reads the window list.
 - **Dock Preview**, which reads Dock items and brings windows forward for a temporary peek.
 - **Dock click to minimize**, which spots clicks on the Dock icon of the active app and minimizes or restores its windows.
@@ -97,6 +97,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 - **Finder cut and paste**, which reads the current Finder selection and the destination folder, then moves the files.
 - **Uninstaller**, which moves leftover files to the Trash.
+- **Empty the Trash** in Quick toggles, which asks Finder to empty it. The other quick toggles, dark mode included, need no permission.
 - **Homebrew manager**, which can open Terminal with the exact Homebrew install or setup command when the app should not collect a password itself.
 
 **If you say no.** Those Finder or Terminal handoff steps will not go through. You can switch Automation back on in System Settings, under Privacy and Security, Automation.

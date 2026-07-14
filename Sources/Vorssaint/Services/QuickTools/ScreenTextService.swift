@@ -21,7 +21,8 @@ final class ScreenTextService: ObservableObject {
     }
 
     func syncWithPreferences() {
-        let enabled = UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRShortcutEnabled)
+        let enabled = AppFeature.screenOCR.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.screenOCRShortcut,
                                             fallback: .screenOCRDefault)
         shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)

@@ -9,6 +9,9 @@ struct WindowLayoutSettings: View {
     @ObservedObject private var service = WindowLayoutService.shared
     @AppStorage(DefaultsKey.panelUtilityWindowLayout) private var showInPanel = true
     @AppStorage(DefaultsKey.windowLayoutShortcutsEnabled) private var shortcutsEnabled = true
+    @AppStorage(DefaultsKey.windowGestureEnabled) private var gestureEnabled = false
+    @AppStorage(DefaultsKey.windowGestureModifiers) private var gestureModifiers = WindowGestureSupport.defaultModifierStorageValue
+    @AppStorage(DefaultsKey.windowGestureRaiseWindow) private var gestureRaiseWindow = false
     // Same preference the Switcher page exposes next to Dock Preview; it is
     // mirrored here because it is a window-juggling behavior people look for
     // on this page too.
@@ -33,6 +36,30 @@ struct WindowLayoutSettings: View {
             if !permissions.accessibility {
                 Section(l10n.s.permissionRequired) {
                     PermissionRow(kind: .accessibility)
+                }
+            }
+
+            Section(text.gestureSection) {
+                Toggle(text.gestureEnable, isOn: $gestureEnabled)
+                    .onChange(of: gestureEnabled) { _, _ in
+                        WindowLayoutService.shared.syncWithPreferences()
+                    }
+                Text(text.gestureCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if gestureEnabled {
+                    WindowGestureModifierPicker(storageValue: $gestureModifiers,
+                                                title: text.gestureModifiers)
+                        .onChange(of: gestureModifiers) { _, _ in
+                            WindowLayoutService.shared.syncWithPreferences()
+                        }
+                    WindowGestureHints(modifierStorage: gestureModifiers,
+                                       moveText: text.gestureMove,
+                                       resizeText: text.gestureResize)
+                    Text(text.gestureResizeHint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(text.gestureRaiseWindow, isOn: $gestureRaiseWindow)
                 }
             }
 
@@ -74,6 +101,15 @@ struct WindowLayoutSettings: View {
                 actionRow(.rightThird)
                 actionRow(.leftTwoThirds)
                 actionRow(.rightTwoThirds)
+            }
+
+            Section(text.sixths) {
+                actionRow(.topLeftSixth)
+                actionRow(.topCenterSixth)
+                actionRow(.topRightSixth)
+                actionRow(.bottomLeftSixth)
+                actionRow(.bottomCenterSixth)
+                actionRow(.bottomRightSixth)
             }
 
             Section(text.corners) {
@@ -124,6 +160,12 @@ struct WindowLayoutSettings: View {
         case .rightThird: return "rectangle.rightthird.inset.filled"
         case .leftTwoThirds: return "rectangle.leadinghalf.filled"
         case .rightTwoThirds: return "rectangle.trailinghalf.filled"
+        case .topLeftSixth: return "arrow.up.left"
+        case .topCenterSixth: return "arrow.up"
+        case .topRightSixth: return "arrow.up.right"
+        case .bottomLeftSixth: return "arrow.down.left"
+        case .bottomCenterSixth: return "arrow.down"
+        case .bottomRightSixth: return "arrow.down.right"
         case .topLeft: return "arrow.up.left"
         case .topRight: return "arrow.up.right"
         case .bottomLeft: return "arrow.down.left"
@@ -175,7 +217,11 @@ private struct WindowLayoutActionRow: View {
         self.symbol = symbol
         self.applyEnabled = applyEnabled
         self.shortcutEnabled = shortcutEnabled
-        _rawValue = AppStorage(wrappedValue: action.defaultShortcut.storageValue, action.shortcutKey)
+        _rawValue = AppStorage(
+            wrappedValue: action.defaultShortcut?.storageValue
+                ?? WindowLayoutAction.clearedShortcutStorageValue,
+            action.shortcutKey
+        )
     }
 
     var body: some View {
@@ -188,7 +234,9 @@ private struct WindowLayoutActionRow: View {
                 }
                 .disabled(!applyEnabled)
                 Spacer()
-                ShortcutRecorderButton(shortcut: shortcut ?? action.defaultShortcut,
+                ShortcutRecorderButton(shortcut: shortcut
+                                           ?? action.defaultShortcut
+                                           ?? .windowLayoutLeftDefault,
                                        isEnabled: shortcutEnabled,
                                        recordingTitle: l10n.s.shortcutRecording,
                                        emptyTitle: shortcut == nil ? l10n.s.shortcutNone : nil,
@@ -210,7 +258,8 @@ private struct WindowLayoutActionRow: View {
                 .help(l10n.s.shortcutClear)
                 .accessibilityLabel(l10n.s.shortcutClear)
                 Button(l10n.s.shortcutReset) {
-                    rawValue = action.defaultShortcut.storageValue
+                    rawValue = action.defaultShortcut?.storageValue
+                        ?? WindowLayoutAction.clearedShortcutStorageValue
                     errorText = nil
                     WindowLayoutService.shared.syncWithPreferences()
                 }

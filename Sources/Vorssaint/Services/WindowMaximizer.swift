@@ -27,7 +27,8 @@ final class WindowMaximizer: ObservableObject {
     private init() {}
 
     func syncWithPreferences() {
-        let wanted = UserDefaults.standard.bool(forKey: DefaultsKey.windowMaximizeEnabled)
+        let wanted = AppFeature.windowMaximizer.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.windowMaximizeEnabled)
         if wanted, Permissions.shared.accessibility {
             start()
         } else {
@@ -217,22 +218,28 @@ final class WindowMaximizer: ObservableObject {
 
     private func elementAt(point: CGPoint) -> AXUIElement? {
         let system = AXUIElementCreateSystemWide()
+        // Bounded AX inside the mouse tap: a hung app under the cursor must
+        // not stall the main thread (and with it every event tap) for the
+        // 6 second default timeout.
+        AXUIElementSetMessagingTimeout(system, 0.35)
         var element: AXUIElement?
-        guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &element) == .success
+        guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &element) == .success,
+              let element
         else { return nil }
+        AXUIElementSetMessagingTimeout(element, 0.35)
         return element
     }
 
     private func topLevelWindow(from element: AXUIElement) -> AXUIElement? {
         if role(of: element) == (kAXWindowRole as String) { return element }
 
-        if let window = elementAttribute(element, kAXWindowAttribute as String),
-           role(of: window) == (kAXWindowRole as String) {
-            return window
+        if let window = elementAttribute(element, kAXWindowAttribute as String) {
+            AXUIElementSetMessagingTimeout(window, 0.35)
+            if role(of: window) == (kAXWindowRole as String) { return window }
         }
-        if let window = elementAttribute(element, kAXTopLevelUIElementAttribute as String),
-           role(of: window) == (kAXWindowRole as String) {
-            return window
+        if let window = elementAttribute(element, kAXTopLevelUIElementAttribute as String) {
+            AXUIElementSetMessagingTimeout(window, 0.35)
+            if role(of: window) == (kAXWindowRole as String) { return window }
         }
 
         var current = element

@@ -5,6 +5,7 @@ import AppKit
 import ApplicationServices
 import Carbon.HIToolbox
 import Combine
+import CoreGraphics
 
 enum WindowLayoutError: Equatable {
     case missingAccessibility
@@ -18,29 +19,54 @@ enum WindowLayoutResult: Equatable {
     case failure(WindowLayoutError)
 }
 
-/// Manual window placement for the currently active non-Vorssaint app. It does
-/// no background work and only touches the focused AX window when the user taps
-/// a layout action.
+/// Window placement through explicit panel actions, global shortcuts and an
+/// optional pointer gesture. The event tap only performs Accessibility work
+/// after the user presses an exact shown chord over a compatible window.
 final class WindowLayoutService: ObservableObject {
     static let shared = WindowLayoutService()
 
     @Published private(set) var lastResult: WindowLayoutResult?
     @Published private(set) var failedShortcutActions: Set<WindowLayoutAction> = []
+    @Published private(set) var isGestureRunning = false
 
     private var previousFrames: [CGWindowID: WindowLayoutFrame] = [:]
     private var lastActions: [CGWindowID: WindowLayoutAction] = [:]
     private var hotKeyRefs: [WindowLayoutAction: EventHotKeyRef] = [:]
     private var eventHandler: EventHandlerRef?
     private var registeredShortcuts: [WindowLayoutAction: GlobalShortcut] = [:]
+    private var gestureTap: CFMachPort?
+    private var gestureRunLoopSource: CFRunLoopSource?
+    private var activeGesture: WindowPointerGesture?
     private let frameTolerance: CGFloat = 8
     private let anchorTolerance: CGFloat = 36
+    private let moveGestureUpdateInterval: TimeInterval = 1.0 / 120.0
+    // AX frame mutations are not atomic. Complex windows can visibly render
+    // the intermediate size and position when they receive resize writes at
+    // pointer-reporting speed, so resize is deliberately coalesced to 60 Hz.
+    private let resizeGestureUpdateInterval: TimeInterval = 1.0 / 60.0
 
     private init() {}
 
     func syncWithPreferences() {
-        let wanted = UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutShortcutsEnabled)
-            && AXIsProcessTrusted()
-        wanted ? registerHotkeys() : unregisterHotkeys()
+        let available = AppFeature.windowLayout.isAvailable
+        let trusted = AXIsProcessTrusted()
+        let wantsShortcuts = available
+            && UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutShortcutsEnabled)
+            && trusted
+        wantsShortcuts ? registerHotkeys() : unregisterHotkeys()
+
+        let wantsGesture = available
+            && UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureEnabled)
+            && trusted
+        wantsGesture ? startGestureTap() : stopGestureTap()
+    }
+
+    /// Stops every Window Layout input hook before Accessibility is revoked or
+    /// the process terminates. Idempotent so permission and feature changes can
+    /// call it freely.
+    func suspend() {
+        unregisterHotkeys()
+        stopGestureTap()
     }
 
     func shortcutConflictTitle(_ shortcut: GlobalShortcut) -> String? {
@@ -134,6 +160,9 @@ final class WindowLayoutService: ObservableObject {
                   app.bundleIdentifier != ownBundleID
             else { continue }
             let axApp = AXUIElementCreateApplication(pid)
+            // Bounded AX: a hung app in the MRU list must not stall the main
+            // thread (and every event tap) for the 6 second default timeout.
+            AXUIElementSetMessagingTimeout(axApp, 0.35)
             for attribute in [kAXFocusedWindowAttribute, kAXMainWindowAttribute] {
                 if let window = windowAttribute(axApp, attribute as String),
                    let target = target(from: window) {
@@ -229,6 +258,8 @@ final class WindowLayoutService: ObservableObject {
         switch action {
         case .leftHalf, .rightHalf, .topHalf, .bottomHalf,
                 .leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds,
+                .topLeftSixth, .topCenterSixth, .topRightSixth,
+                .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
                 .topLeft, .topRight, .bottomLeft, .bottomRight:
             return true
         default:
@@ -343,12 +374,245 @@ final class WindowLayoutService: ObservableObject {
         failedShortcutActions.removeAll()
     }
 
+    // MARK: - Move and resize gesture
+
+    private func startGestureTap() {
+        guard gestureTap == nil else {
+            isGestureRunning = true
+            return
+        }
+        let mask = CGEventMask(1 << CGEventType.leftMouseDown.rawValue)
+            | CGEventMask(1 << CGEventType.leftMouseDragged.rawValue)
+            | CGEventMask(1 << CGEventType.leftMouseUp.rawValue)
+            | CGEventMask(1 << CGEventType.rightMouseDown.rawValue)
+            | CGEventMask(1 << CGEventType.rightMouseDragged.rawValue)
+            | CGEventMask(1 << CGEventType.rightMouseUp.rawValue)
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: mask,
+            callback: { _, type, event, userInfo in
+                guard let userInfo else { return Unmanaged.passUnretained(event) }
+                let service = Unmanaged<WindowLayoutService>.fromOpaque(userInfo).takeUnretainedValue()
+                return service.handleGestureEvent(type: type, event: event)
+            },
+            userInfo: Unmanaged.passUnretained(self).toOpaque()
+        ) else {
+            isGestureRunning = false
+            return
+        }
+
+        gestureTap = tap
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        gestureRunLoopSource = source
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        isGestureRunning = true
+    }
+
+    private func stopGestureTap() {
+        if let gestureTap {
+            CGEvent.tapEnable(tap: gestureTap, enable: false)
+        }
+        if let gestureRunLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), gestureRunLoopSource, .commonModes)
+        }
+        gestureTap = nil
+        gestureRunLoopSource = nil
+        activeGesture = nil
+        isGestureRunning = false
+    }
+
+    private func handleGestureEvent(type: CGEventType,
+                                    event: CGEvent) -> Unmanaged<CGEvent>? {
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            activeGesture = nil
+            if let gestureTap { CGEvent.tapEnable(tap: gestureTap, enable: true) }
+            return Unmanaged.passUnretained(event)
+        }
+
+        // Never enter Accessibility from a live tap after the grant is
+        // revoked. A blocked AX call here would stall system input.
+        guard AXIsProcessTrusted() else {
+            activeGesture = nil
+            return Unmanaged.passUnretained(event)
+        }
+
+        if var gesture = activeGesture {
+            switch (gesture.button, type) {
+            case (.primary, .leftMouseDragged), (.secondary, .rightMouseDragged):
+                let now = ProcessInfo.processInfo.systemUptime
+                let updateInterval: TimeInterval
+                switch gesture.kind {
+                case .move:
+                    updateInterval = moveGestureUpdateInterval
+                case .resize:
+                    updateInterval = resizeGestureUpdateInterval
+                }
+                if now - gesture.lastAppliedAt >= updateInterval {
+                    apply(gesture, pointer: event.location)
+                    gesture.lastAppliedAt = now
+                    activeGesture = gesture
+                }
+                return nil
+            case (.primary, .leftMouseUp), (.secondary, .rightMouseUp):
+                apply(gesture, pointer: event.location)
+                activeGesture = nil
+                return nil
+            default:
+                return Unmanaged.passUnretained(event)
+            }
+        }
+
+        guard type == .leftMouseDown || type == .rightMouseDown else {
+            return Unmanaged.passUnretained(event)
+        }
+        let moveModifiers = WindowGestureSupport.modifiers(
+            from: UserDefaults.standard.string(forKey: DefaultsKey.windowGestureModifiers)
+        )
+        let resizeModifiers = WindowGestureSupport.resizeModifiers(from: moveModifiers)
+        let wantsResize: Bool
+        let button: WindowPointerGesture.Button
+        if type == .leftMouseDown,
+           WindowGestureSupport.modifiersMatch(eventFlags: event.flags, expected: moveModifiers) {
+            wantsResize = false
+            button = .primary
+        } else if type == .leftMouseDown,
+                  WindowGestureSupport.modifiersMatch(eventFlags: event.flags,
+                                                      expected: resizeModifiers) {
+            wantsResize = true
+            button = .primary
+        } else if type == .rightMouseDown,
+                  WindowGestureSupport.modifiersMatch(eventFlags: event.flags,
+                                                      expected: moveModifiers) {
+            wantsResize = true
+            button = .secondary
+        } else {
+            return Unmanaged.passUnretained(event)
+        }
+
+        guard let target = gestureTarget(at: event.location,
+                                         requiresResize: wantsResize)
+        else { return Unmanaged.passUnretained(event) }
+
+        let resolvedKind: WindowPointerGesture.Kind
+        if wantsResize {
+            let frame = CGRect(origin: target.frame.origin, size: target.frame.size)
+            let edges = WindowGestureSupport.resizeEdges(at: event.location, in: frame)
+            guard !edges.isEmpty else { return Unmanaged.passUnretained(event) }
+            resolvedKind = .resize(edges)
+        } else {
+            resolvedKind = .move
+        }
+
+        if UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureRaiseWindow) {
+            _ = target.app.activate(options: [])
+            AXUIElementPerformAction(target.window, kAXRaiseAction as CFString)
+        }
+        activeGesture = WindowPointerGesture(window: target.window,
+                                             kind: resolvedKind,
+                                             button: button,
+                                             originalFrame: CGRect(origin: target.frame.origin,
+                                                                   size: target.frame.size),
+                                             pointerStart: event.location,
+                                             lastAppliedAt: ProcessInfo.processInfo.systemUptime)
+        return nil
+    }
+
+    private func apply(_ gesture: WindowPointerGesture, pointer: CGPoint) {
+        switch gesture.kind {
+        case .move:
+            let origin = WindowGestureSupport.movedOrigin(from: gesture.originalFrame.origin,
+                                                          pointerStart: gesture.pointerStart,
+                                                          pointerNow: pointer)
+            _ = setPosition(origin, on: gesture.window)
+        case .resize(let edges):
+            let frame = WindowGestureSupport.resizedFrame(from: gesture.originalFrame,
+                                                          pointerStart: gesture.pointerStart,
+                                                          pointerNow: pointer,
+                                                          edges: edges)
+            // Size must be written first. Moving a full-size window to the
+            // requested top or left origin exposes a large intermediate frame
+            // before AX applies the size, which appears as a jump or blank
+            // content in windows with asynchronous layout.
+            guard setSize(frame.size, on: gesture.window) else { return }
+
+            let acceptedFrame = self.frame(of: gesture.window)
+            let acceptedSize = acceptedFrame?.size ?? frame.size
+            // Right and bottom resizing keeps the original origin, so the
+            // helper returns nil instead of adding a non-atomic position write.
+            guard let anchoredOrigin = WindowGestureSupport.anchoredOriginIfNeeded(
+                original: gesture.originalFrame,
+                requestedOrigin: frame.origin,
+                acceptedSize: acceptedSize,
+                edges: edges
+            ) else { return }
+            if let currentOrigin = acceptedFrame?.origin {
+                if abs(currentOrigin.x - anchoredOrigin.x) > 0.5
+                    || abs(currentOrigin.y - anchoredOrigin.y) > 0.5 {
+                    _ = setPosition(anchoredOrigin, on: gesture.window)
+                }
+            } else {
+                _ = setPosition(anchoredOrigin, on: gesture.window)
+            }
+        }
+    }
+
+    private func gestureTarget(at point: CGPoint,
+                               requiresResize: Bool) -> WindowGestureTarget? {
+        let system = AXUIElementCreateSystemWide()
+        AXUIElementSetMessagingTimeout(system, 0.25)
+        var rawElement: AXUIElement?
+        guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &rawElement) == .success,
+              let element = rawElement
+        else { return nil }
+        AXUIElementSetMessagingTimeout(element, 0.25)
+
+        let window: AXUIElement?
+        if role(of: element) == (kAXWindowRole as String) {
+            window = element
+        } else {
+            window = windowAttribute(element, kAXWindowAttribute as String)
+                ?? windowAttribute(element, kAXTopLevelUIElementAttribute as String)
+        }
+        guard let window else { return nil }
+        AXUIElementSetMessagingTimeout(window, 0.25)
+
+        var pid = pid_t(0)
+        guard role(of: window) == (kAXWindowRole as String),
+              !boolAttribute(window, "AXFullScreen"),
+              canSetPosition(on: window),
+              (!requiresResize || canSetSize(on: window)),
+              AXUIElementGetPid(window, &pid) == .success,
+              pid != ProcessInfo.processInfo.processIdentifier,
+              let app = NSRunningApplication(processIdentifier: pid),
+              !app.isTerminated,
+              app.activationPolicy == .regular,
+              let frame = frame(of: window),
+              frame.size.width > 80,
+              frame.size.height > 80
+        else { return nil }
+        return WindowGestureTarget(window: window, app: app, frame: frame)
+    }
+
     private func canSetFrame(on window: AXUIElement) -> Bool {
+        canSetPosition(on: window) && canSetSize(on: window)
+    }
+
+    private func canSetPosition(on window: AXUIElement) -> Bool {
         var positionSettable = DarwinBoolean(false)
-        var sizeSettable = DarwinBoolean(false)
-        return AXUIElementIsAttributeSettable(window, kAXPositionAttribute as CFString, &positionSettable) == .success
-            && AXUIElementIsAttributeSettable(window, kAXSizeAttribute as CFString, &sizeSettable) == .success
+        return AXUIElementIsAttributeSettable(window,
+                                              kAXPositionAttribute as CFString,
+                                              &positionSettable) == .success
             && positionSettable.boolValue
+    }
+
+    private func canSetSize(on window: AXUIElement) -> Bool {
+        var sizeSettable = DarwinBoolean(false)
+        return AXUIElementIsAttributeSettable(window,
+                                              kAXSizeAttribute as CFString,
+                                              &sizeSettable) == .success
             && sizeSettable.boolValue
     }
 
@@ -480,6 +744,31 @@ private struct WindowLayoutTarget {
 private struct WindowLayoutPlacement {
     let frame: WindowLayoutFrame
     let rect: NSRect
+}
+
+private struct WindowGestureTarget {
+    let window: AXUIElement
+    let app: NSRunningApplication
+    let frame: WindowLayoutFrame
+}
+
+private struct WindowPointerGesture {
+    enum Button {
+        case primary
+        case secondary
+    }
+
+    enum Kind {
+        case move
+        case resize(WindowGestureResizeEdges)
+    }
+
+    let window: AXUIElement
+    let kind: Kind
+    let button: Button
+    let originalFrame: CGRect
+    let pointerStart: CGPoint
+    var lastAppliedAt: TimeInterval
 }
 
 private struct WindowLayoutFrame: Equatable {

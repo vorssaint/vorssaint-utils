@@ -34,6 +34,7 @@ struct MixerVolumeEndpointSelection: Equatable {
 enum MixerRoutingSupport {
     static let systemDefaultSelectionID = "__system_default__"
     static let bluetoothSelectionPrefix = "Bluetooth:"
+    static let finderBundleIdentifier = "com.apple.finder"
 
     private static let forbiddenScalars = CharacterSet.controlCharacters.union(.newlines)
 
@@ -239,10 +240,12 @@ enum MixerRoutingSupport {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    static func requiresEngine(volume: Double,
+    static func requiresEngine(hasAudioObjects: Bool = true,
+                               volume: Double,
                                selectedOutputDeviceUID: String?,
                                targetOutputDeviceUID: String?,
                                defaultOutputDeviceUID: String?) -> Bool {
+        guard hasAudioObjects else { return false }
         guard let targetOutputDeviceUID else { return false }
         if !isUnity(volume) { return true }
         guard let selectedOutputDeviceUID else { return false }
@@ -270,6 +273,14 @@ enum MixerRoutingSupport {
         "com.image-line.",       // FL Studio
         "com.motu.",             // Digital Performer
     ]
+
+    static func isHiddenFromMixer(bundleIdentifier: String?, showFinder: Bool) -> Bool {
+        bundleIdentifier == finderBundleIdentifier && !showFinder
+    }
+
+    static func needsPersistentFinderRow(showFinder: Bool, hasFinderRow: Bool) -> Bool {
+        showFinder && !hasFinderRow
+    }
 
     static func bypassesProcessTap(bundleIdentifier: String?, name: String) -> Bool {
         let bundle = (bundleIdentifier ?? "")

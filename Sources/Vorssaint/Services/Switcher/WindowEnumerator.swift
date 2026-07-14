@@ -44,12 +44,39 @@ enum WindowEnumerator {
         let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
 
         let ownPid = ProcessInfo.processInfo.processIdentifier
+        let runningApps = NSWorkspace.shared.runningApplications
         var regularApps: [pid_t: String] = [:]
-        for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
+        var regularBundlePaths: [pid_t: String] = [:]
+        for app in runningApps where app.activationPolicy == .regular {
             regularApps[app.processIdentifier] = app.localizedName ?? ""
+            if let path = app.bundleURL?.path {
+                regularBundlePaths[app.processIdentifier] = path
+            }
         }
         regularApps[pid_t(ownPid)] = AppInfo.name
-        let accessibilityWindows = accessibilityWindows(for: Set(regularApps.keys).subtracting([pid_t(ownPid)]))
+        let embeddedHostPairs: [(pid_t, pid_t)] = runningApps.compactMap { app in
+            guard app.activationPolicy != .regular,
+                  let helperPath = app.bundleURL?.path,
+                  let hostPID = SwitcherSupport.embeddedHostPID(helperBundlePath: helperPath,
+                                                               regularBundlePaths: regularBundlePaths)
+            else { return nil }
+            return (app.processIdentifier, hostPID)
+        }
+        let embeddedHostPIDs = Dictionary(uniqueKeysWithValues: embeddedHostPairs)
+        // The regular process owns the app identity, but an embedded accessory
+        // process can own its real windows. Query both sides of that mapping.
+        let accessibilityPids: Set<pid_t>
+        if let filterPID {
+            let embeddedPIDs = embeddedHostPIDs.compactMap { ownerPID, hostPID in
+                hostPID == filterPID ? ownerPID : nil
+            }
+            accessibilityPids = Set([filterPID] + embeddedPIDs)
+        } else {
+            accessibilityPids = Set(regularApps.keys)
+                .union(embeddedHostPIDs.keys)
+                .subtracting([pid_t(ownPid)])
+        }
+        let accessibilityWindows = accessibilityWindows(for: accessibilityPids)
 
         var seen = Set<CGWindowID>()
         var windows: [SwitcherItem] = []
@@ -64,12 +91,16 @@ enum WindowEnumerator {
             guard let layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue, layer == 0,
                   let windowID = (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
                   !seen.contains(windowID),
-                  let pid = (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
+                  let windowOwnerPID = (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
                   let boundsDict = info[kCGWindowBounds as String] as? [String: Any]
             else { continue }
-            if let filterPID, pid != filterPID { continue }
-            let axWindow = accessibilityWindows[pid]?.byID[CGWindowID(windowID)]
-            if accessibilityWindows[pid] != nil, axWindow == nil {
+            let appPID = regularApps[windowOwnerPID] != nil
+                ? windowOwnerPID
+                : embeddedHostPIDs[windowOwnerPID]
+            guard let appPID else { continue }
+            if let filterPID, appPID != filterPID { continue }
+            let axWindow = accessibilityWindows[windowOwnerPID]?.byID[CGWindowID(windowID)]
+            if accessibilityWindows[windowOwnerPID] != nil, axWindow == nil {
                 continue
             }
             let cgFrame = CGRect(x: (boundsDict["X"] as? NSNumber)?.doubleValue ?? 0,
@@ -93,12 +124,12 @@ enum WindowEnumerator {
 
             let appName: String
             let displayTitle: String
-            if pid == ownPid {
+            if windowOwnerPID == ownPid {
                 guard let title = ownWindowTitle(for: windowID) else { continue }
                 appName = AppInfo.name
                 displayTitle = title
             } else {
-                guard let name = regularApps[pid] else { continue }
+                guard let name = regularApps[appPID] else { continue }
                 appName = name
                 displayTitle = title.isEmpty ? (axWindow?.title ?? "") : title
             }
@@ -114,7 +145,8 @@ enum WindowEnumerator {
             windows.append(.window(id: windowID,
                                    title: displayTitle,
                                    appName: appName,
-                                   pid: pid,
+                                   pid: appPID,
+                                   windowOwnerPID: windowOwnerPID,
                                    isOnScreen: isOnScreen,
                                    isMinimized: isMinimized,
                                    isFullscreen: isFullscreen,
@@ -123,6 +155,7 @@ enum WindowEnumerator {
         appendAccessibilityOnlyWindows(to: &windows,
                                        snapshots: accessibilityWindows,
                                        regularApps: regularApps,
+                                       embeddedHostPIDs: embeddedHostPIDs,
                                        seen: &seen,
                                        filterPID: filterPID)
         if includeWindowlessFinder {
@@ -171,18 +204,26 @@ enum WindowEnumerator {
 
     private static func accessibilityWindows(for pid: pid_t) -> AccessibilityWindowSnapshotList? {
         let app = AXUIElementCreateApplication(pid)
+        // This runs on the main thread (tap callback and activation warm-ups):
+        // an app that is not servicing its run loop would hold every AX call
+        // for the 6 second default timeout, and a blocked main thread stalls
+        // the event taps with it, freezing typing system wide (issue #189).
+        AXUIElementSetMessagingTimeout(app, 0.35)
         var axWindows: [AXUIElement] = []
         var value: CFTypeRef?
-        if AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value) == .success,
-           let windows = value as? [AXUIElement] {
-            for window in windows where isUserFacingWindow(window) {
-                appendUnique(window, to: &axWindows)
+        let windowsResult = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value)
+        // Not responding: skip the remaining calls, each would block again.
+        guard windowsResult != .cannotComplete else { return nil }
+        if windowsResult == .success, let windows = value as? [AXUIElement] {
+            for window in windows {
+                AXUIElementSetMessagingTimeout(window, 0.35)
+                if isUserFacingWindow(window) { appendUnique(window, to: &axWindows) }
             }
         }
         for attribute in [kAXMainWindowAttribute, kAXFocusedWindowAttribute] {
-            if let window = accessibilityWindowAttribute(app, attribute as String),
-               isUserFacingWindow(window) {
-                appendUnique(window, to: &axWindows)
+            if let window = accessibilityWindowAttribute(app, attribute as String) {
+                AXUIElementSetMessagingTimeout(window, 0.35)
+                if isUserFacingWindow(window) { appendUnique(window, to: &axWindows) }
             }
         }
 
@@ -212,24 +253,29 @@ enum WindowEnumerator {
     private static func appendAccessibilityOnlyWindows(to windows: inout [SwitcherItem],
                                                        snapshots: [pid_t: AccessibilityWindowSnapshotList],
                                                        regularApps: [pid_t: String],
+                                                       embeddedHostPIDs: [pid_t: pid_t],
                                                        seen: inout Set<CGWindowID>,
                                                        filterPID: pid_t?) {
         let tracker = AppActivationTracker.shared
         let pids = snapshots.keys
-            .filter { pid in
-                guard pid != ProcessInfo.processInfo.processIdentifier,
-                      regularApps[pid] != nil else { return false }
-                return filterPID == nil || pid == filterPID
+            .filter { windowOwnerPID in
+                guard windowOwnerPID != ProcessInfo.processInfo.processIdentifier else { return false }
+                let appPID = regularApps[windowOwnerPID] != nil
+                    ? windowOwnerPID
+                    : embeddedHostPIDs[windowOwnerPID]
+                guard let appPID, regularApps[appPID] != nil else { return false }
+                return filterPID == nil || appPID == filterPID
             }
             .sorted { lhs, rhs in
-                let rankL = tracker.rank(of: lhs)
-                let rankR = tracker.rank(of: rhs)
+                let rankL = tracker.rank(of: embeddedHostPIDs[lhs] ?? lhs)
+                let rankR = tracker.rank(of: embeddedHostPIDs[rhs] ?? rhs)
                 return rankL != rankR ? rankL < rankR : lhs < rhs
             }
 
-        for pid in pids {
-            guard let appName = regularApps[pid],
-                  let list = snapshots[pid] else { continue }
+        for windowOwnerPID in pids {
+            let appPID = embeddedHostPIDs[windowOwnerPID] ?? windowOwnerPID
+            guard let appName = regularApps[appPID],
+                  let list = snapshots[windowOwnerPID] else { continue }
             for entry in list.ordered {
                 guard !seen.contains(entry.id),
                       let frame = switchableFrame(entry.snapshot.frame,
@@ -239,7 +285,8 @@ enum WindowEnumerator {
                 windows.append(.window(id: entry.id,
                                        title: entry.snapshot.title,
                                        appName: appName,
-                                       pid: pid,
+                                       pid: appPID,
+                                       windowOwnerPID: windowOwnerPID,
                                        isOnScreen: false,
                                        isMinimized: entry.snapshot.isMinimized,
                                        isFullscreen: entry.snapshot.isFullscreen,

@@ -16,6 +16,130 @@ enum MenuBarMetricSpacing: String, CaseIterable {
     }
 }
 
+/// How percentage based monitor readings appear in the menu bar. Values keep
+/// the existing numeric blocks; bars replace CPU, GPU, memory and disk usage
+/// with a compact vertical gauge. Readings without a fixed 0...100 scale stay
+/// numeric in either mode.
+enum MenuBarMetricAppearance: String, CaseIterable {
+    case values, bars
+
+    var allowsCombinedTemperatures: Bool { self == .values }
+
+    static var current: MenuBarMetricAppearance {
+        let raw = UserDefaults.standard.string(forKey: DefaultsKey.menuBarMetricAppearance) ?? ""
+        let appearance = Defaults.sanitizedMenuBarMetricAppearance(raw)
+        return MenuBarMetricAppearance(rawValue: appearance) ?? .values
+    }
+}
+
+enum MenuBarUsageBarSupport {
+    static let defaultNormalColor = "#64D2FF"
+    static let defaultElevatedColor = "#FFD60A"
+    static let defaultCriticalColor = "#FF453A"
+    static let defaultMediumThreshold = 70
+    static let defaultHighThreshold = 90
+
+    enum Level {
+        case normal, elevated, critical
+    }
+
+    struct RGB: Equatable {
+        let red: Double
+        let green: Double
+        let blue: Double
+    }
+
+    static func memoryFraction(used: UInt64?, total: UInt64?) -> Double? {
+        guard let used, let total, total > 0 else { return nil }
+        return clampedFraction(Double(used) / Double(total))
+    }
+
+    static func clampedFraction(_ fraction: Double) -> Double {
+        guard fraction.isFinite else { return 0 }
+        return min(1, max(0, fraction))
+    }
+
+    /// Quantizing to the number of drawable pixels keeps the image cache
+    /// bounded while retaining every visible fill level.
+    static func fillLevel(for fraction: Double, steps: Int) -> Int {
+        guard steps > 0 else { return 0 }
+        return Int((clampedFraction(fraction) * Double(steps)).rounded())
+    }
+
+    static func thresholds(medium: Int, high: Int) -> (medium: Int, high: Int) {
+        let medium = min(99, max(1, medium))
+        let high = min(100, max(medium + 1, high))
+        return (medium, high)
+    }
+
+    static func level(for fraction: Double,
+                      mediumPercent: Int = defaultMediumThreshold,
+                      highPercent: Int = defaultHighThreshold) -> Level {
+        let thresholds = thresholds(medium: mediumPercent, high: highPercent)
+        let percent = clampedFraction(fraction) * 100
+        switch percent {
+        case Double(thresholds.high)...: return .critical
+        case Double(thresholds.medium)...: return .elevated
+        default: return .normal
+        }
+    }
+
+    static func currentLevel(for fraction: Double,
+                             defaults: UserDefaults = .standard) -> Level {
+        level(for: fraction,
+              mediumPercent: defaults.integer(forKey: DefaultsKey.menuBarUsageBarMediumThreshold),
+              highPercent: defaults.integer(forKey: DefaultsKey.menuBarUsageBarHighThreshold))
+    }
+
+    static func currentColorHex(for level: Level,
+                                defaults: UserDefaults = .standard) -> String {
+        switch level {
+        case .normal:
+            return sanitizedColorHex(defaults.string(forKey: DefaultsKey.menuBarUsageBarNormalColor),
+                                     fallback: defaultNormalColor)
+        case .elevated:
+            return sanitizedColorHex(defaults.string(forKey: DefaultsKey.menuBarUsageBarElevatedColor),
+                                     fallback: defaultElevatedColor)
+        case .critical:
+            return sanitizedColorHex(defaults.string(forKey: DefaultsKey.menuBarUsageBarCriticalColor),
+                                     fallback: defaultCriticalColor)
+        }
+    }
+
+    static func sanitizedColorHex(_ raw: String?, fallback: String) -> String {
+        let fallback = normalizedColorHex(fallback) ?? defaultNormalColor
+        guard let raw, let normalized = normalizedColorHex(raw) else { return fallback }
+        return normalized
+    }
+
+    static func rgb(for raw: String?, fallback: String) -> RGB {
+        let hex = sanitizedColorHex(raw, fallback: fallback)
+        let digits = String(hex.dropFirst())
+        let value = UInt64(digits, radix: 16) ?? 0
+        return RGB(red: Double((value >> 16) & 0xFF) / 255,
+                   green: Double((value >> 8) & 0xFF) / 255,
+                   blue: Double(value & 0xFF) / 255)
+    }
+
+    static func hex(red: Double, green: Double, blue: Double) -> String {
+        let components = [red, green, blue].map {
+            Int((clampedFraction($0) * 255).rounded())
+        }
+        return String(format: "#%02X%02X%02X", components[0], components[1], components[2])
+    }
+
+    private static func normalizedColorHex(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        let digits = trimmed.hasPrefix("#") ? String(trimmed.dropFirst()) : trimmed
+        let allowed = CharacterSet(charactersIn: "0123456789ABCDEF")
+        guard digits.count == 6,
+              digits.unicodeScalars.allSatisfy({ allowed.contains($0) })
+        else { return nil }
+        return "#" + digits
+    }
+
+}
+
 enum MenuBarSpacingSupport {
     /// Idle CPU/GPU readings live right at the one-to-two digit boundary
     /// (4% one tick, 10% the next); reserving the bare current digit count

@@ -9,6 +9,7 @@ import SwiftUI
 /// Designed to live inside a `Form` (grouped style) in both places.
 struct MonitorPanelConfig: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var features = FeatureRuntime.shared
     @State private var expandedBlocks = Set<PanelConfigBlock>()
 
     @AppStorage(DefaultsKey.monitorShowSystem) private var showSystem = true
@@ -36,40 +37,63 @@ struct MonitorPanelConfig: View {
     @AppStorage(DefaultsKey.monitorPwrSystem) private var pwrSystem = true
     @AppStorage(DefaultsKey.monitorPwrAdapter) private var pwrAdapter = true
     @AppStorage(DefaultsKey.monitorPwrBattery) private var pwrBattery = true
+    @AppStorage(DefaultsKey.monitorPwrTimeRemaining) private var pwrTimeRemaining = true
     @AppStorage(DefaultsKey.monitorPwrHealth) private var pwrHealth = true
 
     @AppStorage(DefaultsKey.monitorShowMixer) private var showMixer = true
 
     var body: some View {
-        block(.system, title: l10n.s.systemSection, master: $showSystem) {
-            Toggle(l10n.s.temperatures, isOn: $sysTemps)
-            Toggle(l10n.s.cpuLabel, isOn: $sysCPU)
-            Toggle(l10n.s.gpuLabel, isOn: $sysGPU)
-            Toggle(l10n.s.batteryLabel, isOn: $sysBattery)
-            Toggle(l10n.s.memorySection, isOn: $sysMemory)
-            Toggle(l10n.s.monitorItemUptime, isOn: $sysUptime)
+        if PanelSectionID.system.isAvailable {
+            block(.system, title: l10n.s.systemSection, master: $showSystem) {
+                if AppFeature.monitorCPU.isAvailable || AppFeature.monitorGPU.isAvailable
+                    || AppFeature.monitorPower.isAvailable {
+                    Toggle(l10n.s.temperatures, isOn: $sysTemps)
+                }
+                if AppFeature.monitorCPU.isAvailable {
+                    Toggle(l10n.s.cpuLabel, isOn: $sysCPU)
+                }
+                if AppFeature.monitorGPU.isAvailable {
+                    Toggle(l10n.s.gpuLabel, isOn: $sysGPU)
+                }
+                if AppFeature.monitorPower.isAvailable {
+                    Toggle(l10n.s.batteryLabel, isOn: $sysBattery)
+                }
+                if AppFeature.monitorMemory.isAvailable {
+                    Toggle(l10n.s.memorySection, isOn: $sysMemory)
+                }
+                Toggle(l10n.s.monitorItemUptime, isOn: $sysUptime)
+            }
         }
-        block(.network, title: l10n.s.networkSection, master: $showNetwork) {
-            Toggle(l10n.s.monitorItemNetSpeed, isOn: $netSpeed)
-            Toggle(l10n.s.networkApps, isOn: $netApps)
-            Toggle(l10n.s.monitorItemNetTotals, isOn: $netTotals)
-            Toggle(l10n.s.monitorItemNetTest, isOn: $netTest)
+        if AppFeature.monitorNetwork.isAvailable {
+            block(.network, title: l10n.s.networkSection, master: $showNetwork) {
+                Toggle(l10n.s.monitorItemNetSpeed, isOn: $netSpeed)
+                Toggle(l10n.s.networkApps, isOn: $netApps)
+                Toggle(l10n.s.monitorItemNetTotals, isOn: $netTotals)
+                Toggle(l10n.s.monitorItemNetTest, isOn: $netTest)
+            }
         }
-        block(.disk, title: l10n.s.diskSection, master: $showDisk) {
-            Toggle(l10n.s.monitorItemDiskUsage, isOn: $diskUsage)
-            Toggle(l10n.s.monitorItemDiskActivity, isOn: $diskActivity)
-            Toggle(l10n.s.monitorItemDiskSMART, isOn: $diskSMART)
-            Toggle(l10n.s.monitorItemDiskProtection, isOn: $diskProtection)
-            Toggle(l10n.s.monitorItemDiskTools, isOn: $diskTools)
+        if AppFeature.monitorDisk.isAvailable {
+            block(.disk, title: l10n.s.diskSection, master: $showDisk) {
+                Toggle(l10n.s.monitorItemDiskUsage, isOn: $diskUsage)
+                Toggle(l10n.s.monitorItemDiskActivity, isOn: $diskActivity)
+                Toggle(l10n.s.monitorItemDiskSMART, isOn: $diskSMART)
+                Toggle(l10n.s.monitorItemDiskProtection, isOn: $diskProtection)
+                Toggle(l10n.s.monitorItemDiskTools, isOn: $diskTools)
+            }
         }
-        block(.power, title: l10n.s.powerSection, master: $showPower) {
-            Toggle(l10n.s.powerSystem, isOn: $pwrSystem)
-            Toggle(l10n.s.powerAdapter, isOn: $pwrAdapter)
-            Toggle(l10n.s.powerBattery, isOn: $pwrBattery)
-            Toggle(l10n.s.powerHealth, isOn: $pwrHealth)
+        if AppFeature.monitorPower.isAvailable {
+            block(.power, title: l10n.s.powerSection, master: $showPower) {
+                Toggle(l10n.s.powerSystem, isOn: $pwrSystem)
+                Toggle(l10n.s.powerAdapter, isOn: $pwrAdapter)
+                Toggle(l10n.s.powerBattery, isOn: $pwrBattery)
+                Toggle(FeatureStrings.batteryTime(l10n.language).title, isOn: $pwrTimeRemaining)
+                Toggle(l10n.s.powerHealth, isOn: $pwrHealth)
+            }
         }
         // The mixer is a per-app list, so it has no sub-items — just show/hide.
-        Toggle(l10n.s.mixerSection, isOn: $showMixer)
+        if AppFeature.mixer.isAvailable {
+            Toggle(l10n.s.mixerSection, isOn: $showMixer)
+        }
     }
 
     /// One expandable section: a master "show in panel" toggle, then the per-item

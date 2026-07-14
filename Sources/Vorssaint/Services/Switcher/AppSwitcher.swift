@@ -11,6 +11,7 @@ private struct SwitcherSourceContext {
     let itemID: String?
     let pid: pid_t
     let windowID: CGWindowID?
+    let windowOwnerPID: pid_t?
     let isFullscreen: Bool
 }
 
@@ -28,7 +29,7 @@ final class AppSwitcher: ObservableObject {
         didSet {
             guard oldValue != selectedIndex else { return }
             updateIconRowLayoutForCurrentSelection()
-            if sessionActive, iconRowModeEnabled {
+            if sessionActive, usesIconRowLayout {
                 resizePanel()
             }
         }
@@ -85,7 +86,8 @@ final class AppSwitcher: ObservableObject {
 
     /// Applies the persisted preference; safe to call repeatedly.
     func syncWithPreferences() {
-        let enabled = UserDefaults.standard.bool(forKey: DefaultsKey.switcherEnabled)
+        let enabled = AppFeature.switcher.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.switcherEnabled)
         if enabled, Permissions.shared.accessibility {
             installTap()
             // Build the panel and its SwiftUI tree now: the first hosting-view
@@ -93,7 +95,11 @@ final class AppSwitcher: ObservableObject {
             // the first ⌘Tab.
             let panel = ensurePanel()
             panel.contentViewController?.view.layoutSubtreeIfNeeded()
-            WindowPreviewProvider.shared.startWarming()
+            if !capturesPreviews {
+                WindowPreviewProvider.shared.stopWarming()
+            } else {
+                WindowPreviewProvider.shared.startWarming()
+            }
         } else {
             removeTap()
             WindowPreviewProvider.shared.stopWarming()
@@ -150,8 +156,11 @@ final class AppSwitcher: ObservableObject {
 
         // With Accessibility revoked the AX lookups behind a session would hang
         // inside the tap and freeze input; pass events through and drop any
-        // session that was open.
-        guard AXIsProcessTrusted() else {
+        // session that was open. The cached flag keeps a live TCC round-trip
+        // off this per-keystroke path (typing was paying one per key press);
+        // the hang-prone moment — actually starting a session — re-checks
+        // live below, where it runs once per ⌘Tab instead of once per key.
+        guard Permissions.shared.accessibility else {
             if sessionActive { cancelSession() }
             return Unmanaged.passUnretained(event)
         }
@@ -184,6 +193,9 @@ final class AppSwitcher: ObservableObject {
             guard shortcut.matches(event: event, allowingExtraShift: true)
             else { return Unmanaged.passUnretained(event) }
 
+            // Live check at the one point that starts AX work: revoked-but-
+            // cached-true here would hang the lookups inside the tap.
+            guard AXIsProcessTrusted() else { return Unmanaged.passUnretained(event) }
             let reversed = shortcut.shiftIsNavigationModifier && flags.contains(.maskShift)
             return beginSession(reversed: reversed, shortcut: shortcut)
                 ? nil
@@ -200,10 +212,29 @@ final class AppSwitcher: ObservableObject {
                 break
             }
             let delta = shortcut.shiftIsNavigationModifier && flags.contains(.maskShift) ? -1 : 1
-            advanceSelection(by: delta)
-        case _ where iconRowModeEnabled && searchQuery.isEmpty
-            && windowShortcut.matches(event: event, allowingExtraShift: true):
-            let delta = windowShortcut.shiftIsNavigationModifier && flags.contains(.maskShift) ? -1 : 1
+            // Holding the key stops at the list's end instead of wrapping, like
+            // the system switcher; a fresh press wraps around (issue #187).
+            let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+            advanceSelection(by: delta, wrapping: !isRepeat)
+        case _ where searchQuery.isEmpty
+            && (windowShortcut.matches(event: event, allowingExtraShift: true,
+                                       tolerating: shortcut.modifiers)
+                || windowShortcut.matchesByCharacter(event: event,
+                                                     tolerating: shortcut.modifiers)):
+            // Jumps between the selected app's windows. In the icon row mode
+            // that is the grouped app; in the plain grid it hops across the
+            // same app's thumbnails, so the key works in both looks. The
+            // session shortcut's modifiers are necessarily held while the
+            // panel is up, so they never disqualify the window key (a window
+            // shortcut like ⌥Tab works during a ⌘Tab session). Matching by
+            // character too keeps the default ⌘` on the key that actually
+            // types ` on ABNT2, German and other non-US layouts (#187). Shift
+            // only means "backward" on a positional match: on a character
+            // match it may be part of typing the character itself.
+            let positional = windowShortcut.matches(event: event, allowingExtraShift: true,
+                                                    tolerating: shortcut.modifiers)
+            let delta = positional && windowShortcut.shiftIsNavigationModifier
+                && flags.contains(.maskShift) ? -1 : 1
             advanceWindowInSelectedApp(by: delta)
         case KeyCode.rightArrow:
             advanceSelection(by: 1)
@@ -244,11 +275,15 @@ final class AppSwitcher: ObservableObject {
         sessionSourceContext = sourceContext(in: list)
         sessionStartItemID = sessionSourceContext?.itemID ?? currentItemID(in: list)
         recomputeLayouts(for: list)
-        previews = Dictionary(uniqueKeysWithValues: list.compactMap { item in
-            item.previewWindowID.flatMap { id in
-                WindowPreviewProvider.shared.cachedPreview(for: id).map { (id, $0) }
-            }
-        })
+        if !capturesPreviews {
+            previews = [:]
+        } else {
+            previews = Dictionary(uniqueKeysWithValues: list.compactMap { item in
+                item.previewWindowID.flatMap { id in
+                    WindowPreviewProvider.shared.cachedPreview(for: id).map { (id, $0) }
+                }
+            })
+        }
         userNavigated = false
         // Index 0 is the on-screen window; index 1 is the most-recently-used
         // other window — the toggle target, which may be another window of the
@@ -258,11 +293,13 @@ final class AppSwitcher: ObservableObject {
         sessionShortcut = shortcut
         shiftBackNavigationHeld = reversed && shortcut.shiftIsNavigationModifier
 
-        WindowPreviewProvider.shared.refreshPreviews(for: list, maxPixelSize: 640 * PreviewSizing.scale) { [weak self] windowID, image in
-            guard let self,
-                  self.sessionActive,
-                  self.sessionItems.contains(where: { $0.previewWindowID == windowID }) else { return }
-            self.previews[windowID] = image
+        if capturesPreviews {
+            WindowPreviewProvider.shared.refreshPreviews(for: list, maxPixelSize: 640 * PreviewSizing.scale) { [weak self] windowID, image in
+                guard let self,
+                      self.sessionActive,
+                      self.sessionItems.contains(where: { $0.previewWindowID == windowID }) else { return }
+                self.previews[windowID] = image
+            }
         }
         scheduleShowPanel()
         return true
@@ -304,7 +341,7 @@ final class AppSwitcher: ObservableObject {
 
     private func initialSelectionIndex(in items: [SwitcherItem], reversed: Bool) -> Int {
         guard !items.isEmpty else { return 0 }
-        guard iconRowModeEnabled else {
+        guard usesIconRowLayout else {
             return reversed ? max(0, items.count - 1) : (items.count > 1 ? 1 : 0)
         }
 
@@ -318,39 +355,45 @@ final class AppSwitcher: ObservableObject {
     /// focused window so the first ⌘Tab never targets the window the user is
     /// already in when the frontmost app has more than one window.
     private func currentItemID(in items: [SwitcherItem]) -> String? {
-        let frontPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let reportedFrontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
             ?? AppActivationTracker.shared.frontmostPid
-        if let frontPid,
-           let focusedID = focusedWindowID(for: frontPid),
+        let frontPID = reportedFrontPID.flatMap { reportedPID in
+            items.first(where: { $0.windowOwnerPID == reportedPID })?.pid ?? reportedPID
+        }
+        if let reportedFrontPID,
+           let focusedID = focusedWindowID(for: reportedFrontPID),
            items.contains(where: { $0.windowID == focusedID }) {
             return "w:\(focusedID)"
         }
-        let current = items.first { frontPid == nil || $0.pid == frontPid }
+        let current = items.first { frontPID == nil || $0.pid == frontPID }
         return current?.id ?? items.first?.id
     }
 
     private func sourceContext(in items: [SwitcherItem]) -> SwitcherSourceContext? {
-        guard let frontPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        guard let reportedFrontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
                 ?? AppActivationTracker.shared.frontmostPid else { return nil }
+        let frontPID = items.first(where: { $0.windowOwnerPID == reportedFrontPID })?.pid
+            ?? reportedFrontPID
 
-        let focusedID = focusedWindowID(for: frontPid)
-        let source = items.first { item in
-            guard item.pid == frontPid else { return false }
-            if let focusedID {
-                return item.windowID == focusedID
-            }
-            return true
-        } ?? items.first { $0.pid == frontPid }
+        let focusedID = focusedWindowID(for: reportedFrontPID)
+        let focusedSource = focusedID.flatMap { focusedID in
+            items.first { $0.pid == frontPID && $0.windowID == focusedID }
+        }
+        let source = focusedSource ?? items.first { $0.pid == frontPID }
 
         return SwitcherSourceContext(itemID: source?.id,
-                                     pid: frontPid,
-                                     windowID: focusedID ?? source?.windowID,
+                                     pid: frontPID,
+                                     windowID: source?.windowID,
+                                     windowOwnerPID: source?.windowOwnerPID,
                                      isFullscreen: source?.isFullscreen ?? false)
     }
 
     private func focusedWindowID(for pid: pid_t) -> CGWindowID? {
         guard Permissions.shared.accessibility else { return nil }
         let app = AXUIElementCreateApplication(pid)
+        // Runs inside the tap callback: a hung frontmost app must not hold
+        // the keyboard hostage for the 6 second default AX timeout.
+        AXUIElementSetMessagingTimeout(app, 0.35)
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value) == .success,
               let value,
@@ -445,7 +488,9 @@ final class AppSwitcher: ObservableObject {
         guard sessionActive,
               windows.contains(where: { $0.id == item.id }),
               let windowID = item.windowID,
-              WindowActivator.closeWindow(windowID: windowID, pid: item.pid)
+              WindowActivator.closeWindow(windowID: windowID,
+                                           appPID: item.pid,
+                                           windowOwnerPID: item.windowOwnerPID)
         else { return }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
@@ -456,21 +501,24 @@ final class AppSwitcher: ObservableObject {
         }
     }
 
-    private func advanceSelection(by delta: Int) {
+    private func advanceSelection(by delta: Int, wrapping: Bool = true) {
         guard !windows.isEmpty else { return }
-        if iconRowModeEnabled {
-            advanceAppSelection(by: delta)
+        if usesIconRowLayout {
+            advanceAppSelection(by: delta, wrapping: wrapping)
             return
         }
         userNavigated = true
-        selectedIndex = (selectedIndex + delta + windows.count) % windows.count
+        let next = selectedIndex + delta
+        if !wrapping, !windows.indices.contains(next) { return }
+        selectedIndex = (next + windows.count) % windows.count
     }
 
-    private func advanceAppSelection(by delta: Int) {
+    private func advanceAppSelection(by delta: Int, wrapping: Bool = true) {
         userNavigated = true
         selectedIndex = SwitcherSupport.nextAppSelectionIndex(items: windows,
                                                               selectedIndex: selectedIndex,
-                                                              delta: delta)
+                                                              delta: delta,
+                                                              wrapping: wrapping)
     }
 
     private func advanceWindowInSelectedApp(by delta: Int) {
@@ -567,7 +615,7 @@ final class AppSwitcher: ObservableObject {
     /// Row jump (↑/↓): moves without wrapping so the selection stays put at
     /// the grid edges.
     private func moveSelection(by delta: Int) {
-        if iconRowModeEnabled {
+        if usesIconRowLayout {
             advanceWindowInSelectedApp(by: delta < 0 ? -1 : 1)
             return
         }
@@ -589,7 +637,8 @@ final class AppSwitcher: ObservableObject {
             WindowActivator.activate(selection,
                                      sourceWasFullscreen: source?.isFullscreen ?? false,
                                      sourcePID: source?.pid,
-                                     sourceWindowID: source?.isFullscreen == true ? nil : source?.windowID)
+                                     sourceWindowID: source?.isFullscreen == true ? nil : source?.windowID,
+                                     sourceWindowOwnerPID: source?.windowOwnerPID)
         }
     }
 
@@ -636,7 +685,7 @@ final class AppSwitcher: ObservableObject {
 
     private func showPanel() {
         let panel = ensurePanel()
-        panel.hasShadow = !iconRowModeEnabled
+        panel.hasShadow = !usesIconRowLayout
         hoverAnchor = NSEvent.mouseLocation
         panel.setFrame(centeredFrame(for: currentPanelSize), display: true)
         panel.invalidateShadow()
@@ -649,19 +698,32 @@ final class AppSwitcher: ObservableObject {
     private func resizePanel() {
         guard let panel else { return }
         let frame = centeredFrame(for: currentPanelSize)
-        panel.hasShadow = !iconRowModeEnabled
+        panel.hasShadow = !usesIconRowLayout
         panel.setFrame(frame, display: true, animate: panel.isVisible)
         panel.invalidateShadow()
     }
 
     private var currentPanelSize: CGSize {
-        iconRowModeEnabled
-            ? iconRowLayout.panelSize
+        usesIconRowLayout
+            ? (simpleModeEnabled ? iconRowLayout.simplePanelSize : iconRowLayout.panelSize)
             : grid.panelSize
     }
 
     private var iconRowModeEnabled: Bool {
         UserDefaults.standard.bool(forKey: DefaultsKey.switcherIconRowMode)
+    }
+
+    private var simpleModeEnabled: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.switcherSimpleMode)
+    }
+
+    private var usesIconRowLayout: Bool {
+        SwitcherSupport.usesIconRowLayout(iconRowMode: iconRowModeEnabled,
+                                          simpleMode: simpleModeEnabled)
+    }
+
+    private var capturesPreviews: Bool {
+        SwitcherSupport.capturesPreviews(simpleMode: simpleModeEnabled)
     }
 
     private func recomputeLayouts(for items: [SwitcherItem]) {

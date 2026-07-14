@@ -7,6 +7,8 @@ import Foundation
 enum WindowLayoutAction: String, CaseIterable, Identifiable {
     case leftHalf, rightHalf, topHalf, bottomHalf
     case leftThird, centerThird, rightThird, leftTwoThirds, rightTwoThirds
+    case topLeftSixth, topCenterSixth, topRightSixth
+    case bottomLeftSixth, bottomCenterSixth, bottomRightSixth
     case topLeft, topRight, bottomLeft, bottomRight
     case maximize, center, nextDisplay, restore
 
@@ -15,6 +17,8 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
     static let shortcutActions: [WindowLayoutAction] = [
         .leftHalf, .rightHalf, .topHalf, .bottomHalf,
         .leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds,
+        .topLeftSixth, .topCenterSixth, .topRightSixth,
+        .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
         .topLeft, .topRight, .bottomLeft, .bottomRight,
         .maximize, .center, .restore, .nextDisplay,
     ]
@@ -42,6 +46,12 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .leftTwoThirds: return 44
         case .rightTwoThirds: return 45
         case .nextDisplay: return 46
+        case .topLeftSixth: return 47
+        case .topCenterSixth: return 48
+        case .topRightSixth: return 49
+        case .bottomLeftSixth: return 50
+        case .bottomCenterSixth: return 51
+        case .bottomRightSixth: return 52
         }
     }
 
@@ -69,10 +79,19 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .leftTwoThirds: return DefaultsKey.windowLayoutShortcutLeftTwoThirds
         case .rightTwoThirds: return DefaultsKey.windowLayoutShortcutRightTwoThirds
         case .nextDisplay: return DefaultsKey.windowLayoutShortcutNextDisplay
+        case .topLeftSixth: return DefaultsKey.windowLayoutShortcutTopLeftSixth
+        case .topCenterSixth: return DefaultsKey.windowLayoutShortcutTopCenterSixth
+        case .topRightSixth: return DefaultsKey.windowLayoutShortcutTopRightSixth
+        case .bottomLeftSixth: return DefaultsKey.windowLayoutShortcutBottomLeftSixth
+        case .bottomCenterSixth: return DefaultsKey.windowLayoutShortcutBottomCenterSixth
+        case .bottomRightSixth: return DefaultsKey.windowLayoutShortcutBottomRightSixth
         }
     }
 
-    var defaultShortcut: GlobalShortcut {
+    /// Existing actions keep their established shortcuts. New sixth actions
+    /// start unassigned so enabling Window Layout never claims six extra
+    /// system-wide combinations without an explicit choice.
+    var defaultShortcut: GlobalShortcut? {
         switch self {
         case .leftHalf: return .windowLayoutLeftDefault
         case .rightHalf: return .windowLayoutRightDefault
@@ -91,6 +110,9 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .leftTwoThirds: return .windowLayoutLeftTwoThirdsDefault
         case .rightTwoThirds: return .windowLayoutRightTwoThirdsDefault
         case .nextDisplay: return .windowLayoutNextDisplayDefault
+        case .topLeftSixth, .topCenterSixth, .topRightSixth,
+                .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth:
+            return nil
         }
     }
 
@@ -103,7 +125,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
     /// nothing was saved or the value is corrupt, or nil when the user
     /// explicitly cleared it.
     static func resolvedShortcut(storedValue: String?,
-                                 defaultShortcut: GlobalShortcut) -> GlobalShortcut? {
+                                 defaultShortcut: GlobalShortcut?) -> GlobalShortcut? {
         guard let storedValue else { return defaultShortcut }
         if storedValue == clearedShortcutStorageValue { return nil }
         return GlobalShortcut(storageValue: storedValue) ?? defaultShortcut
@@ -148,6 +170,12 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .rightThird: return text.rightThird
         case .leftTwoThirds: return text.leftTwoThirds
         case .rightTwoThirds: return text.rightTwoThirds
+        case .topLeftSixth: return text.topLeftSixth
+        case .topCenterSixth: return text.topCenterSixth
+        case .topRightSixth: return text.topRightSixth
+        case .bottomLeftSixth: return text.bottomLeftSixth
+        case .bottomCenterSixth: return text.bottomCenterSixth
+        case .bottomRightSixth: return text.bottomRightSixth
         case .nextDisplay: return text.nextDisplay
         }
     }
@@ -199,6 +227,24 @@ enum WindowLayoutGeometry {
         case .rightTwoThirds:
             return CGRect(x: visibleFrame.maxX - twoThirdsWidth, y: visibleFrame.minY,
                           width: twoThirdsWidth, height: visibleFrame.height).integral
+        case .topLeftSixth:
+            return CGRect(x: visibleFrame.minX, y: visibleFrame.midY,
+                          width: thirdWidth, height: halfHeight).integral
+        case .topCenterSixth:
+            return CGRect(x: visibleFrame.minX + thirdWidth, y: visibleFrame.midY,
+                          width: thirdWidth, height: halfHeight).integral
+        case .topRightSixth:
+            return CGRect(x: visibleFrame.maxX - thirdWidth, y: visibleFrame.midY,
+                          width: thirdWidth, height: halfHeight).integral
+        case .bottomLeftSixth:
+            return CGRect(x: visibleFrame.minX, y: visibleFrame.minY,
+                          width: thirdWidth, height: halfHeight).integral
+        case .bottomCenterSixth:
+            return CGRect(x: visibleFrame.minX + thirdWidth, y: visibleFrame.minY,
+                          width: thirdWidth, height: halfHeight).integral
+        case .bottomRightSixth:
+            return CGRect(x: visibleFrame.maxX - thirdWidth, y: visibleFrame.minY,
+                          width: thirdWidth, height: halfHeight).integral
         case .topLeft:
             return CGRect(x: visibleFrame.minX, y: visibleFrame.midY,
                           width: halfWidth, height: halfHeight).integral
@@ -259,6 +305,24 @@ enum WindowLayoutGeometry {
         case .rightThird, .rightTwoThirds:
             origin.x = targetRect.maxX - size.width
             origin.y = visibleFrame.minY
+        case .topLeftSixth:
+            origin.x = targetRect.minX
+            origin.y = targetRect.maxY - size.height
+        case .topCenterSixth:
+            origin.x = targetRect.midX - size.width / 2
+            origin.y = targetRect.maxY - size.height
+        case .topRightSixth:
+            origin.x = targetRect.maxX - size.width
+            origin.y = targetRect.maxY - size.height
+        case .bottomLeftSixth:
+            origin.x = targetRect.minX
+            origin.y = targetRect.minY
+        case .bottomCenterSixth:
+            origin.x = targetRect.midX - size.width / 2
+            origin.y = targetRect.minY
+        case .bottomRightSixth:
+            origin.x = targetRect.maxX - size.width
+            origin.y = targetRect.minY
         case .topLeft:
             origin.x = targetRect.minX
             origin.y = targetRect.maxY - size.height
@@ -334,6 +398,30 @@ enum WindowLayoutGeometry {
             return abs(actualRect.maxX - targetRect.maxX) <= anchorTolerance
                 && fullHeight
                 && overlap > 0.45
+        case .topLeftSixth:
+            return abs(actualRect.minX - targetRect.minX) <= anchorTolerance
+                && abs(actualRect.maxY - targetRect.maxY) <= anchorTolerance
+                && overlap > 0.35
+        case .topCenterSixth:
+            return abs(actualRect.midX - targetRect.midX) <= anchorTolerance
+                && abs(actualRect.maxY - targetRect.maxY) <= anchorTolerance
+                && overlap > 0.35
+        case .topRightSixth:
+            return abs(actualRect.maxX - targetRect.maxX) <= anchorTolerance
+                && abs(actualRect.maxY - targetRect.maxY) <= anchorTolerance
+                && overlap > 0.35
+        case .bottomLeftSixth:
+            return abs(actualRect.minX - targetRect.minX) <= anchorTolerance
+                && abs(actualRect.minY - targetRect.minY) <= anchorTolerance
+                && overlap > 0.35
+        case .bottomCenterSixth:
+            return abs(actualRect.midX - targetRect.midX) <= anchorTolerance
+                && abs(actualRect.minY - targetRect.minY) <= anchorTolerance
+                && overlap > 0.35
+        case .bottomRightSixth:
+            return abs(actualRect.maxX - targetRect.maxX) <= anchorTolerance
+                && abs(actualRect.minY - targetRect.minY) <= anchorTolerance
+                && overlap > 0.35
         case .topLeft:
             return abs(actualRect.minX - targetRect.minX) <= anchorTolerance
                 && abs(actualRect.maxY - targetRect.maxY) <= anchorTolerance

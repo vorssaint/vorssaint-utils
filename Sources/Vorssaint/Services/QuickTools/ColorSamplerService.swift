@@ -20,7 +20,8 @@ final class ColorSamplerService: ObservableObject {
     }
 
     func syncWithPreferences() {
-        let enabled = UserDefaults.standard.bool(forKey: DefaultsKey.colorPickerShortcutEnabled)
+        let enabled = AppFeature.colorPicker.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.colorPickerShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.colorPickerShortcut,
                                             fallback: .colorPickerDefault)
         shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)

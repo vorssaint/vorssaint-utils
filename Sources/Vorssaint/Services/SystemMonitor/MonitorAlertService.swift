@@ -10,34 +10,21 @@ final class MonitorAlertService {
     static let shared = MonitorAlertService()
 
     private var cancellables = Set<AnyCancellable>()
-    private var defaultsObserver: NSObjectProtocol?
-    private var started = false
     private var highCPUSince: Date?
     private var lastSent: [MonitorAlertKind: Date] = [:]
 
     private init() {}
 
-    func start() {
-        guard !started else { return }
-        started = true
-        syncWithPreferences()
-
-        SystemMonitor.shared.$snapshot
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] snapshot in
-                self?.evaluate(snapshot)
-            }
-            .store(in: &cancellables)
-
-        defaultsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
-                                                                  object: nil,
-                                                                  queue: .main) { [weak self] _ in
-            self?.syncWithPreferences()
-        }
-    }
-
+    /// Owns the whole lifecycle: the snapshot sink only exists while some
+    /// alert is on for an available metric, so the service costs nothing
+    /// otherwise. The alert toggles in Settings call this on every change.
     func syncWithPreferences() {
         let enabled = Self.anyEnabled(in: .standard)
+        if enabled {
+            startSinkIfNeeded()
+        } else {
+            stopSink()
+        }
         SystemMonitor.shared.setAlertsActive(enabled)
         if enabled {
             Notifier.requestPermission()
@@ -45,11 +32,25 @@ final class MonitorAlertService {
     }
 
     static func anyEnabled(in defaults: UserDefaults) -> Bool {
-        defaults.bool(forKey: DefaultsKey.monitorAlertCPU)
-            || defaults.bool(forKey: DefaultsKey.monitorAlertCPUTemperature)
-            || defaults.bool(forKey: DefaultsKey.monitorAlertMemory)
-            || defaults.bool(forKey: DefaultsKey.monitorAlertDisk)
-            || defaults.bool(forKey: DefaultsKey.monitorAlertBattery)
+        AppFeature.anyMonitorAlertEnabled(
+            isAvailable: { defaults.bool(forKey: $0.availabilityKey) },
+            boolFor: { defaults.bool(forKey: $0) }
+        )
+    }
+
+    private func startSinkIfNeeded() {
+        guard cancellables.isEmpty else { return }
+        SystemMonitor.shared.$snapshot
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] snapshot in
+                self?.evaluate(snapshot)
+            }
+            .store(in: &cancellables)
+    }
+
+    private func stopSink() {
+        cancellables.removeAll()
+        highCPUSince = nil
     }
 
     private func evaluate(_ snapshot: SystemSnapshot) {
@@ -60,31 +61,35 @@ final class MonitorAlertService {
         }
         let strings = FeatureStrings.monitorAlerts(L10n.shared.language)
 
-        if defaults.bool(forKey: DefaultsKey.monitorAlertCPU) {
+        func alertOn(_ key: String, _ feature: AppFeature) -> Bool {
+            defaults.bool(forKey: key) && defaults.bool(forKey: feature.availabilityKey)
+        }
+
+        if alertOn(DefaultsKey.monitorAlertCPU, .monitorCPU) {
             evaluateCPU(snapshot.cpuUsage, defaults: defaults, strings: strings)
         } else {
             highCPUSince = nil
         }
 
-        if defaults.bool(forKey: DefaultsKey.monitorAlertCPUTemperature),
+        if alertOn(DefaultsKey.monitorAlertCPUTemperature, .monitorCPU),
            let temperature = highCPUTemperature(from: snapshot, defaults: defaults) {
             send(.cpuTemperature,
                  title: strings.cpuTemperatureTitle,
                  body: String(format: strings.cpuTemperatureBodyFormat, temperature))
         }
 
-        if defaults.bool(forKey: DefaultsKey.monitorAlertMemory),
+        if alertOn(DefaultsKey.monitorAlertMemory, .monitorMemory),
            snapshot.memoryPressure == .critical {
             send(.memory, title: strings.memoryTitle, body: strings.memoryBody)
         }
 
-        if defaults.bool(forKey: DefaultsKey.monitorAlertDisk),
+        if alertOn(DefaultsKey.monitorAlertDisk, .monitorDisk),
            let disk = lowDisk(from: snapshot, defaults: defaults) {
             let body = String(format: strings.diskBodyFormat, disk.name, disk.threshold)
             send(.disk, title: strings.diskTitle, body: body)
         }
 
-        if defaults.bool(forKey: DefaultsKey.monitorAlertBattery),
+        if alertOn(DefaultsKey.monitorAlertBattery, .monitorPower),
            let battery = lowBattery(from: snapshot, defaults: defaults) {
             let body = String(format: strings.batteryBodyFormat, battery)
             send(.battery, title: strings.batteryTitle, body: body)

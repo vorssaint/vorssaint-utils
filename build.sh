@@ -89,6 +89,19 @@ if (( TEST )); then
     swiftc -O -target "$TARGET" -sdk "$SDK" \
         Sources/Vorssaint/Services/Media/MediaSupport.swift \
         Sources/Vorssaint/Core/Defaults.swift \
+        Sources/Vorssaint/Core/FeatureCatalog.swift \
+        Sources/Vorssaint/Core/FeaturePresets.swift \
+        Sources/Vorssaint/Core/FeatureHubStrings.swift \
+        Sources/Vorssaint/Core/SettingsBackupSupport.swift \
+        Sources/Vorssaint/Core/BackupStrings.swift \
+        Sources/Vorssaint/Core/SnippetStrings.swift \
+        Sources/Vorssaint/Core/BrightnessStrings.swift \
+        Sources/Vorssaint/Core/QuickToggleStrings.swift \
+        Sources/Vorssaint/Core/MenuBarAppearanceStrings.swift \
+        Sources/Vorssaint/Core/BatteryTimeStrings.swift \
+        Sources/Vorssaint/Core/KeepAwakeStrings.swift \
+        Sources/Vorssaint/Core/PermissionGuideStrings.swift \
+        Sources/Vorssaint/Services/Snippets/TextSnippetSupport.swift \
         Sources/Vorssaint/Core/AppInfo.swift \
         Sources/Vorssaint/Core/GlobalShortcut.swift \
         Sources/Vorssaint/Core/Localization.swift \
@@ -96,6 +109,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/FeatureStrings.swift \
         Sources/Vorssaint/Core/ReleaseNotes.swift \
         Sources/Vorssaint/Core/URLCleaning.swift \
+        Sources/Vorssaint/Services/GeneralPasteboardAccess.swift \
         Sources/Vorssaint/Services/Audio/MixerRoutingSupport.swift \
         Sources/Vorssaint/Services/DockPreview/DockPreviewSupport.swift \
         Sources/Vorssaint/Services/Homebrew/HomebrewSupport.swift \
@@ -104,16 +118,24 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Shelf/ShelfSupport.swift \
         Sources/Vorssaint/Services/Update/UpdateInstallerSupport.swift \
         Sources/Vorssaint/UI/Settings/SettingsSearchSupport.swift \
+        Sources/Vorssaint/UI/Settings/FeatureVisibilitySupport.swift \
         Sources/Vorssaint/App/MenuBarSpacingSupport.swift \
+        Sources/Vorssaint/App/StatusItemAnchorSupport.swift \
         Sources/Vorssaint/Services/DockClick/DockClickSupport.swift \
         Sources/Vorssaint/Services/Finder/CutPasteProgressSupport.swift \
         Sources/Vorssaint/Services/MiddleClick/MiddleClickSupport.swift \
+        Sources/Vorssaint/Services/MouseNavigation/MouseNavigationSupport.swift \
         Sources/Vorssaint/Services/QuickTools/QuickToolsSupport.swift \
+        Sources/Vorssaint/Services/QuickTools/QuickTogglesSupport.swift \
         Sources/Vorssaint/Services/KeyboardDebounce/KeyboardDebounceSupport.swift \
         Sources/Vorssaint/Services/ScrollInverterSupport.swift \
+        Sources/Vorssaint/Services/SmoothScrollSupport.swift \
         Sources/Vorssaint/Services/Switcher/SwitcherModels.swift \
         Sources/Vorssaint/Services/Switcher/SwitcherSupport.swift \
         Sources/Vorssaint/Services/Metrics/MetricFormat.swift \
+        Sources/Vorssaint/Services/KeepAwakeAutomationSupport.swift \
+        Sources/Vorssaint/Services/SudoersSupport.swift \
+        Sources/Vorssaint/Services/Metrics/BatteryTimeSupport.swift \
         Sources/Vorssaint/Services/Metrics/NetworkProcessSupport.swift \
         Sources/Vorssaint/Services/Metrics/PeripheralBatterySupport.swift \
         Sources/Vorssaint/Services/Metrics/DiskSupport.swift \
@@ -121,7 +143,13 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Metrics/MaxCapacityProbe.swift \
         Sources/Vorssaint/Services/Metrics/TemperatureSensorSelector.swift \
         Sources/Vorssaint/Services/WindowLayout/WindowLayoutSupport.swift \
+        Sources/Vorssaint/Services/WindowLayout/WindowGestureSupport.swift \
         Sources/Vorssaint/Services/CleaningMode/CleaningUnlockCounter.swift \
+        Sources/Vorssaint/Services/Display/ExtraBrightnessSupport.swift \
+        Sources/Vorssaint/Services/Display/BrightnessSupport.swift \
+        Sources/Vorssaint/Services/Cleaner/CleanerSupport.swift \
+        Sources/Vorssaint/Services/Cleaner/CleanerPolicy.swift \
+        Sources/Vorssaint/Services/Cleaner/CleanerSchedule.swift \
         Tests/MetricsTests.swift \
         -o build/metrics-tests
     ./build/metrics-tests

@@ -25,47 +25,57 @@ struct MonitorAlertsControls: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 7 : 8) {
-            Toggle(text.cpu, isOn: $alertCPU)
-            if alertCPU {
-                Stepper("\(text.cpuThreshold) \(alertCPUThreshold)%",
-                        value: $alertCPUThreshold,
-                        in: 50...100,
-                        step: 5)
-            }
-            Toggle(text.cpuTemperature, isOn: $alertCPUTemperature)
-            if alertCPUTemperature {
-                Stepper("\(text.cpuTemperatureThreshold) \(alertCPUTemperatureThreshold) °C",
-                        value: $alertCPUTemperatureThreshold,
-                        in: 70...105,
-                        step: 5)
-            }
-            Toggle(text.memory, isOn: $alertMemory)
-            Toggle(text.disk, isOn: $alertDisk)
-            if alertDisk {
-                Stepper("\(text.diskThreshold) \(alertDiskFreePercent)%",
-                        value: $alertDiskFreePercent,
-                        in: 5...30,
-                        step: 5)
-            }
-            Toggle(text.battery, isOn: $alertBattery)
-            if alertBattery {
-                Stepper("\(text.batteryThreshold) \(alertBatteryPercent)%",
-                        value: $alertBatteryPercent,
-                        in: 5...50,
-                        step: 5)
-            }
-            Picker(text.cooldown, selection: $alertCooldown) {
-                Text(text.cooldown2).tag(2)
-                Text(text.cooldown5).tag(5)
-                Text(text.cooldown15).tag(15)
-                Text(text.cooldown30).tag(30)
-                Text(text.cooldown60).tag(60)
-            }
-            .pickerStyle(.menu)
             Text(text.caption)
                 .font(compact ? .system(size: 9.5) : .caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            if AppFeature.monitorCPU.isAvailable {
+                Toggle(text.cpu, isOn: $alertCPU)
+                if alertCPU {
+                    Stepper("\(text.cpuThreshold) \(alertCPUThreshold)%",
+                            value: $alertCPUThreshold,
+                            in: 50...100,
+                            step: 5)
+                }
+                Toggle(text.cpuTemperature, isOn: $alertCPUTemperature)
+                if alertCPUTemperature {
+                    Stepper("\(text.cpuTemperatureThreshold) \(alertCPUTemperatureThreshold) °C",
+                            value: $alertCPUTemperatureThreshold,
+                            in: 70...105,
+                            step: 5)
+                }
+            }
+            if AppFeature.monitorMemory.isAvailable {
+                Toggle(text.memory, isOn: $alertMemory)
+            }
+            if AppFeature.monitorDisk.isAvailable {
+                Toggle(text.disk, isOn: $alertDisk)
+                if alertDisk {
+                    Stepper("\(text.diskThreshold) \(alertDiskFreePercent)%",
+                            value: $alertDiskFreePercent,
+                            in: 5...30,
+                            step: 5)
+                }
+            }
+            if AppFeature.monitorPower.isAvailable {
+                Toggle(text.battery, isOn: $alertBattery)
+                if alertBattery {
+                    Stepper("\(text.batteryThreshold) \(alertBatteryPercent)%",
+                            value: $alertBatteryPercent,
+                            in: 5...50,
+                            step: 5)
+                }
+            }
+            if anyAlertEnabled {
+                Picker(text.cooldown, selection: $alertCooldown) {
+                    Text(text.cooldown2).tag(2)
+                    Text(text.cooldown5).tag(5)
+                    Text(text.cooldown15).tag(15)
+                    Text(text.cooldown30).tag(30)
+                    Text(text.cooldown60).tag(60)
+                }
+                .pickerStyle(.menu)
+            }
             // Alerts silently cannot fire when macOS notifications are denied
             // for the app; without this line that state is invisible (the
             // user just never hears anything).

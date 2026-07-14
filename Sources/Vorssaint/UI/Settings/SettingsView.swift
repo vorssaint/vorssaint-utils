@@ -7,12 +7,6 @@ import SwiftUI
 
 /// One entry in the Settings sidebar. New features add a case here and a row in
 /// the Features section, so every feature gets its own page.
-enum SettingsPage: Hashable {
-    case general, energy, monitor
-    case mouse, switcher, keyDebounce, cutPaste, autoQuit, uninstaller, urlCleaner, homebrew, media, clipboard, windowLayout, shelf, quickTools
-    case shortcuts, advanced, about, releaseNotes, support
-}
-
 /// Selects the visible Settings page; the menu bar uses it to open Settings
 /// directly on a specific page.
 final class SettingsRouter: ObservableObject {
@@ -27,6 +21,7 @@ final class SettingsRouter: ObservableObject {
 struct SettingsView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var router = SettingsRouter.shared
+    @ObservedObject private var features = FeatureRuntime.shared
     @State private var searchQuery = ""
 
     private var categories: SettingsCategoryStrings {
@@ -47,21 +42,40 @@ struct SettingsView: View {
         [
             (categories.essentials, [
                 SidebarItem(page: .general, title: l10n.s.tabGeneral, icon: "gearshape",
-                            keywords: [l10n.s.launchAtLogin, l10n.s.languageLabel, l10n.s.showMenuBarIcon]),
+                            keywords: [l10n.s.launchAtLogin, l10n.s.languageLabel, l10n.s.showMenuBarIcon,
+                                       l10n.s.musicBlockTitle, l10n.s.musicBlockSection]),
+                // Searching any feature name lands here even when the feature
+                // is hidden, so the hub is always the way back.
+                SidebarItem(page: .features, title: FeatureStrings.hub(l10n.language).pageTitle,
+                            icon: "square.grid.2x2",
+                            keywords: AppFeature.allCases.map {
+                                $0.hubTitle(l10n.s, hub: FeatureStrings.hub(l10n.language))
+                            }),
                 SidebarItem(page: .energy, title: l10n.s.tabEnergy, icon: "bolt.fill",
-                            keywords: [l10n.s.keepAwakeTitle, l10n.s.clamshellTitle, l10n.s.defaultDurationLabel]),
+                            keywords: [l10n.s.keepAwakeTitle, l10n.s.clamshellTitle,
+                                       l10n.s.defaultDurationLabel, l10n.s.extraBrightnessName,
+                                       l10n.s.keepAwakeActiveIconLabel,
+                                       l10n.s.keepAwakeActiveIconCoffee,
+                                       l10n.s.keepAwakeActiveIconEye,
+                                       FeatureStrings.brightness(l10n.language).pageTitle,
+                                       FeatureStrings.keepAwakeAutomation(l10n.language)
+                                           .externalDisplayToggle,
+                                       FeatureStrings.keepAwakeAutomation(l10n.language).powerToggle]),
                 SidebarItem(page: .monitor, title: l10n.s.tabMonitor, icon: "chart.line.uptrend.xyaxis",
                             keywords: [l10n.s.menuBarSpacingLabel, l10n.s.menuBarHideIconToggle,
                                        l10n.s.monitorMemoryPressureDot]),
             ]),
             (categories.windowsControls, [
                 SidebarItem(page: .mouse, title: l10n.s.tabMouse, icon: "computermouse",
-                            keywords: [l10n.s.invertMouseScroll, l10n.s.middleClickTapPicker]),
+                            keywords: [l10n.s.invertMouseScroll, l10n.s.middleClickTapPicker,
+                                       l10n.s.smoothScrollName, l10n.s.mouseNavigationEnable]),
                 SidebarItem(page: .switcher, title: l10n.s.tabSwitcher, icon: "rectangle.on.rectangle",
                             keywords: [l10n.s.switcherEnable, l10n.s.dockClickMinimize,
                                        l10n.s.dockClickCycleWindows]),
                 SidebarItem(page: .windowLayout, title: FeatureStrings.windowLayout(l10n.language).title, icon: "rectangle.3.group",
-                            keywords: [l10n.s.dockClickCycleWindows]),
+                            keywords: [l10n.s.dockClickCycleWindows,
+                                       FeatureStrings.windowLayout(l10n.language).gestureEnable,
+                                       FeatureStrings.windowLayout(l10n.language).gestureResize]),
                 SidebarItem(page: .autoQuit, title: l10n.s.autoQuitName, icon: "xmark.rectangle",
                             keywords: [l10n.s.autoQuitEnable]),
             ]),
@@ -72,7 +86,7 @@ struct SettingsView: View {
                 SidebarItem(page: .cutPaste, title: l10n.s.cutPasteName, icon: "scissors",
                             keywords: [l10n.s.cutPasteEnable]),
                 SidebarItem(page: .shelf, title: l10n.s.shelfName, icon: "tray.full",
-                            keywords: [l10n.s.shelfEnable]),
+                            keywords: [l10n.s.shelfEnable, l10n.s.shelfDropZoneToggle]),
                 SidebarItem(page: .media, title: l10n.s.mediaName, icon: "photo.on.rectangle.angled",
                             keywords: ["PDF", "GIF", l10n.s.mediaStartConvertPDF, l10n.s.ocrName]),
             ]),
@@ -80,11 +94,18 @@ struct SettingsView: View {
                 SidebarItem(page: .quickTools, title: l10n.s.quickToolsTab, icon: "wand.and.rays",
                             keywords: [l10n.s.launcherName, l10n.s.colorPickerName,
                                        l10n.s.micMuteName, l10n.s.ocrName,
-                                       l10n.s.colorPickerBareHexToggle, l10n.s.micMuteMenuBarToggle]),
+                                       l10n.s.colorPickerBareHexToggle, l10n.s.micMuteMenuBarToggle,
+                                       FeatureStrings.quickToggles(l10n.language).pageTitle,
+                                       FeatureStrings.quickToggles(l10n.language).darkModeToDark,
+                                       FeatureStrings.quickToggles(l10n.language).emptyTrashTitle]),
                 SidebarItem(page: .urlCleaner, title: l10n.s.urlCleanerName, icon: "link"),
                 SidebarItem(page: .homebrew, title: l10n.s.homebrewName, icon: "shippingbox"),
                 SidebarItem(page: .uninstaller, title: l10n.s.uninstallerName, icon: "trash"),
                 SidebarItem(page: .keyDebounce, title: l10n.s.keyDebounceName, icon: "keyboard"),
+                SidebarItem(page: .textSnippets, title: FeatureStrings.snippets(l10n.language).pageTitle,
+                            icon: "text.append",
+                            keywords: [FeatureStrings.snippets(l10n.language).triggerLabel,
+                                       FeatureStrings.snippets(l10n.language).addButton]),
             ]),
             (categories.app, [
                 SidebarItem(page: .shortcuts, title: l10n.s.shortcutsPageTitle, icon: "command",
@@ -103,8 +124,9 @@ struct SettingsView: View {
             List(selection: $router.page) {
                 ForEach(sidebarSections, id: \.title) { section in
                     let items = section.items.filter {
-                        SettingsSearchSupport.matches(query: searchQuery, title: $0.title,
-                                                      keywords: $0.keywords)
+                        FeatureVisibilitySupport.isPageVisible($0.page) { $0.isAvailable }
+                            && SettingsSearchSupport.matches(query: searchQuery, title: $0.title,
+                                                             keywords: $0.keywords)
                     }
                     if !items.isEmpty {
                         Section(section.title) {
@@ -119,19 +141,33 @@ struct SettingsView: View {
             .searchable(text: $searchQuery,
                         placement: .sidebar,
                         prompt: l10n.s.settingsSearchPlaceholder)
+            .settingsSidebarSearchEdge()
             .navigationSplitViewColumnWidth(min: 198, ideal: 210, max: 240)
         } detail: {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(width: 772, height: 528)
+        .frame(minWidth: 772, maxWidth: .infinity, minHeight: 528, maxHeight: .infinity)
+        .onAppear { ensureVisiblePage() }
+        .onChange(of: features.revision) { _, _ in ensureVisiblePage() }
+    }
+
+    /// The selected page can leave the sidebar when its last feature is
+    /// switched off in the hub; fall back to the hub itself, where the
+    /// feature can be brought back.
+    private func ensureVisiblePage() {
+        if !FeatureVisibilitySupport.isPageVisible(router.page, isAvailable: { $0.isAvailable }) {
+            router.page = .features
+        }
     }
 
     @ViewBuilder
     private var detail: some View {
         switch router.page {
         case .general: GeneralSettings()
+        case .features: FeatureHubSettings()
+        case .textSnippets: TextSnippetsSettings()
         case .energy: EnergySettings()
         case .monitor: MonitorSettings()
         case .mouse: MouseSettings()
@@ -160,11 +196,14 @@ struct SettingsView: View {
 
 struct GeneralSettings: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var hotkeys = HotkeyManager.shared
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
     @AppStorage(DefaultsKey.showCountdown) private var showCountdown = false
+    @AppStorage(DefaultsKey.musicBlockEnabled) private var musicBlockEnabled = false
+    @AppStorage(DefaultsKey.musicBlockReplacementPath) private var musicBlockReplacementPath = ""
 
     var body: some View {
         Form {
@@ -195,7 +234,9 @@ struct GeneralSettings: View {
                 }
             }
             Section(l10n.s.menuBarSection) {
-                Toggle(l10n.s.showCountdown, isOn: $showCountdown)
+                if AppFeature.keepAwake.isAvailable {
+                    Toggle(l10n.s.showCountdown, isOn: $showCountdown)
+                }
                 Button(l10n.s.showMenuBarIcon) {
                     appDelegate()?.reshowStatusItem()
                 }
@@ -203,25 +244,83 @@ struct GeneralSettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Section(l10n.s.globalHotkeySection) {
-                Toggle(l10n.s.hotkeyToggle, isOn: $hotkeyEnabled)
-                    .onChange(of: hotkeyEnabled) { _, enabled in
-                        HotkeyManager.shared.setEnabled(enabled)
-                    }
-                ShortcutPreferenceRow(role: .keepAwake, isEnabled: hotkeyEnabled) {
-                    HotkeyManager.shared.syncWithPreferences()
-                }
-                if hotkeyEnabled, hotkeys.registrationFailed {
-                    Text(l10n.s.shortcutUnavailable)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
-                Text(l10n.s.hotkeyCaption)
+            // The panel hosts more than monitoring, so its layout editor lives
+            // here with the app-wide options rather than on the Monitor page
+            // (which the hub can hide entirely).
+            Section(l10n.s.monitorOrderSection) {
+                PanelOrderEditor()
+                Text(l10n.s.monitorOrderHint)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            if AppFeature.keepAwake.isAvailable {
+                Section(l10n.s.globalHotkeySection) {
+                    Toggle(l10n.s.hotkeyToggle, isOn: $hotkeyEnabled)
+                        .onChange(of: hotkeyEnabled) { _, enabled in
+                            HotkeyManager.shared.setEnabled(enabled)
+                        }
+                    ShortcutPreferenceRow(role: .keepAwake, isEnabled: hotkeyEnabled) {
+                        HotkeyManager.shared.syncWithPreferences()
+                    }
+                    if hotkeyEnabled, hotkeys.registrationFailed {
+                        Text(l10n.s.shortcutUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                    Text(l10n.s.hotkeyCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if AppFeature.musicBlock.isAvailable {
+                Section(l10n.s.musicBlockSection) {
+                    Toggle(l10n.s.musicBlockTitle, isOn: $musicBlockEnabled)
+                        .onChange(of: musicBlockEnabled) { _, _ in
+                            MusicLaunchBlocker.shared.syncWithPreferences()
+                        }
+                    if musicBlockEnabled {
+                        HStack {
+                            Text(l10n.s.musicBlockReplacementLabel)
+                            Spacer()
+                            Text(musicBlockReplacementName)
+                                .foregroundStyle(.secondary)
+                            Button(l10n.s.musicBlockChooseApp) { chooseMusicReplacement() }
+                            if !musicBlockReplacementPath.isEmpty {
+                                Button {
+                                    musicBlockReplacementPath = ""
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    SettingsCaptionText(l10n.s.musicBlockCaption)
+                }
+            }
         }
         .formStyle(.grouped)
+    }
+
+    private var musicBlockReplacementName: String {
+        guard !musicBlockReplacementPath.isEmpty else { return l10n.s.musicBlockReplacementNone }
+        let name = FileManager.default.displayName(atPath: musicBlockReplacementPath)
+        return (name as NSString).deletingPathExtension
+    }
+
+    private func chooseMusicReplacement() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.applicationBundle]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        // Picking the blocked app itself would start a launch-and-kill loop.
+        if let bundleID = Bundle(url: url)?.bundleIdentifier,
+           MusicLaunchBlocker.blockedBundleIDs.contains(bundleID) { return }
+        musicBlockReplacementPath = url.path
     }
 }
 
@@ -315,75 +414,143 @@ struct UpdatesView: View {
 
 struct EnergySettings: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var awake = KeepAwakeManager.shared
     @ObservedObject private var permissions = Permissions.shared
+    @ObservedObject private var extraBrightness = ExtraBrightnessService.shared
+    @ObservedObject private var brightness = BrightnessService.shared
+    @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
+    @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
+    @AppStorage(DefaultsKey.extraBrightnessEnabled) private var extraBrightnessEnabled = false
+    @AppStorage(DefaultsKey.extraBrightnessLevel) private var extraBrightnessLevel = 100
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration = 0
     @AppStorage(DefaultsKey.batteryLimit) private var batteryLimit = 10
     @AppStorage(DefaultsKey.keepAwakeAutoStart) private var keepAwakeAutoStart = false
     @AppStorage(DefaultsKey.keepAwakeIconTint) private var keepAwakeIconTint = KeepAwakeIconTint.orange.rawValue
+    @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleEnabled) private var keepAwakeMouseJiggle = false
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleInterval) private var keepAwakeMouseJiggleInterval = 5
 
     var body: some View {
         Form {
-            Section(l10n.s.sessionSection) {
-                Picker(l10n.s.defaultDurationLabel, selection: $defaultDuration) {
-                    Text(l10n.s.minutes15).tag(15)
-                    Text(l10n.s.minutes30).tag(30)
-                    Text(l10n.s.hour1).tag(60)
-                    Text(l10n.s.hours2).tag(120)
-                    Text(l10n.s.hours4).tag(240)
-                    Text(l10n.s.hours8).tag(480)
-                    Text(l10n.s.indefinite).tag(0)
-                }
-                SettingsToggleWithCaption(title: l10n.s.keepAwakeAutoStart,
-                                          caption: l10n.s.keepAwakeAutoStartCaption,
-                                          isOn: $keepAwakeAutoStart)
-            }
-            Section(l10n.s.batteryProtectionSection) {
-                Picker(l10n.s.batteryDisableBelow, selection: $batteryLimit) {
-                    Text(l10n.s.batteryNever).tag(0)
-                    Text("5%").tag(5)
-                    Text("10%").tag(10)
-                    Text("15%").tag(15)
-                    Text("20%").tag(20)
-                }
-                SettingsCaptionText(l10n.s.batteryProtectionCaption)
-            }
-            Section(l10n.s.keepAwakeTitle) {
-                Picker(l10n.s.keepAwakeIconTintLabel, selection: $keepAwakeIconTint) {
-                    ForEach(KeepAwakeIconTint.allCases) { tint in
-                        Text(tint.title(l10n.s)).tag(tint.rawValue)
+            if AppFeature.keepAwake.isAvailable {
+                Section(l10n.s.sessionSection) {
+                    Picker(l10n.s.defaultDurationLabel, selection: $defaultDuration) {
+                        Text(l10n.s.minutes15).tag(15)
+                        Text(l10n.s.minutes30).tag(30)
+                        Text(l10n.s.hour1).tag(60)
+                        Text(l10n.s.hours2).tag(120)
+                        Text(l10n.s.hours4).tag(240)
+                        Text(l10n.s.hours8).tag(480)
+                        Text(l10n.s.indefinite).tag(0)
                     }
+                    SettingsToggleWithCaption(title: l10n.s.keepAwakeAutoStart,
+                                              caption: l10n.s.keepAwakeAutoStartCaption,
+                                              isOn: $keepAwakeAutoStart)
                 }
-                .pickerStyle(.menu)
-                SettingsToggleWithCaption(title: l10n.s.keepAwakeMouseJiggle,
-                                          caption: l10n.s.keepAwakeMouseJiggleCaption,
-                                          isOn: $keepAwakeMouseJiggle)
-                if keepAwakeMouseJiggle {
-                    Picker(l10n.s.keepAwakeMouseJiggleInterval, selection: $keepAwakeMouseJiggleInterval) {
-                        ForEach(Defaults.allowedKeepAwakeMouseJiggleIntervals, id: \.self) { minutes in
-                            Text(KeepAwakeMouseJiggleIntervalPicker.label(for: minutes)).tag(minutes)
+                Section(automationStrings.automationSection) {
+                    SettingsCaptionText(automationStrings.automationCaption)
+                    KeepAwakeAutomationEditor()
+                }
+                Section(l10n.s.batteryProtectionSection) {
+                    Picker(l10n.s.batteryDisableBelow, selection: $batteryLimit) {
+                        Text(l10n.s.batteryNever).tag(0)
+                        Text("5%").tag(5)
+                        Text("10%").tag(10)
+                        Text("15%").tag(15)
+                        Text("20%").tag(20)
+                    }
+                    SettingsCaptionText(l10n.s.batteryProtectionCaption)
+                }
+                Section(l10n.s.keepAwakeTitle) {
+                    KeepAwakeIconPicker(iconValue: $keepAwakeActiveIcon,
+                                        tintValue: $keepAwakeIconTint)
+                    SettingsToggleWithCaption(title: l10n.s.keepAwakeMouseJiggle,
+                                              caption: l10n.s.keepAwakeMouseJiggleCaption,
+                                              isOn: $keepAwakeMouseJiggle)
+                    if keepAwakeMouseJiggle {
+                        Picker(l10n.s.keepAwakeMouseJiggleInterval, selection: $keepAwakeMouseJiggleInterval) {
+                            ForEach(Defaults.allowedKeepAwakeMouseJiggleIntervals, id: \.self) { minutes in
+                                Text(KeepAwakeMouseJiggleIntervalPicker.label(for: minutes)).tag(minutes)
+                            }
+                        }
+                        if !permissions.accessibility {
+                            PermissionRow(kind: .accessibility)
                         }
                     }
-                    if !permissions.accessibility {
-                        PermissionRow(kind: .accessibility)
+                }
+                Section(l10n.s.clamshellSection) {
+                    Toggle(l10n.s.clamshellTitle, isOn: $awake.clamshellPreferred)
+                        .disabled(awake.clamshellSetupInProgress)
+                    if awake.clamshellSetupInProgress {
+                        Text(l10n.s.configuring)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if awake.clamshellSetupFailed {
+                        Text(l10n.s.sudoersFailed)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                    SettingsCaptionText(l10n.s.clamshellExplanation)
+                }
+            }
+            if AppFeature.brightness.isAvailable {
+                let strings = FeatureStrings.brightness(l10n.language)
+                Section(strings.pageTitle) {
+                    SettingsToggleWithCaption(title: strings.enable,
+                                              caption: strings.enableCaption,
+                                              isOn: $brightnessEnabled)
+                        .onChange(of: brightnessEnabled) { _, _ in
+                            BrightnessService.shared.syncWithPreferences()
+                        }
+                    if brightnessEnabled {
+                        if brightness.displays.isEmpty {
+                            SettingsCaptionText(strings.noDisplays)
+                        } else {
+                            ForEach(brightness.displays) { display in
+                                brightnessRow(display)
+                            }
+                        }
+                        if let failure = brightness.displayControlFailure {
+                            SettingsCaptionText(displayControlFailureText(failure, strings: strings))
+                                .foregroundStyle(.red)
+                        }
+                        SettingsToggleWithCaption(title: strings.keysToggle,
+                                                  caption: strings.keysCaption,
+                                                  isOn: $brightnessKeysEnabled)
+                            .onChange(of: brightnessKeysEnabled) { _, isOn in
+                                if isOn { Permissions.shared.requestAccessibility() }
+                                BrightnessService.shared.syncWithPreferences()
+                            }
+                        if brightnessKeysEnabled, !permissions.accessibility {
+                            PermissionRow(kind: .accessibility)
+                        }
+                        SettingsCaptionText(strings.externalCaption)
                     }
                 }
             }
-            Section(l10n.s.clamshellSection) {
-                Toggle(l10n.s.clamshellTitle, isOn: $awake.clamshellPreferred)
-                    .disabled(awake.clamshellSetupInProgress)
-                if awake.clamshellSetupInProgress {
-                    Text(l10n.s.configuring)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else if awake.clamshellSetupFailed {
-                    Text(l10n.s.sudoersFailed)
-                        .font(.caption)
-                        .foregroundStyle(.red)
+            if AppFeature.extraBrightness.isAvailable {
+                Section(l10n.s.extraBrightnessName) {
+                    if extraBrightness.supported {
+                        Toggle(l10n.s.extraBrightnessName, isOn: $extraBrightnessEnabled)
+                            .onChange(of: extraBrightnessEnabled) { _, _ in
+                                ExtraBrightnessService.shared.syncWithPreferences()
+                            }
+                        SettingsCaptionText(l10n.s.extraBrightnessCaption)
+                        if extraBrightnessEnabled {
+                            HStack {
+                                Text(l10n.s.extraBrightnessLevelLabel)
+                                Slider(value: extraBrightnessLevelBinding, in: 10...100, step: 5)
+                                Text("\(extraBrightnessLevel)%")
+                                    .font(.system(.body, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 52, alignment: .trailing)
+                            }
+                        }
+                    } else {
+                        SettingsCaptionText(l10n.s.extraBrightnessUnsupported)
+                    }
                 }
-                SettingsCaptionText(l10n.s.clamshellExplanation)
             }
         }
         .formStyle(.grouped)
@@ -391,9 +558,57 @@ struct EnergySettings: View {
             defaultDuration = Defaults.sanitizedDefaultDuration(defaultDuration)
             batteryLimit = Defaults.sanitizedBatteryLimit(batteryLimit)
             keepAwakeIconTint = Defaults.sanitizedKeepAwakeIconTint(keepAwakeIconTint).rawValue
+            keepAwakeActiveIcon = Defaults.sanitizedKeepAwakeActiveIcon(keepAwakeActiveIcon).rawValue
             keepAwakeMouseJiggleInterval = Defaults.sanitizedKeepAwakeMouseJiggleInterval(keepAwakeMouseJiggleInterval)
             awake.refreshPasswordlessStatus()
+            // Displays may have changed since launch (docked, clamshell);
+            // re-check so the section never shows a stale availability.
+            ExtraBrightnessService.shared.syncWithPreferences()
+            BrightnessService.shared.refresh()
         }
+    }
+
+    private func brightnessRow(_ display: BrightnessDisplay) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: display.isBuiltIn ? "laptopcomputer" : "display")
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+            Text(display.name)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            if display.isActive, display.method != nil {
+                Slider(value: Binding(get: { display.brightness },
+                                      set: { BrightnessService.shared.setBrightness($0,
+                                                                                    for: display.id) }),
+                       in: 0...1)
+                    .disabled(brightness.isDisplayPending(display.id))
+                    .accessibilityLabel(display.name)
+                Text("\(Int((display.brightness * 100).rounded()))%")
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 52, alignment: .trailing)
+            } else {
+                Spacer()
+                if !display.isActive {
+                    Text(FeatureStrings.brightness(l10n.language).displayOff)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 52, alignment: .trailing)
+                }
+            }
+            DisplayPowerButton(display: display)
+        }
+    }
+
+    private var extraBrightnessLevelBinding: Binding<Double> {
+        Binding(get: { Double(extraBrightnessLevel) },
+                set: { newValue in
+                    extraBrightnessLevel = Int(newValue)
+                    ExtraBrightnessService.shared.levelDidChange()
+                })
+    }
+
+    private var automationStrings: KeepAwakeAutomationStrings {
+        FeatureStrings.keepAwakeAutomation(l10n.language)
     }
 }
 
@@ -401,64 +616,114 @@ struct EnergySettings: View {
 
 struct MouseSettings: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var inverter = ScrollInverter.shared
+    @ObservedObject private var smoothScroll = SmoothScrollService.shared
+    @ObservedObject private var mouseNavigation = MouseNavigationService.shared
     @ObservedObject private var middleClick = MiddleClickService.shared
     @AppStorage(DefaultsKey.scrollInverterEnabled) private var inverterEnabled = false
+    @AppStorage(DefaultsKey.smoothScrollEnabled) private var smoothScrollEnabled = false
+    @AppStorage(DefaultsKey.smoothScrollStep) private var smoothScrollStep = SmoothScrollSupport.defaultStep
+    @AppStorage(DefaultsKey.mouseNavigationEnabled) private var mouseNavigationEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.middleClickTapFingers) private var middleClickTapFingers = 0
 
     var body: some View {
         Form {
-            Section(l10n.s.scrollSection) {
-                Toggle(l10n.s.invertMouseScroll, isOn: $inverterEnabled)
-                    .onChange(of: inverterEnabled) { _, _ in
-                        ScrollInverter.shared.syncWithPreferences()
+            if AppFeature.scrollInverter.isAvailable {
+                Section(l10n.s.scrollSection) {
+                    Toggle(l10n.s.invertMouseScroll, isOn: $inverterEnabled)
+                        .onChange(of: inverterEnabled) { _, _ in
+                            ScrollInverter.shared.syncWithPreferences()
+                        }
+                    if inverterEnabled, inverter.isRunning {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                            Text(l10n.s.scrollActiveNow)
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        }
                     }
-                if inverterEnabled, inverter.isRunning {
-                    HStack(spacing: 6) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                        Text(l10n.s.scrollActiveNow)
+                    Text(l10n.s.invertMouseScrollCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(l10n.s.scrollTrackpadNote)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if AppFeature.smoothScroll.isAvailable {
+                Section(l10n.s.smoothScrollName) {
+                    Toggle(l10n.s.smoothScrollName, isOn: $smoothScrollEnabled)
+                        .onChange(of: smoothScrollEnabled) { _, _ in
+                            SmoothScrollService.shared.syncWithPreferences()
+                        }
+                    Text(l10n.s.smoothScrollCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if smoothScrollEnabled {
+                        HStack {
+                            Slider(value: smoothScrollStepBinding,
+                                   in: Double(SmoothScrollSupport.stepRange.lowerBound)...Double(SmoothScrollSupport.stepRange.upperBound),
+                                   step: 10) {
+                                Text(l10n.s.smoothScrollStepLabel)
+                            }
+                            Text("\(SmoothScrollSupport.sanitizedStep(smoothScrollStep))")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 34, alignment: .trailing)
+                        }
+                    }
+                }
+            }
+            if AppFeature.mouseNavigation.isAvailable {
+                Section(l10n.s.mouseNavigationSection) {
+                    Toggle(l10n.s.mouseNavigationEnable, isOn: $mouseNavigationEnabled)
+                        .onChange(of: mouseNavigationEnabled) { _, _ in
+                            MouseNavigationService.shared.syncWithPreferences()
+                        }
+                    Text(l10n.s.mouseNavigationCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if mouseNavigationEnabled, mouseNavigation.isRunning {
+                        Label(l10n.s.mouseNavigationActiveNow, systemImage: "checkmark.circle.fill")
                             .font(.caption)
                             .foregroundStyle(.green)
                     }
                 }
-                Text(l10n.s.invertMouseScrollCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(l10n.s.scrollTrackpadNote)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
-            Section(l10n.s.middleClickSection) {
-                Toggle(l10n.s.middleClickEnable, isOn: $middleClickEnabled)
-                    .onChange(of: middleClickEnabled) { _, _ in
-                        MiddleClickService.shared.syncWithPreferences()
-                    }
-                Text(l10n.s.middleClickEnableCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if middleClickEnabled {
-                    Picker(l10n.s.middleClickTapPicker, selection: $middleClickTapFingers) {
-                        Text(l10n.s.middleClickTapOff).tag(0)
-                        Text(l10n.s.middleClickTapThreeFingers).tag(3)
-                        Text(l10n.s.middleClickTapFourFingers).tag(4)
-                    }
-                    .onChange(of: middleClickTapFingers) { _, _ in
-                        MiddleClickService.shared.syncWithPreferences()
-                    }
-                    Text(l10n.s.middleClickTapCaption)
+            if AppFeature.middleClick.isAvailable {
+                Section(l10n.s.middleClickSection) {
+                    Toggle(l10n.s.middleClickEnable, isOn: $middleClickEnabled)
+                        .onChange(of: middleClickEnabled) { _, _ in
+                            MiddleClickService.shared.syncWithPreferences()
+                        }
+                    Text(l10n.s.middleClickEnableCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                }
-                if middleClickEnabled, middleClick.systemDragGestureConflict {
-                    Text(l10n.s.middleClickDragConflict)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+                    if middleClickEnabled {
+                        Picker(l10n.s.middleClickTapPicker, selection: $middleClickTapFingers) {
+                            Text(l10n.s.middleClickTapOff).tag(0)
+                            Text(l10n.s.middleClickTapThreeFingers).tag(3)
+                            Text(l10n.s.middleClickTapFourFingers).tag(4)
+                        }
+                        .onChange(of: middleClickTapFingers) { _, _ in
+                            MiddleClickService.shared.syncWithPreferences()
+                        }
+                        Text(l10n.s.middleClickTapCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if middleClickEnabled, middleClick.systemDragGestureConflict {
+                        Text(l10n.s.middleClickDragConflict)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
                 }
             }
-            if inverterEnabled || middleClickEnabled, !permissions.accessibility {
+            if accessibilityNoteVisible {
                 Section(l10n.s.permissionRequired) {
                     PermissionRow(kind: .accessibility)
                 }
@@ -469,16 +734,35 @@ struct MouseSettings: View {
             MiddleClickService.shared.refreshDragGestureConflict()
         }
     }
+
+    /// Only features that are on AND still available can ask for the
+    /// permission note; a hub-disabled one no longer needs anything.
+    private var accessibilityNoteVisible: Bool {
+        let anyEngaged = (inverterEnabled && AppFeature.scrollInverter.isAvailable)
+            || (smoothScrollEnabled && AppFeature.smoothScroll.isAvailable)
+            || (mouseNavigationEnabled && AppFeature.mouseNavigation.isAvailable)
+            || (middleClickEnabled && AppFeature.middleClick.isAvailable)
+        return anyEngaged && !permissions.accessibility
+    }
+
+    private var smoothScrollStepBinding: Binding<Double> {
+        Binding(
+            get: { Double(SmoothScrollSupport.sanitizedStep(smoothScrollStep)) },
+            set: { smoothScrollStep = Int($0) }
+        )
+    }
 }
 
 // MARK: - Switcher
 
 struct SwitcherSettings: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var dockPreview = DockPreviewService.shared
     @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
     @AppStorage(DefaultsKey.switcherIconRowMode) private var switcherIconRowMode = false
+    @AppStorage(DefaultsKey.switcherSimpleMode) private var switcherSimpleMode = false
     @AppStorage(DefaultsKey.switcherMergeTabs) private var switcherMergeTabs = false
     @AppStorage(DefaultsKey.switcherShowWindowlessFinder) private var switcherShowWindowlessFinder = true
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
@@ -486,98 +770,126 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
     @AppStorage(DefaultsKey.previewSize) private var previewSize = "normal"
 
+    private var switcherEngaged: Bool { switcherEnabled && AppFeature.switcher.isAvailable }
+    private var dockPreviewEngaged: Bool { dockPreviewEnabled && AppFeature.dockPreview.isAvailable }
+
     var body: some View {
         Form {
-            Section(l10n.s.switcherSection) {
-                Toggle(l10n.s.switcherEnable, isOn: $switcherEnabled)
-                    .onChange(of: switcherEnabled) { _, _ in
-                        AppSwitcher.shared.syncWithPreferences()
-                    }
-                Text(l10n.s.switcherEnableCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                ShortcutPreferenceRow(role: .switcher,
-                                      isEnabled: switcherEnabled,
-                                      label: l10n.s.switcherShortcutHintApps) {
-                    AppSwitcher.shared.syncWithPreferences()
-                }
-                ShortcutPreferenceRow(role: .switcherWindow,
-                                      isEnabled: switcherEnabled,
-                                      label: l10n.s.switcherShortcutHintWindows) {
-                    AppSwitcher.shared.syncWithPreferences()
-                }
-                Text(String(format: l10n.s.switcherUsageHintFormat,
-                            GlobalShortcutRole.switcher.savedShortcut.displayString))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Toggle(l10n.s.switcherIconRowMode, isOn: $switcherIconRowMode)
-                    .disabled(!switcherEnabled)
-                    .onChange(of: switcherIconRowMode) { _, _ in
-                        AppSwitcher.shared.syncWithPreferences()
-                    }
-                Text(l10n.s.switcherIconRowModeCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Toggle(l10n.s.switcherMergeTabs, isOn: $switcherMergeTabs)
-                    .disabled(!switcherEnabled)
-                Text(l10n.s.switcherMergeTabsCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                if switcherEnabled {
-                    Toggle(l10n.s.switcherShowFinder, isOn: $switcherShowWindowlessFinder)
-                    Text(l10n.s.switcherShowFinderCaption)
+            if AppFeature.switcher.isAvailable {
+                Section(l10n.s.switcherSection) {
+                    Toggle(l10n.s.switcherEnable, isOn: $switcherEnabled)
+                        .onChange(of: switcherEnabled) { _, _ in
+                            AppSwitcher.shared.syncWithPreferences()
+                        }
+                    Text(l10n.s.switcherEnableCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    ShortcutPreferenceRow(role: .switcher,
+                                          isEnabled: switcherEnabled,
+                                          label: l10n.s.switcherShortcutHintApps) {
+                        AppSwitcher.shared.syncWithPreferences()
+                    }
+                    ShortcutPreferenceRow(role: .switcherWindow,
+                                          isEnabled: switcherEnabled,
+                                          label: l10n.s.switcherShortcutHintWindows) {
+                        AppSwitcher.shared.syncWithPreferences()
+                    }
+                    Text(l10n.s.switcherWindowShortcutCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(String(format: l10n.s.switcherUsageHintFormat,
+                                GlobalShortcutRole.switcher.savedShortcut.displayString))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Toggle(l10n.s.switcherSimpleMode, isOn: $switcherSimpleMode)
+                        .disabled(!switcherEnabled)
+                        .onChange(of: switcherSimpleMode) { _, _ in
+                            AppSwitcher.shared.syncWithPreferences()
+                        }
+                    Text(l10n.s.switcherSimpleModeCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Toggle(l10n.s.switcherIconRowMode, isOn: $switcherIconRowMode)
+                        .disabled(!switcherEnabled || switcherSimpleMode)
+                        .onChange(of: switcherIconRowMode) { _, _ in
+                            AppSwitcher.shared.syncWithPreferences()
+                        }
+                    Text(l10n.s.switcherIconRowModeCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Toggle(l10n.s.switcherMergeTabs, isOn: $switcherMergeTabs)
+                        .disabled(!switcherEnabled)
+                    Text(l10n.s.switcherMergeTabsCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if switcherEnabled {
+                        Toggle(l10n.s.switcherShowFinder, isOn: $switcherShowWindowlessFinder)
+                        Text(l10n.s.switcherShowFinderCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
-            Section {
-                Toggle(l10n.s.dockPreviewEnable, isOn: $dockPreviewEnabled)
-                    .onChange(of: dockPreviewEnabled) { _, _ in
-                        DockPreviewService.shared.syncWithPreferences()
+            if AppFeature.dockPreview.isAvailable || AppFeature.dockClick.isAvailable {
+                Section {
+                    if AppFeature.dockPreview.isAvailable {
+                        Toggle(l10n.s.dockPreviewEnable, isOn: $dockPreviewEnabled)
+                            .onChange(of: dockPreviewEnabled) { _, _ in
+                                DockPreviewService.shared.syncWithPreferences()
+                            }
+                        Text(dockPreviewCaption)
+                            .font(.caption)
+                            .foregroundStyle(dockPreviewWarning ? .orange : .secondary)
                     }
-                Text(dockPreviewCaption)
-                    .font(.caption)
-                    .foregroundStyle(dockPreviewWarning ? .orange : .secondary)
-                Toggle(l10n.s.dockClickMinimize, isOn: $dockClickMinimize)
-                    .onChange(of: dockClickMinimize) { _, _ in
-                        DockClickService.shared.syncWithPreferences()
+                    if AppFeature.dockClick.isAvailable {
+                        Toggle(l10n.s.dockClickMinimize, isOn: $dockClickMinimize)
+                            .onChange(of: dockClickMinimize) { _, _ in
+                                DockClickService.shared.syncWithPreferences()
+                            }
+                        Text(l10n.s.dockClickMinimizeCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Toggle(l10n.s.dockClickCycleWindows, isOn: $dockClickCycleWindows)
+                            .onChange(of: dockClickCycleWindows) { _, _ in
+                                DockClickService.shared.syncWithPreferences()
+                            }
+                        Text(l10n.s.dockClickCycleWindowsCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                Text(l10n.s.dockClickMinimizeCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Toggle(l10n.s.dockClickCycleWindows, isOn: $dockClickCycleWindows)
-                    .onChange(of: dockClickCycleWindows) { _, _ in
-                        DockClickService.shared.syncWithPreferences()
-                    }
-                Text(l10n.s.dockClickCycleWindowsCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } header: {
-                Text(l10n.s.dockPreviewName)
-            }
-            Section {
-                Picker(l10n.s.previewSizeLabel, selection: $previewSize) {
-                    Text(l10n.s.previewSizeNormal).tag("normal")
-                    Text(l10n.s.previewSizeLarge).tag("large")
-                    Text(l10n.s.previewSizeXLarge).tag("xlarge")
+                } header: {
+                    Text(l10n.s.dockPreviewName)
                 }
-                .pickerStyle(.segmented)
-                .onChange(of: previewSize) { _, _ in
-                    AppSwitcher.shared.syncWithPreferences()
-                }
-            } header: {
-                Text(l10n.s.previewSizeLabel)
             }
-            if switcherEnabled || dockPreviewEnabled {
+            if AppFeature.switcher.isAvailable || AppFeature.dockPreview.isAvailable {
+                Section {
+                    Picker(l10n.s.previewSizeLabel, selection: $previewSize) {
+                        Text(l10n.s.previewSizeNormal).tag("normal")
+                        Text(l10n.s.previewSizeLarge).tag("large")
+                        Text(l10n.s.previewSizeXLarge).tag("xlarge")
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: previewSize) { _, _ in
+                        AppSwitcher.shared.syncWithPreferences()
+                    }
+                } header: {
+                    Text(l10n.s.previewSizeLabel)
+                }
+            }
+            if switcherEngaged || dockPreviewEngaged {
                 if !permissions.accessibility {
                     Section(l10n.s.permissionRequired) {
                         PermissionRow(kind: .accessibility)
                     }
                 }
-                if !permissions.screenRecording {
+                if !permissions.screenRecording,
+                   SwitcherSupport.needsScreenRecording(switcherEnabled: switcherEngaged,
+                                                        simpleMode: switcherSimpleMode,
+                                                        dockPreviewEnabled: dockPreviewEngaged) {
                     Section {
                         PermissionRow(kind: .screenRecording)
                     }
@@ -937,6 +1249,23 @@ struct PermissionRow: View {
                 }
                 .controlSize(.small)
             }
+        }
+    }
+}
+
+private extension View {
+    /// The sidebar search field is pinned to the top, so rows slide up behind it
+    /// as the list scrolls. On macOS 26 the pinned field has no backing of its
+    /// own, leaving the placeholder and the first rows overlapping (issue #183).
+    /// A hard top scroll-edge effect gives that band a defined glass blur, so the
+    /// rows fade out cleanly under the field. No-op on earlier systems, which
+    /// keep the classic opaque sidebar chrome.
+    @ViewBuilder
+    func settingsSidebarSearchEdge() -> some View {
+        if #available(macOS 26.0, *) {
+            scrollEdgeEffectStyle(.hard, for: .top)
+        } else {
+            self
         }
     }
 }

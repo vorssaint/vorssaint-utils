@@ -65,7 +65,8 @@ final class AutoQuitService: ObservableObject {
     // MARK: - Lifecycle
 
     func syncWithPreferences() {
-        let enabled = UserDefaults.standard.bool(forKey: DefaultsKey.autoQuitEnabled)
+        let enabled = AppFeature.autoQuit.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.autoQuitEnabled)
         if enabled, Permissions.shared.accessibility {
             start()
         } else {
@@ -121,15 +122,36 @@ final class AutoQuitService: ObservableObject {
     // MARK: - Per-app observers
 
     private func attach(_ app: NSRunningApplication) {
+        attach(app, attempt: 0)
+    }
+
+    private func attach(_ app: NSRunningApplication, attempt: Int) {
         guard running, app.activationPolicy == .regular else { return }
         let pid = app.processIdentifier
         guard pid != getpid(), observers[pid] == nil else { return }
+
+        let appElement = AXUIElementCreateApplication(pid)
+        // A launching app that is busy (say, blocked on a Keychain prompt)
+        // would hold every synchronous AX call below for the 6 second default
+        // timeout apiece, freezing the main thread and every event tap with
+        // it: typing dies system wide (issue #189). Give up fast and retry
+        // with growing spacing until the app services its run loop again.
+        AXUIElementSetMessagingTimeout(appElement, 0.35)
+        var role: CFTypeRef?
+        if AXUIElementCopyAttributeValue(appElement, kAXRoleAttribute as CFString, &role) == .cannotComplete {
+            guard attempt < 6 else { return }
+            let delay = 5.0 * pow(2.0, Double(attempt))
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self, self.running, !app.isTerminated else { return }
+                self.attach(app, attempt: attempt + 1)
+            }
+            return
+        }
 
         var observerRef: AXObserver?
         guard AXObserverCreate(pid, autoQuitAXCallback, &observerRef) == .success,
               let observer = observerRef else { return }
 
-        let appElement = AXUIElementCreateApplication(pid)
         let refcon = Unmanaged.passUnretained(self).toOpaque()
         for notification in Self.appNotifications {
             AXObserverAddNotification(observer, appElement, notification as CFString, refcon)
@@ -229,6 +251,9 @@ final class AutoQuitService: ObservableObject {
         if app.isHidden && !hiddenByCloseRequest { return }
 
         let appElement = AXUIElementCreateApplication(pid)
+        // Bounded AX: an unresponsive app must not hold the main thread
+        // (and with it every event tap) for the 6 second default timeout.
+        AXUIElementSetMessagingTimeout(appElement, 0.35)
         let hasMinimizedWindow = hasKnownMinimizedWindow(pid: pid, appElement: appElement)
         // After an explicit close-button click, ignore off-screen titled windows
         // for ALL apps, not just hidden ones. Chromium/Electron apps especially
@@ -282,6 +307,7 @@ final class AutoQuitService: ObservableObject {
     private func refreshWindows(pid: pid_t, observer: AXObserver) {
         let refcon = Unmanaged.passUnretained(self).toOpaque()
         let appElement = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(appElement, 0.35)
         let windows = standardWindows(of: appElement)
         for window in windows {
             watch(window: window, observer: observer, refcon: refcon)
@@ -307,14 +333,15 @@ final class AutoQuitService: ObservableObject {
         var value: CFTypeRef?
         if AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &value) == .success,
            let windows = value as? [AXUIElement] {
-            for window in windows where Self.isStandardWindow(window) {
-                Self.appendUnique(window, to: &result)
+            for window in windows {
+                AXUIElementSetMessagingTimeout(window, 0.35)
+                if Self.isStandardWindow(window) { Self.appendUnique(window, to: &result) }
             }
         }
         for attribute in [kAXMainWindowAttribute, kAXFocusedWindowAttribute] {
-            if let window = Self.windowAttribute(appElement, attribute as String),
-               Self.isStandardWindow(window) {
-                Self.appendUnique(window, to: &result)
+            if let window = Self.windowAttribute(appElement, attribute as String) {
+                AXUIElementSetMessagingTimeout(window, 0.35)
+                if Self.isStandardWindow(window) { Self.appendUnique(window, to: &result) }
             }
         }
         return result
@@ -457,7 +484,10 @@ final class AutoQuitService: ObservableObject {
 
         // Accessibility gone (e.g. reset): the AX hit-test below would hang
         // inside the tap and freeze clicks, so let the click through untouched.
-        guard AXIsProcessTrusted() else { return Unmanaged.passUnretained(event) }
+        // Cached for the every-click fast path; the live check runs right
+        // before the AX hit-test, only for clicks that landed on an eligible
+        // window's close-button area.
+        guard Permissions.shared.accessibility else { return Unmanaged.passUnretained(event) }
 
         guard type == .leftMouseDown,
               event.flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]).isEmpty,
@@ -466,6 +496,7 @@ final class AutoQuitService: ObservableObject {
                 button: .close,
                 pidIsEligible: { [weak self] pid in self?.observers[pid] != nil }
               ),
+              AXIsProcessTrusted(),
               let pid = closeButtonPID(at: event.location, candidate: candidate) else {
             return Unmanaged.passUnretained(event)
         }

@@ -25,17 +25,39 @@ final class MicMuteService: ObservableObject {
     }
 
     func syncWithPreferences() {
-        let enabled = UserDefaults.standard.bool(forKey: DefaultsKey.micMuteShortcutEnabled)
+        let available = AppFeature.micMute.isAvailable
+        let enabled = available
+            && UserDefaults.standard.bool(forKey: DefaultsKey.micMuteShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.micMuteShortcut,
                                             fallback: .micMuteDefault)
         shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
 
         let wantsMute = UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive)
-        if wantsMute {
-            applyMute(true)
+        if available {
+            if wantsMute {
+                applyMute(true)
+            }
+            isMuted = wantsMute
+        } else {
+            // Switching the feature off must not strand a muted microphone
+            // with no control left to unmute it.
+            if wantsMute {
+                applyMute(false)
+                UserDefaults.standard.set(false, forKey: DefaultsKey.micMuteActive)
+            }
+            isMuted = false
         }
-        isMuted = wantsMute
-        installDefaultDeviceListenerIfNeeded()
+        syncDefaultDeviceListener()
+    }
+
+    /// The listener only exists to re-assert an active mute when the default
+    /// input device changes, so it lives exactly as long as the mute does.
+    private func syncDefaultDeviceListener() {
+        if isMuted {
+            installDefaultDeviceListenerIfNeeded()
+        } else {
+            removeDefaultDeviceListener()
+        }
     }
 
     func suspend() {
@@ -50,6 +72,7 @@ final class MicMuteService: ObservableObject {
         guard applyMute(muted) else { return }
         isMuted = muted
         UserDefaults.standard.set(muted, forKey: DefaultsKey.micMuteActive)
+        syncDefaultDeviceListener()
         QuickToolHUD.show(icon: muted ? "mic.slash.fill" : "mic.fill",
                           message: muted ? L10n.shared.s.micMutedHUD : L10n.shared.s.micUnmutedHUD)
     }
@@ -159,5 +182,17 @@ final class MicMuteService: ObservableObject {
         if status == noErr {
             defaultDeviceListener = listener
         }
+    }
+
+    private func removeDefaultDeviceListener() {
+        guard let listener = defaultDeviceListener else { return }
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject),
+                                               &address, DispatchQueue.main, listener)
+        defaultDeviceListener = nil
     }
 }

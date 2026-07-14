@@ -46,6 +46,12 @@ struct HomebrewPackageUpdate: Hashable {
     }
 }
 
+enum HomebrewPackageOrdering {
+    static func updatesFirst(_ packages: [HomebrewPackage]) -> [HomebrewPackage] {
+        packages.filter(\.hasUpdateAvailable) + packages.filter { !$0.hasUpdateAvailable }
+    }
+}
+
 struct HomebrewPopularity: Hashable {
     let count: Int
     let rank: Int?
@@ -200,6 +206,24 @@ enum HomebrewCommandBuilder {
 
     static func shellCommand(_ command: HomebrewCommand) -> String {
         ([command.executable] + command.arguments).map(shellQuote).joined(separator: " ")
+    }
+
+    /// Homebrew 6 refuses to load packages from taps the user never
+    /// confirmed ("Refusing to load formula x from untrusted tap owner/repo")
+    /// and only offers an interactive prompt in a terminal. The tap name is
+    /// extracted here so the app can offer the trust step as one click.
+    static func untrustedTapName(fromOutput output: String) -> String? {
+        guard let range = output.range(of: #"from untrusted tap ([A-Za-z0-9._-]+/[A-Za-z0-9._-]+)"#,
+                                       options: .regularExpression) else { return nil }
+        let name = String(output[range])
+            .replacingOccurrences(of: "from untrusted tap ", with: "")
+            // The refusal ends the sentence right after the name.
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        return isValidToken(name) ? name : nil
+    }
+
+    static func trustTap(brewPath: String, tap: String) -> HomebrewCommand {
+        HomebrewCommand(executable: brewPath, arguments: ["trust", "--tap", tap])
     }
 
     static func needsTerminalFallback(output: String) -> Bool {

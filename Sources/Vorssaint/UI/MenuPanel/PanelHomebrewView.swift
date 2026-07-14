@@ -226,27 +226,29 @@ struct PanelHomebrewView: View {
                 Button {
                     homebrew.refreshInstalled()
                 } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .frame(width: 18, height: 18)
+                    Label(l10n.s.homebrewCheckPackages, systemImage: "arrow.clockwise")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .lineLimit(1)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .help(l10n.s.homebrewRefresh)
+                .help(l10n.s.homebrewCheckPackages)
                 .disabled(homebrew.isBusy)
                 Button {
                     pendingAction = HomebrewPendingAction(action: .updateHomebrew)
                     keepPopoverOpen()
                 } label: {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .frame(width: 18, height: 18)
+                    Label(l10n.s.homebrewUpdateHomebrew, systemImage: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .lineLimit(1)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .help(l10n.s.homebrewUpdateHomebrew)
                 .disabled(homebrew.isBusy)
-                outdatedSummary
                 Spacer(minLength: 0)
             }
+            outdatedSummary
         }
         .panelCard()
     }
@@ -254,27 +256,37 @@ struct PanelHomebrewView: View {
     @ViewBuilder
     private var outdatedSummary: some View {
         if homebrew.isLoadingOutdated {
-            ProgressView()
-                .controlSize(.mini)
-                .help(l10n.s.homebrewUpdates)
+            HStack(spacing: 6) {
+                ProgressView()
+                    .controlSize(.mini)
+                Text(l10n.s.homebrewUpdates)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
         } else if homebrew.outdatedCount > 0 {
-            HStack(spacing: 5) {
-                Label("\(homebrew.outdatedCount)", systemImage: "arrow.up.circle.fill")
+            HStack(spacing: 7) {
+                Label("\(l10n.s.homebrewUpdates) \(homebrew.outdatedCount)",
+                      systemImage: "arrow.up.circle.fill")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.orange)
-                    .help(l10n.s.homebrewUpdates)
+                Spacer(minLength: 0)
                 Button {
                     pendingAction = HomebrewPendingAction(action: .upgradeAll)
                     keepPopoverOpen()
                 } label: {
-                    Image(systemName: "arrow.up.circle")
-                        .frame(width: 16, height: 16)
+                    Label(l10n.s.homebrewUpgradeAll, systemImage: "arrow.up.circle")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .lineLimit(1)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .help(l10n.s.homebrewUpgradeAll)
                 .disabled(homebrew.isBusy)
             }
+        } else {
+            Label("\(l10n.s.homebrewUpdates) 0", systemImage: "checkmark.circle.fill")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -436,6 +448,9 @@ struct PanelHomebrewView: View {
 
     @ViewBuilder
     private var errorBanner: some View {
+        if let tap = homebrew.untrustedTap {
+            HomebrewTrustCard(tap: tap, compact: true)
+        }
         if let error = homebrew.errorMessage, !error.isEmpty {
             Label(error, systemImage: "exclamationmark.triangle.fill")
                 .font(.system(size: 10))
@@ -616,14 +631,16 @@ struct PanelHomebrewView: View {
     }
 
     private var filteredInstalled: [HomebrewPackage] {
+        let packages: [HomebrewPackage]
         switch filter {
         case .all:
-            return homebrew.installed
+            packages = homebrew.installed
         case .formula:
-            return homebrew.installed.filter { $0.kind == .formula }
+            packages = homebrew.installed.filter { $0.kind == .formula }
         case .cask:
-            return homebrew.installed.filter { $0.kind == .cask }
+            packages = homebrew.installed.filter { $0.kind == .cask }
         }
+        return HomebrewPackageOrdering.updatesFirst(packages)
     }
 
     private var installedCaskCount: Int {

@@ -1,0 +1,5 @@
+/* macOS Automation permission prompt. */
+"NSAppleEventsUsageDescription" = "Vorssaint는 Finder에서 파일을 이동하고 항목을 휴지통으로 보내며, Homebrew 작업을 요청할 때 Terminal 명령을 열기 위해 자동화를 사용합니다.";
+
+/* macOS Screen & System Audio Recording permission prompt. */
+"NSAudioCaptureUsageDescription" = "Vorssaint는 믹서에서 앱별 볼륨을 조절하기 위해 각 앱의 오디오에만 접근합니다. 어떤 오디오도 녹음되거나 Mac 밖으로 전송되지 않습니다.";

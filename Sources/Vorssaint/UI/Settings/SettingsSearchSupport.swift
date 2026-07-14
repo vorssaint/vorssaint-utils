@@ -33,3 +33,25 @@ enum SettingsSearchSupport {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
+
+/// Content sizing for the resizable Settings window: tall enough by default
+/// to show the whole sidebar without scrolling, and a size the user chose is
+/// restored as is. Kept pure so the unit harness pins the rules.
+enum SettingsWindowSupport {
+    /// The layout's design size; the window can only grow from here.
+    static let minContentWidth: Double = 772
+    static let minContentHeight: Double = 528
+    /// Tall default so every sidebar entry is visible on regular screens.
+    static let preferredContentHeight: Double = 838
+
+    /// A saved size wins when it is at least the minimum (0 means unset);
+    /// otherwise the tall default, capped to the screen's available height.
+    static func initialContentSize(savedWidth: Double, savedHeight: Double,
+                                   availableHeight: Double) -> (width: Double, height: Double) {
+        if savedWidth >= minContentWidth, savedHeight >= minContentHeight {
+            return (savedWidth, savedHeight)
+        }
+        let height = min(preferredContentHeight, max(availableHeight, minContentHeight))
+        return (minContentWidth, height)
+    }
+}

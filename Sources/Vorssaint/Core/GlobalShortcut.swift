@@ -207,9 +207,60 @@ struct GlobalShortcut: Equatable, Hashable {
         modifiers.carbonFlags
     }
 
-    func matches(event: CGEvent, allowingExtraShift: Bool = false) -> Bool {
+    /// Paste as plain text ultimately posts the standard paste command. When
+    /// that same command is its configured global shortcut, the registration
+    /// must be released briefly or it catches the synthesized paste again.
+    var isStandardPasteCommand: Bool {
+        keyCode == Int64(kVK_ANSI_V) && modifiers == [.command]
+    }
+
+    /// `tolerating` lists modifiers that may be held beyond the shortcut's own
+    /// without breaking the match. The switcher session passes its opening
+    /// shortcut's modifiers here: they are necessarily still down while the
+    /// panel is up, so a window shortcut like ⌥Tab must match even though ⌘ is
+    /// held for the session (issue #187).
+    func matches(event: CGEvent,
+                 allowingExtraShift: Bool = false,
+                 tolerating extra: GlobalShortcutModifiers = []) -> Bool {
         guard event.getIntegerValueField(.keyboardEventKeycode) == keyCode else { return false }
+        return modifiersMatch(event: event, allowingExtraShift: allowingExtraShift, tolerating: extra)
+    }
+
+    /// Layout-tolerant match: true when the pressed key would type the same
+    /// character this shortcut displays. Key codes are positions on a US
+    /// keyboard, so a default like ⌘` lands on a different position for ABNT2
+    /// or German layouts, sometimes behind Shift or Option; the user goes by
+    /// the character shown in Settings, not by the invisible ANSI position
+    /// (issue #187). The character comes from the event itself, the same
+    /// signal the switcher's search uses, so dead keys resolve identically.
+    func matchesByCharacter(event: CGEvent,
+                            tolerating extra: GlobalShortcutModifiers = []) -> Bool {
+        guard let label = keyLabel, label.count == 1 else { return false }
         let actual = GlobalShortcutModifiers(cgFlags: event.flags)
+        // The shortcut's own modifiers must be down; Shift or Option on top is
+        // tolerated because many layouts need them to produce the character,
+        // and the caller may tolerate more (a session's held modifiers).
+        guard actual.intersection(modifiers) == modifiers,
+              actual.subtracting(modifiers).subtracting([.shift, .option])
+                  .subtracting(extra).isEmpty
+        else { return false }
+        var length = 0
+        var chars = [UniChar](repeating: 0, count: 4)
+        event.keyboardGetUnicodeString(maxStringLength: chars.count,
+                                       actualStringLength: &length,
+                                       unicodeString: &chars)
+        guard length > 0 else { return false }
+        let typed = String(utf16CodeUnits: chars, count: length)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return !typed.isEmpty && typed.uppercased() == label.uppercased()
+    }
+
+    private func modifiersMatch(event: CGEvent,
+                                allowingExtraShift: Bool,
+                                tolerating extra: GlobalShortcutModifiers = []) -> Bool {
+        var actual = GlobalShortcutModifiers(cgFlags: event.flags)
+        guard actual.intersection(modifiers) == modifiers else { return false }
+        actual.subtract(extra.subtracting(modifiers))
         if allowingExtraShift, !modifiers.contains(.shift) {
             return actual.subtracting(.shift) == modifiers
         }
@@ -294,8 +345,40 @@ struct GlobalShortcut: Equatable, Hashable {
         case kVK_F10: return "F10"
         case kVK_F11: return "F11"
         case kVK_F12: return "F12"
-        default: return nil
+        // The extra ISO key beside/above Tab (§ on British, ^ on German
+        // keyboards) has no ANSI constant; without a label it could not be
+        // recorded as a shortcut at all on ISO keyboards (issue #187).
+        case kVK_ISO_Section: return Self.layoutKeyLabel(for: keyCode) ?? "§"
+        default: return Self.layoutKeyLabel(for: keyCode)
         }
+    }
+
+    /// The character the current keyboard layout prints for a key, uppercased,
+    /// so keys the static table does not know (ISO and JIS extras) still get a
+    /// real cap. Returns nil for anything unprintable, keeping those invalid.
+    private static func layoutKeyLabel(for keyCode: Int64) -> String? {
+        guard let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
+              let layoutData = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData)
+        else { return nil }
+        let data = Unmanaged<CFData>.fromOpaque(layoutData).takeUnretainedValue() as Data
+        var deadKeyState: UInt32 = 0
+        var chars = [UniChar](repeating: 0, count: 4)
+        var length = 0
+        let status = data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) -> OSStatus in
+            guard let layout = bytes.bindMemory(to: UCKeyboardLayout.self).baseAddress
+            else { return OSStatus(paramErr) }
+            return UCKeyTranslate(layout, UInt16(keyCode), UInt16(kUCKeyActionDisplay), 0,
+                                  UInt32(LMGetKbdType()), OptionBits(kUCKeyTranslateNoDeadKeysBit),
+                                  &deadKeyState, chars.count, &length, &chars)
+        }
+        guard status == noErr, length > 0 else { return nil }
+        let label = String(utf16CodeUnits: chars, count: length)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard label.count == 1,
+              let scalar = label.unicodeScalars.first,
+              !CharacterSet.controlCharacters.contains(scalar)
+        else { return nil }
+        return label.uppercased()
     }
 }
 
@@ -392,10 +475,31 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         }
     }
 
+    /// The hub feature behind each shortcut; a feature switched off in the
+    /// hub takes its shortcut off the overview page (the hotkey itself is
+    /// already dead through the service's own availability guard).
+    var feature: AppFeature {
+        switch self {
+        case .keepAwake: return .keepAwake
+        case .shelf: return .shelf
+        case .switcher, .switcherWindow: return .switcher
+        case .clipboard: return .clipboardHistory
+        case .soundOutputSwitcher: return .soundOutputSwitcher
+        case .pastePlain: return .pastePlain
+        case .colorPicker: return .colorPicker
+        case .screenOCR: return .screenOCR
+        case .micMute: return .micMute
+        case .quickLauncher: return .quickLauncher
+        }
+    }
+
     /// Roles whose shortcut is live given a defaults reader, for the keyboard
-    /// shortcuts overview page. Injected reader so the harness can test the
+    /// shortcuts overview page. Injected readers so the harness can test the
     /// gating without touching real defaults.
-    static func activeRoles(isOn: (String) -> Bool) -> [GlobalShortcutRole] {
-        allCases.filter { role in role.requiredEnableKeys.allSatisfy(isOn) }
+    static func activeRoles(isOn: (String) -> Bool,
+                            isAvailable: (AppFeature) -> Bool = { _ in true }) -> [GlobalShortcutRole] {
+        allCases.filter { role in
+            isAvailable(role.feature) && role.requiredEnableKeys.allSatisfy(isOn)
+        }
     }
 }

@@ -203,7 +203,7 @@ final class StatusItemController {
     }
 
     /// Reflects keep-awake state and an available update in the icon. Updates
-    /// keep the blue attention color; an active keep-awake session turns amber.
+    /// keep the blue attention glyph; an active session uses the chosen icon.
     /// With the mute indicator option on, a red slashed mic joins the glyph
     /// while the microphone is muted, whatever the underlying state. The
     /// glyph can also hide entirely while metrics render in the title (user
@@ -245,6 +245,7 @@ final class StatusItemController {
         // image is only touched when some ingredient actually changed.
         let stateKey = [String(hidden), String(mainItemHidden), String(updateAvailable),
                         String(keepAwakeActive), KeepAwakeIconTint.current.rawValue,
+                        KeepAwakeActiveIcon.current.rawValue,
                         String(micBadgeActive)].joined(separator: "|")
         guard stateKey != lastIconStateKey else { return }
         lastIconStateKey = stateKey
@@ -320,11 +321,21 @@ final class StatusItemController {
             }
         }
 
-        statusItem.length = NSStatusItem.variableLength
+        // Every write below invalidates the button's layout and redraws the
+        // status window even when the value is identical — and this runs on
+        // every monitor tick and defaults change. Rounded metric strings
+        // repeat most ticks, so skipping no-op writes skips that churn.
+        if statusItem.length != NSStatusItem.variableLength {
+            statusItem.length = NSStatusItem.variableLength
+        }
 
         if title.length == 0 {
-            button.attributedTitle = NSAttributedString(string: "")
-            button.imagePosition = .imageOnly
+            if button.attributedTitle.length != 0 {
+                button.attributedTitle = NSAttributedString(string: "")
+            }
+            if button.imagePosition != .imageOnly {
+                button.imagePosition = .imageOnly
+            }
         } else {
             // The leading space separates the glyph from the text; with the
             // glyph hidden by the metrics-only option it would be pure dead
@@ -363,19 +374,30 @@ final class StatusItemController {
                                   value: -0.4,
                                   range: NSRange(location: 0, length: full.length))
             }
-            button.font = font
-            button.attributedTitle = full
-            button.imagePosition = .imageLeading
+            if !full.isEqual(to: button.attributedTitle) {
+                button.font = font
+                button.attributedTitle = full
+            }
+            if button.imagePosition != .imageLeading {
+                button.imagePosition = .imageLeading
+            }
         }
 
+        let toolTip: String
         if manager.isActive {
-            if let end = manager.endDate {
-                button.toolTip = "\(strings.statusActiveUntil) \(Self.timeFormatter.string(from: end))"
+            if manager.sessionTrigger == .automation {
+                toolTip = FeatureStrings.keepAwakeAutomation(L10n.shared.language)
+                    .activeStatus(for: manager.activeAutomationConditions)
+            } else if let end = manager.endDate {
+                toolTip = "\(strings.statusActiveUntil) \(Self.timeFormatter.string(from: end))"
             } else {
-                button.toolTip = strings.statusActiveIndefinite
+                toolTip = strings.statusActiveIndefinite
             }
         } else {
-            button.toolTip = strings.statusIdleTooltip
+            toolTip = strings.statusIdleTooltip
+        }
+        if button.toolTip != toolTip {
+            button.toolTip = toolTip
         }
 
         // The icon decision depends on the title just written (the glyph may
@@ -418,7 +440,8 @@ final class StatusItemController {
     }
 
     private func metricStatusGroups(for metrics: [MenuBarMetric], strings: Strings) -> [MetricStatusGroup] {
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.menuBarCombineTemperatures) else {
+        guard MenuBarMetricAppearance.current.allowsCombinedTemperatures,
+              UserDefaults.standard.bool(forKey: DefaultsKey.menuBarCombineTemperatures) else {
             return metrics.map {
                 MetricStatusGroup(id: $0.rawValue, metrics: [$0], focusMetric: $0, title: $0.title(strings))
             }
@@ -461,7 +484,7 @@ final class StatusItemController {
                                      primary: .battery,
                                      temperature: .batteryTemperature,
                                      primaryTitle: strings.batteryLabel)
-            case .memory, .network, .diskUsage, .diskActivity, .peripheralBattery, .power:
+            case .memory, .network, .diskUsage, .diskActivity, .batteryTime, .peripheralBattery, .power:
                 let id = metric.rawValue
                 guard emittedIDs.insert(id).inserted else { continue }
                 groups.append(MetricStatusGroup(id: id,
@@ -552,21 +575,55 @@ enum BlackHoleGlyph {
 
     static func image(active: Bool) -> NSImage? {
         let tint = KeepAwakeIconTint.current
-        guard let base else { return fallback(active: active && tint != .none) }
-        guard active else { return base }
-        guard tint != .none else { return base }
-        return awakeImage(tint: tint) ?? base
+        guard active else { return base ?? fallback(active: false) }
+        return activeImage(style: .current, tint: tint)
     }
 
-    static func awakeImage(tint: KeepAwakeIconTint = .orange) -> NSImage? {
-        guard let color = color(for: tint) else { return base ?? fallback(active: false) }
-        return tintedImage(color: color) ?? fallback(active: true)
+    static func activeImage(style: KeepAwakeActiveIcon,
+                            tint: KeepAwakeIconTint = .orange) -> NSImage? {
+        let source: NSImage?
+        if let symbolName = style.systemSymbolName {
+            source = fixedSizeSymbol(named: symbolName)
+        } else {
+            source = base
+        }
+        guard let source else { return fallback(active: tint != .none) }
+        guard let color = color(for: tint) else {
+            source.isTemplate = true
+            return source
+        }
+        return tintedImage(source, color: color) ?? fallback(active: true)
+    }
+
+    /// System symbols have different natural widths. Center them inside the
+    /// same canvas as the app glyph so activation never shifts nearby items.
+    private static func fixedSizeSymbol(named name: String) -> NSImage? {
+        guard let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 13, weight: .semibold)),
+              symbol.size.width > 0,
+              symbol.size.height > 0 else { return nil }
+        let available = NSSize(width: pointSize.width - 2, height: pointSize.height)
+        let scale = min(available.width / symbol.size.width,
+                        available.height / symbol.size.height)
+        let drawSize = NSSize(width: symbol.size.width * scale,
+                              height: symbol.size.height * scale)
+        let image = NSImage(size: pointSize, flipped: false) { rect in
+            let target = NSRect(x: rect.midX - drawSize.width / 2,
+                                y: rect.midY - drawSize.height / 2,
+                                width: drawSize.width,
+                                height: drawSize.height)
+            symbol.draw(in: target, from: .zero, operation: .sourceOver, fraction: 1)
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
 
     /// A blue, full-strength glyph used to flag an available update. Non-template
     /// (a real color), drawn by masking blue into the glyph's shape.
     static func attentionImage() -> NSImage? {
-        tintedImage(color: .systemBlue) ?? fallback(active: true)
+        guard let base else { return fallback(active: true) }
+        return tintedImage(base, color: .systemBlue) ?? fallback(active: true)
     }
 
     /// The given state image with a red slashed microphone beside it, shown
@@ -604,10 +661,9 @@ enum BlackHoleGlyph {
         return composed
     }
 
-    private static func tintedImage(color: NSColor) -> NSImage? {
-        guard let base else { return nil }
-        let tinted = NSImage(size: base.size, flipped: false) { rect in
-            base.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
+    private static func tintedImage(_ source: NSImage, color: NSColor) -> NSImage? {
+        let tinted = NSImage(size: source.size, flipped: false) { rect in
+            source.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
             color.setFill()
             rect.fill(using: .sourceAtop)
             return true

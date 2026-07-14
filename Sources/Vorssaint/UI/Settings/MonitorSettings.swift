@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -10,10 +11,12 @@ import UniformTypeIdentifiers
 /// they find useful.
 struct MonitorSettings: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var features = FeatureRuntime.shared
 
     @AppStorage(DefaultsKey.menuBarCombineTemperatures) private var combineTemperatures = true
     @AppStorage(DefaultsKey.menuBarSeparateMetrics) private var separateMetrics = false
     @AppStorage(DefaultsKey.menuBarMetricSpacing) private var metricSpacing = "standard"
+    @AppStorage(DefaultsKey.menuBarMetricAppearance) private var metricAppearance = "values"
     @AppStorage(DefaultsKey.menuBarHideIconWithMetrics) private var hideIconWithMetrics = false
     @AppStorage(DefaultsKey.monitorInterval) private var interval = 2
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
@@ -30,12 +33,28 @@ struct MonitorSettings: View {
     var body: some View {
         Form {
             Section(l10n.s.monitorMenuBarSection) {
+                let appearanceStrings = FeatureStrings.menuBarAppearance(l10n.language)
+                let appearance = MenuBarMetricAppearance(
+                    rawValue: Defaults.sanitizedMenuBarMetricAppearance(metricAppearance)
+                ) ?? .values
                 MenuBarMetricsPreview()
                     .padding(.vertical, 4)
-                Toggle(l10n.s.monitorCombineTemperatures, isOn: $combineTemperatures)
-                Text(l10n.s.monitorCombineTemperaturesCaption)
+                Picker(appearanceStrings.label, selection: $metricAppearance) {
+                    Text(appearanceStrings.values).tag("values")
+                    Text(appearanceStrings.bars).tag("bars")
+                }
+                .pickerStyle(.segmented)
+                Text(appearanceStrings.caption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if appearance == .bars {
+                    MenuBarUsageBarSettings(strings: appearanceStrings)
+                } else {
+                    Toggle(l10n.s.monitorCombineTemperatures, isOn: $combineTemperatures)
+                    Text(l10n.s.monitorCombineTemperaturesCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Picker(l10n.s.menuBarSpacingLabel, selection: $metricSpacing) {
                     Text(l10n.s.menuBarSpacingStandard).tag("standard")
                     Text(l10n.s.menuBarSpacingCompact).tag("compact")
@@ -46,9 +65,11 @@ struct MonitorSettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Toggle(l10n.s.monitorSeparateMenuBarMetrics, isOn: $separateMetrics)
-                Text(l10n.s.monitorSeparateMenuBarMetricsCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if appearance.allowsCombinedTemperatures {
+                    Text(l10n.s.monitorSeparateMenuBarMetricsCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 MenuBarMetricOrderEditor()
                 Text(l10n.s.monitorMenuBarCaption)
                     .font(.caption)
@@ -79,20 +100,26 @@ struct MonitorSettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Section(l10n.s.monitorOrderSection) {
-                PanelOrderEditor()
-                Text(l10n.s.monitorOrderHint)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
             Section(l10n.s.monitorGraphsSection) {
-                Toggle(l10n.s.monitorShowCPU, isOn: $graphCPU)
-                Toggle(l10n.s.monitorShowGPU, isOn: $graphGPU)
-                Toggle(l10n.s.monitorShowMemory, isOn: $graphMemory)
-                Toggle(l10n.s.monitorShowNetwork, isOn: $graphNetwork)
-                Toggle(l10n.s.diskSection, isOn: $graphDisk)
-                Toggle(l10n.s.monitorShowPowerLabel, isOn: $graphPower)
-                Toggle(l10n.s.batteryLabel, isOn: $graphBattery)
+                if AppFeature.monitorCPU.isAvailable {
+                    Toggle(l10n.s.monitorShowCPU, isOn: $graphCPU)
+                }
+                if AppFeature.monitorGPU.isAvailable {
+                    Toggle(l10n.s.monitorShowGPU, isOn: $graphGPU)
+                }
+                if AppFeature.monitorMemory.isAvailable {
+                    Toggle(l10n.s.monitorShowMemory, isOn: $graphMemory)
+                }
+                if AppFeature.monitorNetwork.isAvailable {
+                    Toggle(l10n.s.monitorShowNetwork, isOn: $graphNetwork)
+                }
+                if AppFeature.monitorDisk.isAvailable {
+                    Toggle(l10n.s.diskSection, isOn: $graphDisk)
+                }
+                if AppFeature.monitorPower.isAvailable {
+                    Toggle(l10n.s.monitorShowPowerLabel, isOn: $graphPower)
+                    Toggle(l10n.s.batteryLabel, isOn: $graphBattery)
+                }
                 Text(l10n.s.monitorGraphsCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -102,6 +129,7 @@ struct MonitorSettings: View {
         .onAppear {
             SystemMonitor.shared.panelDidAppear()
             interval = Defaults.sanitizedMonitorInterval(interval)
+            metricAppearance = Defaults.sanitizedMenuBarMetricAppearance(metricAppearance)
             if TemperatureUnit(rawValue: temperatureUnit) == nil {
                 temperatureUnit = TemperatureUnit.celsius.rawValue
             }
@@ -119,17 +147,104 @@ struct MonitorSettings: View {
     }
 }
 
+private struct MenuBarUsageBarSettings: View {
+    let strings: MenuBarAppearanceStrings
+
+    @AppStorage(DefaultsKey.menuBarUsageBarNormalColor) private var normalColor = MenuBarUsageBarSupport.defaultNormalColor
+    @AppStorage(DefaultsKey.menuBarUsageBarElevatedColor) private var elevatedColor = MenuBarUsageBarSupport.defaultElevatedColor
+    @AppStorage(DefaultsKey.menuBarUsageBarCriticalColor) private var criticalColor = MenuBarUsageBarSupport.defaultCriticalColor
+    @AppStorage(DefaultsKey.menuBarUsageBarMediumThreshold) private var mediumThreshold = MenuBarUsageBarSupport.defaultMediumThreshold
+    @AppStorage(DefaultsKey.menuBarUsageBarHighThreshold) private var highThreshold = MenuBarUsageBarSupport.defaultHighThreshold
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text(strings.customize)
+                .font(.subheadline.weight(.semibold))
+
+            ColorPicker(strings.normalColor,
+                        selection: colorBinding($normalColor,
+                                                fallback: MenuBarUsageBarSupport.defaultNormalColor),
+                        supportsOpacity: false)
+            ColorPicker(strings.mediumColor,
+                        selection: colorBinding($elevatedColor,
+                                                fallback: MenuBarUsageBarSupport.defaultElevatedColor),
+                        supportsOpacity: false)
+            ColorPicker(strings.highColor,
+                        selection: colorBinding($criticalColor,
+                                                fallback: MenuBarUsageBarSupport.defaultCriticalColor),
+                        supportsOpacity: false)
+
+            Divider()
+
+            Stepper(value: mediumBinding, in: 1...99) {
+                HStack {
+                    Text(strings.mediumFrom)
+                    Spacer()
+                    Text("\(mediumThreshold)%")
+                        .monospacedDigit()
+                }
+            }
+            Stepper(value: highBinding, in: 2...100) {
+                HStack {
+                    Text(strings.highFrom)
+                    Spacer()
+                    Text("\(highThreshold)%")
+                        .monospacedDigit()
+                }
+            }
+        }
+        .padding(.leading, 12)
+        .onAppear(perform: sanitize)
+    }
+
+    private var mediumBinding: Binding<Int> {
+        Binding(get: { mediumThreshold },
+                set: { mediumThreshold = min(max(1, $0), max(1, highThreshold - 1)) })
+    }
+
+    private var highBinding: Binding<Int> {
+        Binding(get: { highThreshold },
+                set: { highThreshold = min(100, max(mediumThreshold + 1, $0)) })
+    }
+
+    private func colorBinding(_ storage: Binding<String>, fallback: String) -> Binding<Color> {
+        Binding {
+            let rgb = MenuBarUsageBarSupport.rgb(for: storage.wrappedValue, fallback: fallback)
+            return Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
+        } set: { color in
+            guard let converted = NSColor(color).usingColorSpace(.sRGB) else { return }
+            storage.wrappedValue = MenuBarUsageBarSupport.hex(red: Double(converted.redComponent),
+                                                              green: Double(converted.greenComponent),
+                                                              blue: Double(converted.blueComponent))
+        }
+    }
+
+    private func sanitize() {
+        normalColor = MenuBarUsageBarSupport.sanitizedColorHex(normalColor,
+                                                               fallback: MenuBarUsageBarSupport.defaultNormalColor)
+        elevatedColor = MenuBarUsageBarSupport.sanitizedColorHex(elevatedColor,
+                                                                 fallback: MenuBarUsageBarSupport.defaultElevatedColor)
+        criticalColor = MenuBarUsageBarSupport.sanitizedColorHex(criticalColor,
+                                                                 fallback: MenuBarUsageBarSupport.defaultCriticalColor)
+        let thresholds = MenuBarUsageBarSupport.thresholds(medium: mediumThreshold,
+                                                           high: highThreshold)
+        mediumThreshold = thresholds.medium
+        highThreshold = thresholds.high
+    }
+}
+
 /// Drag-to-reorder and show/hide list for the menu bar metrics. The order stays
 /// independent from which metrics are visible, so toggles do not reshuffle it.
 private struct MenuBarMetricOrderEditor: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var features = FeatureRuntime.shared
     @AppStorage(DefaultsKey.menuBarMetricOrder) private var metricOrder = ""
     @State private var order: [MenuBarMetric] = MenuBarMetric.order(in: .standard)
     @State private var dragging: MenuBarMetric?
 
     var body: some View {
         VStack(spacing: 0) {
-            ForEach(order) { metric in
+            ForEach(visibleOrder) { metric in
                 VStack(spacing: 0) {
                     HStack(spacing: 8) {
                         HStack(spacing: 8) {
@@ -167,7 +282,7 @@ private struct MenuBarMetricOrderEditor: View {
                         NetworkMenuBarOrderOption()
                     }
 
-                    if metric != order.last {
+                    if metric != visibleOrder.last {
                         Divider()
                     }
                 }
@@ -176,6 +291,12 @@ private struct MenuBarMetricOrderEditor: View {
         .padding(.vertical, 2)
         .onAppear { order = MenuBarMetric.order(in: .standard) }
         .onChange(of: metricOrder) { _, _ in order = MenuBarMetric.order(in: .standard) }
+    }
+
+    /// Metrics whose family left the hub keep their saved slot but stay out
+    /// of the editor until they return.
+    private var visibleOrder: [MenuBarMetric] {
+        order.filter { $0.feature.isAvailable }
     }
 }
 
@@ -310,8 +431,11 @@ private struct MenuBarMetricOrderDropDelegate: DropDelegate {
 /// order to `PanelLayout` and each section's visibility to its own key, both of
 /// which the live panel observes. A bounded, non-scrolling list so it sits inside
 /// the grouped Form without its own scroll area.
-private struct PanelOrderEditor: View {
+/// Lives on the General page (the panel hosts more than monitoring); also
+/// consulted by the Monitor page for the fan beta toggle placement.
+struct PanelOrderEditor: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var features = FeatureRuntime.shared
     @AppStorage(DefaultsKey.monitorShowFanControlBeta) private var showFanControlBeta = false
     @State private var order: [PanelSectionID] = PanelLayout.order
     @State private var dragging: PanelSectionID?
@@ -366,7 +490,7 @@ private struct PanelOrderEditor: View {
     }
 
     private var editableOrder: [PanelSectionID] {
-        order.filter { $0 != .fanControl || showFanControlBeta }
+        order.filter { ($0 != .fanControl || showFanControlBeta) && $0.isAvailable }
     }
 
     private func isShown(_ id: PanelSectionID) -> Bool {

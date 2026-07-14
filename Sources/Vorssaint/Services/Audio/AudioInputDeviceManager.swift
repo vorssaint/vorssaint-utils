@@ -27,11 +27,24 @@ final class AudioInputDeviceManager: ObservableObject {
     @Published private(set) var lastError: String?
 
     private var listenerInstalled = false
+    /// Stored so stop() can remove the HAL listeners when the mixer leaves
+    /// the hub.
+    private var globalListeners: [(selector: AudioObjectPropertySelector, block: AudioObjectPropertyListenerBlock)] = []
     private var applyingPreferred = false
     private var refreshPending = false
     private var lastListenerRefreshAt: CFAbsoluteTime = 0
 
     private init() {}
+
+    /// The microphone selector lives in the mixer panel section, so it
+    /// follows the mixer's hub availability.
+    func syncWithPreferences() {
+        if AppFeature.mixer.isAvailable {
+            start()
+        } else {
+            stop()
+        }
+    }
 
     func start() {
         guard !listenerInstalled else {
@@ -42,6 +55,22 @@ final class AudioInputDeviceManager: ObservableObject {
         installListener(selector: kAudioHardwarePropertyDevices)
         installListener(selector: kAudioHardwarePropertyDefaultInputDevice)
         refreshAndApply()
+    }
+
+    func stop() {
+        guard listenerInstalled else { return }
+        listenerInstalled = false
+        for entry in globalListeners {
+            var address = AudioObjectPropertyAddress(mSelector: entry.selector,
+                                                     mScope: kAudioObjectPropertyScopeGlobal,
+                                                     mElement: kAudioObjectPropertyElementMain)
+            AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject),
+                                                   &address, .main, entry.block)
+        }
+        globalListeners.removeAll()
+        if !inputDevices.isEmpty { inputDevices = [] }
+        if preferredUnavailable { preferredUnavailable = false }
+        if lastError != nil { lastError = nil }
     }
 
     func setPreferredInputDeviceUID(_ uid: String?) {
@@ -60,9 +89,11 @@ final class AudioInputDeviceManager: ObservableObject {
         var address = AudioObjectPropertyAddress(mSelector: selector,
                                                  mScope: kAudioObjectPropertyScopeGlobal,
                                                  mElement: kAudioObjectPropertyElementMain)
-        AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, .main) { [weak self] _, _ in
+        let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
             self?.scheduleListenerRefresh()
         }
+        AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, .main, block)
+        globalListeners.append((selector, block))
     }
 
     /// Same coalescing as AppVolumeMixer.scheduleListenerRefresh: one hardware
@@ -91,6 +122,8 @@ final class AudioInputDeviceManager: ObservableObject {
     private static let listenerRefreshInterval: CFAbsoluteTime = 0.2
 
     private func refreshAndApply() {
+        // A throttled refresh can land after stop(); watching is over.
+        guard listenerInstalled else { return }
         let savedUID = Defaults.sanitizedPreferredInputDeviceUID(
             UserDefaults.standard.string(forKey: DefaultsKey.preferredInputDevice))
         let currentUID = Self.defaultInputDeviceUID()

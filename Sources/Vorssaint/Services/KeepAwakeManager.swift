@@ -3,6 +3,7 @@
 
 import AppKit
 import Combine
+import IOKit.ps
 import IOKit.pwr_mgt
 
 /// Core of the energy feature: manages "keep awake" sessions through IOKit power
@@ -12,9 +13,12 @@ final class KeepAwakeManager: ObservableObject {
     static let shared = KeepAwakeManager()
 
     enum EndReason { case manual, timer, battery, quit }
+    enum SessionTrigger { case manual, automation }
 
     @Published private(set) var isActive = false
     @Published private(set) var endDate: Date? // nil = indefinite
+    @Published private(set) var sessionTrigger: SessionTrigger?
+    @Published private(set) var activeAutomationConditions = Set<KeepAwakeAutomationCondition>()
     @Published private(set) var clamshellActive = false
     @Published private(set) var passwordlessClamshell = false
     @Published private(set) var clamshellSetupInProgress = false
@@ -49,6 +53,12 @@ final class KeepAwakeManager: ObservableObject {
     private var mouseJiggleTimer: Timer?
     private var pendingMouseReturn: DispatchWorkItem?
     private var defaultsObserver: AnyCancellable?
+    private var screenParametersObserver: NSObjectProtocol?
+    private var powerSourceRunLoopSource: CFRunLoopSource?
+    private var automationEvaluationWorkItem: DispatchWorkItem?
+    private var lastExternalDisplayConnected: Bool?
+    private var automationSuppressedUntilConditionsClear = false
+    private var recoveryCompleted = false
     /// Guards the closed-lid setup against an infinite retry loop: if `pmset
     /// disablesleep` keeps failing while the sudoers rule still checks out as
     /// installed, re-preparing would bounce here forever (and flicker the
@@ -62,7 +72,7 @@ final class KeepAwakeManager: ObservableObject {
             .publisher(for: UserDefaults.didChangeNotification)
             .sink { [weak self] _ in
                 DispatchQueue.main.async {
-                    self?.syncMouseJiggleTimer()
+                    self?.syncWithPreferences()
                 }
             }
     }
@@ -81,18 +91,54 @@ final class KeepAwakeManager: ObservableObject {
 
     func toggle() {
         if isActive {
+            if sessionTrigger == .automation || !currentMatchingAutomationConditions().isEmpty {
+                automationSuppressedUntilConditionsClear = true
+            }
             deactivate(reason: .manual)
         } else {
             activate(minutes: Defaults.sanitizedDefaultDuration(UserDefaults.standard.integer(forKey: DefaultsKey.defaultDuration)))
         }
     }
 
+    /// Keep Awake leaving the hub ends any running session; everything else
+    /// (saved duration, tint, shortcut setting) stays for its return.
+    func syncWithFeatures() {
+        guard AppFeature.keepAwake.isAvailable else {
+            stopAutomationMonitoring()
+            if isActive { deactivate(reason: .manual) }
+            return
+        }
+        syncWithPreferences()
+    }
+
+    func syncWithPreferences() {
+        syncMouseJiggleTimer()
+        syncAutomationMonitoring()
+    }
+
+    /// Called by automation controls so a deliberate preference change can
+    /// resume evaluation after a manually stopped automatic session.
+    func automationPreferencesDidChange() {
+        automationSuppressedUntilConditionsClear = false
+        syncWithPreferences()
+    }
+
     /// `minutes <= 0` activates indefinitely.
     func activate(minutes: Int) {
+        automationSuppressedUntilConditionsClear = false
+        activate(minutes: minutes, trigger: .manual)
+    }
+
+    private func activate(minutes: Int, trigger: SessionTrigger) {
+        guard AppFeature.keepAwake.isAvailable else { return }
         let minutes = Defaults.sanitizedDefaultDuration(minutes)
         endTimer?.invalidate()
         endTimer = nil
         applyAssertions()
+        sessionTrigger = trigger
+        if trigger == .manual {
+            activeAutomationConditions.removeAll()
+        }
         isActive = true
         if minutes > 0 {
             let end = Date().addingTimeInterval(TimeInterval(minutes) * 60)
@@ -109,7 +155,8 @@ final class KeepAwakeManager: ObservableObject {
     }
 
     func activateOnLaunchIfNeeded() {
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeAutoStart),
+        guard AppFeature.keepAwake.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeAutoStart),
               !isActive else { return }
         activate(minutes: Defaults.sanitizedDefaultDuration(
             UserDefaults.standard.integer(forKey: DefaultsKey.defaultDuration)))
@@ -124,6 +171,9 @@ final class KeepAwakeManager: ObservableObject {
 
     func deactivate(reason: EndReason) {
         let hadSession = isActive
+        if reason == .quit {
+            stopAutomationMonitoring()
+        }
         endTimer?.invalidate()
         endTimer = nil
         endDate = nil
@@ -131,6 +181,8 @@ final class KeepAwakeManager: ObservableObject {
         if clamshellActive {
             disableClamshell(synchronous: reason == .quit)
         }
+        sessionTrigger = nil
+        activeAutomationConditions.removeAll()
         isActive = false
         stopBatteryWatch()
         stopMouseJiggleTimer()
@@ -139,10 +191,174 @@ final class KeepAwakeManager: ObservableObject {
         }
     }
 
+    // MARK: - Automatic sessions
+
+    private func syncAutomationMonitoring() {
+        let available = AppFeature.keepAwake.isAvailable
+        let observeScreens = available
+            && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeExternalDisplay)
+        let observePower = available
+            && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeConnectedToPower)
+
+        setScreenMonitoringEnabled(observeScreens)
+        setPowerMonitoringEnabled(observePower)
+        evaluateAutomation()
+    }
+
+    private func setScreenMonitoringEnabled(_ enabled: Bool) {
+        if enabled {
+            guard screenParametersObserver == nil else { return }
+            screenParametersObserver = NotificationCenter.default.addObserver(
+                forName: NSApplication.didChangeScreenParametersNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                self?.scheduleAutomationEvaluation(after: 0.35)
+            }
+        } else if let screenParametersObserver {
+            NotificationCenter.default.removeObserver(screenParametersObserver)
+            self.screenParametersObserver = nil
+            lastExternalDisplayConnected = nil
+        }
+    }
+
+    private func setPowerMonitoringEnabled(_ enabled: Bool) {
+        if enabled {
+            guard powerSourceRunLoopSource == nil else { return }
+            let context = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
+            powerSourceRunLoopSource = IOPSNotificationCreateRunLoopSource({ context in
+                guard let context else { return }
+                let manager = Unmanaged<KeepAwakeManager>.fromOpaque(context).takeUnretainedValue()
+                DispatchQueue.main.async {
+                    manager.scheduleAutomationEvaluation(after: 0.1)
+                }
+            }, context).takeRetainedValue()
+            if let powerSourceRunLoopSource {
+                CFRunLoopAddSource(CFRunLoopGetMain(), powerSourceRunLoopSource, .defaultMode)
+            }
+        } else if let powerSourceRunLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), powerSourceRunLoopSource, .defaultMode)
+            self.powerSourceRunLoopSource = nil
+        }
+    }
+
+    private func scheduleAutomationEvaluation(after delay: TimeInterval) {
+        automationEvaluationWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.automationEvaluationWorkItem = nil
+            self?.evaluateAutomation()
+        }
+        automationEvaluationWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    private func stopAutomationMonitoring() {
+        automationEvaluationWorkItem?.cancel()
+        automationEvaluationWorkItem = nil
+        setScreenMonitoringEnabled(false)
+        setPowerMonitoringEnabled(false)
+        activeAutomationConditions.removeAll()
+    }
+
+    private func evaluateAutomation() {
+        guard recoveryCompleted else { return }
+        let matches = currentMatchingAutomationConditions()
+
+        if automationSuppressedUntilConditionsClear {
+            if matches.isEmpty {
+                automationSuppressedUntilConditionsClear = false
+            }
+            if sessionTrigger == .automation {
+                deactivate(reason: .manual)
+            }
+            return
+        }
+
+        if sessionTrigger == .automation {
+            activeAutomationConditions = matches
+        }
+        let action = KeepAwakeAutomationSupport.action(
+            featureAvailable: AppFeature.keepAwake.isAvailable,
+            matchingConditions: matches,
+            sessionActive: isActive,
+            automaticSessionActive: isActive && sessionTrigger == .automation
+        )
+        switch action {
+        case .none:
+            break
+        case .activate:
+            guard automaticSessionAllowedByBatteryProtection() else { return }
+            activeAutomationConditions = matches
+            activate(minutes: 0, trigger: .automation)
+        case .deactivate:
+            deactivate(reason: .manual)
+        }
+    }
+
+    private func currentMatchingAutomationConditions() -> Set<KeepAwakeAutomationCondition> {
+        let externalDisplayEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeExternalDisplay)
+        let externalDisplayConnected: Bool
+        if externalDisplayEnabled {
+            if let current = Self.hasExternalDisplay() {
+                lastExternalDisplayConnected = current
+            }
+            externalDisplayConnected = lastExternalDisplayConnected ?? false
+        } else {
+            externalDisplayConnected = false
+        }
+
+        let powerEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeConnectedToPower)
+        let connectedToPower = powerEnabled
+            && (SystemInfo.batterySnapshot().map { !$0.isOnBattery } ?? false)
+
+        return KeepAwakeAutomationSupport.matchingConditions(
+            externalDisplayEnabled: externalDisplayEnabled,
+            externalDisplayConnected: externalDisplayConnected,
+            powerEnabled: powerEnabled,
+            connectedToPower: connectedToPower
+        )
+    }
+
+    private static func hasExternalDisplay() -> Bool? {
+        var count: UInt32 = 0
+        guard CGGetOnlineDisplayList(0, nil, &count) == .success else { return nil }
+        guard count > 0 else { return false }
+
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetOnlineDisplayList(count, &displays, &count) == .success else { return nil }
+        let builtInFlags = displays.prefix(Int(count)).map { CGDisplayIsBuiltin($0) != 0 }
+        return KeepAwakeAutomationSupport.hasExternalDisplay(builtInFlags: builtInFlags)
+    }
+
+    private func automaticSessionAllowedByBatteryProtection() -> Bool {
+        let limit = Defaults.sanitizedBatteryLimit(
+            UserDefaults.standard.integer(forKey: DefaultsKey.batteryLimit)
+        )
+        guard limit > 0,
+              let battery = SystemInfo.batterySnapshot(),
+              battery.isOnBattery else { return true }
+        return battery.percent > limit
+    }
+
+    private func continueAutomaticallyAfterTimerIfNeeded() -> Bool {
+        guard sessionTrigger == .manual,
+              AppFeature.keepAwake.isAvailable,
+              !automationSuppressedUntilConditionsClear,
+              automaticSessionAllowedByBatteryProtection() else { return false }
+        let matches = currentMatchingAutomationConditions()
+        guard !matches.isEmpty else { return false }
+        activeAutomationConditions = matches
+        activate(minutes: 0, trigger: .automation)
+        return true
+    }
+
     private func scheduleEnd(at date: Date) {
         endTimer?.invalidate()
         let t = Timer(fire: date, interval: 0, repeats: false) { [weak self] _ in
-            self?.deactivate(reason: .timer)
+            guard let self else { return }
+            if !self.continueAutomaticallyAfterTimerIfNeeded() {
+                self.deactivate(reason: .timer)
+            }
         }
         RunLoop.main.add(t, forMode: .common)
         endTimer = t
@@ -310,7 +526,7 @@ final class KeepAwakeManager: ObservableObject {
     /// behavior on the next launch.
     func recoverIfNeeded(completion: (() -> Void)? = nil) {
         guard UserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag) else {
-            completion?()
+            finishRecovery(completion)
             return
         }
         DispatchQueue.global(qos: .utility).async {
@@ -320,7 +536,7 @@ final class KeepAwakeManager: ObservableObject {
                 // Silent recovery through the password-free path.
                 DispatchQueue.main.async {
                     UserDefaults.standard.set(false, forKey: DefaultsKey.sleepDisabledFlag)
-                    completion?()
+                    self.finishRecovery(completion)
                 }
                 return
             }
@@ -331,15 +547,21 @@ final class KeepAwakeManager: ObservableObject {
                             if ok {
                                 UserDefaults.standard.set(false, forKey: DefaultsKey.sleepDisabledFlag)
                             }
-                            completion?()
+                            self.finishRecovery(completion)
                         }
                     }
                 } else {
                     UserDefaults.standard.set(false, forKey: DefaultsKey.sleepDisabledFlag)
-                    completion?()
+                    self.finishRecovery(completion)
                 }
             }
         }
+    }
+
+    private func finishRecovery(_ completion: (() -> Void)?) {
+        recoveryCompleted = true
+        completion?()
+        syncWithPreferences()
     }
 
     // MARK: - Battery protection

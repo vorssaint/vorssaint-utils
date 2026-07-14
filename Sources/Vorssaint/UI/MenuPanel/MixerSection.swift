@@ -13,6 +13,8 @@ struct MixerSection: View {
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var inputManager = AudioInputDeviceManager.shared
     @ObservedObject private var outputSwitcher = SoundOutputSwitcher.shared
+    @AppStorage(DefaultsKey.mixerShowFinder)
+    private var showFinder = true
     @AppStorage(DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect)
     private var lowerOnHeadphonesDisconnect = false
     @AppStorage(DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
@@ -32,7 +34,9 @@ struct MixerSection: View {
                 universalOutputPicker
                 universalOutputVolumeControl
                 headphoneDisconnectProtectionToggle
-                soundOutputSwitcherControls
+                if AppFeature.soundOutputSwitcher.isAvailable {
+                    soundOutputSwitcherControls
+                }
                 microphonePicker
                 if AppVolumeMixer.isSupported, (!mixer.apps.isEmpty || mixer.needsPermission) {
                     Divider()
@@ -46,6 +50,10 @@ struct MixerSection: View {
                     emptyLabel(l10n.s.mixerEmpty)
                 } else {
                     mixerRows
+                }
+                if AppVolumeMixer.isSupported {
+                    Divider()
+                    finderVisibilityToggle
                 }
             }
             .panelCard()
@@ -554,6 +562,23 @@ struct MixerSection: View {
         )
     }
 
+    private var finderVisibilityToggle: some View {
+        HStack(spacing: 8) {
+            Text(l10n.s.mixerShowFinder)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 6)
+            Toggle(l10n.s.mixerShowFinder, isOn: $showFinder)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .accessibilityLabel(l10n.s.mixerShowFinder)
+        }
+        .onChange(of: showFinder) { _, _ in
+            mixer.syncWithPreferences()
+        }
+    }
+
     private func inputDeviceTitle(_ device: MixerInputDevice) -> String {
         device.isDefault ? "\(device.name) (\(l10n.s.mixerOutputCurrent))" : device.name
     }
@@ -622,8 +647,7 @@ struct MixerSection: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Button(l10n.s.permissionOpenSettings) {
-                let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AudioCapture")!
-                NSWorkspace.shared.open(url)
+                Permissions.shared.openAudioCaptureSettings()
             }
             .controlSize(.small)
         }

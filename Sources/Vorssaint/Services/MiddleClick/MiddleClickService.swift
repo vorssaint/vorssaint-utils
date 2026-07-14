@@ -68,7 +68,8 @@ final class MiddleClickService: ObservableObject {
     private init() {}
 
     func syncWithPreferences() {
-        let enabled = UserDefaults.standard.bool(forKey: DefaultsKey.middleClickEnabled)
+        let enabled = AppFeature.middleClick.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.middleClickEnabled)
         let tap = Defaults.sanitizedMiddleClickTapFingers(
             UserDefaults.standard.integer(forKey: DefaultsKey.middleClickTapFingers))
         stateLock.lock()

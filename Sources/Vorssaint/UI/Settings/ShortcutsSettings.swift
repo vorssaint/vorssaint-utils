@@ -8,13 +8,16 @@ import SwiftUI
 /// purpose: each shortcut keeps being configured where its feature lives.
 struct ShortcutsSettings: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var features = FeatureRuntime.shared
 
     private var activeRoles: [GlobalShortcutRole] {
-        GlobalShortcutRole.activeRoles { UserDefaults.standard.bool(forKey: $0) }
+        GlobalShortcutRole.activeRoles(isOn: { UserDefaults.standard.bool(forKey: $0) },
+                                       isAvailable: { $0.isAvailable })
     }
 
     private var layoutShortcuts: [WindowLayoutAction] {
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutShortcutsEnabled) else { return [] }
+        guard AppFeature.windowLayout.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutShortcutsEnabled) else { return [] }
         return WindowLayoutAction.shortcutActions.filter { $0.savedShortcut != nil }
     }
 

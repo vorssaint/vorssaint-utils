@@ -1,148 +1,181 @@
-# Vorssaint
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/logo-dark.png">
+    <img src="docs/assets/readme/logo.png" width="220" alt="Vorssaint logo">
+  </picture>
+</p>
 
-> One small menu bar app that replaces a whole stack of paid Mac utilities.
+<h1 align="center">Vorssaint</h1>
 
 <p align="center">
-  <a href="https://vorssaint.com"><strong>vorssaint.com</strong></a>
+  One menu bar icon doing the job of a dozen paid Mac apps.<br>
+  Free, open source, and everything runs on your Mac.
 </p>
 
 <p align="center">
-  <a href="https://github.com/vorssaint/vorssaint-utils/releases"><img src="https://img.shields.io/github/v/release/vorssaint/vorssaint-utils?label=release" alt="Latest release"></a>
+  <a href="https://vorssaint.com">Website</a> ·
+  <a href="#install">Install</a> ·
+  <a href="#everything-it-does">Features</a> ·
+  <a href="#private-by-default">Privacy</a> ·
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/vorssaint/vorssaint-utils/releases"><img src="https://img.shields.io/github/v/release/vorssaint/vorssaint-utils?label=release&color=4c8dff" alt="Latest release"></a>
+  <a href="https://github.com/vorssaint/vorssaint-utils/releases"><img src="https://img.shields.io/github/downloads/vorssaint/vorssaint-utils/total?color=4c8dff" alt="Downloads"></a>
   <a href="https://github.com/vorssaint/vorssaint-utils/actions/workflows/ci.yml"><img src="https://github.com/vorssaint/vorssaint-utils/actions/workflows/ci.yml/badge.svg?branch=main&event=push" alt="CI status"></a>
-  <a href="#what-you-need"><img src="https://img.shields.io/badge/macOS-14%2B%20(Apple%20Silicon)-black" alt="macOS 14 and newer, Apple Silicon"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL%203.0%20or%20later-blue" alt="License GPL 3.0 or later"></a>
+  <a href="#what-you-need"><img src="https://img.shields.io/badge/macOS-14%2B%20Apple%20Silicon-black" alt="macOS 14 and newer, Apple Silicon"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="License GPL 3.0 or later"></a>
 </p>
 
-<p align="center"><sub>Também disponível em <a href="docs/README.pt-BR.md">Português (Brasil)</a>.</sub></p>
+<p align="center">
+  <a href="https://trendshift.io/repositories/53716"><img src="https://img.shields.io/badge/Trendshift-%231%20Swift%20Repository%20of%20the%20Day-e8663d?labelColor=2b2b2b" alt="Number 1 Swift repository of the day on Trendshift"></a>
+</p>
 
-Vorssaint is the one menu bar app that does the work of a whole shelf of paid Mac tools. Per app volume, a full system monitor, window controls, clipboard history, a window switcher, a file shelf, an app uninstaller, link cleaning, keep awake and a handful more, all living behind a single icon up in your menu bar. Install it once and stop paying for and juggling a pile of single purpose apps. It is local-first and stays out of your way: core features run on your Mac, with network used only for update checks, speed tests and Homebrew actions you start. Free, open source, no account, no subscription and no Vorssaint telemetry.
+<p align="center">
+  <img src="docs/assets/readme/panel-mixer.png" width="196" alt="Volume mixer with per app sliders, one app boosted past 100 percent">
+  <img src="docs/assets/readme/panel-system.png" width="196" alt="System tab with temperatures, usage graphs and memory pressure">
+  <img src="docs/assets/readme/panel-controls.png" width="196" alt="Window controls with the app switcher and Dock features">
+  <img src="docs/assets/readme/panel-utilities.png" width="196" alt="Utilities with cleaner, Homebrew, media tools and clipboard">
+</p>
 
-## Everything in one menu bar app
+Per app volume, a real system monitor, a better app switcher, window snapping, Dock previews, clipboard history, text snippets, a file shelf, an uninstaller. The utilities Mac users usually buy one by one, together behind a single menu bar icon, with no account, no telemetry and no subscription.
 
-Here is the whole toolkit. Every part can be turned on or off, so you keep what you use and hide the rest.
+## Install only what you use
 
-### 🎚️ Per app volume, the one people reach for first
+Nobody needs all of it, and Vorssaint is built around that. The Features page installs and uninstalls whole features: what you uninstall disappears from the entire app and stops loading, so it spends no CPU, memory or energy. Nothing is deleted, and installing again brings your old settings back.
 
-Vorssaint puts a real mixer in your menu bar, so you can slide any single app up or down while the rest of your Mac stays exactly where it was. Mute a loud video and let your music keep playing. Lift a quiet call without turning everything else up. There is no extra audio driver to install and nothing to set up first.
+Three one click bundles, Essentials, Windows, and Battery and quiet, shape the whole app in one move, and onboarding ends by asking which one you want. Every feature also wears an honest energy badge saying what it keeps alive while on.
 
-<p align="center"><img src="docs/assets/readme/volume-mixer.png" alt="Per app volume mixer" width="540"></p>
+<p align="center">
+  <img src="docs/assets/readme/features-hub.png" width="720" alt="The Features hub in Settings, installing and uninstalling whole features">
+</p>
 
-On macOS 26 and newer the slider takes on the Liquid Glass look, and earlier versions of macOS keep the familiar one.
+The rest bends the same way: panel sections reorder and hide, the compact layout trades sections for tabs, settings export to a file and import on a new Mac, and the whole app speaks thirteen languages.
 
-### 📊 See what your Mac is doing
+## Everything it does
 
-- **System monitor.** Follow CPU, GPU, memory, temperatures, battery details and uptime in one compact panel, with small history graphs and optional menu bar readouts.
-- **Monitor alerts.** Get optional notifications for sustained CPU load, high CPU temperature, critical memory pressure, low disk space and low battery.
-- **Network.** Watch live upload and download rates, the totals for your session, and a speed test you can run whenever you are curious.
-- **Power and battery.** Keep an eye on the system draw, the adapter input, the flow in and out of the battery, plus health, cycle count and which apps are burning real energy right now.
+### Sound
 
-<p align="center"><img src="docs/assets/readme/system-monitor-graph.png" alt="System monitor with live graphs" width="460"></p>
+- **Volume mixer.** Slide any single app up or down while the rest of the Mac stays put, and push a quiet one past 100 percent when a video is just too low. No audio driver, no setup.
+- **Per app output.** Send your music to the speakers and a call to your headset at the same time.
+- **Output switcher.** Cycle between chosen outputs with one shortcut, and drop the volume automatically when headphones disconnect.
+- **Microphone tools.** Pin your favorite input so the Mac stops guessing, and mute the mic everywhere with a click or shortcut.
+- **Music app blocker.** Stops the Music app from bursting in when headphones connect.
 
-### 🪟 Move windows and files around
+### Know what your Mac is doing
 
-- **Window switcher.** A richer spin on ⌘Tab with live thumbnails, including more than one window from the same app.
-- **Window Layout.** Move the active window to halves, thirds, corners, center or the usable screen, each with its own optional shortcut.
-- **Dock Preview.** Hover a Dock icon to peek at that app's windows and click straight into the one you want.
-- **Dock click to minimize.** Click the Dock icon of the app you are using and its windows minimize, like a classic taskbar. Click again and they come right back.
-- **Shelf.** Park files, images, text and links near your cursor for a moment, then drag them wherever they belong later on.
-- **Finder cut and paste.** Use ⌘X and ⌘V to move selected files, while text fields keep their usual shortcuts.
-- **Quit on close.** Let an app quit when its last window closes, with exceptions for the apps you want to leave running.
-- **Green button maximizer.** An optional take on the green button that keeps the window in the current Space and puts it back to its old size on the next click.
-- **Clipboard history.** Keep a local history of copied text, images and files, with pinned items, search, manual ordering and quick paste shortcuts.
+- **System monitor.** CPU, GPU, memory pressure and temperatures with history graphs, plus battery health, time remaining, cycle count, power draw and which apps are burning energy right now.
+- **Menu bar readouts.** Keep the readings you care about in the bar itself, with values or compact usage bars, including optional battery time remaining, combined or as separate items.
+- **Network.** Live rates, session totals and a built in speed test.
+- **Alerts.** Optional notifications for sustained CPU load, high temperature, memory pressure, low disk space and low battery.
 
-<p align="center"><img src="docs/assets/readme/window-switcher.gif" alt="Window switcher with live thumbnails" width="460"></p>
+### Windows and the Dock
 
-### ⚡ Keep your Mac awake
+- **App switcher.** A richer take on pressing ⌘Tab, with live window thumbnails, minimized windows included, and more than one window per app.
+- **Window layout.** Snap the active window to halves, thirds, sixths, corners, center or another display, each with its own optional shortcut. On a trackpad or mouse, hold chosen modifiers and drag anywhere to move a window, then add Shift to resize it. A mouse can also resize with the right button.
+- **Dock Preview.** Hover a Dock icon to peek at that app's windows and jump straight into the right one.
+- **Dock clicks.** Click the Dock icon of the active app to minimize its windows, or cycle through them one by one.
+- **Maximize windows.** The green button fills the screen without creating another Space, and puts the window back on the next click.
+- **Quit on close.** Apps you choose quit when their last window closes.
 
-Run a timer or stay up until you say stop. Closed lid mode is there for when you want the Mac to keep going with the screen down, and it stays opt in and tightly scoped so it never catches you off guard.
+<p align="center">
+  <img src="docs/assets/readme/window-switcher.gif" width="540" alt="The window switcher showing live thumbnails of open windows">
+</p>
 
-<p align="center"><img src="docs/assets/readme/keep-awake-lid-closed.png" alt="Keep awake and closed lid controls" width="460"></p>
+### Keyboard and mouse
 
-### 🧰 Quick tools, one shortcut away
+- **Text snippets.** Type a short trigger anywhere and it becomes your text, expanded instantly or after a space, with date, time and clipboard variables.
+- **Smooth scrolling.** Gives a mouse wheel the glide of a trackpad.
+- **Scroll direction.** Invert the wheel without touching the trackpad's natural scrolling.
+- **Side buttons.** The mouse Back and Forward buttons start meaning it, in Finder, browsers and compatible apps.
+- **Middle click.** A three finger press becomes a real middle click.
+- **Key debounce.** Filters the double letters a worn keyboard invents.
 
-Press ⌃⌘V anywhere and a small floating panel opens with your favorite tools one click or key away. Hide the ones you never use, drag the rest into your order, and the everyday tools run right inside it.
+### Clipboard, files and links
 
-- **Copy text from screen.** Select any area and the text in it is recognized offline and lands on your clipboard, ready to paste.
-- **Color picker.** Grab the color of any pixel with the system loupe and copy it as HEX, RGB, HSL or SwiftUI code.
-- **Mute microphone.** One click or a global shortcut cuts the Mac's input in every app, and the muted state survives switching devices.
-- **Paste as plain text.** An optional shortcut pastes without colors, fonts or links, and the original formatting stays on the clipboard.
+- **Clipboard history.** Local history of text, images and files with pinned favorites, search and quick paste shortcuts.
+- **Paste as plain text.** One shortcut pastes without fonts, colors or links, and the original stays on the clipboard.
+- **Shelf.** Park files, text and links near your cursor mid drag, then drop them where they belong later.
+- **Finder cut and paste.** ⌘X and ⌘V move files the way you always expected them to.
+- **Clean URL.** Strips tracking parameters from copied links, on demand or automatically.
 
-### 🧹 Tidy up and fine tune
+### Everyday tools
 
-- **Uninstaller.** Drop an app onto Settings, look over the caches, preferences and logs it left around, then move them all to the Trash together.
-- **Clean URL.** Strip the tracking junk out of copied links, with an option to do it automatically.
-- **Cleaning Mode.** Lock the keyboard for a quick wipe down and unlock from the overlay or a repeated key tap.
-- **Scroll direction.** Flip the mouse wheel on its own without touching the trackpad and its natural scrolling.
-- **Middle click.** Press the trackpad with three fingers for a real middle click, so wheel-click tricks work without a mouse.
-- **Fan Control beta.** A safe testing entry is in place, with the manual controls held back until each Mac model is checked out properly.
+- **Quick panel.** ⌃⌘V opens a small floating palette with your favorite tools one key away.
+- **Quick toggles.** One-click system actions in their own panel tab: switch light and dark mode, empty the Trash, eject every disk, show hidden files, hide desktop icons, lock the screen and more.
+- **Copy text from screen.** Select any area and its text is recognized offline, straight onto the clipboard.
+- **Color picker.** Grab any pixel with the system loupe as HEX, RGB, HSL or SwiftUI code.
+- **Cleaner.** Sweeps app leftovers, caches and logs, by hand or on a schedule.
+- **Uninstaller.** Drop an app in and take its caches, preferences and logs to the Trash with it.
+- **Media tools.** Compress videos and images, make GIFs and extract text, all locally.
+- **Homebrew manager.** Search, install and remove formulae and casks without opening a terminal.
+- **Cleaning Mode.** Locks the keyboard and blacks out every display while you clean.
 
-### 🌍 Made to feel at home
+### Energy and display
 
-Vorssaint speaks twelve languages and you can switch between them anytime in Settings. The compact panel lets you choose between a plain list and grouped sections, and you can tuck away the parts you rarely use, then bring them back from the same spot.
+- **Keep awake.** Keep the Mac up for a timer, until you say stop or automatically with an external display or power connection, including with the lid closed, choose the active menu bar icon and color, and see the remaining time beside it.
+- **Displays.** Adjust brightness or turn individual displays on and off from the menu bar panel. External screens use their own control channel when available and fall back to dimming the picture, while the keyboard brightness keys can follow the pointer.
+- **Extra brightness.** Pushes the XDR panel of a MacBook Pro past its regular maximum using the display's HDR headroom.
 
 ## Install
 
-The easiest way is with [Homebrew](https://brew.sh).
+With [Homebrew](https://brew.sh):
 
 ```sh
 brew install --cask vorssaint/tap/vorssaint
 ```
 
-Already running Vorssaint and you would rather not reinstall it? Adopt your current copy into Homebrew with no download.
+Already running it? Adopt your copy into Homebrew without a reinstall:
 
 ```sh
 brew install --cask --adopt vorssaint/tap/vorssaint
 ```
 
-From then on, updates arrive with `brew upgrade --cask vorssaint`. You can also grab the latest disk image from the [releases page](https://github.com/vorssaint/vorssaint-utils/releases), open it and drag Vorssaint into Applications.
+Updates then arrive with `brew upgrade --cask vorssaint`. Or grab the disk image from the [releases page](https://github.com/vorssaint/vorssaint-utils/releases) and drag Vorssaint into Applications.
 
-Vorssaint is signed with an Apple Developer ID and notarized by Apple, so it opens with no security warning, and that stable signing identity holds on to the permissions you grant across updates.
+Builds are signed with an Apple Developer ID and notarized, so macOS opens them without a fuss and your permissions survive updates.
 
 ## Private by default
 
-Vorssaint runs on your machine and asks for nothing it does not need. No account, no telemetry, no Vorssaint analytics and no tracking. It has no cloud dashboard and no Vorssaint backend. Network access is limited to visible features: update checks, the speed test and Homebrew searches, analytics and installs when you use the Homebrew manager. The whole story is written up in the [privacy notes](docs/PRIVACY.md).
+Vorssaint has no backend, no account, no analytics and no tracking. The network is touched only by things you can see: update checks, the speed test, and Homebrew searches and installs you start. The full story is in the [privacy notes](docs/PRIVACY.md).
 
-Every macOS permission is optional, and the first run walks you through each one. A feature that is missing a permission simply stays quiet instead of breaking. Here is the short version, with the full picture in the [permissions guide](docs/PERMISSIONS.md).
+Permissions get the same treatment. Every one is optional, the app explains each in plain words, shows which features actually use it, and even tells you when a permission you granted is no longer needed by anything, with a shortcut to revoke it.
+
+<p align="center">
+  <img src="docs/assets/readme/permissions.png" width="720" alt="The Permissions page showing what each permission does, which features use it, and an unused permission warning">
+</p>
 
 | Permission | Used by | Without it |
 |---|---|---|
-| Accessibility | Scroll direction, Window Layout, the switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close | Those features stay off |
-| Screen Recording | Window titles and thumbnails in the switcher and Dock Preview, copy text from screen | Previews fall back or stay unavailable |
-| System Audio Recording | Per app volume and output routing in the mixer | Apps stay on normal system audio |
-| Notifications | Keep awake, battery, Monitor and update alerts | The app stays silent |
-| Full Disk Access (optional) | A deeper uninstaller scan | It scans the reachable places only |
-| Administrator (once, optional) | Password free closed lid toggling | A password prompt on each toggle |
+| Accessibility | Switcher, Dock features, window controls, mouse and keyboard features, snippets, cut and paste | Those features stay off |
+| Screen Recording | Switcher and Dock Preview thumbnails, copy text from screen | Previews fall back or stay off |
+| System Audio Recording | Per app volume and output routing | Apps stay on normal system audio |
+| Notifications | Keep awake, battery, monitor and update alerts | The app stays silent |
+| Full Disk Access, optional | Deeper cleaner and uninstaller scans | Only reachable places are scanned |
+| Administrator, once, optional | Password free closed lid toggling | A password prompt per toggle |
 
-Finder cut and paste, the uninstaller and Homebrew's Terminal handoff can also ask macOS for Automation access the first time they talk to Finder or Terminal. The shelf needs no permission at all.
+The shelf and almost every quick toggle need no permission at all. Finder cut and paste, the uninstaller, emptying the Trash and the Homebrew terminal handoff ask macOS for Automation access the first time they talk to Finder or Terminal.
 
 ## What you need
 
 - A Mac with Apple Silicon
 - macOS 14 Sonoma or newer
-- Xcode Command Line Tools, only if you build it yourself
 
 ### Build it yourself
 
 ```sh
 git clone https://github.com/vorssaint/vorssaint-utils.git
 cd vorssaint-utils
-./build.sh            # compile, generate the icon and assemble the signed bundle
+./build.sh            # compile, generate the icon, assemble the signed bundle
 ./build.sh --install  # the same, then install into Applications and launch
 ```
 
-The [contributing guide](CONTRIBUTING.md) covers the layout and the conventions. Official Vorssaint builds come only from the maintainer. A fork has to use a different name, icon, bundle identity and signing identity, because the GPL covers the source code and not the Vorssaint name, logo or look. See [TRADEMARKS.md](TRADEMARKS.md).
+Xcode Command Line Tools are the only requirement. The [contributing guide](CONTRIBUTING.md) covers the layout and conventions. Official builds come only from the maintainer: the GPL covers the source, while the Vorssaint name, icon and look are covered by [TRADEMARKS.md](TRADEMARKS.md), so forks need their own identity.
 
-## Troubleshooting
+## When something misbehaves
 
-App blocked on first launch, a permission that will not take hold, or the switcher showing icons instead of thumbnails? The [troubleshooting guide](docs/TROUBLESHOOTING.md) walks through the common fixes, including how to reset permissions and remove the app cleanly.
-
-## Uninstall
-
-```sh
-./Tools/uninstall.sh
-```
-
-The script quits the app, drops the login item, resets its privacy grants, deletes the app along with its preferences and saved state, and removes the optional closed lid rule, so nothing is left behind. You can also drag the app to the Trash and run `tccutil reset All com.vorssaint.utils` to clear its permissions.
+The [troubleshooting guide](docs/TROUBLESHOOTING.md) walks through the common cases: the app blocked on first launch, a permission that will not stick, thumbnails showing as icons. To remove Vorssaint completely, `./Tools/uninstall.sh` quits the app, drops the login item, resets its privacy grants and deletes every trace.
 
 ## Documentation
 
@@ -153,14 +186,16 @@ The script quits the app, drops the login item, resets its privacy grants, delet
 - [Support](SUPPORT.md), where to get help
 - [Security](SECURITY.md), how to report a vulnerability
 
-## Contributing
+## Community
 
-Issues and pull requests are very welcome. The [contributing guide](CONTRIBUTING.md) has the build setup, the project conventions and how to add a translation or map the sensors on a new chip. For help, bug reports and feature ideas head to [support](SUPPORT.md), and to report something sensitive in private see the [security policy](SECURITY.md).
+Vorssaint went from first commit to the front of GitHub trending in three days, top of the Swift charts, and issues and pull requests have shaped every release since. Bug reports, feature ideas and translations are all welcome, starting from the [contributing guide](CONTRIBUTING.md).
 
-## Support the project
-
-Vorssaint is free and it will stay that way. If it earns a place in your menu bar, a quick ⭐ helps other people find it. If you want to chip in beyond that you can [buy me a coffee](https://buymeacoffee.com/vorssaint), and either way the project lives on the community around it.
+Vorssaint is free and will stay that way. If it earned its place in your menu bar, a star helps other people find it, and a [coffee](https://buymeacoffee.com/vorssaint) keeps the maintainer awake, with or without the Keep awake feature.
 
 ## License
 
-The source code is licensed under [GPL 3.0 or later](LICENSE), copyright 2026 Vorssaint. That license covers the source code. The Vorssaint name, logo and look are covered on their own in [TRADEMARKS.md](TRADEMARKS.md).
+[GPL 3.0 or later](LICENSE), copyright 2026 Vorssaint. The license covers the source code; the Vorssaint name, logo and look are covered separately in [TRADEMARKS.md](TRADEMARKS.md).
+
+<p align="center">
+  <sub>Made by <a href="https://x.com/vorssaint">@vorssaint</a></sub>
+</p>

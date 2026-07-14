@@ -4,6 +4,207 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [3.1.13]
+
+### Summary
+Vorssaint 3.1.13 adds brightness and power controls for all your displays, a
+Quick toggles tab with one-click actions like dark mode and Trash, automatic Keep
+Awake rules, battery time remaining and compact usage bars in the menu bar.
+It also keeps Extra Brightness steady around fullscreen video and returns
+Finder to the Volume Mixer.
+
+### Added
+- Display controls for the Mac screen and external monitors in the menu bar
+  panel and Settings. Adjust brightness, turn a display on or off and
+  optionally let the keyboard brightness keys follow the pointer. Enable
+  Displays under Energy settings.
+- A new Quick toggles tab offers one-click actions such as switching between
+  light and dark mode, emptying the Trash, ejecting all disks and hiding
+  desktop icons. It appears in the menu bar panel and in the quick panel.
+- The battery's estimated time remaining can appear in the menu bar and the
+  Power panel. The menu bar reading is off by default and can be enabled in
+  Settings.
+- Keep Awake can start with an external display or while connected to power.
+  Combine both conditions in Options or Energy settings.
+- Keep Awake can use the Vorssaint, coffee, eye, moon or lightbulb icon while
+  active. Choose the icon and its color in Options or Energy settings.
+- Window Layout moves and resizes windows from any point with a trackpad or
+  mouse. Drag with chosen modifiers to move, add Shift to resize, or use the
+  mouse's right button. It is off by default in the panel and Settings.
+- CPU, GPU, memory and disk use can appear as compact bars in the menu bar.
+  Choose Values or Bars and adjust their colors and medium and high limits in
+  Monitor settings.
+- Cleaning Mode now blacks out every display while the keyboard is locked.
+- Korean is now available throughout the app and can be selected in Settings.
+  Thanks to hyo.c (@pshyomin) for the translation.
+
+### Changed
+- Package updates now stay at the top of the installed list, with clearly
+  labeled controls in the panel.
+- Monitor alerts now explain when limits trigger a notification, when short CPU
+  spikes are ignored and that the time setting only delays repeated alerts.
+
+### Fixed
+- Smooth Scrolling now moves horizontally while Shift is held.
+- Dock click to minimize now reacts immediately in more apps and no longer
+  opens unrelated windows.
+- Closed lid mode now asks for the administrator password only once.
+- Extra Brightness no longer flashes when video enters or leaves fullscreen.
+- App Switcher now includes apps that draw their windows separately, with
+  working previews.
+- Finder stays available in the Volume Mixer for Quick Look audio. A switch
+  at the bottom can hide it.
+- Clipboard History no longer crashes when automatic URL cleaning inspects the
+  same copy.
+
+## [3.1.12] - 2026-07-11
+
+### Highlight
+Vorssaint is massively optimized, with up to 95 percent less CPU and
+energy use than 3.1.11. Cooler, quieter and easier on your battery.
+
+### Summary
+Vorssaint 3.1.12 adds a Features hub with one click bundles and honest
+energy badges, an onboarding that sets the app up from one answer, a
+floating permission guide, text snippets, settings backup and a cleaner
+that reaches the storage macOS calls Other. It is also far lighter on
+CPU and fixes extra brightness during HDR video, Dock icon dragging and
+Dock clicks on Java apps.
+
+### Added
+- A Features hub in Settings installs and uninstalls whole features.
+  What you uninstall disappears from the entire app and stops loading,
+  so it uses no CPU, memory or energy. Nothing is deleted and installing
+  brings it back as it was. Its Permissions tab shows which features use
+  each permission and flags granted ones nothing is using.
+- Start with a bundle. Three one click packs in the hub shape the app
+  for volume, windows or battery, and every feature now wears an honest
+  energy badge telling what it keeps alive while on.
+- Onboarding now ends asking what brought you here. One answer applies
+  the matching bundle and setup finishes already shaped for it.
+- A small floating guide appears when a permission needs a trip to
+  System Settings. It shows the three steps and notices the grant by
+  itself.
+- Text snippets turn a short trigger into your text, right away or
+  after a space, with date, time and clipboard variables. Off by
+  default, in the panel's keyboard controls and in Settings.
+- The cleaner now reaches the storage macOS calls Other. Old iPhone and
+  iPad backups appear with device and date, never preselected, and
+  stale Xcode DeviceSupport caches join the developer junk.
+- Settings backup exports your whole setup to a file and imports it on
+  another Mac. In the Advanced settings.
+
+### Changed
+- Deep energy work across the app. Mouse movement, typing, menu bar
+  metrics and permission checks stop repeating work they had already
+  done. Everything looks and behaves exactly the same, just cooler.
+
+### Fixed
+- Extra brightness no longer flickers or drops out while HDR video plays
+  or goes fullscreen. The boost now holds steady and follows the panel
+  smoothly.
+- Clicking the Dock icon to minimize now works with Java apps such as
+  DBeaver. Windows the system reports slowly or not at all get a second
+  look, and apps without a Minimize All menu use their plain Minimize.
+- Dock icons can be dragged and reordered again while Dock clicks are
+  on. The click now acts when the button lifts, so press and hold turns
+  into a normal drag.
+- The side buttons option no longer shows the invert scrolling text
+  while active.
+- The menu bar panel opens centered under the app icon again. Newer
+  macOS builds could strand it against the screen edge until the tabs
+  changed.
+- Hovering a Dock preview can no longer pull a minimized window back
+  out. A window whose state cannot be verified now stays untouched, and
+  a Dock that restarts while previews are blocked is picked up again.
+
+## [3.1.11] - 2026-07-10
+
+### Summary
+Vorssaint 3.1.11 adds Cleaner, a simpler switcher, more useful Shelf
+controls, sixth screen layouts and mouse side button navigation. It also
+keeps extra brightness steady, blocks unwanted Music launches and lets
+paste as plain text use Command V.
+
+### Added
+- The Cleaner finds leftovers from uninstalled apps, caches and logs.
+  You review everything first, removed items go
+  to the Trash, and the safe part can also run on its own daily or
+  weekly. In the quick panel and the menu bar panel.
+- Stop Music from opening on its own. With the option on, pressing a
+  media key no longer brings up the Music app, and another app of your
+  choice can open instead. Off by default, in the General settings.
+- The app switcher has a simple app layout with window titles but no
+  previews or screen capture, while still restoring minimized windows.
+  Off by default in the App Switcher settings.
+- Window Layout can place the active window in any cell of a six part
+  grid. Each action can receive its own shortcut in Settings.
+- Mouse side buttons can navigate back and forward in Finder, browsers
+  and compatible apps. Off by default in Mouse settings and the panel.
+
+### Changed
+- The Shelf can close and remove items after a successful drop, stay open
+  when pinned and ignore automatic opening in chosen apps. File tiles also
+  offer Open With and AirDrop from the right click menu.
+
+### Fixed
+- Extra brightness no longer fades back a moment after turning on. The
+  boost now holds steady and adapts to what the display can sustain.
+- Paste as plain text now works when its shortcut is set to Command V.
+
+## [3.1.10] - 2026-07-09
+
+### Summary
+Vorssaint 3.1.10 fixes extra brightness, which showed as unavailable on
+the MacBook Pro models it was made for.
+
+### Fixed
+- Extra brightness is now available on every MacBook Pro with an XDR
+  display. It stayed marked as unavailable on those Macs.
+
+## [3.1.9] - 2026-07-08
+
+### Summary
+Vorssaint 3.1.9 gives the shelf a home under the menu bar icon, adds
+smooth mouse scrolling and extra brightness for XDR displays, and makes
+the Settings window resizable. It also fixes typing freezes while a
+password prompt is open.
+
+### Added
+- Drag a file toward the menu bar and the shelf opens under the app icon
+  to catch it. Dropped items stay in a small mark there that opens with a
+  click and leaves once the shelf is empty. On when the shelf is on, with
+  a switch in the shelf settings.
+- The XDR display of MacBook Pro models can now go past its maximum
+  brightness, using the reserve the panel saves for HDR. Off by default,
+  in the Energy settings, with an intensity slider.
+- Mouse wheel scrolling can glide smoothly instead of jumping line by
+  line. Off by default, in the Mouse settings, with an adjustable step.
+- The dock click to cycle windows option now has a toggle in the menu bar
+  panel too, next to the other quick controls.
+
+### Changed
+- The Settings window is now resizable, opens tall enough to show the
+  whole sidebar and remembers the size you choose.
+- Holding the switcher key now stops at the end of the list instead of
+  wrapping around, like the system switcher.
+
+### Fixed
+- Typing no longer freezes for a few seconds while an app shows a password
+  prompt, such as an unsigned app asking for the Keychain.
+- The switcher shortcut for windows now works in the plain grid too,
+  jumping between the selected app's windows while the switcher is open.
+- The extra key on ISO keyboards, such as the caret key on German ones,
+  can now be recorded as a shortcut.
+- Paste as plain text now asks for the Accessibility permission it needs
+  instead of silently swallowing the shortcut when it is missing, and the
+  paste lands more reliably once the shortcut keys are released.
+- Sidebar items no longer show through the Settings search field while
+  scrolling.
+- Updating Homebrew packages from a third party tap no longer fails
+  silently, offering a one click step to trust the tap and continue.
+- Finder no longer shows up in the Volume Mixer.
+
 ## [3.1.8] - 2026-07-07
 
 ### Summary

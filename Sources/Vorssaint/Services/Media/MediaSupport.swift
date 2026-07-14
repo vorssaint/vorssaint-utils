@@ -166,6 +166,7 @@ enum MediaSupport {
         case "fr": return ["fr-FR", "en-US"]
         case "it": return ["it-IT", "en-US"]
         case "ja": return ["ja-JP", "en-US"]
+        case "ko": return ["ko-KR", "en-US"]
         case "zh-Hans": return ["zh-Hans", "en-US"]
         case "zh-TW": return ["zh-TW", "en-US"]
         case "zh-HK": return ["zh-HK", "en-US"]

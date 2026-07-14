@@ -29,7 +29,8 @@ final class ScrollInverter: ObservableObject {
 
     /// Applies the persisted preference; safe to call repeatedly.
     func syncWithPreferences() {
-        let wanted = UserDefaults.standard.bool(forKey: DefaultsKey.scrollInverterEnabled)
+        let wanted = AppFeature.scrollInverter.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.scrollInverterEnabled)
         if wanted, Permissions.shared.accessibility {
             start()
         } else {

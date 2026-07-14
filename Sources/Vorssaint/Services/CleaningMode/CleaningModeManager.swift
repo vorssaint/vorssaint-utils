@@ -41,7 +41,8 @@ final class CleaningModeManager: ObservableObject {
 
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
-    private var overlay: NSPanel?
+    private var overlays: [NSPanel] = []
+    private var screenObserver: NSObjectProtocol?
     private var autoUnlockTimer: Timer?
 
     /// The unlock-gesture state machine (pure, unit-tested separately).
@@ -69,10 +70,12 @@ final class CleaningModeManager: ObservableObject {
         // Wiping the trackpad is nothing but stray three-finger contacts;
         // middle-click emulation must not fire from them.
         MiddleClickService.shared.suspend()
+        MouseNavigationService.shared.suspend()
         unlock.reset()
         unlockProgress = 0
         isActive = true
-        showOverlay()
+        installScreenObserver()
+        showOverlays()
         // Add the failsafe to .common modes (not just the default mode) so it still
         // fires while a tracking or modal run-loop is active — matching the tap's
         // own run-loop source, so the 60 s "always unlocks" guarantee always holds.
@@ -88,13 +91,15 @@ final class CleaningModeManager: ObservableObject {
         removeTap()
         autoUnlockTimer?.invalidate()
         autoUnlockTimer = nil
-        hideOverlay()
+        removeScreenObserver()
+        hideOverlays()
         unlock.reset()
         unlockProgress = 0
         isActive = false
         // Restore debounce and middle click if the user still has them enabled.
         KeyboardDebounceService.shared.syncWithPreferences()
         MiddleClickService.shared.syncWithPreferences()
+        MouseNavigationService.shared.syncWithPreferences()
     }
 
     // MARK: - Event tap
@@ -178,10 +183,16 @@ final class CleaningModeManager: ObservableObject {
 
     // MARK: - Overlay
 
-    private func showOverlay() {
-        guard overlay == nil else { return }
-        let screen = NSScreen.main ?? NSScreen.screens.first
-        let frame = screen?.frame ?? NSRect(x: 0, y: 0, width: 800, height: 600)
+    private func showOverlays() {
+        hideOverlays()
+        let frames = NSScreen.screens.map(\.frame)
+        let targetFrames = frames.isEmpty
+            ? [NSRect(x: 0, y: 0, width: 800, height: 600)]
+            : frames
+        overlays = targetFrames.map(makeOverlay(frame:))
+    }
+
+    private func makeOverlay(frame: NSRect) -> NSPanel {
         let panel = NSPanel(contentRect: frame,
                             styleMask: [.borderless, .nonactivatingPanel],
                             backing: .buffered, defer: false)
@@ -201,12 +212,31 @@ final class CleaningModeManager: ObservableObject {
         host.autoresizingMask = [.width, .height]
         panel.contentView = host
         panel.orderFrontRegardless()
-        overlay = panel
+        return panel
     }
 
-    private func hideOverlay() {
-        overlay?.orderOut(nil)
-        overlay = nil
+    private func hideOverlays() {
+        overlays.forEach { $0.orderOut(nil) }
+        overlays = []
+    }
+
+    private func installScreenObserver() {
+        guard screenObserver == nil else { return }
+        screenObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard self?.isActive == true else { return }
+            self?.showOverlays()
+        }
+    }
+
+    private func removeScreenObserver() {
+        if let screenObserver {
+            NotificationCenter.default.removeObserver(screenObserver)
+        }
+        screenObserver = nil
     }
 
     /// Hosting view that accepts the first click into the (non-key, non-activating)

@@ -81,7 +81,8 @@ final class FinderCutPaste: ObservableObject {
 
     /// Applies the persisted preference; safe to call repeatedly.
     func syncWithPreferences() {
-        let enabled = UserDefaults.standard.bool(forKey: DefaultsKey.finderCutPasteEnabled)
+        let enabled = AppFeature.finderCutPaste.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.finderCutPasteEnabled)
         if enabled, Permissions.shared.accessibility {
             installTap()
         } else {
@@ -139,7 +140,10 @@ final class FinderCutPaste: ObservableObject {
         }
         // Accessibility gone (e.g. reset): the AX focus check below would hang
         // inside the tap and freeze the keyboard, so pass the keystroke through.
-        guard AXIsProcessTrusted() else { return Unmanaged.passUnretained(event) }
+        // Cached here to keep a live TCC round-trip off the per-keystroke path;
+        // the live check sits right before the AX focus lookup, where it runs
+        // only for an actual ⌘X/C/V in Finder.
+        guard Permissions.shared.accessibility else { return Unmanaged.passUnretained(event) }
         guard type == .keyDown else { return Unmanaged.passUnretained(event) }
 
         let flags = event.flags
@@ -150,6 +154,7 @@ final class FinderCutPaste: ObservableObject {
               !flags.contains(.maskControl), !flags.contains(.maskAlternate),
               keyCode == Key.x || keyCode == Key.c || keyCode == Key.v,
               NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Self.finderBundleID,
+              AXIsProcessTrusted(),
               !isEditingText()
         else { return Unmanaged.passUnretained(event) }
 

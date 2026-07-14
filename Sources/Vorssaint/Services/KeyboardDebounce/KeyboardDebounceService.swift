@@ -31,7 +31,8 @@ final class KeyboardDebounceService: ObservableObject {
 
     func syncWithPreferences() {
         let nextConfig = KeyboardDebounceConfig(
-            enabled: UserDefaults.standard.bool(forKey: DefaultsKey.keyboardDebounceEnabled),
+            enabled: AppFeature.keyboardDebounce.isAvailable
+                && UserDefaults.standard.bool(forKey: DefaultsKey.keyboardDebounceEnabled),
             globalWindowMs: Defaults.sanitizedKeyboardDebounceWindow(
                 UserDefaults.standard.integer(forKey: DefaultsKey.keyboardDebounceWindowMs)
             ),
