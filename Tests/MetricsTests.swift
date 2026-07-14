@@ -442,6 +442,16 @@ struct MetricsTests {
                                                          previousBase: 0.5),
                     0.5,
                     "editing while the master is muted preserves the previous base volume")
+        let mixerSectionSourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/Vorssaint/UI/MenuPanel/MixerSection.swift")
+        let mixerSectionSource = (try? String(contentsOf: mixerSectionSourceURL, encoding: .utf8)) ?? ""
+        let outputRowSource = mixerSectionSource
+            .components(separatedBy: "private func outputVolumeRow").dropFirst().first?
+            .components(separatedBy: "private func outputVolumeStatus").first ?? ""
+        expect(outputRowSource.contains("maxValue: 1,"),
+               "output volume bars use an absolute 0–100% visual scale")
         expect(!bluetoothOutputs.contains { $0.name == "Old Mouse" },
                "mixer output discovery ignores non-audio Bluetooth devices")
         let keyboard = PeripheralBatteryDevice(id: "keyboard",

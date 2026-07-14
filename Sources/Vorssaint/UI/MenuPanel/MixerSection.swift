@@ -225,7 +225,7 @@ struct MixerSection: View {
                                       isBoosting: false,
                                       accentRevision: accentRevision,
                                       accessibilityLabel: outputDeviceTitle(device),
-                                      maxValue: max(mixer.outputMasterVolume, 0.001),
+                                      maxValue: 1,
                                       onEditingChanged: { editing in
                                           outputVolumeEditingChanged(for: device.uid, editing: editing)
                                       })
