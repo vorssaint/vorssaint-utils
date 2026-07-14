@@ -285,13 +285,15 @@ struct SystemSection: View {
                         ringGauge(label: l10n.s.cpuLabel,
                                   text: gaugeTemp(monitor.snapshot.cpuTemperature),
                                   fraction: (monitor.snapshot.cpuTemperature ?? 0) / 110,
-                                  color: gaugeColor(monitor.snapshot.cpuTemperature))
+                                  color: gaugeColor(monitor.snapshot.cpuTemperature),
+                                  onTap: editing ? nil : { toggleBreakdown(.cpu) })
                     }
                     if gpuAvailable {
                         ringGauge(label: l10n.s.gpuLabel,
                                   text: gaugeTemp(monitor.snapshot.gpuTemperature),
                                   fraction: (monitor.snapshot.gpuTemperature ?? 0) / 110,
-                                  color: gaugeColor(monitor.snapshot.gpuTemperature))
+                                  color: gaugeColor(monitor.snapshot.gpuTemperature),
+                                  onTap: editing ? nil : { toggleBreakdown(.gpu) })
                     }
                     if let fans = fanSummary {
                         ringGauge(label: FeatureStrings.sensors(l10n.language).fans,
@@ -305,6 +307,8 @@ struct SystemSection: View {
                                   color: gaugeColor(monitor.snapshot.batteryTemperature))
                     }
                 }
+                metricExpansion(.cpu)
+                metricExpansion(.gpu)
             }
         }
     }
@@ -325,8 +329,10 @@ struct SystemSection: View {
         return Self.ringColor(value, scheme: colorScheme)
     }
 
-    /// A big donut ring with a value centred and a caption beneath it.
-    private func ringGauge(label: String, text: String, fraction: Double, color: Color) -> some View {
+    /// A big donut ring with a value centred and a caption beneath it. When
+    /// `onTap` is set the whole gauge is tappable (drill-down).
+    private func ringGauge(label: String, text: String, fraction: Double, color: Color,
+                           onTap: (() -> Void)? = nil) -> some View {
         VStack(spacing: 6) {
             ZStack {
                 Circle().stroke(Color.primary.opacity(0.1), lineWidth: 4)
@@ -344,6 +350,44 @@ struct SystemSection: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture { onTap?() }
+    }
+
+    /// Inline drill-down shown under a tapped metric: its 1-hour history graph
+    /// plus the top processes for that resource.
+    @ViewBuilder
+    private func metricExpansion(_ kind: BreakdownKind) -> some View {
+        if expanded == kind {
+            VStack(alignment: .leading, spacing: 6) {
+                if let history = history(for: kind), history.count >= 2 {
+                    Sparkline(values: history, color: sparklineColor(kind),
+                              maxValue: 1, showsZeroBaseline: true)
+                        .frame(height: 26)
+                }
+                breakdownList(for: kind)
+            }
+        }
+    }
+
+    private func history(for kind: BreakdownKind) -> [Double]? {
+        switch kind {
+        case .cpu: return monitor.snapshot.cpuHistory
+        case .gpu: return monitor.snapshot.gpuHistory
+        case .memory: return monitor.snapshot.memoryHistory
+        case .energy: return monitor.snapshot.batteryHistory
+        case .network: return nil
+        }
+    }
+
+    private func sparklineColor(_ kind: BreakdownKind) -> Color {
+        switch kind {
+        case .cpu: return .accentColor
+        case .gpu: return PanelMetricColor.cyan(for: colorScheme)
+        case .memory: return PanelMetricColor.mint(for: colorScheme)
+        case .energy: return PanelMetricColor.green(for: colorScheme)
+        case .network: return .accentColor
+        }
     }
 
     /// Shared temperature → ring-colour ramp (cyan → yellow → red).
@@ -764,21 +808,27 @@ struct SystemSection: View {
                     }
                 }
                 if memoryAvailable {
+                    let tapMemory: (() -> Void)? = editing ? nil : { toggleBreakdown(.memory) }
                     HStack(spacing: 10) {
-                        Donut(caption: l10n.s.memoryPressure, percent: pressurePercent, color: pressureColor)
+                        Donut(caption: l10n.s.memoryPressure, percent: pressurePercent,
+                              color: pressureColor, onTap: tapMemory)
                         Donut(caption: l10n.s.memorySection, percent: memoryPercent,
-                              color: PanelMetricColor.mint(for: colorScheme))
+                              color: PanelMetricColor.mint(for: colorScheme), onTap: tapMemory)
                     }
                     memoryBreakdown
+                    metricExpansion(.memory)
                 }
                 if powerAvailable, let charge = monitor.snapshot.power?.chargePercent {
+                    let tapEnergy: (() -> Void)? = editing ? nil : { toggleBreakdown(.energy) }
                     HStack(spacing: 10) {
-                        Donut(caption: l10n.s.batteryLabel, percent: charge, color: batteryDonutColor(charge))
+                        Donut(caption: l10n.s.batteryLabel, percent: charge,
+                              color: batteryDonutColor(charge), onTap: tapEnergy)
                         if let health = monitor.snapshot.power?.healthPercent {
                             Donut(caption: l10n.s.powerHealth, percent: Int(health.rounded()),
-                                  color: PanelMetricColor.pink(for: colorScheme))
+                                  color: PanelMetricColor.pink(for: colorScheme), onTap: tapEnergy)
                         }
                     }
+                    metricExpansion(.energy)
                 }
             }
         }
@@ -955,8 +1005,17 @@ private struct Donut: View {
     let caption: String
     let percent: Int
     let color: Color
+    var onTap: (() -> Void)? = nil
 
     var body: some View {
+        content
+            .frame(width: 92, height: 92)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .onTapGesture { onTap?() }
+    }
+
+    private var content: some View {
         ZStack {
             Circle().stroke(Color.primary.opacity(0.09), lineWidth: 7)
             Circle()
@@ -974,8 +1033,6 @@ private struct Donut: View {
                     .lineLimit(1)
             }
         }
-        .frame(width: 92, height: 92)
-        .frame(maxWidth: .infinity)
     }
 }
 
