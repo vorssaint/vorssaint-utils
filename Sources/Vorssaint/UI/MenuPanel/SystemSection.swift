@@ -630,8 +630,11 @@ struct SystemSection: View {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 4) {
                     ForEach(Array(cores.enumerated()), id: \.offset) { index, usage in
+                        // Efficiency cores are the trailing cores (perflevel1);
+                        // performance cores lead (perflevel0).
+                        let isEfficiency = index >= cores.count - eCount
                         Circle()
-                            .stroke(usage > 0.04 ? (index < eCount ? ePink : pCyan)
+                            .stroke(usage > 0.04 ? (isEfficiency ? ePink : pCyan)
                                                  : Color.primary.opacity(0.18),
                                     lineWidth: 2)
                             .frame(width: 11, height: 11)
@@ -657,8 +660,9 @@ struct SystemSection: View {
     }
 
     private func clusterAverage(_ cores: [Double], efficiencyCount: Int, efficiency: Bool) -> Double {
-        let slice = efficiency ? Array(cores.prefix(efficiencyCount))
-                               : Array(cores.suffix(max(0, cores.count - efficiencyCount)))
+        // Efficiency cores are the trailing `efficiencyCount`; performance lead.
+        let slice = efficiency ? Array(cores.suffix(efficiencyCount))
+                               : Array(cores.prefix(max(0, cores.count - efficiencyCount)))
         guard !slice.isEmpty else { return 0 }
         return slice.reduce(0, +) / Double(slice.count)
     }
