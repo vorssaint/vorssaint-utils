@@ -71,6 +71,7 @@ struct MenuPanelView: View {
     @AppStorage(DefaultsKey.monitorShowDisk) private var showDisk = true
     @AppStorage(DefaultsKey.monitorShowPower) private var showPower = true
     @AppStorage(DefaultsKey.monitorShowFanControlBeta) private var showFanControlBeta = false
+    @AppStorage(DefaultsKey.monitorCombinedView) private var combinedView = true
     @AppStorage(DefaultsKey.panelShowKeepAwake) private var showKeepAwake = true
     @AppStorage(DefaultsKey.panelShowBrightness) private var showBrightness = true
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
@@ -299,9 +300,11 @@ struct MenuPanelView: View {
         case .brightness: return showBrightness && brightnessEnabled
         case .mixer: return showMixer
         case .system: return showSystem
-        case .network: return showNetwork
-        case .disk: return showDisk
-        case .power: return showPower
+        // Combined view folds these into the System dashboard, so their separate
+        // tabs are hidden while it is on.
+        case .network: return showNetwork && !combinedView
+        case .disk: return showDisk && !combinedView
+        case .power: return showPower && !combinedView
         case .fanControl: return showFanControlBeta
         case .utilities: return showUtilities
         case .controls: return showControls

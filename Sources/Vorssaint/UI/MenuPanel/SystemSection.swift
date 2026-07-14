@@ -49,6 +49,7 @@ struct SystemSection: View {
     @AppStorage(DefaultsKey.monitorSysBattery) private var sysBattery = true
     @AppStorage(DefaultsKey.monitorSysMemory) private var sysMemory = true
     @AppStorage(DefaultsKey.monitorSysDisk) private var sysDisk = true
+    @AppStorage(DefaultsKey.monitorSysNetwork) private var sysNetwork = true
     @AppStorage(DefaultsKey.monitorSysAlerts) private var sysAlerts = true
     @AppStorage(DefaultsKey.monitorSysUptime) private var sysUptime = true
     @AppStorage(DefaultsKey.panelSystemOrder) private var systemOrderRaw = ""
@@ -125,7 +126,7 @@ struct SystemSection: View {
 
     /// Card subsections, in order, filtered by the per-item toggles (and whether a
     /// battery exists). Drives divider interleaving so only rendered blocks get one.
-    private enum Block: String, PanelOrderItem { case temps, usage, memory, disk, sensors, alerts, uptime }
+    private enum Block: String, PanelOrderItem { case temps, usage, memory, disk, network, sensors, alerts, uptime }
 
     // Hub availability per metric family: an unavailable metric leaves the
     // card entirely, including the edit-mode hidden rows.
@@ -134,6 +135,7 @@ struct SystemSection: View {
     private var memoryAvailable: Bool { AppFeature.monitorMemory.isAvailable }
     private var powerAvailable: Bool { AppFeature.monitorPower.isAvailable }
     private var diskAvailable: Bool { AppFeature.monitorDisk.isAvailable }
+    private var networkAvailable: Bool { AppFeature.monitorNetwork.isAvailable }
 
     private var usageVisible: Bool {
         (sysCPU && cpuAvailable) || (sysGPU && gpuAvailable)
@@ -153,6 +155,7 @@ struct SystemSection: View {
         case .temps, .sensors, .usage: return cpuAvailable || gpuAvailable || powerAvailable
         case .memory: return memoryAvailable
         case .disk: return diskAvailable
+        case .network: return networkAvailable
         case .alerts, .uptime: return true
         }
     }
@@ -179,6 +182,7 @@ struct SystemSection: View {
         case .usage: return usageVisible
         case .memory: return sysMemory
         case .disk: return sysDisk
+        case .network: return sysNetwork
         case .alerts: return sysAlerts
         case .uptime: return sysUptime
         }
@@ -195,6 +199,7 @@ struct SystemSection: View {
         sysBattery = true
         sysMemory = true
         sysDisk = true
+        sysNetwork = true
         sysAlerts = true
         sysUptime = true
     }
@@ -207,6 +212,7 @@ struct SystemSection: View {
         case .usage: usageRows(editing: editing)
         case .memory: memoryRows(editing: editing)
         case .disk: diskRows(editing: editing)
+        case .network: networkRows(editing: editing)
         case .alerts: alertRows(editing: editing)
         case .uptime: uptimeRow(editing: editing)
         }
@@ -930,6 +936,41 @@ struct SystemSection: View {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    // MARK: Network
+
+    @ViewBuilder
+    private func networkRows(editing: Bool) -> some View {
+        if !sysNetwork {
+            if editing {
+                PanelHiddenItemRow(title: l10n.s.networkSection, systemImage: "network", isVisible: $sysNetwork)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 10) {
+                    Image(systemName: "network")
+                        .font(.system(size: 12)).foregroundStyle(.secondary).frame(width: 22)
+                    HStack(spacing: 3) {
+                        Image(systemName: "arrow.down").font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(PanelMetricColor.cyan(for: colorScheme))
+                        Text(MetricFormat.bytesPerSec(monitor.snapshot.netDownBytesPerSec ?? 0))
+                            .font(.system(size: 11, weight: .medium)).monospacedDigit()
+                    }
+                    HStack(spacing: 3) {
+                        Image(systemName: "arrow.up").font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(PanelMetricColor.pink(for: colorScheme))
+                        Text(MetricFormat.bytesPerSec(monitor.snapshot.netUpBytesPerSec ?? 0))
+                            .font(.system(size: 11, weight: .medium)).monospacedDigit()
+                    }
+                    Spacer(minLength: 8)
+                    if editing { PanelInlineHideButton(isVisible: $sysNetwork) }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { if !editing { toggleBreakdown(.network) } }
+                metricExpansion(.network)
             }
         }
     }

@@ -189,7 +189,11 @@ enum DefaultsKey {
     static let monitorSysBattery = "monitorSysBattery"
     static let monitorSysMemory = "monitorSysMemory"
     static let monitorSysDisk = "monitorSysDisk"
+    static let monitorSysNetwork = "monitorSysNetwork"
     static let monitorSysAlerts = "monitorSysAlerts"
+    // When on, System is a single combined dashboard and the separate
+    // Network/Disk/Power tabs are hidden (their content lives in System).
+    static let monitorCombinedView = "monitorCombinedView"
     static let monitorSysUptime = "monitorSysUptime"
     static let monitorNetSpeed = "monitorNetSpeed"
     static let monitorNetApps = "monitorNetApps"
@@ -607,6 +611,8 @@ enum Defaults {
         DefaultsKey.monitorSysBattery: true,
         DefaultsKey.monitorSysMemory: true,
         DefaultsKey.monitorSysDisk: true,
+        DefaultsKey.monitorSysNetwork: true,
+        DefaultsKey.monitorCombinedView: true,
         DefaultsKey.monitorSysAlerts: true,
         DefaultsKey.monitorSysUptime: true,
         DefaultsKey.monitorNetSpeed: true,

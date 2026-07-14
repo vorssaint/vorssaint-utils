@@ -475,7 +475,9 @@ final class SystemMonitor: ObservableObject {
 
         plan.needCPU = panelCPU || defaults.bool(forKey: DefaultsKey.menuBarCPU) || alertCPU
         plan.needMemory = panelMemory || defaults.bool(forKey: DefaultsKey.menuBarMemory) || alertMemory
-        plan.needNetwork = panelNeedsNetwork || defaults.bool(forKey: DefaultsKey.menuBarNetwork)
+        plan.needNetwork = panelNeedsNetwork
+            || (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysNetwork))
+            || defaults.bool(forKey: DefaultsKey.menuBarNetwork)
         plan.needDisk = panelNeedsDisk
             || (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysDisk))
             || defaults.bool(forKey: DefaultsKey.menuBarDiskUsage)
