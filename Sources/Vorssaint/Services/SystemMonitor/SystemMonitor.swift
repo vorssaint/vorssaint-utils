@@ -34,6 +34,7 @@ struct SystemSnapshot {
     // the hardware exposes none.
     var temperatureSensors: [TemperatureSensor] = []
     var fans: [FanReading] = []
+    var frequencies: ClusterFrequencies?
     var cpuUsage: Double?          // 0...1
     var gpuUsage: Double?          // 0...1
     // Per-logical-core usage (0...1) for the activity dots; efficiency cores
@@ -150,6 +151,11 @@ final class SystemMonitor: ObservableObject {
     private var previousCoreTicks: [(busy: UInt64, total: UInt64)] = []
     private var efficiencyCoreCount = -1
     private var lastCoreUsages: [Double] = []
+
+    // CPU/GPU clock frequency via IOReport (created lazily; nil if unavailable).
+    private var frequencySampler: FrequencySampler?
+    private var frequencyTried = false
+    private var lastFrequencies: ClusterFrequencies?
 
     // Samplers
     private let networkSampler = NetworkSampler()
@@ -416,6 +422,7 @@ final class SystemMonitor: ObservableObject {
         var needGPUTemperature = false
         var needBatteryTemperature = false
         var needSensors = false
+        var needFrequency = false
 
         var needSMC: Bool { needPower || needTemperature || needSensors }
 
@@ -425,7 +432,7 @@ final class SystemMonitor: ObservableObject {
 
         var any: Bool {
             needCPU || needMemory || needNetwork || needDisk || needPower ||
-                needPeripheralBattery || needGPUUsage || needTemperature || needSensors
+                needPeripheralBattery || needGPUUsage || needTemperature || needSensors || needFrequency
         }
     }
 
@@ -490,6 +497,8 @@ final class SystemMonitor: ObservableObject {
         plan.needBatteryTemperature = panelTemps || menuPanelNeeds.batteryTemperature ||
             defaults.bool(forKey: DefaultsKey.menuBarBatteryTemperature)
         plan.needSensors = panelSensors
+        // Frequency (GHz under the CPU/GPU rings and in the Sensors list).
+        plan.needFrequency = panelTemps || panelSensors
 
         // The hub gates whole metric families: an unavailable metric never
         // samples, no matter what is pinned, shown or alerting.
@@ -558,6 +567,7 @@ final class SystemMonitor: ObservableObject {
         // The Sensors block reads its SMC temperatures/fans on the temperature
         // stride, so it counts as a temperature consumer for cadence purposes.
         if plan.needTemperature || plan.needSensors { kinds.append(.temperature) }
+        if plan.needFrequency { kinds.append(.frequency) }
         return kinds
     }
 
@@ -782,6 +792,19 @@ final class SystemMonitor: ObservableObject {
             }
             if needFans { next.fans = self.lastFans }
             if plan.needSensors { next.temperatureSensors = self.lastTemperatureSensors }
+
+            if plan.needFrequency {
+                if take(.frequency) {
+                    if !self.frequencyTried {
+                        self.frequencyTried = true
+                        self.frequencySampler = FrequencySampler()
+                    }
+                    if let freq = self.frequencySampler?.sample(), !freq.isEmpty {
+                        self.lastFrequencies = freq
+                    }
+                }
+                next.frequencies = self.lastFrequencies
+            }
 
             next.cpuHistory = plan.needCPU ? self.cpuHistory.values : []
             next.gpuHistory = plan.needGPUUsage ? self.gpuHistory.values : []

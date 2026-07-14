@@ -294,6 +294,8 @@ struct SystemSection: View {
                                   text: gaugeTemp(monitor.snapshot.cpuTemperature),
                                   fraction: (monitor.snapshot.cpuTemperature ?? 0) / 110,
                                   color: gaugeColor(monitor.snapshot.cpuTemperature),
+                                  subtitle: ghzText(monitor.snapshot.frequencies?.pCoreGHz
+                                                    ?? monitor.snapshot.frequencies?.eCoreGHz),
                                   onTap: editing ? nil : { toggleBreakdown(.cpu) })
                     }
                     if gpuAvailable {
@@ -301,6 +303,7 @@ struct SystemSection: View {
                                   text: gaugeTemp(monitor.snapshot.gpuTemperature),
                                   fraction: (monitor.snapshot.gpuTemperature ?? 0) / 110,
                                   color: gaugeColor(monitor.snapshot.gpuTemperature),
+                                  subtitle: ghzText(monitor.snapshot.frequencies?.gpuGHz),
                                   onTap: editing ? nil : { toggleBreakdown(.gpu) })
                     }
                     if let fans = fanSummary {
@@ -340,7 +343,7 @@ struct SystemSection: View {
     /// A big donut ring with a value centred and a caption beneath it. When
     /// `onTap` is set the whole gauge is tappable (drill-down).
     private func ringGauge(label: String, text: String, fraction: Double, color: Color,
-                           onTap: (() -> Void)? = nil) -> some View {
+                           subtitle: String? = nil, onTap: (() -> Void)? = nil) -> some View {
         VStack(spacing: 6) {
             ZStack {
                 Circle().stroke(Color.primary.opacity(0.1), lineWidth: 4)
@@ -348,9 +351,17 @@ struct SystemSection: View {
                     .trim(from: 0, to: min(1, max(0, fraction)))
                     .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                Text(text)
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
+                VStack(spacing: 0) {
+                    Text(text)
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.system(size: 8))
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                }
             }
             .frame(width: 58, height: 58)
             Text(label)
@@ -360,6 +371,11 @@ struct SystemSection: View {
         .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
         .onTapGesture { onTap?() }
+    }
+
+    private func ghzText(_ value: Double?) -> String? {
+        guard let value, value > 0 else { return nil }
+        return String(format: "%.2fGHz", value)
     }
 
     /// Inline drill-down shown under a tapped metric: its 1-hour history graph
@@ -519,6 +535,13 @@ struct SystemSection: View {
                     sensorRow(label: fanLabel(fan.index, count: fans.count, strings: strings),
                               value: fan.rpm == 0 ? strings.fanOff : "\(fan.rpm) RPM")
                 }
+            }
+        }
+        if let freq = monitor.snapshot.frequencies, !freq.isEmpty {
+            sensorSubsection(strings.frequency) {
+                if let e = freq.eCoreGHz { sensorRow(label: strings.cpuEfficiency, value: String(format: "%.2f GHz", e)) }
+                if let p = freq.pCoreGHz { sensorRow(label: strings.cpuPerformance, value: String(format: "%.2f GHz", p)) }
+                if let g = freq.gpuGHz { sensorRow(label: strings.graphics, value: String(format: "%.2f GHz", g)) }
             }
         }
         if temps.isEmpty, fans.isEmpty, watts == nil {
