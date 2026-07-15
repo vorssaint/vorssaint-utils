@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [3.1.14]
+
+### Summary
+Vorssaint 3.1.14 keeps the mouse side buttons working in apps that handle
+Back and Forward on their own, such as Firefox.
+
+### Fixed
+- Back/Forward mouse buttons now reach apps that handle them natively, such
+  as Firefox, virtual machines and remote screens, instead of being captured.
+  Finder and other apps keep the converted navigation.
+
 ## [3.1.13] - 2026-07-15
 
 ### Summary

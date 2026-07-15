@@ -645,6 +645,20 @@ struct MetricsTests {
                "Back uses the standard Command left bracket menu command")
         expect(MouseNavigationSupport.commandCharacter(for: .forward) == "]",
                "Forward uses the standard Command right bracket menu command")
+        expect(MouseNavigationSupport.shouldPassThrough(bundleIdentifier: "org.mozilla.firefox"),
+               "Firefox navigates with the side buttons natively and keeps the raw events")
+        expect(MouseNavigationSupport.shouldPassThrough(
+            bundleIdentifier: "org.mozilla.firefoxdeveloperedition"),
+               "every Mozilla channel passes through via the prefix rule")
+        expect(MouseNavigationSupport.shouldPassThrough(
+            bundleIdentifier: "com.parallels.desktop.console"),
+               "virtual machines keep the raw side buttons for the guest system")
+        expect(!MouseNavigationSupport.shouldPassThrough(bundleIdentifier: "com.apple.finder"),
+               "Finder stays on the menu-command navigation path")
+        expect(!MouseNavigationSupport.shouldPassThrough(bundleIdentifier: "org.mozillafoundation.x"),
+               "prefix matching stops at the org.mozilla. namespace boundary")
+        expect(!MouseNavigationSupport.shouldPassThrough(bundleIdentifier: nil),
+               "an unknown frontmost app keeps the navigation behavior")
 
         // MARK: Smooth scrolling
 
