@@ -31,6 +31,7 @@ final class ScreenshotSelectionController {
     private var completion: ((Outcome) -> Void)?
     private let freeze: Bool
     private let includePointer: Bool
+    private let showLastRegion: Bool
     private var finished = false
     fileprivate var spaceIsDown = false
     fileprivate var loupeEnabled = false {
@@ -45,9 +46,10 @@ final class ScreenshotSelectionController {
 
     private let strings = FeatureStrings.screenshot(L10n.shared.language)
 
-    init(freeze: Bool, includePointer: Bool) {
+    init(freeze: Bool, includePointer: Bool, showLastRegion: Bool) {
         self.freeze = freeze
         self.includePointer = includePointer
+        self.showLastRegion = showLastRegion
     }
 
     func begin(completion: @escaping (Outcome) -> Void) {
@@ -89,7 +91,7 @@ final class ScreenshotSelectionController {
                                                windows: windows,
                                                controller: self,
                                                strings: strings)
-            if let last = Self.lastRegion, last.displayID == displayID {
+            if showLastRegion, let last = Self.lastRegion, last.displayID == displayID {
                 panel.overlayView.ghostRect = last.viewRect
             }
             panels.append(panel)

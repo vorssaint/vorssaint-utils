@@ -293,6 +293,7 @@ enum DefaultsKey {
     static let screenshotFreeze = "screenshotFreeze"
     static let screenshotSaveFolder = "screenshotSaveFolder"
     static let screenshotIncludePointer = "screenshotIncludePointer"
+    static let screenshotShowLastRegion = "screenshotShowLastRegion"
     static let screenshotDownscale = "screenshotDownscale"
     static let screenshotDelay = "screenshotDelay"
     static let screenshotLastTool = "screenshotLastTool"
@@ -748,6 +749,7 @@ enum Defaults {
         DefaultsKey.screenshotFreeze: true,
         DefaultsKey.screenshotSaveFolder: "",
         DefaultsKey.screenshotIncludePointer: false,
+        DefaultsKey.screenshotShowLastRegion: false,
         DefaultsKey.screenshotDownscale: false,
         DefaultsKey.screenshotDelay: 0,
         DefaultsKey.screenshotLastTool: "arrow",

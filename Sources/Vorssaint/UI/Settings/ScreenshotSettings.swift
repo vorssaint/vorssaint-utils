@@ -12,6 +12,7 @@ struct ScreenshotSettings: View {
     @AppStorage(DefaultsKey.screenshotFreeze) private var freeze = true
     @AppStorage(DefaultsKey.screenshotSaveFolder) private var saveFolder = ""
     @AppStorage(DefaultsKey.screenshotIncludePointer) private var includePointer = false
+    @AppStorage(DefaultsKey.screenshotShowLastRegion) private var showLastRegion = false
     @AppStorage(DefaultsKey.screenshotDownscale) private var downscale = false
     @AppStorage(DefaultsKey.screenshotDelay) private var delay = 0
     @AppStorage(DefaultsKey.screenshotToolOrder) private var toolOrderRaw =
@@ -70,6 +71,7 @@ struct ScreenshotSettings: View {
                 }
                 .pickerStyle(.segmented)
                 Toggle(strings.pointerToggle, isOn: $includePointer)
+                Toggle(strings.lastRegionToggle, isOn: $showLastRegion)
                 Toggle(strings.openEditorToggle, isOn: $openEditorDirectly)
                 Text(strings.openEditorCaption)
                     .font(.caption)

@@ -112,7 +112,8 @@ final class ScreenshotService: ObservableObject {
         let defaults = UserDefaults.standard
         let controller = ScreenshotSelectionController(
             freeze: defaults.bool(forKey: DefaultsKey.screenshotFreeze),
-            includePointer: defaults.bool(forKey: DefaultsKey.screenshotIncludePointer))
+            includePointer: defaults.bool(forKey: DefaultsKey.screenshotIncludePointer),
+            showLastRegion: defaults.bool(forKey: DefaultsKey.screenshotShowLastRegion))
         session = controller
         controller.begin { [weak self] outcome in
             guard let self else { return }
