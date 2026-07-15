@@ -124,20 +124,23 @@ final class ShelfService: ObservableObject {
     @Published private(set) var dropTargeted = false
     @Published private(set) var hotkeyRegistrationFailed = false
     private var interactionDepth = 0
-    /// Drag-pasteboard state captured at mouse-down. Finder bumps the change
-    /// count after this point; Dock stacks can publish the drag contents first.
-    private var dragPasteboardBaseline = DragPasteboardSnapshot.empty
+    /// Drag-pasteboard change count captured when the current gesture started.
+    /// Finder bumps the count after this point; Dock stacks can publish the
+    /// drag contents first. The drag pasteboard retains the previous drag's
+    /// items indefinitely, so only a bump during the current gesture may read
+    /// as content being dragged.
+    private var dragBaselineChangeCount = 0
+    /// Whether the current gesture's start was observed. macOS 27 moves
+    /// windows in the window server, and the title-bar mouse-down (sometimes
+    /// the mouse-up too) never reaches global monitors while the dragged
+    /// events still do. A gesture with an unseen start re-baselines on its
+    /// first dragged event, so a stale baseline cannot misread a window move
+    /// as a content drag (issue #240).
+    private var sawGestureStart = false
     private var dragBeganInDock = false
     private var dragSourceBundleIdentifier: String?
     private var activeInternalDragIDs: [UUID] = []
     private var internalDragWasMerged = false
-
-    private struct DragPasteboardSnapshot {
-        let changeCount: Int
-        let hasDroppableContent: Bool
-
-        static let empty = DragPasteboardSnapshot(changeCount: 0, hasDroppableContent: false)
-    }
 
     private let tempDir: URL = {
         let id = Bundle.main.bundleIdentifier ?? "com.vorssaint.utils"
@@ -309,22 +312,21 @@ final class ShelfService: ObservableObject {
 
     private func startDragMonitor() {
         guard mouseMonitor == nil else { return }
-        dragPasteboardBaseline = dragPasteboardSnapshot()
+        closeDragGesture()
         dragBeganInDock = false
         mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]) { [weak self] event in
             guard let self else { return }
             switch event.type {
             case .leftMouseDown:
-                // Capture the drag pasteboard before any drag starts. Finder
-                // changes it after this; Dock stacks can publish the drag
-                // contents first.
-                self.dragPasteboardBaseline = self.dragPasteboardSnapshot()
-                self.dragBeganInDock = self.eventBelongsToDock(event)
-                self.dragSourceBundleIdentifier = self.sourceBundleIdentifier(for: event)
+                self.beginDragGesture(with: event)
                 self.shakeSamples.removeAll()
             case .leftMouseUp:
+                self.closeDragGesture()
                 self.endDockedDrag()
             default:
+                if !self.sawGestureStart {
+                    self.beginDragGesture(with: event)
+                }
                 self.dragBeganInDock = self.dragBeganInDock || self.eventBelongsToDock(event)
                 let defaults = UserDefaults.standard
                 if defaults.bool(forKey: DefaultsKey.shelfShakeToOpen) {
@@ -382,17 +384,30 @@ final class ShelfService: ObservableObject {
     }
 
     private func isContentDragActive() -> Bool {
-        let snapshot = dragPasteboardSnapshot()
-        if snapshot.changeCount != dragPasteboardBaseline.changeCount { return true }
-        return dragBeganInDock && snapshot.hasDroppableContent
+        let pasteboard = NSPasteboard(name: .drag)
+        return ShelfInteractionSupport.isContentDrag(
+            baselineChangeCount: dragBaselineChangeCount,
+            changeCount: pasteboard.changeCount,
+            beganInDock: dragBeganInDock,
+            hasDroppableContent: { pasteboardHasDroppableContent(pasteboard) })
     }
 
-    private func dragPasteboardSnapshot() -> DragPasteboardSnapshot {
-        let pasteboard = NSPasteboard(name: .drag)
-        return DragPasteboardSnapshot(
-            changeCount: pasteboard.changeCount,
-            hasDroppableContent: pasteboardHasDroppableContent(pasteboard)
-        )
+    /// Opens a gesture at its first observed event: the mouse-down when it
+    /// reaches the global monitor, or the first dragged event when the window
+    /// server consumed the down (window moves on macOS 27).
+    private func beginDragGesture(with event: NSEvent) {
+        sawGestureStart = true
+        dragBaselineChangeCount = NSPasteboard(name: .drag).changeCount
+        dragBeganInDock = eventBelongsToDock(event)
+        dragSourceBundleIdentifier = sourceBundleIdentifier(for: event)
+    }
+
+    /// Closes the gesture and absorbs whatever a finished drag left retained
+    /// on the drag pasteboard, so a later gesture with an unseen start cannot
+    /// mistake it for fresh content.
+    private func closeDragGesture() {
+        sawGestureStart = false
+        dragBaselineChangeCount = NSPasteboard(name: .drag).changeCount
     }
 
     private func pasteboardHasDroppableContent(_ pasteboard: NSPasteboard) -> Bool {
@@ -541,6 +556,7 @@ final class ShelfService: ObservableObject {
                 return
             }
             if NSEvent.pressedMouseButtons & 1 == 0 {
+                self.closeDragGesture()
                 self.endDockedDrag()
             }
         }

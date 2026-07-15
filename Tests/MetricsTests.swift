@@ -2552,6 +2552,27 @@ struct MetricsTests {
             dropAccepted: true, draggedItemCount: 1, removeAfterDrop: false),
                "shelf retains an accepted item when automatic removal is off")
 
+        expect(!ShelfInteractionSupport.isContentDrag(
+            baselineChangeCount: 5, changeCount: 5, beganInDock: false,
+            hasDroppableContent: { true }),
+               "moving a window past retained pasteboard content is not a content drag")
+        expect(!ShelfInteractionSupport.isContentDrag(
+            baselineChangeCount: 5, changeCount: 6, beganInDock: false,
+            hasDroppableContent: { false }),
+               "a pasteboard bump without droppable content is not a content drag")
+        expect(ShelfInteractionSupport.isContentDrag(
+            baselineChangeCount: 5, changeCount: 6, beganInDock: false,
+            hasDroppableContent: { true }),
+               "content published during the gesture is a content drag")
+        expect(ShelfInteractionSupport.isContentDrag(
+            baselineChangeCount: 5, changeCount: 5, beganInDock: true,
+            hasDroppableContent: { true }),
+               "dock stacks may publish the drag contents before the mouse-down")
+        expect(!ShelfInteractionSupport.isContentDrag(
+            baselineChangeCount: 5, changeCount: 5, beganInDock: false,
+            hasDroppableContent: { fatalError("droppable check must stay lazy") }),
+               "an unchanged pasteboard outside the Dock skips the content inspection")
+
         let shelfFile = ShelfPersistedItem(id: UUID(), kind: .file, title: "notes.pdf",
                                            path: "/tmp/notes.pdf")
         let shelfText = ShelfPersistedItem(id: UUID(), kind: .text, title: "Hello", text: "Hello world")

@@ -8,12 +8,15 @@ All notable changes to this project are documented here. The format follows
 
 ### Summary
 Vorssaint 3.1.14 keeps the mouse side buttons working in apps that handle
-Back and Forward on their own, such as Firefox.
+Back and Forward on their own, such as Firefox, and stops the Shelf from
+opening while you move a window.
 
 ### Fixed
 - Back/Forward mouse buttons now reach apps that handle them natively, such
   as Firefox, virtual machines and remote screens, instead of being captured.
   Finder and other apps keep the converted navigation.
+- The Shelf area under the menu bar icon no longer appears while a window is
+  being moved or resized. It only opens for a real file or content drag.
 
 ## [3.1.13] - 2026-07-15
 
