@@ -5538,6 +5538,14 @@ struct MetricsTests {
             imageSize: CGSize(width: 8, height: 5))
             == CGRect(x: 0, y: 0, width: 8, height: 5),
                "the crop loupe safely shrinks only for images smaller than its sample")
+        expectClose(ScreenshotSupport.captureLoupeZoom(1, adjustedBy: 1), 1.15,
+                    "scrolling up zooms the capture loupe in")
+        expectClose(ScreenshotSupport.captureLoupeZoom(0.5, adjustedBy: -1), 0.5,
+                    "capture loupe zoom stays above its minimum")
+        expectClose(ScreenshotSupport.captureLoupeZoom(4, adjustedBy: 1), 4,
+                    "capture loupe zoom stays below its maximum")
+        expectClose(ScreenshotSupport.captureLoupeSampleSide(zoom: 2), 6,
+                    "higher capture loupe zoom samples fewer source pixels")
 
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotFreeze] as? Bool == true,
                "the screen freezes during selection by default")

@@ -33,6 +33,12 @@ final class ScreenshotSelectionController {
     private let includePointer: Bool
     private var finished = false
     fileprivate var spaceIsDown = false
+    fileprivate var loupeEnabled = false {
+        didSet { panels.forEach { $0.overlayView.refreshPointerState() } }
+    }
+    fileprivate var loupeZoom: CGFloat = 1 {
+        didSet { panels.forEach { $0.overlayView.needsDisplay = true } }
+    }
 
     /// The last confirmed region, per display, so R repeats it instantly.
     private static var lastRegion: (displayID: CGDirectDisplayID, viewRect: CGRect)?
@@ -135,11 +141,21 @@ final class ScreenshotSelectionController {
                 }
             case kVK_ANSI_R:
                 self.repeatLastRegion()
+            case kVK_ANSI_Z:
+                self.toggleLoupe()
             default:
                 break
             }
             return nil
         }
+    }
+
+    private func toggleLoupe() {
+        loupeEnabled.toggle()
+    }
+
+    fileprivate func adjustLoupeZoom(by scrollDelta: CGFloat) {
+        loupeZoom = ScreenshotSupport.captureLoupeZoom(loupeZoom, adjustedBy: scrollDelta)
     }
 
     private func panelUnderMouse() -> ScreenshotOverlayPanel? {
@@ -401,6 +417,16 @@ private final class ScreenshotOverlayView: NSView {
         addCursorRect(bounds, cursor: .crosshair)
     }
 
+    func refreshPointerState() {
+        let point = CGPoint(x: NSEvent.mouseLocation.x - panel.screenFrame.minX,
+                            y: panel.screenFrame.maxY - NSEvent.mouseLocation.y)
+        if bounds.contains(point) {
+            hoverPoint = point
+            hoveredWindow = ScreenshotSupport.window(at: hoverPoint, in: windows)
+        }
+        needsDisplay = true
+    }
+
     func updateLoupeImage(_ image: CGImage?) {
         loupeImage = image
         needsDisplay = true
@@ -414,9 +440,18 @@ private final class ScreenshotOverlayView: NSView {
         needsDisplay = true
     }
 
+    override func scrollWheel(with event: NSEvent) {
+        guard controller.loupeEnabled, !isCapturePending else {
+            super.scrollWheel(with: event)
+            return
+        }
+        controller.adjustLoupeZoom(by: event.scrollingDeltaY)
+    }
+
     override func mouseDown(with event: NSEvent) {
         guard !isCapturePending else { return }
         let point = convert(event.locationInWindow, from: nil)
+        hoverPoint = point
         dragOrigin = point
         lastDragPoint = point
         selection = .zero
@@ -496,9 +531,10 @@ private final class ScreenshotOverlayView: NSView {
             context.fill(bounds)
         }
 
-        if isDragging, selection.width > 0, selection.height > 0,
-           !controller.spaceIsDown, let loupeImage {
-            drawCaptureLoupe(context, image: loupeImage, near: lastDragPoint)
+        if controller.loupeEnabled, !controller.spaceIsDown,
+           mouseIsOnThisScreen, let loupeImage {
+            let point = isDragging ? lastDragPoint : hoverPoint
+            drawCaptureLoupe(context, image: loupeImage, near: point)
         }
 
         if let ghostRect, dragOrigin == nil, selection == .zero {
@@ -558,7 +594,7 @@ private final class ScreenshotOverlayView: NSView {
         let source = ScreenshotSupport.cropLoupeSampleRect(
             around: pixelPoint,
             imageSize: imageSize,
-            sideLength: 12)
+            sideLength: ScreenshotSupport.captureLoupeSampleSide(zoom: controller.loupeZoom))
         guard let sample = image.cropping(to: source) else { return }
 
         let frame = captureLoupeFrame(near: point, size: 70)
@@ -652,7 +688,7 @@ private final class ScreenshotOverlayView: NSView {
             parts = []
         } else {
             var list = [strings.hintDrag, strings.hintClick,
-                        strings.hintFullScreen, strings.hintCancel]
+                        strings.hintFullScreen, strings.hintLoupe, strings.hintCancel]
             if ghostRect != nil { list.append(strings.hintRepeat) }
             parts = list
         }
