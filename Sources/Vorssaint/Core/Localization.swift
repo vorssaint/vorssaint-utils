@@ -923,9 +923,16 @@ struct Strings {
     let supportIntroStarButton: String
     let supportIntroCoffeeButton: String
     let supportIntroLaterButton: String
+    let supportIntroDoneButton: String
     let communityIntroTitle: String
     let communityIntroMessage: String
     let communityIntroFollowButton: String
+    let homebrewOfficialIntroTitle: String
+    let homebrewOfficialIntroMessage: String
+    let homebrewOfficialIntroInstallLabel: String
+    let homebrewOfficialIntroMigrationTitle: String
+    let homebrewOfficialIntroMigrationMessage: String
+    let homebrewOfficialIntroCopyButton: String
     let updateShowcaseTitle: String
     let updateShowcaseMessage: String
     let updateShowcaseUnavailable: String
@@ -1787,9 +1794,16 @@ extension Strings {
         supportIntroStarButton: "Dar uma estrela",
         supportIntroCoffeeButton: "Buy me a coffee",
         supportIntroLaterButton: "Agora não",
+        supportIntroDoneButton: "Concluir",
         communityIntroTitle: "Vem ver antes de todo mundo",
-        communityIntroMessage: "O Vorssaint agora atualiza uma vez por semana, com calma, pra cada novidade chegar redonda e bem testada. Só correção urgente sai na hora. Mas você não precisa esperar. No X eu mostro as prévias antes de lançar, você comenta, pede feature na DM, e o que você falar pode mudar o app. Escolhi o X porque ele traduz cada post automaticamente pro seu idioma. Vem!",
+        communityIntroMessage: "Quem já me seguia no X viu várias novidades desta atualização antes de todo mundo. Lá eu posto prévias do que vem depois e mostro como funciona, para você já saber o básico antes mesmo da atualização sair. Segue lá e veja o que vem depois!",
         communityIntroFollowButton: "Seguir @vorssaint no X",
+        homebrewOfficialIntroTitle: "Agora no catálogo oficial do Homebrew",
+        homebrewOfficialIntroMessage: "O Vorssaint agora pode ser instalado direto do catálogo oficial do Homebrew.",
+        homebrewOfficialIntroInstallLabel: "Nova instalação",
+        homebrewOfficialIntroMigrationTitle: "Usava o tap antigo?",
+        homebrewOfficialIntroMigrationMessage: "Remova o tap uma vez. O app e seus ajustes continuam no lugar.",
+        homebrewOfficialIntroCopyButton: "Copiar comando",
         updateShowcaseTitle: "Novidades da 3.1.4",
         updateShowcaseMessage: "Veja uma prévia rápida das principais melhorias desta atualização.",
         updateShowcaseUnavailable: "Não foi possível carregar o vídeo agora. Você ainda pode continuar.",
@@ -2646,9 +2660,16 @@ extension Strings {
         supportIntroStarButton: "Leave a star",
         supportIntroCoffeeButton: "Buy me a coffee",
         supportIntroLaterButton: "Not now",
+        supportIntroDoneButton: "Done",
         communityIntroTitle: "See it before everyone else",
-        communityIntroMessage: "Vorssaint now updates once a week, so every new feature lands solid and well tested. Urgent fixes still go out right away. But you don't have to wait. On X I post previews before anything ships, you can comment, ask for features in my DMs, and what you say can change the app. I picked X because it translates every post into your language automatically. Come take a look!",
+        communityIntroMessage: "People who already followed me on X saw several changes in this update before anyone else. I post previews of what is coming and show how it works, so you already know the basics before the update ships. Follow along and see what comes next!",
         communityIntroFollowButton: "Follow @vorssaint on X",
+        homebrewOfficialIntroTitle: "Now in the official Homebrew catalog",
+        homebrewOfficialIntroMessage: "Vorssaint can now be installed directly from the official Homebrew catalog.",
+        homebrewOfficialIntroInstallLabel: "New installation",
+        homebrewOfficialIntroMigrationTitle: "Used the old tap?",
+        homebrewOfficialIntroMigrationMessage: "Remove the tap once. The app and your settings stay in place.",
+        homebrewOfficialIntroCopyButton: "Copy command",
         updateShowcaseTitle: "What's new in 3.1.4",
         updateShowcaseMessage: "Take a quick look at the main improvements in this update.",
         updateShowcaseUnavailable: "The video could not load right now. You can still continue.",

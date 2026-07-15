@@ -356,11 +356,38 @@ enum DockPreviewIntroInfo {
 }
 
 enum SupportUpdateIntroInfo {
-    /// The single release whose first launch shows the support window (star,
-    /// follow, coffee). It used to track AppInfo.version, which re-showed the
-    /// ask on EVERY update; now a release only asks when this constant is
-    /// deliberately bumped to it. Bumped to 3.1.12 on the owner's call.
-    static let releaseVersion = "3.1.12"
+    /// The single release whose first launch shows the update intro. It used
+    /// to track AppInfo.version, which re-showed the ask on every update; now a
+    /// release only shows it when this constant is deliberately bumped.
+    static let releaseVersion = "3.1.13"
+    static let installCommand = "brew install --cask vorssaint"
+    static let migrationCommand = "brew untap --force vorssaint/tap"
+
+    static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
+        appVersion == releaseVersion && lastSeenVersion != releaseVersion
+    }
+}
+
+enum SupportUpdateIntroStep: Equatable {
+    case homebrew
+    case community
+    case support
+
+    var next: SupportUpdateIntroStep? {
+        switch self {
+        case .homebrew: return .community
+        case .community: return .support
+        case .support: return nil
+        }
+    }
+
+    var previous: SupportUpdateIntroStep? {
+        switch self {
+        case .homebrew: return nil
+        case .community: return .homebrew
+        case .support: return .community
+        }
+    }
 }
 
 enum KeepAwakeIconTint: String, CaseIterable, Identifiable {
@@ -747,6 +774,7 @@ enum Defaults {
         migrateLegacyMenuBarTemperatureMetric(in: defaults)
         migrateLegacySwitcherWindowShortcut(in: defaults)
         migrateLegacyKeyboardDebounceWindow(in: defaults)
+        migrateUtilityOrderForScreenshot(in: defaults)
     }
 
     static func migrateLegacySwitcherWindowShortcut(in defaults: UserDefaults) {
@@ -766,6 +794,16 @@ enum Defaults {
               (defaults.string(forKey: DefaultsKey.keyboardDebounceKeyWindows) ?? "").isEmpty
         else { return }
         defaults.set(defaultKeyboardDebounceWindowMs, forKey: DefaultsKey.keyboardDebounceWindowMs)
+    }
+
+    static func migrateUtilityOrderForScreenshot(in defaults: UserDefaults) {
+        guard let storedOrder = defaults.object(forKey: DefaultsKey.panelUtilityOrder) as? String else {
+            return
+        }
+        let ids = storedOrder.split(separator: ",").map(String.init)
+        guard !ids.contains("screenshot") else { return }
+        defaults.set((["screenshot"] + ids).joined(separator: ","),
+                     forKey: DefaultsKey.panelUtilityOrder)
     }
 
     static func sanitizedDefaultDuration(_ minutes: Int) -> Int {

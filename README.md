@@ -124,18 +124,26 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 With [Homebrew](https://brew.sh):
 
 ```sh
-brew install --cask vorssaint/tap/vorssaint
+brew install --cask vorssaint
 ```
 
-Already running it? Adopt your copy into Homebrew without a reinstall:
-
-```sh
-brew install --cask --adopt vorssaint/tap/vorssaint
-```
-
-Updates then arrive with `brew upgrade --cask vorssaint`. Or grab the disk image from the [releases page](https://github.com/vorssaint/vorssaint-utils/releases) and drag Vorssaint into Applications.
+Or grab the disk image from the [releases page](https://github.com/vorssaint/vorssaint-utils/releases) and drag Vorssaint into Applications.
 
 Builds are signed with an Apple Developer ID and notarized, so macOS opens them without a fuss and your permissions survive updates.
+
+## Uninstall
+
+With Homebrew:
+
+```sh
+brew uninstall --cask vorssaint
+```
+
+To remove Vorssaint completely, including its settings and permissions:
+
+```sh
+./Tools/uninstall.sh
+```
 
 ## Private by default
 

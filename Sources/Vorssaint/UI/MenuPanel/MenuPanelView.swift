@@ -465,11 +465,10 @@ private struct MenuPanelHeader: View {
 
 private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // Case order IS the default panel order (PanelLayout.itemOrder falls back
-    // to allCases): the quick panel leads because it is the fastest way into
-    // every other tool, and the cleaner comes right below it (owner's call).
-    // Saved orders are untouched.
-    case quickLauncher, cleaner, homebrew, media, clipboard, windowLayout, uninstaller, cleanURL,
-         cleaning, screenOCR, colorPicker, micMute, screenshot
+    // to allCases). Screenshot leads in 3.1.13; existing orders that predate it
+    // are migrated once without disturbing the rest of the user's layout.
+    case screenshot, quickLauncher, cleaner, homebrew, media, clipboard, windowLayout, uninstaller,
+         cleanURL, cleaning, screenOCR, colorPicker, micMute
 
     var id: String { rawValue }
 

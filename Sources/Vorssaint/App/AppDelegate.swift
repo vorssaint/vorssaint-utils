@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var onboardingWindow: NSWindow?
     private var dockPreviewIntroWindow: NSWindow?
     private var supportIntroWindow: NSWindow?
+    private var supportIntroCanClose = false
     private var updateShowcaseWindow: NSWindow?
     private var updatePreviewWindow: NSWindow?
     private let popoverOpenDuration: TimeInterval = 0.18
@@ -1133,9 +1134,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // Same shape as the showcase gate: the window belongs to one specific
         // release. Any other version never shows it, so an update that is not
         // that release cannot resurrect the ask.
-        guard AppInfo.version == SupportUpdateIntroInfo.releaseVersion else { return false }
-        guard UserDefaults.standard.string(forKey: DefaultsKey.supportUpdateIntroVersion)
-                != SupportUpdateIntroInfo.releaseVersion else { return false }
+        guard SupportUpdateIntroInfo.shouldShow(
+            appVersion: AppInfo.version,
+            lastSeenVersion: UserDefaults.standard.string(forKey: DefaultsKey.supportUpdateIntroVersion)
+        ) else { return false }
         showSupportUpdateIntro()
         return true
     }
@@ -1148,21 +1150,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             return
         }
         let host = NSHostingController(rootView: UpdateSupportIntroView(
-            onClose: { [weak self] in
+            onFinish: { [weak self] in
+                self?.supportIntroCanClose = true
                 self?.markSupportUpdateIntroSeen()
                 self?.supportIntroWindow?.close()
             }
         ))
         host.sizingOptions = .preferredContentSize
         let window = NSWindow(contentViewController: host)
-        window.title = L10n.shared.s.communityIntroTitle
-        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.title = L10n.shared.s.homebrewOfficialIntroTitle
+        window.styleMask = [.titled, .fullSizeContentView]
+        window.standardWindowButton(.closeButton)?.isHidden = true
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isReleasedWhenClosed = false
         window.isRestorable = false
         window.isMovableByWindowBackground = true
         window.delegate = self
+        supportIntroCanClose = false
         centerSupportIntroWindow(window)
         supportIntroWindow = window
         NSApp.activate(ignoringOtherApps: true)
@@ -1365,6 +1370,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         UserDefaults.standard.set(Double(size.height), forKey: DefaultsKey.settingsWindowHeight)
     }
 
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard sender === supportIntroWindow else { return true }
+        return supportIntroCanClose || isTerminating
+    }
+
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
         if window === settingsWindow {
@@ -1387,6 +1397,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         if window === supportIntroWindow {
             supportIntroWindow = nil
+            supportIntroCanClose = false
             guard !isTerminating else { return }
             markSupportUpdateIntroSeen()
         }

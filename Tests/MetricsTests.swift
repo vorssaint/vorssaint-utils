@@ -934,6 +934,22 @@ struct MetricsTests {
             Defaults.migrateLegacyKeyboardDebounceWindow(in: migrationDefaults)
             expect(migrationDefaults.integer(forKey: DefaultsKey.keyboardDebounceWindowMs) == 10,
                    "keyboard debounce migration preserves active 10 ms user choices")
+            migrationDefaults.removeObject(forKey: DefaultsKey.panelUtilityOrder)
+            Defaults.migrateUtilityOrderForScreenshot(in: migrationDefaults)
+            expect(migrationDefaults.object(forKey: DefaultsKey.panelUtilityOrder) == nil,
+                   "utility migration leaves a clean default order unpersisted")
+            migrationDefaults.set("quickLauncher,cleaner,homebrew",
+                                  forKey: DefaultsKey.panelUtilityOrder)
+            Defaults.migrateUtilityOrderForScreenshot(in: migrationDefaults)
+            expect(migrationDefaults.string(forKey: DefaultsKey.panelUtilityOrder)
+                   == "screenshot,quickLauncher,cleaner,homebrew",
+                   "utility migration puts the newly added screenshot first")
+            migrationDefaults.set("homebrew,screenshot,cleaner",
+                                  forKey: DefaultsKey.panelUtilityOrder)
+            Defaults.migrateUtilityOrderForScreenshot(in: migrationDefaults)
+            expect(migrationDefaults.string(forKey: DefaultsKey.panelUtilityOrder)
+                   == "homebrew,screenshot,cleaner",
+                   "utility migration preserves a screenshot position already chosen")
             migrationDefaults.removePersistentDomain(forName: shortcutSuite)
         } else {
             expect(false, "test suite defaults are available")
@@ -1038,8 +1054,27 @@ struct MetricsTests {
                "update showcase intro starts unseen")
         expect(registeredDefaults[DefaultsKey.updateShowcaseMediaOverride] as? String == "",
                "update showcase media override is empty by default")
-        expect(SupportUpdateIntroInfo.releaseVersion == "3.1.12",
-               "support prompt stays pinned to 3.1.12 (3.1.13 deliberately shows no support ask)")
+        expect(SupportUpdateIntroInfo.releaseVersion == "3.1.13",
+               "support prompt is deliberately pinned to 3.1.13")
+        expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.1.13", lastSeenVersion: "3.1.12"),
+               "support prompt shows once after updating to its pinned release")
+        expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.1.13", lastSeenVersion: "3.1.13"),
+               "support prompt stays hidden after it is seen")
+        expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.1.12", lastSeenVersion: nil)
+               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.1.14", lastSeenVersion: nil),
+               "support prompt never leaks into another release")
+        expect(SupportUpdateIntroInfo.installCommand == "brew install --cask vorssaint",
+               "official Homebrew install command stays unqualified")
+        expect(SupportUpdateIntroInfo.migrationCommand == "brew untap --force vorssaint/tap",
+               "old tap migration removes only the tap")
+        expect(SupportUpdateIntroStep.homebrew.next == .community
+               && SupportUpdateIntroStep.community.next == .support
+               && SupportUpdateIntroStep.support.next == nil,
+               "update intro keeps Homebrew before community and support")
+        expect(SupportUpdateIntroStep.homebrew.previous == nil
+               && SupportUpdateIntroStep.community.previous == .homebrew
+               && SupportUpdateIntroStep.support.previous == .community,
+               "update intro navigates back without closing")
         // AppInfo.version falls back to "dev" in this bare harness, so read
         // the plist the shipped app will actually carry. The pin is a
         // per-release decision: this check fails on every version bump so the
@@ -4250,6 +4285,33 @@ struct MetricsTests {
             expect(!strings.switcherShortcutHintWindows.isEmpty, "\(prefix) App Switcher window shortcut hint is present")
             expect(!strings.networkApps.isEmpty, "\(prefix) network app usage title is present")
             expect(!strings.networkAppsIdle.isEmpty, "\(prefix) network app idle text is present")
+            let officialHomebrewIntroStrings = [
+                strings.homebrewOfficialIntroTitle,
+                strings.homebrewOfficialIntroMessage,
+                strings.homebrewOfficialIntroInstallLabel,
+                strings.homebrewOfficialIntroMigrationTitle,
+                strings.homebrewOfficialIntroMigrationMessage,
+                strings.homebrewOfficialIntroCopyButton,
+                strings.supportIntroDoneButton,
+            ]
+            expect(officialHomebrewIntroStrings.allSatisfy { !$0.isEmpty },
+                   "\(prefix) official Homebrew intro is complete")
+            expect(officialHomebrewIntroStrings.allSatisfy { !$0.contains("—") },
+                   "\(prefix) official Homebrew intro has no em dash")
+            expect(!strings.communityIntroMessage.isEmpty
+                   && strings.communityIntroMessage.contains("X"),
+                   "\(prefix) community intro invites users to follow previews on X")
+            let retiredWeeklyPhrases = [
+                "uma vez por semana", "once a week", "haftada bir", "раз в неделю",
+                "una vez por semana", "einmal pro Woche", "une fois par semaine",
+                "una volta a settimana", "週1回", "매주 한 번", "每周更新一次", "每週更新一次",
+            ]
+            expect(retiredWeeklyPhrases.allSatisfy {
+                !strings.communityIntroMessage.localizedCaseInsensitiveContains($0)
+            }, "\(prefix) community intro no longer promises weekly updates")
+            expect(!strings.communityIntroMessage.contains("—")
+                   && strings.communityIntroMessage.count <= 320,
+                   "\(prefix) community intro stays concise and has no em dash")
             expect(!strings.updateShowcaseTitle.isEmpty, "\(prefix) update showcase title is present")
             expect(!strings.updateShowcaseMessage.isEmpty, "\(prefix) update showcase message is present")
             expect(!strings.updateShowcaseUnavailable.isEmpty, "\(prefix) update showcase fallback is present")
