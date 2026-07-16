@@ -218,7 +218,6 @@ extension Strings {
         dockClickCycleWindows: "Dock 클릭으로 윈도우 전환",
         dockClickCycleWindowsCaption: "앞에 있는 앱의 Dock 아이콘을 클릭하면 윈도우를 차례로 전환합니다(⌘`과 동일).",
         dockPreviewActiveNow: "Dock에서 활성화됨",
-        dockPreviewMagnificationBlocked: "사용하려면 Dock 확대를 끄세요.",
         dockPreviewDockUnavailable: "Dock 항목을 읽을 수 없습니다.",
         dockPreviewAutohideBeta: "베타 기능입니다. 일부 문제가 남아 있을 수 있습니다.",
         dockPreviewOpenWindow: "윈도우 열기",
@@ -235,7 +234,6 @@ extension Strings {
         dockPreviewIntroSettingsHint: "나중에 설정 › 전환기에서 변경할 수 있습니다.",
         dockPreviewIntroLater: "나중에",
         dockPreviewIntroEnable: "Dock 미리보기 활성화",
-        dockPreviewIntroMagnificationAction: "활성화하려면 Dock 확대를 끄세요.",
 
         cutPasteName: "잘라내기 및 붙여넣기",
         cutPasteEnable: "Finder에서 파일 잘라내기 및 붙여넣기",

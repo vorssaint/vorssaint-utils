@@ -218,7 +218,6 @@ extension Strings {
         dockClickCycleWindows: "點按 Dock 圖示切換視窗",
         dockClickCycleWindowsCaption: "點按最前方 App 的 Dock 圖示可在其視窗之間輪換，類似 ⌘`。",
         dockPreviewActiveNow: "已在 Dock 中開啟",
-        dockPreviewMagnificationBlocked: "請關閉 Dock 放大後再使用。",
         dockPreviewDockUnavailable: "無法讀取 Dock 項目。",
         dockPreviewAutohideBeta: "測試版。你可能會遇到一些問題。",
         dockPreviewOpenWindow: "開啟視窗",
@@ -235,7 +234,6 @@ extension Strings {
         dockPreviewIntroSettingsHint: "你之後可以在設定 › 切換器中變更。",
         dockPreviewIntroLater: "暫時不要開啟",
         dockPreviewIntroEnable: "開啟 Dock Preview",
-        dockPreviewIntroMagnificationAction: "請關閉 Dock 放大後再開啟。",
 
         cutPasteName: "剪下並貼上",
         cutPasteEnable: "在 Finder 中剪下並貼上檔案",

@@ -2876,20 +2876,24 @@ struct MetricsTests {
         let dockPrefs = DockPreviewPreferences.sanitized(orientation: "left",
                                                          autohide: true,
                                                          tileSize: 81,
-                                                         magnification: false)
+                                                         magnification: false,
+                                                         magnifiedTileSize: 100)
         expect(dockPrefs == DockPreviewPreferences(orientation: .left,
                                                    autohide: true,
                                                    tileSize: 81,
-                                                   magnification: false),
+                                                   magnification: false,
+                                                   magnifiedTileSize: 100),
                "Dock Preview preferences preserve valid Dock values")
         let fallbackDockPrefs = DockPreviewPreferences.sanitized(orientation: "bad",
                                                                  autohide: nil,
                                                                  tileSize: 999,
-                                                                 magnification: nil)
+                                                                 magnification: nil,
+                                                                 magnifiedTileSize: nil)
         expect(fallbackDockPrefs == DockPreviewPreferences(orientation: .bottom,
                                                            autohide: false,
                                                            tileSize: 256,
-                                                           magnification: false),
+                                                           magnification: false,
+                                                           magnifiedTileSize: 128),
                "Dock Preview preferences sanitize missing and out-of-range values")
         expect(DockPreviewSupport.availability(enabled: false,
                                                hasAccessibility: true,
@@ -2910,17 +2914,25 @@ struct MetricsTests {
         let magnifiedPrefs = DockPreviewPreferences(orientation: .bottom,
                                                     autohide: false,
                                                     tileSize: 64,
-                                                    magnification: true)
+                                                    magnification: true,
+                                                    magnifiedTileSize: 128)
         expect(DockPreviewSupport.availability(enabled: true,
                                                hasAccessibility: true,
                                                hasScreenRecording: true,
-                                               preferences: magnifiedPrefs).blockedReason == .magnification,
-               "Dock Preview blocks Dock magnification")
+                                               preferences: magnifiedPrefs).canRun,
+               "Dock Preview runs with Dock magnification enabled")
+        expect(magnifiedPrefs.hoverTileSize == 128,
+               "hover tile size follows the magnified size while magnification is on")
+        expect(dockPrefs.hoverTileSize == 81,
+               "hover tile size stays at the resting size while magnification is off")
+        expect(DockPreviewSupport.dockProximityBand(tileSize: magnifiedPrefs.hoverTileSize)
+               > magnifiedPrefs.magnifiedTileSize,
+               "Dock proximity band covers a fully magnified icon")
         expect(DockPreviewSupport.availability(enabled: true,
                                                hasAccessibility: true,
                                                hasScreenRecording: true,
                                                preferences: dockPrefs).canRun,
-               "Dock Preview can run when enabled, permitted and not magnified")
+               "Dock Preview can run when enabled and permitted")
 
         let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
         let iconBottom = CGRect(x: 660, y: 0, width: 80, height: 80)

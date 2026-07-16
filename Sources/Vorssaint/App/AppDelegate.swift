@@ -1206,8 +1206,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 self?.dockPreviewIntroWindow?.close()
             },
             onEnable: { [weak self] in
-                DockPreviewService.shared.syncWithPreferences()
-                guard !DockPreviewService.shared.dockMagnification else { return }
                 UserDefaults.standard.set(true, forKey: DefaultsKey.dockPreviewEnabled)
                 DockPreviewService.shared.syncWithPreferences()
                 self?.markDockPreviewIntroSeen()

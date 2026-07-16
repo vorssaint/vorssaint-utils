@@ -333,7 +333,6 @@ struct Strings {
     let dockClickCycleWindows: String
     let dockClickCycleWindowsCaption: String
     let dockPreviewActiveNow: String
-    let dockPreviewMagnificationBlocked: String
     let dockPreviewDockUnavailable: String
     let dockPreviewAutohideBeta: String
     let dockPreviewOpenWindow: String
@@ -350,7 +349,6 @@ struct Strings {
     let dockPreviewIntroSettingsHint: String
     let dockPreviewIntroLater: String
     let dockPreviewIntroEnable: String
-    let dockPreviewIntroMagnificationAction: String
 
     // MARK: Feature — cut & paste in Finder
     let cutPasteName: String
@@ -1226,7 +1224,6 @@ extension Strings {
         dockClickCycleWindows: "Clicar no Dock alterna janelas",
         dockClickCycleWindowsCaption: "Clique no ícone do Dock do app ativo para alternar entre suas janelas, como ⌘`.",
         dockPreviewActiveNow: "Ativo no Dock",
-        dockPreviewMagnificationBlocked: "Desative a ampliação do Dock para usar.",
         dockPreviewDockUnavailable: "Não foi possível ler os itens do Dock.",
         dockPreviewAutohideBeta: "Beta. Você pode encontrar alguns bugs.",
         dockPreviewOpenWindow: "Abrir janela",
@@ -1243,7 +1240,6 @@ extension Strings {
         dockPreviewIntroSettingsHint: "Você pode mudar isso depois em Ajustes › Switcher.",
         dockPreviewIntroLater: "Agora não",
         dockPreviewIntroEnable: "Ativar Dock Preview",
-        dockPreviewIntroMagnificationAction: "Desative a ampliação do Dock para ativar.",
 
         cutPasteName: "Recortar e colar",
         cutPasteEnable: "Recortar e colar arquivos no Finder",
@@ -2092,7 +2088,6 @@ extension Strings {
         dockClickCycleWindows: "Click the Dock icon to cycle windows",
         dockClickCycleWindowsCaption: "Click an active app's Dock icon to rotate through its windows, like ⌘`.",
         dockPreviewActiveNow: "Active in the Dock",
-        dockPreviewMagnificationBlocked: "Turn off Dock magnification to use this.",
         dockPreviewDockUnavailable: "Could not read Dock items.",
         dockPreviewAutohideBeta: "Beta. You may run into some bugs.",
         dockPreviewOpenWindow: "Open window",
@@ -2109,7 +2104,6 @@ extension Strings {
         dockPreviewIntroSettingsHint: "You can change this later in Settings › Switcher.",
         dockPreviewIntroLater: "Not now",
         dockPreviewIntroEnable: "Enable Dock Preview",
-        dockPreviewIntroMagnificationAction: "Turn off Dock magnification to enable.",
 
         cutPasteName: "Cut & paste",
         cutPasteEnable: "Cut & paste files in Finder",

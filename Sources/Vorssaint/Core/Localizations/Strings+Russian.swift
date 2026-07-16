@@ -218,7 +218,6 @@ extension Strings {
         dockClickCycleWindows: "Кликом по Dock переключать окна",
         dockClickCycleWindowsCaption: "Клик по значку активного приложения в Dock переключает между его окнами, как ⌘`.",
         dockPreviewActiveNow: "Активно в Dock",
-        dockPreviewMagnificationBlocked: "Отключите увеличение Dock, чтобы использовать это.",
         dockPreviewDockUnavailable: "Не удалось прочитать элементы Dock.",
         dockPreviewAutohideBeta: "Бета. Возможны ошибки.",
         dockPreviewOpenWindow: "Открыть окно",
@@ -235,7 +234,6 @@ extension Strings {
         dockPreviewIntroSettingsHint: "Позже это можно изменить в Настройки › Переключатель.",
         dockPreviewIntroLater: "Не сейчас",
         dockPreviewIntroEnable: "Включить Dock Preview",
-        dockPreviewIntroMagnificationAction: "Отключите увеличение Dock, чтобы включить функцию.",
 
         cutPasteName: "Вырезать и вставить",
         cutPasteEnable: "Вырезать и вставлять файлы в Finder",

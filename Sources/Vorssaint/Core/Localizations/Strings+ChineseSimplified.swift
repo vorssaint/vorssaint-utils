@@ -217,7 +217,6 @@ extension Strings {
         dockClickCycleWindows: "点按 Dock 图标切换窗口",
         dockClickCycleWindowsCaption: "点按最前面 App 的 Dock 图标可在其窗口之间轮换，类似 ⌘`。",
         dockPreviewActiveNow: "已在 Dock 中启用",
-        dockPreviewMagnificationBlocked: "请关闭 Dock 放大后再使用。",
         dockPreviewDockUnavailable: "无法读取 Dock 项目。",
         dockPreviewAutohideBeta: "测试版。你可能会遇到一些错误。",
         dockPreviewOpenWindow: "打开窗口",
@@ -234,7 +233,6 @@ extension Strings {
         dockPreviewIntroSettingsHint: "你之后可以在设置 › 切换器中更改。",
         dockPreviewIntroLater: "暂不启用",
         dockPreviewIntroEnable: "启用 Dock Preview",
-        dockPreviewIntroMagnificationAction: "请关闭 Dock 放大后再启用。",
 
         cutPasteName: "剪切和粘贴",
         cutPasteEnable: "在访达中剪切和粘贴文件",

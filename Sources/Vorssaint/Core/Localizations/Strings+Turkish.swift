@@ -217,7 +217,6 @@ extension Strings {
         dockClickCycleWindows: "Dock simgesine tıklayınca pencere değiştir",
         dockClickCycleWindowsCaption: "Etkin uygulamanın Dock simgesine tıklayarak pencereleri arasında geçiş yapın, ⌘` gibi.",
         dockPreviewActiveNow: "Dock'ta etkin",
-        dockPreviewMagnificationBlocked: "Bunu kullanmak için Dock büyütmeyi kapat.",
         dockPreviewDockUnavailable: "Dock öğeleri okunamadı.",
         dockPreviewAutohideBeta: "Beta. Bazı hatalarla karşılaşabilirsin.",
         dockPreviewOpenWindow: "Pencereyi aç",
@@ -234,7 +233,6 @@ extension Strings {
         dockPreviewIntroSettingsHint: "Bunu daha sonra Ayarlar › Değiştirici bölümünden değiştirebilirsin.",
         dockPreviewIntroLater: "Şimdi değil",
         dockPreviewIntroEnable: "Dock Preview'i etkinleştir",
-        dockPreviewIntroMagnificationAction: "Etkinleştirmek için Dock büyütmeyi kapat.",
 
         cutPasteName: "Kes ve yapıştır",
         cutPasteEnable: "Finder'da dosya kes ve yapıştır",

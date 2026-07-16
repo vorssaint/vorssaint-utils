@@ -217,7 +217,6 @@ extension Strings {
         dockClickCycleWindows: "Dock クリックでウインドウを切り替え",
         dockClickCycleWindowsCaption: "手前のアプリの Dock アイコンをクリックするとウインドウを順に切り替えます（⌘` と同様）。",
         dockPreviewActiveNow: "Dock で有効",
-        dockPreviewMagnificationBlocked: "使用するには Dock の拡大をオフにしてください。",
         dockPreviewDockUnavailable: "Dock の項目を読み取れませんでした。",
         dockPreviewAutohideBeta: "ベータ版です。一部の不具合が残っている場合があります。",
         dockPreviewOpenWindow: "ウインドウを開く",
@@ -234,7 +233,6 @@ extension Strings {
         dockPreviewIntroSettingsHint: "あとから設定 › Switcher で変更できます。",
         dockPreviewIntroLater: "今はしない",
         dockPreviewIntroEnable: "Dock Preview を有効にする",
-        dockPreviewIntroMagnificationAction: "有効にするには Dock の拡大をオフにしてください。",
 
         cutPasteName: "カット＆ペースト",
         cutPasteEnable: "Finder でファイルをカット＆ペースト",

@@ -217,7 +217,6 @@ extension Strings {
         dockClickCycleWindows: "Clic sur le Dock pour alterner les fenêtres",
         dockClickCycleWindowsCaption: "Cliquez sur l'icône d'une app active dans le Dock pour passer d'une fenêtre à l'autre, comme ⌘`.",
         dockPreviewActiveNow: "Actif dans le Dock",
-        dockPreviewMagnificationBlocked: "Désactivez l’agrandissement du Dock pour l’utiliser.",
         dockPreviewDockUnavailable: "Impossible de lire les éléments du Dock.",
         dockPreviewAutohideBeta: "Bêta. Vous pouvez rencontrer quelques bugs.",
         dockPreviewOpenWindow: "Ouvrir la fenêtre",
@@ -234,7 +233,6 @@ extension Strings {
         dockPreviewIntroSettingsHint: "Vous pouvez changer cela plus tard dans Réglages › Switcher.",
         dockPreviewIntroLater: "Pas maintenant",
         dockPreviewIntroEnable: "Activer Dock Preview",
-        dockPreviewIntroMagnificationAction: "Désactivez l’agrandissement du Dock pour l’activer.",
 
         cutPasteName: "Couper-coller",
         cutPasteEnable: "Couper-coller des fichiers dans le Finder",

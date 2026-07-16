@@ -953,7 +953,6 @@ struct SwitcherSettings: View {
         if !permissions.accessibility { return "\(l10n.s.permissionRequired): \(l10n.s.permissionAccessibility)" }
         if !permissions.screenRecording { return "\(l10n.s.permissionRequired): \(l10n.s.permissionScreenRecording)" }
         switch dockPreview.blockedReason {
-        case .magnification: return l10n.s.dockPreviewMagnificationBlocked
         case .dockUnavailable: return l10n.s.dockPreviewDockUnavailable
         default:
             return l10n.s.dockPreviewEnableCaption

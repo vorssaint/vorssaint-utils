@@ -16,7 +16,6 @@ final class DockPreviewService: ObservableObject {
     /// that this still-beta feature is rougher in that mode (the native Dock
     /// slides away mid-interaction and no public API can hold it open).
     @Published private(set) var dockAutohide = false
-    @Published private(set) var dockMagnification = false
     @Published private(set) var windows: [SwitcherItem] = []
     @Published private(set) var previews: [CGWindowID: CGImage] = [:]
     @Published private(set) var selectedWindowID: CGWindowID?
@@ -71,7 +70,6 @@ final class DockPreviewService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewEnabled)
         cachedPreferences = readDockPreferences()
         dockAutohide = cachedPreferences?.autohide ?? false
-        dockMagnification = cachedPreferences?.magnification ?? false
 
         if enabled {
             startSettingsTimer()
@@ -477,7 +475,7 @@ final class DockPreviewService: ObservableObject {
         guard let preferences = cachedPreferences else { return true }
         let screen = NSScreen.screens.first { $0.frame.contains(point) } ?? NSScreen.main
         guard let frame = screen?.frame else { return true }
-        let band = DockPreviewSupport.dockProximityBand(tileSize: preferences.tileSize)
+        let band = DockPreviewSupport.dockProximityBand(tileSize: preferences.hoverTileSize)
         switch preferences.orientation {
         case .bottom: return point.y <= frame.minY + band
         case .left: return point.x <= frame.minX + band
@@ -1028,7 +1026,6 @@ final class DockPreviewService: ObservableObject {
 
     private func dockHit(at axPoint: CGPoint) -> DockHit? {
         guard let preferences = cachedPreferences ?? readDockPreferences(),
-              !preferences.magnification,
               let dockPID = dockProcessID()
         else { return nil }
 
@@ -1148,7 +1145,8 @@ final class DockPreviewService: ObservableObject {
             orientation: domain["orientation"] as? String,
             autohide: boolValue(domain["autohide"]),
             tileSize: doubleValue(domain["tilesize"]),
-            magnification: boolValue(domain["magnification"])
+            magnification: boolValue(domain["magnification"]),
+            magnifiedTileSize: doubleValue(domain["largesize"])
         )
     }
 

@@ -7,17 +7,20 @@ All notable changes to this project are documented here. The format follows
 ## [3.1.14]
 
 ### Summary
-Vorssaint 3.1.14 can show the brightness percentage while you adjust each
-display and turns the screenshot black bar into a solid block in any color.
-It also improves mouse navigation, prevents the Shelf from opening while you
-move a window, fixes a crash that could close the app right after launch and
-cleans up menu bar and Settings visuals on macOS 26 (Tahoe).
+Vorssaint 3.1.14 lets Dock Preview work with Dock magnification turned on,
+can show the brightness percentage while you adjust each display and turns
+the screenshot black bar into a solid block in any color. It also improves
+mouse navigation, prevents the Shelf from opening while you move a window,
+fixes a crash that could close the app right after launch and cleans up menu
+bar and Settings visuals on macOS 26 (Tahoe).
 
 ### Added
 - The optional brightness overlay shows the percentage after brightness
   changes on the Mac screen and external monitors.
 
 ### Changed
+- Dock Preview now works with Dock magnification enabled, so the zoom effect
+  no longer needs to be turned off.
 - The black bar in the screenshot editor is now a solid block that can use
   any of the palette colors.
 - Window Switcher now moves to the last item in a shorter next row when the

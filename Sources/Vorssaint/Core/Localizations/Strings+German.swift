@@ -217,7 +217,6 @@ extension Strings {
         dockClickCycleWindows: "Klick aufs Dock-Symbol wechselt Fenster",
         dockClickCycleWindowsCaption: "Ein Klick auf das Dock-Symbol der aktiven App wechselt zwischen ihren Fenstern, wie ⌘`.",
         dockPreviewActiveNow: "Im Dock aktiv",
-        dockPreviewMagnificationBlocked: "Deaktiviere die Dock-Vergrößerung, um dies zu nutzen.",
         dockPreviewDockUnavailable: "Dock-Elemente konnten nicht gelesen werden.",
         dockPreviewAutohideBeta: "Beta. Es können noch Fehler auftreten.",
         dockPreviewOpenWindow: "Fenster öffnen",
@@ -234,7 +233,6 @@ extension Strings {
         dockPreviewIntroSettingsHint: "Du kannst das später in Einstellungen › Switcher ändern.",
         dockPreviewIntroLater: "Jetzt nicht",
         dockPreviewIntroEnable: "Dock Preview aktivieren",
-        dockPreviewIntroMagnificationAction: "Deaktiviere die Dock-Vergrößerung, um es zu aktivieren.",
 
         cutPasteName: "Ausschneiden & Einsetzen",
         cutPasteEnable: "Dateien im Finder ausschneiden & einsetzen",

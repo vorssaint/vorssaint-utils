@@ -1113,7 +1113,6 @@ struct QuickControlsSection: View {
         if !permissions.accessibility { return missingPermission(l10n.s.permissionAccessibility) }
         if !permissions.screenRecording { return missingPermission(l10n.s.permissionScreenRecording) }
         switch dockPreview.blockedReason {
-        case .magnification: return l10n.s.dockPreviewMagnificationBlocked
         case .dockUnavailable: return l10n.s.dockPreviewDockUnavailable
         default:
             return l10n.s.dockPreviewEnableCaption
