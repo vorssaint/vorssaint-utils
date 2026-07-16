@@ -7,15 +7,18 @@ All notable changes to this project are documented here. The format follows
 ## [3.1.14]
 
 ### Summary
-Vorssaint 3.1.14 lets Dock Preview work with Dock magnification turned on,
-can show the brightness percentage while you adjust each display and turns
-the screenshot black bar into a solid block in any color. It also returns
+Vorssaint 3.1.14 adds Camera preview, a floating mirror to check how you
+look before a call, lets Dock Preview work with Dock magnification turned on
+and can show the brightness percentage while you adjust each display. It
+also turns the screenshot black bar into a solid block in any color, returns
 Firefox to the Volume Mixer, improves mouse navigation, prevents the Shelf
-from opening while you move a window, fixes a crash that could close the app
-right after launch and cleans up menu bar and Settings visuals on macOS 26
-(Tahoe).
+from opening while you move a window, fixes a crash right after launch and
+cleans up menu bar and Settings visuals on macOS 26 (Tahoe).
 
 ### Added
+- Camera preview opens a small floating mirror with your webcam from the
+  panel, the quick panel or a shortcut. It picks between cameras when more
+  than one is connected and closes when you click away.
 - The optional brightness overlay shows the percentage after brightness
   changes on the Mac screen and external monitors.
 

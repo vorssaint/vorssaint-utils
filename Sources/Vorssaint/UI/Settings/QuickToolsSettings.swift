@@ -12,10 +12,12 @@ struct QuickToolsSettings: View {
     @ObservedObject private var ocr = ScreenTextService.shared
     @ObservedObject private var colorSampler = ColorSamplerService.shared
     @ObservedObject private var launcher = QuickLauncherService.shared
+    @ObservedObject private var cameraPreview = CameraPreviewService.shared
     @AppStorage(DefaultsKey.quickLauncherShortcutEnabled) private var launcherShortcutEnabled = true
     @AppStorage(DefaultsKey.screenOCRShortcutEnabled) private var ocrShortcutEnabled = false
     @AppStorage(DefaultsKey.colorPickerShortcutEnabled) private var colorShortcutEnabled = false
     @AppStorage(DefaultsKey.micMuteShortcutEnabled) private var micShortcutEnabled = false
+    @AppStorage(DefaultsKey.cameraPreviewShortcutEnabled) private var cameraShortcutEnabled = false
     @AppStorage(DefaultsKey.colorPickerFormat) private var colorFormat = "hex"
     @AppStorage(DefaultsKey.colorPickerBareHex) private var colorBareHex = false
     @AppStorage(DefaultsKey.micMuteMenuBarIndicator) private var micMenuBarIndicator = false
@@ -176,7 +178,63 @@ struct QuickToolsSettings: View {
                     Text(l10n.s.micMuteName)
                 }
             }
+
+            if AppFeature.cameraPreview.isAvailable {
+                Section {
+                    Button {
+                        CameraPreviewService.shared.show()
+                    } label: {
+                        Label(FeatureStrings.cameraPreview(l10n.language).openButton,
+                              systemImage: "web.camera")
+                    }
+                    Text(FeatureStrings.cameraPreview(l10n.language).panelCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(l10n.s.quickToolShortcutToggle, isOn: $cameraShortcutEnabled)
+                        .onChange(of: cameraShortcutEnabled) { _, _ in
+                            CameraPreviewService.shared.syncWithPreferences()
+                        }
+                    ShortcutPreferenceRow(role: .cameraPreview,
+                                          isEnabled: cameraShortcutEnabled) {
+                        CameraPreviewService.shared.syncWithPreferences()
+                    }
+                    if cameraShortcutEnabled, cameraPreview.shortcutRegistrationFailed {
+                        Text(l10n.s.shortcutUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                    if permissions.camera == .denied {
+                        CameraPermissionRow()
+                    }
+                } header: {
+                    Text(FeatureStrings.cameraPreview(l10n.language).pageTitle)
+                }
+            }
         }
         .formStyle(.grouped)
+    }
+}
+
+/// The camera state has no re-prompt once denied, so the row goes straight
+/// to System Settings instead of offering a dead request button.
+private struct CameraPermissionRow: View {
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.circle.fill")
+                    .foregroundStyle(.orange)
+                Text(FeatureStrings.cameraPreview(l10n.language).permName)
+                Spacer()
+                Text(l10n.s.permissionMissing)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+            Button(l10n.s.permissionOpenSettings) {
+                Permissions.shared.openCameraSettings()
+            }
+            .controlSize(.small)
+        }
     }
 }

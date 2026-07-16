@@ -3,3 +3,6 @@
 
 /* macOS Screen & System Audio Recording permission prompt. */
 "NSAudioCaptureUsageDescription" = "Vorssaint는 믹서에서 앱별 볼륨을 조절하기 위해 각 앱의 오디오에만 접근합니다. 어떤 오디오도 녹음되거나 Mac 밖으로 전송되지 않습니다.";
+
+/* macOS Camera permission prompt. */
+"NSCameraUsageDescription" = "Vorssaint는 사용자가 연 미리보기 윈도우에만 카메라를 표시하여 통화 전에 모습을 확인할 수 있도록 합니다. 아무것도 녹화되지 않으며 Mac 밖으로 전송되지 않습니다.";

@@ -468,7 +468,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // to allCases). Screenshot leads in 3.1.13; existing orders that predate it
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, cleaner, homebrew, media, clipboard, windowLayout, uninstaller,
-         cleanURL, cleaning, screenOCR, colorPicker, micMute
+         cleanURL, cleaning, screenOCR, colorPicker, micMute, cameraPreview
 
     var id: String { rawValue }
 
@@ -489,6 +489,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .colorPicker: return .colorPicker
         case .micMute: return .micMute
         case .screenshot: return .screenshot
+        case .cameraPreview: return .cameraPreview
         }
     }
 }
@@ -518,6 +519,7 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityQuickLauncher) private var showQuickLauncher = true
     @AppStorage(DefaultsKey.panelUtilityColorPicker) private var showColorPicker = true
     @AppStorage(DefaultsKey.panelUtilityMicMute) private var showMicMute = true
+    @AppStorage(DefaultsKey.panelUtilityCameraPreview) private var showCameraPreview = true
     @ObservedObject private var micMute = MicMuteService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
@@ -662,6 +664,7 @@ struct UtilitiesSection: View {
         case .screenOCR: return showScreenOCR
         case .colorPicker: return showColorPicker
         case .micMute: return showMicMute
+        case .cameraPreview: return showCameraPreview
         case .quickLauncher: return showQuickLauncher
         case .screenshot: return showScreenshot
         }
@@ -821,6 +824,25 @@ struct UtilitiesSection: View {
                                 action: {
                                     MicMuteService.shared.toggle()
                                 })
+        case .cameraPreview:
+            UtilityActionButton(title: FeatureStrings.cameraPreview(l10n.language).pageTitle,
+                                caption: cameraPreviewCaption,
+                                systemImage: "web.camera",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showCameraPreview,
+                                needsAttention: permissions.camera == .denied,
+                                permissionButtonTitle: l10n.s.permissionOpenSettings,
+                                permissionAction: permissions.camera == .denied
+                                    ? { Permissions.shared.openCameraSettings() }
+                                    : nil,
+                                shortcutHint: shortcutHint(.cameraPreview),
+                                action: {
+                                    appDelegate()?.closePopover()
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                        CameraPreviewService.shared.show()
+                                    }
+                                })
         case .quickLauncher:
             UtilityActionButton(title: l10n.s.launcherName,
                                 caption: l10n.s.launcherCaption,
@@ -860,6 +882,12 @@ struct UtilitiesSection: View {
             : "\(l10n.s.permissionRequired): \(l10n.s.permissionScreenRecording)"
     }
 
+    private var cameraPreviewCaption: String {
+        permissions.camera == .denied
+            ? "\(l10n.s.permissionRequired): \(FeatureStrings.cameraPreview(l10n.language).permName)"
+            : FeatureStrings.cameraPreview(l10n.language).panelCaption
+    }
+
     private func grantScreenRecordingPermission() {
         Permissions.shared.requestScreenRecording()
     }
@@ -879,6 +907,7 @@ struct UtilitiesSection: View {
         showScreenshot = true
         showColorPicker = true
         showMicMute = true
+        showCameraPreview = true
         showQuickLauncher = true
     }
 

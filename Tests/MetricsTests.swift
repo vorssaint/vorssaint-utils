@@ -4723,7 +4723,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 40, "feature catalog has 40 features")
+        expect(AppFeature.allCases.count == 41, "feature catalog has 41 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -4734,7 +4734,7 @@ struct MetricsTests {
             "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
             "keepAwake", "brightness", "extraBrightness",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
-            "cleaner", "uninstaller", "homebrew", "screenshot",
+            "cleaner", "uninstaller", "homebrew", "screenshot", "cameraPreview",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
         ], "feature ids are stable (they persist inside availability keys)")
         expect(AppFeature.switcher.availabilityKey == "featureAvailable.switcher",
@@ -4817,6 +4817,13 @@ struct MetricsTests {
         expect(activeSet(.audioCapture) == [.mixer], "the mixer is the only audio capture user")
         expect(activeSet(.audioCapture, available: Set(AppFeature.allCases).subtracting([.mixer])) == [],
                "audio capture reads as unused once the mixer is off in the hub")
+        expect(activeSet(.camera) == [.cameraPreview],
+               "the camera preview is the only on-demand camera user")
+        expect(activeSet(.camera, available: Set(AppFeature.allCases).subtracting([.cameraPreview])) == [],
+               "the camera reads as unused once the preview is off in the hub")
+        expect(AppFeature.cameraPreview.permissions == [.camera]
+                && AppFeature.cameraPreview.enabledKeys.isEmpty,
+               "the camera preview works on demand and only ever asks for the camera")
 
         expect(!AppFeature.anyMonitorAlertEnabled(isAvailable: { _ in true }, boolFor: { _ in false }),
                "no alert keys means no monitor alerts")
@@ -4909,6 +4916,12 @@ struct MetricsTests {
                    "every screenshot string is set for \(language.rawValue)")
             expect(screenshotValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible screenshot strings (\(language.rawValue))")
+            let cameraPreviewValues = Mirror(reflecting: FeatureStrings.cameraPreview(language)).children
+                .compactMap { $0.value as? String }
+            expect(!cameraPreviewValues.isEmpty && cameraPreviewValues.allSatisfy { !$0.isEmpty },
+                   "every camera preview string is set for \(language.rawValue)")
+            expect(cameraPreviewValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in visible camera preview strings (\(language.rawValue))")
             expect(FeatureStrings.screenshot(language).delaySecondsFormat.contains("%d"),
                    "screenshot delay format keeps its specifier (\(language.rawValue))")
             expect(FeatureStrings.screenshot(language).savedHUDFormat.contains("%@"),
@@ -5644,6 +5657,17 @@ struct MetricsTests {
                 && GlobalShortcutRole.screenshot.feature == .screenshot,
                "the screenshot shortcut role gates on its toggle and feature")
 
+        expect(Defaults.registeredDefaults[DefaultsKey.cameraPreviewShortcutEnabled] as? Bool == false,
+               "the camera preview shortcut ships off like the other quick tools")
+        expect(Defaults.registeredDefaults[DefaultsKey.cameraPreviewShortcut] as? String
+                == "control+option+command:13",
+               "the default camera preview shortcut is control option command W")
+        expect(Defaults.registeredDefaults[DefaultsKey.panelUtilityCameraPreview] as? Bool == true,
+               "the camera preview panel row ships visible like its siblings")
+        expect(GlobalShortcutRole.cameraPreview.requiredEnableKeys == [DefaultsKey.cameraPreviewShortcutEnabled]
+                && GlobalShortcutRole.cameraPreview.feature == .cameraPreview,
+               "the camera preview shortcut role gates on its toggle and feature")
+
         // MARK: Settings backup
 
         let backupKeys = SettingsBackupSupport.exportKeys()
@@ -5668,6 +5692,10 @@ struct MetricsTests {
                 && backupKeys.contains(DefaultsKey.screenshotToolShortcutsEnabled)
                 && backupKeys.contains(DefaultsKey.panelUtilityScreenshot),
                "screenshot preferences travel with the settings backup")
+        expect(backupKeys.contains(DefaultsKey.cameraPreviewShortcut)
+                && backupKeys.contains(DefaultsKey.cameraPreviewShortcutEnabled)
+                && backupKeys.contains(DefaultsKey.panelUtilityCameraPreview),
+               "camera preview preferences travel with the settings backup")
         expect(backupKeys.contains(DefaultsKey.panelShowToggles)
                 && backupKeys.contains(DefaultsKey.panelToggleOrder)
                 && backupKeys.contains(DefaultsKey.panelToggleDarkMode),

@@ -25,7 +25,7 @@ enum AppFeature: String, CaseIterable {
     case keepAwake, brightness, extraBrightness
     // Tools
     case quickLauncher, quickToggles, colorPicker, screenOCR, cleaningMode, mediaTools,
-         cleaner, uninstaller, homebrew, screenshot
+         cleaner, uninstaller, homebrew, screenshot, cameraPreview
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
     case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower
@@ -39,7 +39,7 @@ enum FeatureGroup: String, CaseIterable {
 /// System permissions surfaced by the hub's transparency portal.
 enum AppPermission: String, CaseIterable {
     case accessibility, screenRecording, fullDiskAccess, notifications,
-         automationFinder, automationTerminal, audioCapture
+         automationFinder, automationTerminal, audioCapture, camera
 }
 
 extension AppFeature {
@@ -57,7 +57,7 @@ extension AppFeature {
         case .keepAwake, .brightness, .extraBrightness:
             return .energyDisplay
         case .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
-             .cleaner, .uninstaller, .homebrew, .screenshot:
+             .cleaner, .uninstaller, .homebrew, .screenshot, .cameraPreview:
             return .tools
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
             return .monitor
@@ -100,6 +100,7 @@ extension AppFeature {
         case .uninstaller: return "trash"
         case .homebrew: return "shippingbox"
         case .screenshot: return "camera.viewfinder"
+        case .cameraPreview: return "web.camera"
         case .monitorCPU: return "cpu"
         case .monitorGPU: return "rectangle.connected.to.line.below"
         case .monitorMemory: return "memorychip"
@@ -145,7 +146,7 @@ extension AppFeature {
         case .extraBrightness: return [DefaultsKey.extraBrightnessEnabled]
         case .windowLayout, .mixer, .micMute, .keepAwake,
              .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
-             .cleaner, .uninstaller, .homebrew, .screenshot,
+             .cleaner, .uninstaller, .homebrew, .screenshot, .cameraPreview,
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
             return []
         }
@@ -169,6 +170,7 @@ extension AppFeature {
         case .dockPreview: return [.accessibility, .screenRecording]
         case .screenOCR: return [.screenRecording]
         case .screenshot: return [.screenRecording]
+        case .cameraPreview: return [.camera]
         case .keepAwake: return [.accessibility]
         case .brightness: return [.accessibility]
         case .cleaner: return [.fullDiskAccess, .notifications]
@@ -264,6 +266,7 @@ extension AppPermission {
         case .notifications: return "bell.badge"
         case .automationFinder, .automationTerminal: return "gearshape.2"
         case .audioCapture: return "waveform"
+        case .camera: return "camera"
         }
     }
 }

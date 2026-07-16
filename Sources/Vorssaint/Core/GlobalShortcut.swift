@@ -168,6 +168,9 @@ struct GlobalShortcut: Equatable, Hashable {
                                                  modifiers: [.control, .option, .command])
     static let micMuteDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_M),
                                                modifiers: [.control, .option, .command])
+    // W for webcam, on the same free control-option-command layer.
+    static let cameraPreviewDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_W),
+                                                     modifiers: [.control, .option, .command])
     // V for Vorssaint: the quick launcher's own combination.
     static let quickLauncherDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_V),
                                                      modifiers: [.control, .command])
@@ -398,6 +401,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case micMute
     case quickLauncher
     case screenshot
+    case cameraPreview
 
     var id: String { storageKey }
 
@@ -415,6 +419,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .micMute: return DefaultsKey.micMuteShortcut
         case .quickLauncher: return DefaultsKey.quickLauncherShortcut
         case .screenshot: return DefaultsKey.screenshotShortcut
+        case .cameraPreview: return DefaultsKey.cameraPreviewShortcut
         }
     }
 
@@ -432,6 +437,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .micMute: return .micMuteDefault
         case .quickLauncher: return .quickLauncherDefault
         case .screenshot: return .screenshotDefault
+        case .cameraPreview: return .cameraPreviewDefault
         }
     }
 
@@ -453,6 +459,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .micMute: return strings.micMuteName
         case .quickLauncher: return strings.launcherName
         case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).pageTitle
+        case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
         }
     }
 
@@ -480,6 +487,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .micMute: return [DefaultsKey.micMuteShortcutEnabled]
         case .quickLauncher: return [DefaultsKey.quickLauncherShortcutEnabled]
         case .screenshot: return [DefaultsKey.screenshotShortcutEnabled]
+        case .cameraPreview: return [DefaultsKey.cameraPreviewShortcutEnabled]
         }
     }
 
@@ -499,6 +507,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .micMute: return .micMute
         case .quickLauncher: return .quickLauncher
         case .screenshot: return .screenshot
+        case .cameraPreview: return .cameraPreview
         }
     }
 

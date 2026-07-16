@@ -32,7 +32,8 @@ enum FeatureVisibilitySupport {
         case .cutPaste: return [.finderCutPaste]
         case .shelf: return [.shelf]
         case .media: return [.mediaTools]
-        case .quickTools: return [.quickLauncher, .quickToggles, .colorPicker, .screenOCR, .micMute]
+        case .quickTools: return [.quickLauncher, .quickToggles, .colorPicker, .screenOCR, .micMute,
+                                  .cameraPreview]
         case .urlCleaner: return [.urlCleaner]
         case .homebrew: return [.homebrew]
         case .uninstaller: return [.uninstaller]

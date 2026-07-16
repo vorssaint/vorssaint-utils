@@ -270,6 +270,8 @@ enum DefaultsKey {
     static let screenOCRShortcut = "screenOCRShortcut"
     static let micMuteShortcutEnabled = "micMuteShortcutEnabled"
     static let micMuteShortcut = "micMuteShortcut"
+    static let cameraPreviewShortcutEnabled = "cameraPreviewShortcutEnabled"
+    static let cameraPreviewShortcut = "cameraPreviewShortcut"
     static let micMuteActive = "micMuteActive"               // mic muted by the app (survives relaunch)
     static let micMuteSavedVolume = "micMuteSavedVolume"     // input volume to restore on unmute
     static let micMuteMenuBarIndicator = "micMuteMenuBarIndicator" // badge the status icon while muted
@@ -281,6 +283,7 @@ enum DefaultsKey {
     static let panelUtilityColorPicker = "panelUtilityColorPicker"
     static let panelUtilityScreenOCR = "panelUtilityScreenOCR"
     static let panelUtilityMicMute = "panelUtilityMicMute"
+    static let panelUtilityCameraPreview = "panelUtilityCameraPreview"
     static let clipboardHistoryShortcutEnabled = "clipboardHistoryShortcutEnabled"
     static let clipboardHistoryShortcut = "clipboardHistoryShortcut"
     // Screenshot capture and editor.
@@ -711,6 +714,8 @@ enum Defaults {
         DefaultsKey.screenOCRShortcut: GlobalShortcut.screenOCRDefault.storageValue,
         DefaultsKey.micMuteShortcutEnabled: false,
         DefaultsKey.micMuteShortcut: GlobalShortcut.micMuteDefault.storageValue,
+        DefaultsKey.cameraPreviewShortcutEnabled: false,
+        DefaultsKey.cameraPreviewShortcut: GlobalShortcut.cameraPreviewDefault.storageValue,
         DefaultsKey.micMuteActive: false,
         DefaultsKey.micMuteSavedVolume: 0.75,
         DefaultsKey.micMuteMenuBarIndicator: true,  // owner's call: on by default in 3.1.8 (badge only shows while muted)
@@ -721,6 +726,7 @@ enum Defaults {
         DefaultsKey.panelUtilityColorPicker: true,
         DefaultsKey.panelUtilityScreenOCR: true,
         DefaultsKey.panelUtilityMicMute: true,
+        DefaultsKey.panelUtilityCameraPreview: true,
         DefaultsKey.clipboardHistoryShortcutEnabled: true,
         DefaultsKey.clipboardHistoryShortcut: GlobalShortcut.clipboardDefault.storageValue,
         DefaultsKey.screenshotShortcutEnabled: false,

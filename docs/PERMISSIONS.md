@@ -9,6 +9,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close |
 | Screen Recording | Yes | Window titles and thumbnails in the switcher and Dock Preview, copy text from screen |
 | System Audio Recording | Yes | Per app volume and output routing in the mixer |
+| Camera | Yes | The camera preview mirror |
 | Notifications | Yes | Keep awake, battery, Monitor and update alerts |
 | Full Disk Access | Yes | A deeper uninstaller scan |
 | Administrator (one time) | Yes | Password free closed lid toggling |
@@ -53,6 +54,16 @@ You can review or change every grant in System Settings, under Privacy and Secur
 **If you say no.** Apps keep using normal system audio. The mixer cannot apply per app volume or output routing until the permission is granted.
 
 **Optional.** Yes. Audio is processed in memory for the mixer and is never recorded to disk or sent anywhere.
+
+## Camera
+
+**Why it comes up.** macOS asks before any app can show the camera image.
+
+**What uses it.** Camera preview, the floating mirror you can open before joining a call. The camera runs only while the preview window is on screen and stops the moment it closes.
+
+**If you say no.** The preview window explains the state and offers the System Settings shortcut. Everything else in the app carries on as normal.
+
+**Optional.** Yes. The image goes straight to the preview window. Nothing is recorded and nothing leaves your Mac.
 
 ## Notifications
 
