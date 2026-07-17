@@ -13,12 +13,15 @@ struct QuickToolsSettings: View {
     @ObservedObject private var colorSampler = ColorSamplerService.shared
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var cameraPreview = CameraPreviewService.shared
+    @ObservedObject private var scratchpad = ScratchpadService.shared
     @AppStorage(DefaultsKey.quickLauncherShortcutEnabled) private var launcherShortcutEnabled = true
     @AppStorage(DefaultsKey.screenOCRShortcutEnabled) private var ocrShortcutEnabled = false
     @AppStorage(DefaultsKey.screenOCRDetectQRCodes) private var ocrDetectQRCodes = true
     @AppStorage(DefaultsKey.colorPickerShortcutEnabled) private var colorShortcutEnabled = false
     @AppStorage(DefaultsKey.micMuteShortcutEnabled) private var micShortcutEnabled = false
     @AppStorage(DefaultsKey.cameraPreviewShortcutEnabled) private var cameraShortcutEnabled = false
+    @AppStorage(DefaultsKey.scratchpadShortcutEnabled) private var scratchpadShortcutEnabled = false
+    @AppStorage(DefaultsKey.scratchpadRetention) private var scratchpadRetention = ScratchpadRetention.never.rawValue
     @AppStorage(DefaultsKey.colorPickerFormat) private var colorFormat = "hex"
     @AppStorage(DefaultsKey.colorPickerBareHex) private var colorBareHex = false
     @AppStorage(DefaultsKey.micMuteMenuBarIndicator) private var micMenuBarIndicator = false
@@ -213,6 +216,49 @@ struct QuickToolsSettings: View {
                     }
                 } header: {
                     Text(FeatureStrings.cameraPreview(l10n.language).pageTitle)
+                }
+            }
+
+            if AppFeature.scratchpad.isAvailable {
+                Section {
+                    Button {
+                        ScratchpadService.shared.show()
+                    } label: {
+                        Label(FeatureStrings.scratchpad(l10n.language).openButton,
+                              systemImage: "note.text")
+                    }
+                    Text(FeatureStrings.scratchpad(l10n.language).panelCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Picker(FeatureStrings.scratchpad(l10n.language).retentionTitle,
+                           selection: $scratchpadRetention) {
+                        Text(FeatureStrings.scratchpad(l10n.language).retentionNever)
+                            .tag(ScratchpadRetention.never.rawValue)
+                        Text(FeatureStrings.scratchpad(l10n.language).retentionDay)
+                            .tag(ScratchpadRetention.day.rawValue)
+                        Text(FeatureStrings.scratchpad(l10n.language).retentionWeek)
+                            .tag(ScratchpadRetention.week.rawValue)
+                        Text(FeatureStrings.scratchpad(l10n.language).retentionMonth)
+                            .tag(ScratchpadRetention.month.rawValue)
+                    }
+                    Text(FeatureStrings.scratchpad(l10n.language).retentionCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(l10n.s.quickToolShortcutToggle, isOn: $scratchpadShortcutEnabled)
+                        .onChange(of: scratchpadShortcutEnabled) { _, _ in
+                            ScratchpadService.shared.syncWithPreferences()
+                        }
+                    ShortcutPreferenceRow(role: .scratchpad,
+                                          isEnabled: scratchpadShortcutEnabled) {
+                        ScratchpadService.shared.syncWithPreferences()
+                    }
+                    if scratchpadShortcutEnabled, scratchpad.shortcutRegistrationFailed {
+                        Text(l10n.s.shortcutUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                } header: {
+                    Text(FeatureStrings.scratchpad(l10n.language).pageTitle)
                 }
             }
         }

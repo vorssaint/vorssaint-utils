@@ -510,6 +510,7 @@ final class RadialMenuService: ObservableObject {
             case .clipboardHistory: ClipboardHistoryService.shared.showHistoryWindow()
             case .quickLauncher: QuickLauncherService.shared.show()
             case .cameraPreview: CameraPreviewService.shared.show()
+            case .scratchpad: ScratchpadService.shared.show()
             }
         }
     }

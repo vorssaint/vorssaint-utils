@@ -8,8 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Summary
 Vorssaint 3.1.14 adds a customizable radial menu that puts your favorite
-actions on a wheel around the pointer, plus Camera preview, a floating
-mirror for video calls. It also lets Dock Preview work with Dock
+actions on a wheel around the pointer, Camera preview, a floating
+mirror for video calls, and a scratchpad that keeps quick notes in a
+floating window and saves as you type. It also lets Dock Preview work with Dock
 magnification, shows the brightness percentage while you adjust displays,
 turns the screenshot black bar into a solid block in any color, can open
 screenshots straight in the editor, adds a zoomable loupe to the screenshot
@@ -32,6 +33,9 @@ Switcher and cleans up menu bar and Settings visuals on macOS 26 (Tahoe).
 - Camera preview opens a small floating mirror with your webcam from the
   panel, the quick panel or a shortcut. It picks between cameras when more
   than one is connected and closes when you click away.
+- A scratchpad keeps quick notes in a small floating window that saves as
+  you type. It opens from the panel, the quick panel or a shortcut, and can
+  clear itself after days unused.
 - The optional brightness overlay shows the percentage after brightness
   changes on the Mac screen and external monitors.
 - Screenshots can skip the floating preview and open straight in the

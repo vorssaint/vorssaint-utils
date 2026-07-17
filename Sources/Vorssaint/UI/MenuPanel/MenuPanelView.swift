@@ -468,7 +468,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // to allCases). Screenshot leads in 3.1.13; existing orders that predate it
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, cleaner, homebrew, media, clipboard, windowLayout, uninstaller,
-         cleanURL, cleaning, screenOCR, colorPicker, micMute, cameraPreview
+         cleanURL, cleaning, screenOCR, colorPicker, micMute, cameraPreview, scratchpad
 
     var id: String { rawValue }
 
@@ -490,6 +490,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .micMute: return .micMute
         case .screenshot: return .screenshot
         case .cameraPreview: return .cameraPreview
+        case .scratchpad: return .scratchpad
         }
     }
 }
@@ -520,6 +521,7 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityColorPicker) private var showColorPicker = true
     @AppStorage(DefaultsKey.panelUtilityMicMute) private var showMicMute = true
     @AppStorage(DefaultsKey.panelUtilityCameraPreview) private var showCameraPreview = true
+    @AppStorage(DefaultsKey.panelUtilityScratchpad) private var showScratchpad = true
     @ObservedObject private var micMute = MicMuteService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
@@ -665,6 +667,7 @@ struct UtilitiesSection: View {
         case .colorPicker: return showColorPicker
         case .micMute: return showMicMute
         case .cameraPreview: return showCameraPreview
+        case .scratchpad: return showScratchpad
         case .quickLauncher: return showQuickLauncher
         case .screenshot: return showScreenshot
         }
@@ -843,6 +846,20 @@ struct UtilitiesSection: View {
                                         CameraPreviewService.shared.show()
                                     }
                                 })
+        case .scratchpad:
+            UtilityActionButton(title: FeatureStrings.scratchpad(l10n.language).pageTitle,
+                                caption: FeatureStrings.scratchpad(l10n.language).panelCaption,
+                                systemImage: "note.text",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showScratchpad,
+                                shortcutHint: shortcutHint(.scratchpad),
+                                action: {
+                                    appDelegate()?.closePopover()
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                        ScratchpadService.shared.show()
+                                    }
+                                })
         case .quickLauncher:
             UtilityActionButton(title: l10n.s.launcherName,
                                 caption: l10n.s.launcherCaption,
@@ -908,6 +925,7 @@ struct UtilitiesSection: View {
         showColorPicker = true
         showMicMute = true
         showCameraPreview = true
+        showScratchpad = true
         showQuickLauncher = true
     }
 

@@ -180,6 +180,9 @@ struct GlobalShortcut: Equatable, Hashable {
     // Space for the wheel, on the same free control-option-command layer.
     static let radialMenuDefault = GlobalShortcut(keyCode: Int64(kVK_Space),
                                                   modifiers: [.control, .option, .command])
+    // N for notes, on the same free control-option-command layer.
+    static let scratchpadDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_N),
+                                                  modifiers: [.control, .option, .command])
 
     static func saved(for key: String, fallback: GlobalShortcut) -> GlobalShortcut {
         if let raw = UserDefaults.standard.string(forKey: key),
@@ -411,6 +414,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case screenshot
     case cameraPreview
     case radialMenu
+    case scratchpad
 
     var id: String { storageKey }
 
@@ -430,6 +434,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenshot: return DefaultsKey.screenshotShortcut
         case .cameraPreview: return DefaultsKey.cameraPreviewShortcut
         case .radialMenu: return DefaultsKey.radialMenuShortcut
+        case .scratchpad: return DefaultsKey.scratchpadShortcut
         }
     }
 
@@ -449,6 +454,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenshot: return .screenshotDefault
         case .cameraPreview: return .cameraPreviewDefault
         case .radialMenu: return .radialMenuDefault
+        case .scratchpad: return .scratchpadDefault
         }
     }
 
@@ -472,6 +478,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).pageTitle
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
+        case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
         }
     }
 
@@ -501,6 +508,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenshot: return [DefaultsKey.screenshotShortcutEnabled]
         case .cameraPreview: return [DefaultsKey.cameraPreviewShortcutEnabled]
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
+        case .scratchpad: return [DefaultsKey.scratchpadShortcutEnabled]
         }
     }
 
@@ -522,6 +530,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenshot: return .screenshot
         case .cameraPreview: return .cameraPreview
         case .radialMenu: return .radialMenu
+        case .scratchpad: return .scratchpad
         }
     }
 

@@ -79,6 +79,7 @@ enum SelfUninstall {
         ScreenTextService.shared.suspend()
         CameraPreviewService.shared.suspend()
         RadialMenuService.shared.suspend()
+        ScratchpadService.shared.suspend()
         // Leaving the mic cut after the app is gone would strand the user
         // with a silent input and no indicator anywhere.
         MicMuteService.shared.setMuted(false)

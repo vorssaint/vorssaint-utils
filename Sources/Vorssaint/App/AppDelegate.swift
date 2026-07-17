@@ -145,6 +145,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         DockPreviewService.shared.stop()
         SoundOutputSwitcher.shared.stop()
         AppVolumeMixer.shared.stopAll()
+        // Flushes any scratchpad edit still inside the save debounce.
+        ScratchpadService.shared.suspend()
         KeepAwakeManager.shared.deactivate(reason: .quit)
     }
 

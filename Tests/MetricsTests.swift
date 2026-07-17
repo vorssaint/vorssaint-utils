@@ -4850,7 +4850,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 42, "feature catalog has 42 features")
+        expect(AppFeature.allCases.count == 43, "feature catalog has 43 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -4862,6 +4862,7 @@ struct MetricsTests {
             "keepAwake", "brightness", "extraBrightness",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "screenshot", "cameraPreview", "radialMenu",
+            "scratchpad",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
         ], "feature ids are stable (they persist inside availability keys)")
         expect(AppFeature.switcher.availabilityKey == "featureAvailable.switcher",
@@ -5055,6 +5056,12 @@ struct MetricsTests {
                    "every radial menu string is set for \(language.rawValue)")
             expect(radialMenuValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible radial menu strings (\(language.rawValue))")
+            let scratchpadValues = Mirror(reflecting: FeatureStrings.scratchpad(language)).children
+                .compactMap { $0.value as? String }
+            expect(scratchpadValues.count == 15 && scratchpadValues.allSatisfy { !$0.isEmpty },
+                   "every scratchpad string is set for \(language.rawValue)")
+            expect(scratchpadValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in visible scratchpad strings (\(language.rawValue))")
             expect(FeatureStrings.screenshot(language).delaySecondsFormat.contains("%d"),
                    "screenshot delay format keeps its specifier (\(language.rawValue))")
             expect(FeatureStrings.screenshot(language).savedHUDFormat.contains("%@"),
@@ -5116,7 +5123,8 @@ struct MetricsTests {
                 && AppFeature.switcher.energyProfile == .keyboard
                 && AppFeature.colorPicker.energyProfile == .idle
                 && AppFeature.keepAwake.energyProfile == .idle
-                && AppFeature.brightness.energyProfile == .idle,
+                && AppFeature.brightness.energyProfile == .idle
+                && AppFeature.scratchpad.energyProfile == .idle,
                "energy badges tell the honest mechanism per feature")
         let previousWindowGestureEnergy = UserDefaults.standard.object(
             forKey: DefaultsKey.windowGestureEnabled
@@ -5475,7 +5483,8 @@ struct MetricsTests {
                "media slices post the aux codes of the physical keys")
         expect(RadialMenuTool.allCases.allSatisfy { !$0.symbolName.isEmpty }
                 && RadialMenuTool.screenshot.feature == .screenshot
-                && RadialMenuTool.clipboardHistory.feature == .clipboardHistory,
+                && RadialMenuTool.clipboardHistory.feature == .clipboardHistory
+                && RadialMenuTool.scratchpad.feature == .scratchpad,
                "every wheel tool maps to a real feature and symbol")
 
         // MARK: Dock click with AX-blind apps (issue #200)
@@ -5933,6 +5942,51 @@ struct MetricsTests {
                 && GlobalShortcutRole.cameraPreview.feature == .cameraPreview,
                "the camera preview shortcut role gates on its toggle and feature")
 
+        expect(Defaults.registeredDefaults[DefaultsKey.scratchpadShortcutEnabled] as? Bool == false,
+               "the scratchpad shortcut ships off like the other quick tools")
+        expect(Defaults.registeredDefaults[DefaultsKey.scratchpadShortcut] as? String
+                == "control+option+command:45",
+               "the default scratchpad shortcut is control option command N")
+        expect(Defaults.registeredDefaults[DefaultsKey.panelUtilityScratchpad] as? Bool == true,
+               "the scratchpad panel row ships visible like its siblings")
+        expect(Defaults.registeredDefaults[DefaultsKey.scratchpadRetention] as? String == "never",
+               "the scratchpad keeps text until cleared by default")
+        expect(GlobalShortcutRole.scratchpad.requiredEnableKeys == [DefaultsKey.scratchpadShortcutEnabled]
+                && GlobalShortcutRole.scratchpad.feature == .scratchpad,
+               "the scratchpad shortcut role gates on its toggle and feature")
+        expect(ScratchpadRetention.sanitized("day") == .day
+                && ScratchpadRetention.sanitized("week") == .week
+                && ScratchpadRetention.sanitized("month") == .month
+                && ScratchpadRetention.sanitized(nil) == .never
+                && ScratchpadRetention.sanitized("yesterday") == .never,
+               "scratchpad retention sanitizes to the allowed periods and falls back to never")
+        expect(ScratchpadRetention.never.maxIdleInterval == nil
+                && ScratchpadRetention.day.maxIdleInterval == 86_400
+                && ScratchpadRetention.week.maxIdleInterval == 7 * 86_400
+                && ScratchpadRetention.month.maxIdleInterval == 30 * 86_400,
+               "scratchpad retention periods are a day, a week and thirty days")
+        let scratchpadNow = Date(timeIntervalSince1970: 1_784_000_000)
+        expect(!ScratchpadSupport.shouldClear(lastEdited: nil, now: scratchpadNow, retention: .day)
+                && !ScratchpadSupport.shouldClear(lastEdited: scratchpadNow.addingTimeInterval(-90_000),
+                                                  now: scratchpadNow, retention: .never)
+                && !ScratchpadSupport.shouldClear(lastEdited: scratchpadNow.addingTimeInterval(-3_600),
+                                                  now: scratchpadNow, retention: .day)
+                && ScratchpadSupport.shouldClear(lastEdited: scratchpadNow.addingTimeInterval(-90_000),
+                                                 now: scratchpadNow, retention: .day)
+                && !ScratchpadSupport.shouldClear(lastEdited: scratchpadNow.addingTimeInterval(-90_000),
+                                                  now: scratchpadNow, retention: .week)
+                && ScratchpadSupport.shouldClear(lastEdited: scratchpadNow.addingTimeInterval(-8 * 86_400),
+                                                 now: scratchpadNow, retention: .week)
+                && !ScratchpadSupport.shouldClear(lastEdited: scratchpadNow.addingTimeInterval(60),
+                                                  now: scratchpadNow, retention: .day),
+               "the scratchpad only clears when a period is chosen and the last edit is older than it")
+        let scratchpadExportName = ScratchpadSupport.exportFileName(title: "Scratchpad",
+                                                                    date: scratchpadNow)
+        expect(scratchpadExportName.hasPrefix("Scratchpad 20")
+                && scratchpadExportName.hasSuffix(".txt")
+                && scratchpadExportName.count == "Scratchpad ".count + 14,
+               "scratchpad export file name is the title plus the local date")
+
         expect(Defaults.registeredDefaults[DefaultsKey.radialMenuEnabled] as? Bool == false,
                "the radial menu ships off by default")
         expect(Defaults.registeredDefaults[DefaultsKey.radialMenuShortcut] as? String
@@ -5992,6 +6046,11 @@ struct MetricsTests {
                 && backupKeys.contains(DefaultsKey.cameraPreviewShortcutEnabled)
                 && backupKeys.contains(DefaultsKey.panelUtilityCameraPreview),
                "camera preview preferences travel with the settings backup")
+        expect(backupKeys.contains(DefaultsKey.scratchpadShortcut)
+                && backupKeys.contains(DefaultsKey.scratchpadShortcutEnabled)
+                && backupKeys.contains(DefaultsKey.scratchpadRetention)
+                && backupKeys.contains(DefaultsKey.panelUtilityScratchpad),
+               "scratchpad preferences travel with the settings backup")
         expect(backupKeys.contains(DefaultsKey.radialMenuEnabled)
                 && backupKeys.contains(DefaultsKey.radialMenuShortcut)
                 && backupKeys.contains(DefaultsKey.radialMenuAtPointer)

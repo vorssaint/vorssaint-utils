@@ -451,6 +451,7 @@ struct QuickLauncherView: View {
         case .cleaner: return l10n.s.cleanerName
         case .screenshot: return FeatureStrings.screenshot(l10n.language).pageTitle
         case .cameraPreview: return FeatureStrings.cameraPreview(l10n.language).pageTitle
+        case .scratchpad: return FeatureStrings.scratchpad(l10n.language).pageTitle
         }
     }
 
@@ -471,6 +472,7 @@ struct QuickLauncherView: View {
         case .cleaner: return "sparkle"
         case .screenshot: return "camera.viewfinder"
         case .cameraPreview: return "web.camera"
+        case .scratchpad: return "note.text"
         }
     }
 
