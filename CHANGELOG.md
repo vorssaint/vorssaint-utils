@@ -33,7 +33,7 @@ macOS 26 (Tahoe).
 - Screenshots can skip the floating preview and open straight in the
   annotation editor. Off by default in Settings under Screenshot.
 - The screenshot selection now has a pixel loupe for precise captures.
-  Press Z to show or hide it and scroll to zoom. Thanks to ruvelro.
+  Press Z to show or hide it and scroll to zoom. Thanks to @ruvelro.
 
 ### Changed
 - Dock Preview now works with Dock magnification enabled, so the zoom effect
