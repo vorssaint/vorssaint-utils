@@ -499,6 +499,23 @@ enum ScreenshotSupport {
     /// A stable square of source pixels for the crop loupe. Near an image
     /// edge the sample slides inward instead of shrinking, while the loupe's
     /// crosshair still points at the exact adjusted pixel.
+    static let captureLoupeBaseSampleSide: CGFloat = 12
+    static let captureLoupeMinZoom: CGFloat = 0.5
+    static let captureLoupeMaxZoom: CGFloat = 4
+
+    static func captureLoupeZoom(_ zoom: CGFloat, adjustedBy scrollDelta: CGFloat) -> CGFloat {
+        guard scrollDelta != 0 else {
+            return min(max(zoom, captureLoupeMinZoom), captureLoupeMaxZoom)
+        }
+        let factor: CGFloat = scrollDelta > 0 ? 1.15 : 1 / 1.15
+        return min(max(zoom * factor, captureLoupeMinZoom), captureLoupeMaxZoom)
+    }
+
+    static func captureLoupeSampleSide(zoom: CGFloat) -> CGFloat {
+        let clamped = min(max(zoom, captureLoupeMinZoom), captureLoupeMaxZoom)
+        return captureLoupeBaseSampleSide / clamped
+    }
+
     static func cropLoupeSampleRect(around point: CGPoint,
                                     imageSize: CGSize,
                                     sideLength: CGFloat = 14) -> CGRect {
