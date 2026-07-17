@@ -4723,7 +4723,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 41, "feature catalog has 41 features")
+        expect(AppFeature.allCases.count == 42, "feature catalog has 42 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -4734,7 +4734,7 @@ struct MetricsTests {
             "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
             "keepAwake", "brightness", "extraBrightness",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
-            "cleaner", "uninstaller", "homebrew", "screenshot", "cameraPreview",
+            "cleaner", "uninstaller", "homebrew", "screenshot", "cameraPreview", "radialMenu",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
         ], "feature ids are stable (they persist inside availability keys)")
         expect(AppFeature.switcher.availabilityKey == "featureAvailable.switcher",
@@ -4922,6 +4922,12 @@ struct MetricsTests {
                    "every camera preview string is set for \(language.rawValue)")
             expect(cameraPreviewValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible camera preview strings (\(language.rawValue))")
+            let radialMenuValues = Mirror(reflecting: FeatureStrings.radialMenu(language)).children
+                .compactMap { $0.value as? String }
+            expect(radialMenuValues.count == 44 && radialMenuValues.allSatisfy { !$0.isEmpty },
+                   "every radial menu string is set for \(language.rawValue)")
+            expect(radialMenuValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in visible radial menu strings (\(language.rawValue))")
             expect(FeatureStrings.screenshot(language).delaySecondsFormat.contains("%d"),
                    "screenshot delay format keeps its specifier (\(language.rawValue))")
             expect(FeatureStrings.screenshot(language).savedHUDFormat.contains("%@"),
@@ -5220,6 +5226,106 @@ struct MetricsTests {
         expect(TextSnippetSupport.decode(TextSnippetSupport.encode(storedSnippets)) == storedSnippets,
                "snippets round-trip through persistence")
         expect(TextSnippetSupport.decode(nil).isEmpty, "no stored data means no snippets")
+
+        // MARK: Radial menu (issue #220)
+
+        expect(RadialMenuGeometry.angle(dx: 0, dyUp: 1) == 0
+                && abs(RadialMenuGeometry.angle(dx: 1, dyUp: 0) - .pi / 2) < 0.0001
+                && abs(RadialMenuGeometry.angle(dx: 0, dyUp: -1) - .pi) < 0.0001
+                && abs(RadialMenuGeometry.angle(dx: -1, dyUp: 0) - 3 * .pi / 2) < 0.0001,
+               "wheel angles run clockwise from 12 o'clock")
+        expect(RadialMenuGeometry.index(forAngle: 0, itemCount: 4) == 0
+                && RadialMenuGeometry.index(forAngle: .pi / 2, itemCount: 4) == 1
+                && RadialMenuGeometry.index(forAngle: .pi, itemCount: 4) == 2
+                && RadialMenuGeometry.index(forAngle: 3 * .pi / 2, itemCount: 4) == 3,
+               "each slice claims the arc around its own center")
+        expect(RadialMenuGeometry.index(forAngle: 2 * .pi - 0.01, itemCount: 12) == 0
+                && RadialMenuGeometry.index(forAngle: 2 * .pi - 0.3, itemCount: 12) == 11,
+               "the top slice claims both sides of 12 o'clock and its left neighbor starts past it")
+        expect(RadialMenuGeometry.index(forAngle: 1, itemCount: 0) == nil,
+               "an empty wheel highlights nothing")
+        expect(RadialMenuGeometry.highlightedIndex(dx: 10, dyUp: 0, deadZoneRadius: 40, itemCount: 4) == nil
+                && RadialMenuGeometry.highlightedIndex(dx: 50, dyUp: 0, deadZoneRadius: 40, itemCount: 4) == 1,
+               "the hub dead zone highlights nothing and past it the pointer picks a slice")
+        let topUnit = RadialMenuGeometry.unitPosition(index: 0, itemCount: 6)
+        let rightUnit = RadialMenuGeometry.unitPosition(index: 1, itemCount: 4)
+        expect(abs(topUnit.dx) < 0.0001 && abs(topUnit.dyUp - 1) < 0.0001
+                && abs(rightUnit.dx - 1) < 0.0001 && abs(rightUnit.dyUp) < 0.0001,
+               "slice centers land on the unit circle from the top clockwise")
+
+        let starter = RadialMenuSupport.starterItems
+        expect(starter.count == 6 && RadialMenuSupport.sanitized(starter) == starter,
+               "the starter wheel is already clean")
+        expect(starter.allSatisfy { !$0.effectiveSymbolName.isEmpty },
+               "every starter slice has a symbol to draw")
+        expect(RadialMenuSupport.decode(nil) == starter,
+               "a fresh install decodes to the starter wheel")
+        expect(RadialMenuSupport.decode(RadialMenuSupport.encode([])) == [],
+               "an emptied wheel stays empty instead of reseeding")
+
+        let sampleWheel = [
+            RadialMenuItem(kind: .app, name: "  Editor  ", payload: "/Applications/Editor.app"),
+            RadialMenuItem(kind: .url, payload: "example.com/page"),
+            RadialMenuItem(kind: .shortcut, payload: "control+option+command:49"),
+            RadialMenuItem(kind: .submenu, name: "More", children: [
+                RadialMenuItem(kind: .media, payload: "playPause"),
+                RadialMenuItem(kind: .submenu, children: [RadialMenuItem(kind: .media, payload: "nextTrack")]),
+            ]),
+        ]
+        let cleaned = RadialMenuSupport.sanitized(sampleWheel)
+        expect(cleaned.count == 4 && cleaned[0].name == "Editor"
+                && cleaned[1].payload == "https://example.com/page",
+               "sanitizing trims names and completes bare links")
+        expect(cleaned[3].children.count == 1 && cleaned[3].children[0].kind == .media,
+               "submenus keep their actions but never nest another submenu")
+        expect(RadialMenuSupport.decode(RadialMenuSupport.encode(cleaned)) == cleaned,
+               "radial menu items round-trip through persistence")
+        let fullSubmenu = [RadialMenuItem(kind: .submenu, name: "Pack", children: (0 ..< 5).map {
+            RadialMenuItem(kind: .url, payload: "example.com/\($0)")
+        })]
+        expect(RadialMenuSupport.decode(RadialMenuSupport.encode(fullSubmenu)).first?.children.count == 5,
+               "a submenu keeps every action through persistence, not just two")
+        expect(RadialMenuSupport.sanitized([
+            RadialMenuItem(kind: .app, payload: ""),
+            RadialMenuItem(kind: .url, payload: "not a link"),
+            RadialMenuItem(kind: .shortcut, payload: "garbage"),
+            RadialMenuItem(kind: .tool, payload: "unknownTool"),
+            RadialMenuItem(kind: .media, payload: "unknownKey"),
+        ]).isEmpty,
+               "slices that cannot run are dropped instead of rendering dead")
+        expect(RadialMenuSupport.sanitized((0 ..< 20).map {
+            RadialMenuItem(kind: .url, payload: "example.com/\($0)")
+        }).count == RadialMenuSupport.maxItemsPerWheel,
+               "a wheel never holds more than 12 slices")
+        let lossyJSON = """
+        [{"kind":"media","payload":"playPause"},{"kind":"teleport","payload":"x"}]
+        """
+        expect(RadialMenuSupport.decode(Data(lossyJSON.utf8)).count == 1,
+               "unknown kinds from newer versions drop just that slice")
+
+        expect(RadialMenuSupport.normalizedURL("https://a.example/x") == "https://a.example/x"
+                && RadialMenuSupport.normalizedURL("mailto:someone@example.com") == "mailto:someone@example.com"
+                && RadialMenuSupport.normalizedURL("   ") == nil
+                && RadialMenuSupport.normalizedURL("two words") == nil,
+               "link normalization keeps schemes and rejects non-links")
+        expect(RadialMenuSupport.normalizedURL("tel:5551234") == "tel:5551234"
+                && RadialMenuSupport.normalizedURL("example.com:8080/x") == "https://example.com:8080/x"
+                && RadialMenuSupport.normalizedURL("localhost:3000") == "https://localhost:3000",
+               "digit-after-colon means a port only when the prefix looks like a host")
+        expect(RadialMenuSupport.needsAccessibility([starter[3]]) == false
+                && RadialMenuSupport.needsAccessibility(starter)
+                && RadialMenuSupport.needsAccessibility([
+                    RadialMenuItem(kind: .submenu, children: [RadialMenuItem(kind: .shortcut, payload: "command:8")]),
+                ]),
+               "only wheels that press keys need Accessibility, submenus included")
+        expect(RadialMenuMediaKey.playPause.auxKeyType == 16
+                && RadialMenuMediaKey.previousTrack.auxKeyType == 20
+                && RadialMenuMediaKey.nextTrack.auxKeyType == 19,
+               "media slices post the aux codes of the physical keys")
+        expect(RadialMenuTool.allCases.allSatisfy { !$0.symbolName.isEmpty }
+                && RadialMenuTool.screenshot.feature == .screenshot
+                && RadialMenuTool.clipboardHistory.feature == .clipboardHistory,
+               "every wheel tool maps to a real feature and symbol")
 
         // MARK: Dock click with AX-blind apps (issue #200)
 
@@ -5668,6 +5774,35 @@ struct MetricsTests {
                 && GlobalShortcutRole.cameraPreview.feature == .cameraPreview,
                "the camera preview shortcut role gates on its toggle and feature")
 
+        expect(Defaults.registeredDefaults[DefaultsKey.radialMenuEnabled] as? Bool == false,
+               "the radial menu ships off by default")
+        expect(Defaults.registeredDefaults[DefaultsKey.radialMenuShortcut] as? String
+                == "control+option+command:49",
+               "the default radial menu shortcut is control option command space")
+        expect(Defaults.registeredDefaults[DefaultsKey.radialMenuAtPointer] as? Bool == true,
+               "the radial menu opens at the pointer by default")
+        expect(Defaults.registeredDefaults[DefaultsKey.radialMenuMouseButton] as? String == "off",
+               "the side button trigger ships off")
+        expect(RadialMenuMouseTrigger.sanitized("back") == .back
+                && RadialMenuMouseTrigger.sanitized("forward").buttonNumber == 4
+                && RadialMenuMouseTrigger.back.buttonNumber == 3
+                && RadialMenuMouseTrigger.sanitized(nil) == .off
+                && RadialMenuMouseTrigger.sanitized("teleport") == .off
+                && RadialMenuMouseTrigger.off.buttonNumber == nil,
+               "the side button trigger maps to the HID numbers and falls back to off")
+        expect(RadialMenuMouseTrigger.back.buttonNumber == MouseNavigationSupport.backButtonNumber
+                && RadialMenuMouseTrigger.forward.buttonNumber == MouseNavigationSupport.forwardButtonNumber,
+               "the wheel and mouse navigation agree on which button is which")
+        expect(!RadialMenuSupport.claimsMouseButton(3) && !RadialMenuSupport.claimsMouseButton(4),
+               "with the feature off no side button is claimed away from navigation")
+        expect(Defaults.registeredDefaults[DefaultsKey.panelControlRadialMenu] as? Bool == true,
+               "the radial menu panel row ships visible like its siblings")
+        expect(Defaults.registeredDefaults[DefaultsKey.radialMenuItems] == nil,
+               "the items blob has no registered default so a fresh install detects the starter wheel")
+        expect(GlobalShortcutRole.radialMenu.requiredEnableKeys == [DefaultsKey.radialMenuEnabled]
+                && GlobalShortcutRole.radialMenu.feature == .radialMenu,
+               "the radial menu shortcut role gates on the feature toggle")
+
         // MARK: Settings backup
 
         let backupKeys = SettingsBackupSupport.exportKeys()
@@ -5696,6 +5831,13 @@ struct MetricsTests {
                 && backupKeys.contains(DefaultsKey.cameraPreviewShortcutEnabled)
                 && backupKeys.contains(DefaultsKey.panelUtilityCameraPreview),
                "camera preview preferences travel with the settings backup")
+        expect(backupKeys.contains(DefaultsKey.radialMenuEnabled)
+                && backupKeys.contains(DefaultsKey.radialMenuShortcut)
+                && backupKeys.contains(DefaultsKey.radialMenuAtPointer)
+                && backupKeys.contains(DefaultsKey.radialMenuMouseButton)
+                && backupKeys.contains(DefaultsKey.radialMenuItems)
+                && backupKeys.contains(DefaultsKey.panelControlRadialMenu),
+               "the radial menu wheel and choices travel with the settings backup")
         expect(backupKeys.contains(DefaultsKey.panelShowToggles)
                 && backupKeys.contains(DefaultsKey.panelToggleOrder)
                 && backupKeys.contains(DefaultsKey.panelToggleDarkMode),

@@ -919,7 +919,7 @@ struct UtilitiesSection: View {
 
 private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
     case mouseScroll, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
-         dockClick, dockClickCycle, middleClick, textSnippets
+         dockClick, dockClickCycle, middleClick, textSnippets, radialMenu
 
     var id: String { rawValue }
 
@@ -939,6 +939,7 @@ private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
         case .dockClick, .dockClickCycle: return .dockClick
         case .middleClick: return .middleClick
         case .textSnippets: return .textSnippets
+        case .radialMenu: return .radialMenu
         }
     }
 }
@@ -954,7 +955,7 @@ private enum ControlCategory: String, CaseIterable, Identifiable {
         switch item {
         case .switcher, .dockPreview, .dockClick, .dockClickCycle, .windowMaximize, .autoQuit:
             return .windows
-        case .mouseScroll, .mouseNavigation, .middleClick, .keyDebounce, .textSnippets:
+        case .mouseScroll, .mouseNavigation, .middleClick, .keyDebounce, .textSnippets, .radialMenu:
             return .inputDevices
         case .cutPaste, .shelf:
             return .files
@@ -991,6 +992,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.textSnippetsEnabled) private var textSnippetsEnabled = false
+    @AppStorage(DefaultsKey.radialMenuEnabled) private var radialMenuEnabled = false
     @AppStorage(DefaultsKey.panelControlMouseScroll) private var showScroll = true
     @AppStorage(DefaultsKey.panelControlMouseNavigation) private var showMouseNavigation = true
     @AppStorage(DefaultsKey.panelControlSwitcher) private var showSwitcher = true
@@ -1004,6 +1006,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.panelControlDockClickCycle) private var showDockClickCycle = true
     @AppStorage(DefaultsKey.panelControlMiddleClick) private var showMiddleClick = true
     @AppStorage(DefaultsKey.panelControlTextSnippets) private var showTextSnippets = true
+    @AppStorage(DefaultsKey.panelControlRadialMenu) private var showRadialMenu = true
     @AppStorage(DefaultsKey.panelControlWindowsExpanded) private var windowsExpanded = false
     @AppStorage(DefaultsKey.panelControlInputExpanded) private var inputExpanded = false
     @AppStorage(DefaultsKey.panelControlFilesExpanded) private var filesExpanded = false
@@ -1116,6 +1119,7 @@ struct QuickControlsSection: View {
         case .dockClickCycle: return dockClickCycleEnabled
         case .middleClick: return middleClickEnabled
         case .textSnippets: return textSnippetsEnabled
+        case .radialMenu: return radialMenuEnabled
         }
     }
 
@@ -1186,6 +1190,7 @@ struct QuickControlsSection: View {
         case .dockClickCycle: return showDockClickCycle
         case .middleClick: return showMiddleClick
         case .textSnippets: return showTextSnippets
+        case .radialMenu: return showRadialMenu
         }
     }
 
@@ -1418,6 +1423,40 @@ struct QuickControlsSection: View {
                     TextSnippetService.shared.syncWithPreferences()
                     requestAccessibilityIfNeeded(enabled)
                 }
+        case .radialMenu:
+            let radialStrings = FeatureStrings.radialMenu(l10n.language)
+            // Only wheels that press keys for the user (shortcut or media
+            // slices) or watch a side button involve Accessibility.
+            let needsAccessibility = RadialMenuSupport.needsAccessibility(
+                RadialMenuSupport.decode(UserDefaults.standard.data(forKey: DefaultsKey.radialMenuItems)))
+                || RadialMenuMouseTrigger.sanitized(
+                    UserDefaults.standard.string(forKey: DefaultsKey.radialMenuMouseButton)) != .off
+            PanelToggleRow(title: radialStrings.pageTitle,
+                           caption: radialMenuEnabled && needsAccessibility && !permissions.accessibility
+                               ? missingPermission(l10n.s.permissionAccessibility)
+                               : radialStrings.panelCaption,
+                           systemImage: "circle.grid.cross",
+                           isOn: $radialMenuEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showRadialMenu,
+                           needsAttention: radialMenuEnabled && needsAccessibility
+                               && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: needsAccessibility
+                               ? accessibilityPermissionAction(radialMenuEnabled)
+                               : nil,
+                           accessoryTitle: radialMenuEnabled ? radialStrings.manageButton : nil,
+                           accessoryAction: {
+                               SettingsRouter.shared.page = .radialMenu
+                               appDelegate()?.openSettingsWindow()
+                           })
+                .onChange(of: radialMenuEnabled) { _, enabled in
+                    RadialMenuService.shared.syncWithPreferences()
+                    if needsAccessibility {
+                        requestAccessibilityIfNeeded(enabled)
+                    }
+                }
         }
     }
 
@@ -1443,6 +1482,7 @@ struct QuickControlsSection: View {
         showDockClick = true
         showDockClickCycle = true
         showMiddleClick = true
+        showRadialMenu = true
         windowsExpanded = false
         inputExpanded = false
         filesExpanded = false

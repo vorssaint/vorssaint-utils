@@ -7,15 +7,20 @@ All notable changes to this project are documented here. The format follows
 ## [3.1.14]
 
 ### Summary
-Vorssaint 3.1.14 adds Camera preview, a floating mirror to check how you
-look before a call, lets Dock Preview work with Dock magnification turned on
-and can show the brightness percentage while you adjust each display. It
-also turns the screenshot black bar into a solid block in any color, returns
-Firefox to the Volume Mixer, improves mouse navigation, prevents the Shelf
-from opening while you move a window, fixes a crash right after launch and
-cleans up menu bar and Settings visuals on macOS 26 (Tahoe).
+Vorssaint 3.1.14 adds a customizable radial menu that puts your favorite
+actions on a wheel around the pointer, plus Camera preview, a floating
+mirror for video calls. It also lets Dock Preview work with Dock
+magnification, shows the brightness percentage while you adjust displays,
+turns the screenshot black bar into a solid block in any color, returns
+Firefox to the Volume Mixer, improves mouse navigation, keeps the Shelf from
+opening while you move a window, fixes a crash right after launch and cleans
+up menu bar and Settings visuals on macOS 26 (Tahoe).
 
 ### Added
+- A new radial menu puts your favorite actions on a wheel around the
+  pointer, from apps and links to media controls. Hold the shortcut or an
+  optional side mouse button, point and release. Off by default in Settings
+  under Radial menu.
 - Camera preview opens a small floating mirror with your webcam from the
   panel, the quick panel or a shortcut. It picks between cameras when more
   than one is connected and closes when you click away.

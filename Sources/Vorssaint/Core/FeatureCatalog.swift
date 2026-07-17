@@ -25,7 +25,7 @@ enum AppFeature: String, CaseIterable {
     case keepAwake, brightness, extraBrightness
     // Tools
     case quickLauncher, quickToggles, colorPicker, screenOCR, cleaningMode, mediaTools,
-         cleaner, uninstaller, homebrew, screenshot, cameraPreview
+         cleaner, uninstaller, homebrew, screenshot, cameraPreview, radialMenu
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
     case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower
@@ -57,7 +57,7 @@ extension AppFeature {
         case .keepAwake, .brightness, .extraBrightness:
             return .energyDisplay
         case .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
-             .cleaner, .uninstaller, .homebrew, .screenshot, .cameraPreview:
+             .cleaner, .uninstaller, .homebrew, .screenshot, .cameraPreview, .radialMenu:
             return .tools
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
             return .monitor
@@ -101,6 +101,7 @@ extension AppFeature {
         case .homebrew: return "shippingbox"
         case .screenshot: return "camera.viewfinder"
         case .cameraPreview: return "web.camera"
+        case .radialMenu: return "circle.grid.cross"
         case .monitorCPU: return "cpu"
         case .monitorGPU: return "rectangle.connected.to.line.below"
         case .monitorMemory: return "memorychip"
@@ -135,6 +136,7 @@ extension AppFeature {
         case .middleClick: return [DefaultsKey.middleClickEnabled]
         case .keyboardDebounce: return [DefaultsKey.keyboardDebounceEnabled]
         case .textSnippets: return [DefaultsKey.textSnippetsEnabled]
+        case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         case .clipboardHistory: return [DefaultsKey.clipboardHistoryEnabled]
         case .pastePlain: return [DefaultsKey.pastePlainEnabled]
         case .finderCutPaste: return [DefaultsKey.finderCutPasteEnabled]
@@ -160,7 +162,7 @@ extension AppFeature {
         switch self {
         case .scrollInverter, .smoothScroll, .mouseNavigation, .middleClick, .keyboardDebounce,
              .textSnippets, .dockClick, .windowMaximizer, .windowLayout, .autoQuit,
-             .cleaningMode, .pastePlain:
+             .cleaningMode, .pastePlain, .radialMenu:
             return [.accessibility]
         case .finderCutPaste: return [.accessibility, .automationFinder]
         // Only emptying the Trash asks the Finder; every other quick toggle
@@ -202,7 +204,8 @@ extension AppFeature {
     static func activeFeatures(using permission: AppPermission,
                                isAvailable: (AppFeature) -> Bool,
                                boolFor: (String) -> Bool,
-                               stringFor: (String) -> String?) -> [AppFeature] {
+                               stringFor: (String) -> String?,
+                               dataFor: (String) -> Data? = { _ in nil }) -> [AppFeature] {
         allCases.filter { feature in
             guard feature.permissions.contains(permission), isAvailable(feature) else { return false }
             let keys = feature.enabledKeys
@@ -210,6 +213,11 @@ extension AppFeature {
             switch (feature, permission) {
             case (.switcher, .screenRecording):
                 return !boolFor(DefaultsKey.switcherSimpleMode)
+            case (.radialMenu, .accessibility):
+                return RadialMenuSupport.needsAccessibility(
+                    RadialMenuSupport.decode(dataFor(DefaultsKey.radialMenuItems)))
+                    || RadialMenuMouseTrigger.sanitized(
+                        stringFor(DefaultsKey.radialMenuMouseButton)) != .off
             case (.keepAwake, .accessibility):
                 return boolFor(DefaultsKey.keepAwakeMouseJiggleEnabled)
             case (.brightness, .accessibility):
@@ -253,7 +261,8 @@ extension AppFeature {
         activeFeatures(using: permission,
                        isAvailable: { defaults.bool(forKey: $0.availabilityKey) },
                        boolFor: { defaults.bool(forKey: $0) },
-                       stringFor: { defaults.string(forKey: $0) })
+                       stringFor: { defaults.string(forKey: $0) },
+                       dataFor: { defaults.data(forKey: $0) })
     }
 }
 

@@ -114,6 +114,7 @@ enum DefaultsKey {
     static let panelControlDockClickCycle = "panelControlDockClickCycle"
     static let panelControlMiddleClick = "panelControlMiddleClick"
     static let panelControlTextSnippets = "panelControlTextSnippets"
+    static let panelControlRadialMenu = "panelControlRadialMenu"
     // Quick-control categories start collapsed and remember being opened.
     static let panelControlWindowsExpanded = "panelControlWindowsExpanded"
     static let panelControlInputExpanded = "panelControlInputExpanded"
@@ -337,6 +338,13 @@ enum DefaultsKey {
     // Text snippets: type a trigger, get the expansion.
     static let textSnippetsEnabled = "textSnippetsEnabled"
     static let textSnippets = "textSnippets"              // Data: [TextSnippet] JSON
+
+    // Radial menu: a wheel of actions on a shortcut.
+    static let radialMenuEnabled = "radialMenuEnabled"
+    static let radialMenuShortcut = "radialMenuShortcut"
+    static let radialMenuAtPointer = "radialMenuAtPointer" // false: screen center
+    static let radialMenuMouseButton = "radialMenuMouseButton" // RadialMenuMouseTrigger.rawValue
+    static let radialMenuItems = "radialMenuItems"        // Data: [RadialMenuItem] JSON
 
     // Dev-build only: force the "update available" UI for local testing.
     static let simulateUpdate = "simulateUpdate"
@@ -565,6 +573,10 @@ enum Defaults {
         DefaultsKey.cleanerBadgeSeen: false,
         DefaultsKey.urlCleanerEnabled: false,
         DefaultsKey.textSnippetsEnabled: false,
+        DefaultsKey.radialMenuEnabled: false,
+        DefaultsKey.radialMenuShortcut: GlobalShortcut.radialMenuDefault.storageValue,
+        DefaultsKey.radialMenuAtPointer: true,
+        DefaultsKey.radialMenuMouseButton: RadialMenuMouseTrigger.off.rawValue,
         DefaultsKey.windowMaximizeEnabled: false,
         DefaultsKey.keyboardDebounceEnabled: false,
         DefaultsKey.keyboardDebounceWindowMs: defaultKeyboardDebounceWindowMs,
@@ -590,6 +602,7 @@ enum Defaults {
         DefaultsKey.panelControlDockClickCycle: true,
         DefaultsKey.panelControlMiddleClick: true,
         DefaultsKey.panelControlTextSnippets: true,
+        DefaultsKey.panelControlRadialMenu: true,
         DefaultsKey.panelControlWindowsExpanded: false,
         DefaultsKey.panelControlInputExpanded: false,
         DefaultsKey.panelControlFilesExpanded: false,

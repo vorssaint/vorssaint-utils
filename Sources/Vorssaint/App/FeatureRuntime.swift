@@ -157,6 +157,7 @@ final class FeatureRuntime: ObservableObject {
         .screenOCR: { ScreenTextService.shared.syncWithPreferences() },
         .screenshot: { ScreenshotService.shared.syncWithPreferences() },
         .cameraPreview: { CameraPreviewService.shared.syncWithPreferences() },
+        .radialMenu: { RadialMenuService.shared.syncWithPreferences() },
         .cleaner: { CleanerScheduler.shared.syncWithPreferences() },
         .monitorCPU: { FeatureRuntime.syncMonitor() },
         .monitorGPU: { FeatureRuntime.syncMonitor() },

@@ -115,6 +115,12 @@ struct SettingsView: View {
                             icon: "text.append",
                             keywords: [FeatureStrings.snippets(l10n.language).triggerLabel,
                                        FeatureStrings.snippets(l10n.language).addButton]),
+                SidebarItem(page: .radialMenu, title: FeatureStrings.radialMenu(l10n.language).pageTitle,
+                            icon: "circle.grid.cross",
+                            keywords: [FeatureStrings.radialMenu(l10n.language).addButton,
+                                       FeatureStrings.radialMenu(l10n.language).kindApp,
+                                       FeatureStrings.radialMenu(l10n.language).kindMedia,
+                                       FeatureStrings.radialMenu(l10n.language).kindSubmenu]),
             ]),
             (categories.app, [
                 SidebarItem(page: .shortcuts, title: l10n.s.shortcutsPageTitle, icon: "command",
@@ -205,6 +211,7 @@ struct SettingsView: View {
         case .general: GeneralSettings()
         case .features: FeatureHubSettings()
         case .textSnippets: TextSnippetsSettings()
+        case .radialMenu: RadialMenuSettings()
         case .energy: EnergySettings()
         case .monitor: MonitorSettings()
         case .mouse: MouseSettings()

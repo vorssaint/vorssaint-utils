@@ -541,6 +541,7 @@ extension AppFeature {
         case .screenOCR: return s.ocrName
         case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).pageTitle
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
+        case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
         case .cleaningMode: return s.cleaningMenuItem
         case .mediaTools: return s.mediaName
         case .cleaner: return s.cleanerName
@@ -587,6 +588,7 @@ extension AppFeature {
         case .screenOCR: return hub.descScreenOCR
         case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).hubDescription
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).hubDescription
+        case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).hubDescription
         case .cleaningMode: return hub.descCleaningMode
         case .mediaTools: return hub.descMediaTools
         case .cleaner: return hub.descCleaner

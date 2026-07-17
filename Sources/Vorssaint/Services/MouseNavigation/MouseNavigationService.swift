@@ -95,6 +95,14 @@ final class MouseNavigationService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
+        // A side button claimed as the radial menu's summoner belongs to the
+        // wheel. This tap runs at the HID level, before the menu's session
+        // tap, so the whole gesture passes through untouched for the menu to
+        // take downstream; the other side button keeps navigating.
+        if RadialMenuSupport.claimsMouseButton(buttonNumber) {
+            return Unmanaged.passUnretained(event)
+        }
+
         if type == .otherMouseDown {
             // Apps that consume the side buttons themselves keep the raw
             // event; replacing it would drop navigation the user already had,

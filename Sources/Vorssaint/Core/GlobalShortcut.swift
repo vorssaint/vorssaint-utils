@@ -177,6 +177,9 @@ struct GlobalShortcut: Equatable, Hashable {
     // Default screenshot shortcut on the available control-option-command layer.
     static let screenshotDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_4),
                                                   modifiers: [.control, .option, .command])
+    // Space for the wheel, on the same free control-option-command layer.
+    static let radialMenuDefault = GlobalShortcut(keyCode: Int64(kVK_Space),
+                                                  modifiers: [.control, .option, .command])
 
     static func saved(for key: String, fallback: GlobalShortcut) -> GlobalShortcut {
         if let raw = UserDefaults.standard.string(forKey: key),
@@ -275,6 +278,11 @@ struct GlobalShortcut: Equatable, Hashable {
 
     func requiredModifiersHeld(in flags: CGEventFlags) -> Bool {
         let actual = GlobalShortcutModifiers(cgFlags: flags)
+        return actual.intersection(modifiers) == modifiers
+    }
+
+    func requiredModifiersHeld(in flags: NSEvent.ModifierFlags) -> Bool {
+        let actual = GlobalShortcutModifiers(eventFlags: flags)
         return actual.intersection(modifiers) == modifiers
     }
 
@@ -402,6 +410,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case quickLauncher
     case screenshot
     case cameraPreview
+    case radialMenu
 
     var id: String { storageKey }
 
@@ -420,6 +429,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .quickLauncher: return DefaultsKey.quickLauncherShortcut
         case .screenshot: return DefaultsKey.screenshotShortcut
         case .cameraPreview: return DefaultsKey.cameraPreviewShortcut
+        case .radialMenu: return DefaultsKey.radialMenuShortcut
         }
     }
 
@@ -438,6 +448,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .quickLauncher: return .quickLauncherDefault
         case .screenshot: return .screenshotDefault
         case .cameraPreview: return .cameraPreviewDefault
+        case .radialMenu: return .radialMenuDefault
         }
     }
 
@@ -460,6 +471,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .quickLauncher: return strings.launcherName
         case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).pageTitle
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
+        case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
         }
     }
 
@@ -488,6 +500,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .quickLauncher: return [DefaultsKey.quickLauncherShortcutEnabled]
         case .screenshot: return [DefaultsKey.screenshotShortcutEnabled]
         case .cameraPreview: return [DefaultsKey.cameraPreviewShortcutEnabled]
+        case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         }
     }
 
@@ -508,6 +521,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .quickLauncher: return .quickLauncher
         case .screenshot: return .screenshot
         case .cameraPreview: return .cameraPreview
+        case .radialMenu: return .radialMenu
         }
     }
 

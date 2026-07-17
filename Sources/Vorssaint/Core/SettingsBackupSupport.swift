@@ -30,6 +30,7 @@ enum SettingsBackupSupport {
         DefaultsKey.shelfEnabled,
         DefaultsKey.finderCutPasteEnabled,
         DefaultsKey.textSnippets,
+        DefaultsKey.radialMenuItems,
         DefaultsKey.language,
         DefaultsKey.appVolumes,
         DefaultsKey.appOutputDevices,
