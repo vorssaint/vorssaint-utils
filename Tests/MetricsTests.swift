@@ -1797,6 +1797,10 @@ struct MetricsTests {
         expect(Defaults.sanitizedDefaultDuration(999) == 0, "invalid default duration falls back to indefinite")
         expect(Defaults.sanitizedBatteryLimit(15) == 15, "valid battery limit is preserved")
         expect(Defaults.sanitizedBatteryLimit(100) == 10, "invalid battery limit falls back to default")
+        expect(Defaults.sanitizedClipboardHistoryLimit(1_000) == 1_000,
+               "larger clipboard history limits are preserved")
+        expect(Defaults.sanitizedClipboardHistoryLimit(999) == 50,
+               "unsupported clipboard history limits fall back to default")
         expect(Defaults.sanitizedMonitorInterval(5) == 5, "valid monitor interval is preserved")
         expect(Defaults.sanitizedMonitorInterval(7) == 2, "invalid monitor interval falls back to default")
         expect(Defaults.sanitizedKeyboardDebounceWindow(80) == 80,
