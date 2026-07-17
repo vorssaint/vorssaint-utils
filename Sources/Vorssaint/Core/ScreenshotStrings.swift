@@ -15,7 +15,6 @@ struct ScreenshotFeatureStrings {
     let hintFullScreen: String
     let hintCancel: String
     let hintRepeat: String
-    let hintLoupe: String
     let freezeToggle: String
     let freezeCaption: String
     let folderLabel: String
@@ -77,6 +76,7 @@ struct ScreenshotFeatureStrings {
     let backdropCustomLabel: String
     let openEditorToggle: String
     let openEditorCaption: String
+    let hintLoupe: String
 }
 
 extension FeatureStrings {
@@ -111,7 +111,6 @@ extension ScreenshotFeatureStrings {
         hintFullScreen: "Return captures the whole screen",
         hintCancel: "Esc cancels",
         hintRepeat: "R repeats the last area",
-        hintLoupe: "Z toggles the loupe",
         freezeToggle: "Freeze the screen while selecting",
         freezeCaption: "The picture stops while you choose the area, so nothing moves away or changes during the selection.",
         folderLabel: "Save to",
@@ -172,7 +171,8 @@ extension ScreenshotFeatureStrings {
         backdropDeletePreset: "Remove",
         backdropCustomLabel: "Custom",
         openEditorToggle: "Open the editor right after capturing",
-        openEditorCaption: "The capture skips the floating preview and opens ready to annotate."
+        openEditorCaption: "The capture skips the floating preview and opens ready to annotate.",
+        hintLoupe: "Z toggles the loupe"
     )
 
     static let ptBR = ScreenshotFeatureStrings(
@@ -186,7 +186,6 @@ extension ScreenshotFeatureStrings {
         hintFullScreen: "Return captura a tela inteira",
         hintCancel: "Esc cancela",
         hintRepeat: "R repete a última área",
-        hintLoupe: "Z alterna a lupa",
         freezeToggle: "Congelar a tela durante a seleção",
         freezeCaption: "A imagem para enquanto você escolhe a área, então nada se move nem muda durante a seleção.",
         folderLabel: "Salvar em",
@@ -247,7 +246,8 @@ extension ScreenshotFeatureStrings {
         backdropDeletePreset: "Remover",
         backdropCustomLabel: "Personalizado",
         openEditorToggle: "Abrir o editor logo após capturar",
-        openEditorCaption: "A captura pula a pré-visualização flutuante e já abre pronta para anotar."
+        openEditorCaption: "A captura pula a pré-visualização flutuante e já abre pronta para anotar.",
+        hintLoupe: "Z alterna a lupa"
     )
 
     static let tr = ScreenshotFeatureStrings(
@@ -261,7 +261,6 @@ extension ScreenshotFeatureStrings {
         hintFullScreen: "Return tüm ekranı yakalar",
         hintCancel: "Esc iptal eder",
         hintRepeat: "R son alanı yineler",
-        hintLoupe: "Z büyüteci açar/kapatır",
         freezeToggle: "Seçim sırasında ekranı dondur",
         freezeCaption: "Alanı seçerken görüntü durur, böylece seçim sırasında hiçbir şey hareket etmez veya değişmez.",
         folderLabel: "Kayıt yeri",
@@ -322,7 +321,8 @@ extension ScreenshotFeatureStrings {
         backdropDeletePreset: "Kaldır",
         backdropCustomLabel: "Özel",
         openEditorToggle: "Yakaladıktan hemen sonra düzenleyiciyi aç",
-        openEditorCaption: "Yakalama, yüzen önizlemeyi atlar ve işaretlemeye hazır şekilde açılır."
+        openEditorCaption: "Yakalama, yüzen önizlemeyi atlar ve işaretlemeye hazır şekilde açılır.",
+        hintLoupe: "Z büyüteci açar/kapatır"
     )
 
     static let ru = ScreenshotFeatureStrings(
@@ -336,7 +336,6 @@ extension ScreenshotFeatureStrings {
         hintFullScreen: "Return снимает весь экран",
         hintCancel: "Esc отменяет",
         hintRepeat: "R повторяет последнюю область",
-        hintLoupe: "Z включает лупу",
         freezeToggle: "Замораживать экран при выделении",
         freezeCaption: "Изображение останавливается, пока вы выбираете область, поэтому во время выделения ничего не двигается и не меняется.",
         folderLabel: "Сохранять в",
@@ -397,7 +396,8 @@ extension ScreenshotFeatureStrings {
         backdropDeletePreset: "Удалить",
         backdropCustomLabel: "Свой",
         openEditorToggle: "Открывать редактор сразу после снимка",
-        openEditorCaption: "Снимок пропускает плавающее окно предпросмотра и сразу открывается готовым к пометкам."
+        openEditorCaption: "Снимок пропускает плавающее окно предпросмотра и сразу открывается готовым к пометкам.",
+        hintLoupe: "Z включает лупу"
     )
 
     static let es = ScreenshotFeatureStrings(
@@ -411,7 +411,6 @@ extension ScreenshotFeatureStrings {
         hintFullScreen: "Return captura toda la pantalla",
         hintCancel: "Esc cancela",
         hintRepeat: "R repite la última área",
-        hintLoupe: "Z activa la lupa",
         freezeToggle: "Congelar la pantalla durante la selección",
         freezeCaption: "La imagen se detiene mientras eliges el área, así nada se mueve ni cambia durante la selección.",
         folderLabel: "Guardar en",
@@ -472,7 +471,8 @@ extension ScreenshotFeatureStrings {
         backdropDeletePreset: "Eliminar",
         backdropCustomLabel: "Personalizado",
         openEditorToggle: "Abrir el editor justo después de capturar",
-        openEditorCaption: "La captura omite la previsualización flotante y se abre lista para anotar."
+        openEditorCaption: "La captura omite la previsualización flotante y se abre lista para anotar.",
+        hintLoupe: "Z activa la lupa"
     )
 
     static let de = ScreenshotFeatureStrings(
@@ -486,7 +486,6 @@ extension ScreenshotFeatureStrings {
         hintFullScreen: "Return nimmt den ganzen Bildschirm auf",
         hintCancel: "Esc bricht ab",
         hintRepeat: "R wiederholt den letzten Bereich",
-        hintLoupe: "Z schaltet die Lupe um",
         freezeToggle: "Bildschirm während der Auswahl einfrieren",
         freezeCaption: "Das Bild bleibt stehen, während du den Bereich wählst. So bewegt oder ändert sich nichts während der Auswahl.",
         folderLabel: "Sichern unter",
@@ -547,7 +546,8 @@ extension ScreenshotFeatureStrings {
         backdropDeletePreset: "Entfernen",
         backdropCustomLabel: "Eigene",
         openEditorToggle: "Editor direkt nach der Aufnahme öffnen",
-        openEditorCaption: "Die Aufnahme überspringt die schwebende Vorschau und öffnet sich bereit für Anmerkungen."
+        openEditorCaption: "Die Aufnahme überspringt die schwebende Vorschau und öffnet sich bereit für Anmerkungen.",
+        hintLoupe: "Z schaltet die Lupe um"
     )
 
     static let fr = ScreenshotFeatureStrings(
@@ -561,7 +561,6 @@ extension ScreenshotFeatureStrings {
         hintFullScreen: "Return capture tout l'écran",
         hintCancel: "Esc annule",
         hintRepeat: "R répète la dernière zone",
-        hintLoupe: "Z active la loupe",
         freezeToggle: "Figer l'écran pendant la sélection",
         freezeCaption: "L'image s'arrête pendant que vous choisissez la zone, donc rien ne bouge ni ne change pendant la sélection.",
         folderLabel: "Enregistrer dans",
@@ -622,7 +621,8 @@ extension ScreenshotFeatureStrings {
         backdropDeletePreset: "Supprimer",
         backdropCustomLabel: "Personnalisé",
         openEditorToggle: "Ouvrir l'éditeur juste après la capture",
-        openEditorCaption: "La capture ignore l'aperçu flottant et s'ouvre prête à être annotée."
+        openEditorCaption: "La capture ignore l'aperçu flottant et s'ouvre prête à être annotée.",
+        hintLoupe: "Z active la loupe"
     )
 
     static let it = ScreenshotFeatureStrings(
@@ -636,7 +636,6 @@ extension ScreenshotFeatureStrings {
         hintFullScreen: "Return cattura l'intero schermo",
         hintCancel: "Esc annulla",
         hintRepeat: "R ripete l'ultima area",
-        hintLoupe: "Z attiva la lente",
         freezeToggle: "Congela lo schermo durante la selezione",
         freezeCaption: "L'immagine si ferma mentre scegli l'area, quindi niente si muove o cambia durante la selezione.",
         folderLabel: "Salva in",
@@ -697,7 +696,8 @@ extension ScreenshotFeatureStrings {
         backdropDeletePreset: "Rimuovi",
         backdropCustomLabel: "Personalizzato",
         openEditorToggle: "Apri l'editor subito dopo la cattura",
-        openEditorCaption: "La cattura salta l'anteprima flottante e si apre pronta per le annotazioni."
+        openEditorCaption: "La cattura salta l'anteprima flottante e si apre pronta per le annotazioni.",
+        hintLoupe: "Z attiva la lente"
     )
 
     static let ja = ScreenshotFeatureStrings(
@@ -711,7 +711,6 @@ extension ScreenshotFeatureStrings {
         hintFullScreen: "Returnで画面全体を撮影",
         hintCancel: "Escでキャンセル",
         hintRepeat: "Rで前回の範囲を再撮影",
-        hintLoupe: "Zでルーペを切り替え",
         freezeToggle: "選択中は画面を静止させる",
         freezeCaption: "範囲を選んでいる間は画像が止まるため、選択中に何も動いたり変わったりしません。",
         folderLabel: "保存先",
@@ -772,7 +771,8 @@ extension ScreenshotFeatureStrings {
         backdropDeletePreset: "削除",
         backdropCustomLabel: "カスタム",
         openEditorToggle: "撮影後すぐにエディタを開く",
-        openEditorCaption: "撮影はフローティングプレビューを飛ばして、すぐに注釈を付けられる状態で開きます。"
+        openEditorCaption: "撮影はフローティングプレビューを飛ばして、すぐに注釈を付けられる状態で開きます。",
+        hintLoupe: "Zでルーペを切り替え"
     )
 
     static let ko = ScreenshotFeatureStrings(
@@ -786,7 +786,6 @@ extension ScreenshotFeatureStrings {
         hintFullScreen: "Return 키로 전체 화면 캡처",
         hintCancel: "Esc 키로 취소",
         hintRepeat: "R 키로 마지막 영역 반복",
-        hintLoupe: "Z 키로 확대경 전환",
         freezeToggle: "선택하는 동안 화면 정지",
         freezeCaption: "영역을 고르는 동안 화면이 멈추므로 선택 중에 아무것도 움직이거나 바뀌지 않습니다.",
         folderLabel: "저장 위치",
@@ -847,7 +846,8 @@ extension ScreenshotFeatureStrings {
         backdropDeletePreset: "제거",
         backdropCustomLabel: "사용자화",
         openEditorToggle: "캡처 후 바로 편집기 열기",
-        openEditorCaption: "캡처가 떠 있는 미리보기를 건너뛰고 바로 주석을 남길 수 있는 상태로 열립니다."
+        openEditorCaption: "캡처가 떠 있는 미리보기를 건너뛰고 바로 주석을 남길 수 있는 상태로 열립니다.",
+        hintLoupe: "Z 키로 확대경 전환"
     )
 
     static let zhHans = ScreenshotFeatureStrings(
@@ -861,7 +861,6 @@ extension ScreenshotFeatureStrings {
         hintFullScreen: "按 Return 截取整个屏幕",
         hintCancel: "按 Esc 取消",
         hintRepeat: "按 R 重复上次区域",
-        hintLoupe: "按 Z 切换放大镜",
         freezeToggle: "选择时冻结屏幕",
         freezeCaption: "选择区域时画面会静止，因此选择过程中不会有任何移动或变化。",
         folderLabel: "存储位置",
@@ -922,7 +921,8 @@ extension ScreenshotFeatureStrings {
         backdropDeletePreset: "移除",
         backdropCustomLabel: "自定义",
         openEditorToggle: "截取后立即打开编辑器",
-        openEditorCaption: "截屏会跳过浮动预览，直接打开即可开始标注。"
+        openEditorCaption: "截屏会跳过浮动预览，直接打开即可开始标注。",
+        hintLoupe: "按 Z 切换放大镜"
     )
 
     static let zhTW = ScreenshotFeatureStrings(
@@ -936,7 +936,6 @@ extension ScreenshotFeatureStrings {
         hintFullScreen: "按 Return 擷取整個螢幕",
         hintCancel: "按 Esc 取消",
         hintRepeat: "按 R 重複上次區域",
-        hintLoupe: "按 Z 切換放大鏡",
         freezeToggle: "選取時凍結螢幕",
         freezeCaption: "選取區域時畫面會靜止，因此選取過程中不會有任何移動或變化。",
         folderLabel: "儲存位置",
@@ -997,7 +996,8 @@ extension ScreenshotFeatureStrings {
         backdropDeletePreset: "移除",
         backdropCustomLabel: "自訂",
         openEditorToggle: "擷取後立即開啟編輯器",
-        openEditorCaption: "截圖會略過浮動預覽，直接開啟即可開始標註。"
+        openEditorCaption: "截圖會略過浮動預覽，直接開啟即可開始標註。",
+        hintLoupe: "按 Z 切換放大鏡"
     )
 
     static let zhHK = ScreenshotFeatureStrings(
@@ -1011,7 +1011,6 @@ extension ScreenshotFeatureStrings {
         hintFullScreen: "按 Return 擷取整個螢幕",
         hintCancel: "按 Esc 取消",
         hintRepeat: "按 R 重複上次範圍",
-        hintLoupe: "按 Z 切換放大鏡",
         freezeToggle: "選取時凍結螢幕",
         freezeCaption: "選取範圍時畫面會靜止，因此選取過程中不會有任何移動或變化。",
         folderLabel: "儲存位置",
@@ -1072,6 +1071,7 @@ extension ScreenshotFeatureStrings {
         backdropDeletePreset: "移除",
         backdropCustomLabel: "自訂",
         openEditorToggle: "擷取後立即開啟編輯器",
-        openEditorCaption: "截圖會略過浮動預覽，直接開啟即可開始標註。"
+        openEditorCaption: "截圖會略過浮動預覽，直接開啟即可開始標註。",
+        hintLoupe: "按 Z 切換放大鏡"
     )
 }

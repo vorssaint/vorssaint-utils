@@ -12,7 +12,8 @@ actions on a wheel around the pointer, plus Camera preview, a floating
 mirror for video calls. It also lets Dock Preview work with Dock
 magnification, shows the brightness percentage while you adjust displays,
 turns the screenshot black bar into a solid block in any color, can open
-screenshots straight in the editor, returns
+screenshots straight in the editor, adds a zoomable loupe to the screenshot
+selection, returns
 Firefox to the Volume Mixer, improves mouse navigation, makes smooth
 scrolling work with more mice, keeps the Shelf from opening while you move a
 window, fixes a crash right after launch, makes brightness keys follow the
@@ -31,6 +32,8 @@ macOS 26 (Tahoe).
   changes on the Mac screen and external monitors.
 - Screenshots can skip the floating preview and open straight in the
   annotation editor. Off by default in Settings under Screenshot.
+- The screenshot selection now has a pixel loupe for precise captures.
+  Press Z to show or hide it and scroll to zoom.
 
 ### Changed
 - Dock Preview now works with Dock magnification enabled, so the zoom effect
