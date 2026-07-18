@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [3.1.14]
+## [3.1.14] - 2026-07-18
 
 ### Summary
 Vorssaint 3.1.14 adds a radial menu that puts your favorite actions on a
