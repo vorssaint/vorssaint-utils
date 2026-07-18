@@ -101,15 +101,24 @@ enum Sudoers {
         return valid ? user : nil
     }
 
+    /// Serializes every touch of the SleepDisabled state. The probe below
+    /// re-applies the value it just read; racing it against a concurrent
+    /// disable (launch recovery, a session ending) could resurrect a stale
+    /// "1" after the flag was already cleared, leaving lid sleep off with
+    /// nothing left to repair it.
+    private static let sleepStateQueue = DispatchQueue(label: "com.vorssaint.utils.pmset-state")
+
     /// Proves the passwordless path by running it: re-applying the current
     /// SleepDisabled state through `sudo -n` changes nothing on the system and
     /// exercises the exact call the feature makes. Listing checks (`sudo -l`)
     /// reported the rule as ready on Macs where the real call still asked for
     /// a password, which put every toggle behind a prompt (issue #269).
     static func isConfigured() -> Bool {
-        let report = Shell.run("/usr/bin/pmset", ["-g"])
-        guard report.status == 0 else { return false }
-        return pmsetDisableSleep(SudoersSupport.sleepDisabled(inPmsetOutput: report.output))
+        sleepStateQueue.sync {
+            let report = Shell.run("/usr/bin/pmset", ["-g"])
+            guard report.status == 0 else { return false }
+            return pmsetDisableSleepOnQueue(SudoersSupport.sleepDisabled(inPmsetOutput: report.output))
+        }
     }
 
     /// Whether any rule file (current or legacy name) is visible on disk.
@@ -147,6 +156,10 @@ enum Sudoers {
     /// (returns false) when the rule is not installed.
     @discardableResult
     static func pmsetDisableSleep(_ on: Bool) -> Bool {
+        sleepStateQueue.sync { pmsetDisableSleepOnQueue(on) }
+    }
+
+    private static func pmsetDisableSleepOnQueue(_ on: Bool) -> Bool {
         Shell.run("/usr/bin/sudo", ["-n", "/usr/bin/pmset", "disablesleep", on ? "1" : "0"]).status == 0
     }
 }

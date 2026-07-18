@@ -149,9 +149,9 @@ enum MixerRoutingSupport {
     static let owningAppSearchDepth = 6
 
     /// The regular app a helper's audio belongs to. Normally that is the
-    /// helper's responsible process, but Firefox detaches its helpers from
-    /// the responsibility chain, macOS reports each one as responsible for
-    /// itself, and the browser vanished from the mixer (issue #256). The BSD
+    /// helper's responsible process, but some browsers detach their helpers
+    /// from the responsibility chain, macOS reports each one as responsible
+    /// for itself, and the browser vanished from the mixer (issue #256). The BSD
     /// parent chain still leads to the app that spawned the helper, so walk
     /// it and bill the helper to the nearest regular app.
     static func owningRegularAppPid(responsiblePid: pid_t,

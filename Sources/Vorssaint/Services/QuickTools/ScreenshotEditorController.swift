@@ -332,7 +332,9 @@ final class ScreenshotEditorModel: ObservableObject {
             let reading = BarcodeDetector.read(image)
             DispatchQueue.main.async { [weak self] in
                 guard let self, image === self.baseImage else { return }
-                self.qrReading = reading
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    self.qrReading = reading
+                }
             }
         }
     }

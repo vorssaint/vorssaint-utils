@@ -147,6 +147,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         AppVolumeMixer.shared.stopAll()
         // Flushes any scratchpad edit still inside the save debounce.
         ScratchpadService.shared.suspend()
+        // The clipboard history persists through an async pipeline; the last
+        // mutation (often a Clear) must land before the process dies.
+        if AppFeature.clipboardHistory.isAvailable {
+            ClipboardHistoryService.shared.flushBeforeTermination()
+        }
         KeepAwakeManager.shared.deactivate(reason: .quit)
     }
 

@@ -232,7 +232,7 @@ final class KeepAwakeManager: ObservableObject {
                 DispatchQueue.main.async {
                     manager.scheduleAutomationEvaluation(after: 0.1)
                 }
-            }, context).takeRetainedValue()
+            }, context)?.takeRetainedValue()
             if let powerSourceRunLoopSource {
                 CFRunLoopAddSource(CFRunLoopGetMain(), powerSourceRunLoopSource, .defaultMode)
             }

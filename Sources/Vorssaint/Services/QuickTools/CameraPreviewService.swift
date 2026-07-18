@@ -36,6 +36,10 @@ final class CameraPreviewService: ObservableObject {
     private var outsideClickMonitor: Any?
     private var activationObserver: NSObjectProtocol?
     private var deviceObservers: [NSObjectProtocol] = []
+    /// When the permission dialog resolves, the app that was frontmost
+    /// before it reactivates a beat later; that activation must not count
+    /// as the user clicking away from a mirror they just allowed.
+    private var permissionResolvedAt: Date?
 
     private init() {
         hotkey.onPress = { [weak self] in self?.toggle() }
@@ -108,6 +112,7 @@ final class CameraPreviewService: ObservableObject {
                 DispatchQueue.main.async {
                     Permissions.shared.refresh()
                     guard let self, self.isVisible else { return }
+                    self.permissionResolvedAt = Date()
                     if granted {
                         self.startSession()
                     } else {
@@ -123,6 +128,10 @@ final class CameraPreviewService: ObservableObject {
     }
 
     private func startSession() {
+        // A session may still be alive when a queued permission callback or
+        // a device replug lands here; two running sessions would fight over
+        // the camera, so the old one always stops first.
+        stopSession()
         state = .starting
         installDeviceObservers()
         refreshDevices()
@@ -165,11 +174,19 @@ final class CameraPreviewService: ObservableObject {
     }
 
     func selectCamera(_ device: AVCaptureDevice) {
+        activateCamera(device, rememberChoice: true)
+    }
+
+    private func activateCamera(_ device: AVCaptureDevice, rememberChoice: Bool) {
         guard device.uniqueID != selectedDeviceID else { return }
         selectedDeviceID = device.uniqueID
-        // The system remembers this choice per app, so the next preview
-        // opens on the same camera without a key of our own.
-        AVCaptureDevice.userPreferredCamera = device
+        if rememberChoice {
+            // The system remembers this choice per app, so the next preview
+            // opens on the same camera without a key of our own. Only an
+            // explicit pick may land here: a fallback after a disconnect
+            // would overwrite the remembered camera with a stand-in.
+            AVCaptureDevice.userPreferredCamera = device
+        }
         guard let session else { return }
         sessionQueue.async { [weak self] in
             session.beginConfiguration()
@@ -236,7 +253,7 @@ final class CameraPreviewService: ObservableObject {
         case .running, .starting:
             if !selectedStillHere {
                 if let fallback = devices.first {
-                    selectCamera(fallback)
+                    activateCamera(fallback, rememberChoice: false)
                 } else {
                     stopSession()
                     state = .noCamera
@@ -342,6 +359,8 @@ final class CameraPreviewService: ObservableObject {
                   let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
                   app.bundleIdentifier != Bundle.main.bundleIdentifier
             else { return }
+            if let resolved = self.permissionResolvedAt,
+               Date().timeIntervalSince(resolved) < 1.0 { return }
             self.hide()
         }
     }

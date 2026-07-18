@@ -726,7 +726,8 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     private func load() {
-        var data = Self.storeURL.flatMap { try? Data(contentsOf: $0) }
+        let fileData = Self.storeURL.flatMap { try? Data(contentsOf: $0) }
+        var data = fileData
         if data == nil,
            let legacy = UserDefaults.standard.data(forKey: DefaultsKey.clipboardHistoryEntries) {
             data = legacy
@@ -735,6 +736,13 @@ final class ClipboardHistoryService: ObservableObject {
         guard let data,
               let decoded = try? JSONDecoder().decode([ClipboardHistoryEntry].self, from: data)
         else { return }
+        if fileData != nil,
+           UserDefaults.standard.object(forKey: DefaultsKey.clipboardHistoryEntries) != nil {
+            // The file decoded and is the durable source. A legacy blob still
+            // around (a kill inside the migration window, or a downgrade
+            // round trip) would sit in the preferences plist forever.
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.clipboardHistoryEntries)
+        }
         entries = decoded
         normalizeEntryOrder()
         trimToLimit()
@@ -760,16 +768,25 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     private func persist() {
-        // The image sweep stays on the main thread: run from the persist
-        // queue it could race a just-stored PNG between its write and its
-        // entry landing in the list, and delete it.
-        ClipboardImageStore.cleanup(keeping: Set(entries.compactMap(\.imageFile)))
         let snapshot = entries
         let retireLegacyBlob = migrateLegacyBlob
         Self.persistQueue.async { [weak self] in
             guard let data = try? JSONEncoder().encode(snapshot) else { return }
+            // The PNG sweep waits for the JSON to land and runs back on the
+            // main thread against the list as it is then. Sweeping first
+            // could strand an entry whose PNG died if the process fell in
+            // between; the reverse at worst leaves an orphaned PNG that the
+            // launch sweep heals. The main thread also keeps it from racing
+            // a just-stored PNG whose entry has not landed in the list yet.
+            func sweepAfterPersist() {
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    ClipboardImageStore.cleanup(keeping: Set(self.entries.compactMap(\.imageFile)))
+                }
+            }
             guard let url = Self.storeURL else {
                 UserDefaults.standard.set(data, forKey: DefaultsKey.clipboardHistoryEntries)
+                sweepAfterPersist()
                 return
             }
             try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
@@ -777,11 +794,24 @@ final class ClipboardHistoryService: ObservableObject {
             // Only a write that really landed retires the legacy blob, so a
             // failed save leaves the history readable from somewhere.
             guard (try? data.write(to: url, options: .atomic)) != nil else { return }
+            sweepAfterPersist()
             if retireLegacyBlob {
                 UserDefaults.standard.removeObject(forKey: DefaultsKey.clipboardHistoryEntries)
                 DispatchQueue.main.async { self?.migrateLegacyBlob = false }
             }
         }
+    }
+
+    /// Runs any deferred persist right now and waits for the write to land.
+    /// Quit must not race the async pipeline: the last mutation of a session
+    /// (often a privacy minded Clear) has to be durable before the process
+    /// dies.
+    func flushBeforeTermination() {
+        if persistScheduled {
+            persistScheduled = false
+            persist()
+        }
+        Self.persistQueue.sync {}
     }
 
     // MARK: - Shortcut

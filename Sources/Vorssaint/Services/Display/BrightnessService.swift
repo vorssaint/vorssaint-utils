@@ -154,7 +154,7 @@ final class BrightnessService: ObservableObject {
         pendingDisplayIDs = []
         displayControlFailure = nil
         brightnessOSDSupported = false
-        BrightnessOSD.dismiss()
+        BrightnessOSD.teardown()
         if !displays.isEmpty { displays = [] }
         // Restore displays and gamma on the work queue, AFTER any operation
         // already in flight. Normal app termination uses the synchronous
@@ -447,7 +447,11 @@ final class BrightnessService: ObservableObject {
             // routed press on a system-routed external display (Apple
             // pipeline monitors, or any display in clamshell mode) is
             // stepped here instead of passed through (issue #268).
-            let isBuiltIn = displays.first(where: { $0.id == displayID })?.isBuiltIn ?? false
+            // The published list can lag a rebuild by a beat; resolve the
+            // panel kind from the display server so a press never lands on
+            // the wrong side of the built-in check.
+            let isBuiltIn = displays.first(where: { $0.id == displayID })?.isBuiltIn
+                ?? (CGDisplayIsBuiltin(displayID) != 0)
             guard BrightnessSupport.stepsSystemRoutedDisplay(
                 followsPointer: followsPointer,
                 displayIsBuiltIn: isBuiltIn,

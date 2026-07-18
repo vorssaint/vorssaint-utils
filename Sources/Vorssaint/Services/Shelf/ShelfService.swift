@@ -335,6 +335,12 @@ final class ShelfService: ObservableObject {
                 if defaults.bool(forKey: DefaultsKey.shelfDropZoneEnabled) {
                     self.handleDragForDock()
                 }
+                // Every open gesture gets the button watchdog, not just one
+                // that engaged the drop zone: a mouse-up swallowed by the
+                // drag machinery or one of our own windows would otherwise
+                // leave the gesture open with a stale baseline, and the next
+                // orphan window-move drag would read as fresh content.
+                self.startDockedWatchdog()
             }
         }
     }
@@ -550,7 +556,7 @@ final class ShelfService: ObservableObject {
         guard dockedWatchdog == nil else { return }
         dockedWatchdog = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             guard let self else { return }
-            guard self.dockedDragActive else {
+            guard self.dockedDragActive || self.sawGestureStart else {
                 self.dockedWatchdog?.invalidate()
                 self.dockedWatchdog = nil
                 return

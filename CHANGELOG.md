@@ -7,23 +7,13 @@ All notable changes to this project are documented here. The format follows
 ## [3.1.14]
 
 ### Summary
-Vorssaint 3.1.14 adds a customizable radial menu that puts your favorite
-actions on a wheel around the pointer, Camera preview, a floating
-mirror for video calls, and a scratchpad that keeps quick notes in a
-floating window and saves as you type. It also lets Dock Preview work with Dock
-magnification, shows the brightness percentage while you adjust displays,
-turns the screenshot black bar into a solid block in any color, can open
-screenshots straight in the editor, adds a zoomable loupe to the screenshot
-selection, reads QR codes when you copy text from the screen, shows the file
-system format of each drive in the Disks panel, lets the clipboard history
-keep up to 1000 items, keeps Launch at Login from turning itself off,
-returns missing browsers to the Volume Mixer, improves mouse navigation, makes smooth
-scrolling work with more mice, keeps the Shelf from opening while you move a
-window, fixes a crash right after launch, stops closed lid mode from asking
-for the password on every toggle, makes brightness keys follow the pointer
-to external monitors, stops the App Switcher from slowing down typing in
-demanding apps, shows apps from compatibility layers in the Window
-Switcher and cleans up menu bar and Settings visuals on macOS 26 (Tahoe).
+Vorssaint 3.1.14 adds a radial menu that puts your favorite actions on a
+wheel around the pointer, Camera preview, a floating mirror for video
+calls, and a scratchpad that keeps quick notes in a floating window and
+saves as you type. Screenshots gain a pixel loupe, QR code reading and
+solid color blocks, the clipboard history can keep up to 1000 items, and a
+long round of fixes covers typing lag with the App Switcher on, brightness
+keys on external monitors, Launch at Login, the Volume Mixer and more.
 
 ### Added
 - A new radial menu puts your favorite actions on a wheel around the
@@ -37,14 +27,15 @@ Switcher and cleans up menu bar and Settings visuals on macOS 26 (Tahoe).
   you type. It opens from the panel, the quick panel or a shortcut, and can
   clear itself after days unused.
 - The optional brightness overlay shows the percentage after brightness
-  changes on the Mac screen and external monitors.
+  changes on the Mac screen and external monitors. Off by default in
+  Settings under Energy.
 - Screenshots can skip the floating preview and open straight in the
   annotation editor. Off by default in Settings under Screenshot.
 - The screenshot selection now has a pixel loupe for precise captures.
   Press Z to show or hide it and scroll to zoom. Thanks to @ruvelro.
-- Copy text from screen now reads QR codes. When the area holds a QR code,
-  its content is shown so you can copy it or open the link. The same works
-  from a screenshot's preview and editor. Off in Settings.
+- Copy text from screen now reads QR codes and shows their content so you
+  can copy it or open the link. The same works from a screenshot's preview
+  and editor. You can turn it off in Settings.
 - The Disks panel now shows each drive's file system format, like APFS or
   exFAT, next to the drive name.
 - The clipboard history can now keep up to 1000 items. Pick the size in

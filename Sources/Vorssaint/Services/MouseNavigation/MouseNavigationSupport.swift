@@ -46,10 +46,10 @@ enum MouseNavigationSupport {
         "com.moonlight-stream.Moonlight",
     ]
 
-    /// Gecko apps navigate with the side buttons natively on macOS
-    /// (mousebutton.4th/5th.enabled) and keep Back and Forward out of the
-    /// menu bar entirely. The prefix covers every Mozilla channel: Firefox,
-    /// Developer Edition, Nightly, ESR and Thunderbird.
+    /// The browser family behind this prefix navigates with the side
+    /// buttons natively on macOS and keeps Back and Forward out of the
+    /// menu bar entirely. One prefix covers every release channel of the
+    /// family, including its mail client.
     static let passThroughBundleIDPrefixes = ["org.mozilla."]
 
     static func shouldPassThrough(bundleIdentifier: String?) -> Bool {
