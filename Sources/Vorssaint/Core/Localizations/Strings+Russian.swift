@@ -869,6 +869,12 @@ extension Strings {
         ocrQRCopied: "QR-код скопирован",
         qrResultTitle: "QR-код",
         qrResultCopy: "Копировать",
-        qrResultOpen: "Открыть ссылку"
+        qrResultOpen: "Открыть ссылку",
+        highlightsTitle: "Новое в этом обновлении",
+        highlightsCaptionDockPreview: "Dock Preview теперь работает при включённом увеличении Dock",
+        highlightsCaptionScreenshot: "Инструмент снимков экрана получил пиксельную лупу и чтение QR-кодов",
+        highlightsConfigure: "Настроить",
+        highlightsTry: "Попробовать",
+        highlightsSeeAll: "Все изменения"
     )
 }

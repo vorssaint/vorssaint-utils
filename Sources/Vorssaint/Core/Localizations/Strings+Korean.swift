@@ -869,6 +869,12 @@ extension Strings {
         ocrQRCopied: "QR 코드를 복사했습니다",
         qrResultTitle: "QR 코드",
         qrResultCopy: "복사",
-        qrResultOpen: "링크 열기"
+        qrResultOpen: "링크 열기",
+        highlightsTitle: "이 업데이트의 새로운 기능",
+        highlightsCaptionDockPreview: "Dock Preview가 이제 Dock 확대가 켜져 있어도 작동합니다",
+        highlightsCaptionScreenshot: "스크린샷 도구에 픽셀 루페와 QR 코드 읽기가 추가되었습니다",
+        highlightsConfigure: "설정하기",
+        highlightsTry: "사용해 보기",
+        highlightsSeeAll: "모든 변경 사항 보기"
     )
 }

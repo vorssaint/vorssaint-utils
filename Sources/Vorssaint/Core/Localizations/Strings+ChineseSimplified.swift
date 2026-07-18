@@ -868,6 +868,12 @@ extension Strings {
         ocrQRCopied: "二维码已拷贝",
         qrResultTitle: "二维码",
         qrResultCopy: "拷贝",
-        qrResultOpen: "打开链接"
+        qrResultOpen: "打开链接",
+        highlightsTitle: "此更新的新功能",
+        highlightsCaptionDockPreview: "Dock Preview 现在可以在开启 Dock 放大时使用",
+        highlightsCaptionScreenshot: "截图工具新增了像素放大镜和二维码读取",
+        highlightsConfigure: "设置",
+        highlightsTry: "试一试",
+        highlightsSeeAll: "查看全部更改"
     )
 }

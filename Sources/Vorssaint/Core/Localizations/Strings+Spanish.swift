@@ -868,6 +868,12 @@ extension Strings {
         ocrQRCopied: "Código QR copiado",
         qrResultTitle: "Código QR",
         qrResultCopy: "Copiar",
-        qrResultOpen: "Abrir enlace"
+        qrResultOpen: "Abrir enlace",
+        highlightsTitle: "Novedades de esta versión",
+        highlightsCaptionDockPreview: "Dock Preview ahora funciona con la ampliación del Dock activada",
+        highlightsCaptionScreenshot: "La captura de pantalla ganó una lupa de píxeles y lectura de códigos QR",
+        highlightsConfigure: "Configurar",
+        highlightsTry: "Probar",
+        highlightsSeeAll: "Ver todos los cambios"
     )
 }

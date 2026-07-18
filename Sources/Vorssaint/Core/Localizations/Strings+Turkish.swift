@@ -868,6 +868,12 @@ extension Strings {
         ocrQRCopied: "QR kodu kopyalandı",
         qrResultTitle: "QR kodu",
         qrResultCopy: "Kopyala",
-        qrResultOpen: "Bağlantıyı aç"
+        qrResultOpen: "Bağlantıyı aç",
+        highlightsTitle: "Bu güncellemedeki yenilikler",
+        highlightsCaptionDockPreview: "Dock Preview artık Dock büyütme açıkken de çalışıyor",
+        highlightsCaptionScreenshot: "Ekran görüntüsü aracına piksel büyüteci ve QR kod okuma eklendi",
+        highlightsConfigure: "Ayarla",
+        highlightsTry: "Dene",
+        highlightsSeeAll: "Tüm değişiklikleri gör"
     )
 }

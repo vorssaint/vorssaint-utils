@@ -10,7 +10,8 @@ All notable changes to this project are documented here. The format follows
 Vorssaint 3.1.14 adds a radial menu that puts your favorite actions on a
 wheel around the pointer, Camera preview, a floating mirror for video
 calls, and a scratchpad that keeps quick notes in a floating window and
-saves as you type. Screenshots gain a pixel loupe, QR code reading and
+saves as you type. A short tour presents the highlights once after the
+update. Screenshots gain a pixel loupe, QR code reading and
 solid color blocks, the clipboard history can keep up to 1000 items, and a
 long round of fixes covers typing lag with the App Switcher on, brightness
 keys on external monitors, Launch at Login, the Volume Mixer and more.
@@ -40,6 +41,8 @@ keys on external monitors, Launch at Login, the Volume Mixer and more.
   exFAT, next to the drive name.
 - The clipboard history can now keep up to 1000 items. Pick the size in
   Settings under Clipboard. Thanks to @ruvelro.
+- A short tour opens once after the update, showing the new features with
+  a button to set up or try each one right away.
 
 ### Changed
 - Dock Preview now works with Dock magnification enabled, so the zoom effect

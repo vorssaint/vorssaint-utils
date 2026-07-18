@@ -1162,6 +1162,15 @@ struct MetricsTests {
         let plistVersion = (NSDictionary(contentsOfFile: "Resources/Info.plist")?["CFBundleShortVersionString"] as? String) ?? ""
         expect(plistVersion == "3.1.14",
                "bumping the app version requires re-deciding the support prompt pin above")
+        expect(UpdateHighlightsInfo.releaseVersion == plistVersion,
+               "the highlights tour belongs to the release being prepared; re-curate its rows on every version bump")
+        expect(UpdateHighlightsInfo.shouldShow(appVersion: "3.1.14", lastSeenVersion: "3.1.13")
+               && UpdateHighlightsInfo.shouldShow(appVersion: "3.1.14", lastSeenVersion: nil),
+               "highlights tour shows once after updating to its pinned release")
+        expect(!UpdateHighlightsInfo.shouldShow(appVersion: "3.1.14", lastSeenVersion: "3.1.14"),
+               "highlights tour stays hidden after it is seen")
+        expect(!UpdateHighlightsInfo.shouldShow(appVersion: "3.1.15", lastSeenVersion: nil),
+               "highlights tour never leaks into another release")
         expect(registeredDefaults[DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect] as? Bool == false,
                "headphone disconnect volume lowering is opt-in")
         expect(registeredDefaults[DefaultsKey.mixerHeadphonesDisconnectVolumePercent] as? Int == 0,
@@ -4522,6 +4531,11 @@ struct MetricsTests {
                                 strings.qrResultTitle, strings.qrResultCopy, strings.qrResultOpen]
             expect(ocrQRStrings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "\(prefix) screen QR strings are present without em dash")
+            let highlightsStrings = [strings.highlightsTitle, strings.highlightsCaptionDockPreview,
+                                     strings.highlightsCaptionScreenshot, strings.highlightsConfigure,
+                                     strings.highlightsTry, strings.highlightsSeeAll]
+            expect(highlightsStrings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
+                   "\(prefix) update highlights strings are present without em dash")
             let officialHomebrewIntroStrings = [
                 strings.homebrewOfficialIntroTitle,
                 strings.homebrewOfficialIntroMessage,

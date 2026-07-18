@@ -60,6 +60,7 @@ enum SettingsBackupSupport {
         DefaultsKey.featuresOnboardingVersion,
         DefaultsKey.lastUpdateIntroVersion,
         DefaultsKey.supportUpdateIntroVersion,
+        DefaultsKey.updateHighlightsSeenVersion,
         DefaultsKey.panelCollapsedResetVersion,
     ]
 

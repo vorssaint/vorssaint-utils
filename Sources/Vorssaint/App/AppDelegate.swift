@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var onboardingWindow: NSWindow?
     private var dockPreviewIntroWindow: NSWindow?
     private var supportIntroWindow: NSWindow?
+    private var updateHighlightsWindow: NSWindow?
     private var supportIntroCanClose = false
     private var updateShowcaseWindow: NSWindow?
     private var updatePreviewWindow: NSWindow?
@@ -1090,9 +1091,64 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// On launch after an update, keep the short support prompt visible once per
     /// version. The changelog itself is already shown before download.
     private func presentUpdateIntros() {
+        if showUpdateHighlightsIfNeeded() { return }
         if showSupportUpdateIntroIfNeeded() { return }
         if showUpdateShowcaseIntroIfNeeded() { return }
         showDockPreviewIntroIfNeeded()
+    }
+
+    private func showUpdateHighlightsIfNeeded() -> Bool {
+        guard UpdateHighlightsInfo.shouldShow(
+            appVersion: AppInfo.version,
+            lastSeenVersion: UserDefaults.standard.string(forKey: DefaultsKey.updateHighlightsSeenVersion)
+        ) else { return false }
+        // If every featured item was uninstalled in the hub there is nothing
+        // to tour; mark it seen and stay quiet instead of showing an empty
+        // window.
+        guard UpdateHighlightsView.hasContent else {
+            markUpdateHighlightsSeen()
+            return false
+        }
+        showUpdateHighlights()
+        return true
+    }
+
+    private func showUpdateHighlights() {
+        closePopover()
+        if let window = updateHighlightsWindow {
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+            return
+        }
+        let host = NSHostingController(rootView: UpdateHighlightsView(
+            onFinish: { [weak self] in
+                self?.markUpdateHighlightsSeen()
+                self?.updateHighlightsWindow?.close()
+            }
+        ))
+        host.sizingOptions = .preferredContentSize
+        let window = NSWindow(contentViewController: host)
+        window.title = L10n.shared.s.highlightsTitle
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.isReleasedWhenClosed = false
+        window.isRestorable = false
+        window.isMovableByWindowBackground = true
+        window.delegate = self
+        centerUpdateShowcaseWindow(window)
+        updateHighlightsWindow = window
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        DispatchQueue.main.async { [weak self, weak window] in
+            guard let self, let window, window === self.updateHighlightsWindow else { return }
+            self.centerUpdateShowcaseWindow(window)
+        }
+    }
+
+    private func markUpdateHighlightsSeen() {
+        UserDefaults.standard.set(UpdateHighlightsInfo.releaseVersion,
+                                  forKey: DefaultsKey.updateHighlightsSeenVersion)
     }
 
     private func showUpdateShowcaseIntroIfNeeded() -> Bool {
@@ -1416,6 +1472,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             guard !isTerminating else { return }
             markUpdateShowcaseIntroSeen()
         }
+        if window === updateHighlightsWindow {
+            updateHighlightsWindow = nil
+            guard !isTerminating else { return }
+            markUpdateHighlightsSeen()
+        }
         if window === updatePreviewWindow {
             updatePreviewWindow = nil
         }
@@ -1430,6 +1491,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         markDockPreviewIntroSeenIfCurrentUpdate()
         markSupportUpdateIntroSeenIfCurrentUpdate()
         markUpdateShowcaseIntroSeenIfCurrentUpdate()
+        // A clean install that just saw everything in onboarding should not
+        // then get the update tour; only people who updated get it.
+        markUpdateHighlightsSeen()
     }
 
     private func markDockPreviewIntroSeenIfCurrentUpdate() {

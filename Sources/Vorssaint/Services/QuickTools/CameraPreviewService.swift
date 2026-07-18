@@ -113,6 +113,10 @@ final class CameraPreviewService: ObservableObject {
                     Permissions.shared.refresh()
                     guard let self, self.isVisible else { return }
                     self.permissionResolvedAt = Date()
+                    // The system dialog appears mid fade-in and was observed
+                    // leaving the panel stuck transparent; the resolution is
+                    // the moment the mirror must be fully there.
+                    self.panel?.alphaValue = 1
                     if granted {
                         self.startSession()
                     } else {
