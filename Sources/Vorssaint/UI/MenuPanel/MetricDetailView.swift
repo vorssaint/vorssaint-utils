@@ -83,7 +83,7 @@ enum MetricDetailKind: String, Equatable, Identifiable {
 extension MenuBarMetric {
     var detailKind: MetricDetailKind {
         switch self {
-        case .cpu, .cpuTemperature:
+        case .cpu, .cpuTemperature, .fanSpeed:
             return .cpu
         case .gpu, .gpuTemperature:
             return .gpu

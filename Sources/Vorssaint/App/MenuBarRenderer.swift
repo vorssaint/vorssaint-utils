@@ -5,7 +5,7 @@ import AppKit
 
 /// A live reading the user can pin next to the menu bar icon.
 enum MenuBarMetric: String, CaseIterable, Identifiable {
-    case cpu, gpu, memory, cpuTemperature, gpuTemperature, batteryTemperature, network, diskUsage, diskActivity, battery, batteryTime, peripheralBattery, power
+    case cpu, gpu, memory, cpuTemperature, gpuTemperature, batteryTemperature, network, diskUsage, diskActivity, battery, batteryTime, peripheralBattery, power, fanSpeed
 
     var id: String { rawValue }
 
@@ -24,6 +24,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .batteryTime: return DefaultsKey.menuBarBatteryTime
         case .peripheralBattery: return DefaultsKey.menuBarPeripheralBattery
         case .power: return DefaultsKey.menuBarPower
+        case .fanSpeed: return DefaultsKey.menuBarFanSpeed
         }
     }
 
@@ -42,6 +43,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .batteryTime: return "clock"
         case .peripheralBattery: return "keyboard"
         case .power: return "powerplug.fill"
+        case .fanSpeed: return "fanblades"
         }
     }
 
@@ -60,6 +62,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .batteryTime: return FeatureStrings.batteryTime(L10n.shared.language).title
         case .peripheralBattery: return strings.monitorShowPeripheralBattery
         case .power: return strings.monitorShowPowerLabel
+        case .fanSpeed: return strings.monitorSysFanSpeeds
         }
     }
 
@@ -68,7 +71,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         .gpu, .gpuTemperature,
         .memory,
         .battery, .batteryTime, .batteryTemperature, .peripheralBattery,
-        .network, .diskUsage, .diskActivity, .power,
+        .network, .diskUsage, .diskActivity, .power, .fanSpeed,
     ]
 
     static func order(in defaults: UserDefaults) -> [MenuBarMetric] {
@@ -92,6 +95,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .network: return .monitorNetwork
         case .diskUsage, .diskActivity: return .monitorDisk
         case .battery, .batteryTime, .batteryTemperature, .peripheralBattery, .power: return .monitorPower
+        case .fanSpeed: return .monitorCPU
         }
     }
 
@@ -405,6 +409,16 @@ enum MenuBarRenderer {
                                             segments: [.symbol(metric.symbolName), .text(" " + text)],
                                             width: reservedWidth(for: metric, preset: preset)))
                 }
+            case .fanSpeed:
+                let rpms = snapshot.fans.compactMap(\.rpm)
+                if !rpms.isEmpty {
+                    let averageRPM = rpms.reduce(0.0, +) / Double(rpms.count)
+                    let rpmString = averageRPM == 0 ? L10n.shared.s.monitorOff : String(format: "%.0f RPM", averageRPM)
+                    let text = "FAN \(rpmString)"
+                    items.append(MetricItem(metric: metric,
+                                            segments: [.symbol(metric.symbolName), .text(" " + text)],
+                                            width: reservedWidth(for: metric, preset: preset)))
+                }
             }
         }
         return items
@@ -646,6 +660,22 @@ enum MenuBarRenderer {
                                                 style: style,
                                                 pressure: nil)])
                 }
+            case .fanSpeed:
+                let rpms = snapshot.fans.compactMap(\.rpm)
+                if !rpms.isEmpty {
+                    let averageRPM = rpms.reduce(0.0, +) / Double(rpms.count)
+                    var fraction = 0.0
+                    if averageRPM > 0 {
+                        let percents = snapshot.fans.compactMap(\.percent)
+                        if !percents.isEmpty {
+                            fraction = Double(percents.reduce(0, +)) / Double(percents.count) / 100.0
+                        }
+                    }
+                    groups.append([.usageBarBlock(label: "FAN",
+                                                  fraction: fraction,
+                                                  style: style,
+                                                  pressure: nil)])
+                }
             }
         }
         return blockJoined(groups, style: style)
@@ -723,6 +753,8 @@ enum MenuBarRenderer {
             return 11      // symbol + " BAT 100%" / " PWR 99W"
         case (_, .batteryTime):
             return 12      // clock symbol + "99h 59m"
+        case (_, .fanSpeed):
+            return 14      // symbol + " FAN 9999 RPM"
         }
     }
 
@@ -964,10 +996,88 @@ enum MenuBarRenderer {
         return image
     }
 
+    private static func fanCircleBlockImage(label: String,
+                                            fraction: Double?,
+                                            style: MenuBarBlockStyle) -> NSImage {
+        let fractionKey = fraction.map { String(format: "%.3f", $0) } ?? "none"
+        let cacheKey = "fanCircle|\(label)|\(fractionKey)|\(style)" as NSString
+        if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
+
+        let labelFont = NSFont.systemFont(ofSize: style == .readable ? 7.2 : 6.6, weight: .medium)
+        let sizingLabelAttrs: [NSAttributedString.Key: Any] = [.font: labelFont]
+        let labelSize = (label as NSString).size(withAttributes: sizingLabelAttrs)
+        
+        let circleDiameter: CGFloat = style == .readable ? 11.5 : 10.5
+        let width = ceil(max(labelSize.width, circleDiameter) + (style == .readable ? 2 : 0.5))
+        let height: CGFloat = style == .readable ? 23 : 21
+
+        let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { rect in
+            NSColor.clear.setFill()
+            rect.fill()
+
+            let labelAttrs = dynamicTextAttributes(font: labelFont)
+            let labelX = (width - labelSize.width) / 2
+            let labelY = style == .readable ? 12.9 : 12.0
+            (label as NSString).draw(at: NSPoint(x: labelX, y: labelY), withAttributes: labelAttrs)
+
+            let circleX = (width - circleDiameter) / 2
+            let circleY = style == .readable ? 1.0 : 0.8
+            let circleRect = NSRect(x: circleX,
+                                    y: circleY,
+                                    width: circleDiameter,
+                                    height: circleDiameter)
+            
+            // Draw background circle
+            let bgPath = NSBezierPath(ovalIn: circleRect)
+            NSColor.labelColor.withAlphaComponent(0.12).setStroke()
+            bgPath.lineWidth = 1.6
+            bgPath.stroke()
+
+            if let fraction, fraction > 0 {
+                // Draw circular progress arc starting from 12 o'clock (90 degrees) clockwise
+                let center = NSPoint(x: circleRect.midX, y: circleRect.midY)
+                let radius = circleRect.width / 2
+                let arcPath = NSBezierPath()
+                let endAngle = 90 - 360 * CGFloat(min(1.0, max(0.0, fraction)))
+                arcPath.appendArc(withCenter: center, radius: radius, startAngle: 90, endAngle: endAngle, clockwise: true)
+                
+                // Color dynamically based on speed fraction
+                let tint: NSColor
+                switch fraction {
+                case ..<0.6:
+                    tint = NSColor.controlAccentColor
+                case ..<0.85:
+                    tint = nsColor(for: .warning) // yellow
+                default:
+                    tint = nsColor(for: .critical) // red
+                }
+                tint.setStroke()
+                arcPath.lineWidth = 1.6
+                arcPath.lineCapStyle = .round
+                arcPath.stroke()
+            } else if fraction == nil {
+                // Stale/undefined state: draw a small dash
+                NSColor.secondaryLabelColor.setStroke()
+                let dash = NSBezierPath()
+                dash.move(to: NSPoint(x: circleRect.midX - 2, y: circleRect.midY))
+                dash.line(to: NSPoint(x: circleRect.midX + 2, y: circleRect.midY))
+                dash.lineWidth = 1.0
+                dash.stroke()
+            }
+            return true
+        }
+        image.isTemplate = false
+        blockImageCache.setObject(image, forKey: cacheKey, cost: blockImageCost(image))
+        return image
+    }
+
     private static func usageBarBlockImage(label: String,
                                            fraction: Double?,
                                            style: MenuBarBlockStyle,
                                            pressure: MemoryPressure?) -> NSImage {
+        if label == "FAN" {
+            return fanCircleBlockImage(label: label, fraction: fraction, style: style)
+        }
         let innerSteps = style == .readable ? 17 : 15
         let fillLevel = fraction.map { MenuBarUsageBarSupport.fillLevel(for: $0, steps: innerSteps) }
         let fillColorHex = fraction.map {
