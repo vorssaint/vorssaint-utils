@@ -82,6 +82,8 @@ keys on external monitors, Launch at Login, the Volume Mixer and more.
   couple of pixels above the other status icons on macOS 26 (Tahoe).
 - Settings sidebar rows no longer slide over the search field while
   scrolling on macOS 26 (Tahoe).
+- The macOS permission prompts now appear in the language the app speaks
+  instead of English only.
 
 ## [3.1.13] - 2026-07-15
 

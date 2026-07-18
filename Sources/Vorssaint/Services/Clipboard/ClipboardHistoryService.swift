@@ -21,7 +21,9 @@ enum ClipboardHistoryMoveDirection {
 final class ClipboardHistoryService: ObservableObject {
     static let shared = ClipboardHistoryService()
 
-    @Published private(set) var entries: [ClipboardHistoryEntry] = []
+    @Published private(set) var entries: [ClipboardHistoryEntry] = [] {
+        didSet { entriesStamp &+= 1 }
+    }
     @Published private(set) var isRunning = false
     @Published private(set) var shortcutRegistrationFailed = false
     @Published private(set) var quickBatchEntryIDs: Set<UUID> = []
@@ -326,15 +328,31 @@ final class ClipboardHistoryService: ObservableObject {
         quickBatchEntryIDs = []
     }
 
+    /// Bumped by the `entries` didSet; lets the search cache below notice any
+    /// mutation without every mutating site having to remember it.
+    private var entriesStamp = 0
+    private var filterCache: (query: String, stamp: Int, imageLabel: String,
+                              result: [ClipboardHistoryEntry])?
+
     func filteredEntries(matching query: String) -> [ClipboardHistoryEntry] {
+        // One ranking pass over a large history of long texts costs real
+        // time, and SwiftUI asks for the filtered list many times per
+        // render. The last result is reused until the query, the language
+        // or the history itself changes.
         let imageLabel = FeatureStrings.clipboard(L10n.shared.language).imageEntryLabel
+        if let cache = filterCache, cache.query == query,
+           cache.stamp == entriesStamp, cache.imageLabel == imageLabel {
+            return cache.result
+        }
         let candidates = entries.enumerated().map { index, entry in
             ClipboardHistorySearchCandidate(index: index,
                                             text: entry.searchableText(imageLabel: imageLabel),
                                             isPinned: entry.isPinned)
         }
-        return ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query)
+        let result = ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query)
             .map { entries[$0] }
+        filterCache = (query, entriesStamp, imageLabel, result)
+        return result
     }
 
     func copyQuickEntry(at index: Int) {

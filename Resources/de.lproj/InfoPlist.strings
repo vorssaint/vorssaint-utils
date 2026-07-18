@@ -1,0 +1,8 @@
+/* macOS Automation permission prompt. */
+"NSAppleEventsUsageDescription" = "Vorssaint verwendet Automatisierung, um Dateien im Finder zu bewegen, Objekte in den Papierkorb zu legen und Terminal-Befehle zu öffnen, wenn du Homebrew-Aktionen anforderst.";
+
+/* macOS Screen & System Audio Recording permission prompt. */
+"NSAudioCaptureUsageDescription" = "Vorssaint greift nur auf den Ton einzelner Apps zu, um deren Lautstärke im Mixer anzupassen. Es wird nichts aufgezeichnet und nichts verlässt deinen Mac.";
+
+/* macOS Camera permission prompt. */
+"NSCameraUsageDescription" = "Vorssaint zeigt deine Kamera nur im Vorschaufenster, das du öffnest, damit du vor einem Anruf prüfen kannst, wie du aussiehst. Es wird nichts aufgezeichnet und nichts verlässt deinen Mac.";
