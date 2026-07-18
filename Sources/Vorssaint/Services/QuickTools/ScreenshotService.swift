@@ -130,14 +130,8 @@ final class ScreenshotService: ObservableObject {
 
     // MARK: - Routing
 
-    /// A finished capture goes to the floating preview, or straight into the
-    /// editor when the direct edit preference is on.
     private func route(_ capture: ScreenshotSelectionController.Capture) {
         preview?.close()
-        if UserDefaults.standard.bool(forKey: DefaultsKey.screenshotOpenEditorDirectly) {
-            openEditor(with: capture)
-            return
-        }
         let controller = ScreenshotQuickPreviewController(
             capture: capture,
             strings: strings,
@@ -237,13 +231,46 @@ final class ScreenshotService: ObservableObject {
                 folder = URL(fileURLWithPath: expanded)
             }
         }
-        let destination = folder
+        var destination = folder
             ?? manager.urls(for: .desktopDirectory, in: .userDomainMask).first
             ?? manager.homeDirectoryForCurrentUser
-        let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
+        let subfolderPattern = UserDefaults.standard.string(forKey: DefaultsKey.screenshotSaveSubfolder) ?? ""
+        let subfolder = ScreenshotSupport.expandSaveSubfolder(subfolderPattern, date: Date())
+        if !subfolder.isEmpty {
+            let dated = destination.appendingPathComponent(subfolder, isDirectory: true)
+            // Only descend into the dated subfolder if we can actually create
+            // it; otherwise fall back to the base folder rather than losing
+            // the screenshot.
+            if (try? manager.createDirectory(at: dated, withIntermediateDirectories: true)) != nil {
+                destination = dated
+            }
+        }
+        let name = Self.fileName(strings: strings)
         let unique = ScreenshotSupport.uniqueFileName(name) { candidate in
             manager.fileExists(atPath: destination.appendingPathComponent(candidate).path)
         }
         return destination.appendingPathComponent(unique)
+    }
+
+    /// The default localized "Screenshot yyyy-MM-dd at HH.mm.ss.png" name
+    /// when no pattern is set, otherwise the pattern with date tokens and
+    /// an optional "%#" number sequence expanded. Advances and persists the
+    /// number sequence when the pattern actually uses it.
+    private static func fileName(strings: ScreenshotFeatureStrings) -> String {
+        let defaults = UserDefaults.standard
+        let pattern = (defaults.string(forKey: DefaultsKey.screenshotFileNamePattern) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !pattern.isEmpty else {
+            return ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
+        }
+        var expanded: String
+        if ScreenshotSupport.fileNamePatternUsesNumber(pattern) {
+            let number = defaults.integer(forKey: DefaultsKey.screenshotFileNumberNext)
+            expanded = ScreenshotSupport.expandFileNamePattern(pattern, date: Date(), number: number)
+            defaults.set(number + 1, forKey: DefaultsKey.screenshotFileNumberNext)
+        } else {
+            expanded = ScreenshotSupport.expandFileNamePattern(pattern, date: Date(), number: 0)
+        }
+        return expanded + ".png"
     }
 }

@@ -11,13 +11,16 @@ struct ScreenshotSettings: View {
     @AppStorage(DefaultsKey.screenshotShortcutEnabled) private var shortcutEnabled = false
     @AppStorage(DefaultsKey.screenshotFreeze) private var freeze = true
     @AppStorage(DefaultsKey.screenshotSaveFolder) private var saveFolder = ""
+    @AppStorage(DefaultsKey.screenshotSaveSubfolder) private var saveSubfolder = ""
+    @AppStorage(DefaultsKey.screenshotFileNamePattern) private var fileNamePattern = ""
+    @AppStorage(DefaultsKey.screenshotFileNumberStart) private var numberStart = 1
+    @AppStorage(DefaultsKey.screenshotFileNumberNext) private var nextNumber = 1
     @AppStorage(DefaultsKey.screenshotIncludePointer) private var includePointer = false
     @AppStorage(DefaultsKey.screenshotDownscale) private var downscale = false
     @AppStorage(DefaultsKey.screenshotDelay) private var delay = 0
     @AppStorage(DefaultsKey.screenshotToolOrder) private var toolOrderRaw =
         ScreenshotSupport.Tool.defaultOrderStorage
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
-    @AppStorage(DefaultsKey.screenshotOpenEditorDirectly) private var openEditorDirectly = false
 
     private var strings: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(l10n.language)
@@ -70,14 +73,12 @@ struct ScreenshotSettings: View {
                 }
                 .pickerStyle(.segmented)
                 Toggle(strings.pointerToggle, isOn: $includePointer)
-                Toggle(strings.openEditorToggle, isOn: $openEditorDirectly)
-                Text(strings.openEditorCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             Section {
                 folderRow
+                subfolderRow
+                fileNameRow
                 Toggle(strings.downscaleToggle, isOn: $downscale)
                 Text(strings.downscaleCaption)
                     .font(.caption)
@@ -117,6 +118,87 @@ struct ScreenshotSettings: View {
                 chooseFolder()
             }
         }
+    }
+
+    private var subfolderRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(strings.subfolderLabel)
+                    .lineLimit(1)
+                TextField("", text: $saveSubfolder)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 150)
+                if !saveSubfolder.isEmpty {
+                    Text(ScreenshotSupport.expandSaveSubfolder(saveSubfolder, date: Date()))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            Text(strings.subfolderCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var fileNameRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(strings.fileNamePatternLabel)
+                    .lineLimit(1)
+                TextField("", text: $fileNamePattern)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 150)
+                Text(fileNamePreview)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            Text(strings.fileNamePatternCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if ScreenshotSupport.fileNamePatternUsesNumber(fileNamePattern) {
+                HStack {
+                    Text(strings.fileNumberStartLabel)
+                        .lineLimit(1)
+                    TextField("", value: $numberStart, formatter: Self.numberFieldFormatter)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 70)
+                    Stepper("", value: $numberStart, in: 0...999_999)
+                        .labelsHidden()
+                    Button(strings.fileNumberResetButton) {
+                        nextNumber = numberStart
+                    }
+                    Spacer()
+                    Text(String(format: strings.fileNumberNextFormat, nextNumber))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .onChange(of: numberStart) { _, newValue in
+                    nextNumber = newValue
+                }
+            }
+        }
+    }
+
+    private static let numberFieldFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .none
+        formatter.minimum = 0
+        formatter.maximum = 999_999
+        formatter.usesGroupingSeparator = false
+        return formatter
+    }()
+
+    private var fileNamePreview: String {
+        let trimmed = fileNamePattern.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
+        }
+        return ScreenshotSupport.expandFileNamePattern(trimmed, date: Date(), number: nextNumber) + ".png"
     }
 
     private var currentFolderName: String {
