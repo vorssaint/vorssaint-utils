@@ -5535,6 +5535,22 @@ struct MetricsTests {
         expect(largeCaptureWindow.width <= 1470 * 0.90
                 && largeCaptureWindow.height <= 956 * 0.88,
                "a large screenshot editor stays inside the visible display")
+        expect(ScreenshotSupport.editorOwnsKeyEvent(eventWindowNumber: 42,
+                                                    editorWindowNumber: 42,
+                                                    editorIsKey: true),
+               "screenshot editor owns key events carrying its window number")
+        expect(ScreenshotSupport.editorOwnsKeyEvent(eventWindowNumber: 0,
+                                                    editorWindowNumber: 42,
+                                                    editorIsKey: true),
+               "screenshot editor owns windowless menu key equivalents while key")
+        expect(!ScreenshotSupport.editorOwnsKeyEvent(eventWindowNumber: 0,
+                                                     editorWindowNumber: 42,
+                                                     editorIsKey: false),
+               "inactive screenshot editor ignores windowless key events")
+        expect(!ScreenshotSupport.editorOwnsKeyEvent(eventWindowNumber: 7,
+                                                     editorWindowNumber: 42,
+                                                     editorIsKey: true),
+               "screenshot editor ignores events explicitly owned by another window")
         let previewFrame = ScreenshotSupport.quickPreviewFrame(
             size: CGSize(width: 286, height: 210),
             anchor: CGRect(x: 1100, y: 100, width: 300, height: 300),

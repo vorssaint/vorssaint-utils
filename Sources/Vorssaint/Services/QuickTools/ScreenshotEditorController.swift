@@ -598,6 +598,7 @@ final class ScreenshotEditorModel: ObservableObject {
         switch tool {
         case .text:
             guard isTap else { return }
+            if selectExistingAnnotation(at: point) { return }
             registerUndo()
             var annotation = ScreenshotSupport.Annotation(
                 tool: .text, color: color, stroke: stroke)
@@ -608,6 +609,7 @@ final class ScreenshotEditorModel: ObservableObject {
             editingTextID = annotation.id
         case .sticker:
             guard isTap else { return }
+            if selectExistingAnnotation(at: point) { return }
             registerUndo()
             let bounds = CGRect(origin: .zero, size: imageSize)
             let side = ScreenshotSupport.stickerSide(for: imageSize, scale: scale)
@@ -623,6 +625,7 @@ final class ScreenshotEditorModel: ObservableObject {
             selectedID = annotation.id
         case .counter:
             guard isTap else { return }
+            if selectExistingAnnotation(at: point) { return }
             registerUndo()
             let annotation = ScreenshotSupport.Annotation(
                 tool: .counter,
@@ -639,8 +642,7 @@ final class ScreenshotEditorModel: ObservableObject {
                 if !undoStack.isEmpty { undoStack.removeLast() }
                 refreshUndoFlags()
                 refreshDirtyState()
-                selectedID = hitTest(point)
-                if selectedID != nil { tool = .select }
+                _ = selectExistingAnnotation(at: point)
             } else if let draftID {
                 selectedID = draftID
             }
@@ -661,6 +663,29 @@ final class ScreenshotEditorModel: ObservableObject {
         case .crop:
             break
         }
+    }
+
+    /// A click on an existing mark always means "edit this", even while a
+    /// creation tool is active. Real drags still create with the active tool.
+    /// Sticker selection updates the style picker without mutating the mark;
+    /// text enters its inline editor immediately.
+    @discardableResult
+    private func selectExistingAnnotation(at point: CGPoint) -> Bool {
+        guard let hitID = hitTest(point),
+              let hit = annotations.first(where: { $0.id == hitID })
+        else {
+            selectedID = nil
+            return false
+        }
+        if hit.tool == .sticker {
+            selectedID = nil
+            sticker = ScreenshotSupport.StickerID.sanitized(hit.text)
+        }
+        selectedID = hitID
+        editingTextID = hit.tool == .text ? hitID : nil
+        clearTextSelection()
+        tool = .select
+        return true
     }
 
     private func updateDraft(_ mutate: (inout ScreenshotSupport.Annotation) -> Void) {
@@ -889,7 +914,12 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
 
     private func installKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self, let window = self.window, event.window === window else { return event }
+            guard let self, let window = self.window,
+                  ScreenshotSupport.editorOwnsKeyEvent(
+                    eventWindowNumber: event.windowNumber,
+                    editorWindowNumber: window.windowNumber,
+                    editorIsKey: window.isKeyWindow)
+            else { return event }
             // While a text field edits, every key belongs to it.
             if window.firstResponder is NSText || self.model.editingTextID != nil {
                 return event
@@ -898,7 +928,11 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         }
         // Control-scroll adjusts canvas zoom.
         scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-            guard let self, let window = self.window, event.window === window,
+            guard let self, let window = self.window,
+                  ScreenshotSupport.editorOwnsKeyEvent(
+                    eventWindowNumber: event.windowNumber,
+                    editorWindowNumber: window.windowNumber,
+                    editorIsKey: window.isKeyWindow),
                   event.modifierFlags.contains(.control)
             else { return event }
             let delta = event.scrollingDeltaY

@@ -91,35 +91,26 @@ struct HomebrewSettings: View {
 
     private var toolbar: some View {
         VStack(alignment: .leading, spacing: 9) {
-            HStack(spacing: 8) {
-                TextField(l10n.s.homebrewSearchPlaceholder, text: $query)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit { search() }
-                Picker("", selection: $searchKind) {
-                    Text(l10n.s.homebrewCasks).tag(HomebrewPackageKind.cask)
-                    Text(l10n.s.homebrewFormulas).tag(HomebrewPackageKind.formula)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    searchField
+                    packageKindPicker
+                    searchButton
+                    refreshButton
+                    updateHomebrewButton
                 }
-                .labelsHidden()
-                .frame(width: 116)
-                Button {
-                    search()
-                } label: {
-                    Label(l10n.s.homebrewSearchButton, systemImage: "magnifyingglass")
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        searchField
+                        packageKindPicker
+                    }
+                    HStack(spacing: 8) {
+                        searchButton
+                        refreshButton
+                        updateHomebrewButton
+                        Spacer(minLength: 0)
+                    }
                 }
-                .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || homebrew.isBusy)
-                Button {
-                    homebrew.refreshInstalled()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .help(l10n.s.homebrewRefresh)
-                .disabled(homebrew.isBusy)
-                Button {
-                    pendingAction = HomebrewPendingAction(action: .updateHomebrew)
-                } label: {
-                    Label(l10n.s.homebrewUpdateHomebrew, systemImage: "arrow.triangle.2.circlepath")
-                }
-                .disabled(homebrew.isBusy)
             }
 
             HStack(spacing: 8) {
@@ -133,6 +124,53 @@ struct HomebrewSettings: View {
                 outdatedSummary
             }
         }
+    }
+
+    private var searchField: some View {
+        TextField(l10n.s.homebrewSearchPlaceholder, text: $query)
+            .textFieldStyle(.roundedBorder)
+            .frame(minWidth: 150)
+            .onSubmit { search() }
+    }
+
+    private var packageKindPicker: some View {
+        Picker("", selection: $searchKind) {
+            Text(l10n.s.homebrewCasks).tag(HomebrewPackageKind.cask)
+            Text(l10n.s.homebrewFormulas).tag(HomebrewPackageKind.formula)
+        }
+        .labelsHidden()
+        .frame(width: 116)
+    }
+
+    private var searchButton: some View {
+        Button {
+            search()
+        } label: {
+            Label(l10n.s.homebrewSearchButton, systemImage: "magnifyingglass")
+        }
+        .fixedSize()
+        .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || homebrew.isBusy)
+    }
+
+    private var refreshButton: some View {
+        Button {
+            homebrew.refreshInstalled()
+        } label: {
+            Image(systemName: "arrow.clockwise")
+        }
+        .fixedSize()
+        .help(l10n.s.homebrewRefresh)
+        .disabled(homebrew.isBusy)
+    }
+
+    private var updateHomebrewButton: some View {
+        Button {
+            pendingAction = HomebrewPendingAction(action: .updateHomebrew)
+        } label: {
+            Label(l10n.s.homebrewUpdateHomebrew, systemImage: "arrow.triangle.2.circlepath")
+        }
+        .fixedSize()
+        .disabled(homebrew.isBusy)
     }
 
     @ViewBuilder

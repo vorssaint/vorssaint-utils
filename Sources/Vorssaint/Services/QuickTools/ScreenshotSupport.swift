@@ -184,6 +184,18 @@ enum ScreenshotSupport {
                       height: min(maximum.height, max(minimum.height, preferred.height)))
     }
 
+    /// Local key monitors normally receive the editor's window number, but
+    /// AppKit can clear it while resolving a main-menu key equivalent such as
+    /// Command-Z. In that case the key window still owns the event. Never use
+    /// the fallback for an event that explicitly belongs to another window.
+    static func editorOwnsKeyEvent(eventWindowNumber: Int,
+                                   editorWindowNumber: Int,
+                                   editorIsKey: Bool) -> Bool {
+        guard editorWindowNumber != 0 else { return false }
+        if eventWindowNumber == editorWindowNumber { return true }
+        return eventWindowNumber == 0 && editorIsKey
+    }
+
     // MARK: - Window picking
 
     struct PickableWindow: Equatable {
