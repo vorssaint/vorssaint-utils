@@ -1181,6 +1181,8 @@ struct MetricsTests {
                "headphone disconnect volume keeps the existing mute behavior by default")
         expect(registeredDefaults[DefaultsKey.mixerShowFinder] as? Bool == true,
                "Finder returns to the mixer by default")
+        expect(registeredDefaults[DefaultsKey.mixerHideInactiveApps] as? Bool == false,
+               "inactive mixer apps remain visible by default")
         expect(registeredDefaults[DefaultsKey.soundOutputSwitcherEnabled] as? Bool == false,
                "sound output switcher is opt-in")
         expect(registeredDefaults[DefaultsKey.soundOutputSwitcherShortcut] as? String
@@ -2547,6 +2549,30 @@ struct MetricsTests {
                                                    targetOutputDeviceUID: "BuiltInSpeakerDevice",
                                                    defaultOutputDeviceUID: "BuiltInSpeakerDevice"),
                "a persistent mixer row waits for an audio connection before building a tap")
+        expect(MixerRoutingSupport.shouldShowApp(isPlaying: false,
+                                                 volume: 1,
+                                                 selectedOutputDeviceUID: nil,
+                                                 hideInactiveApps: false),
+               "the inactive-app filter changes nothing until the user enables it")
+        expect(!MixerRoutingSupport.shouldShowApp(isPlaying: false,
+                                                  volume: 1,
+                                                  selectedOutputDeviceUID: nil,
+                                                  hideInactiveApps: true),
+               "an idle uncustomized mixer app can be hidden")
+        expect(MixerRoutingSupport.shouldShowApp(isPlaying: true,
+                                                 volume: 1,
+                                                 selectedOutputDeviceUID: nil,
+                                                 hideInactiveApps: true),
+               "a playing mixer app remains visible")
+        expect(MixerRoutingSupport.shouldShowApp(isPlaying: false,
+                                                 volume: 0.75,
+                                                 selectedOutputDeviceUID: nil,
+                                                 hideInactiveApps: true)
+                && MixerRoutingSupport.shouldShowApp(isPlaying: false,
+                                                     volume: 1,
+                                                     selectedOutputDeviceUID: "ExternalDisplay",
+                                                     hideInactiveApps: true),
+               "custom volume and output choices keep inactive mixer apps visible")
         expect(!MixerRoutingSupport.isHiddenFromMixer(bundleIdentifier: "com.apple.finder",
                                                       showFinder: true),
                "Finder shows in the mixer when enabled")
@@ -5024,6 +5050,10 @@ struct MetricsTests {
                    "every backup string is set for \(language.rawValue)")
             expect(backupValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible backup strings (\(language.rawValue))")
+            let mixerValues = Mirror(reflecting: FeatureStrings.mixer(language)).children
+                .compactMap { $0.value as? String }
+            expect(!mixerValues.isEmpty && mixerValues.allSatisfy { !$0.isEmpty },
+                   "every mixer feature string is set for \(language.rawValue)")
             let guideValues = Mirror(reflecting: FeatureStrings.permissionGuide(language)).children
                 .compactMap { $0.value as? String }
             expect(!guideValues.isEmpty && guideValues.allSatisfy { !$0.isEmpty },
@@ -5441,6 +5471,11 @@ struct MetricsTests {
                "the starter wheel is already clean")
         expect(starter.allSatisfy { !$0.effectiveSymbolName.isEmpty },
                "every starter slice has a symbol to draw")
+        expect(RadialMenuSupport.symbolNames.count >= 80
+                && Set(RadialMenuSupport.symbolNames).count == RadialMenuSupport.symbolNames.count
+                && RadialMenuSupport.symbolNames.contains("speaker.wave.2.fill")
+                && RadialMenuSupport.symbolNames.contains("square.and.arrow.up"),
+               "the radial editor offers a broad, duplicate-free built-in symbol catalog")
         expect(RadialMenuSupport.decode(nil) == starter,
                "a fresh install decodes to the starter wheel")
         expect(RadialMenuSupport.decode(RadialMenuSupport.encode([])) == [],
@@ -6048,6 +6083,7 @@ struct MetricsTests {
                 && backupKeys.contains(DefaultsKey.language)
                 && backupKeys.contains(DefaultsKey.appVolumes)
                 && backupKeys.contains(DefaultsKey.mixerShowFinder)
+                && backupKeys.contains(DefaultsKey.mixerHideInactiveApps)
                 && backupKeys.contains(DefaultsKey.keepAwakeActiveIcon)
                 && backupKeys.contains(AppFeature.dockPreview.availabilityKey),
                "backup carries preferences, menu bar pins, Keep Awake appearance, language and hub availability")

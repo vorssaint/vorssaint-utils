@@ -15,6 +15,8 @@ struct MixerSection: View {
     @ObservedObject private var outputSwitcher = SoundOutputSwitcher.shared
     @AppStorage(DefaultsKey.mixerShowFinder)
     private var showFinder = true
+    @AppStorage(DefaultsKey.mixerHideInactiveApps)
+    private var hideInactiveApps = false
     @AppStorage(DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect)
     private var lowerOnHeadphonesDisconnect = false
     @AppStorage(DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
@@ -36,7 +38,7 @@ struct MixerSection: View {
                     soundOutputSwitcherControls
                 }
                 microphonePicker
-                if AppVolumeMixer.isSupported, (!mixer.apps.isEmpty || mixer.needsPermission) {
+                if AppVolumeMixer.isSupported, (!visibleApps.isEmpty || mixer.needsPermission) {
                     Divider()
                 }
 
@@ -44,13 +46,14 @@ struct MixerSection: View {
                     emptyLabel(l10n.s.mixerUnavailable)
                 } else if mixer.needsPermission {
                     permissionHint
-                } else if mixer.apps.isEmpty {
+                } else if visibleApps.isEmpty {
                     emptyLabel(l10n.s.mixerEmpty)
                 } else {
                     mixerRows
                 }
                 if AppVolumeMixer.isSupported {
                     Divider()
+                    inactiveAppsVisibilityToggle
                     finderVisibilityToggle
                 }
             }
@@ -322,6 +325,30 @@ struct MixerSection: View {
         }
     }
 
+    private var inactiveAppsVisibilityToggle: some View {
+        let label = FeatureStrings.mixer(l10n.language).hideInactiveApps
+        return HStack(spacing: 8) {
+            Text(label)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 6)
+            Toggle(label, isOn: $hideInactiveApps)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .accessibilityLabel(label)
+        }
+    }
+
+    private var visibleApps: [MixerApp] {
+        mixer.apps.filter { app in
+            MixerRoutingSupport.shouldShowApp(isPlaying: app.isPlaying,
+                                              volume: app.volume,
+                                              selectedOutputDeviceUID: app.selectedOutputDeviceUID,
+                                              hideInactiveApps: hideInactiveApps)
+        }
+    }
+
     private func inputDeviceTitle(_ device: MixerInputDevice) -> String {
         device.isDefault ? "\(device.name) (\(l10n.s.mixerOutputCurrent))" : device.name
     }
@@ -351,7 +378,7 @@ struct MixerSection: View {
 
     @ViewBuilder
     private var rowList: some View {
-        ForEach(mixer.apps) { app in
+        ForEach(visibleApps) { app in
             MixerRow(app: app,
                      normalTint: normalSliderTint,
                      accentRevision: accentRevision)
