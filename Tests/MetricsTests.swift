@@ -5508,7 +5508,8 @@ struct MetricsTests {
         expect(RadialMenuTool.allCases.allSatisfy { !$0.symbolName.isEmpty }
                 && RadialMenuTool.screenshot.feature == .screenshot
                 && RadialMenuTool.clipboardHistory.feature == .clipboardHistory
-                && RadialMenuTool.scratchpad.feature == .scratchpad,
+                && RadialMenuTool.scratchpad.feature == .scratchpad
+                && RadialMenuTool.keepAwake.feature == .keepAwake,
                "every wheel tool maps to a real feature and symbol")
 
         // MARK: Dock click with AX-blind apps (issue #200)
