@@ -85,7 +85,7 @@ private struct FailableRadialMenuItem: Decodable {
 /// blob; never rename them.
 enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
     case screenshot, colorPicker, screenOCR, micMute, clipboardHistory, quickLauncher, cameraPreview,
-         scratchpad
+         scratchpad, keepAwake, shelf, cleaningMode
 
     var id: String { rawValue }
 
@@ -99,6 +99,9 @@ enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
         case .quickLauncher: return .quickLauncher
         case .cameraPreview: return .cameraPreview
         case .scratchpad: return .scratchpad
+        case .keepAwake: return .keepAwake
+        case .shelf: return .shelf
+        case .cleaningMode: return .cleaningMode
         }
     }
 
