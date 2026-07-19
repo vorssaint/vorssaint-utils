@@ -45,12 +45,6 @@ and cleans up menu bar and Settings visuals on macOS 26 (Tahoe).
   down arrow has no item directly below.
 
 ### Fixed
-- Command-Z now undoes screenshot annotations even when AppKit routes the
-  shortcut through the application menu without a window on the key event.
-- Clicking an existing screenshot annotation selects it for editing no matter
-  which annotation tool is active.
-- Homebrew Settings now adapts its toolbar at the minimum window width instead
-  of squeezing controls into a broken single row.
 - Brightness keys now really follow the pointer on external monitors that
   macOS drives natively, such as LG UltraFine and Apple displays, including
   with the lid closed. Presses used to land only on the built-in display.
