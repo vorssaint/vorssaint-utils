@@ -14,6 +14,7 @@ final class QRResultController {
 
     private var panel: QRResultPanel?
     private var keyMonitor: Any?
+    private var localMonitor: Any?
     private var globalMonitor: Any?
 
     private init() {}
@@ -51,8 +52,7 @@ final class QRResultController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary,
                                     .transient, .ignoresCycle]
 
-        let screen = NSScreen.withMouse
-        let visible = screen.visibleFrame
+        let visible = NSScreen.pointerVisibleFrame
         let pointer = NSEvent.mouseLocation
         // Sit just below the pointer, clamped fully on screen.
         var origin = CGPoint(x: pointer.x - size.width / 2, y: pointer.y - size.height - 18)
@@ -75,6 +75,10 @@ final class QRResultController {
         if let keyMonitor {
             NSEvent.removeMonitor(keyMonitor)
             self.keyMonitor = nil
+        }
+        if let localMonitor {
+            NSEvent.removeMonitor(localMonitor)
+            self.localMonitor = nil
         }
         if let globalMonitor {
             NSEvent.removeMonitor(globalMonitor)
@@ -106,7 +110,14 @@ final class QRResultController {
             }
             return event
         }
-        // A click anywhere outside the panel dismisses it.
+        // A click anywhere outside the panel dismisses it. The global
+        // monitor covers other apps; clicks on our own windows (the
+        // screenshot editor under this panel) only reach the local one.
+        localMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            if event.window !== self?.panel { self?.close() }
+            return event
+        }
         globalMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             self?.close()

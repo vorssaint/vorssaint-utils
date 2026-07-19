@@ -21,7 +21,9 @@ enum ClipboardHistoryMoveDirection {
 final class ClipboardHistoryService: ObservableObject {
     static let shared = ClipboardHistoryService()
 
-    @Published private(set) var entries: [ClipboardHistoryEntry] = []
+    @Published private(set) var entries: [ClipboardHistoryEntry] = [] {
+        didSet { entriesStamp &+= 1 }
+    }
     @Published private(set) var isRunning = false
     @Published private(set) var shortcutRegistrationFailed = false
     @Published private(set) var quickBatchEntryIDs: Set<UUID> = []
@@ -326,15 +328,31 @@ final class ClipboardHistoryService: ObservableObject {
         quickBatchEntryIDs = []
     }
 
+    /// Bumped by the `entries` didSet; lets the search cache below notice any
+    /// mutation without every mutating site having to remember it.
+    private var entriesStamp = 0
+    private var filterCache: (query: String, stamp: Int, imageLabel: String,
+                              result: [ClipboardHistoryEntry])?
+
     func filteredEntries(matching query: String) -> [ClipboardHistoryEntry] {
+        // One ranking pass over a large history of long texts costs real
+        // time, and SwiftUI asks for the filtered list many times per
+        // render. The last result is reused until the query, the language
+        // or the history itself changes.
         let imageLabel = FeatureStrings.clipboard(L10n.shared.language).imageEntryLabel
+        if let cache = filterCache, cache.query == query,
+           cache.stamp == entriesStamp, cache.imageLabel == imageLabel {
+            return cache.result
+        }
         let candidates = entries.enumerated().map { index, entry in
             ClipboardHistorySearchCandidate(index: index,
                                             text: entry.searchableText(imageLabel: imageLabel),
                                             isPinned: entry.isPinned)
         }
-        return ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query)
+        let result = ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query)
             .map { entries[$0] }
+        filterCache = (query, entriesStamp, imageLabel, result)
+        return result
     }
 
     func copyQuickEntry(at index: Int) {
@@ -726,7 +744,8 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     private func load() {
-        var data = Self.storeURL.flatMap { try? Data(contentsOf: $0) }
+        let fileData = Self.storeURL.flatMap { try? Data(contentsOf: $0) }
+        var data = fileData
         if data == nil,
            let legacy = UserDefaults.standard.data(forKey: DefaultsKey.clipboardHistoryEntries) {
             data = legacy
@@ -735,6 +754,13 @@ final class ClipboardHistoryService: ObservableObject {
         guard let data,
               let decoded = try? JSONDecoder().decode([ClipboardHistoryEntry].self, from: data)
         else { return }
+        if fileData != nil,
+           UserDefaults.standard.object(forKey: DefaultsKey.clipboardHistoryEntries) != nil {
+            // The file decoded and is the durable source. A legacy blob still
+            // around (a kill inside the migration window, or a downgrade
+            // round trip) would sit in the preferences plist forever.
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.clipboardHistoryEntries)
+        }
         entries = decoded
         normalizeEntryOrder()
         trimToLimit()
@@ -760,16 +786,25 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     private func persist() {
-        // The image sweep stays on the main thread: run from the persist
-        // queue it could race a just-stored PNG between its write and its
-        // entry landing in the list, and delete it.
-        ClipboardImageStore.cleanup(keeping: Set(entries.compactMap(\.imageFile)))
         let snapshot = entries
         let retireLegacyBlob = migrateLegacyBlob
         Self.persistQueue.async { [weak self] in
             guard let data = try? JSONEncoder().encode(snapshot) else { return }
+            // The PNG sweep waits for the JSON to land and runs back on the
+            // main thread against the list as it is then. Sweeping first
+            // could strand an entry whose PNG died if the process fell in
+            // between; the reverse at worst leaves an orphaned PNG that the
+            // launch sweep heals. The main thread also keeps it from racing
+            // a just-stored PNG whose entry has not landed in the list yet.
+            func sweepAfterPersist() {
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    ClipboardImageStore.cleanup(keeping: Set(self.entries.compactMap(\.imageFile)))
+                }
+            }
             guard let url = Self.storeURL else {
                 UserDefaults.standard.set(data, forKey: DefaultsKey.clipboardHistoryEntries)
+                sweepAfterPersist()
                 return
             }
             try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
@@ -777,11 +812,24 @@ final class ClipboardHistoryService: ObservableObject {
             // Only a write that really landed retires the legacy blob, so a
             // failed save leaves the history readable from somewhere.
             guard (try? data.write(to: url, options: .atomic)) != nil else { return }
+            sweepAfterPersist()
             if retireLegacyBlob {
                 UserDefaults.standard.removeObject(forKey: DefaultsKey.clipboardHistoryEntries)
                 DispatchQueue.main.async { self?.migrateLegacyBlob = false }
             }
         }
+    }
+
+    /// Runs any deferred persist right now and waits for the write to land.
+    /// Quit must not race the async pipeline: the last mutation of a session
+    /// (often a privacy minded Clear) has to be durable before the process
+    /// dies.
+    func flushBeforeTermination() {
+        if persistScheduled {
+            persistScheduled = false
+            persist()
+        }
+        Self.persistQueue.sync {}
     }
 
     // MARK: - Shortcut
@@ -933,7 +981,7 @@ final class ClipboardHistoryService: ObservableObject {
     private func position(_ panel: NSPanel) {
         panel.contentViewController?.view.layoutSubtreeIfNeeded()
         let size = panel.contentViewController?.view.fittingSize ?? NSSize(width: 520, height: 560)
-        let screen = NSScreen.withMouse.visibleFrame
+        let screen = NSScreen.pointerVisibleFrame
         let x = screen.midX - size.width / 2
         let y = min(screen.maxY - size.height - 54, screen.midY - size.height / 2)
         panel.setFrame(NSRect(x: max(screen.minX + 16, min(x, screen.maxX - size.width - 16)),

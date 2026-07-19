@@ -33,7 +33,13 @@ enum LaunchAtLogin {
             // the user's choice. Unregistering an item that was already gone
             // reports an error even though the end state is exactly what the
             // user asked for.
-            if isEnabled != enabled { throw error }
+            if isEnabled != enabled {
+                // The stored intent must match what the user actually got;
+                // keeping the failed wish would make the startup repair
+                // register an item the UI showed as off.
+                UserDefaults.standard.set(isEnabled, forKey: DefaultsKey.launchAtLoginWanted)
+                throw error
+            }
         }
     }
 

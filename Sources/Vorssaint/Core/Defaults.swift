@@ -14,6 +14,7 @@ enum DefaultsKey {
     static let lastUpdateIntroVersion = "lastUpdateIntroVersion"
     static let dockPreviewIntroVersion = "dockPreviewIntroVersion"
     static let supportUpdateIntroVersion = "supportUpdateIntroVersion"
+    static let updateHighlightsSeenVersion = "updateHighlightsSeenVersion"
     static let updateShowcaseIntroVersion = "updateShowcaseIntroVersion"
     static let updateShowcaseMediaOverride = "updateShowcaseMediaOverride"
     static let defaultDuration = "defaultDurationMinutes" // 0 = indefinite
@@ -377,6 +378,20 @@ enum OnboardingInfo {
 
 enum DockPreviewIntroInfo {
     static let releaseVersion = "3.0.4"
+}
+
+/// The one-time tour of a release's headline features, shown right after the
+/// update. Each row deep links to the exact Settings page or opens the tool
+/// itself, so a new feature is one click from being tried instead of buried.
+enum UpdateHighlightsInfo {
+    /// The single release whose first launch shows the tour; any other
+    /// version never shows it. Bump deliberately for releases with headline
+    /// features worth a tour.
+    static let releaseVersion = "3.1.14"
+
+    static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
+        appVersion == releaseVersion && lastSeenVersion != releaseVersion
+    }
 }
 
 enum SupportUpdateIntroInfo {

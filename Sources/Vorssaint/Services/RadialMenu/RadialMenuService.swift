@@ -202,10 +202,10 @@ final class RadialMenuService: ObservableObject {
         openPointerLocation = NSEvent.mouseLocation
 
         let atPointer = defaults.bool(forKey: DefaultsKey.radialMenuAtPointer)
-        let screen = NSScreen.withMouse
+        let visibleFrame = NSScreen.pointerVisibleFrame
         let wanted = atPointer ? NSEvent.mouseLocation
-                               : CGPoint(x: screen.visibleFrame.midX, y: screen.visibleFrame.midY)
-        wheelCenter = clampedCenter(wanted, in: screen.visibleFrame)
+                               : CGPoint(x: visibleFrame.midX, y: visibleFrame.midY)
+        wheelCenter = clampedCenter(wanted, in: visibleFrame)
 
         let panel = ensurePanel()
         let half = RadialMenuLayout.panelSize / 2

@@ -33,7 +33,7 @@ enum ResponsibleProcess {
 
     /// The regular app to bill the process to, following the parent chain
     /// when the responsibility API dead-ends on a helper that answers for
-    /// itself (Firefox's audio helpers, issue #256). Nil when no ancestor is
+    /// itself (browser audio helpers, issue #256). Nil when no ancestor is
     /// a regular app — daemons and login items stay unlisted.
     static func regularAppOwner(of pid: pid_t) -> NSRunningApplication? {
         MixerRoutingSupport.owningRegularAppPid(

@@ -869,6 +869,12 @@ extension Strings {
         ocrQRCopied: "QR 碼已拷貝",
         qrResultTitle: "QR 碼",
         qrResultCopy: "拷貝",
-        qrResultOpen: "打開連結"
+        qrResultOpen: "打開連結",
+        highlightsTitle: "此更新的新功能",
+        highlightsCaptionDockPreview: "Dock Preview 現在可以在開啟 Dock 放大時使用",
+        highlightsCaptionScreenshot: "截圖工具新增了像素放大鏡和 QR 碼讀取",
+        highlightsConfigure: "設定",
+        highlightsTry: "試試看",
+        highlightsSeeAll: "查看所有變更"
     )
 }

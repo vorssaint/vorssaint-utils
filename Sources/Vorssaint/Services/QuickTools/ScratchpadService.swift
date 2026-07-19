@@ -117,6 +117,13 @@ final class ScratchpadService: ObservableObject {
     private func loadApplyingRetention() {
         hasLoaded = true
         guard let url = Self.storeURL else { return }
+        // A dirty buffer means an edit newer than anything on disk (a failed
+        // flush left it behind); reloading would clobber the user's text with
+        // the stale file. Retry the save instead and keep the buffer.
+        if let lastSavedText, text != lastSavedText {
+            flushSave()
+            return
+        }
         let manager = FileManager.default
         let retention = ScratchpadRetention.sanitized(
             UserDefaults.standard.string(forKey: DefaultsKey.scratchpadRetention))
@@ -172,6 +179,10 @@ final class ScratchpadService: ObservableObject {
     func clear() {
         guard !text.isEmpty else { return }
         if let textView, textView.window === panel {
+            // A live input-method composition holds a marked range into the
+            // storage; replacing the whole text underneath it leaves that
+            // range pointing at nothing. Commit it first.
+            if textView.hasMarkedText() { textView.unmarkText() }
             let full = NSRange(location: 0, length: (textView.string as NSString).length)
             if textView.shouldChangeText(in: full, replacementString: "") {
                 textView.replaceCharacters(in: full, with: "")
@@ -270,7 +281,7 @@ final class ScratchpadService: ObservableObject {
 
     private func center(_ panel: NSPanel) {
         let size = panel.frame.size
-        let screen = NSScreen.withMouse.visibleFrame
+        let screen = NSScreen.pointerVisibleFrame
         let x = screen.midX - size.width / 2
         let y = screen.minY + (screen.height - size.height) * 0.58
         panel.setFrame(NSRect(x: max(screen.minX + 16, min(x, screen.maxX - size.width - 16)),

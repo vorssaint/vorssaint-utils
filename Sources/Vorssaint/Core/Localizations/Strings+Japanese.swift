@@ -868,6 +868,12 @@ extension Strings {
         ocrQRCopied: "QRコードをコピーしました",
         qrResultTitle: "QRコード",
         qrResultCopy: "コピー",
-        qrResultOpen: "リンクを開く"
+        qrResultOpen: "リンクを開く",
+        highlightsTitle: "このアップデートの新機能",
+        highlightsCaptionDockPreview: "Dock Preview がDockの拡大がオンのままでも動作するようになりました",
+        highlightsCaptionScreenshot: "スクリーンショットにピクセルルーペとQRコードの読み取りが加わりました",
+        highlightsConfigure: "設定する",
+        highlightsTry: "試す",
+        highlightsSeeAll: "すべての変更を見る"
     )
 }

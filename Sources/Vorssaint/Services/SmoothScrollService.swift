@@ -10,8 +10,8 @@ import CoreGraphics
 /// events that ease out, like a touch device would produce.
 ///
 /// Wheel detection matches the scroll inverter (`ScrollWheelSupport`), so
-/// mice whose drivers report the wheel as continuous pixel events (Logitech
-/// and similar, issue #267) glide too; trackpads, Magic Mouse and momentum
+/// mice whose drivers report the wheel as continuous pixel events (issue
+/// #267) glide too; trackpads, Magic Mouse and momentum
 /// are passed through untouched. The tap sits at the head
 /// so the scroll inverter (appended at the tail) still sees the synthetic
 /// stream and can flip it — both features compose. Nothing (tap or timer)

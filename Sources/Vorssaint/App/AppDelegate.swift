@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var onboardingWindow: NSWindow?
     private var dockPreviewIntroWindow: NSWindow?
     private var supportIntroWindow: NSWindow?
+    private var updateHighlightsWindow: NSWindow?
     private var supportIntroCanClose = false
     private var updateShowcaseWindow: NSWindow?
     private var updatePreviewWindow: NSWindow?
@@ -147,6 +148,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         AppVolumeMixer.shared.stopAll()
         // Flushes any scratchpad edit still inside the save debounce.
         ScratchpadService.shared.suspend()
+        // The clipboard history persists through an async pipeline; the last
+        // mutation (often a Clear) must land before the process dies.
+        if AppFeature.clipboardHistory.isAvailable {
+            ClipboardHistoryService.shared.flushBeforeTermination()
+        }
         KeepAwakeManager.shared.deactivate(reason: .quit)
     }
 
@@ -908,7 +914,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.contentMinSize = NSSize(width: SettingsWindowSupport.minContentWidth,
                                            height: SettingsWindowSupport.minContentHeight)
-            let visible = (NSScreen.main ?? NSScreen.withMouse).visibleFrame
+            let visible = NSScreen.pointerVisibleFrame
             let size = SettingsWindowSupport.initialContentSize(
                 savedWidth: UserDefaults.standard.double(forKey: DefaultsKey.settingsWindowWidth),
                 savedHeight: UserDefaults.standard.double(forKey: DefaultsKey.settingsWindowHeight),
@@ -936,8 +942,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private func positionSettingsWindow(_ window: NSWindow, force: Bool) {
         window.contentView?.layoutSubtreeIfNeeded()
         let popoverWindow = popover.contentViewController?.view.window
-        let screen = popoverWindow?.screen ?? window.screen ?? NSScreen.withMouse
-        let visible = screen.visibleFrame
+        let visible = (popoverWindow?.screen ?? window.screen)?.visibleFrame ?? NSScreen.pointerVisibleFrame
         let margin: CGFloat = 40
         let availableWidth = max(1, visible.width - margin)
         let availableHeight = max(1, visible.height - margin)
@@ -1085,9 +1090,64 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// On launch after an update, keep the short support prompt visible once per
     /// version. The changelog itself is already shown before download.
     private func presentUpdateIntros() {
+        if showUpdateHighlightsIfNeeded() { return }
         if showSupportUpdateIntroIfNeeded() { return }
         if showUpdateShowcaseIntroIfNeeded() { return }
         showDockPreviewIntroIfNeeded()
+    }
+
+    private func showUpdateHighlightsIfNeeded() -> Bool {
+        guard UpdateHighlightsInfo.shouldShow(
+            appVersion: AppInfo.version,
+            lastSeenVersion: UserDefaults.standard.string(forKey: DefaultsKey.updateHighlightsSeenVersion)
+        ) else { return false }
+        // If every featured item was uninstalled in the hub there is nothing
+        // to tour; mark it seen and stay quiet instead of showing an empty
+        // window.
+        guard UpdateHighlightsView.hasContent else {
+            markUpdateHighlightsSeen()
+            return false
+        }
+        showUpdateHighlights()
+        return true
+    }
+
+    private func showUpdateHighlights() {
+        closePopover()
+        if let window = updateHighlightsWindow {
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+            return
+        }
+        let host = NSHostingController(rootView: UpdateHighlightsView(
+            onFinish: { [weak self] in
+                self?.markUpdateHighlightsSeen()
+                self?.updateHighlightsWindow?.close()
+            }
+        ))
+        host.sizingOptions = .preferredContentSize
+        let window = NSWindow(contentViewController: host)
+        window.title = L10n.shared.s.highlightsTitle
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.isReleasedWhenClosed = false
+        window.isRestorable = false
+        window.isMovableByWindowBackground = true
+        window.delegate = self
+        centerUpdateShowcaseWindow(window)
+        updateHighlightsWindow = window
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        DispatchQueue.main.async { [weak self, weak window] in
+            guard let self, let window, window === self.updateHighlightsWindow else { return }
+            self.centerUpdateShowcaseWindow(window)
+        }
+    }
+
+    private func markUpdateHighlightsSeen() {
+        UserDefaults.standard.set(UpdateHighlightsInfo.releaseVersion,
+                                  forKey: DefaultsKey.updateHighlightsSeenVersion)
     }
 
     private func showUpdateShowcaseIntroIfNeeded() -> Bool {
@@ -1241,8 +1301,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     private func centerOnboardingWindow(_ window: NSWindow) {
         window.contentView?.layoutSubtreeIfNeeded()
-        let screen = window.screen ?? popover.contentViewController?.view.window?.screen ?? NSScreen.withMouse
-        let visible = screen.visibleFrame
+        let visible = (window.screen ?? popover.contentViewController?.view.window?.screen)?.visibleFrame ?? NSScreen.pointerVisibleFrame
         let margin: CGFloat = 40
         let availableWidth = max(1, visible.width - margin)
         let availableHeight = max(1, visible.height - margin)
@@ -1257,8 +1316,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     private func centerDockPreviewIntroWindow(_ window: NSWindow) {
         window.contentView?.layoutSubtreeIfNeeded()
-        let screen = window.screen ?? popover.contentViewController?.view.window?.screen ?? NSScreen.withMouse
-        let visible = screen.visibleFrame
+        let visible = (window.screen ?? popover.contentViewController?.view.window?.screen)?.visibleFrame ?? NSScreen.pointerVisibleFrame
         let margin: CGFloat = 40
         let availableWidth = max(1, visible.width - margin)
         let availableHeight = max(1, visible.height - margin)
@@ -1273,8 +1331,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     private func centerWhatsNewWindow(_ window: NSWindow) {
         window.contentView?.layoutSubtreeIfNeeded()
-        let screen = window.screen ?? popover.contentViewController?.view.window?.screen ?? NSScreen.withMouse
-        let visible = screen.visibleFrame
+        let visible = (window.screen ?? popover.contentViewController?.view.window?.screen)?.visibleFrame ?? NSScreen.pointerVisibleFrame
         let margin: CGFloat = 40
         let availableWidth = max(1, visible.width - margin)
         let availableHeight = max(1, visible.height - margin)
@@ -1289,8 +1346,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     private func centerSupportIntroWindow(_ window: NSWindow) {
         window.contentView?.layoutSubtreeIfNeeded()
-        let screen = window.screen ?? popover.contentViewController?.view.window?.screen ?? NSScreen.withMouse
-        let visible = screen.visibleFrame
+        let visible = (window.screen ?? popover.contentViewController?.view.window?.screen)?.visibleFrame ?? NSScreen.pointerVisibleFrame
         let margin: CGFloat = 40
         let availableWidth = max(1, visible.width - margin)
         let availableHeight = max(1, visible.height - margin)
@@ -1305,8 +1361,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     private func centerUpdateShowcaseWindow(_ window: NSWindow) {
         window.contentView?.layoutSubtreeIfNeeded()
-        let screen = window.screen ?? popover.contentViewController?.view.window?.screen ?? NSScreen.withMouse
-        let visible = screen.visibleFrame
+        let visible = (window.screen ?? popover.contentViewController?.view.window?.screen)?.visibleFrame ?? NSScreen.pointerVisibleFrame
         let margin: CGFloat = 40
         let availableWidth = max(1, visible.width - margin)
         let availableHeight = max(1, visible.height - margin)
@@ -1411,6 +1466,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             guard !isTerminating else { return }
             markUpdateShowcaseIntroSeen()
         }
+        if window === updateHighlightsWindow {
+            updateHighlightsWindow = nil
+            guard !isTerminating else { return }
+            markUpdateHighlightsSeen()
+        }
         if window === updatePreviewWindow {
             updatePreviewWindow = nil
         }
@@ -1425,6 +1485,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         markDockPreviewIntroSeenIfCurrentUpdate()
         markSupportUpdateIntroSeenIfCurrentUpdate()
         markUpdateShowcaseIntroSeenIfCurrentUpdate()
+        // A clean install that just saw everything in onboarding should not
+        // then get the update tour; only people who updated get it.
+        markUpdateHighlightsSeen()
     }
 
     private func markDockPreviewIntroSeenIfCurrentUpdate() {

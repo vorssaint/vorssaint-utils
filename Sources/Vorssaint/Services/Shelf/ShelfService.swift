@@ -335,6 +335,12 @@ final class ShelfService: ObservableObject {
                 if defaults.bool(forKey: DefaultsKey.shelfDropZoneEnabled) {
                     self.handleDragForDock()
                 }
+                // Every open gesture gets the button watchdog, not just one
+                // that engaged the drop zone: a mouse-up swallowed by the
+                // drag machinery or one of our own windows would otherwise
+                // leave the gesture open with a stale baseline, and the next
+                // orphan window-move drag would read as fresh content.
+                self.startDockedWatchdog()
             }
         }
     }
@@ -550,7 +556,7 @@ final class ShelfService: ObservableObject {
         guard dockedWatchdog == nil else { return }
         dockedWatchdog = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             guard let self else { return }
-            guard self.dockedDragActive else {
+            guard self.dockedDragActive || self.sawGestureStart else {
                 self.dockedWatchdog?.invalidate()
                 self.dockedWatchdog = nil
                 return
@@ -572,7 +578,8 @@ final class ShelfService: ObservableObject {
         if dockedProximate, let frame = dockedPanel?.frame {
             return frame.insetBy(dx: -72, dy: -72).contains(mouse)
         }
-        let screen = NSScreen.screens.first { $0.frame.intersects(anchor) } ?? NSScreen.withMouse
+        guard let screen = NSScreen.screens.first(where: { $0.frame.intersects(anchor) }) ?? NSScreen.withMouse
+        else { return false }
         let band = NSRect(x: anchor.midX - 150,
                           y: screen.frame.maxY - 200,
                           width: 300, height: 200)
@@ -657,10 +664,9 @@ final class ShelfService: ObservableObject {
         view.layoutSubtreeIfNeeded()
         let size = view.fittingSize
         let anchor = statusItemFrameProvider?()
-        let screen = anchor.flatMap { rect in
+        let visible = (anchor.flatMap { rect in
             NSScreen.screens.first { $0.frame.intersects(rect) }
-        } ?? NSScreen.withMouse
-        let visible = screen.visibleFrame
+        } ?? NSScreen.withMouse)?.visibleFrame ?? NSScreen.pointerVisibleFrame
         var x = anchor.map { $0.midX - size.width / 2 } ?? (visible.maxX - size.width - 12)
         x = min(max(visible.minX + 8, x), visible.maxX - size.width - 8)
         let top = visible.maxY - 4
@@ -1387,10 +1393,15 @@ final class ShelfService: ObservableObject {
         let data = UserDefaults.standard.data(forKey: DefaultsKey.shelfItems)
         DispatchQueue.global(qos: .utility).async { [weak self] in
             guard let self else { return }
-            var restored: [Item] = []
+            // The disk work (decode, existence checks, unmounted-volume
+            // handling) belongs off the main thread. Turning each entry into an
+            // Item does not: it builds the icon with AppKit drawing,
+            // NSWorkspace and SF Symbols, which are only safe on the main
+            // thread, so that step waits for the hop below.
+            var sanitized: [ShelfPersistedItem] = []
             if let data,
                let decoded = try? JSONDecoder().decode([ShelfPersistedItem].self, from: data) {
-                let sanitized = ShelfPersistenceSupport.sanitized(decoded) { path in
+                sanitized = ShelfPersistenceSupport.sanitized(decoded) { path in
                     if FileManager.default.fileExists(atPath: path) { return true }
                     // A file on an unmounted volume is not gone: the app can
                     // launch at login before an external or network drive
@@ -1401,9 +1412,9 @@ final class ShelfService: ObservableObject {
                     }
                     return false
                 }
-                restored = sanitized.compactMap { self.restoredItem(from: $0) }
             }
             DispatchQueue.main.async {
+                let restored = sanitized.compactMap { self.restoredItem(from: $0) }
                 self.restoreCompleted = true
                 if restored.isEmpty {
                     self.schedulePersist()
@@ -1677,7 +1688,7 @@ final class ShelfService: ObservableObject {
         view.layoutSubtreeIfNeeded()
         let size = view.fittingSize
         let mouse = NSEvent.mouseLocation
-        let screen = NSScreen.withMouse.visibleFrame
+        let screen = NSScreen.pointerVisibleFrame
         var x = mouse.x - size.width / 2
         var y = mouse.y - size.height - 16
         x = min(max(screen.minX + 8, x), screen.maxX - size.width - 8)

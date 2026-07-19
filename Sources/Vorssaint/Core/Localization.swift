@@ -1013,6 +1013,12 @@ struct Strings {
     let qrResultTitle: String
     let qrResultCopy: String
     let qrResultOpen: String
+    let highlightsTitle: String
+    let highlightsCaptionDockPreview: String
+    let highlightsCaptionScreenshot: String
+    let highlightsConfigure: String
+    let highlightsTry: String
+    let highlightsSeeAll: String
 }
 
 // MARK: - Português (Brasil)
@@ -1882,7 +1888,13 @@ extension Strings {
         ocrQRCopied: "QR code copiado",
         qrResultTitle: "QR code",
         qrResultCopy: "Copiar",
-        qrResultOpen: "Abrir link"
+        qrResultOpen: "Abrir link",
+        highlightsTitle: "Novidades desta versão",
+        highlightsCaptionDockPreview: "O Dock Preview agora funciona com a ampliação do Dock ligada",
+        highlightsCaptionScreenshot: "A captura de tela ganhou uma lupa de pixels e leitura de QR codes",
+        highlightsConfigure: "Configurar",
+        highlightsTry: "Experimentar",
+        highlightsSeeAll: "Ver todas as mudanças"
     )
 }
 
@@ -2753,6 +2765,12 @@ extension Strings {
         ocrQRCopied: "QR code copied",
         qrResultTitle: "QR code",
         qrResultCopy: "Copy",
-        qrResultOpen: "Open link"
+        qrResultOpen: "Open link",
+        highlightsTitle: "New in this update",
+        highlightsCaptionDockPreview: "Dock Preview now works with Dock magnification turned on",
+        highlightsCaptionScreenshot: "The screenshot tool gained a pixel loupe and QR code reading",
+        highlightsConfigure: "Set up",
+        highlightsTry: "Try it",
+        highlightsSeeAll: "See all changes"
     )
 }

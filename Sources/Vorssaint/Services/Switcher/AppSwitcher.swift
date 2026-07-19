@@ -842,7 +842,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     private func recomputeLayouts(for items: [SwitcherItem]) {
-        let screen = NSScreen.withMouse
+        guard let screen = NSScreen.withMouse ?? NSScreen.screens.first else { return }
         grid = SwitcherGrid.compute(count: max(items.count, 1), on: screen)
         let appGroups = SwitcherSupport.appGroups(items: items)
         iconRowLayout = SwitcherIconRowLayout.compute(
@@ -854,12 +854,11 @@ final class AppSwitcher: ObservableObject {
 
     private func updateIconRowLayoutForCurrentSelection() {
         guard !windows.isEmpty else { return }
-        let screen = NSScreen.withMouse
         let appGroups = SwitcherSupport.appGroups(items: windows)
         iconRowLayout = SwitcherIconRowLayout.compute(
             appCount: appGroups.count,
             selectedWindowCount: selectedAppWindowCount(in: windows),
-            screenVisibleFrame: screen.visibleFrame
+            screenVisibleFrame: NSScreen.pointerVisibleFrame
         )
     }
 
@@ -870,7 +869,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     private func centeredFrame(for size: CGSize) -> NSRect {
-        let screen = NSScreen.withMouse.visibleFrame
+        let screen = NSScreen.pointerVisibleFrame
         return NSRect(x: screen.midX - size.width / 2,
                       y: screen.midY - size.height / 2,
                       width: size.width,

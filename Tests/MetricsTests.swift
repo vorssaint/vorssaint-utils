@@ -678,10 +678,10 @@ struct MetricsTests {
         expect(MouseNavigationSupport.commandCharacter(for: .forward) == "]",
                "Forward uses the standard Command right bracket menu command")
         expect(MouseNavigationSupport.shouldPassThrough(bundleIdentifier: "org.mozilla.firefox"),
-               "Firefox navigates with the side buttons natively and keeps the raw events")
+               "the pass-through browser family keeps the raw side button events")
         expect(MouseNavigationSupport.shouldPassThrough(
             bundleIdentifier: "org.mozilla.firefoxdeveloperedition"),
-               "every Mozilla channel passes through via the prefix rule")
+               "every channel of the browser family passes through via the prefix rule")
         expect(MouseNavigationSupport.shouldPassThrough(
             bundleIdentifier: "com.parallels.desktop.console"),
                "virtual machines keep the raw side buttons for the guest system")
@@ -1160,8 +1160,21 @@ struct MetricsTests {
         // per-release decision: this check fails on every version bump so the
         // decision above is made consciously, never by omission.
         let plistVersion = (NSDictionary(contentsOfFile: "Resources/Info.plist")?["CFBundleShortVersionString"] as? String) ?? ""
-        expect(plistVersion == "3.1.14",
+        expect(plistVersion == "3.1.15",
                "bumping the app version requires re-deciding the support prompt pin above")
+        // 3.1.15 ships as a fix-only release with no new features to tour, so
+        // the highlights pin stays on the last feature release (3.1.14) and the
+        // tour does not re-appear. A feature release re-curates the rows and
+        // moves this pin to the shipping version.
+        expect(UpdateHighlightsInfo.releaseVersion == "3.1.14",
+               "re-decide the highlights tour on a feature release: re-curate its rows and move the pin to the shipping version")
+        expect(UpdateHighlightsInfo.shouldShow(appVersion: "3.1.14", lastSeenVersion: "3.1.13")
+               && UpdateHighlightsInfo.shouldShow(appVersion: "3.1.14", lastSeenVersion: nil),
+               "highlights tour shows once after updating to its pinned release")
+        expect(!UpdateHighlightsInfo.shouldShow(appVersion: "3.1.14", lastSeenVersion: "3.1.14"),
+               "highlights tour stays hidden after it is seen")
+        expect(!UpdateHighlightsInfo.shouldShow(appVersion: "3.1.15", lastSeenVersion: nil),
+               "highlights tour never leaks into another release")
         expect(registeredDefaults[DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect] as? Bool == false,
                "headphone disconnect volume lowering is opt-in")
         expect(registeredDefaults[DefaultsKey.mixerHeadphonesDisconnectVolumePercent] as? Int == 0,
@@ -1407,6 +1420,8 @@ struct MetricsTests {
                "pointer-following brightness keys arrive switched off")
         expect(registeredDefaults[DefaultsKey.brightnessOSDEnabled] as? Bool == false,
                "brightness adjustment overlay arrives switched off")
+        expect(registeredDefaults[DefaultsKey.screenshotOpenEditorDirectly] as? Bool == false,
+               "capture keeps showing the preview unless the user opts into the editor")
         expect(registeredDefaults[DefaultsKey.panelShowUtilities] as? Bool == true,
                "Utilities panel section is shown by default")
         expect(registeredDefaults[DefaultsKey.panelShowControls] as? Bool == true,
@@ -2486,8 +2501,8 @@ struct MetricsTests {
                                                               uid: "",
                                                               dataSourceName: nil),
                "Bluetooth speakers are not treated as headphones")
-        // Issue #256: Firefox's audio helpers answer for themselves, so the
-        // mixer walks the parent chain to the nearest regular app.
+        // Issue #256: some browsers' audio helpers answer for themselves, so
+        // the mixer walks the parent chain to the nearest regular app.
         let helperParents: [pid_t: pid_t] = [500: 100, 100: 1, 700: 1,
                                              900: 901, 901: 902, 902: 903, 903: 904,
                                              904: 905, 905: 906, 906: 907, 907: 100]
@@ -4520,6 +4535,11 @@ struct MetricsTests {
                                 strings.qrResultTitle, strings.qrResultCopy, strings.qrResultOpen]
             expect(ocrQRStrings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "\(prefix) screen QR strings are present without em dash")
+            let highlightsStrings = [strings.highlightsTitle, strings.highlightsCaptionDockPreview,
+                                     strings.highlightsCaptionScreenshot, strings.highlightsConfigure,
+                                     strings.highlightsTry, strings.highlightsSeeAll]
+            expect(highlightsStrings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
+                   "\(prefix) update highlights strings are present without em dash")
             let officialHomebrewIntroStrings = [
                 strings.homebrewOfficialIntroTitle,
                 strings.homebrewOfficialIntroMessage,

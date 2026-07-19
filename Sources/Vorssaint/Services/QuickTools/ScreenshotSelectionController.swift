@@ -102,9 +102,6 @@ final class ScreenshotSelectionController {
         keyPanelUnderMouse()?.makeKey()
         installKeyMonitor()
         NSCursor.crosshair.set()
-        if !freeze {
-            loadLiveLoupeImages()
-        }
     }
 
     /// Live selection stays transparent, but the loupe still needs source
@@ -141,7 +138,7 @@ final class ScreenshotSelectionController {
                 }
             case kVK_ANSI_R:
                 self.repeatLastRegion()
-            case kVK_ANSI_Z:
+            case _ where Self.isLoupeKey(event):
                 self.toggleLoupe()
             default:
                 break
@@ -150,8 +147,27 @@ final class ScreenshotSelectionController {
         }
     }
 
+    /// The loupe toggle follows the typed character, with the physical slot
+    /// as a fallback: the Z key sits elsewhere on some keyboard layouts and
+    /// the localized hints promise the letter itself.
+    private static func isLoupeKey(_ event: NSEvent) -> Bool {
+        guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty
+        else { return false }
+        if let typed = event.charactersIgnoringModifiers?.lowercased(), !typed.isEmpty {
+            return typed == "z"
+        }
+        return Int(event.keyCode) == kVK_ANSI_Z
+    }
+
     private func toggleLoupe() {
         loupeEnabled.toggle()
+        // Live mode has no frozen shot to sample. Pixels are fetched only
+        // when the loupe actually turns on, and fresh each time, so it
+        // magnifies what is on screen now instead of the session's opening
+        // frame and idle sessions never pay for a capture.
+        if loupeEnabled, !freeze {
+            loadLiveLoupeImages()
+        }
     }
 
     fileprivate func adjustLoupeZoom(by scrollDelta: CGFloat) {

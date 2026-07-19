@@ -76,7 +76,7 @@ private final class ScreenshotPinWindow: NSPanel {
         self.image = image
         self.controller = controller
 
-        let screen = NSScreen.withMouse.visibleFrame
+        let screen = NSScreen.pointerVisibleFrame
         var size = CGSize(width: CGFloat(image.width) / scale,
                           height: CGFloat(image.height) / scale)
         let cap = min(screen.width, screen.height) * 0.55

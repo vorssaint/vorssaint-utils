@@ -10,8 +10,8 @@ import CoreGraphics
 /// Turns the standard Back and Forward side buttons into the matching app
 /// commands. Finder and browsers expose those commands as Command-[ and
 /// Command-]; other apps keep working when they provide the same menu command.
-/// Apps that handle the side buttons themselves (Firefox, virtual machines,
-/// remote screens) receive the untouched events instead. Nothing is installed
+/// Apps that handle the side buttons themselves (some browsers, virtual
+/// machines, remote screens) receive the untouched events instead. Nothing is installed
 /// while the opt-in feature is off. Requires Accessibility for the modifying
 /// event tap and menu action.
 final class MouseNavigationService: ObservableObject {

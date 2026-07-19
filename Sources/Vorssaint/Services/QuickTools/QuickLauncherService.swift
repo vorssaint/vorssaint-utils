@@ -201,7 +201,7 @@ final class QuickLauncherService: ObservableObject {
             guard let self, let panel = self.panel, panel.isVisible else { return }
             panel.contentViewController?.view.layoutSubtreeIfNeeded()
             let size = panel.contentViewController?.view.fittingSize ?? panel.frame.size
-            let screen = NSScreen.withMouse.visibleFrame
+            let screen = NSScreen.pointerVisibleFrame
             var frame = panel.frame
             frame.origin.x = frame.midX - size.width / 2
             frame.origin.y = frame.maxY - size.height
@@ -330,7 +330,7 @@ final class QuickLauncherService: ObservableObject {
     private func position(_ panel: NSPanel) {
         panel.contentViewController?.view.layoutSubtreeIfNeeded()
         let size = panel.contentViewController?.view.fittingSize ?? NSSize(width: 420, height: 380)
-        let screen = NSScreen.withMouse.visibleFrame
+        let screen = NSScreen.pointerVisibleFrame
         let x = screen.midX - size.width / 2
         let y = screen.minY + (screen.height - size.height) * 0.62
         panel.setFrame(NSRect(x: max(screen.minX + 16, min(x, screen.maxX - size.width - 16)),

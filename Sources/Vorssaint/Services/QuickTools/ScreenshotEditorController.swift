@@ -332,7 +332,9 @@ final class ScreenshotEditorModel: ObservableObject {
             let reading = BarcodeDetector.read(image)
             DispatchQueue.main.async { [weak self] in
                 guard let self, image === self.baseImage else { return }
-                self.qrReading = reading
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    self.qrReading = reading
+                }
             }
         }
     }
@@ -879,7 +881,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         // Chrome must equal the view's designed margins exactly (rail 64 +
         // sides, action band above, style band below), so a fresh window
         // opens with zero leftover stage around the capture.
-        let screen = NSScreen.withMouse.visibleFrame
+        let screen = NSScreen.pointerVisibleFrame
         let contentSize = ScreenshotSupport.editorContentSize(
             imagePointSize: model.pointSize,
             visibleSize: screen.size)
