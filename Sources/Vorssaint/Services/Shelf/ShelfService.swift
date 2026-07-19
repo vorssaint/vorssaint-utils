@@ -1514,6 +1514,8 @@ final class ShelfService: ObservableObject {
     /// docked option on; the docked shelf just steps aside while this panel is
     /// up and comes back when it closes.
     func summon() {
+        guard AppFeature.shelf.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) else { return }
         let panel = ensurePanel()
         cancelAutoHide()
         position(panel)

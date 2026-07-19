@@ -106,6 +106,15 @@ enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
     }
 
     var symbolName: String { feature.symbolName }
+
+    /// Hub availability and a feature's own master switch are separate. A
+    /// saved Shelf slice stays dormant while Shelf is explicitly disabled and
+    /// returns automatically when the user enables it again.
+    func isRunnable(isFeatureAvailable: (AppFeature) -> Bool = { $0.isAvailable },
+                    boolFor: (String) -> Bool = { UserDefaults.standard.bool(forKey: $0) }) -> Bool {
+        guard isFeatureAvailable(feature) else { return false }
+        return self != .shelf || boolFor(DefaultsKey.shelfEnabled)
+    }
 }
 
 /// The optional second summoner: a spare side mouse button. Raw values are
