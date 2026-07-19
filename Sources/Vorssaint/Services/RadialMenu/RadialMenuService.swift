@@ -511,7 +511,6 @@ final class RadialMenuService: ObservableObject {
             case .quickLauncher: QuickLauncherService.shared.show()
             case .cameraPreview: CameraPreviewService.shared.show()
             case .scratchpad: ScratchpadService.shared.show()
-            case .keepAwake: KeepAwakeManager.shared.toggle()
             case .shelf: ShelfService.shared.summon()
             case .cleaningMode: CleaningModeManager.shared.activate()
             }

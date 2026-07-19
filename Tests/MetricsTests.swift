@@ -5509,7 +5509,6 @@ struct MetricsTests {
                 && RadialMenuTool.screenshot.feature == .screenshot
                 && RadialMenuTool.clipboardHistory.feature == .clipboardHistory
                 && RadialMenuTool.scratchpad.feature == .scratchpad
-                && RadialMenuTool.keepAwake.feature == .keepAwake
                 && RadialMenuTool.shelf.feature == .shelf
                 && RadialMenuTool.cleaningMode.feature == .cleaningMode,
                "every wheel tool maps to a real feature and symbol")
@@ -5519,8 +5518,8 @@ struct MetricsTests {
                                                    boolFor: { $0 == DefaultsKey.shelfEnabled })
                 && !RadialMenuTool.shelf.isRunnable(isFeatureAvailable: { _ in false },
                                                     boolFor: { _ in true })
-                && RadialMenuTool.keepAwake.isRunnable(isFeatureAvailable: { _ in true },
-                                                       boolFor: { _ in false }),
+                && RadialMenuTool.cleaningMode.isRunnable(isFeatureAvailable: { _ in true },
+                                                          boolFor: { _ in false }),
                "Shelf wheel slices follow the Shelf master switch without affecting on-demand tools")
 
         // MARK: Dock click with AX-blind apps (issue #200)
