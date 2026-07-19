@@ -78,9 +78,8 @@ final class ScreenshotQuickPreviewController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary,
                                     .transient, .ignoresCycle]
 
-        let screen = NSScreen.screens.first(where: {
-            $0.frame.intersects(capture.anchorRect)
-        }) ?? NSScreen.withMouse
+        let visibleFrame = NSScreen.screens.first { $0.frame.intersects(capture.anchorRect) }?.visibleFrame
+                ?? NSScreen.withMouse.visibleFrame
 
         // A default action means this HUD is just a confirmation, not
         // something the person needs to act on — keep it out of the way in
@@ -90,8 +89,8 @@ final class ScreenshotQuickPreviewController {
                 size: size,
                 anchor: capture.anchorRect,
                 pointer: NSEvent.mouseLocation,
-                visibleFrame: screen.visibleFrame)
-            : ScreenshotSupport.quickPreviewCornerFrame(size: size, visibleFrame: screen.visibleFrame)
+                visibleFrame: visibleFrame)
+            : ScreenshotSupport.quickPreviewCornerFrame(size: size, visibleFrame: visibleFrame)
         panel.setFrame(frame, display: false)
         self.panel = panel
         installKeyMonitor(for: panel)
