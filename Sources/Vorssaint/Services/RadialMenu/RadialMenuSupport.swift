@@ -40,6 +40,7 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
             switch mediaKey {
             case .previousTrack: return "backward.fill"
             case .nextTrack: return "forward.fill"
+            case .nowPlaying: return "music.note"
             default: return "playpause.fill"
             }
         case .submenu: return "ellipsis.circle"
@@ -143,16 +144,99 @@ extension RadialMenuSupport {
 /// Media keys a slice can press, mapped to the aux-button codes the physical
 /// keys post (NX_KEYTYPE_PLAY / FAST / REWIND).
 enum RadialMenuMediaKey: String, Codable, CaseIterable, Identifiable {
-    case playPause, previousTrack, nextTrack
+    case playPause, previousTrack, nextTrack, nowPlaying
 
     var id: String { rawValue }
 
-    var auxKeyType: Int32 {
+    /// Now Playing opens Vorssaint's metadata card rather than posting a key.
+    var auxKeyType: Int32? {
         switch self {
         case .playPause: return 16
         case .previousTrack: return 20
         case .nextTrack: return 19
+        case .nowPlaying: return nil
         }
+    }
+}
+
+struct RadialNowPlayingSnapshot: Equatable {
+    let title: String?
+    let artist: String?
+    let album: String?
+    let artworkData: Data?
+    let appBundleIdentifier: String?
+    let appPID: Int32?
+
+    var radialLabel: String? {
+        let parts = [title, artist].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: "\n")
+    }
+}
+
+enum RadialNowPlayingState: Equatable {
+    case loading
+    case nothingPlaying
+    case playing(RadialNowPlayingSnapshot)
+}
+
+enum RadialNowPlayingSupport {
+    static let titleKey = "kMRMediaRemoteNowPlayingInfoTitle"
+    static let artistKey = "kMRMediaRemoteNowPlayingInfoArtist"
+    static let albumKey = "kMRMediaRemoteNowPlayingInfoAlbum"
+    static let artworkDataKey = "kMRMediaRemoteNowPlayingInfoArtworkData"
+    static let playbackRateKey = "kMRMediaRemoteNowPlayingInfoPlaybackRate"
+
+    private static let forbiddenScalars = CharacterSet.controlCharacters.union(.newlines)
+    private static let maximumArtworkBytes = 12 * 1_024 * 1_024
+
+    static func playbackIsActive(remoteIsPlaying: Bool?, info: [String: Any]) -> Bool {
+        if let remoteIsPlaying { return remoteIsPlaying }
+        return (info[playbackRateKey] as? NSNumber)?.doubleValue ?? 0 > 0
+    }
+
+    static func snapshot(info: [String: Any],
+                         isPlaying: Bool,
+                         appBundleIdentifier: String?,
+                         appPID: Int32) -> RadialNowPlayingSnapshot? {
+        guard isPlaying else { return nil }
+        let title = sanitizedText(info[titleKey])
+        let artist = sanitizedText(info[artistKey])
+        let album = sanitizedText(info[albumKey])
+        let bundleIdentifier = sanitizedBundleIdentifier(appBundleIdentifier)
+        let pid = appPID > 0 ? appPID : nil
+        let artworkData = sanitizedArtworkData(info[artworkDataKey])
+        guard title != nil || bundleIdentifier != nil || pid != nil else { return nil }
+        return RadialNowPlayingSnapshot(title: title,
+                                        artist: artist,
+                                        album: album,
+                                        artworkData: artworkData,
+                                        appBundleIdentifier: bundleIdentifier,
+                                        appPID: pid)
+    }
+
+    private static func sanitizedText(_ value: Any?) -> String? {
+        guard let value = value as? String else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let clean = String(String.UnicodeScalarView(
+            trimmed.unicodeScalars.filter { !forbiddenScalars.contains($0) }))
+        return clean.isEmpty ? nil : String(clean.prefix(300))
+    }
+
+    private static func sanitizedBundleIdentifier(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 255,
+              !trimmed.unicodeScalars.contains(where: { forbiddenScalars.contains($0) })
+        else { return nil }
+        return trimmed
+    }
+
+    private static func sanitizedArtworkData(_ value: Any?) -> Data? {
+        guard let data = value as? Data, !data.isEmpty, data.count <= maximumArtworkBytes else {
+            return nil
+        }
+        return data
     }
 }
 
@@ -265,10 +349,18 @@ enum RadialMenuSupport {
     static func needsAccessibility(_ items: [RadialMenuItem]) -> Bool {
         items.contains { item in
             switch item.kind {
-            case .shortcut, .media: return true
+            case .shortcut: return true
+            case .media: return item.mediaKey?.auxKeyType != nil
             case .submenu: return needsAccessibility(item.children)
             default: return false
             }
+        }
+    }
+
+    static func containsNowPlaying(_ items: [RadialMenuItem]) -> Bool {
+        items.contains { item in
+            item.mediaKey == .nowPlaying
+                || (item.kind == .submenu && containsNowPlaying(item.children))
         }
     }
 }
