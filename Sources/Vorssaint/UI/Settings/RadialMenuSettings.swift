@@ -5,9 +5,9 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Settings > Radial menu: the switch, the shortcut, where the wheel opens
-/// and the list of actions, with drill-down into submenus and an editor sheet
-/// per action.
+/// Settings > Radial menu: the switch, shortcut, opening behavior, placement
+/// and list of actions, with drill-down into submenus and an editor sheet per
+/// action.
 struct RadialMenuSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
@@ -15,6 +15,8 @@ struct RadialMenuSettings: View {
     @AppStorage(DefaultsKey.radialMenuEnabled) private var enabled = false
     @AppStorage(DefaultsKey.radialMenuAtPointer) private var atPointer = true
     @AppStorage(DefaultsKey.radialMenuMouseButton) private var mouseTriggerRaw = RadialMenuMouseTrigger.off.rawValue
+    @AppStorage(DefaultsKey.radialMenuActivationMode) private var activationModeRaw =
+        RadialMenuActivationMode.pressOrHold.rawValue
 
     @State private var items = RadialMenuSupport.decode(
         UserDefaults.standard.data(forKey: DefaultsKey.radialMenuItems))
@@ -42,7 +44,7 @@ struct RadialMenuSettings: View {
         Form {
             Section {
                 Toggle(text.enableLabel, isOn: $enabled)
-                Text(text.enableCaption)
+                Text(text.hubDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 ShortcutPreferenceRow(role: .radialMenu, isEnabled: enabled) {
@@ -53,6 +55,18 @@ struct RadialMenuSettings: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
+                Picker(text.activationModeLabel, selection: $activationModeRaw) {
+                    Text(text.activationModePressOrHold)
+                        .tag(RadialMenuActivationMode.pressOrHold.rawValue)
+                    Text(text.activationModePress)
+                        .tag(RadialMenuActivationMode.press.rawValue)
+                    Text(text.activationModeHold)
+                        .tag(RadialMenuActivationMode.hold.rawValue)
+                }
+                .disabled(!enabled)
+                Text(text.activationModeCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Picker(text.mouseTriggerLabel, selection: $mouseTriggerRaw) {
                     Text(text.mouseTriggerOff).tag(RadialMenuMouseTrigger.off.rawValue)
                     Text(text.mouseTriggerBack).tag(RadialMenuMouseTrigger.back.rawValue)

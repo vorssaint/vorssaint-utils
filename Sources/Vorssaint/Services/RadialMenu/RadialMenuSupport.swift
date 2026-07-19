@@ -126,6 +126,40 @@ enum RadialMenuMouseTrigger: String, CaseIterable, Identifiable {
     }
 }
 
+/// How the summoning shortcut or side button owns a radial-menu session.
+/// Raw values are persisted; never rename them.
+enum RadialMenuActivationMode: String, CaseIterable, Identifiable {
+    /// The existing adaptive gesture: release over a slice to run it, or
+    /// release near the center to leave the wheel open for clicking.
+    case pressOrHold
+    /// A press opens a sticky wheel. Releasing the summoner has no effect.
+    case press
+    /// The wheel exists only while the summoner is down. Release runs the
+    /// highlighted slice, or simply dismisses when nothing is highlighted.
+    case hold
+
+    var id: String { rawValue }
+
+    static func sanitized(_ raw: String?) -> RadialMenuActivationMode {
+        RadialMenuActivationMode(rawValue: raw ?? "") ?? .pressOrHold
+    }
+
+    func startsHeld(requestedHold: Bool, hasHeldButton: Bool,
+                    shortcutHasModifiers: Bool) -> Bool {
+        guard self != .press else { return false }
+        return hasHeldButton || (requestedHold && shortcutHasModifiers)
+    }
+
+    func releaseAction(hasSelection: Bool) -> RadialMenuReleaseAction {
+        if hasSelection { return .select }
+        return self == .hold ? .dismiss : .stayOpen
+    }
+}
+
+enum RadialMenuReleaseAction: Equatable {
+    case stayOpen, dismiss, select
+}
+
 extension RadialMenuSupport {
     /// Whether the radial menu currently owns this side button as its
     /// summoner. Mouse navigation asks this from its own tap and lets a

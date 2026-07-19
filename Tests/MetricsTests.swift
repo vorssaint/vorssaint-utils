@@ -5076,7 +5076,7 @@ struct MetricsTests {
                    "no em-dash in visible camera preview strings (\(language.rawValue))")
             let radialMenuValues = Mirror(reflecting: FeatureStrings.radialMenu(language)).children
                 .compactMap { $0.value as? String }
-            expect(radialMenuValues.count == 44 && radialMenuValues.allSatisfy { !$0.isEmpty },
+            expect(radialMenuValues.count == 49 && radialMenuValues.allSatisfy { !$0.isEmpty },
                    "every radial menu string is set for \(language.rawValue)")
             expect(radialMenuValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible radial menu strings (\(language.rawValue))")
@@ -6020,6 +6020,26 @@ struct MetricsTests {
                "the radial menu opens at the pointer by default")
         expect(Defaults.registeredDefaults[DefaultsKey.radialMenuMouseButton] as? String == "off",
                "the side button trigger ships off")
+        expect(Defaults.registeredDefaults[DefaultsKey.radialMenuActivationMode] as? String == "pressOrHold",
+               "the radial menu preserves its adaptive gesture by default")
+        expect(RadialMenuActivationMode.sanitized("press") == .press
+                && RadialMenuActivationMode.sanitized("hold") == .hold
+                && RadialMenuActivationMode.sanitized(nil) == .pressOrHold
+                && RadialMenuActivationMode.sanitized("future-mode") == .pressOrHold,
+               "the radial activation mode decodes known values and safely falls back")
+        expect(!RadialMenuActivationMode.press.startsHeld(
+                    requestedHold: true, hasHeldButton: false, shortcutHasModifiers: true)
+                && RadialMenuActivationMode.hold.startsHeld(
+                    requestedHold: true, hasHeldButton: false, shortcutHasModifiers: true)
+                && RadialMenuActivationMode.pressOrHold.startsHeld(
+                    requestedHold: false, hasHeldButton: true, shortcutHasModifiers: false)
+                && !RadialMenuActivationMode.hold.startsHeld(
+                    requestedHold: false, hasHeldButton: false, shortcutHasModifiers: true),
+               "only hold-capable summons enter the held phase")
+        expect(RadialMenuActivationMode.pressOrHold.releaseAction(hasSelection: false) == .stayOpen
+                && RadialMenuActivationMode.hold.releaseAction(hasSelection: false) == .dismiss
+                && RadialMenuActivationMode.hold.releaseAction(hasSelection: true) == .select,
+               "release keeps the adaptive wheel, dismisses an empty strict hold, or selects its target")
         expect(RadialMenuMouseTrigger.sanitized("back") == .back
                 && RadialMenuMouseTrigger.sanitized("forward").buttonNumber == 4
                 && RadialMenuMouseTrigger.back.buttonNumber == 3
@@ -6079,6 +6099,7 @@ struct MetricsTests {
                 && backupKeys.contains(DefaultsKey.radialMenuShortcut)
                 && backupKeys.contains(DefaultsKey.radialMenuAtPointer)
                 && backupKeys.contains(DefaultsKey.radialMenuMouseButton)
+                && backupKeys.contains(DefaultsKey.radialMenuActivationMode)
                 && backupKeys.contains(DefaultsKey.radialMenuItems)
                 && backupKeys.contains(DefaultsKey.panelControlRadialMenu),
                "the radial menu wheel and choices travel with the settings backup")
