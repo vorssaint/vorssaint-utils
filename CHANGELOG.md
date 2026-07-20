@@ -4,16 +4,117 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [3.1.13]
+## [3.1.15]
 
 ### Summary
-Vorssaint 3.1.13 adds brightness and power controls for all your displays, a
-Quick toggles tab with one-click actions like dark mode and Trash, automatic Keep
-Awake rules, battery time remaining and compact usage bars in the menu bar.
-It also keeps Extra Brightness steady around fullscreen video and returns
-Finder to the Volume Mixer.
+Vorssaint 3.1.15 fixes a start that left the app with no menu bar icon, and
+keeps the menu bar panel under its icon when the menu bar is set to hide
+itself.
+
+### Fixed
+- The app could start with no menu bar icon and quit a few seconds later.
+  It now starts reliably, including on a Mac whose display was still waking
+  up.
+- The panel stays under its icon when the menu bar is set to hide itself.
+  Switching tabs no longer moves it to the edge of the screen.
+
+## [3.1.14] - 2026-07-18
+
+### Summary
+Vorssaint 3.1.14 adds a radial menu that puts your favorite actions on a
+wheel around the pointer, Camera preview, a floating mirror for video
+calls, and a scratchpad that keeps quick notes in a floating window and
+saves as you type. A short tour presents the highlights once after the
+update. Screenshots gain a pixel loupe, QR code reading and
+solid color blocks, the clipboard history can keep up to 1000 items, and a
+long round of fixes covers typing lag with the App Switcher on, brightness
+keys on external monitors, Launch at Login, the Volume Mixer and more.
 
 ### Added
+- A new radial menu puts your favorite actions on a wheel around the
+  pointer, from apps and links to media controls. Hold the shortcut or an
+  optional side mouse button, point and release. Off by default in Settings
+  under Radial menu.
+- Camera preview opens a small floating mirror with your webcam from the
+  panel, the quick panel or a shortcut. It picks between cameras when more
+  than one is connected and closes when you click away.
+- A scratchpad keeps quick notes in a small floating window that saves as
+  you type. It opens from the panel, the quick panel or a shortcut, and can
+  clear itself after days unused.
+- The optional brightness overlay shows the percentage after brightness
+  changes on the Mac screen and external monitors. Off by default in
+  Settings under Energy.
+- Screenshots can skip the floating preview and open straight in the
+  annotation editor. Off by default in Settings under Screenshot.
+- The screenshot selection now has a pixel loupe for precise captures.
+  Press Z to show or hide it and scroll to zoom. Thanks to @ruvelro.
+- Copy text from screen now reads QR codes and shows their content so you
+  can copy it or open the link. The same works from a screenshot's preview
+  and editor. You can turn it off in Settings.
+- The Disks panel now shows each drive's file system format, like APFS or
+  exFAT, next to the drive name.
+- The clipboard history can now keep up to 1000 items. Pick the size in
+  Settings under Clipboard. Thanks to @ruvelro.
+- A short tour opens once after the update, showing the new features with
+  a button to set up or try each one right away.
+
+### Changed
+- Dock Preview now works with Dock magnification enabled, so the zoom effect
+  no longer needs to be turned off.
+- The black bar in the screenshot editor is now a solid block that can use
+  any of the palette colors.
+- Window Switcher now moves to the last item in a shorter next row when the
+  down arrow has no item directly below.
+
+### Fixed
+- Typing no longer lags in demanding apps while the App Switcher is on.
+  Under heavy load, key presses could arrive late and then land all at
+  once.
+- Brightness keys now really follow the pointer on external monitors that
+  macOS drives natively, including with the lid closed. Presses used to
+  land only on the built-in display.
+- Vorssaint no longer crashes right after launch when macOS returns no power
+  source data for the battery readings.
+- Closed lid mode no longer asks for the administrator password on every
+  toggle. The one-time setup is now verified for real and repaired with a
+  single prompt when it stops working.
+- Smooth scrolling now works with mice that report the wheel as continuous
+  scrolling. Their events were mistaken for a trackpad and skipped.
+- Apps that run through a compatibility layer now show up in the Window
+  Switcher. Focusing one no longer makes the shortcut fall back to the
+  system switcher.
+- Browsers that play sound through helper processes now show up in the
+  Volume Mixer. macOS does not credit that sound to the app, so the mixer
+  traces it back on its own.
+- Back/Forward mouse buttons now reach apps that handle them natively, like
+  browsers, virtual machines and remote screens, instead of being captured.
+  Finder and other apps keep the converted navigation.
+- The Shelf area under the menu bar icon no longer appears while a window is
+  being moved or resized. It only opens for a real file or content drag.
+- Launch at Login no longer turns itself off after the app restarts. The app
+  restores the setting when macOS drops it and now explains when it runs from
+  a place that cannot open at login.
+- Extra Brightness no longer drops briefly as video enters or leaves fullscreen.
+- Monitor blocks in the menu bar, including the usage bars, no longer sit a
+  couple of pixels above the other status icons on macOS 26 (Tahoe).
+- Settings sidebar rows no longer slide over the search field while
+  scrolling on macOS 26 (Tahoe).
+- The macOS permission prompts now appear in the language the app speaks
+  instead of English only.
+
+## [3.1.13] - 2026-07-15
+
+### Summary
+Vorssaint 3.1.13 adds a screenshot tool with a quick preview and optional
+editor, brightness and power controls for
+all your displays, a Quick toggles tab, automatic Keep Awake rules and compact
+usage bars in the menu bar. It also keeps Extra Brightness steady around
+fullscreen video and returns Finder to the Volume Mixer.
+
+### Added
+- Screenshot captures an area, window or screen. A compact
+  preview offers copy, save, delete and editing, with stickers, annotations,
+  precise crop, optional shadows and backgrounds in the editor.
 - Display controls for the Mac screen and external monitors in the menu bar
   panel and Settings. Adjust brightness, turn a display on or off and
   optionally let the keyboard brightness keys follow the pointer. Enable
@@ -45,6 +146,8 @@ Finder to the Volume Mixer.
   spikes are ignored and that the time setting only delays repeated alerts.
 
 ### Fixed
+- ⌘Tab now falls back to the system switcher when a fullscreen app does not
+  expose a switchable window.
 - Smooth Scrolling now moves horizontally while Shift is held.
 - Dock click to minimize now reacts immediately in more apps and no longer
   opens unrelated windows.

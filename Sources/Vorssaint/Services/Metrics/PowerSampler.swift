@@ -149,8 +149,10 @@ final class PowerSampler {
     /// system is still calculating, so the UI keeps that state instead of
     /// substituting a more volatile private estimate.
     private func timeToEmptyMinutes() -> Int? {
-        let info = IOPSCopyPowerSourcesInfo().takeRetainedValue()
-        let sources = IOPSCopyPowerSourcesList(info).takeRetainedValue() as [CFTypeRef]
+        guard let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
+              let list = IOPSCopyPowerSourcesList(info)?.takeRetainedValue()
+        else { return nil }
+        let sources = list as [CFTypeRef]
         for source in sources {
             guard let description = IOPSGetPowerSourceDescription(info, source)?.takeUnretainedValue()
                     as? [String: Any],

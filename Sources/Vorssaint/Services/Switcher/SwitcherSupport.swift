@@ -139,6 +139,46 @@ enum SwitcherSupport {
         dockPreviewEnabled || (switcherEnabled && capturesPreviews(simpleMode: simpleMode))
     }
 
+    /// Resolves the foreground surface before the custom switcher takes over
+    /// ⌘Tab. Fullscreen and custom-rendered apps can expose no Accessibility
+    /// window; failing open keeps the system switcher available instead of
+    /// mistaking an older off-screen window for the source.
+    static func sessionSourceItem(frontmostPID: pid_t?,
+                                  focusedWindowID: CGWindowID?,
+                                  items: [SwitcherItem]) -> SwitcherItem? {
+        guard let frontmostPID else { return nil }
+        let appPID = items.first(where: { $0.windowOwnerPID == frontmostPID })?.pid
+            ?? frontmostPID
+        let candidates = items.filter { $0.pid == appPID }
+        if let focusedWindowID,
+           let focused = candidates.first(where: { $0.windowID == focusedWindowID }) {
+            return focused
+        }
+        return candidates.first(where: { $0.isOnScreen && !$0.isMinimized })
+            ?? candidates.first(where: { $0.windowID == nil })
+    }
+
+    /// Whether a process looks like a compatibility layer hosting a program
+    /// built for another platform. Those processes own real on-screen windows
+    /// but run from a bare loader executable with no bundle identity: either
+    /// the loader's own name, or a per-app "winetemp-" copy that bottle
+    /// managers create so the process carries the hosted program's name and
+    /// icon. They need special handling in the switcher because their windows
+    /// expose no standard Accessibility subrole (issue #274).
+    static func isCompatibilityLayerApp(bundleIdentifier: String?,
+                                        executablePath: String?,
+                                        localizedName: String?) -> Bool {
+        guard bundleIdentifier == nil else { return false }
+        if let executablePath, !executablePath.isEmpty {
+            let components = executablePath.split(separator: "/")
+            guard let leaf = components.last else { return false }
+            return leaf.hasPrefix("wine")
+                || components.contains { $0.hasPrefix("winetemp-") }
+        }
+        guard let localizedName else { return false }
+        return localizedName.hasPrefix("wine")
+    }
+
     /// Finds the regular app that contains an accessory helper bundle.
     static func embeddedHostPID(helperBundlePath: String,
                                 regularBundlePaths: [pid_t: String]) -> pid_t? {
@@ -347,6 +387,27 @@ enum SwitcherSupport {
         return groups
     }
 
+    /// Moves between rows without wrapping. When the row below is shorter,
+    /// Down lands on that row's last item instead of leaving the selection in
+    /// place because the same column is missing.
+    static func gridSelectionIndex(after selectedIndex: Int,
+                                   itemCount: Int,
+                                   columns: Int,
+                                   movingDown: Bool) -> Int {
+        guard itemCount > 0 else { return 0 }
+        let current = min(max(0, selectedIndex), itemCount - 1)
+        let safeColumns = max(1, columns)
+
+        guard movingDown else {
+            let target = current - safeColumns
+            return target >= 0 ? target : current
+        }
+
+        let nextRowStart = (current / safeColumns + 1) * safeColumns
+        guard nextRowStart < itemCount else { return current }
+        return min(current + safeColumns, itemCount - 1)
+    }
+
     /// With wrapping off (key held on autorepeat, like the system switcher)
     /// the selection stops at either end instead of cycling around.
     static func nextAppSelectionIndex(items: [SwitcherItem],
@@ -455,6 +516,17 @@ enum SwitcherSupport {
         guard let sourcePID,
               let frontmostPID else { return true }
         return frontmostPID == targetPID || frontmostPID == sourcePID || frontmostPID == ownPID
+    }
+
+    static func shouldContinueAppActivationRetry(targetPID: pid_t,
+                                                 sourcePID: pid_t?,
+                                                 frontmostPID: pid_t?,
+                                                 targetWasObservedFrontmost: Bool,
+                                                 ownPID: pid_t = ProcessInfo.processInfo.processIdentifier) -> Bool {
+        if frontmostPID == targetPID { return true }
+        guard !targetWasObservedFrontmost else { return false }
+        guard let frontmostPID else { return true }
+        return frontmostPID == sourcePID || frontmostPID == ownPID
     }
 
     static func shouldKeepMinimizeRestoreObserver(targetPID: pid_t,

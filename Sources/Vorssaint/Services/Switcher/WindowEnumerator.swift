@@ -54,6 +54,21 @@ enum WindowEnumerator {
             }
         }
         regularApps[pid_t(ownPid)] = AppInfo.name
+        // Programs hosted by a compatibility layer (bottles) run in bare
+        // loader processes: no bundle, sometimes not even a regular
+        // activation policy, and Accessibility describes their windows with no
+        // standard subrole. Track those pids so the guards below treat their
+        // real windows as switchable instead of hiding the app (issue #274).
+        var compatibilityLayerPids: Set<pid_t> = []
+        for app in runningApps where SwitcherSupport.isCompatibilityLayerApp(
+            bundleIdentifier: app.bundleIdentifier,
+            executablePath: app.executableURL?.path,
+            localizedName: app.localizedName) {
+            compatibilityLayerPids.insert(app.processIdentifier)
+            if regularApps[app.processIdentifier] == nil {
+                regularApps[app.processIdentifier] = app.localizedName ?? ""
+            }
+        }
         let embeddedHostPairs: [(pid_t, pid_t)] = runningApps.compactMap { app in
             guard app.activationPolicy != .regular,
                   let helperPath = app.bundleURL?.path,
@@ -76,7 +91,8 @@ enum WindowEnumerator {
                 .union(embeddedHostPIDs.keys)
                 .subtracting([pid_t(ownPid)])
         }
-        let accessibilityWindows = accessibilityWindows(for: accessibilityPids)
+        let accessibilityWindows = accessibilityWindows(for: accessibilityPids,
+                                                        undescribedSubrolePids: compatibilityLayerPids)
 
         var seen = Set<CGWindowID>()
         var windows: [SwitcherItem] = []
@@ -191,18 +207,22 @@ enum WindowEnumerator {
         let byID: [CGWindowID: AccessibilityWindowSnapshot]
     }
 
-    private static func accessibilityWindows(for pids: Set<pid_t>) -> [pid_t: AccessibilityWindowSnapshotList] {
+    private static func accessibilityWindows(for pids: Set<pid_t>,
+                                             undescribedSubrolePids: Set<pid_t> = []) -> [pid_t: AccessibilityWindowSnapshotList] {
         guard Permissions.shared.accessibility else { return [:] }
 
         var result: [pid_t: AccessibilityWindowSnapshotList] = [:]
         for pid in pids {
-            guard let windows = accessibilityWindows(for: pid) else { continue }
+            guard let windows = accessibilityWindows(for: pid,
+                                                     acceptsUndescribedSubroles: undescribedSubrolePids.contains(pid))
+            else { continue }
             result[pid] = windows
         }
         return result
     }
 
-    private static func accessibilityWindows(for pid: pid_t) -> AccessibilityWindowSnapshotList? {
+    private static func accessibilityWindows(for pid: pid_t,
+                                             acceptsUndescribedSubroles: Bool = false) -> AccessibilityWindowSnapshotList? {
         let app = AXUIElementCreateApplication(pid)
         // This runs on the main thread (tap callback and activation warm-ups):
         // an app that is not servicing its run loop would hold every AX call
@@ -217,13 +237,17 @@ enum WindowEnumerator {
         if windowsResult == .success, let windows = value as? [AXUIElement] {
             for window in windows {
                 AXUIElementSetMessagingTimeout(window, 0.35)
-                if isUserFacingWindow(window) { appendUnique(window, to: &axWindows) }
+                if isUserFacingWindow(window, acceptsUndescribedSubroles: acceptsUndescribedSubroles) {
+                    appendUnique(window, to: &axWindows)
+                }
             }
         }
         for attribute in [kAXMainWindowAttribute, kAXFocusedWindowAttribute] {
             if let window = accessibilityWindowAttribute(app, attribute as String) {
                 AXUIElementSetMessagingTimeout(window, 0.35)
-                if isUserFacingWindow(window) { appendUnique(window, to: &axWindows) }
+                if isUserFacingWindow(window, acceptsUndescribedSubroles: acceptsUndescribedSubroles) {
+                    appendUnique(window, to: &axWindows)
+                }
             }
         }
 
@@ -242,9 +266,18 @@ enum WindowEnumerator {
             }
         }
 
+        // An app that answers with zero user-facing windows normally vetoes
+        // its CG surfaces as stale ghosts. For a compatibility-layer process
+        // an empty answer only means Accessibility could not describe the
+        // windows, so withhold the veto instead of hiding real windows.
+        if axWindows.isEmpty {
+            return acceptsUndescribedSubroles
+                ? nil
+                : AccessibilityWindowSnapshotList(ordered: ordered, byID: byID)
+        }
         // If an app reports AX windows but none resolve to WindowServer ids,
         // keep the old behavior instead of hiding a real window for that app.
-        if axWindows.isEmpty || !ordered.isEmpty {
+        if !ordered.isEmpty {
             return AccessibilityWindowSnapshotList(ordered: ordered, byID: byID)
         }
         return nil
@@ -343,14 +376,21 @@ enum WindowEnumerator {
         }
     }
 
-    private static func isUserFacingWindow(_ window: AXUIElement) -> Bool {
+    private static func isUserFacingWindow(_ window: AXUIElement,
+                                           acceptsUndescribedSubroles: Bool = false) -> Bool {
         if isFullscreenWindow(window) { return true }
         if boolAttribute(window, kAXMinimizedAttribute as String),
            stringAttribute(window, kAXRoleAttribute as String) == (kAXWindowRole as String) {
             return true
         }
         if let subrole = stringAttribute(window, kAXSubroleAttribute as String) {
-            return subrole == "AXStandardWindow" || subrole == "AXFullScreenWindow"
+            if subrole == "AXStandardWindow" || subrole == "AXFullScreenWindow" { return true }
+            // Compatibility-layer processes draw their own window chrome on
+            // borderless surfaces, which Accessibility reports as AXUnknown;
+            // for them the window role is the real signal.
+            return acceptsUndescribedSubroles
+                && subrole == "AXUnknown"
+                && stringAttribute(window, kAXRoleAttribute as String) == (kAXWindowRole as String)
         }
         return stringAttribute(window, kAXRoleAttribute as String) == "AXWindow"
     }

@@ -9,8 +9,10 @@ import CoreGraphics
 /// each wheel tick and replays its distance as a stream of continuous pixel
 /// events that ease out, like a touch device would produce.
 ///
-/// Only real wheel ticks are touched (`isContinuous == 0`); trackpads, Magic
-/// Mouse and momentum are passed through untouched. The tap sits at the head
+/// Wheel detection matches the scroll inverter (`ScrollWheelSupport`), so
+/// mice whose drivers report the wheel as continuous pixel events (issue
+/// #267) glide too; trackpads, Magic Mouse and momentum
+/// are passed through untouched. The tap sits at the head
 /// so the scroll inverter (appended at the tail) still sees the synthetic
 /// stream and can flip it — both features compose. Nothing (tap or timer)
 /// exists while the feature is off. Requires Accessibility.
@@ -34,8 +36,15 @@ final class SmoothScrollService: ObservableObject {
     /// the synthetic events so apps can still react to them.
     private var currentFlags: CGEventFlags = []
     /// Sign correction for the system's natural scroll direction, sampled
-    /// when a glide starts.
+    /// when a glide starts or the feeding device type changes.
     private var postSign: Double = 1
+    /// Whether the glide is being fed by continuous wheel events; discrete
+    /// and continuous sources need different sign handling, so switching
+    /// devices mid-glide drops the tail and resamples.
+    private var glideFromContinuous = false
+    /// Timestamp (ns, event clock) of the last event carrying a gesture phase —
+    /// only touch devices emit those. Read/written solely on the tap callback.
+    private var lastGesturePhaseTimestamp: UInt64?
 
     private init() {}
 
@@ -108,10 +117,24 @@ final class SmoothScrollService: ObservableObject {
         guard event.getIntegerValueField(.eventSourceUserData) != Self.syntheticTag else {
             return Unmanaged.passUnretained(event)
         }
-        // Touch devices and continuous wheels are already smooth.
-        guard event.getIntegerValueField(.scrollWheelEventIsContinuous) == 0,
-              event.getIntegerValueField(.scrollWheelEventMomentumPhase) == 0,
-              event.getIntegerValueField(.scrollWheelEventScrollPhase) == 0
+        // Touch devices are already smooth; only mouse wheels glide. The
+        // classification is shared with the scroll inverter, so mice that
+        // report the wheel as continuous events (issue #267) are wheels too.
+        let traits = ScrollWheelEventTraits(
+            isContinuous: event.getIntegerValueField(.scrollWheelEventIsContinuous) != 0,
+            momentumPhase: event.getIntegerValueField(.scrollWheelEventMomentumPhase),
+            scrollPhase: event.getIntegerValueField(.scrollWheelEventScrollPhase),
+            scrollCount: event.getIntegerValueField(.scrollWheelEventScrollCount)
+        )
+        let timestamp = UInt64(event.timestamp)
+        let secondsSinceGesturePhase = lastGesturePhaseTimestamp.map {
+            Double(timestamp &- $0) / 1_000_000_000.0
+        }
+        if traits.momentumPhase != 0 || traits.scrollPhase != 0 {
+            lastGesturePhaseTimestamp = timestamp
+        }
+        guard ScrollWheelSupport.isMouseWheel(traits,
+                                              secondsSinceLastGesturePhase: secondsSinceGesturePhase)
         else { return Unmanaged.passUnretained(event) }
         // Control-scroll drives screen zoom; keep its stepping predictable.
         guard !event.flags.contains(.maskControl) else {
@@ -123,22 +146,43 @@ final class SmoothScrollService: ObservableObject {
         // wheel's vertical flip is applied here instead.
         let invert = ScrollInverter.shared.isRunning ? -1.0 : 1.0
         let shiftPressed = event.flags.contains(.maskShift)
-        let axes = SmoothScrollSupport.axes(
-            vertical: Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis1)) * invert,
-            horizontal: Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis2)),
-            shiftPressed: shiftPressed
-        )
-        let vertical = axes.vertical
-        let horizontal = axes.horizontal
+        let vertical: Double
+        let horizontal: Double
+        let step: Double
+        if traits.isContinuous {
+            // The event already measures pixels; the glide replays that same
+            // distance, only re-timed, so the step setting does not scale it.
+            // No Shift redirect either: the system never translates
+            // continuous events, apps react to the replayed Shift flag.
+            vertical = event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1) * invert
+            horizontal = event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2)
+            step = 1
+        } else {
+            // The fixed-point field carries the fractional ticks that
+            // high-resolution wheels report while the integer field reads 0.
+            let axes = SmoothScrollSupport.axes(
+                vertical: SmoothScrollSupport.ticks(
+                    line: Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis1)),
+                    fixedPoint: event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1)) * invert,
+                horizontal: SmoothScrollSupport.ticks(
+                    line: Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis2)),
+                    fixedPoint: event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2)),
+                shiftPressed: shiftPressed
+            )
+            vertical = axes.vertical
+            horizontal = axes.horizontal
+            step = Double(SmoothScrollSupport.sanitizedStep(
+                UserDefaults.standard.integer(forKey: DefaultsKey.smoothScrollStep)))
+        }
         guard vertical != 0 || horizontal != 0 else {
             return Unmanaged.passUnretained(event)
         }
 
-        let step = Double(SmoothScrollSupport.sanitizedStep(
-            UserDefaults.standard.integer(forKey: DefaultsKey.smoothScrollStep)))
-        // Switching Shift while a glide is active changes the intended axis.
-        // Drop the old tail instead of briefly scrolling diagonally.
-        if currentFlags.contains(.maskShift) != shiftPressed {
+        // Switching Shift while a glide is active changes the intended axis,
+        // and switching between a discrete and a continuous wheel changes the
+        // sign handling. Drop the old tail instead of fighting it.
+        if currentFlags.contains(.maskShift) != shiftPressed
+            || glideFromContinuous != traits.isContinuous {
             remainingVertical = 0
             remainingHorizontal = 0
         }
@@ -149,9 +193,16 @@ final class SmoothScrollService: ObservableObject {
                                                             step: step,
                                                             current: remainingHorizontal)
         currentFlags = event.flags
-        if frameTimer == nil {
-            postSign = SmoothScrollSupport.postedDelta(1, naturalScrolling: Self.naturalScrollingOn())
+        if frameTimer == nil || glideFromContinuous != traits.isContinuous {
+            // The system applies the natural scroll direction to continuous
+            // events only, so a swallowed discrete tick needs the pre-flip
+            // while a swallowed continuous event, replayed as the same kind,
+            // does not.
+            postSign = traits.isContinuous
+                ? 1
+                : SmoothScrollSupport.postedDelta(1, naturalScrolling: Self.naturalScrollingOn())
         }
+        glideFromContinuous = traits.isContinuous
         startGlideIfNeeded()
         // The tick itself is swallowed; the glide replays its distance.
         return nil

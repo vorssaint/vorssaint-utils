@@ -39,11 +39,35 @@ final class AppSwitcher: ObservableObject {
     @Published private(set) var searchQuery = ""
     @Published private(set) var totalWindowCount = 0
 
-    private var sessionActive = false
-    private var tap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
+    /// Single source of truth for "a session is open": the stored value lives
+    /// under `routeLock` because the tap thread routes every keystroke by it.
+    /// Written only on the main thread.
+    private var sessionActive: Bool {
+        get { routeLock.withLock { routeSessionActive } }
+        set { routeLock.withLock { routeSessionActive = newValue } }
+    }
     private var panel: NSPanel?
     private var sessionItems: [SwitcherItem] = []
+
+    // The tap lives on a dedicated thread: an active keyDown tap makes the
+    // window server hold every keystroke in the login session until this
+    // process answers, so the callback must never queue behind main-thread
+    // work. On the main run loop, any stall here delayed keys system-wide
+    // and then released them in a burst (issue #275). Same lifecycle shape
+    // as the keyboard debounce tap.
+    private let lifecycleLock = NSLock()
+    private var tap: CFMachPort?
+    private var runLoopSource: CFRunLoopSource?
+    private var tapRunLoop: CFRunLoop?
+    private var tapThread: Thread?
+    private var shouldStopTapThread = false
+    private var pendingStartAfterStop = false
+
+    /// The little state the tap thread needs to route an event without
+    /// touching the main thread; mutated only under `routeLock`.
+    private let routeLock = NSLock()
+    private var routeSessionActive = false
+    private var routeShortcut = GlobalShortcut.switcherDefault
 
     /// The panel appears only after this delay, like the system switcher: a
     /// quick ⌘Tab flick switches with no UI at all, which is what makes rapid
@@ -82,10 +106,13 @@ final class AppSwitcher: ObservableObject {
     private init() {}
 
     /// True while the event tap is installed.
-    var isRunning: Bool { tap != nil }
+    var isRunning: Bool { lifecycleLock.withLock { tap != nil } }
 
     /// Applies the persisted preference; safe to call repeatedly.
     func syncWithPreferences() {
+        let shortcut = GlobalShortcut.saved(for: DefaultsKey.switcherShortcut,
+                                            fallback: .switcherDefault)
+        routeLock.withLock { routeShortcut = shortcut }
         let enabled = AppFeature.switcher.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.switcherEnabled)
         if enabled, Permissions.shared.accessibility {
@@ -114,52 +141,157 @@ final class AppSwitcher: ObservableObject {
     // MARK: - Event tap
 
     private func installTap() {
-        guard tap == nil else { return }
-        let mask = CGEventMask(1 << CGEventType.keyDown.rawValue) | CGEventMask(1 << CGEventType.flagsChanged.rawValue)
-        guard let tap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: mask,
-            callback: { _, type, event, userInfo in
-                guard let userInfo else { return Unmanaged.passUnretained(event) }
-                let switcher = Unmanaged<AppSwitcher>.fromOpaque(userInfo).takeUnretainedValue()
-                return switcher.handle(type: type, event: event)
-            },
-            userInfo: Unmanaged.passUnretained(self).toOpaque()
-        ) else { return }
-
-        self.tap = tap
-        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        runLoopSource = source
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        CGEvent.tapEnable(tap: tap, enable: true)
+        // Thread creation and the tapThread assignment share one critical
+        // section with the decision, so a concurrent stop can never observe
+        // a committed start without its thread.
+        let thread = lifecycleLock.withLock { () -> Thread? in
+            if tapThread != nil {
+                if shouldStopTapThread { pendingStartAfterStop = true }
+                return nil
+            }
+            shouldStopTapThread = false
+            pendingStartAfterStop = false
+            let thread = Thread { [weak self] in
+                self?.runEventTap()
+            }
+            thread.name = "Vorssaint Switcher"
+            thread.qualityOfService = .userInteractive
+            tapThread = thread
+            return thread
+        }
+        thread?.start()
     }
 
     private func removeTap() {
         if sessionActive { cancelSession() }
-        if let tap {
+        let snapshot = lifecycleLock.withLock {
+            () -> (runLoop: CFRunLoop?, tap: CFMachPort?, threadExists: Bool) in
+            shouldStopTapThread = true
+            pendingStartAfterStop = false
+            return (tapRunLoop, tap, tapThread != nil)
+        }
+        if let tap = snapshot.tap {
             CGEvent.tapEnable(tap: tap, enable: false)
         }
-        if let runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+        if let runLoop = snapshot.runLoop {
+            CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue) {
+                CFRunLoopStop(runLoop)
+            }
+            CFRunLoopWakeUp(runLoop)
+        } else if !snapshot.threadExists {
+            lifecycleLock.withLock {
+                shouldStopTapThread = false
+                tapThread = nil
+            }
         }
-        tap = nil
-        runLoopSource = nil
     }
 
-    private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+    private func runEventTap() {
+        autoreleasepool {
+            let runLoop = CFRunLoopGetCurrent()
+            lifecycleLock.withLock { tapRunLoop = runLoop }
+
+            let shouldStopBeforeCreatingTap = lifecycleLock.withLock { shouldStopTapThread }
+            guard !shouldStopBeforeCreatingTap else {
+                if clearEventTapThread() { installTap() }
+                return
+            }
+
+            let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
+                | CGEventMask(1 << CGEventType.flagsChanged.rawValue)
+            guard let tap = CGEvent.tapCreate(
+                tap: .cgSessionEventTap,
+                place: .headInsertEventTap,
+                options: .defaultTap,
+                eventsOfInterest: mask,
+                callback: { _, type, event, userInfo in
+                    guard let userInfo else { return Unmanaged.passUnretained(event) }
+                    let switcher = Unmanaged<AppSwitcher>.fromOpaque(userInfo).takeUnretainedValue()
+                    return switcher.route(type: type, event: event)
+                },
+                userInfo: Unmanaged.passUnretained(self).toOpaque()
+            ) else {
+                _ = clearEventTapThread()
+                return
+            }
+
+            let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+            lifecycleLock.withLock {
+                self.tap = tap
+                runLoopSource = source
+            }
+            CFRunLoopAddSource(runLoop, source, .commonModes)
+            CGEvent.tapEnable(tap: tap, enable: true)
+
+            let shouldStop = lifecycleLock.withLock { shouldStopTapThread }
+            if shouldStop {
+                CGEvent.tapEnable(tap: tap, enable: false)
+            } else {
+                CFRunLoopRun()
+            }
+
+            CGEvent.tapEnable(tap: tap, enable: false)
+            CFRunLoopRemoveSource(runLoop, source, .commonModes)
+            if clearEventTapThread() { installTap() }
+        }
+    }
+
+    private func clearEventTapThread() -> Bool {
+        lifecycleLock.withLock {
+            let shouldRestart = pendingStartAfterStop
+            tap = nil
+            runLoopSource = nil
+            tapRunLoop = nil
+            tapThread = nil
+            shouldStopTapThread = false
+            pendingStartAfterStop = false
+            return shouldRestart
+        }
+    }
+
+    /// Runs on the tap thread. The window server holds every keystroke in
+    /// the login session until this returns, so the common case — no session
+    /// open, key is not the shortcut — must stay pure math and never wait on
+    /// the main thread. Only events the switcher may actually consume hop to
+    /// the main thread, and those are rare by definition: one shortcut press,
+    /// then the handful of keys typed while the panel is up.
+    private func route(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+            // Never resurrect a tap that removeTap is already tearing down.
+            let currentTap = lifecycleLock.withLock { shouldStopTapThread ? nil : tap }
+            if let currentTap { CGEvent.tapEnable(tap: currentTap, enable: true) }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.sessionActive else { return }
+                self.cancelSession()
+            }
             return Unmanaged.passUnretained(event)
         }
 
+        let (active, shortcut) = routeLock.withLock { (routeSessionActive, routeShortcut) }
+        if !active {
+            guard type == .keyDown,
+                  shortcut.matches(event: event, allowingExtraShift: true)
+            else { return Unmanaged.passUnretained(event) }
+            // Live check at the one point that starts AX work: with the grant
+            // revoked, the session lookups would hang and freeze input. The
+            // TCC round-trip is an IPC, so it runs once per shortcut press,
+            // never once per key.
+            guard AXIsProcessTrusted() else { return Unmanaged.passUnretained(event) }
+        }
+
+        var verdict: Unmanaged<CGEvent>?
+        DispatchQueue.main.sync {
+            verdict = self.handle(type: type, event: event)
+        }
+        return verdict
+    }
+
+    /// Main-thread side of the tap; reached only for events `route` decided
+    /// the switcher may care about.
+    private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         // With Accessibility revoked the AX lookups behind a session would hang
-        // inside the tap and freeze input; pass events through and drop any
-        // session that was open. The cached flag keeps a live TCC round-trip
-        // off this per-keystroke path (typing was paying one per key press);
-        // the hang-prone moment — actually starting a session — re-checks
-        // live below, where it runs once per ⌘Tab instead of once per key.
+        // and freeze input; pass events through and drop any session that was
+        // open. Cached flag: a live TCC round-trip is too heavy per key.
         guard Permissions.shared.accessibility else {
             if sessionActive { cancelSession() }
             return Unmanaged.passUnretained(event)
@@ -188,14 +320,20 @@ final class AppSwitcher: ObservableObject {
         let flags = event.flags
 
         guard sessionActive else {
-            let shortcut = GlobalShortcut.saved(for: DefaultsKey.switcherShortcut,
-                                                fallback: .switcherDefault)
+            // The same cached shortcut route() matched, so the two threads can
+            // never disagree about one press; syncWithPreferences refreshes it
+            // on every settings change.
+            let shortcut = routeLock.withLock { routeShortcut }
             guard shortcut.matches(event: event, allowingExtraShift: true)
             else { return Unmanaged.passUnretained(event) }
 
-            // Live check at the one point that starts AX work: revoked-but-
-            // cached-true here would hang the lookups inside the tap.
+            // Repeats route's live check: this block can also be reached with
+            // a press that was in flight while a session ended on this queue.
             guard AXIsProcessTrusted() else { return Unmanaged.passUnretained(event) }
+            // The press may equally have been in flight while the feature was
+            // switched off; never open a session the dying tap cannot drive.
+            let tapAlive = lifecycleLock.withLock { tap != nil && !shouldStopTapThread }
+            guard tapAlive else { return Unmanaged.passUnretained(event) }
             let reversed = shortcut.shiftIsNavigationModifier && flags.contains(.maskShift)
             return beginSession(reversed: reversed, shortcut: shortcut)
                 ? nil
@@ -264,16 +402,27 @@ final class AppSwitcher: ObservableObject {
     // MARK: - Session lifecycle
 
     private func beginSession(reversed: Bool, shortcut: GlobalShortcut) -> Bool {
+        guard let reportedFrontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        else { return false }
         let windows = WindowEnumerator.listWindows()
         guard !windows.isEmpty else { return false }
+        let focusedSourceWindowID = focusedWindowID(for: reportedFrontPID)
+        guard let source = SwitcherSupport.sessionSourceItem(frontmostPID: reportedFrontPID,
+                                                             focusedWindowID: focusedSourceWindowID,
+                                                             items: windows)
+        else { return false }
 
-        let list = orderedForSession(windows)
+        let list = orderedForSession(windows, currentID: source.id)
         sessionItems = list
         totalWindowCount = list.count
         searchQuery = ""
         self.windows = list
-        sessionSourceContext = sourceContext(in: list)
-        sessionStartItemID = sessionSourceContext?.itemID ?? currentItemID(in: list)
+        sessionSourceContext = SwitcherSourceContext(itemID: source.id,
+                                                     pid: source.pid,
+                                                     windowID: source.windowID,
+                                                     windowOwnerPID: source.windowOwnerPID,
+                                                     isFullscreen: source.isFullscreen)
+        sessionStartItemID = source.id
         recomputeLayouts(for: list)
         if !capturesPreviews {
             previews = [:]
@@ -321,8 +470,7 @@ final class AppSwitcher: ObservableObject {
     /// follow most-recently-used order, falling back to the app-activation
     /// order the enumerator already applied. This is what lets ⌘Tab toggle
     /// between two windows of the same app, not just two apps.
-    private func orderedForSession(_ items: [SwitcherItem]) -> [SwitcherItem] {
-        let currentID = currentItemID(in: items)
+    private func orderedForSession(_ items: [SwitcherItem], currentID: String) -> [SwitcherItem] {
         return items.enumerated()
             .sorted { lhs, rhs in
                 sortKey(lhs.element, currentID: currentID, original: lhs.offset)
@@ -351,48 +499,11 @@ final class AppSwitcher: ObservableObject {
         return groups[groupIndex].representativeIndex
     }
 
-    /// The id of the window on screen right now. Prefer the Accessibility
-    /// focused window so the first ⌘Tab never targets the window the user is
-    /// already in when the frontmost app has more than one window.
-    private func currentItemID(in items: [SwitcherItem]) -> String? {
-        let reportedFrontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
-            ?? AppActivationTracker.shared.frontmostPid
-        let frontPID = reportedFrontPID.flatMap { reportedPID in
-            items.first(where: { $0.windowOwnerPID == reportedPID })?.pid ?? reportedPID
-        }
-        if let reportedFrontPID,
-           let focusedID = focusedWindowID(for: reportedFrontPID),
-           items.contains(where: { $0.windowID == focusedID }) {
-            return "w:\(focusedID)"
-        }
-        let current = items.first { frontPID == nil || $0.pid == frontPID }
-        return current?.id ?? items.first?.id
-    }
-
-    private func sourceContext(in items: [SwitcherItem]) -> SwitcherSourceContext? {
-        guard let reportedFrontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
-                ?? AppActivationTracker.shared.frontmostPid else { return nil }
-        let frontPID = items.first(where: { $0.windowOwnerPID == reportedFrontPID })?.pid
-            ?? reportedFrontPID
-
-        let focusedID = focusedWindowID(for: reportedFrontPID)
-        let focusedSource = focusedID.flatMap { focusedID in
-            items.first { $0.pid == frontPID && $0.windowID == focusedID }
-        }
-        let source = focusedSource ?? items.first { $0.pid == frontPID }
-
-        return SwitcherSourceContext(itemID: source?.id,
-                                     pid: frontPID,
-                                     windowID: source?.windowID,
-                                     windowOwnerPID: source?.windowOwnerPID,
-                                     isFullscreen: source?.isFullscreen ?? false)
-    }
-
     private func focusedWindowID(for pid: pid_t) -> CGWindowID? {
         guard Permissions.shared.accessibility else { return nil }
         let app = AXUIElementCreateApplication(pid)
-        // Runs inside the tap callback: a hung frontmost app must not hold
-        // the keyboard hostage for the 6 second default AX timeout.
+        // The tap thread waits on the session start, so a hung frontmost app
+        // must not hold the keyboard hostage for the 6s default AX timeout.
         AXUIElementSetMessagingTimeout(app, 0.35)
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value) == .success,
@@ -619,8 +730,12 @@ final class AppSwitcher: ObservableObject {
             advanceWindowInSelectedApp(by: delta < 0 ? -1 : 1)
             return
         }
-        let target = selectedIndex + delta
-        guard windows.indices.contains(target) else { return }
+        guard delta != 0 else { return }
+        let target = SwitcherSupport.gridSelectionIndex(after: selectedIndex,
+                                                        itemCount: windows.count,
+                                                        columns: grid.columns,
+                                                        movingDown: delta > 0)
+        guard target != selectedIndex else { return }
         userNavigated = true
         selectedIndex = target
     }
@@ -727,7 +842,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     private func recomputeLayouts(for items: [SwitcherItem]) {
-        let screen = NSScreen.withMouse
+        guard let screen = NSScreen.withMouse ?? NSScreen.screens.first else { return }
         grid = SwitcherGrid.compute(count: max(items.count, 1), on: screen)
         let appGroups = SwitcherSupport.appGroups(items: items)
         iconRowLayout = SwitcherIconRowLayout.compute(
@@ -739,12 +854,11 @@ final class AppSwitcher: ObservableObject {
 
     private func updateIconRowLayoutForCurrentSelection() {
         guard !windows.isEmpty else { return }
-        let screen = NSScreen.withMouse
         let appGroups = SwitcherSupport.appGroups(items: windows)
         iconRowLayout = SwitcherIconRowLayout.compute(
             appCount: appGroups.count,
             selectedWindowCount: selectedAppWindowCount(in: windows),
-            screenVisibleFrame: screen.visibleFrame
+            screenVisibleFrame: NSScreen.pointerVisibleFrame
         )
     }
 
@@ -755,7 +869,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     private func centeredFrame(for size: CGSize) -> NSRect {
-        let screen = NSScreen.withMouse.visibleFrame
+        let screen = NSScreen.pointerVisibleFrame
         return NSRect(x: screen.midX - size.width / 2,
                       y: screen.midY - size.height / 2,
                       width: size.width,

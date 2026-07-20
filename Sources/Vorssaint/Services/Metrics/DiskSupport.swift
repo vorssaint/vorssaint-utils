@@ -29,6 +29,7 @@ struct DiskDeviceReading: Identifiable, Equatable {
     var bsdName: String?
     var wholeDisk: String?
     var ioCounterID: String?
+    var fileSystem: String?
     var totalBytes: UInt64
     var freeBytes: UInt64
     var usedBytes: UInt64
@@ -71,6 +72,35 @@ struct DiskReading: Equatable {
 
 enum DiskSupport {
     static let nvmeDataUnitBytes: UInt64 = 512_000
+
+    /// Short user-facing label for a volume format. `type` is the mount table
+    /// token (statfs f_fstypename / diskutil FilesystemType); `name` is the
+    /// verbose diskutil FilesystemName, used only to tell FAT widths apart.
+    static func fileSystemLabel(type: String?, name: String? = nil) -> String? {
+        guard let type = type?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !type.isEmpty else { return nil }
+        switch type {
+        case "apfs": return "APFS"
+        case "hfs": return "HFS+"
+        case "exfat": return "exFAT"
+        case "ntfs": return "NTFS"
+        case "msdos":
+            if let name {
+                if name.contains("32") { return "FAT32" }
+                if name.contains("16") { return "FAT16" }
+                if name.contains("12") { return "FAT12" }
+            }
+            return "FAT"
+        case "cd9660": return "ISO 9660"
+        default:
+            // Unknown formats only earn a tag when the token already reads
+            // like an acronym; anything longer is driver noise, not a format.
+            guard (2...6).contains(type.count),
+                  type.allSatisfy({ $0.isLetter || $0.isNumber }),
+                  type.contains(where: \.isLetter) else { return nil }
+            return type.uppercased()
+        }
+    }
 
     static func nvmeBytes(low: UInt64?, high: UInt64?) -> UInt64? {
         guard let low else { return nil }

@@ -104,7 +104,11 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 
 - **Quick panel.** ⌃⌘V opens a small floating palette with your favorite tools one key away.
 - **Quick toggles.** One-click system actions in their own panel tab: switch light and dark mode, empty the Trash, eject every disk, show hidden files, hide desktop icons, lock the screen and more.
-- **Copy text from screen.** Select any area and its text is recognized offline, straight onto the clipboard.
+- **Radial menu.** Hold a shortcut, or a spare side mouse button, and a wheel of your favorite actions opens around the pointer: apps, files, links, key combos, media controls and Vorssaint tools, with submenus for more. Point and release to run one.
+- **Screenshot.** Capture an area, a window or the whole screen on a frozen picture. A quick preview can copy, save, delete or open the editor, which adds stickers, annotations, precise crop, redaction, backgrounds and pinned captures. A QR code in the shot shows its content to copy or open, from the preview and the editor. Optional timer, save folder and 1x export included, plus an option to skip the preview and open the editor right away.
+- **Camera preview.** A floating mirror to check how you look before joining a call, one click or shortcut away. Pick the camera when several are connected; it closes as soon as you click away.
+- **Scratchpad.** A floating pad for short-lived text: meeting notes, numbers, fragments on their way somewhere else. It saves as you type, floats over your work, and can copy everything, export to a file or clear itself after a quiet period.
+- **Copy text from screen.** Select any area and its text is recognized offline, straight onto the clipboard. When the area holds a QR code, its content is shown so you can copy it or open the link.
 - **Color picker.** Grab any pixel with the system loupe as HEX, RGB, HSL or SwiftUI code.
 - **Cleaner.** Sweeps app leftovers, caches and logs, by hand or on a schedule.
 - **Uninstaller.** Drop an app in and take its caches, preferences and logs to the Trash with it.
@@ -115,7 +119,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 ### Energy and display
 
 - **Keep awake.** Keep the Mac up for a timer, until you say stop or automatically with an external display or power connection, including with the lid closed, choose the active menu bar icon and color, and see the remaining time beside it.
-- **Displays.** Adjust brightness or turn individual displays on and off from the menu bar panel. External screens use their own control channel when available and fall back to dimming the picture, while the keyboard brightness keys can follow the pointer.
+- **Displays.** Adjust brightness or turn individual displays on and off from the menu bar panel. External screens use their own control channel when available and fall back to dimming the picture, while the keyboard brightness keys can follow the pointer and show the brightness percentage.
 - **Extra brightness.** Pushes the XDR panel of a MacBook Pro past its regular maximum using the display's HDR headroom.
 
 ## Install
@@ -123,18 +127,26 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 With [Homebrew](https://brew.sh):
 
 ```sh
-brew install --cask vorssaint/tap/vorssaint
+brew install --cask vorssaint
 ```
 
-Already running it? Adopt your copy into Homebrew without a reinstall:
-
-```sh
-brew install --cask --adopt vorssaint/tap/vorssaint
-```
-
-Updates then arrive with `brew upgrade --cask vorssaint`. Or grab the disk image from the [releases page](https://github.com/vorssaint/vorssaint-utils/releases) and drag Vorssaint into Applications.
+Or grab the disk image from the [releases page](https://github.com/vorssaint/vorssaint-utils/releases) and drag Vorssaint into Applications.
 
 Builds are signed with an Apple Developer ID and notarized, so macOS opens them without a fuss and your permissions survive updates.
+
+## Uninstall
+
+With Homebrew:
+
+```sh
+brew uninstall --cask vorssaint
+```
+
+To remove Vorssaint completely, including its settings and permissions:
+
+```sh
+./Tools/uninstall.sh
+```
 
 ## Private by default
 

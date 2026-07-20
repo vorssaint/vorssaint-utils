@@ -356,6 +356,12 @@ private struct PermissionsPortalSections: View {
                 return .missing
             }
             return .unknown
+        case .camera:
+            switch permissions.camera {
+            case .granted: return .granted
+            case .denied, .undetermined: return .missing
+            case .unknown: return .unknown
+            }
         }
     }
 
@@ -464,6 +470,7 @@ private struct PermissionPortalRow: View {
         switch permission {
         case .accessibility, .screenRecording, .fullDiskAccess: return true
         case .notifications: return Permissions.shared.notifications == .undetermined
+        case .camera: return Permissions.shared.camera == .undetermined
         case .automationFinder, .automationTerminal, .audioCapture: return false
         }
     }
@@ -478,6 +485,7 @@ private struct PermissionPortalRow: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 Permissions.shared.refresh()
             }
+        case .camera: Permissions.shared.requestCamera()
         case .automationFinder, .automationTerminal, .audioCapture:
             break
         }
@@ -491,6 +499,7 @@ private struct PermissionPortalRow: View {
         case .notifications: Permissions.shared.openNotificationSettings()
         case .automationFinder, .automationTerminal: Permissions.shared.openAutomationSettings()
         case .audioCapture: Permissions.shared.openAudioCaptureSettings()
+        case .camera: Permissions.shared.openCameraSettings()
         }
     }
 }
@@ -530,6 +539,10 @@ extension AppFeature {
         case .quickToggles: return FeatureStrings.quickToggles(L10n.shared.language).pageTitle
         case .colorPicker: return s.colorPickerName
         case .screenOCR: return s.ocrName
+        case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).pageTitle
+        case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
+        case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
+        case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
         case .cleaningMode: return s.cleaningMenuItem
         case .mediaTools: return s.mediaName
         case .cleaner: return s.cleanerName
@@ -574,6 +587,10 @@ extension AppFeature {
         case .quickToggles: return FeatureStrings.quickToggles(L10n.shared.language).hubDescription
         case .colorPicker: return hub.descColorPicker
         case .screenOCR: return hub.descScreenOCR
+        case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).hubDescription
+        case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).hubDescription
+        case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).hubDescription
+        case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).hubDescription
         case .cleaningMode: return hub.descCleaningMode
         case .mediaTools: return hub.descMediaTools
         case .cleaner: return hub.descCleaner
@@ -599,6 +616,7 @@ extension AppPermission {
         case .automationFinder: return hub.permAutomationFinder
         case .automationTerminal: return hub.permAutomationTerminal
         case .audioCapture: return hub.permAudioCapture
+        case .camera: return FeatureStrings.cameraPreview(L10n.shared.language).permName
         }
     }
 
@@ -611,6 +629,7 @@ extension AppPermission {
         case .automationFinder: return hub.explainAutomationFinder
         case .automationTerminal: return hub.explainAutomationTerminal
         case .audioCapture: return hub.explainAudioCapture
+        case .camera: return FeatureStrings.cameraPreview(L10n.shared.language).permExplain
         }
     }
 }

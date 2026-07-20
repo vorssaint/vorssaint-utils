@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
-import ServiceManagement
 import SwiftUI
 
 /// One entry in the Settings sidebar. New features add a case here and a row in
@@ -58,6 +57,7 @@ struct SettingsView: View {
                                        l10n.s.keepAwakeActiveIconCoffee,
                                        l10n.s.keepAwakeActiveIconEye,
                                        FeatureStrings.brightness(l10n.language).pageTitle,
+                                       FeatureStrings.brightness(l10n.language).osdToggle,
                                        FeatureStrings.keepAwakeAutomation(l10n.language)
                                            .externalDisplayToggle,
                                        FeatureStrings.keepAwakeAutomation(l10n.language).powerToggle]),
@@ -97,7 +97,16 @@ struct SettingsView: View {
                                        l10n.s.colorPickerBareHexToggle, l10n.s.micMuteMenuBarToggle,
                                        FeatureStrings.quickToggles(l10n.language).pageTitle,
                                        FeatureStrings.quickToggles(l10n.language).darkModeToDark,
-                                       FeatureStrings.quickToggles(l10n.language).emptyTrashTitle]),
+                                       FeatureStrings.quickToggles(l10n.language).emptyTrashTitle,
+                                       FeatureStrings.cameraPreview(l10n.language).pageTitle,
+                                       FeatureStrings.scratchpad(l10n.language).pageTitle]),
+                SidebarItem(page: .screenshot,
+                            title: FeatureStrings.screenshot(l10n.language).pageTitle,
+                            icon: "camera.viewfinder",
+                            keywords: [FeatureStrings.screenshot(l10n.language).freezeToggle,
+                                       FeatureStrings.screenshot(l10n.language).pinButton,
+                                       FeatureStrings.screenshot(l10n.language).toolPixelate,
+                                       FeatureStrings.screenshot(l10n.language).toolArrow]),
                 SidebarItem(page: .urlCleaner, title: l10n.s.urlCleanerName, icon: "link"),
                 SidebarItem(page: .homebrew, title: l10n.s.homebrewName, icon: "shippingbox"),
                 SidebarItem(page: .uninstaller, title: l10n.s.uninstallerName, icon: "trash"),
@@ -106,6 +115,12 @@ struct SettingsView: View {
                             icon: "text.append",
                             keywords: [FeatureStrings.snippets(l10n.language).triggerLabel,
                                        FeatureStrings.snippets(l10n.language).addButton]),
+                SidebarItem(page: .radialMenu, title: FeatureStrings.radialMenu(l10n.language).pageTitle,
+                            icon: "circle.grid.cross",
+                            keywords: [FeatureStrings.radialMenu(l10n.language).addButton,
+                                       FeatureStrings.radialMenu(l10n.language).kindApp,
+                                       FeatureStrings.radialMenu(l10n.language).kindMedia,
+                                       FeatureStrings.radialMenu(l10n.language).kindSubmenu]),
             ]),
             (categories.app, [
                 SidebarItem(page: .shortcuts, title: l10n.s.shortcutsPageTitle, icon: "command",
@@ -121,28 +136,8 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $router.page) {
-                ForEach(sidebarSections, id: \.title) { section in
-                    let items = section.items.filter {
-                        FeatureVisibilitySupport.isPageVisible($0.page) { $0.isAvailable }
-                            && SettingsSearchSupport.matches(query: searchQuery, title: $0.title,
-                                                             keywords: $0.keywords)
-                    }
-                    if !items.isEmpty {
-                        Section(section.title) {
-                            ForEach(items) { item in
-                                Label(item.title, systemImage: item.icon).tag(item.page)
-                            }
-                        }
-                    }
-                }
-            }
-            .listStyle(.sidebar)
-            .searchable(text: $searchQuery,
-                        placement: .sidebar,
-                        prompt: l10n.s.settingsSearchPlaceholder)
-            .settingsSidebarSearchEdge()
-            .navigationSplitViewColumnWidth(min: 198, ideal: 210, max: 240)
+            sidebar
+                .navigationSplitViewColumnWidth(min: 198, ideal: 210, max: 240)
         } detail: {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -151,6 +146,54 @@ struct SettingsView: View {
         .frame(minWidth: 772, maxWidth: .infinity, minHeight: 528, maxHeight: .infinity)
         .onAppear { ensureVisiblePage() }
         .onChange(of: features.revision) { _, _ in ensureVisiblePage() }
+    }
+
+    /// macOS 27 backs the pinned sidebar search field with a hard top scroll
+    /// edge, so rows fade out cleanly under it. On macOS 26 that effect does
+    /// not render inside split-view sidebars and the pinned field has no
+    /// backing of its own, so rows slid legibly across the placeholder
+    /// (issues #183, #254); there the field lives on a fixed header above the
+    /// list, where rows can never reach it. Earlier systems keep the classic
+    /// opaque sidebar chrome.
+    @ViewBuilder
+    private var sidebar: some View {
+        if #available(macOS 27, *) {
+            sidebarList
+                .searchable(text: $searchQuery,
+                            placement: .sidebar,
+                            prompt: l10n.s.settingsSearchPlaceholder)
+                .scrollEdgeEffectStyle(.hard, for: .top)
+        } else if #available(macOS 26, *) {
+            VStack(spacing: 0) {
+                SidebarSearchField(query: $searchQuery)
+                sidebarList
+            }
+        } else {
+            sidebarList
+                .searchable(text: $searchQuery,
+                            placement: .sidebar,
+                            prompt: l10n.s.settingsSearchPlaceholder)
+        }
+    }
+
+    private var sidebarList: some View {
+        List(selection: $router.page) {
+            ForEach(sidebarSections, id: \.title) { section in
+                let items = section.items.filter {
+                    FeatureVisibilitySupport.isPageVisible($0.page) { $0.isAvailable }
+                        && SettingsSearchSupport.matches(query: searchQuery, title: $0.title,
+                                                         keywords: $0.keywords)
+                }
+                if !items.isEmpty {
+                    Section(section.title) {
+                        ForEach(items) { item in
+                            Label(item.title, systemImage: item.icon).tag(item.page)
+                        }
+                    }
+                }
+            }
+        }
+        .listStyle(.sidebar)
     }
 
     /// The selected page can leave the sidebar when its last feature is
@@ -168,6 +211,7 @@ struct SettingsView: View {
         case .general: GeneralSettings()
         case .features: FeatureHubSettings()
         case .textSnippets: TextSnippetsSettings()
+        case .radialMenu: RadialMenuSettings()
         case .energy: EnergySettings()
         case .monitor: MonitorSettings()
         case .mouse: MouseSettings()
@@ -181,6 +225,7 @@ struct SettingsView: View {
         case .media: MediaSettings()
         case .clipboard: ClipboardSettings()
         case .quickTools: QuickToolsSettings()
+        case .screenshot: ScreenshotSettings()
         case .windowLayout: WindowLayoutSettings()
         case .shelf: ShelfSettings()
         case .shortcuts: ShortcutsSettings()
@@ -198,7 +243,7 @@ struct GeneralSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var hotkeys = HotkeyManager.shared
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var launchAtLogin = LaunchAtLogin.isEnabled
     @State private var loginError: String?
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
     @AppStorage(DefaultsKey.showCountdown) private var showCountdown = false
@@ -211,17 +256,14 @@ struct GeneralSettings: View {
                 Toggle(l10n.s.launchAtLogin, isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, enabled in
                         do {
-                            if enabled {
-                                try SMAppService.mainApp.register()
-                            } else {
-                                try SMAppService.mainApp.unregister()
-                            }
+                            try LaunchAtLogin.setEnabled(enabled)
                             loginError = nil
                         } catch {
                             loginError = error.localizedDescription
-                            launchAtLogin = SMAppService.mainApp.status == .enabled
+                            launchAtLogin = LaunchAtLogin.isEnabled
                         }
                     }
+                    .onAppear { launchAtLogin = LaunchAtLogin.isEnabled }
                 if let loginError {
                     Text(loginError)
                         .font(.caption)
@@ -421,6 +463,7 @@ struct EnergySettings: View {
     @ObservedObject private var brightness = BrightnessService.shared
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
+    @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
     @AppStorage(DefaultsKey.extraBrightnessEnabled) private var extraBrightnessEnabled = false
     @AppStorage(DefaultsKey.extraBrightnessLevel) private var extraBrightnessLevel = 100
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration = 0
@@ -522,7 +565,17 @@ struct EnergySettings: View {
                                 if isOn { Permissions.shared.requestAccessibility() }
                                 BrightnessService.shared.syncWithPreferences()
                             }
-                        if brightnessKeysEnabled, !permissions.accessibility {
+                        if brightness.brightnessOSDSupported {
+                            SettingsToggleWithCaption(title: strings.osdToggle,
+                                                      caption: strings.osdCaption,
+                                                      isOn: $brightnessOSDEnabled)
+                                .onChange(of: brightnessOSDEnabled) { _, isOn in
+                                    if isOn { Permissions.shared.requestAccessibility() }
+                                    BrightnessService.shared.syncWithPreferences()
+                                }
+                        }
+                        if (brightnessKeysEnabled || brightnessOSDEnabled),
+                           !permissions.accessibility {
                             PermissionRow(kind: .accessibility)
                         }
                         SettingsCaptionText(strings.externalCaption)
@@ -578,8 +631,9 @@ struct EnergySettings: View {
                 .truncationMode(.middle)
             if display.isActive, display.method != nil {
                 Slider(value: Binding(get: { display.brightness },
-                                      set: { BrightnessService.shared.setBrightness($0,
-                                                                                    for: display.id) }),
+                                      set: { BrightnessService.shared.setBrightness(
+                                          $0, for: display.id,
+                                          showOSD: brightnessOSDEnabled) }),
                        in: 0...1)
                     .disabled(brightness.isDisplayPending(display.id))
                     .accessibilityLabel(display.name)
@@ -904,7 +958,6 @@ struct SwitcherSettings: View {
         if !permissions.accessibility { return "\(l10n.s.permissionRequired): \(l10n.s.permissionAccessibility)" }
         if !permissions.screenRecording { return "\(l10n.s.permissionRequired): \(l10n.s.permissionScreenRecording)" }
         switch dockPreview.blockedReason {
-        case .magnification: return l10n.s.dockPreviewMagnificationBlocked
         case .dockUnavailable: return l10n.s.dockPreviewDockUnavailable
         default:
             return l10n.s.dockPreviewEnableCaption
@@ -1253,19 +1306,37 @@ struct PermissionRow: View {
     }
 }
 
-private extension View {
-    /// The sidebar search field is pinned to the top, so rows slide up behind it
-    /// as the list scrolls. On macOS 26 the pinned field has no backing of its
-    /// own, leaving the placeholder and the first rows overlapping (issue #183).
-    /// A hard top scroll-edge effect gives that band a defined glass blur, so the
-    /// rows fade out cleanly under the field. No-op on earlier systems, which
-    /// keep the classic opaque sidebar chrome.
-    @ViewBuilder
-    func settingsSidebarSearchEdge() -> some View {
-        if #available(macOS 26.0, *) {
-            scrollEdgeEffectStyle(.hard, for: .top)
-        } else {
-            self
+/// Search field for the macOS 26 sidebar, styled after the system pill.
+/// It sits on a fixed header outside the List, so scrolling rows can never
+/// cross it (issues #183, #254). Esc and the clear button empty the query,
+/// matching the system field.
+private struct SidebarSearchField: View {
+    @ObservedObject private var l10n = L10n.shared
+    @Binding var query: String
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField(l10n.s.settingsSearchPlaceholder, text: $query)
+                .textFieldStyle(.plain)
+                .onExitCommand { query = "" }
+            if !query.isEmpty {
+                Button {
+                    query = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(l10n.s.urlCleanerClearButton)
+            }
         }
+        .padding(.vertical, 5)
+        .padding(.horizontal, 7)
+        .background(.quaternary.opacity(0.5), in: Capsule())
+        .padding(.horizontal, 10)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
     }
 }

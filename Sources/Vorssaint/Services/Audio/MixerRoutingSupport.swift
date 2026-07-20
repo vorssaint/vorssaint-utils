@@ -278,6 +278,31 @@ enum MixerRoutingSupport {
         bundleIdentifier == finderBundleIdentifier && !showFinder
     }
 
+    /// How many parent processes to inspect when the responsible process is
+    /// not a regular app. Browser audio helpers are direct children of their
+    /// app; a small cap keeps a bad parent chain from being walked forever.
+    static let owningAppSearchDepth = 6
+
+    /// The regular app a helper's audio belongs to. Normally that is the
+    /// helper's responsible process, but some browsers detach their helpers
+    /// from the responsibility chain, macOS reports each one as responsible
+    /// for itself, and the browser vanished from the mixer (issue #256). The BSD
+    /// parent chain still leads to the app that spawned the helper, so walk
+    /// it and bill the helper to the nearest regular app.
+    static func owningRegularAppPid(responsiblePid: pid_t,
+                                    isRegularApp: (pid_t) -> Bool,
+                                    parentPid: (pid_t) -> pid_t) -> pid_t? {
+        guard responsiblePid > 0 else { return nil }
+        if isRegularApp(responsiblePid) { return responsiblePid }
+        var current = responsiblePid
+        for _ in 0..<owningAppSearchDepth {
+            current = parentPid(current)
+            guard current > 1 else { return nil }
+            if isRegularApp(current) { return current }
+        }
+        return nil
+    }
+
     static func needsPersistentFinderRow(showFinder: Bool, hasFinderRow: Bool) -> Bool {
         showFinder && !hasFinderRow
     }

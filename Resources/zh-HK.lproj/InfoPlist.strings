@@ -1,0 +1,8 @@
+/* macOS Automation permission prompt. */
+"NSAppleEventsUsageDescription" = "Vorssaint 使用自動化在 Finder 中移動檔案、將項目移至垃圾桶，並在你要求 Homebrew 動作時開啟終端機指令。";
+
+/* macOS Screen & System Audio Recording permission prompt. */
+"NSAudioCaptureUsageDescription" = "Vorssaint 只會取用個別 App 的音訊，用作在混音器中調整它們的音量。不會錄製任何內容，也不會有任何資料離開你的 Mac。";
+
+/* macOS Camera permission prompt. */
+"NSCameraUsageDescription" = "Vorssaint 只會在你開啟的預覽視窗中顯示相機畫面，讓你在通話前確認自己的狀態。不會錄製任何內容，也不會有任何資料離開你的 Mac。";

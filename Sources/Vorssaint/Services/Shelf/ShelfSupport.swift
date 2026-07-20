@@ -12,6 +12,22 @@ enum ShelfInteractionSupport {
         return !excludedBundleIdentifiers.contains(sourceBundleIdentifier)
     }
 
+    /// Whether the gesture in flight drags real content, as opposed to moving
+    /// or resizing a window. The drag pasteboard retains the previous drag's
+    /// items indefinitely, so retained content alone proves nothing: only a
+    /// change-count bump during the current gesture makes it current. Dock
+    /// stacks are the one source that can publish the contents before the
+    /// mouse-down, hence the Dock escape. Either way the pasteboard must hold
+    /// something the Shelf can keep; the check stays lazy because most dragged
+    /// events resolve on the cheap change count alone.
+    static func isContentDrag(baselineChangeCount: Int,
+                              changeCount: Int,
+                              beganInDock: Bool,
+                              hasDroppableContent: () -> Bool) -> Bool {
+        guard changeCount != baselineChangeCount || beganInDock else { return false }
+        return hasDroppableContent()
+    }
+
     /// A successful drag that really left the Shelf can dismiss it. Cancelled
     /// drags and internal merges never do, and pinning always wins.
     static func shouldCloseAfterDrag(dropAccepted: Bool,

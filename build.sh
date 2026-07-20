@@ -97,11 +97,17 @@ if (( TEST )); then
         Sources/Vorssaint/Core/SnippetStrings.swift \
         Sources/Vorssaint/Core/BrightnessStrings.swift \
         Sources/Vorssaint/Core/QuickToggleStrings.swift \
+        Sources/Vorssaint/Core/ScreenshotStrings.swift \
+        Sources/Vorssaint/Core/CameraPreviewStrings.swift \
+        Sources/Vorssaint/Core/ScratchpadStrings.swift \
+        Sources/Vorssaint/Core/RadialMenuStrings.swift \
         Sources/Vorssaint/Core/MenuBarAppearanceStrings.swift \
         Sources/Vorssaint/Core/BatteryTimeStrings.swift \
         Sources/Vorssaint/Core/KeepAwakeStrings.swift \
         Sources/Vorssaint/Core/PermissionGuideStrings.swift \
         Sources/Vorssaint/Services/Snippets/TextSnippetSupport.swift \
+        Sources/Vorssaint/Services/RadialMenu/RadialMenuSupport.swift \
+        Sources/Vorssaint/Services/QuickTools/ScratchpadSupport.swift \
         Sources/Vorssaint/Core/AppInfo.swift \
         Sources/Vorssaint/Core/GlobalShortcut.swift \
         Sources/Vorssaint/Core/Localization.swift \
@@ -117,6 +123,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AutoQuit/AutoQuitSupport.swift \
         Sources/Vorssaint/Services/Shelf/ShelfSupport.swift \
         Sources/Vorssaint/Services/Update/UpdateInstallerSupport.swift \
+        Sources/Vorssaint/Services/LaunchAtLoginSupport.swift \
         Sources/Vorssaint/UI/Settings/SettingsSearchSupport.swift \
         Sources/Vorssaint/UI/Settings/FeatureVisibilitySupport.swift \
         Sources/Vorssaint/App/MenuBarSpacingSupport.swift \
@@ -127,8 +134,9 @@ if (( TEST )); then
         Sources/Vorssaint/Services/MouseNavigation/MouseNavigationSupport.swift \
         Sources/Vorssaint/Services/QuickTools/QuickToolsSupport.swift \
         Sources/Vorssaint/Services/QuickTools/QuickTogglesSupport.swift \
+        Sources/Vorssaint/Services/QuickTools/ScreenshotSupport.swift \
         Sources/Vorssaint/Services/KeyboardDebounce/KeyboardDebounceSupport.swift \
-        Sources/Vorssaint/Services/ScrollInverterSupport.swift \
+        Sources/Vorssaint/Services/ScrollWheelSupport.swift \
         Sources/Vorssaint/Services/SmoothScrollSupport.swift \
         Sources/Vorssaint/Services/Switcher/SwitcherModels.swift \
         Sources/Vorssaint/Services/Switcher/SwitcherSupport.swift \

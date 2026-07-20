@@ -9,6 +9,7 @@ final class DiskSampler {
     private struct DiskMetadata {
         var bsdName: String?
         var wholeDisk: String?
+        var fileSystem: String?
         var ioCounterIDs: [String] = []
         var totalBytes: UInt64?
         var freeBytes: UInt64?
@@ -53,6 +54,8 @@ final class DiskSampler {
                                      bsdName: metadata.bsdName,
                                      wholeDisk: wholeDisk,
                                      ioCounterID: counter?.id,
+                                     fileSystem: metadata.fileSystem
+                                         ?? DiskSupport.fileSystemLabel(type: volume.fileSystemType),
                                      totalBytes: capacity.total,
                                      freeBytes: capacity.free,
                                      usedBytes: capacity.used,
@@ -157,6 +160,7 @@ final class DiskSampler {
         var isRemovable: Bool
         var isEjectable: Bool
         var bsdName: String?
+        var fileSystemType: String?
     }
 
     private static func mountedVolumes() -> [MountedVolume] {
@@ -187,6 +191,7 @@ final class DiskSampler {
                 ?? positiveUInt(values.volumeAvailableCapacity)
                 ?? 0
             let name = values.volumeLocalizedName ?? values.volumeName ?? url.lastPathComponent
+            let identity = statfsIdentity(for: url.path)
             return MountedVolume(name: name.isEmpty ? url.path : name,
                                  mountPath: url.path,
                                  totalBytes: total,
@@ -195,14 +200,15 @@ final class DiskSampler {
                                  isInternal: values.volumeIsInternal ?? false,
                                  isRemovable: values.volumeIsRemovable ?? false,
                                  isEjectable: values.volumeIsEjectable ?? false,
-                                 bsdName: bsdName(for: url.path))
+                                 bsdName: identity.bsdName,
+                                 fileSystemType: identity.fileSystemType)
         }
     }
 
-    private static func bsdName(for mountPath: String) -> String? {
+    private static func statfsIdentity(for mountPath: String) -> (bsdName: String?, fileSystemType: String?) {
         var fs = statfs()
-        guard statfs(mountPath, &fs) == 0 else { return nil }
-        return withUnsafeBytes(of: fs.f_mntfromname) { rawBuffer -> String? in
+        guard statfs(mountPath, &fs) == 0 else { return (nil, nil) }
+        let bsdName = withUnsafeBytes(of: fs.f_mntfromname) { rawBuffer -> String? in
             guard let base = rawBuffer.baseAddress?.assumingMemoryBound(to: CChar.self) else {
                 return nil
             }
@@ -210,6 +216,14 @@ final class DiskSampler {
             let trimmed = value.replacingOccurrences(of: "/dev/", with: "")
             return trimmed.hasPrefix("disk") ? trimmed : nil
         }
+        let fileSystemType = withUnsafeBytes(of: fs.f_fstypename) { rawBuffer -> String? in
+            guard let base = rawBuffer.baseAddress?.assumingMemoryBound(to: CChar.self) else {
+                return nil
+            }
+            let value = String(cString: base)
+            return value.isEmpty ? nil : value
+        }
+        return (bsdName, fileSystemType)
     }
 
     private static func positiveUInt(_ value: Int?) -> UInt64? {
@@ -252,6 +266,8 @@ final class DiskSampler {
                                  isInternal: info["Internal"] as? Bool ?? false)
         return DiskMetadata(bsdName: bsdName,
                             wholeDisk: wholeDisk,
+                            fileSystem: DiskSupport.fileSystemLabel(type: info["FilesystemType"] as? String,
+                                                                    name: info["FilesystemName"] as? String),
                             ioCounterIDs: ioIDs,
                             totalBytes: total,
                             freeBytes: free,

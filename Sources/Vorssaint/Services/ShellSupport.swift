@@ -101,16 +101,31 @@ enum Sudoers {
         return valid ? user : nil
     }
 
-    /// The verbose listing identifies the `NOPASSWD` rule as `!authenticate`.
-    /// A plain successful `sudo -l` is not enough because administrators may
-    /// run the command while still needing a password.
+    /// Serializes every touch of the SleepDisabled state. The probe below
+    /// re-applies the value it just read; racing it against a concurrent
+    /// disable (launch recovery, a session ending) could resurrect a stale
+    /// "1" after the flag was already cleared, leaving lid sleep off with
+    /// nothing left to repair it.
+    private static let sleepStateQueue = DispatchQueue(label: "com.vorssaint.utils.pmset-state")
+
+    /// Proves the passwordless path by running it: re-applying the current
+    /// SleepDisabled state through `sudo -n` changes nothing on the system and
+    /// exercises the exact call the feature makes. Listing checks (`sudo -l`)
+    /// reported the rule as ready on Macs where the real call still asked for
+    /// a password, which put every toggle behind a prompt (issue #269).
     static func isConfigured() -> Bool {
-        canListDisableSleep("1") && canListDisableSleep("0")
+        sleepStateQueue.sync {
+            let report = Shell.run("/usr/bin/pmset", ["-g"])
+            guard report.status == 0 else { return false }
+            return pmsetDisableSleepOnQueue(SudoersSupport.sleepDisabled(inPmsetOutput: report.output))
+        }
     }
 
-    private static func canListDisableSleep(_ value: String) -> Bool {
-        let result = Shell.run("/usr/bin/sudo", ["-n", "-l", "-l", "/usr/bin/pmset", "disablesleep", value])
-        return SudoersSupport.allowsWithoutPassword(status: result.status, output: result.output)
+    /// Whether any rule file (current or legacy name) is visible on disk.
+    /// Uninstall offers the removal prompt from this instead of `isConfigured`,
+    /// so a rule that stopped working still gets cleaned up.
+    static var ruleFilesPresent: Bool {
+        ([rulePath] + legacyRulePaths).contains { FileManager.default.fileExists(atPath: $0) }
     }
 
     static func install(completion: @escaping (Bool) -> Void) {
@@ -141,6 +156,10 @@ enum Sudoers {
     /// (returns false) when the rule is not installed.
     @discardableResult
     static func pmsetDisableSleep(_ on: Bool) -> Bool {
+        sleepStateQueue.sync { pmsetDisableSleepOnQueue(on) }
+    }
+
+    private static func pmsetDisableSleepOnQueue(_ on: Bool) -> Bool {
         Shell.run("/usr/bin/sudo", ["-n", "/usr/bin/pmset", "disablesleep", on ? "1" : "0"]).status == 0
     }
 }

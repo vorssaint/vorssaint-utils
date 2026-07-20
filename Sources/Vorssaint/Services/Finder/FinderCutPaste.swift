@@ -460,7 +460,7 @@ final class FinderCutPaste: ObservableObject {
         let view = panel.contentViewController!.view
         view.layoutSubtreeIfNeeded()
         let size = view.fittingSize
-        let screen = NSScreen.withMouse.visibleFrame
+        let screen = NSScreen.pointerVisibleFrame
         let frame = NSRect(x: screen.midX - size.width / 2,
                            y: screen.maxY - size.height - 14,
                            width: size.width, height: size.height)

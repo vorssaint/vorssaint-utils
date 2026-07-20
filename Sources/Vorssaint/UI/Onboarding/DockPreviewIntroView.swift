@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
-import Combine
 import SwiftUI
 
 /// One-time update note for the Dock Preview beta. It is intentionally separate
@@ -12,8 +11,6 @@ struct DockPreviewIntroView: View {
     var onEnable: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
-    @ObservedObject private var dockPreview = DockPreviewService.shared
-    private let refreshTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -31,12 +28,6 @@ struct DockPreviewIntroView: View {
         }
         .frame(width: 660, height: 600)
         .background(Color(nsColor: .windowBackgroundColor))
-        .onAppear {
-            dockPreview.syncWithPreferences()
-        }
-        .onReceive(refreshTimer) { _ in
-            dockPreview.syncWithPreferences()
-        }
     }
 
     private var header: some View {
@@ -81,20 +72,6 @@ struct DockPreviewIntroView: View {
                 Spacer(minLength: 0)
             }
 
-            if dockPreview.dockMagnification {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "dock.rectangle")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 20)
-                    Text(l10n.s.dockPreviewMagnificationBlocked)
-                        .font(.system(size: 12.5, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 0)
-                }
-            }
-
             Text(l10n.s.dockPreviewIntroSettingsHint)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -117,15 +94,12 @@ struct DockPreviewIntroView: View {
 
             Spacer()
 
-            Button(dockPreview.dockMagnification
-                   ? l10n.s.dockPreviewIntroMagnificationAction
-                   : l10n.s.dockPreviewIntroEnable) {
+            Button(l10n.s.dockPreviewIntroEnable) {
                 onEnable()
             }
             .keyboardShortcut(.defaultAction)
             .buttonStyle(.borderedProminent)
-            .disabled(dockPreview.dockMagnification)
-            .help(dockPreview.dockMagnification ? l10n.s.dockPreviewIntroMagnificationAction : l10n.s.dockPreviewIntroEnable)
+            .help(l10n.s.dockPreviewIntroEnable)
         }
         .padding(16)
     }

@@ -333,7 +333,6 @@ struct Strings {
     let dockClickCycleWindows: String
     let dockClickCycleWindowsCaption: String
     let dockPreviewActiveNow: String
-    let dockPreviewMagnificationBlocked: String
     let dockPreviewDockUnavailable: String
     let dockPreviewAutohideBeta: String
     let dockPreviewOpenWindow: String
@@ -350,7 +349,6 @@ struct Strings {
     let dockPreviewIntroSettingsHint: String
     let dockPreviewIntroLater: String
     let dockPreviewIntroEnable: String
-    let dockPreviewIntroMagnificationAction: String
 
     // MARK: Feature — cut & paste in Finder
     let cutPasteName: String
@@ -929,9 +927,16 @@ struct Strings {
     let supportIntroStarButton: String
     let supportIntroCoffeeButton: String
     let supportIntroLaterButton: String
+    let supportIntroDoneButton: String
     let communityIntroTitle: String
     let communityIntroMessage: String
     let communityIntroFollowButton: String
+    let homebrewOfficialIntroTitle: String
+    let homebrewOfficialIntroMessage: String
+    let homebrewOfficialIntroInstallLabel: String
+    let homebrewOfficialIntroMigrationTitle: String
+    let homebrewOfficialIntroMigrationMessage: String
+    let homebrewOfficialIntroCopyButton: String
     let updateShowcaseTitle: String
     let updateShowcaseMessage: String
     let updateShowcaseUnavailable: String
@@ -1007,6 +1012,19 @@ struct Strings {
     let cleanerScheduleNotifyToggle: String
     let cleanerNotifDenied: String
     let cleanerNotifOpenSettings: String
+    let launchAtLoginNeedsApplications: String
+    let ocrQRToggle: String
+    let ocrQRCaption: String
+    let ocrQRCopied: String
+    let qrResultTitle: String
+    let qrResultCopy: String
+    let qrResultOpen: String
+    let highlightsTitle: String
+    let highlightsCaptionDockPreview: String
+    let highlightsCaptionScreenshot: String
+    let highlightsConfigure: String
+    let highlightsTry: String
+    let highlightsSeeAll: String
 }
 
 // MARK: - Português (Brasil)
@@ -1225,7 +1243,6 @@ extension Strings {
         dockClickCycleWindows: "Clicar no Dock alterna janelas",
         dockClickCycleWindowsCaption: "Clique no ícone do Dock do app ativo para alternar entre suas janelas, como ⌘`.",
         dockPreviewActiveNow: "Ativo no Dock",
-        dockPreviewMagnificationBlocked: "Desative a ampliação do Dock para usar.",
         dockPreviewDockUnavailable: "Não foi possível ler os itens do Dock.",
         dockPreviewAutohideBeta: "Beta. Você pode encontrar alguns bugs.",
         dockPreviewOpenWindow: "Abrir janela",
@@ -1242,7 +1259,6 @@ extension Strings {
         dockPreviewIntroSettingsHint: "Você pode mudar isso depois em Ajustes › Switcher.",
         dockPreviewIntroLater: "Agora não",
         dockPreviewIntroEnable: "Ativar Dock Preview",
-        dockPreviewIntroMagnificationAction: "Desative a ampliação do Dock para ativar.",
 
         cutPasteName: "Recortar e colar",
         cutPasteEnable: "Recortar e colar arquivos no Finder",
@@ -1799,9 +1815,16 @@ extension Strings {
         supportIntroStarButton: "Dar uma estrela",
         supportIntroCoffeeButton: "Buy me a coffee",
         supportIntroLaterButton: "Agora não",
+        supportIntroDoneButton: "Concluir",
         communityIntroTitle: "Vem ver antes de todo mundo",
-        communityIntroMessage: "O Vorssaint agora atualiza uma vez por semana, com calma, pra cada novidade chegar redonda e bem testada. Só correção urgente sai na hora. Mas você não precisa esperar. No X eu mostro as prévias antes de lançar, você comenta, pede feature na DM, e o que você falar pode mudar o app. Escolhi o X porque ele traduz cada post automaticamente pro seu idioma. Vem!",
+        communityIntroMessage: "Quem já me seguia no X viu várias novidades desta atualização antes de todo mundo. Lá eu posto prévias do que vem depois e mostro como funciona, para você já saber o básico antes mesmo da atualização sair. Segue lá e veja o que vem depois!",
         communityIntroFollowButton: "Seguir @vorssaint no X",
+        homebrewOfficialIntroTitle: "Agora no catálogo oficial do Homebrew",
+        homebrewOfficialIntroMessage: "O Vorssaint agora pode ser instalado direto do catálogo oficial do Homebrew.",
+        homebrewOfficialIntroInstallLabel: "Nova instalação",
+        homebrewOfficialIntroMigrationTitle: "Usava o tap antigo?",
+        homebrewOfficialIntroMigrationMessage: "Remova o tap uma vez. O app e seus ajustes continuam no lugar.",
+        homebrewOfficialIntroCopyButton: "Copiar comando",
         updateShowcaseTitle: "Novidades da 3.1.4",
         updateShowcaseMessage: "Veja uma prévia rápida das principais melhorias desta atualização.",
         updateShowcaseUnavailable: "Não foi possível carregar o vídeo agora. Você ainda pode continuar.",
@@ -1870,7 +1893,20 @@ extension Strings {
         cleanerScheduleRanFormat: "Última limpeza automática %@.",
         cleanerScheduleNotifyToggle: "Avisar quando terminar",
         cleanerNotifDenied: "As notificações do Vorssaint estão desativadas no sistema.",
-        cleanerNotifOpenSettings: "Abrir Ajustes de Notificações…"
+        cleanerNotifOpenSettings: "Abrir Ajustes de Notificações…",
+        launchAtLoginNeedsApplications: "O app está rodando de um lugar que não permite abrir no login. Arraste o Vorssaint para a pasta Aplicativos, abra de lá e ligue de novo.",
+        ocrQRToggle: "Ler QR codes",
+        ocrQRCaption: "Se a área tiver um QR code, o conteúdo dele aparece para copiar ou abrir.",
+        ocrQRCopied: "QR code copiado",
+        qrResultTitle: "QR code",
+        qrResultCopy: "Copiar",
+        qrResultOpen: "Abrir link",
+        highlightsTitle: "Novidades desta versão",
+        highlightsCaptionDockPreview: "O Dock Preview agora funciona com a ampliação do Dock ligada",
+        highlightsCaptionScreenshot: "A captura de tela ganhou uma lupa de pixels e leitura de QR codes",
+        highlightsConfigure: "Configurar",
+        highlightsTry: "Experimentar",
+        highlightsSeeAll: "Ver todas as mudanças"
     )
 }
 
@@ -2090,7 +2126,6 @@ extension Strings {
         dockClickCycleWindows: "Click the Dock icon to cycle windows",
         dockClickCycleWindowsCaption: "Click an active app's Dock icon to rotate through its windows, like ⌘`.",
         dockPreviewActiveNow: "Active in the Dock",
-        dockPreviewMagnificationBlocked: "Turn off Dock magnification to use this.",
         dockPreviewDockUnavailable: "Could not read Dock items.",
         dockPreviewAutohideBeta: "Beta. You may run into some bugs.",
         dockPreviewOpenWindow: "Open window",
@@ -2107,7 +2142,6 @@ extension Strings {
         dockPreviewIntroSettingsHint: "You can change this later in Settings › Switcher.",
         dockPreviewIntroLater: "Not now",
         dockPreviewIntroEnable: "Enable Dock Preview",
-        dockPreviewIntroMagnificationAction: "Turn off Dock magnification to enable.",
 
         cutPasteName: "Cut & paste",
         cutPasteEnable: "Cut & paste files in Finder",
@@ -2664,9 +2698,16 @@ extension Strings {
         supportIntroStarButton: "Leave a star",
         supportIntroCoffeeButton: "Buy me a coffee",
         supportIntroLaterButton: "Not now",
+        supportIntroDoneButton: "Done",
         communityIntroTitle: "See it before everyone else",
-        communityIntroMessage: "Vorssaint now updates once a week, so every new feature lands solid and well tested. Urgent fixes still go out right away. But you don't have to wait. On X I post previews before anything ships, you can comment, ask for features in my DMs, and what you say can change the app. I picked X because it translates every post into your language automatically. Come take a look!",
+        communityIntroMessage: "People who already followed me on X saw several changes in this update before anyone else. I post previews of what is coming and show how it works, so you already know the basics before the update ships. Follow along and see what comes next!",
         communityIntroFollowButton: "Follow @vorssaint on X",
+        homebrewOfficialIntroTitle: "Now in the official Homebrew catalog",
+        homebrewOfficialIntroMessage: "Vorssaint can now be installed directly from the official Homebrew catalog.",
+        homebrewOfficialIntroInstallLabel: "New installation",
+        homebrewOfficialIntroMigrationTitle: "Used the old tap?",
+        homebrewOfficialIntroMigrationMessage: "Remove the tap once. The app and your settings stay in place.",
+        homebrewOfficialIntroCopyButton: "Copy command",
         updateShowcaseTitle: "What's new in 3.1.4",
         updateShowcaseMessage: "Take a quick look at the main improvements in this update.",
         updateShowcaseUnavailable: "The video could not load right now. You can still continue.",
@@ -2735,6 +2776,19 @@ extension Strings {
         cleanerScheduleRanFormat: "Last automatic cleanup %@.",
         cleanerScheduleNotifyToggle: "Notify when done",
         cleanerNotifDenied: "Vorssaint notifications are turned off in the system.",
-        cleanerNotifOpenSettings: "Open Notification Settings…"
+        cleanerNotifOpenSettings: "Open Notification Settings…",
+        launchAtLoginNeedsApplications: "The app is running from a place that cannot open at login. Drag Vorssaint to the Applications folder, open it from there and turn this on again.",
+        ocrQRToggle: "Read QR codes",
+        ocrQRCaption: "If the area has a QR code, its content is shown to copy or open.",
+        ocrQRCopied: "QR code copied",
+        qrResultTitle: "QR code",
+        qrResultCopy: "Copy",
+        qrResultOpen: "Open link",
+        highlightsTitle: "New in this update",
+        highlightsCaptionDockPreview: "Dock Preview now works with Dock magnification turned on",
+        highlightsCaptionScreenshot: "The screenshot tool gained a pixel loupe and QR code reading",
+        highlightsConfigure: "Set up",
+        highlightsTry: "Try it",
+        highlightsSeeAll: "See all changes"
     )
 }

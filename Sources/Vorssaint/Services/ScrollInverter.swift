@@ -106,8 +106,8 @@ final class ScrollInverter: ObservableObject {
             lastGesturePhaseTimestamp = timestamp
         }
 
-        if ScrollInverterSupport.shouldInvertMouseWheel(traits,
-                                                        secondsSinceLastGesturePhase: secondsSinceGesturePhase) {
+        if ScrollWheelSupport.isMouseWheel(traits,
+                                           secondsSinceLastGesturePhase: secondsSinceGesturePhase) {
             // All three deltas must be captured BEFORE any set: writing the
             // line delta makes the system rederive the point and fixed-point
             // fields from it, so negating a re-read value flips it back to

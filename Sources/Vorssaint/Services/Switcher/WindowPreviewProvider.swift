@@ -201,7 +201,8 @@ final class WindowPreviewProvider {
     /// other-Space windows come back as their real, untransformed content.
     private static let windowServerCaptureOptions: UInt32 = (1 << 8) | (1 << 11)
 
-    private static func captureViaWindowServer(_ windowID: CGWindowID) -> CGImage? {
+    /// Internal so the screenshot tool can reuse the existing window capture.
+    static func captureViaWindowServer(_ windowID: CGWindowID) -> CGImage? {
         guard windowServerConnection != 0, let capture = windowServerCapture else { return nil }
         var id = UInt32(windowID)
         guard let array = capture(windowServerConnection, &id, 1, windowServerCaptureOptions)?

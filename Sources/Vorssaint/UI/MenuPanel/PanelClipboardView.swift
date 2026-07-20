@@ -108,7 +108,9 @@ struct PanelClipboardView: View {
             emptyState(text.noResults)
         } else {
             ScrollView {
-                VStack(alignment: .leading, spacing: 7) {
+                // Lazy: a large history would otherwise build every row, and
+                // decode every image thumbnail, each time the panel opens.
+                LazyVStack(alignment: .leading, spacing: 7) {
                     ForEach(filteredEntries) { entry in
                         entryRow(entry)
                     }

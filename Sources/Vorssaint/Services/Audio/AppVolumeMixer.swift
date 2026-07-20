@@ -799,12 +799,11 @@ final class AppVolumeMixer: ObservableObject {
             // Show every regular app that holds an audio connection, not only
             // the ones making sound this instant, so apps are adjustable before
             // they play and stay put between sounds.
-            let owner = ResponsibleProcess.owner(of: pid)
-            guard let app = NSRunningApplication(processIdentifier: owner),
-                  app.activationPolicy == .regular,
+            guard let app = ResponsibleProcess.regularAppOwner(of: pid),
                   !MixerRoutingSupport.isHiddenFromMixer(bundleIdentifier: app.bundleIdentifier,
                                                          showFinder: showFinder)
             else { continue }
+            let owner = app.processIdentifier
             let name = ResponsibleProcess.displayName(pid: owner, fallback: app.localizedName ?? "pid \(owner)")
             // Bypassed apps (Zoom, DAWs) still get a row — hiding them read
             // as a bug (issue #177) — but they are never tapped: volume

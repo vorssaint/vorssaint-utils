@@ -197,7 +197,7 @@ final class SystemMonitor: ObservableObject {
                       monitor.currentPlan(defaults: .standard).needPower else { return }
                 monitor.refresh()
             }
-        }, context).takeRetainedValue()
+        }, context)?.takeRetainedValue()
         if let powerSourceRunLoopSource {
             CFRunLoopAddSource(CFRunLoopGetMain(), powerSourceRunLoopSource, .defaultMode)
         }

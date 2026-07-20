@@ -168,9 +168,21 @@ struct GlobalShortcut: Equatable, Hashable {
                                                  modifiers: [.control, .option, .command])
     static let micMuteDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_M),
                                                modifiers: [.control, .option, .command])
+    // W for webcam, on the same free control-option-command layer.
+    static let cameraPreviewDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_W),
+                                                     modifiers: [.control, .option, .command])
     // V for Vorssaint: the quick launcher's own combination.
     static let quickLauncherDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_V),
                                                      modifiers: [.control, .command])
+    // Default screenshot shortcut on the available control-option-command layer.
+    static let screenshotDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_4),
+                                                  modifiers: [.control, .option, .command])
+    // Space for the wheel, on the same free control-option-command layer.
+    static let radialMenuDefault = GlobalShortcut(keyCode: Int64(kVK_Space),
+                                                  modifiers: [.control, .option, .command])
+    // N for notes, on the same free control-option-command layer.
+    static let scratchpadDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_N),
+                                                  modifiers: [.control, .option, .command])
 
     static func saved(for key: String, fallback: GlobalShortcut) -> GlobalShortcut {
         if let raw = UserDefaults.standard.string(forKey: key),
@@ -269,6 +281,11 @@ struct GlobalShortcut: Equatable, Hashable {
 
     func requiredModifiersHeld(in flags: CGEventFlags) -> Bool {
         let actual = GlobalShortcutModifiers(cgFlags: flags)
+        return actual.intersection(modifiers) == modifiers
+    }
+
+    func requiredModifiersHeld(in flags: NSEvent.ModifierFlags) -> Bool {
+        let actual = GlobalShortcutModifiers(eventFlags: flags)
         return actual.intersection(modifiers) == modifiers
     }
 
@@ -394,6 +411,10 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case screenOCR
     case micMute
     case quickLauncher
+    case screenshot
+    case cameraPreview
+    case radialMenu
+    case scratchpad
 
     var id: String { storageKey }
 
@@ -410,6 +431,10 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenOCR: return DefaultsKey.screenOCRShortcut
         case .micMute: return DefaultsKey.micMuteShortcut
         case .quickLauncher: return DefaultsKey.quickLauncherShortcut
+        case .screenshot: return DefaultsKey.screenshotShortcut
+        case .cameraPreview: return DefaultsKey.cameraPreviewShortcut
+        case .radialMenu: return DefaultsKey.radialMenuShortcut
+        case .scratchpad: return DefaultsKey.scratchpadShortcut
         }
     }
 
@@ -426,6 +451,10 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenOCR: return .screenOCRDefault
         case .micMute: return .micMuteDefault
         case .quickLauncher: return .quickLauncherDefault
+        case .screenshot: return .screenshotDefault
+        case .cameraPreview: return .cameraPreviewDefault
+        case .radialMenu: return .radialMenuDefault
+        case .scratchpad: return .scratchpadDefault
         }
     }
 
@@ -446,6 +475,10 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenOCR: return strings.ocrName
         case .micMute: return strings.micMuteName
         case .quickLauncher: return strings.launcherName
+        case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).pageTitle
+        case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
+        case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
+        case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
         }
     }
 
@@ -472,6 +505,10 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenOCR: return [DefaultsKey.screenOCRShortcutEnabled]
         case .micMute: return [DefaultsKey.micMuteShortcutEnabled]
         case .quickLauncher: return [DefaultsKey.quickLauncherShortcutEnabled]
+        case .screenshot: return [DefaultsKey.screenshotShortcutEnabled]
+        case .cameraPreview: return [DefaultsKey.cameraPreviewShortcutEnabled]
+        case .radialMenu: return [DefaultsKey.radialMenuEnabled]
+        case .scratchpad: return [DefaultsKey.scratchpadShortcutEnabled]
         }
     }
 
@@ -490,6 +527,10 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenOCR: return .screenOCR
         case .micMute: return .micMute
         case .quickLauncher: return .quickLauncher
+        case .screenshot: return .screenshot
+        case .cameraPreview: return .cameraPreview
+        case .radialMenu: return .radialMenu
+        case .scratchpad: return .scratchpad
         }
     }
 

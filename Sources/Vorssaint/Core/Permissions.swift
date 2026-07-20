@@ -3,6 +3,7 @@
 
 import AppKit
 import ApplicationServices
+import AVFoundation
 import Combine
 import CoreGraphics
 import UserNotifications
@@ -22,8 +23,15 @@ final class Permissions: ObservableObject {
     /// Refreshed inside refresh() only (launch and activation); notifications
     /// have no cheap poll and the portal calls refresh() when it appears.
     @Published private(set) var notifications: NotificationPermissionState = .unknown
+    /// Camera access for the preview mirror. The status read is free, so it
+    /// rides the same refresh() moments as the rest.
+    @Published private(set) var camera: CameraPermissionState = .unknown
 
     enum NotificationPermissionState {
+        case granted, denied, undetermined, unknown
+    }
+
+    enum CameraPermissionState {
         case granted, denied, undetermined, unknown
     }
 
@@ -91,8 +99,22 @@ final class Permissions: ObservableObject {
         let fda = Self.probeFullDiskAccess()
         refreshActivePermissions()
         refreshNotificationPermission()
+        refreshCameraPermission()
         DispatchQueue.main.async {
             if self.fullDiskAccess != fda { self.fullDiskAccess = fda }
+        }
+    }
+
+    private func refreshCameraPermission() {
+        let state: CameraPermissionState
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized: state = .granted
+        case .denied, .restricted: state = .denied
+        case .notDetermined: state = .undetermined
+        @unknown default: state = .unknown
+        }
+        DispatchQueue.main.async {
+            if self.camera != state { self.camera = state }
         }
     }
 
@@ -223,6 +245,18 @@ final class Permissions: ObservableObject {
                 self.openFullDiskAccessSettings()
             }
         }
+    }
+
+    /// Shows the system camera prompt on first use; afterwards the state can
+    /// only change in System Settings.
+    func requestCamera() {
+        AVCaptureDevice.requestAccess(for: .video) { [weak self] _ in
+            DispatchQueue.main.async { self?.refresh() }
+        }
+    }
+
+    func openCameraSettings() {
+        open(pane: "Privacy_Camera")
     }
 
     func openNotificationSettings() {

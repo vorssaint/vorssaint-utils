@@ -47,8 +47,7 @@ enum QuickToolHUD {
         let panel = ensurePanel()
         panel.contentViewController = host
 
-        let screen = NSScreen.withMouse
-        let frame = screen.visibleFrame
+        let frame = NSScreen.pointerVisibleFrame
         panel.setFrame(NSRect(x: frame.midX - size.width / 2,
                               y: frame.maxY - size.height - 24,
                               width: size.width,

@@ -451,13 +451,20 @@ struct DiskSection: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
             Spacer(minLength: 0)
-            Text(disk.isInternal ? l10n.s.diskInternal : l10n.s.diskExternal)
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 2)
-                .background(Capsule().fill(Color.primary.opacity(0.07)))
+            if let fileSystem = disk.fileSystem {
+                titleTag(fileSystem)
+            }
+            titleTag(disk.isInternal ? l10n.s.diskInternal : l10n.s.diskExternal)
         }
+    }
+
+    private func titleTag(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 9, weight: .medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(Color.primary.opacity(0.07)))
     }
 
     private func blockHeader(_ title: String, editing: Bool, visible: Binding<Bool>) -> some View {

@@ -84,13 +84,20 @@ extension AppFeature {
             return .inputs
         case .windowLayout:
             return UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureEnabled) ? .pointer : .idle
+        case .radialMenu:
+            // With a side button configured the trigger is a mouse tap;
+            // shortcut-only costs nothing at rest.
+            return RadialMenuMouseTrigger.sanitized(
+                UserDefaults.standard.string(forKey: DefaultsKey.radialMenuMouseButton)) == .off
+                ? .idle : .mouse
         case .clipboardHistory, .urlCleaner, .extraBrightness,
              .monitorCPU, .monitorGPU, .monitorMemory,
              .monitorNetwork, .monitorDisk, .monitorPower:
             return .periodic
         case .pastePlain, .mixer, .soundOutputSwitcher, .micMute,
              .musicBlock, .keepAwake, .brightness, .quickLauncher, .quickToggles, .colorPicker,
-             .screenOCR, .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew:
+             .screenOCR, .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew, .screenshot,
+             .cameraPreview, .scratchpad:
             return .idle
         }
     }

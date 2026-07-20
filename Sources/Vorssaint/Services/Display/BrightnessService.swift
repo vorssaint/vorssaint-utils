@@ -49,6 +49,7 @@ final class BrightnessService: ObservableObject {
     @Published private(set) var displays: [BrightnessDisplay] = []
     @Published private(set) var pendingDisplayIDs = Set<CGDirectDisplayID>()
     @Published private(set) var displayControlFailure: DisplayControlFailure?
+    @Published private(set) var brightnessOSDSupported = false
 
     enum DisplayControlFailure: Equatable {
         case unavailable
@@ -64,9 +65,9 @@ final class BrightnessService: ObservableObject {
 
     private var screenObserver: NSObjectProtocol?
     private var rebuildDebounce: DispatchWorkItem?
-    /// Media-key tap, alive only while the brightness keys option is on and
-    /// Accessibility is granted. Its mask covers system-defined events only,
-    /// so ordinary typing never touches it.
+    /// Media-key tap, alive while pointer routing or the optional overlay is
+    /// on and Accessibility is granted. Its mask covers system-defined events
+    /// only, so ordinary typing never touches it.
     private var keyTap: CFMachPort?
     private var keyTapSource: CFRunLoopSource?
     /// Serializes every I2C transaction and rebuild; DDC displays drop
@@ -74,7 +75,16 @@ final class BrightnessService: ObservableObject {
     private let workQueue = DispatchQueue(label: "com.vorssaint.utils.brightness", qos: .userInitiated)
     private let stateLock = NSLock()
     private var routes: [CGDirectDisplayID: Route] = [:]
-    private var pendingLevels: [CGDirectDisplayID: Double] = [:]
+    private struct PendingWrite {
+        let value: Double
+        let showOSD: Bool
+        let sequence: UInt64
+    }
+    private var pendingLevels: [CGDirectDisplayID: PendingWrite] = [:]
+    private var writeSequence: UInt64 = 0
+    /// Keeps fast system-key repeats based on the newest requested value while
+    /// DisplayServices is still applying the previous asynchronous write.
+    private var systemWritesInFlight = Set<CGDirectDisplayID>()
     private var drainScheduled = false
     /// Session memory for write-only monitors, so their slider does not jump
     /// back to a placeholder between panel openings.
@@ -135,12 +145,16 @@ final class BrightnessService: ObservableObject {
         rebuildGeneration += 1
         routes = [:]
         pendingLevels = [:]
+        writeSequence = 0
+        systemWritesInFlight = []
         lastApplied = [:]
         knownTopology = []
         knownActiveTopology = []
         stateLock.unlock()
         pendingDisplayIDs = []
         displayControlFailure = nil
+        brightnessOSDSupported = false
+        BrightnessOSD.teardown()
         if !displays.isEmpty { displays = [] }
         // Restore displays and gamma on the work queue, AFTER any operation
         // already in flight. Normal app termination uses the synchronous
@@ -180,14 +194,18 @@ final class BrightnessService: ObservableObject {
     /// Moves one display's brightness. The published value updates on the
     /// spot for a responsive slider; the hardware write happens on the work
     /// queue, and a drag folds into one write of the newest value.
-    func setBrightness(_ value: Double, for id: CGDirectDisplayID) {
+    func setBrightness(_ value: Double, for id: CGDirectDisplayID,
+                       showOSD: Bool = false) {
         let clamped = min(max(value, 0), 1)
         if let index = displays.firstIndex(where: { $0.id == id }),
            displays[index].brightness != clamped {
             displays[index].brightness = clamped
         }
         stateLock.lock()
-        pendingLevels[id] = clamped
+        writeSequence &+= 1
+        pendingLevels[id] = PendingWrite(value: clamped,
+                                         showOSD: showOSD,
+                                         sequence: writeSequence)
         lastApplied[id] = clamped
         let schedule = !drainScheduled
         if schedule { drainScheduled = true }
@@ -334,8 +352,13 @@ final class BrightnessService: ObservableObject {
     // MARK: - Brightness keys (follow the pointer)
 
     private func syncKeyTap() {
+        let defaults = UserDefaults.standard
+        let wantsKeyRouting = defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
+        let wantsBrightnessOSD = defaults.bool(
+            forKey: DefaultsKey.brightnessOSDEnabled
+        ) && brightnessOSDSupported
         let wanted = running
-            && UserDefaults.standard.bool(forKey: DefaultsKey.brightnessKeysEnabled)
+            && (wantsKeyRouting || wantsBrightnessOSD)
             && Permissions.shared.accessibility
         if wanted { installKeyTap() } else { removeKeyTap() }
     }
@@ -372,11 +395,9 @@ final class BrightnessService: ObservableObject {
         keyTap = nil
     }
 
-    /// Routes a brightness key press to the display under the pointer. Both
-    /// halves of a handled press (down and up) are swallowed so the system
-    /// never also moves its own target; anything this service does not steer
-    /// (other keys, pointer on a system-managed display) passes through and
-    /// keeps its native behavior, OSD included.
+    /// Routes a handled brightness key press to the pointer display when that
+    /// option is on, otherwise replacing only the system target's overlay.
+    /// Both halves are swallowed so the system never performs the same step.
     private func handleKeyEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let keyTap { CGEvent.tapEnable(tap: keyTap, enable: true) }
@@ -388,25 +409,93 @@ final class BrightnessService: ObservableObject {
                                                                data1: nsEvent.data1)
         else { return Unmanaged.passUnretained(event) }
 
-        let pointer = NSEvent.mouseLocation
-        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(pointer, $0.frame, false) }),
-              let displayID = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")]
-                               as? NSNumber)?.uint32Value
-        else { return Unmanaged.passUnretained(event) }
+        let defaults = UserDefaults.standard
+        let followsPointer = defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
+        let wantsBrightnessOSD = defaults.bool(
+            forKey: DefaultsKey.brightnessOSDEnabled
+        )
+        let displayID: CGDirectDisplayID
+        if followsPointer {
+            let pointer = NSEvent.mouseLocation
+            guard let screen = NSScreen.screens.first(where: {
+                NSMouseInRect(pointer, $0.frame, false)
+            }), let id = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")]
+                           as? NSNumber)?.uint32Value else {
+                return Unmanaged.passUnretained(event)
+            }
+            displayID = id
+        } else if wantsBrightnessOSD,
+                  let systemTarget = displays.first(where: {
+                      $0.isBuiltIn && $0.isActive && $0.method == .system
+                  }) ?? displays.first(where: {
+                      $0.isActive && $0.method == .system
+                  }) {
+            // With pointer routing off, keep the native target. In clamshell
+            // mode this can be a system-managed external display.
+            displayID = systemTarget.id
+        } else {
+            return Unmanaged.passUnretained(event)
+        }
 
         stateLock.lock()
         let route = routes[displayID]
         stateLock.unlock()
-        guard let route, route.method != .system else {
-            // The system's own pipeline handles this display; keep the native
-            // keys, animation and OSD.
+        guard let route else { return Unmanaged.passUnretained(event) }
+        if route.method == .system {
+            // The system's own key handling only ever steps its native
+            // target, never the display under the pointer, so a pointer
+            // routed press on a system-routed external display (Apple
+            // pipeline monitors, or any display in clamshell mode) is
+            // stepped here instead of passed through (issue #268).
+            // The published list can lag a rebuild by a beat; resolve the
+            // panel kind from the display server so a press never lands on
+            // the wrong side of the built-in check.
+            let isBuiltIn = displays.first(where: { $0.id == displayID })?.isBuiltIn
+                ?? (CGDisplayIsBuiltin(displayID) != 0)
+            guard BrightnessSupport.stepsSystemRoutedDisplay(
+                followsPointer: followsPointer,
+                displayIsBuiltIn: isBuiltIn,
+                overlayReplacesNative: wantsBrightnessOSD && brightnessOSDSupported
+            ), BrightnessBridge.setBrightness != nil else {
+                // The built-in panel keeps the system's native brightness
+                // handling and animation unless the overlay replaces it.
+                return Unmanaged.passUnretained(event)
+            }
+            if press.isKeyDown, let current = currentSystemBrightness(
+                for: displayID,
+                fallback: displays.first(where: { $0.id == displayID })?.brightness
+            ) {
+                setBrightness(BrightnessSupport.steppedBrightness(current, delta: press.delta),
+                              for: displayID, showOSD: wantsBrightnessOSD)
+            }
+            // Both halves are replaced so the system never draws a second OSD.
+            return nil
+        }
+        guard followsPointer else {
             return Unmanaged.passUnretained(event)
         }
         if press.isKeyDown, let current = displays.first(where: { $0.id == displayID })?.brightness {
             setBrightness(BrightnessSupport.steppedBrightness(current, delta: press.delta),
-                          for: displayID)
+                          for: displayID,
+                          showOSD: wantsBrightnessOSD)
         }
         return nil
+    }
+
+    private func currentSystemBrightness(for id: CGDirectDisplayID,
+                                         fallback: Double?) -> Double? {
+        stateLock.lock()
+        let queued = pendingLevels[id]?.value
+        let requested = systemWritesInFlight.contains(id) ? lastApplied[id] : nil
+        stateLock.unlock()
+        if let queued { return queued }
+        if let requested { return requested }
+        var live: Float = -1
+        if let read = BrightnessBridge.getBrightness,
+           read(id, &live) == 0, live >= 0, live <= 1 {
+            return Double(live)
+        }
+        return fallback
     }
 
     // MARK: - Screen changes
@@ -479,8 +568,7 @@ final class BrightnessService: ObservableObject {
                 // panel or an Apple external display).
                 built.append(BrightnessDisplay(id: id, name: name, isBuiltIn: isBuiltIn,
                                                method: .system, isActive: true,
-                                               brightness: Double(level),
-                                               readable: true))
+                                               brightness: Double(level), readable: true))
                 newRoutes[id] = Route(method: .system, service: nil, maximum: 100)
                 continue
             }
@@ -535,7 +623,8 @@ final class BrightnessService: ObservableObject {
                         brightness: BrightnessSupport.normalized(current: current,
                                                                  maximum: ceiling),
                         readable: true)
-                    newRoutes[id] = Route(method: .ddc, service: matched.service, maximum: ceiling)
+                    newRoutes[id] = Route(method: .ddc, service: matched.service,
+                                          maximum: ceiling)
                     softwareIndices.remove(candidate.index)
                 case .writeOnly:
                     // Reads fail on some monitors whose writes still work:
@@ -572,22 +661,35 @@ final class BrightnessService: ObservableObject {
                 id: id, name: built[index].name, isBuiltIn: false,
                 method: .software, isActive: true, brightness: value, readable: true)
             newRoutes[id] = Route(method: .software, service: nil, maximum: 100)
-            if value < 0.999 { applySoftwareDim(id, value: value) }
+            if value < 0.999 { _ = applySoftwareDim(id, value: value) }
         }
-        let resolved = built.compactMap { display -> BrightnessDisplay? in
-            if !display.isActive || newRoutes[display.id] != nil { return display }
-            // Even without a brightness route, an active physical display is
-            // useful in the generalized Displays surface when it can be
-            // switched on or off.
-            guard DisplayConfigurationBridge.configureEnabled != nil else { return nil }
-            var display = display
-            display.method = nil
-            return display
-        }
-
+        var resolved: [BrightnessDisplay] = []
+        var supportsBrightnessOSD = false
+        let stale: Bool
         stateLock.lock()
-        let stale = generation != rebuildGeneration
+        stale = generation != rebuildGeneration
         if !stale {
+            resolved = built.compactMap { display -> BrightnessDisplay? in
+                if !display.isActive || newRoutes[display.id] != nil { return display }
+                // Even without a brightness route, an active physical display is
+                // useful in the generalized Displays surface when it can be
+                // switched on or off.
+                guard DisplayConfigurationBridge.configureEnabled != nil else { return nil }
+                var display = display
+                display.method = nil
+                return display
+            }
+            supportsBrightnessOSD = resolved.contains { display in
+                guard display.isActive, newRoutes[display.id] != nil else { return false }
+                switch display.method {
+                case .system:
+                    return BrightnessBridge.setBrightness != nil
+                case .ddc, .software:
+                    return true
+                case nil:
+                    return false
+                }
+            }
             routes = newRoutes
             knownTopology = seenTopology
             knownActiveTopology = activeTopology
@@ -604,6 +706,10 @@ final class BrightnessService: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             guard let self, self.running, generation == self.rebuildGeneration else { return }
             if self.displays != resolved { self.displays = resolved }
+            if self.brightnessOSDSupported != supportsBrightnessOSD {
+                self.brightnessOSDSupported = supportsBrightnessOSD
+            }
+            self.syncKeyTap()
         }
     }
 
@@ -612,26 +718,54 @@ final class BrightnessService: ObservableObject {
     private func drainPendingLevels() {
         while true {
             stateLock.lock()
-            guard let (id, value) = pendingLevels.first else {
+            guard let (id, pending) = pendingLevels.first else {
                 drainScheduled = false
                 stateLock.unlock()
                 return
             }
             pendingLevels.removeValue(forKey: id)
+            let value = pending.value
+            let osdLevel = pending.showOSD ? value : nil
             let route = routes[id]
+            let writeGeneration = rebuildGeneration
+            if route?.method == .system { systemWritesInFlight.insert(id) }
             stateLock.unlock()
             guard let route else { continue }
+            var writeSucceeded = false
             switch route.method {
             case .system:
-                _ = BrightnessBridge.setBrightness?(id, Float(value))
+                writeSucceeded = BrightnessBridge.setBrightness?(id, Float(value)) == 0
             case .ddc:
                 guard let service = route.service else { continue }
+                let deviceValue = BrightnessSupport.deviceValue(for: value,
+                                                                maximum: route.maximum)
                 let packet = BrightnessSupport.writePacket(
                     code: BrightnessSupport.luminanceCode,
-                    value: BrightnessSupport.deviceValue(for: value, maximum: route.maximum))
-                _ = ddcSend(service: service, packet: packet)
+                    value: deviceValue)
+                writeSucceeded = ddcSend(service: service, packet: packet)
             case .software:
-                applySoftwareDim(id, value: value)
+                writeSucceeded = applySoftwareDim(id, value: value)
+            }
+            if route.method == .system {
+                stateLock.lock()
+                if pendingLevels[id] == nil { systemWritesInFlight.remove(id) }
+                stateLock.unlock()
+            }
+            if writeSucceeded, let osdLevel {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.running,
+                          UserDefaults.standard.bool(
+                              forKey: DefaultsKey.brightnessOSDEnabled
+                          ) else { return }
+                    self.stateLock.lock()
+                    let current = self.rebuildGeneration
+                    let latestWrite = self.writeSequence
+                    self.stateLock.unlock()
+                    guard current == writeGeneration,
+                          latestWrite == pending.sequence else { return }
+                    BrightnessOSD.show(displayID: id,
+                                       brightness: osdLevel)
+                }
             }
         }
     }
@@ -658,18 +792,18 @@ final class BrightnessService: ObservableObject {
                                         count: UInt32(count))
     }
 
-    private func applySoftwareDim(_ id: CGDirectDisplayID, value: Double) {
-        guard let baseline = gammaBaselines[id] else { return }
+    @discardableResult
+    private func applySoftwareDim(_ id: CGDirectDisplayID, value: Double) -> Bool {
+        guard let baseline = gammaBaselines[id] else { return false }
         if value >= 0.999 {
-            CGSetDisplayTransferByTable(id, baseline.count, baseline.red,
-                                        baseline.green, baseline.blue)
-            return
+            return CGSetDisplayTransferByTable(id, baseline.count, baseline.red,
+                                               baseline.green, baseline.blue) == .success
         }
         let factor = BrightnessSupport.softwareDimFactor(for: value)
         let red = BrightnessSupport.scaledGammaTable(baseline.red, factor: factor)
         let green = BrightnessSupport.scaledGammaTable(baseline.green, factor: factor)
         let blue = BrightnessSupport.scaledGammaTable(baseline.blue, factor: factor)
-        CGSetDisplayTransferByTable(id, baseline.count, red, green, blue)
+        return CGSetDisplayTransferByTable(id, baseline.count, red, green, blue) == .success
     }
 
     // MARK: - DDC transactions (work queue)
@@ -681,9 +815,10 @@ final class BrightnessService: ObservableObject {
         for attempt in 0...BrightnessSupport.retryAttempts {
             for _ in 0..<BrightnessSupport.writeCycles {
                 usleep(BrightnessSupport.writePauseMicroseconds)
-                success = write(service, BrightnessSupport.chipAddress,
-                                BrightnessSupport.dataAddress,
-                                &bytes, UInt32(bytes.count)) == KERN_SUCCESS
+                let accepted = write(service, BrightnessSupport.chipAddress,
+                                     BrightnessSupport.dataAddress,
+                                     &bytes, UInt32(bytes.count)) == KERN_SUCCESS
+                success = accepted || success
             }
             if success { return true }
             if attempt < BrightnessSupport.retryAttempts {

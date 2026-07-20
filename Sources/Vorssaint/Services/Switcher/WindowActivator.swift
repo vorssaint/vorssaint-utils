@@ -36,7 +36,17 @@ enum WindowActivator {
             targetsSpecificWindow: item.windowID != nil
         )
         guard let windowID = item.windowID else {
+            let retryState = retry && sourceWasFullscreen
+                ? SwitcherAppActivationRetryState(targetPID: item.pid)
+                : nil
             activateApp(app, allWindows: activationPlan.activateAllWindows)
+            if let retryState {
+                scheduleAppActivationRetries(targetPID: item.pid,
+                                             sourcePID: sourcePID,
+                                             allWindows: activationPlan.activateAllWindows,
+                                             state: retryState,
+                                             delays: Self.fullscreenFocusRetryDelays)
+            }
             return
         }
         watchTargetMinimizeIfNeeded(windowID: windowID,
@@ -253,6 +263,42 @@ enum WindowActivator {
                                                 sourceWindowID: sourceWindowID,
                                                 sourceWindowOwnerPID: sourceWindowOwnerPID,
                                                 activationPlan: activationPlan)
+            }
+        }
+    }
+
+    private static func scheduleAppActivationRetries(targetPID: pid_t,
+                                                     sourcePID: pid_t?,
+                                                     allWindows: Bool,
+                                                     state: SwitcherAppActivationRetryState,
+                                                     delays: [TimeInterval]) {
+        guard !delays.isEmpty else {
+            state.invalidate()
+            return
+        }
+        for (index, delay) in delays.enumerated() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                guard state.isActive else { return }
+                let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+                state.observe(frontmostPID: frontmostPID)
+                guard SwitcherSupport.shouldContinueAppActivationRetry(
+                    targetPID: targetPID,
+                    sourcePID: sourcePID,
+                    frontmostPID: frontmostPID,
+                    targetWasObservedFrontmost: state.targetWasObservedFrontmost
+                ) else {
+                    state.invalidate()
+                    return
+                }
+                guard let app = NSRunningApplication(processIdentifier: targetPID),
+                      !app.isTerminated else {
+                    state.invalidate()
+                    return
+                }
+                activateApp(app, allWindows: allWindows)
+                if index == delays.count - 1 {
+                    state.invalidate()
+                }
             }
         }
     }
@@ -507,6 +553,46 @@ enum WindowActivator {
             return CFBooleanGetValue((minimized as! CFBoolean))
         }
         return minimized as? Bool
+    }
+}
+
+private final class SwitcherAppActivationRetryState {
+    private let targetPID: pid_t
+    private var workspaceObserver: Any?
+    private(set) var targetWasObservedFrontmost: Bool
+    private(set) var isActive = true
+
+    init(targetPID: pid_t) {
+        self.targetPID = targetPID
+        targetWasObservedFrontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier == targetPID
+        workspaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
+                    as? NSRunningApplication else { return }
+            self?.observe(frontmostPID: app.processIdentifier)
+        }
+    }
+
+    func observe(frontmostPID: pid_t?) {
+        if frontmostPID == targetPID {
+            targetWasObservedFrontmost = true
+        }
+    }
+
+    func invalidate() {
+        guard isActive else { return }
+        isActive = false
+        if let workspaceObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(workspaceObserver)
+        }
+        workspaceObserver = nil
+    }
+
+    deinit {
+        invalidate()
     }
 }
 

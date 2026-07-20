@@ -37,13 +37,13 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>3.1.13</string>
+	<string>3.1.15</string>
 	<key>CFBundleSupportedPlatforms</key>
 	<array>
 		<string>MacOSX</string>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>71</string>
+	<string>73</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
 	<key>LSMinimumSystemVersion</key>
@@ -56,6 +56,10 @@
 	<string>Vorssaint taps individual app audio only to adjust each app's volume in the mixer. Nothing is recorded or leaves your Mac.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Vorssaint uses Bluetooth to connect paired audio outputs when you choose them in the mixer.</string>
+	<key>NSCameraUseContinuityCameraDeviceType</key>
+	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Vorssaint shows your camera only in the preview window you open, so you can check how you look before a call. Nothing is recorded or leaves your Mac.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Vorssaint</string>
 	<key>NSPrincipalClass</key>

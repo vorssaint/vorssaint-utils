@@ -10,13 +10,18 @@ struct ScrollWheelEventTraits: Equatable {
     let scrollCount: Int64
 }
 
-enum ScrollInverterSupport {
+/// Tells mouse wheels apart from touch devices, shared by the scroll
+/// inverter and smooth scrolling so both features classify events the same
+/// way: discrete events are wheels; events flagged continuous are wheels
+/// only when they carry no gesture phase at all (how some mouse drivers
+/// report their wheels).
+enum ScrollWheelSupport {
     /// How long after a gesture-phased event a phaseless continuous event is
     /// still attributed to the same touch device.
     static let touchGestureGraceSeconds: TimeInterval = 1.0
 
-    static func shouldInvertMouseWheel(_ traits: ScrollWheelEventTraits,
-                                       secondsSinceLastGesturePhase: TimeInterval?) -> Bool {
+    static func isMouseWheel(_ traits: ScrollWheelEventTraits,
+                             secondsSinceLastGesturePhase: TimeInterval?) -> Bool {
         if !traits.isContinuous {
             return true
         }

@@ -30,6 +30,13 @@ enum SmoothScrollSupport {
     static let stepRange = 20...100
     static let defaultStep = 40
 
+    /// The tick count of a discrete wheel event. High-resolution wheels
+    /// report fractions of a line in the fixed-point field while the integer
+    /// field truncates to zero, so the fixed-point value wins when present.
+    static func ticks(line: Double, fixedPoint: Double) -> Double {
+        fixedPoint != 0 ? fixedPoint : line
+    }
+
     /// The remaining distance after new wheel ticks arrive. Scrolling the
     /// opposite way abandons what was left instead of fighting it, so a
     /// direction change reacts instantly.

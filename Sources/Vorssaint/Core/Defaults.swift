@@ -14,6 +14,7 @@ enum DefaultsKey {
     static let lastUpdateIntroVersion = "lastUpdateIntroVersion"
     static let dockPreviewIntroVersion = "dockPreviewIntroVersion"
     static let supportUpdateIntroVersion = "supportUpdateIntroVersion"
+    static let updateHighlightsSeenVersion = "updateHighlightsSeenVersion"
     static let updateShowcaseIntroVersion = "updateShowcaseIntroVersion"
     static let updateShowcaseMediaOverride = "updateShowcaseMediaOverride"
     static let defaultDuration = "defaultDurationMinutes" // 0 = indefinite
@@ -24,6 +25,7 @@ enum DefaultsKey {
     static let keepAwakeMouseJiggleEnabled = "keepAwakeMouseJiggleEnabled"
     static let keepAwakeMouseJiggleInterval = "keepAwakeMouseJiggleIntervalMinutes"
     static let hotkeyEnabled = "hotkeyEnabled"
+    static let launchAtLoginWanted = "launchAtLoginWanted"  // the user's choice; the system record can be lost
     static let keepAwakeShortcut = "keepAwakeShortcut"    // GlobalShortcut storage value
     static let keepAwakeIconTint = "keepAwakeIconTint"    // KeepAwakeIconTint.rawValue
     static let keepAwakeActiveIcon = "keepAwakeActiveIcon" // KeepAwakeActiveIcon.rawValue
@@ -76,6 +78,7 @@ enum DefaultsKey {
     static let extraBrightnessLevel = "extraBrightnessLevel"   // Int percent 0-100
     static let brightnessControlEnabled = "brightnessControlEnabled" // sliders for every display
     static let brightnessKeysEnabled = "brightnessKeysEnabled" // brightness keys act on the display under the pointer
+    static let brightnessOSDEnabled = "brightnessOSDEnabled" // brightness adjustment overlay
     static let musicBlockEnabled = "musicBlockEnabled"
     static let musicBlockReplacementPath = "musicBlockReplacementPath"  // app bundle path ("" = none)
     static let cleanerScheduleFrequency = "cleanerScheduleFrequency"    // off | daily | weekly
@@ -115,6 +118,7 @@ enum DefaultsKey {
     static let panelControlDockClickCycle = "panelControlDockClickCycle"
     static let panelControlMiddleClick = "panelControlMiddleClick"
     static let panelControlTextSnippets = "panelControlTextSnippets"
+    static let panelControlRadialMenu = "panelControlRadialMenu"
     // Quick-control categories start collapsed and remember being opened.
     static let panelControlWindowsExpanded = "panelControlWindowsExpanded"
     static let panelControlInputExpanded = "panelControlInputExpanded"
@@ -269,8 +273,14 @@ enum DefaultsKey {
     static let colorPickerBareHex = "colorPickerBareHex"     // copy HEX without the leading #
     static let screenOCRShortcutEnabled = "screenOCRShortcutEnabled"
     static let screenOCRShortcut = "screenOCRShortcut"
+    static let screenOCRDetectQRCodes = "screenOCRDetectQRCodes" // QR content wins over OCR text
     static let micMuteShortcutEnabled = "micMuteShortcutEnabled"
     static let micMuteShortcut = "micMuteShortcut"
+    static let cameraPreviewShortcutEnabled = "cameraPreviewShortcutEnabled"
+    static let cameraPreviewShortcut = "cameraPreviewShortcut"
+    static let scratchpadShortcutEnabled = "scratchpadShortcutEnabled"
+    static let scratchpadShortcut = "scratchpadShortcut"
+    static let scratchpadRetention = "scratchpadRetention"   // never | day | week | month
     static let micMuteActive = "micMuteActive"               // mic muted by the app (survives relaunch)
     static let micMuteSavedVolume = "micMuteSavedVolume"     // input volume to restore on unmute
     static let micMuteMenuBarIndicator = "micMuteMenuBarIndicator" // badge the status icon while muted
@@ -282,8 +292,29 @@ enum DefaultsKey {
     static let panelUtilityColorPicker = "panelUtilityColorPicker"
     static let panelUtilityScreenOCR = "panelUtilityScreenOCR"
     static let panelUtilityMicMute = "panelUtilityMicMute"
+    static let panelUtilityCameraPreview = "panelUtilityCameraPreview"
+    static let panelUtilityScratchpad = "panelUtilityScratchpad"
     static let clipboardHistoryShortcutEnabled = "clipboardHistoryShortcutEnabled"
     static let clipboardHistoryShortcut = "clipboardHistoryShortcut"
+    // Screenshot capture and editor.
+    static let screenshotShortcutEnabled = "screenshotShortcutEnabled"
+    static let screenshotShortcut = "screenshotShortcut"
+    static let screenshotFreeze = "screenshotFreeze"
+    static let screenshotSaveFolder = "screenshotSaveFolder"
+    static let screenshotIncludePointer = "screenshotIncludePointer"
+    static let screenshotDownscale = "screenshotDownscale"
+    static let screenshotDelay = "screenshotDelay"
+    static let screenshotLastTool = "screenshotLastTool"
+    static let screenshotLastColor = "screenshotLastColor"
+    static let screenshotLastStroke = "screenshotLastStroke"
+    static let screenshotLastSticker = "screenshotLastSticker"
+    static let screenshotAnnotationShadows = "screenshotAnnotationShadows"
+    static let screenshotToolOrder = "screenshotToolOrder"
+    static let screenshotToolShortcutsEnabled = "screenshotToolShortcutsEnabled"
+    static let screenshotBackdropStyle = "screenshotBackdropStyle"
+    static let screenshotBackdropPresets = "screenshotBackdropPresets"
+    static let screenshotOpenEditorDirectly = "screenshotOpenEditorDirectly"
+    static let panelUtilityScreenshot = "panelUtilityScreenshot"
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
@@ -318,6 +349,13 @@ enum DefaultsKey {
     static let textSnippetsEnabled = "textSnippetsEnabled"
     static let textSnippets = "textSnippets"              // Data: [TextSnippet] JSON
 
+    // Radial menu: a wheel of actions on a shortcut.
+    static let radialMenuEnabled = "radialMenuEnabled"
+    static let radialMenuShortcut = "radialMenuShortcut"
+    static let radialMenuAtPointer = "radialMenuAtPointer" // false: screen center
+    static let radialMenuMouseButton = "radialMenuMouseButton" // RadialMenuMouseTrigger.rawValue
+    static let radialMenuItems = "radialMenuItems"        // Data: [RadialMenuItem] JSON
+
     // Dev-build only: force the "update available" UI for local testing.
     static let simulateUpdate = "simulateUpdate"
 
@@ -339,12 +377,53 @@ enum DockPreviewIntroInfo {
     static let releaseVersion = "3.0.4"
 }
 
+/// The one-time tour of a release's headline features, shown right after the
+/// update. Each row deep links to the exact Settings page or opens the tool
+/// itself, so a new feature is one click from being tried instead of buried.
+enum UpdateHighlightsInfo {
+    /// The single release whose first launch shows the tour; any other
+    /// version never shows it. Bump deliberately for releases with headline
+    /// features worth a tour.
+    static let releaseVersion = "3.1.14"
+
+    static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
+        appVersion == releaseVersion && lastSeenVersion != releaseVersion
+    }
+}
+
 enum SupportUpdateIntroInfo {
-    /// The single release whose first launch shows the support window (star,
-    /// follow, coffee). It used to track AppInfo.version, which re-showed the
-    /// ask on EVERY update; now a release only asks when this constant is
-    /// deliberately bumped to it. Bumped to 3.1.12 on the owner's call.
-    static let releaseVersion = "3.1.12"
+    /// The single release whose first launch shows the update intro. It used
+    /// to track AppInfo.version, which re-showed the ask on every update; now a
+    /// release only shows it when this constant is deliberately bumped.
+    static let releaseVersion = "3.1.13"
+    static let installCommand = "brew install --cask vorssaint"
+    static let migrationCommand = "brew untap --force vorssaint/tap"
+
+    static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
+        appVersion == releaseVersion && lastSeenVersion != releaseVersion
+    }
+}
+
+enum SupportUpdateIntroStep: Equatable {
+    case homebrew
+    case community
+    case support
+
+    var next: SupportUpdateIntroStep? {
+        switch self {
+        case .homebrew: return .community
+        case .community: return .support
+        case .support: return nil
+        }
+    }
+
+    var previous: SupportUpdateIntroStep? {
+        switch self {
+        case .homebrew: return nil
+        case .community: return .homebrew
+        case .support: return .community
+        }
+    }
 }
 
 enum KeepAwakeIconTint: String, CaseIterable, Identifiable {
@@ -442,7 +521,7 @@ enum Defaults {
     static let allowedMenuBarLabelStyles = ["compact", "classic"]
     static let allowedMenuBarMemoryStyles = ["dot", "percent", "both"]
     static let allowedPreviewSizes = ["normal", "large", "xlarge"]
-    static let allowedClipboardHistoryLimits = [20, 50, 100]
+    static let allowedClipboardHistoryLimits = [20, 50, 100, 250, 500, 1_000]
     static let allowedMonitorAlertCooldowns = [2, 5, 15, 30, 60]
 
     static let registeredDefaults: [String: Any] = [
@@ -455,6 +534,7 @@ enum Defaults {
         DefaultsKey.keepAwakeMouseJiggleEnabled: false,
         DefaultsKey.keepAwakeMouseJiggleInterval: 5,
         DefaultsKey.hotkeyEnabled: true,
+        DefaultsKey.launchAtLoginWanted: false,
         DefaultsKey.keepAwakeShortcut: "control+option+command:40",
         DefaultsKey.keepAwakeIconTint: KeepAwakeIconTint.orange.rawValue,
         DefaultsKey.keepAwakeActiveIcon: KeepAwakeActiveIcon.vorssaint.rawValue,
@@ -507,6 +587,7 @@ enum Defaults {
         DefaultsKey.extraBrightnessLevel: 100,
         DefaultsKey.brightnessControlEnabled: false,
         DefaultsKey.brightnessKeysEnabled: false,
+        DefaultsKey.brightnessOSDEnabled: false,
         DefaultsKey.musicBlockEnabled: false,
         DefaultsKey.musicBlockReplacementPath: "",
         DefaultsKey.cleanerScheduleFrequency: "off",
@@ -519,6 +600,10 @@ enum Defaults {
         DefaultsKey.cleanerBadgeSeen: false,
         DefaultsKey.urlCleanerEnabled: false,
         DefaultsKey.textSnippetsEnabled: false,
+        DefaultsKey.radialMenuEnabled: false,
+        DefaultsKey.radialMenuShortcut: GlobalShortcut.radialMenuDefault.storageValue,
+        DefaultsKey.radialMenuAtPointer: true,
+        DefaultsKey.radialMenuMouseButton: RadialMenuMouseTrigger.off.rawValue,
         DefaultsKey.windowMaximizeEnabled: false,
         DefaultsKey.keyboardDebounceEnabled: false,
         DefaultsKey.keyboardDebounceWindowMs: defaultKeyboardDebounceWindowMs,
@@ -544,6 +629,7 @@ enum Defaults {
         DefaultsKey.panelControlDockClickCycle: true,
         DefaultsKey.panelControlMiddleClick: true,
         DefaultsKey.panelControlTextSnippets: true,
+        DefaultsKey.panelControlRadialMenu: true,
         DefaultsKey.panelControlWindowsExpanded: false,
         DefaultsKey.panelControlInputExpanded: false,
         DefaultsKey.panelControlFilesExpanded: false,
@@ -666,8 +752,14 @@ enum Defaults {
         DefaultsKey.colorPickerBareHex: false,
         DefaultsKey.screenOCRShortcutEnabled: false,
         DefaultsKey.screenOCRShortcut: GlobalShortcut.screenOCRDefault.storageValue,
+        DefaultsKey.screenOCRDetectQRCodes: true,
         DefaultsKey.micMuteShortcutEnabled: false,
         DefaultsKey.micMuteShortcut: GlobalShortcut.micMuteDefault.storageValue,
+        DefaultsKey.cameraPreviewShortcutEnabled: false,
+        DefaultsKey.cameraPreviewShortcut: GlobalShortcut.cameraPreviewDefault.storageValue,
+        DefaultsKey.scratchpadShortcutEnabled: false,
+        DefaultsKey.scratchpadShortcut: GlobalShortcut.scratchpadDefault.storageValue,
+        DefaultsKey.scratchpadRetention: ScratchpadRetention.never.rawValue,
         DefaultsKey.micMuteActive: false,
         DefaultsKey.micMuteSavedVolume: 0.75,
         DefaultsKey.micMuteMenuBarIndicator: true,  // owner's call: on by default in 3.1.8 (badge only shows while muted)
@@ -678,8 +770,28 @@ enum Defaults {
         DefaultsKey.panelUtilityColorPicker: true,
         DefaultsKey.panelUtilityScreenOCR: true,
         DefaultsKey.panelUtilityMicMute: true,
+        DefaultsKey.panelUtilityCameraPreview: true,
+        DefaultsKey.panelUtilityScratchpad: true,
         DefaultsKey.clipboardHistoryShortcutEnabled: true,
         DefaultsKey.clipboardHistoryShortcut: GlobalShortcut.clipboardDefault.storageValue,
+        DefaultsKey.screenshotShortcutEnabled: false,
+        DefaultsKey.screenshotShortcut: GlobalShortcut.screenshotDefault.storageValue,
+        DefaultsKey.screenshotFreeze: true,
+        DefaultsKey.screenshotSaveFolder: "",
+        DefaultsKey.screenshotIncludePointer: false,
+        DefaultsKey.screenshotDownscale: false,
+        DefaultsKey.screenshotDelay: 0,
+        DefaultsKey.screenshotLastTool: "arrow",
+        DefaultsKey.screenshotLastColor: "red",
+        DefaultsKey.screenshotLastStroke: "medium",
+        DefaultsKey.screenshotLastSticker: "check",
+        DefaultsKey.screenshotAnnotationShadows: false,
+        DefaultsKey.screenshotToolOrder: ScreenshotSupport.Tool.defaultOrderStorage,
+        DefaultsKey.screenshotToolShortcutsEnabled: true,
+        DefaultsKey.screenshotBackdropStyle: "",
+        DefaultsKey.screenshotBackdropPresets: "[]",
+        DefaultsKey.screenshotOpenEditorDirectly: false,
+        DefaultsKey.panelUtilityScreenshot: true,
         DefaultsKey.windowLayoutShortcutsEnabled: false,
         DefaultsKey.windowGestureEnabled: false,
         DefaultsKey.windowGestureModifiers: WindowGestureSupport.defaultModifierStorageValue,
@@ -716,6 +828,7 @@ enum Defaults {
         migrateLegacyMenuBarTemperatureMetric(in: defaults)
         migrateLegacySwitcherWindowShortcut(in: defaults)
         migrateLegacyKeyboardDebounceWindow(in: defaults)
+        migrateUtilityOrderForScreenshot(in: defaults)
     }
 
     static func migrateLegacySwitcherWindowShortcut(in defaults: UserDefaults) {
@@ -735,6 +848,16 @@ enum Defaults {
               (defaults.string(forKey: DefaultsKey.keyboardDebounceKeyWindows) ?? "").isEmpty
         else { return }
         defaults.set(defaultKeyboardDebounceWindowMs, forKey: DefaultsKey.keyboardDebounceWindowMs)
+    }
+
+    static func migrateUtilityOrderForScreenshot(in defaults: UserDefaults) {
+        guard let storedOrder = defaults.object(forKey: DefaultsKey.panelUtilityOrder) as? String else {
+            return
+        }
+        let ids = storedOrder.split(separator: ",").map(String.init)
+        guard !ids.contains("screenshot") else { return }
+        defaults.set((["screenshot"] + ids).joined(separator: ","),
+                     forKey: DefaultsKey.panelUtilityOrder)
     }
 
     static func sanitizedDefaultDuration(_ minutes: Int) -> Int {

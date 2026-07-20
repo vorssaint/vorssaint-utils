@@ -145,6 +145,34 @@ enum BrightnessSupport {
         min(max(current + delta, 0), 1)
     }
 
+    /// Whether a brightness key press aimed at a system-routed display is
+    /// stepped by the app instead of left to the system (issue #268). The
+    /// system's own key handling only ever moves its native target, so a
+    /// press the pointer routes to any other display (an Apple pipeline
+    /// external monitor, or any display in clamshell mode) has to be stepped
+    /// here or it lands on the wrong screen. The built-in panel keeps the
+    /// native handling and its animation unless the overlay replaces it.
+    static func stepsSystemRoutedDisplay(followsPointer: Bool,
+                                         displayIsBuiltIn: Bool,
+                                         overlayReplacesNative: Bool) -> Bool {
+        if followsPointer, !displayIsBuiltIn { return true }
+        return overlayReplacesNative
+    }
+
+    /// Sixteen segments match the system brightness steps. A non-zero value
+    /// keeps at least one segment visible while exact zero stays empty.
+    static func filledBrightnessSegments(_ brightness: Double) -> Int {
+        let clamped = min(max(brightness, 0), 1)
+        guard clamped > 0 else { return 0 }
+        return min(Int((clamped * 16).rounded(.up)), 16)
+    }
+
+    /// Whole percentage used by the brightness overlay.
+    static func wholePercent(_ brightness: Double) -> Int {
+        guard brightness.isFinite else { return 0 }
+        return Int((min(max(brightness, 0), 1) * 100).rounded())
+    }
+
     /// DDC value to the 0...1 slider scale.
     static func normalized(current: UInt16, maximum: UInt16) -> Double {
         let ceiling = sanitizedMaximum(maximum)

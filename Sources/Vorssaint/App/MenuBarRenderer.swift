@@ -801,6 +801,15 @@ enum MenuBarRenderer {
         return result
     }
 
+    /// macOS 26 lays out button titles dominated by tall attachments about
+    /// 1.2pt higher than macOS 27, where every block offset below was
+    /// calibrated; older systems get a downward nudge so the blocks center
+    /// on the menu bar like the system's own icons.
+    private static let legacyBlockAttachmentNudge: CGFloat = {
+        if #unavailable(macOS 27) { return -1.2 }
+        return 0
+    }()
+
     private static func symbolAttachment(named name: String,
                                          stacked: Bool,
                                          enlarged: Bool = false) -> NSAttributedString {
@@ -832,7 +841,7 @@ enum MenuBarRenderer {
         let attachment = NSTextAttachment()
         attachment.image = image
         attachment.bounds = NSRect(x: 0,
-                                   y: style == .readable ? -5.9 : -5.7,
+                                   y: (style == .readable ? -5.9 : -5.7) + legacyBlockAttachmentNudge,
                                    width: image.size.width,
                                    height: image.size.height)
         return NSAttributedString(attachment: attachment)
@@ -848,8 +857,11 @@ enum MenuBarRenderer {
                                        pressure: pressure)
         let attachment = NSTextAttachment()
         attachment.image = image
+        // The gauge outline fills the image symmetrically, so the offset
+        // centers the image itself on the status font's box (ascender
+        // 11.21, descender -2.45 at 11.6pt).
         attachment.bounds = NSRect(x: 0,
-                                   y: style == .readable ? -5.7 : -5.4,
+                                   y: (style == .readable ? -6.6 : -5.6) + legacyBlockAttachmentNudge,
                                    width: image.size.width,
                                    height: image.size.height)
         return NSAttributedString(attachment: attachment)
@@ -859,7 +871,8 @@ enum MenuBarRenderer {
         let image = networkBlockImage(down: down, up: up, style: style)
         let attachment = NSTextAttachment()
         attachment.image = image
-        attachment.bounds = NSRect(x: 0, y: style == .readable ? -6.1 : -5.5,
+        attachment.bounds = NSRect(x: 0,
+                                   y: (style == .readable ? -6.1 : -5.5) + legacyBlockAttachmentNudge,
                                    width: image.size.width,
                                    height: image.size.height)
         return NSAttributedString(attachment: attachment)
@@ -871,7 +884,8 @@ enum MenuBarRenderer {
         let image = diskActivityBlockImage(read: read, write: write, style: style)
         let attachment = NSTextAttachment()
         attachment.image = image
-        attachment.bounds = NSRect(x: 0, y: style == .readable ? -6.1 : -5.5,
+        attachment.bounds = NSRect(x: 0,
+                                   y: (style == .readable ? -6.1 : -5.5) + legacyBlockAttachmentNudge,
                                    width: image.size.width,
                                    height: image.size.height)
         return NSAttributedString(attachment: attachment)
@@ -886,7 +900,7 @@ enum MenuBarRenderer {
         let attachment = NSTextAttachment()
         attachment.image = image
         attachment.bounds = NSRect(x: 0,
-                                   y: style == .readable ? -5.7 : -5.5,
+                                   y: (style == .readable ? -5.7 : -5.5) + legacyBlockAttachmentNudge,
                                    width: image.size.width,
                                    height: image.size.height)
         return NSAttributedString(attachment: attachment)
@@ -1181,6 +1195,7 @@ enum MenuBarRenderer {
                               bsdName: "disk3s1",
                               wholeDisk: "disk3",
                               ioCounterID: "disk3",
+                              fileSystem: "APFS",
                               totalBytes: 1_000_000_000_000,
                               freeBytes: 0,
                               usedBytes: 1_000_000_000_000,

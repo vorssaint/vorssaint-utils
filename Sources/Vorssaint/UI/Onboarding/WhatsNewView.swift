@@ -259,35 +259,34 @@ struct UpdateShowcaseIntroView: View {
     }
 }
 
-/// A one-time note for the launch after update, in two pages: first where to
-/// follow previews between the now-weekly releases, then the support ask. It
-/// is intentionally not a release note, so the normal changelog preview
-/// remains unchanged before download.
+/// A one-time note for the launch after update, separate from release notes.
 struct UpdateSupportIntroView: View {
-    var onClose: () -> Void
+    var onFinish: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.openURL) private var openURL
-    @State private var step: Step = .community
+    @State private var step: SupportUpdateIntroStep
+    @State private var isMovingForward = true
+    @State private var copiedCommand: String?
 
-    private enum Step {
-        case community
-        case support
+    init(initialStep: SupportUpdateIntroStep = .homebrew,
+         onFinish: @escaping () -> Void) {
+        self.onFinish = onFinish
+        _step = State(initialValue: initialStep)
     }
 
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
-                if step == .community {
+                if step == .homebrew {
+                    homebrewContent
+                        .transition(pageTransition)
+                } else if step == .community {
                     communityContent
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .leading).combined(with: .opacity),
-                            removal: .move(edge: .leading).combined(with: .opacity)))
+                        .transition(pageTransition)
                 } else {
                     supportContent
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .trailing).combined(with: .opacity),
-                            removal: .move(edge: .trailing).combined(with: .opacity)))
+                        .transition(pageTransition)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -300,6 +299,122 @@ struct UpdateSupportIntroView: View {
         }
         .frame(width: 560, height: 500)
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var pageTransition: AnyTransition {
+        .asymmetric(
+            insertion: .move(edge: isMovingForward ? .trailing : .leading)
+                .combined(with: .opacity),
+            removal: .move(edge: isMovingForward ? .leading : .trailing)
+                .combined(with: .opacity)
+        )
+    }
+
+    private func move(to destination: SupportUpdateIntroStep, forward: Bool) {
+        isMovingForward = forward
+        withAnimation(.easeInOut(duration: 0.3)) {
+            step = destination
+        }
+    }
+
+    private var homebrewContent: some View {
+        VStack(spacing: 12) {
+            ZStack(alignment: .bottomTrailing) {
+                RoundedRectangle(cornerRadius: 17, style: .continuous)
+                    .fill(LinearGradient(colors: [.orange, .yellow],
+                                         startPoint: .topLeading,
+                                         endPoint: .bottomTrailing))
+                    .frame(width: 74, height: 74)
+                    .shadow(color: .orange.opacity(0.24), radius: 10, y: 4)
+                Image(systemName: "shippingbox.fill")
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 74, height: 74)
+                Circle()
+                    .fill(Color.green)
+                    .frame(width: 24, height: 24)
+                    .overlay {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                    .overlay {
+                        Circle().strokeBorder(Color(nsColor: .windowBackgroundColor), lineWidth: 3)
+                    }
+                    .offset(x: 4, y: 4)
+            }
+
+            Text(l10n.s.homebrewOfficialIntroTitle)
+                .font(.system(size: 22, weight: .bold))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(l10n.s.homebrewOfficialIntroMessage)
+                .font(.system(size: 13.5))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 440)
+
+            commandCard(label: l10n.s.homebrewOfficialIntroInstallLabel,
+                        command: SupportUpdateIntroInfo.installCommand)
+
+            VStack(spacing: 4) {
+                Text(l10n.s.homebrewOfficialIntroMigrationTitle)
+                    .font(.system(size: 12.5, weight: .semibold))
+                Text(l10n.s.homebrewOfficialIntroMigrationMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            commandCard(label: nil, command: SupportUpdateIntroInfo.migrationCommand)
+        }
+        .padding(.vertical, 16)
+    }
+
+    private func commandCard(label: String?, command: String) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            if let label {
+                Text(label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            HStack(spacing: 10) {
+                Text(command)
+                    .font(.system(size: 11.5, weight: .medium, design: .monospaced))
+                    .textSelection(.enabled)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button {
+                    copy(command)
+                } label: {
+                    Label(l10n.s.homebrewOfficialIntroCopyButton,
+                          systemImage: copiedCommand == command ? "checkmark" : "doc.on.doc")
+                }
+                .controlSize(.small)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: 450)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+        }
+    }
+
+    private func copy(_ command: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(command, forType: .string)
+        copiedCommand = command
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+            if copiedCommand == command { copiedCommand = nil }
+        }
     }
 
     private var communityContent: some View {
@@ -400,25 +515,25 @@ struct UpdateSupportIntroView: View {
 
     private var footer: some View {
         HStack {
-            if step == .community {
-                Button(l10n.s.supportIntroLaterButton) {
-                    onClose()
+            if let previous = step.previous {
+                Button(l10n.s.obBack) {
+                    move(to: previous, forward: false)
                 }
-                .keyboardShortcut(.cancelAction)
             }
             Spacer()
-            if step == .community {
+            if let next = step.next {
                 Button(l10n.s.obContinue) {
-                    withAnimation(.easeInOut(duration: 0.3)) { step = .support }
+                    move(to: next, forward: true)
                 }
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
             } else {
-                Button(l10n.s.supportIntroLaterButton) {
-                    onClose()
+                Button(l10n.s.supportIntroDoneButton) {
+                    onFinish()
                 }
                 .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
                 .controlSize(.large)
             }
         }

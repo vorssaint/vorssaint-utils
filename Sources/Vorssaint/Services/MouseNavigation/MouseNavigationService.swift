@@ -10,8 +10,10 @@ import CoreGraphics
 /// Turns the standard Back and Forward side buttons into the matching app
 /// commands. Finder and browsers expose those commands as Command-[ and
 /// Command-]; other apps keep working when they provide the same menu command.
-/// Nothing is installed while the opt-in feature is off. Requires
-/// Accessibility for the modifying event tap and menu action.
+/// Apps that handle the side buttons themselves (some browsers, virtual
+/// machines, remote screens) receive the untouched events instead. Nothing is installed
+/// while the opt-in feature is off. Requires Accessibility for the modifying
+/// event tap and menu action.
 final class MouseNavigationService: ObservableObject {
     static let shared = MouseNavigationService()
 
@@ -19,6 +21,11 @@ final class MouseNavigationService: ObservableObject {
 
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+    /// Buttons whose current press started over a pass-through app. The Up
+    /// and Drag of a gesture must follow its Down: splitting the pair would
+    /// leave the target app with an unmatched mouse event. Only touched from
+    /// the tap callback, which runs on the main run loop.
+    private var passThroughButtons: Set<Int64> = []
 
     private init() {}
 
@@ -73,6 +80,7 @@ final class MouseNavigationService: ObservableObject {
         }
         tap = nil
         runLoopSource = nil
+        passThroughButtons.removeAll()
         isRunning = false
     }
 
@@ -81,18 +89,43 @@ final class MouseNavigationService: ObservableObject {
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             return Unmanaged.passUnretained(event)
         }
+        let buttonNumber = event.getIntegerValueField(.mouseEventButtonNumber)
         guard type == .otherMouseDown || type == .otherMouseUp || type == .otherMouseDragged,
-              let direction = MouseNavigationSupport.direction(
-                forButtonNumber: event.getIntegerValueField(.mouseEventButtonNumber)) else {
+              let direction = MouseNavigationSupport.direction(forButtonNumber: buttonNumber) else {
+            return Unmanaged.passUnretained(event)
+        }
+
+        // A side button claimed as the radial menu's summoner belongs to the
+        // wheel. This tap runs at the HID level, before the menu's session
+        // tap, so the whole gesture passes through untouched for the menu to
+        // take downstream; the other side button keeps navigating.
+        if RadialMenuSupport.claimsMouseButton(buttonNumber) {
             return Unmanaged.passUnretained(event)
         }
 
         if type == .otherMouseDown {
+            // Apps that consume the side buttons themselves keep the raw
+            // event; replacing it would drop navigation the user already had,
+            // and none of them has a menu command the AX path could press.
+            // Checked only on Down (never per Drag) and resolved from
+            // NSWorkspace's cached state, so the tap callback stays cheap.
+            if MouseNavigationSupport.shouldPassThrough(
+                bundleIdentifier: NSWorkspace.shared.frontmostApplication?.bundleIdentifier) {
+                passThroughButtons.insert(buttonNumber)
+                return Unmanaged.passUnretained(event)
+            }
+            passThroughButtons.remove(buttonNumber)
             // Leave the event-tap callback immediately; AX menu traversal can
             // take a few milliseconds and must never let the tap time out.
             DispatchQueue.main.async { [weak self] in
                 self?.perform(direction)
             }
+            return nil
+        }
+
+        if passThroughButtons.contains(buttonNumber) {
+            if type == .otherMouseUp { passThroughButtons.remove(buttonNumber) }
+            return Unmanaged.passUnretained(event)
         }
         // Swallow the full side-button gesture. Letting its Up or Drag through
         // after replacing the Down leaves apps with an unmatched mouse event.

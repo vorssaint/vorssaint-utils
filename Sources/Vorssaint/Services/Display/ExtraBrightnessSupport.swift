@@ -155,4 +155,13 @@ enum ExtraBrightnessSupport {
         guard !engaged, disengagedTicks <= dropoutGraceTicks else { return instantaneous }
         return max(instantaneous, previous)
     }
+
+    /// Whether the live window pair already followed a Space transition and
+    /// can keep presenting without a teardown. Both windows matter: losing the
+    /// one-pixel trigger lets macOS revoke the headroom moments later.
+    static func canReuseSpaceWindows(sameDisplay: Bool,
+                                     overlayOnActiveSpace: Bool,
+                                     triggerOnActiveSpace: Bool) -> Bool {
+        sameDisplay && overlayOnActiveSpace && triggerOnActiveSpace
+    }
 }

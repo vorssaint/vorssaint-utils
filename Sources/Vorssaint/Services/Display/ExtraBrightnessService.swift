@@ -181,12 +181,22 @@ final class ExtraBrightnessService: ObservableObject {
         screensAsleep = false
     }
 
-    /// Fullscreen windows live in their own Space. Recreate the overlay pair
-    /// once the destination becomes active, preserving the current factor.
+    /// Fullscreen windows live in their own Space. AppKit normally carries the
+    /// overlay pair into the active app's fullscreen set; keep that live pair
+    /// instead of tearing it down during the handoff. Rebuild only when either
+    /// window did not arrive or the built-in display actually changed.
     private func handleActiveSpaceChange() {
         guard pollTimer != nil else { return }
         guard let screen = Self.builtInXDRScreen() else {
             handleScreenChange()
+            return
+        }
+        if let overlayWindow, let triggerWindow,
+           ExtraBrightnessSupport.canReuseSpaceWindows(
+               sameDisplay: overlayDisplayID == Self.displayID(of: screen),
+               overlayOnActiveSpace: overlayWindow.isOnActiveSpace,
+               triggerOnActiveSpace: triggerWindow.isOnActiveSpace) {
+            renderIfNeeded()
             return
         }
         showOverlay(on: screen)
@@ -229,10 +239,11 @@ final class ExtraBrightnessService: ObservableObject {
         NSRect(x: screen.frame.maxX - 1, y: screen.frame.minY, width: 1, height: 1)
     }
 
-    /// Keep both windows bound to the current Space. The observer above creates
-    /// a fresh pair after a desktop or fullscreen transition completes.
+    /// Let the pair join the active app's fullscreen set without cloning it
+    /// across every Space. The observer above remains as a fallback when AppKit
+    /// reports that either live window did not make the transition.
     private static let overlayCollectionBehavior: NSWindow.CollectionBehavior = [
-        .ignoresCycle, .fullScreenAuxiliary,
+        .ignoresCycle, .fullScreenAuxiliary, .canJoinAllApplications,
     ]
 
     // MARK: - Overlay
