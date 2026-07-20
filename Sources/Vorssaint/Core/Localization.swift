@@ -640,7 +640,13 @@ struct Strings {
     let mixerSystemOutputTitle: String
     let mixerSystemOutputNoDevices: String
     let mixerSystemOutputTooltip: String
+    let mixerSystemOutputMasterVolume: String
+    let mixerSystemOutputVolume: String
+    let mixerSystemOutputVolumeReadOnly: String
+    let mixerSystemOutputVolumeUnavailable: String
     let mixerSystemOutputErrorFormat: String
+    let mixerBluetoothOutputsTitle: String
+    let mixerBluetoothOutputsCaption: String
     let mixerLowerOnHeadphonesDisconnect: String
     let mixerLowerOnHeadphonesDisconnectCaption: String
     let mixerHeadphonesDisconnectVolume: String
@@ -1535,7 +1541,13 @@ extension Strings {
         mixerSystemOutputTitle: "Saída",
         mixerSystemOutputNoDevices: "Nenhuma saída encontrada",
         mixerSystemOutputTooltip: "Escolher saída do sistema",
+        mixerSystemOutputMasterVolume: "Volume mestre",
+        mixerSystemOutputVolume: "Volume por saída",
+        mixerSystemOutputVolumeReadOnly: "Só leitura",
+        mixerSystemOutputVolumeUnavailable: "Sem volume",
         mixerSystemOutputErrorFormat: "Não foi possível trocar: %@",
+        mixerBluetoothOutputsTitle: "Bluetooth emparelhados",
+        mixerBluetoothOutputsCaption: "Conectar",
         mixerLowerOnHeadphonesDisconnect: "Baixar volume ao desconectar fones",
         mixerLowerOnHeadphonesDisconnectCaption: "Ajusta a saída quando fones com fio ou Bluetooth desconectam.",
         mixerHeadphonesDisconnectVolume: "Volume ao desconectar",
@@ -2412,7 +2424,13 @@ extension Strings {
         mixerSystemOutputTitle: "Output",
         mixerSystemOutputNoDevices: "No outputs found",
         mixerSystemOutputTooltip: "Choose system output",
+        mixerSystemOutputMasterVolume: "Master volume",
+        mixerSystemOutputVolume: "Output volumes",
+        mixerSystemOutputVolumeReadOnly: "Read-only",
+        mixerSystemOutputVolumeUnavailable: "No volume",
         mixerSystemOutputErrorFormat: "Could not switch: %@",
+        mixerBluetoothOutputsTitle: "Paired Bluetooth",
+        mixerBluetoothOutputsCaption: "Connect",
         mixerLowerOnHeadphonesDisconnect: "Lower volume when headphones disconnect",
         mixerLowerOnHeadphonesDisconnectCaption: "Adjusts output when wired or Bluetooth headphones disconnect.",
         mixerHeadphonesDisconnectVolume: "Volume after disconnect",

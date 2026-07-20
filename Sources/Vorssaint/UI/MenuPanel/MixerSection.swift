@@ -22,6 +22,7 @@ struct MixerSection: View {
     @AppStorage(DefaultsKey.soundOutputSwitcherEnabled)
     private var soundOutputSwitcherEnabled = false
     @State private var soundOutputSwitcherUIDs: [String] = []
+    @State private var outputVolumeDragValues: [String: Double] = [:]
     @State private var normalSliderTint = Color(nsColor: .controlAccentColor)
     @State private var accentRevision = 0
     @State private var lastResolvedAccent: NSColor?
@@ -31,6 +32,7 @@ struct MixerSection: View {
         PanelSection(.mixer, title: l10n.s.mixerSection, collapsible: collapsible) {
             VStack(alignment: .leading, spacing: 8) {
                 universalOutputPicker
+                universalOutputVolumeControl
                 headphoneDisconnectProtectionToggle
                 if AppFeature.soundOutputSwitcher.isAvailable {
                     soundOutputSwitcherControls
@@ -81,6 +83,12 @@ struct MixerSection: View {
 
                 Spacer(minLength: 6)
 
+                if mixer.outputSwitchInProgress {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .frame(width: 12, height: 12)
+                }
+
                 Picker(l10n.s.mixerSystemOutputTooltip, selection: universalOutputSelectionBinding) {
                     if mixer.currentOutputDeviceUID == nil {
                         Text(l10n.s.mixerOutputUnavailable)
@@ -89,6 +97,14 @@ struct MixerSection: View {
                     ForEach(universalOutputDevices) { device in
                         Text(outputDeviceTitle(device))
                             .tag(device.uid)
+                    }
+                    if !connectableBluetoothOutputDevices.isEmpty {
+                        Section(l10n.s.mixerBluetoothOutputsTitle) {
+                            ForEach(connectableBluetoothOutputDevices) { device in
+                                Text(device.name)
+                                    .tag(device.id)
+                            }
+                        }
                     }
                     if let selected = mixer.currentOutputDeviceUID,
                        !universalOutputDevices.contains(where: { $0.uid == selected }) {
@@ -100,7 +116,8 @@ struct MixerSection: View {
                 .pickerStyle(.menu)
                 .controlSize(.small)
                 .frame(width: 164)
-                .disabled(universalOutputDevices.isEmpty)
+                .disabled(mixer.outputSwitchInProgress
+                    || (universalOutputDevices.isEmpty && connectableBluetoothOutputDevices.isEmpty))
                 .help(l10n.s.mixerSystemOutputTooltip)
             }
 
@@ -117,12 +134,252 @@ struct MixerSection: View {
         mixer.outputDevices.filter(\.canBeDefaultOutput)
     }
 
+    @ViewBuilder
+    private var universalOutputVolumeControl: some View {
+        if !mixer.outputDevices.isEmpty {
+            VStack(alignment: .leading, spacing: 5) {
+                masterOutputVolumeControl
+
+                Divider()
+                    .padding(.vertical, 1)
+
+                Label {
+                    Text(l10n.s.mixerSystemOutputVolume)
+                        .font(.system(size: 10.5, weight: .medium))
+                } icon: {
+                    Image(systemName: "speaker.wave.2.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .foregroundStyle(.secondary)
+
+                ForEach(nonBluetoothOutputVolumeDevices) { device in
+                    outputVolumeRow(device)
+                }
+                if !mixer.discoveredBluetoothOutputDevices.isEmpty {
+                    bluetoothOutputRoutes
+                }
+            }
+        }
+    }
+
+    private var masterOutputVolumeControl: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 7) {
+                Image(systemName: outputVolumeSymbol(for: mixer.outputMasterVolume))
+                    .font(.system(size: 9.5, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 14)
+
+                Text(l10n.s.mixerSystemOutputMasterVolume)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text("\(Int((mixer.outputMasterVolume * 100).rounded()))%")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .frame(minWidth: 38, alignment: .trailing)
+            }
+
+            HStack(spacing: 7) {
+                Color.clear.frame(width: 14, height: 1)
+                MixerVolumeSlider(value: outputMasterVolumeBinding,
+                                  normalTint: normalSliderTint,
+                                  boostTint: normalSliderTint,
+                                  isBoosting: false,
+                                  accentRevision: accentRevision,
+                                  accessibilityLabel: l10n.s.mixerSystemOutputMasterVolume,
+                                  maxValue: 1)
+                    .disabled(!hasSettableOutputVolume)
+                    .allowsHitTesting(hasSettableOutputVolume)
+            }
+        }
+        .help(l10n.s.mixerSystemOutputMasterVolume)
+    }
+
+    private var outputMasterVolumeBinding: Binding<Double> {
+        Binding(get: { mixer.outputMasterVolume },
+                set: { mixer.setOutputMasterVolume($0) })
+    }
+
+    private var hasSettableOutputVolume: Bool {
+        mixer.outputDevices.contains { $0.volume != nil && $0.volumeSettable }
+    }
+
+    @ViewBuilder
+    private func outputVolumeRow(_ device: MixerOutputDevice) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 7) {
+                Image(systemName: device.volume.map(outputVolumeSymbol) ?? "speaker.fill")
+                    .font(.system(size: 9.5, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 14)
+
+                Text(outputDeviceTitle(device))
+                    .font(.system(size: 10.5, weight: device.isDefault ? .medium : .regular))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                outputVolumeStatus(device)
+            }
+
+            if device.volume != nil {
+                HStack(spacing: 7) {
+                    Color.clear.frame(width: 14, height: 1)
+                    MixerVolumeSlider(value: outputVolumeBinding(for: device.uid),
+                                      normalTint: normalSliderTint,
+                                      boostTint: normalSliderTint,
+                                      isBoosting: false,
+                                      accentRevision: accentRevision,
+                                      accessibilityLabel: outputDeviceTitle(device),
+                                      maxValue: 1,
+                                      onEditingChanged: { editing in
+                                          outputVolumeEditingChanged(for: device.uid, editing: editing)
+                                      })
+                        .disabled(!device.volumeSettable || mixer.outputMasterVolume <= 0.001)
+                        .allowsHitTesting(device.volumeSettable && mixer.outputMasterVolume > 0.001)
+                }
+            }
+        }
+        .help(outputVolumeHelp(for: device))
+    }
+
+    @ViewBuilder
+    private func outputVolumeStatus(_ device: MixerOutputDevice) -> some View {
+        if let volume = device.volume {
+            HStack(spacing: 4) {
+                if !device.volumeSettable {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 8, weight: .semibold))
+                }
+                Text("\(Int((volume * 100).rounded()))%")
+                    .monospacedDigit()
+            }
+            .font(.system(size: 10.5, weight: .medium))
+            .foregroundStyle(.secondary)
+            .frame(minWidth: 38, alignment: .trailing)
+        } else {
+            Text(l10n.s.mixerSystemOutputVolumeUnavailable)
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+    }
+
+    private func outputVolumeBinding(for uid: String) -> Binding<Double> {
+        Binding(
+            get: { outputVolumeDragValues[uid] ?? mixer.outputDevices.first(where: { $0.uid == uid })?.volume ?? 0 },
+            set: { value in
+                outputVolumeDragValues[uid] = value
+                mixer.setOutputVolume(value, forOutputDeviceUID: uid)
+            }
+        )
+    }
+
+    private func outputVolumeEditingChanged(for uid: String, editing: Bool) {
+        if editing {
+            outputVolumeDragValues[uid] = mixer.outputDevices.first(where: { $0.uid == uid })?.volume ?? 0
+        } else {
+            outputVolumeDragValues.removeValue(forKey: uid)
+        }
+    }
+
+    private func outputVolumeSymbol(for volume: Double) -> String {
+        if volume <= 0.001 { return "speaker.slash.fill" }
+        if volume < 0.34 { return "speaker.wave.1.fill" }
+        if volume < 0.67 { return "speaker.wave.2.fill" }
+        return "speaker.wave.3.fill"
+    }
+
+    private func outputVolumeHelp(for device: MixerOutputDevice) -> String {
+        guard device.volume != nil else { return l10n.s.mixerSystemOutputVolumeUnavailable }
+        return device.volumeSettable ? l10n.s.mixerSystemOutputVolume : l10n.s.mixerSystemOutputVolumeReadOnly
+    }
+
+    private var nonBluetoothOutputVolumeDevices: [MixerOutputDevice] {
+        mixer.outputDevices.filter { outputDevice in
+            mixer.discoveredBluetoothOutputDevices.allSatisfy {
+                !outputDeviceMatchesBluetoothRoute(outputDevice, route: $0)
+            }
+        }
+    }
+
+    private var disconnectedBluetoothOutputDevices: [MixerDiscoveredOutputDevice] {
+        mixer.discoveredBluetoothOutputDevices.filter { bluetoothOutputDevice(for: $0) == nil }
+    }
+
+    private var connectableBluetoothOutputDevices: [MixerDiscoveredOutputDevice] {
+        disconnectedBluetoothOutputDevices.filter { $0.bluetoothAddress != nil }
+    }
+
+    private var bluetoothOutputRoutes: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label {
+                Text(l10n.s.mixerBluetoothOutputsTitle)
+                    .font(.system(size: 10.5, weight: .medium))
+            } icon: {
+                Image(systemName: "antenna.radiowaves.left.and.right")
+                    .font(.system(size: 10, weight: .semibold))
+            }
+            .foregroundStyle(.secondary)
+
+            ForEach(mixer.discoveredBluetoothOutputDevices) { device in
+                if let outputDevice = bluetoothOutputDevice(for: device) {
+                    outputVolumeRow(outputDevice)
+                } else {
+                    HStack(spacing: 7) {
+                        Image(systemName: "speaker.fill")
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 14)
+                        Text(device.name)
+                            .font(.system(size: 10.5))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer(minLength: 6)
+                        if mixer.connectingBluetoothSelectionID == device.id {
+                            ProgressView()
+                                .controlSize(.small)
+                                .frame(width: 18, height: 18)
+                        } else {
+                            Button(l10n.s.mixerBluetoothOutputsCaption) {
+                                mixer.connectBluetoothOutputDevice(selectionID: device.id)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(device.bluetoothAddress == nil || mixer.outputSwitchInProgress)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func bluetoothOutputDevice(for route: MixerDiscoveredOutputDevice) -> MixerOutputDevice? {
+        mixer.outputDevices.first { outputDeviceMatchesBluetoothRoute($0, route: route) }
+    }
+
+    private func outputDeviceMatchesBluetoothRoute(_ outputDevice: MixerOutputDevice,
+                                                   route: MixerDiscoveredOutputDevice) -> Bool {
+        MixerRoutingSupport.outputMatchesDiscoveredBluetooth(name: outputDevice.name,
+                                                            uid: outputDevice.uid,
+                                                            route: route)
+    }
+
     private var universalOutputSelectionBinding: Binding<String> {
         Binding(
             get: { mixer.currentOutputDeviceUID ?? MixerRoutingSupport.systemDefaultSelectionID },
             set: { selection in
-                guard selection != MixerRoutingSupport.systemDefaultSelectionID else { return }
-                mixer.setUniversalOutputDeviceUID(selection)
+                DispatchQueue.main.async {
+                    guard selection != MixerRoutingSupport.systemDefaultSelectionID else { return }
+                    if MixerRoutingSupport.bluetoothAddress(fromSelectionID: selection) != nil {
+                        mixer.connectBluetoothOutputDevice(selectionID: selection)
+                        return
+                    }
+                    mixer.setUniversalOutputDeviceUID(selection)
+                }
             }
         )
     }
@@ -565,6 +822,8 @@ private struct MixerVolumeSlider: View {
     let isBoosting: Bool
     let accentRevision: Int
     let accessibilityLabel: String
+    var maxValue = AppVolumeMixer.maxVolume
+    var onEditingChanged: (Bool) -> Void = { _ in }
 
     private var activeTint: Color { isBoosting ? boostTint : normalTint }
     private var percentage: Int { Int((value * 100).rounded()) }
@@ -575,7 +834,9 @@ private struct MixerVolumeSlider: View {
                 LiquidGlassMixerSlider(value: $value,
                                        tint: activeTint,
                                        isBoosting: isBoosting,
-                                       accessibilityLabel: accessibilityLabel)
+                                       accessibilityLabel: accessibilityLabel,
+                                       maxValue: maxValue,
+                                       onEditingChanged: onEditingChanged)
             } else {
                 nativeSlider
                     .accessibilityLabel(accessibilityLabel)
@@ -585,7 +846,7 @@ private struct MixerVolumeSlider: View {
     }
 
     private var nativeSlider: some View {
-        Slider(value: $value, in: 0...AppVolumeMixer.maxVolume)
+        Slider(value: $value, in: 0...maxValue, onEditingChanged: onEditingChanged)
             .controlSize(.small)
             // Pass an explicit accent (not nil) for the normal state: on the
             // macOS slider, tint(nil) does not reliably clear a previously
@@ -601,16 +862,20 @@ private struct LiquidGlassMixerSlider: View {
     let tint: Color
     let isBoosting: Bool
     let accessibilityLabel: String
+    let maxValue: Double
+    let onEditingChanged: (Bool) -> Void
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var colorScheme
+    @State private var isDragging = false
 
     private let knobWidth: CGFloat = 24
     private let knobHeight: CGFloat = 15
     private let trackHeight: CGFloat = 5
 
     private var progress: CGFloat {
-        let clamped = min(max(value, 0), AppVolumeMixer.maxVolume)
-        return CGFloat(clamped / AppVolumeMixer.maxVolume)
+        let limit = max(maxValue, 0.001)
+        let clamped = min(max(value, 0), limit)
+        return CGFloat(clamped / limit)
     }
 
     var body: some View {
@@ -637,7 +902,15 @@ private struct LiquidGlassMixerSlider: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { gesture in
+                        if !isDragging {
+                            isDragging = true
+                            onEditingChanged(true)
+                        }
                         updateValue(at: gesture.location.x, width: width)
+                    }
+                    .onEnded { _ in
+                        isDragging = false
+                        onEditingChanged(false)
                     }
             )
         }
@@ -647,7 +920,7 @@ private struct LiquidGlassMixerSlider: View {
         .accessibilityAdjustableAction { direction in
             switch direction {
             case .increment:
-                value = min(AppVolumeMixer.maxVolume, value + 0.05)
+                value = min(maxValue, value + 0.05)
             case .decrement:
                 value = max(0, value - 0.05)
             @unknown default:
@@ -694,6 +967,6 @@ private struct LiquidGlassMixerSlider: View {
     private func updateValue(at x: CGFloat, width: CGFloat) {
         let travel = max(width - knobWidth, 1)
         let normalized = min(max((x - knobWidth / 2) / travel, 0), 1)
-        value = Double(normalized) * AppVolumeMixer.maxVolume
+        value = Double(normalized) * maxValue
     }
 }

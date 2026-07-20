@@ -461,7 +461,8 @@ struct MetricsTests {
           {"soundcore Space Q45":{"device_address":"F4:9D:8A:A2:4C:12","device_batteryLevelMain":"100%","device_minorType":"Headset"}},
           {"AirPods Pro":{"device_address":"E5:04:BE:68:C2:93","device_batteryLevelCase":"88%","device_batteryLevelLeft":"92%","device_batteryLevelRight":"90%"}}
         ],"device_not_connected":[
-          {"Old Mouse":{"device_address":"00:00:00:00:00:00","device_batteryLevelMain":"12%","device_minorType":"Mouse"}}
+          {"Old Mouse":{"device_address":"00:00:00:00:00:00","device_batteryLevelMain":"12%","device_minorType":"Mouse"}},
+          {"Stereo":{"device_address":"A0:B1:C2:D3:E4:F5","device_minorType":"Speakers"}}
         ]}]}
         """.utf8)
         let bluetoothDevices = PeripheralBatterySupport.bluetoothDevices(fromSystemProfilerJSON: bluetoothJSON)
@@ -477,6 +478,96 @@ struct MetricsTests {
                "peripheral battery uses the lowest connected AirPods component")
         expect(!bluetoothDevices.contains { $0.name == "Old Mouse" },
                "peripheral battery ignores disconnected Bluetooth devices")
+        let bluetoothOutputs = MixerRoutingSupport.bluetoothAudioOutputs(fromSystemProfilerJSON: bluetoothJSON)
+        expect(bluetoothOutputs.contains(MixerDiscoveredOutputDevice(id: "Bluetooth:f4-9d-8a-a2-4c-12",
+                                                                     name: "soundcore Space Q45",
+                                                                     bluetoothAddress: "f4-9d-8a-a2-4c-12")),
+               "mixer output discovery includes connected Bluetooth audio")
+        expect(bluetoothOutputs.contains(MixerDiscoveredOutputDevice(id: "Bluetooth:a0-b1-c2-d3-e4-f5",
+                                                                     name: "Stereo",
+                                                                     bluetoothAddress: "a0-b1-c2-d3-e4-f5")),
+               "mixer output discovery includes paired Bluetooth audio")
+        expect(MixerRoutingSupport.bluetoothAddress(fromSelectionID: "Bluetooth:A0:B1:C2:D3:E4:F5") == "a0-b1-c2-d3-e4-f5",
+               "Bluetooth output selection normalizes colon addresses")
+        expect(MixerRoutingSupport.outputMatchesDiscoveredBluetooth(
+            name: "Stereo",
+            uid: "a0-b1-c2-d3-e4-f5",
+            route: MixerDiscoveredOutputDevice(id: "Bluetooth:a0-b1-c2-d3-e4-f5",
+                                               name: "Stereo",
+                                               bluetoothAddress: "a0-b1-c2-d3-e4-f5")),
+               "active Bluetooth CoreAudio output matches discovered route")
+        expect(MixerRoutingSupport.outputMatchesDiscoveredBluetooth(
+            name: "Bluetooth Speaker",
+            uid: "BluetoothDevice_A0:B1:C2:D3:E4:F5:output",
+            route: MixerDiscoveredOutputDevice(id: "Bluetooth:a0-b1-c2-d3-e4-f5",
+                                               name: "Stereo",
+                                               bluetoothAddress: "a0-b1-c2-d3-e4-f5")),
+               "Bluetooth output matching extracts an address embedded in a CoreAudio UID")
+        expect(!MixerRoutingSupport.outputMatchesDiscoveredBluetooth(
+            name: "Stereo",
+            uid: "11-22-33-44-55-66",
+            route: MixerDiscoveredOutputDevice(id: "Bluetooth:a0-b1-c2-d3-e4-f5",
+                                               name: "Stereo",
+                                               bluetoothAddress: "a0-b1-c2-d3-e4-f5")),
+               "same-name Bluetooth outputs with different addresses do not match")
+        expect(!MixerRoutingSupport.outputDeviceIsStable(previousUID: nil,
+                                                         candidateUID: "BluetoothOutput"),
+               "a newly discovered Bluetooth output is not used immediately")
+        expect(MixerRoutingSupport.outputDeviceIsStable(previousUID: "BluetoothOutput",
+                                                        candidateUID: "BluetoothOutput"),
+               "a Bluetooth output is ready after two consecutive discoveries")
+        expect(!MixerRoutingSupport.outputDeviceIsStable(previousUID: "BluetoothOutput",
+                                                         candidateUID: "DifferentOutput"),
+               "changing Bluetooth output candidates restarts readiness")
+        expect(MixerRoutingSupport.outputVolumeEndpointSelection(
+            masterReadable: [true],
+            masterSettable: [false],
+            channelReadable: [true, true],
+            channelSettable: [true, true]
+        ) == MixerVolumeEndpointSelection(group: .channels, indexes: [0, 1], isSettable: true),
+               "writable stereo channels take precedence over a read-only master volume")
+        expect(MixerRoutingSupport.outputVolumeEndpointSelection(
+            masterReadable: [true],
+            masterSettable: [false],
+            channelReadable: [true, true],
+            channelSettable: [true, false]
+        ) == MixerVolumeEndpointSelection(group: .master, indexes: [0], isSettable: false),
+               "partial channel volume control stays read-only instead of changing balance")
+        expect(MixerRoutingSupport.outputVolumeEndpointSelection(
+            masterReadable: [true, true],
+            masterSettable: [false, true],
+            channelReadable: [true, true],
+            channelSettable: [true, true]
+        ) == MixerVolumeEndpointSelection(group: .master, indexes: [1], isSettable: true),
+               "a writable master volume is preferred over channel controls")
+        expectClose(MixerRoutingSupport.effectiveOutputVolume(base: 1, master: 0.5),
+                    0.5,
+                    "master output volume scales a full-volume output")
+        expectClose(MixerRoutingSupport.effectiveOutputVolume(base: 0.5, master: 0.5),
+                    0.25,
+                    "master output volume preserves proportional output levels")
+        expectClose(MixerRoutingSupport.baseOutputVolume(effective: 0.3,
+                                                         master: 0.5,
+                                                         previousBase: 0.5),
+                    0.6,
+                    "editing an output under the master updates its unscaled base volume")
+        expectClose(MixerRoutingSupport.baseOutputVolume(effective: 0.3,
+                                                         master: 0,
+                                                         previousBase: 0.5),
+                    0.5,
+                    "editing while the master is muted preserves the previous base volume")
+        let mixerSectionSourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/Vorssaint/UI/MenuPanel/MixerSection.swift")
+        let mixerSectionSource = (try? String(contentsOf: mixerSectionSourceURL, encoding: .utf8)) ?? ""
+        let outputRowSource = mixerSectionSource
+            .components(separatedBy: "private func outputVolumeRow").dropFirst().first?
+            .components(separatedBy: "private func outputVolumeStatus").first ?? ""
+        expect(outputRowSource.contains("maxValue: 1,"),
+               "output volume bars use an absolute 0–100% visual scale")
+        expect(!bluetoothOutputs.contains { $0.name == "Old Mouse" },
+               "mixer output discovery ignores non-audio Bluetooth devices")
         let keyboard = PeripheralBatteryDevice(id: "keyboard",
                                                name: "Magic Keyboard",
                                                percent: 78,
@@ -2485,6 +2576,19 @@ struct MetricsTests {
         expectClose(Defaults.sanitizedAppVolume(3), 2, "high app volume clamps to boost maximum")
         expectClose(Defaults.sanitizedAppVolume(-1), 0, "negative app volume clamps to mute")
         expectClose(Defaults.sanitizedAppVolume(.infinity), 1, "non-finite app volume falls back to unity")
+        expectClose(Defaults.sanitizedOutputMasterVolume(0.45), 0.45,
+                    "valid output master volume is preserved")
+        expectClose(Defaults.sanitizedOutputMasterVolume(2), 1,
+                    "output master volume clamps above unity")
+        expectClose(Defaults.sanitizedOutputMasterVolume(.infinity), 1,
+                    "invalid output master volume falls back to unity")
+        expect(Defaults.sanitizedOutputBaseVolumes([
+            " HDMI Output ": 0.5,
+            "Speakers": 2.0,
+            "bad\nuid": 0.25,
+            "Display": "loud",
+        ]) == ["HDMI Output": 0.5, "Speakers": 1],
+        "saved output base volumes keep valid UIDs and clamped numeric levels")
         expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(35) == 35,
                "headphone disconnect volume preserves valid percentages")
         expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(-5) == 0,
