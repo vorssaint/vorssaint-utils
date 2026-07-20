@@ -708,20 +708,21 @@ struct MetricsTests {
                "reversing direction abandons the leftover instead of fighting it")
         expect(SmoothScrollSupport.remaining(afterTicks: 0, step: 40, current: 25) == 25,
                "a tickless event leaves the glide untouched")
+        // Measured against a scroll view: a one-line tick with Shift moves the
+        // content the same way a horizontal delta of the SAME sign does, so
+        // the redirect must not flip the tick.
         expect(SmoothScrollSupport.axes(vertical: 2, horizontal: 0, shiftPressed: true)
+               == SmoothScrollSupport.Axes(vertical: 0, horizontal: 2),
+               "Shift routes a vertical wheel tick sideways keeping its sign")
+        expect(SmoothScrollSupport.axes(vertical: -2, horizontal: 0, shiftPressed: true)
                == SmoothScrollSupport.Axes(vertical: 0, horizontal: -2),
-               "Shift routes a vertical wheel tick with the system's horizontal direction")
+               "the Shift redirect keeps the sign in the other direction too")
         expect(SmoothScrollSupport.axes(vertical: 2, horizontal: 0, shiftPressed: false)
                == SmoothScrollSupport.Axes(vertical: 2, horizontal: 0),
                "a wheel tick without Shift keeps its vertical axis")
         expect(SmoothScrollSupport.axes(vertical: 2, horizontal: -1, shiftPressed: true)
                == SmoothScrollSupport.Axes(vertical: 2, horizontal: -1),
                "Shift preserves a wheel event that already carries horizontal movement")
-        let shiftedNaturalAxes = SmoothScrollSupport.axes(
-            vertical: 2, horizontal: 0, shiftPressed: true)
-        expect(SmoothScrollSupport.postedDelta(
-            shiftedNaturalAxes.horizontal, naturalScrolling: true) == 2,
-               "Shift keeps the standard horizontal direction with natural scrolling")
         expect(SmoothScrollSupport.frameDelta(remaining: 100) == 18,
                "a frame emits its fraction of the remaining distance")
         expect(SmoothScrollSupport.frameDelta(remaining: -100) == -18,
@@ -736,14 +737,91 @@ struct MetricsTests {
                "an unset step falls back to the default")
         expect(SmoothScrollSupport.sanitizedStep(500) == 100,
                "the step clamps to its range")
-        expect(SmoothScrollSupport.postedDelta(18, naturalScrolling: true) == -18,
-               "natural scrolling pre-flips the glide so direction is preserved")
-        expect(SmoothScrollSupport.postedDelta(18, naturalScrolling: false) == 18,
-               "classic scrolling posts the glide as is")
         expect(Defaults.registeredDefaults[DefaultsKey.smoothScrollEnabled] as? Bool == false,
                "smooth scrolling ships off by default")
         expect(Defaults.registeredDefaults[DefaultsKey.smoothScrollStep] as? Int == 40,
                "smooth scrolling step registers its default")
+
+        // A wheel that reports continuously already measures in points, and
+        // that field is the one to trust; the line field only fills in for a
+        // movement too small to register as a whole point.
+        expect(ScrollWheelSupport.pointsPerLine == 10,
+               "one scroll line spans ten points")
+        expect(SmoothScrollSupport.continuousDistance(
+            fixedPointDelta: 4.0, pointDelta: 40, step: 40) == 40,
+               "the default step travels the same distance the event asked for")
+        expect(SmoothScrollSupport.continuousDistance(
+            fixedPointDelta: 4.0, pointDelta: 12, step: 40) == 12,
+               "the point field wins, so no assumption about points per line is made")
+        expect(SmoothScrollSupport.continuousDistance(
+            fixedPointDelta: 4.0, pointDelta: 40, step: 20) == 20,
+               "a shorter step halves the distance of a continuous wheel")
+        expect(SmoothScrollSupport.continuousDistance(
+            fixedPointDelta: 4.0, pointDelta: 40, step: 100) == 100,
+               "a longer step stretches the distance of a continuous wheel")
+        expect(SmoothScrollSupport.continuousDistance(
+            fixedPointDelta: -0.5, pointDelta: -5, step: 40) == -5,
+               "direction survives the conversion")
+        expect(SmoothScrollSupport.continuousDistance(
+            fixedPointDelta: 0.35, pointDelta: 0, step: 40) == 3.5,
+               "a movement below one whole point still glides")
+        expect(SmoothScrollSupport.continuousDistance(
+            fixedPointDelta: 0, pointDelta: 12, step: 40) == 12,
+               "a driver that fills in only whole points still glides")
+        expect(SmoothScrollSupport.continuousDistance(
+            fixedPointDelta: 0, pointDelta: 0, step: 40) == 0,
+               "an empty event asks for no distance")
+        expect(SmoothScrollSupport.continuousDistance(
+            fixedPointDelta: .nan, pointDelta: 0, step: 40) == 0,
+               "a nonsense delta asks for no distance")
+
+        // The continuous path scales by the step itself and then hands the
+        // budget a step of one. Scaling in both places would square the
+        // setting, so pin that the budget equals the distance.
+        for continuousStep in [20.0, 40.0, 100.0] {
+            let distance = SmoothScrollSupport.continuousDistance(
+                fixedPointDelta: 4.0, pointDelta: 40, step: continuousStep)
+            expect(SmoothScrollSupport.remaining(afterTicks: distance, step: 1, current: 0) == distance,
+                   "the step scales a continuous wheel exactly once")
+        }
+
+        // Fractions are carried instead of rounded away, so the glide
+        // delivers the whole distance it was given.
+        var carriedTotal: Double = 0
+        var carry: Double = 0
+        for _ in 0..<10 {
+            let frame = SmoothScrollSupport.wholePixels(0.6, carry: carry)
+            carriedTotal += frame.pixels
+            carry = frame.carry
+        }
+        expect(abs(carriedTotal + carry - 6) < 0.000001,
+               "ten six-tenths of a pixel are all still there, posted or waiting")
+        expect(carriedTotal >= 5,
+               "never more than one pixel is left waiting")
+        expect(SmoothScrollSupport.wholePixels(0.4, carry: 0).pixels == 0,
+               "a fraction alone posts nothing yet")
+        expect(SmoothScrollSupport.wholePixels(0.4, carry: 0).carry == 0.4,
+               "the fraction is kept for the next frame")
+        expect(SmoothScrollSupport.wholePixels(-1.5, carry: 0).pixels == -1,
+               "negative frames keep their whole pixels")
+        expect(SmoothScrollSupport.wholePixels(-1.5, carry: 0).carry == -0.5,
+               "negative frames carry their fraction")
+        expect(SmoothScrollSupport.wholePixels(.infinity, carry: 0).pixels == 0,
+               "an impossible frame posts nothing")
+        expect(SmoothScrollSupport.finalPixels(0.4, carry: 0.3) == 1,
+               "the landing frame spends the leftover instead of dropping it")
+        expect(SmoothScrollSupport.finalPixels(-0.4, carry: -0.3) == -1,
+               "the landing frame spends it in either direction")
+        expect(SmoothScrollSupport.finalPixels(0.2, carry: 0) == 0,
+               "a landing frame with almost nothing left posts nothing")
+        expect(SmoothScrollSupport.finalPixels(.infinity, carry: 0) == 0,
+               "an impossible landing frame posts nothing")
+        expect(SmoothScrollSupport.carry(0.6, continuing: 5) == 0.6,
+               "leftovers survive while the direction holds")
+        expect(SmoothScrollSupport.carry(0.6, continuing: -5) == 0,
+               "reversing direction drops the leftovers")
+        expect(SmoothScrollSupport.carry(0.6, continuing: 0) == 0.6,
+               "an empty event leaves the leftovers alone")
 
         // MARK: Watts & percent
 
@@ -1354,6 +1432,63 @@ struct MetricsTests {
                "a click beyond the slack re-anchors by the full offset")
         expect(StatusItemAnchorSupport.anchorDriftX(clickX: 1240, reportedMidX: 1144, buttonWidth: 197) == nil,
                "clicks near the edge of a wide metrics item stay anchored to the item")
+
+        // The built-in display and a taller one placed to its left.
+        let builtInScreen = CGRect(x: 0, y: 0, width: 1470, height: 956)
+        let secondScreen = CGRect(x: -1920, y: 100, width: 1920, height: 1080)
+        let attachedScreens = [builtInScreen, secondScreen]
+        expect(!StatusItemAnchorSupport.isTrustworthyStatusFrame(CGRect(x: 1135, y: 932, width: 0, height: 0),
+                                                                 screenFrames: attachedScreens),
+               "a status item frame with no size is never an anchor")
+        expect(!StatusItemAnchorSupport.isTrustworthyStatusFrame(CGRect(x: 1135, y: 950, width: 38, height: 37),
+                                                                 screenFrames: attachedScreens),
+               "a status item parked above the top edge is not an anchor")
+        expect(StatusItemAnchorSupport.isTrustworthyStatusFrame(CGRect(x: 1135, y: 919, width: 38, height: 37),
+                                                                screenFrames: attachedScreens),
+               "a status item sitting in the menu bar band is a trustworthy anchor")
+        expect(StatusItemAnchorSupport.isTrustworthyStatusFrame(CGRect(x: -1000, y: 1143, width: 38, height: 37),
+                                                                screenFrames: attachedScreens),
+               "the menu bar band follows each screen's own top edge")
+        expect(!StatusItemAnchorSupport.isTrustworthyStatusFrame(CGRect(x: 1135, y: 0, width: 38, height: 37),
+                                                                 screenFrames: attachedScreens),
+               "a frame down at the bottom of a screen is not a menu bar item")
+
+        // The panel keeps its top edge and its center while its content resizes.
+        let panelArea = CGRect(x: 0, y: 0, width: 1470, height: 932)
+        let shortPanel = StatusItemAnchorSupport.pinnedPanelFrame(size: CGSize(width: 332, height: 375),
+                                                                  anchorMidX: 1283, anchorTop: 932,
+                                                                  visibleFrame: panelArea)
+        let tallPanel = StatusItemAnchorSupport.pinnedPanelFrame(size: CGSize(width: 332, height: 633),
+                                                                 anchorMidX: 1283, anchorTop: 932,
+                                                                 visibleFrame: panelArea)
+        let shrunkPanel = StatusItemAnchorSupport.pinnedPanelFrame(size: CGSize(width: 332, height: 375),
+                                                                   anchorMidX: 1283, anchorTop: 932,
+                                                                   visibleFrame: panelArea)
+        expect(shortPanel.midX == 1283 && tallPanel.midX == 1283 && shrunkPanel.midX == 1283,
+               "the pinned panel stays centered on its anchor through a content resize")
+        expect(shortPanel.maxY == 932 && tallPanel.maxY == 932 && shrunkPanel.maxY == 932,
+               "a taller panel grows downward instead of moving its top edge")
+        expect(shortPanel == shrunkPanel,
+               "going back to the first tab lands the panel exactly where it started")
+        expect(StatusItemAnchorSupport.pinnedPanelFrame(size: CGSize(width: 332, height: 375),
+                                                        anchorMidX: 20, anchorTop: 932,
+                                                        visibleFrame: panelArea).minX == 8,
+               "a panel anchored past the left edge stops at the margin")
+        expect(StatusItemAnchorSupport.pinnedPanelFrame(size: CGSize(width: 332, height: 375),
+                                                        anchorMidX: 1465, anchorTop: 932,
+                                                        visibleFrame: panelArea).maxX == 1462,
+               "a panel anchored past the right edge stops at the margin")
+        expect(StatusItemAnchorSupport.pinnedPanelFrame(size: CGSize(width: 332, height: 375),
+                                                        anchorMidX: -1910, anchorTop: 1155,
+                                                        visibleFrame: CGRect(x: -1920, y: 100,
+                                                                             width: 1920, height: 1055))
+                == CGRect(x: -1912, y: 780, width: 332, height: 375),
+               "a display left of the built-in one clamps against its own negative origin")
+        expect(StatusItemAnchorSupport.pinnedPanelFrame(size: CGSize(width: 332, height: 633),
+                                                        anchorMidX: 700, anchorTop: 300,
+                                                        visibleFrame: CGRect(x: 0, y: 0,
+                                                                             width: 1470, height: 300)).maxY == 300,
+               "a screen too short for the panel still shows its top")
         expect(registeredDefaults[DefaultsKey.menuBarHideIconWithMetrics] as? Bool == false,
                "the menu bar icon stays visible by default")
         expect(MenuBarSpacingSupport.shouldHideStatusIcon(optionEnabled: true, separateMetrics: false,
@@ -1396,6 +1531,26 @@ struct MetricsTests {
                                                                metricItemsShown: 2, renderedTitleLength: 0,
                                                                mustShowForSignal: false),
                "the whole-item hiding only applies to the separate-items mode")
+
+        // A pinned metric that momentarily has nothing to show keeps its item
+        // instead of being taken away and put back every tick.
+        expect(MenuBarSpacingSupport.keepsMetricStatusItem(hasRenderedTitle: true, itemExists: false),
+               "a metric with something to show gets its own item")
+        expect(MenuBarSpacingSupport.keepsMetricStatusItem(hasRenderedTitle: false, itemExists: true,
+                                                           consecutiveEmptyRenders: 1),
+               "a reading that goes missing for a tick blanks its item instead of removing it")
+        expect(!MenuBarSpacingSupport.keepsMetricStatusItem(
+            hasRenderedTitle: false, itemExists: true,
+            consecutiveEmptyRenders: MenuBarSpacingSupport.emptyMetricRendersBeforeRemoval),
+               "a reading that stops for good takes its item away instead of leaving a gap")
+        expect(MenuBarSpacingSupport.keepsMetricStatusItem(
+            hasRenderedTitle: true, itemExists: true,
+            consecutiveEmptyRenders: 99),
+               "a reading that comes back keeps its item whatever came before")
+        expect(!MenuBarSpacingSupport.keepsMetricStatusItem(hasRenderedTitle: false, itemExists: false),
+               "a metric with nothing to show yet gets no item at all")
+        expect(MenuBarSpacingSupport.keepsMetricStatusItem(hasRenderedTitle: true, itemExists: true),
+               "an item already showing a reading stays")
         expect(!MenuBarSpacingSupport.shouldHideMainStatusItem(optionEnabled: true, separateMetrics: true,
                                                                metricItemsShown: 2, renderedTitleLength: 0,
                                                                mustShowForSignal: true),

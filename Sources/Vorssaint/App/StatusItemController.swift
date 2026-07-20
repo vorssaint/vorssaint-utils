@@ -20,6 +20,20 @@ final class StatusItemController {
     /// Last combination applied by updateIconAppearance, so refresh ticks
     /// don't re-render an unchanged icon every 2 seconds.
     private var lastIconStateKey = ""
+    /// A settings reply already waiting for the next turn of the run loop.
+    private var settingsSyncScheduled = false
+    /// How many readings in a row each metric has failed to render, so an
+    /// item is kept through a hiccup but not forever.
+    private var metricEmptyRenders: [String: Int] = [:]
+    /// How many metric items are actually showing a reading. An item kept
+    /// through a hiccup shows nothing, so it must not be what makes the main
+    /// item step aside: that would leave the menu bar with nothing to click.
+    private var renderedMetricItemCount = 0
+    /// True while a refresh is running. Anything the menu bar announces back
+    /// to us in the middle of one is a consequence of that same work, so it
+    /// is answered once afterwards rather than on top of it.
+    private var isRefreshing = false
+    private var refreshRequestedWhileRunning = false
     private static let mainAutosaveName = "VorssaintMenuBarItem"
     private static let metricAutosavePrefix = "VorssaintMetric"
     private static let maxPlacementGeneration = 10_000
@@ -132,6 +146,10 @@ final class StatusItemController {
         let previousName = mainAutosaveName(in: defaults)
         defaults.removeObject(forKey: "NSStatusItem Preferred Position \(previousName)")
         defaults.removeObject(forKey: "NSStatusItem Visible \(previousName)")
+        // The spelling macOS actually uses for the remembered visibility. Left
+        // behind, it also keeps the item marked as hidden, which is the state
+        // the recovery exists to undo.
+        defaults.removeObject(forKey: "NSStatusItem VisibleCC \(previousName)")
         defaults.set((placementGeneration(in: defaults) % maxPlacementGeneration) + 1,
                      forKey: DefaultsKey.statusItemPlacementGeneration)
     }
@@ -176,9 +194,24 @@ final class StatusItemController {
         defaultsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
                                                                   object: nil,
                                                                   queue: .main) { [weak self] _ in
-            self?.syncMonitorMode()
-            self?.updateIconAppearance()
-            self?.refresh()
+            // Showing a status item writes its own remembered position into
+            // this same domain and announces it right there on the stack, so
+            // reacting immediately would call back into the work that is
+            // still running. The reply waits for the next turn of the run
+            // loop, and a burst of writes collapses into one.
+            self?.scheduleSettingsSync()
+        }
+    }
+
+    private func scheduleSettingsSync() {
+        guard !settingsSyncScheduled else { return }
+        settingsSyncScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.settingsSyncScheduled = false
+            self.syncMonitorMode()
+            self.updateIconAppearance()
+            self.refresh()
         }
     }
 
@@ -235,7 +268,7 @@ final class StatusItemController {
         let mainItemHidden = MenuBarSpacingSupport.shouldHideMainStatusItem(
             optionEnabled: optionEnabled,
             separateMetrics: separateMetrics,
-            metricItemsShown: metricStatusItems.count,
+            metricItemsShown: renderedMetricItemCount,
             renderedTitleLength: button.attributedTitle.length,
             mustShowForSignal: signal)
         let keepAwakeActive = KeepAwakeManager.shared.isActive
@@ -279,6 +312,22 @@ final class StatusItemController {
 
     /// Updates the countdown title and tooltip from the current session state.
     func refresh() {
+        guard !isRefreshing else {
+            refreshRequestedWhileRunning = true
+            return
+        }
+        isRefreshing = true
+        defer {
+            isRefreshing = false
+            if refreshRequestedWhileRunning {
+                refreshRequestedWhileRunning = false
+                DispatchQueue.main.async { [weak self] in self?.refresh() }
+            }
+        }
+        performRefresh()
+    }
+
+    private func performRefresh() {
         guard let button = statusItem?.button else { return }
         let manager = KeepAwakeManager.shared
         let strings = L10n.shared.s
@@ -309,6 +358,7 @@ final class StatusItemController {
             refreshMetricStatusItems(metrics: metrics, snapshot: snapshot, strings: strings)
         } else {
             removeMetricStatusItems(except: Set<String>())
+            renderedMetricItemCount = 0
         }
         if !separateMetrics, !metrics.isEmpty {
             let metricsTitle = MenuBarRenderer.attributed(for: snapshot,
@@ -412,15 +462,24 @@ final class StatusItemController {
         let groups = metricStatusGroups(for: metrics, strings: strings)
         let wanted = Set(groups.map(\.id))
         removeMetricStatusItems(except: wanted)
+        var rendered = 0
+        defer { renderedMetricItemCount = rendered }
 
         for group in groups {
             let title = MenuBarRenderer.attributed(for: snapshot,
                                                    metrics: group.metrics,
                                                    allowStacked: false)
-            guard title.length > 0 else {
+            let empties = title.length > 0 ? 0 : (metricEmptyRenders[group.id] ?? 0) + 1
+            metricEmptyRenders[group.id] = empties
+            guard MenuBarSpacingSupport.keepsMetricStatusItem(
+                hasRenderedTitle: title.length > 0,
+                itemExists: metricStatusItems[group.id] != nil,
+                consecutiveEmptyRenders: empties) else {
+                // The reading has been gone long enough to call it gone.
                 removeMetricStatusItem(for: group.id)
                 continue
             }
+            if title.length > 0 { rendered += 1 }
 
             metricStatusItemFocus[group.id] = group.focusMetric
             let item = metricStatusItems[group.id] ?? installMetricStatusItem(for: group)
@@ -501,6 +560,12 @@ final class StatusItemController {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.autosaveName = "\(Self.metricAutosavePrefix).\(group.id)"
         item.behavior = []
+        // Registered before it is shown: showing it writes its remembered
+        // position and announces that write while this call is still on the
+        // stack, and an unregistered item would be built all over again by
+        // whoever answers that announcement.
+        metricStatusItems[group.id] = item
+        metricStatusItemFocus[group.id] = group.focusMetric
         item.isVisible = true
         if let button = item.button {
             button.font = MenuBarRenderer.statusFont(stacked: false)
@@ -512,8 +577,6 @@ final class StatusItemController {
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
             button.identifier = NSUserInterfaceItemIdentifier("\(Self.metricAutosavePrefix).\(group.id)")
         }
-        metricStatusItems[group.id] = item
-        metricStatusItemFocus[group.id] = group.focusMetric
         return item
     }
 
@@ -545,6 +608,7 @@ final class StatusItemController {
 
     private func removeMetricStatusItem(for id: String) {
         metricStatusItemFocus.removeValue(forKey: id)
+        metricEmptyRenders.removeValue(forKey: id)
         guard let item = metricStatusItems.removeValue(forKey: id) else { return }
         NSStatusBar.system.removeStatusItem(item)
     }
