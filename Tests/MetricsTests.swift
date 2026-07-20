@@ -2462,6 +2462,122 @@ struct MetricsTests {
                == CGPoint(x: 440, y: 320),
                "left and top resizing reanchors only after the accepted size is known")
 
+        // MARK: Click versus drag custody (issue #321)
+
+        let slopOrigin = CGPoint(x: 100, y: 80)
+        expect(!WindowGestureSupport.exceedsDragSlop(from: slopOrigin, to: slopOrigin),
+               "a press that never moves stays a click")
+        expect(!WindowGestureSupport.exceedsDragSlop(from: slopOrigin, to: CGPoint(x: 106, y: 80)),
+               "movement exactly at the slop still counts as a click")
+        expect(WindowGestureSupport.exceedsDragSlop(from: slopOrigin, to: CGPoint(x: 106.1, y: 80)),
+               "movement past the slop becomes a window gesture")
+        expect(!WindowGestureSupport.exceedsDragSlop(from: slopOrigin, to: CGPoint(x: 94, y: 80)),
+               "the slop is symmetric in both directions")
+        expect(WindowGestureSupport.exceedsDragSlop(from: slopOrigin, to: CGPoint(x: 105, y: 85)),
+               "diagonal movement is measured as a distance, not per axis")
+        expect(!WindowGestureSupport.exceedsDragSlop(from: slopOrigin, to: CGPoint(x: 95, y: 77)),
+               "hand jitter under the slop keeps the click")
+
+        expect(WindowGestureSupport.decide(state: .idle,
+                                           input: .buttonDown(sameButton: false, chordMatched: false)) == .passThrough,
+               "a press without the chord is never touched")
+        expect(WindowGestureSupport.decide(state: .idle,
+                                           input: .buttonDown(sameButton: false, chordMatched: true)) == .arm,
+               "a press with the chord is only held, not taken")
+        expect(WindowGestureSupport.decide(state: .idle,
+                                           input: .buttonDragged(tracked: false, pastSlop: true)) == .passThrough,
+               "movement with nothing held is never touched")
+        expect(WindowGestureSupport.decide(state: .idle, input: .buttonUp(tracked: false)) == .passThrough,
+               "a release with nothing held is never touched")
+        expect(WindowGestureSupport.decide(state: .idle,
+                                           input: .tapDisabled(buttonStillDown: false)) == .passThrough,
+               "an idle tap has nothing to give back when it is switched off")
+
+        expect(WindowGestureSupport.decide(state: .pending,
+                                           input: .buttonDragged(tracked: true, pastSlop: false)) == .hold,
+               "jitter under the slop keeps the press held")
+        expect(WindowGestureSupport.decide(state: .pending,
+                                           input: .buttonDragged(tracked: true, pastSlop: true)) == .promote,
+               "movement past the slop turns the held press into a gesture")
+        expect(WindowGestureSupport.decide(state: .pending,
+                                           input: .buttonDragged(tracked: false, pastSlop: true)) == .flushThenPass,
+               "movement of another button gives the held press back")
+        expect(WindowGestureSupport.decide(state: .pending, input: .buttonUp(tracked: true)) == .replayThenPass,
+               "a release without movement gives the whole click back to the app")
+        expect(WindowGestureSupport.decide(state: .pending, input: .buttonUp(tracked: false)) == .flushThenPass,
+               "a release of another button gives the held press back")
+        expect(WindowGestureSupport.decide(state: .pending,
+                                           input: .buttonDown(sameButton: true, chordMatched: true)) == .restartAsIdle,
+               "the same button pressing again replaces a held press whose release went missing")
+        expect(WindowGestureSupport.decide(state: .pending,
+                                           input: .buttonDown(sameButton: true, chordMatched: false)) == .restartAsIdle,
+               "a stale held press is cleared even when the new press has no chord")
+        expect(WindowGestureSupport.decide(state: .pending,
+                                           input: .buttonDown(sameButton: false, chordMatched: true)) == .flushThenRestart,
+               "a second button gives the first press back instead of eating it")
+        expect(WindowGestureSupport.decide(state: .pending,
+                                           input: .buttonDown(sameButton: false, chordMatched: false)) == .flushThenRestart,
+               "a second button without the chord also gives the first press back")
+        expect(WindowGestureSupport.decide(state: .pending, input: .otherEvent) == .flushThenPass,
+               "anything unexpected gives the held press back")
+        expect(WindowGestureSupport.decide(state: .pending,
+                                           input: .tapDisabled(buttonStillDown: true)) == .flushThenPass,
+               "a tap switched off while the button is still down gives the click back")
+        expect(WindowGestureSupport.decide(state: .pending,
+                                           input: .tapDisabled(buttonStillDown: false)) == .dropState,
+               "a press whose release already reached the app is never handed back pressed")
+        expect(WindowGestureSupport.decide(state: .pending, input: .accessibilityLost) == .flushThenPass,
+               "losing Accessibility mid press still gives the click back")
+
+        expect(WindowGestureSupport.decide(state: .active,
+                                           input: .buttonDragged(tracked: true, pastSlop: false)) == .applyMove,
+               "a running gesture keeps following the pointer")
+        expect(WindowGestureSupport.decide(state: .active, input: .buttonUp(tracked: true)) == .applyFinish,
+               "releasing ends a running gesture")
+        expect(WindowGestureSupport.decide(state: .active, input: .buttonUp(tracked: false)) == .passThrough,
+               "another button is never swallowed by a running gesture")
+        expect(WindowGestureSupport.decide(state: .active, input: .otherEvent) == .passThrough,
+               "a running gesture never swallows unrelated events")
+        expect(WindowGestureSupport.decide(state: .active,
+                                           input: .tapDisabled(buttonStillDown: true)) == .dropState,
+               "a gesture that already took the press has nothing to give back")
+        expect(WindowGestureSupport.decide(state: .active, input: .accessibilityLost) == .dropState,
+               "losing Accessibility mid gesture drops it without a phantom click")
+
+        // No path may invent a release, and every held press is given back
+        // exactly once: only these decisions replay, and none of them can be
+        // reached twice for the same press.
+        let allInputs: [WindowGestureInput] = [
+            .buttonDown(sameButton: true, chordMatched: true),
+            .buttonDown(sameButton: true, chordMatched: false),
+            .buttonDown(sameButton: false, chordMatched: true),
+            .buttonDown(sameButton: false, chordMatched: false),
+            .buttonDragged(tracked: true, pastSlop: true),
+            .buttonDragged(tracked: true, pastSlop: false),
+            .buttonDragged(tracked: false, pastSlop: true),
+            .buttonDragged(tracked: false, pastSlop: false),
+            .buttonUp(tracked: true), .buttonUp(tracked: false),
+            .otherEvent, .tapDisabled(buttonStillDown: true),
+            .tapDisabled(buttonStillDown: false), .accessibilityLost,
+        ]
+        var pendingExits = 0
+        var pendingReplays = 0
+        for input in allInputs {
+            let decision = WindowGestureSupport.decide(state: .pending, input: input)
+            if decision != .hold {
+                pendingExits += 1
+                if decision == .replayThenPass || decision == .flushThenPass
+                    || decision == .flushThenRestart { pendingReplays += 1 }
+            }
+            let replaying: [WindowGestureDecision] = [.replayThenPass, .flushThenPass, .flushThenRestart]
+            expect(!replaying.contains(WindowGestureSupport.decide(state: .idle, input: input)),
+                   "nothing is ever replayed while no press is held")
+            expect(!replaying.contains(WindowGestureSupport.decide(state: .active, input: input)),
+                   "a press already spent on a gesture is never replayed")
+        }
+        expect(pendingExits == 13 && pendingReplays == 9,
+               "every way out of a held press either promotes it, replaces it or gives it back")
+
         expect(MediaImageFormat.sanitized("pdf") == .pdf,
                "Image converter accepts the PDF format")
         expect(MediaImageFormat.pdf.fileExtension == "pdf",
