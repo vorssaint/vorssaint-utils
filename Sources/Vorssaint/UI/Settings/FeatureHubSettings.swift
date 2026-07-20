@@ -342,7 +342,7 @@ private struct PermissionsPortalSections: View {
         case .screenRecording: return permissions.screenRecording ? .granted : .missing
         case .fullDiskAccess: return permissions.fullDiskAccess ? .granted : .missing
         case .filesAndFolders:
-            guard AppFeature.whatsAppDownloads.isAvailable else { return .unknown }
+            guard AppFeature.cleaner.isAvailable else { return .unknown }
             switch WhatsAppDownloadManager.shared.accessStatus {
             case .available: return .granted
             case .denied: return .missing
@@ -536,7 +536,6 @@ extension AppFeature {
         case .finderCutPaste: return s.cutPasteName
         case .shelf: return s.shelfName
         case .urlCleaner: return s.urlCleanerName
-        case .whatsAppDownloads: return FeatureStrings.whatsAppDownloads(L10n.shared.language).title
         case .mixer: return s.mixerSection
         case .soundOutputSwitcher: return s.soundOutputSwitcherTitle
         case .micMute: return s.micMuteName
@@ -585,8 +584,6 @@ extension AppFeature {
         case .finderCutPaste: return hub.descFinderCutPaste
         case .shelf: return hub.descShelf
         case .urlCleaner: return hub.descURLCleaner
-        case .whatsAppDownloads:
-            return FeatureStrings.whatsAppDownloads(L10n.shared.language).hubDescription
         case .mixer: return hub.descMixer
         case .soundOutputSwitcher: return hub.descSoundOutputSwitcher
         case .micMute: return hub.descMicMute
@@ -604,7 +601,9 @@ extension AppFeature {
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).hubDescription
         case .cleaningMode: return hub.descCleaningMode
         case .mediaTools: return hub.descMediaTools
-        case .cleaner: return hub.descCleaner
+        case .cleaner:
+            return hub.descCleaner + " · "
+                + FeatureStrings.whatsAppDownloads(L10n.shared.language).hubDescription
         case .uninstaller: return hub.descUninstaller
         case .homebrew: return hub.descHomebrew
         case .monitorCPU: return hub.descMonitorCPU

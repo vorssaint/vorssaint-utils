@@ -5007,7 +5007,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 44, "feature catalog has 44 features")
+        expect(AppFeature.allCases.count == 43, "feature catalog has 43 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -5015,7 +5015,6 @@ struct MetricsTests {
             "scrollInverter", "smoothScroll", "mouseNavigation", "middleClick", "keyboardDebounce",
             "textSnippets",
             "clipboardHistory", "pastePlain", "finderCutPaste", "shelf", "urlCleaner",
-            "whatsAppDownloads",
             "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
             "keepAwake", "brightness", "extraBrightness",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
@@ -5093,14 +5092,14 @@ struct MetricsTests {
                "an unscheduled cleaner does not use notifications")
         expect(activeSet(.notifications,
                          on: [DefaultsKey.whatsAppDownloadsAutomaticEnabled,
-                              DefaultsKey.whatsAppDownloadsNotify]) == [.whatsAppDownloads],
+                              DefaultsKey.whatsAppDownloadsNotify]) == [.cleaner],
                "WhatsApp cleanup only uses notifications for an opted-in automatic summary")
         expect(activeSet(.notifications,
                          on: [DefaultsKey.whatsAppOrganizerEnabled,
-                              DefaultsKey.whatsAppDownloadsNotify]) == [.whatsAppDownloads],
+                              DefaultsKey.whatsAppDownloadsNotify]) == [.cleaner],
                "the experimental WhatsApp organizer can offer an undo notification")
-        expect(activeSet(.filesAndFolders) == [.whatsAppDownloads],
-               "WhatsApp downloads is the only feature using Downloads folder access")
+        expect(activeSet(.filesAndFolders) == [.cleaner],
+               "the cleaner owns WhatsApp Downloads folder access")
 
         expect(activeSet(.fullDiskAccess) == [.cleaner, .uninstaller],
                "cleaner and uninstaller are on-demand full disk users")
@@ -5305,7 +5304,6 @@ struct MetricsTests {
                 && AppFeature.colorPicker.energyProfile == .idle
                 && AppFeature.keepAwake.energyProfile == .idle
                 && AppFeature.brightness.energyProfile == .idle
-                && AppFeature.whatsAppDownloads.energyProfile == .idle
                 && AppFeature.scratchpad.energyProfile == .idle,
                "energy badges tell the honest mechanism per feature")
         let previousWindowGestureEnergy = UserDefaults.standard.object(
@@ -5346,9 +5344,9 @@ struct MetricsTests {
                "app pages never hide")
         expect(!pageVisible(.shelf, available: allFeatures.subtracting([.shelf])),
                "single-feature pages follow their feature")
-        expect(!pageVisible(.whatsAppDownloads,
-                            available: allFeatures.subtracting([.whatsAppDownloads])),
-               "WhatsApp downloads settings follow their feature")
+        expect(!pageVisible(.cleaner,
+                            available: allFeatures.subtracting([.cleaner])),
+               "cleaner settings, including WhatsApp downloads, follow the cleaner module")
         expect(pageVisible(.quickTools, available: [.quickToggles]),
                "the quick toggles alone keep the quick tools page")
 

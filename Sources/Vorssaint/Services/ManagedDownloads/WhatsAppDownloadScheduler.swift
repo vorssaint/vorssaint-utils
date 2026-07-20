@@ -22,7 +22,7 @@ final class WhatsAppDownloadScheduler: ObservableObject {
 
     func syncWithPreferences() {
         let defaults = UserDefaults.standard
-        guard AppFeature.whatsAppDownloads.isAvailable,
+        guard AppFeature.cleaner.isAvailable,
               defaults.bool(forKey: DefaultsKey.whatsAppDownloadsAutomaticEnabled),
               defaults.bool(forKey: DefaultsKey.whatsAppDownloadsAccessConfirmed) else {
             stop()
@@ -65,7 +65,7 @@ final class WhatsAppDownloadScheduler: ObservableObject {
     }
 
     private func scheduleNext() {
-        guard AppFeature.whatsAppDownloads.isAvailable,
+        guard AppFeature.cleaner.isAvailable,
               UserDefaults.standard.bool(
                 forKey: DefaultsKey.whatsAppDownloadsAutomaticEnabled),
               UserDefaults.standard.bool(

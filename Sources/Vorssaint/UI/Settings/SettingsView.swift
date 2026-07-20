@@ -87,15 +87,15 @@ struct SettingsView: View {
                             keywords: [l10n.s.cutPasteEnable]),
                 SidebarItem(page: .shelf, title: l10n.s.shelfName, icon: "tray.full",
                             keywords: [l10n.s.shelfEnable, l10n.s.shelfDropZoneToggle]),
-                SidebarItem(page: .whatsAppDownloads,
-                            title: FeatureStrings.whatsAppDownloads(l10n.language).title,
-                            icon: "arrow.down.doc",
-                            keywords: [FeatureStrings.whatsAppDownloads(l10n.language).automatic,
-                                       FeatureStrings.whatsAppDownloads(l10n.language).fileTypes]),
                 SidebarItem(page: .media, title: l10n.s.mediaName, icon: "photo.on.rectangle.angled",
                             keywords: ["PDF", "GIF", l10n.s.mediaStartConvertPDF, l10n.s.ocrName]),
             ]),
             (categories.utilities, [
+                SidebarItem(page: .cleaner, title: l10n.s.cleanerName, icon: "sparkles",
+                            keywords: [l10n.s.cleanerScheduleTitle,
+                                       FeatureStrings.whatsAppDownloads(l10n.language).title,
+                                       FeatureStrings.whatsAppDownloads(l10n.language).automatic,
+                                       FeatureStrings.whatsAppDownloads(l10n.language).fileTypes]),
                 SidebarItem(page: .quickTools, title: l10n.s.quickToolsTab, icon: "wand.and.rays",
                             keywords: [l10n.s.launcherName, l10n.s.colorPickerName,
                                        l10n.s.micMuteName, l10n.s.ocrName,
@@ -226,7 +226,7 @@ struct SettingsView: View {
         case .autoQuit: AutoQuitSettings()
         case .uninstaller: UninstallerView()
         case .urlCleaner: URLCleanerSettings()
-        case .whatsAppDownloads: WhatsAppDownloadsSettings()
+        case .cleaner: CleanerSettings()
         case .homebrew: HomebrewSettings()
         case .media: MediaSettings()
         case .clipboard: ClipboardSettings()

@@ -18,7 +18,7 @@ enum AppFeature: String, CaseIterable {
     // Mouse and keyboard
     case scrollInverter, smoothScroll, mouseNavigation, middleClick, keyboardDebounce, textSnippets
     // Clipboard and files
-    case clipboardHistory, pastePlain, finderCutPaste, shelf, urlCleaner, whatsAppDownloads
+    case clipboardHistory, pastePlain, finderCutPaste, shelf, urlCleaner
     // Sound
     case mixer, soundOutputSwitcher, micMute, musicBlock
     // Energy and display
@@ -50,7 +50,7 @@ extension AppFeature {
         case .scrollInverter, .smoothScroll, .mouseNavigation, .middleClick, .keyboardDebounce,
              .textSnippets:
             return .mouseKeyboard
-        case .clipboardHistory, .pastePlain, .finderCutPaste, .shelf, .urlCleaner, .whatsAppDownloads:
+        case .clipboardHistory, .pastePlain, .finderCutPaste, .shelf, .urlCleaner:
             return .clipboardFiles
         case .mixer, .soundOutputSwitcher, .micMute, .musicBlock:
             return .sound
@@ -83,7 +83,6 @@ extension AppFeature {
         case .finderCutPaste: return "scissors"
         case .shelf: return "tray.full"
         case .urlCleaner: return "link"
-        case .whatsAppDownloads: return "arrow.down.doc"
         case .mixer: return "slider.horizontal.3"
         case .soundOutputSwitcher: return "hifispeaker"
         case .micMute: return "mic.slash"
@@ -148,7 +147,7 @@ extension AppFeature {
         case .musicBlock: return [DefaultsKey.musicBlockEnabled]
         case .brightness: return [DefaultsKey.brightnessControlEnabled]
         case .extraBrightness: return [DefaultsKey.extraBrightnessEnabled]
-        case .windowLayout, .mixer, .micMute, .keepAwake, .whatsAppDownloads,
+        case .windowLayout, .mixer, .micMute, .keepAwake,
              .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .screenshot, .cameraPreview, .scratchpad,
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
@@ -177,12 +176,11 @@ extension AppFeature {
         case .cameraPreview: return [.camera]
         case .keepAwake: return [.accessibility]
         case .brightness: return [.accessibility]
-        case .cleaner: return [.fullDiskAccess, .notifications]
+        case .cleaner: return [.fullDiskAccess, .filesAndFolders, .notifications]
         case .uninstaller: return [.fullDiskAccess, .automationFinder]
         case .homebrew: return [.automationTerminal]
         case .mixer: return [.audioCapture]
         case .monitorCPU, .monitorMemory, .monitorDisk, .monitorPower: return [.notifications]
-        case .whatsAppDownloads: return [.filesAndFolders, .notifications]
         case .clipboardHistory, .shelf, .urlCleaner,
              .soundOutputSwitcher, .musicBlock,
              .extraBrightness, .quickLauncher, .colorPicker, .micMute, .mediaTools,
@@ -236,12 +234,12 @@ extension AppFeature {
             case (.monitorPower, .notifications):
                 return boolFor(DefaultsKey.monitorAlertBattery)
             case (.cleaner, .notifications):
-                return (stringFor(DefaultsKey.cleanerScheduleFrequency) ?? "off") != "off"
+                let cleanerNotifies = (stringFor(DefaultsKey.cleanerScheduleFrequency) ?? "off") != "off"
                     && boolFor(DefaultsKey.cleanerScheduleNotify)
-            case (.whatsAppDownloads, .notifications):
-                return (boolFor(DefaultsKey.whatsAppDownloadsAutomaticEnabled)
+                let whatsAppNotifies = (boolFor(DefaultsKey.whatsAppDownloadsAutomaticEnabled)
                         || boolFor(DefaultsKey.whatsAppOrganizerEnabled))
                     && boolFor(DefaultsKey.whatsAppDownloadsNotify)
+                return cleanerNotifies || whatsAppNotifies
             default:
                 return true
             }

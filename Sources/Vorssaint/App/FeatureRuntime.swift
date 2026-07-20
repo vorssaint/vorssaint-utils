@@ -139,14 +139,6 @@ final class FeatureRuntime: ObservableObject {
         .finderCutPaste: { FinderCutPaste.shared.syncWithPreferences() },
         .shelf: { ShelfService.shared.syncWithPreferences() },
         .urlCleaner: { URLCleanerService.shared.syncWithPreferences() },
-        .whatsAppDownloads: {
-            WhatsAppDownloadScheduler.shared.syncWithPreferences()
-            WhatsAppDownloadOrganizer.shared.syncWithPreferences()
-            if !AppFeature.whatsAppDownloads.isAvailable {
-                WhatsAppDownloadManager.shared.reset()
-                WhatsAppDownloadOrganizer.shared.stop()
-            }
-        },
         .mixer: {
             AppVolumeMixer.shared.syncWithPreferences()
             AudioInputDeviceManager.shared.syncWithPreferences()
@@ -167,7 +159,15 @@ final class FeatureRuntime: ObservableObject {
         .cameraPreview: { CameraPreviewService.shared.syncWithPreferences() },
         .radialMenu: { RadialMenuService.shared.syncWithPreferences() },
         .scratchpad: { ScratchpadService.shared.syncWithPreferences() },
-        .cleaner: { CleanerScheduler.shared.syncWithPreferences() },
+        .cleaner: {
+            CleanerScheduler.shared.syncWithPreferences()
+            WhatsAppDownloadScheduler.shared.syncWithPreferences()
+            WhatsAppDownloadOrganizer.shared.syncWithPreferences()
+            if !AppFeature.cleaner.isAvailable {
+                WhatsAppDownloadManager.shared.reset()
+                WhatsAppDownloadOrganizer.shared.stop()
+            }
+        },
         .monitorCPU: { FeatureRuntime.syncMonitor() },
         .monitorGPU: { FeatureRuntime.syncMonitor() },
         .monitorMemory: { FeatureRuntime.syncMonitor() },

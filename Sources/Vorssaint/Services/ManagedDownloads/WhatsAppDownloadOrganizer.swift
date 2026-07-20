@@ -106,7 +106,7 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
 
     func syncWithPreferences() {
         stopMonitoring()
-        guard AppFeature.whatsAppDownloads.isAvailable,
+        guard AppFeature.cleaner.isAvailable,
               UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled),
               UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppDownloadsAccessConfirmed),
               let root = downloadsURL else {
@@ -232,7 +232,7 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
         timer = nil
         nextCheck = nil
         guard !isBusy,
-              AppFeature.whatsAppDownloads.isAvailable,
+              AppFeature.cleaner.isAvailable,
               UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled),
               let root = downloadsURL,
               let settings = settings(root: root) else {
