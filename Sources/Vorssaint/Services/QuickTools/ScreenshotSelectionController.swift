@@ -387,8 +387,8 @@ private final class ScreenshotOverlayView: NSView {
     private let frozenImage: CGImage?
     private var loupeImage: CGImage?
     private let windows: [ScreenshotSupport.PickableWindow]
-    private unowned let controller: ScreenshotSelectionController
-    private unowned let panel: ScreenshotOverlayPanel
+    private weak var controller: ScreenshotSelectionController?
+    private weak var panel: ScreenshotOverlayPanel?
     private let strings: ScreenshotFeatureStrings
 
     private var dragOrigin: CGPoint?
@@ -434,6 +434,7 @@ private final class ScreenshotOverlayView: NSView {
     }
 
     func refreshPointerState() {
+        guard let panel else { return }
         let point = CGPoint(x: NSEvent.mouseLocation.x - panel.screenFrame.minX,
                             y: panel.screenFrame.maxY - NSEvent.mouseLocation.y)
         if bounds.contains(point) {
@@ -457,6 +458,7 @@ private final class ScreenshotOverlayView: NSView {
     }
 
     override func scrollWheel(with event: NSEvent) {
+        guard let controller else { return }
         guard controller.loupeEnabled, !isCapturePending else {
             super.scrollWheel(with: event)
             return
@@ -475,7 +477,7 @@ private final class ScreenshotOverlayView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard let origin = dragOrigin, !isCapturePending else { return }
+        guard let controller, let origin = dragOrigin, !isCapturePending else { return }
         let point = convert(event.locationInWindow, from: nil)
         hoverPoint = point
         if controller.spaceIsDown, selection.width > 0 {
@@ -497,7 +499,7 @@ private final class ScreenshotOverlayView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
-        guard !isCapturePending else { return }
+        guard let controller, let panel, !isCapturePending else { return }
         let point = convert(event.locationInWindow, from: nil)
         guard let origin = dragOrigin else { return }
         dragOrigin = nil
@@ -523,7 +525,11 @@ private final class ScreenshotOverlayView: NSView {
     // MARK: Drawing
 
     override func draw(_ dirtyRect: NSRect) {
-        guard let context = NSGraphicsContext.current?.cgContext else { return }
+        guard let context = NSGraphicsContext.current?.cgContext,
+              let controller,
+              let panel
+        else { return }
+        let mouseIsOnThisScreen = panel.screenFrame.contains(NSEvent.mouseLocation)
 
         let dimAlpha: CGFloat = frozenImage == nil ? 0.32 : 0.26
         context.setFillColor(CGColor(gray: 0, alpha: dimAlpha))
@@ -532,7 +538,7 @@ private final class ScreenshotOverlayView: NSView {
             context.addRect(bounds)
             context.addRect(selection)
             context.fillPath(using: .evenOdd)
-            drawSelectionChrome(context)
+            drawSelectionChrome(context, pixelScale: panel.pixelScale)
         } else if dragOrigin == nil, hoveredWindow != nil {
             if let hovered = hoveredWindow {
                 context.beginPath()
@@ -550,7 +556,10 @@ private final class ScreenshotOverlayView: NSView {
         if controller.loupeEnabled, !controller.spaceIsDown,
            mouseIsOnThisScreen, let loupeImage {
             let point = isDragging ? lastDragPoint : hoverPoint
-            drawCaptureLoupe(context, image: loupeImage, near: point)
+            drawCaptureLoupe(context,
+                             image: loupeImage,
+                             near: point,
+                             zoom: controller.loupeZoom)
         }
 
         if let ghostRect, dragOrigin == nil, selection == .zero {
@@ -561,11 +570,7 @@ private final class ScreenshotOverlayView: NSView {
         }
     }
 
-    private var mouseIsOnThisScreen: Bool {
-        panel.screenFrame.contains(NSEvent.mouseLocation)
-    }
-
-    private func drawSelectionChrome(_ context: CGContext) {
+    private func drawSelectionChrome(_ context: CGContext, pixelScale: CGFloat) {
         // Double hairline stays visible over any background.
         context.setStrokeColor(CGColor(gray: 0, alpha: 0.85))
         context.setLineWidth(2.5)
@@ -574,8 +579,8 @@ private final class ScreenshotOverlayView: NSView {
         context.setLineWidth(1)
         context.stroke(selection.insetBy(dx: -0.5, dy: -0.5))
 
-        let pixelWidth = Int((selection.width * panel.pixelScale).rounded())
-        let pixelHeight = Int((selection.height * panel.pixelScale).rounded())
+        let pixelWidth = Int((selection.width * pixelScale).rounded())
+        let pixelHeight = Int((selection.height * pixelScale).rounded())
         drawBadge("\(pixelWidth) × \(pixelHeight)",
                   near: CGPoint(x: selection.midX, y: selection.maxY + 10))
     }
@@ -601,7 +606,8 @@ private final class ScreenshotOverlayView: NSView {
 
     private func drawCaptureLoupe(_ context: CGContext,
                                   image: CGImage,
-                                  near point: CGPoint) {
+                                  near point: CGPoint,
+                                  zoom: CGFloat) {
         let imageSize = CGSize(width: image.width, height: image.height)
         let pixelPoint = ScreenshotSupport.imagePixelPoint(
             fromView: point,
@@ -610,7 +616,7 @@ private final class ScreenshotOverlayView: NSView {
         let source = ScreenshotSupport.cropLoupeSampleRect(
             around: pixelPoint,
             imageSize: imageSize,
-            sideLength: ScreenshotSupport.captureLoupeSampleSide(zoom: controller.loupeZoom))
+            sideLength: ScreenshotSupport.captureLoupeSampleSide(zoom: zoom))
         guard let sample = image.cropping(to: source) else { return }
 
         let frame = captureLoupeFrame(near: point, size: 70)
