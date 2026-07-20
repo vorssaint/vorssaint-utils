@@ -35,8 +35,10 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
             let restorePath: String?
         }
 
+        let id: UUID
         let actions: [Action]
         let recordsBefore: [Record]
+        let recordsAfter: [Record]
         let createdAt: Date
     }
 
@@ -71,12 +73,7 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
 
     var isBusy: Bool { phase == .organizing || phase == .undoing }
     var canUndo: Bool {
-        guard let data = UserDefaults.standard.data(
-            forKey: DefaultsKey.whatsAppOrganizerUndoTransaction),
-              !data.isEmpty,
-              let transaction = try? JSONDecoder().decode(UndoTransaction.self, from: data)
-        else { return false }
-        return Date().timeIntervalSince(transaction.createdAt) < 7 * 86_400
+        Self.validUndoTransactions().last != nil
     }
 
     private let queue = DispatchQueue(label: "com.vorssaint.whatsapp-organizer",
@@ -148,13 +145,14 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
         run(manual: true)
     }
 
-    func undoLastRun() {
-        guard !isBusy,
-              let data = UserDefaults.standard.data(
-                forKey: DefaultsKey.whatsAppOrganizerUndoTransaction),
-              !data.isEmpty,
-              let transaction = try? JSONDecoder().decode(UndoTransaction.self, from: data)
-        else { return }
+    func undoLastRun(transactionID: UUID? = nil) {
+        guard !isBusy else { return }
+        let transactions = Self.validUndoTransactions()
+        let transaction = transactionID.flatMap { id in
+            transactions.first { $0.id == id }
+        } ?? (transactionID == nil ? transactions.last : nil)
+        guard let transaction,
+              Self.recordsAllowUndo(transaction, current: Self.loadRecords()) else { return }
         let token = UUID()
         operationToken = token
         phase = .undoing
@@ -163,9 +161,10 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.operationToken == token else { return }
                 if failed == 0 {
-                    Self.saveRecords(transaction.recordsBefore)
-                    UserDefaults.standard.set(Data(),
-                                              forKey: DefaultsKey.whatsAppOrganizerUndoTransaction)
+                    Self.saveRecords(Self.recordsAfterUndo(
+                        transaction, current: Self.loadRecords()))
+                    Self.saveUndoTransactions(
+                        transactions.filter { $0.id != transaction.id })
                     self.phase = .done(moved: 0, duplicates: 0, failed: 0)
                 } else {
                     self.phase = .failed
@@ -255,10 +254,10 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.operationToken == token else { return }
                 Self.saveRecords(result.records)
-                if let undo = result.undo,
-                   let data = try? JSONEncoder().encode(undo) {
-                    UserDefaults.standard.set(data,
-                                              forKey: DefaultsKey.whatsAppOrganizerUndoTransaction)
+                if let undo = result.undo {
+                    var transactions = Self.validUndoTransactions()
+                    transactions.append(undo)
+                    Self.saveUndoTransactions(Array(transactions.suffix(20)))
                 }
                 let defaults = UserDefaults.standard
                 defaults.set(Date().timeIntervalSince1970,
@@ -273,11 +272,15 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
                 if result.moved + result.duplicates > 0,
                    defaults.bool(forKey: DefaultsKey.whatsAppDownloadsNotify) {
                     let strings = WhatsAppOrganizerStrings.localized(L10n.shared.language)
-                    Notifier.postWhatsAppOrganization(
-                        title: strings.notificationTitle,
-                        body: String(format: strings.notificationFormat,
-                                     result.moved, result.duplicates, result.failed),
-                        undoTitle: strings.undo)
+                    let body = String(format: strings.notificationFormat,
+                                      result.moved, result.duplicates, result.failed)
+                    if let undo = result.undo {
+                        Notifier.postWhatsAppOrganization(
+                            title: strings.notificationTitle, body: body,
+                            undoTitle: strings.undo, transactionID: undo.id)
+                    } else {
+                        Notifier.post(title: strings.notificationTitle, body: body)
+                    }
                 }
                 if manager.reviewVisible { manager.scan() }
                 self.schedule(at: result.nextEligible)
@@ -408,7 +411,8 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
 
         records = Array(records.sorted { $0.organizedAt < $1.organizedAt }.suffix(5_000))
         let undo = undoActions.isEmpty ? nil : UndoTransaction(
-            actions: undoActions, recordsBefore: recordsBefore, createdAt: now)
+            id: UUID(), actions: undoActions, recordsBefore: recordsBefore,
+            recordsAfter: records, createdAt: now)
         return RunResult(moved: moved, duplicates: duplicates, failed: failed,
                          records: records, undo: undo, nextEligible: nextEligible)
     }
@@ -600,6 +604,54 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
     private static func saveRecords(_ records: [Record]) {
         let data = (try? JSONEncoder().encode(records)) ?? Data()
         UserDefaults.standard.set(data, forKey: DefaultsKey.whatsAppOrganizerRecords)
+    }
+
+    private static func loadUndoTransactions() -> [UndoTransaction] {
+        guard let data = UserDefaults.standard.data(
+            forKey: DefaultsKey.whatsAppOrganizerUndoTransaction),
+              !data.isEmpty else { return [] }
+        return (try? JSONDecoder().decode([UndoTransaction].self, from: data)) ?? []
+    }
+
+    private static func validUndoTransactions(now: Date = Date()) -> [UndoTransaction] {
+        loadUndoTransactions()
+            .filter { WhatsAppDownloadSupport.organizerUndoIsValid(
+                createdAt: $0.createdAt, now: now) }
+            .sorted { $0.createdAt < $1.createdAt }
+    }
+
+    private static func saveUndoTransactions(_ transactions: [UndoTransaction]) {
+        let data = (try? JSONEncoder().encode(transactions)) ?? Data()
+        UserDefaults.standard.set(data,
+                                  forKey: DefaultsKey.whatsAppOrganizerUndoTransaction)
+    }
+
+    private static func recordMap(_ records: [Record]) -> [String: Record] {
+        Dictionary(records.map { ($0.destinationPath, $0) },
+                   uniquingKeysWith: { _, latest in latest })
+    }
+
+    private static func affectedRecordPaths(_ transaction: UndoTransaction) -> Set<String> {
+        let before = recordMap(transaction.recordsBefore)
+        let after = recordMap(transaction.recordsAfter)
+        return Set(before.keys).union(after.keys).filter { before[$0] != after[$0] }
+    }
+
+    private static func recordsAllowUndo(_ transaction: UndoTransaction,
+                                         current: [Record]) -> Bool {
+        let expected = recordMap(transaction.recordsAfter)
+        let current = recordMap(current)
+        return affectedRecordPaths(transaction).allSatisfy { current[$0] == expected[$0] }
+    }
+
+    private static func recordsAfterUndo(_ transaction: UndoTransaction,
+                                         current: [Record]) -> [Record] {
+        let before = recordMap(transaction.recordsBefore)
+        var result = recordMap(current)
+        for path in affectedRecordPaths(transaction) {
+            result[path] = before[path]
+        }
+        return result.values.sorted { $0.organizedAt < $1.organizedAt }
     }
 
     private static func performUndo(_ transaction: UndoTransaction) -> Int {

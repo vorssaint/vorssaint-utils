@@ -1527,9 +1527,9 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
-        if response.actionIdentifier == Notifier.whatsAppOrganizerUndoActionIdentifier {
+        if let transactionID = Notifier.whatsAppOrganizerTransactionID(from: response) {
             DispatchQueue.main.async {
-                WhatsAppDownloadOrganizer.shared.undoLastRun()
+                WhatsAppDownloadOrganizer.shared.undoLastRun(transactionID: transactionID)
             }
         }
         completionHandler()

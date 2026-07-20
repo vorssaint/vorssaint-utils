@@ -30,6 +30,7 @@ enum WhatsAppDuplicateAction: String, CaseIterable, Identifiable {
 enum WhatsAppDownloadSupport {
     static let allowedRetentionDays = [1, 2, 7, 14, 30]
     static let allowedOrganizerDelayMinutes = [1, 5, 15, 60]
+    static let organizerUndoLifetime: TimeInterval = 7 * 86_400
     static let defaultCategories: Set<WhatsAppDownloadCategory> = [.image, .video, .audio]
 
     private static let incompleteExtensions: Set<String> = [
@@ -95,6 +96,11 @@ enum WhatsAppDownloadSupport {
                                         delayMinutes: Int) -> Bool {
         let delay = TimeInterval(sanitizedOrganizerDelayMinutes(delayMinutes) * 60)
         return now.timeIntervalSince(max(downloadedAt, modifiedAt)) >= delay
+    }
+
+    static func organizerUndoIsValid(createdAt: Date, now: Date) -> Bool {
+        let age = now.timeIntervalSince(createdAt)
+        return age >= 0 && age < organizerUndoLifetime
     }
 
     static func organizerCategoryFolder(_ category: WhatsAppDownloadCategory) -> String {

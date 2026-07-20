@@ -1695,6 +1695,14 @@ struct MetricsTests {
                     now: whatsNow, delayMinutes: 5)
                 && WhatsAppDownloadSupport.sanitizedOrganizerDelayMinutes(999) == 5,
                "organization waits for both download and modification activity to settle")
+        let undoCreatedAt = whatsNow.addingTimeInterval(-6 * 86_400)
+        expect(WhatsAppDownloadSupport.organizerUndoIsValid(
+                    createdAt: undoCreatedAt, now: whatsNow)
+                && !WhatsAppDownloadSupport.organizerUndoIsValid(
+                    createdAt: whatsNow.addingTimeInterval(-7 * 86_400), now: whatsNow)
+                && !WhatsAppDownloadSupport.organizerUndoIsValid(
+                    createdAt: whatsNow.addingTimeInterval(1), now: whatsNow),
+               "organizer undo is executable only during its seven day window")
         expect(WhatsAppDownloadSupport.organizerRelativeComponents(
                     layout: .flat, category: .image, date: whatsNow,
                     calendar: utcCalendar).isEmpty
