@@ -1354,6 +1354,63 @@ struct MetricsTests {
                "a click beyond the slack re-anchors by the full offset")
         expect(StatusItemAnchorSupport.anchorDriftX(clickX: 1240, reportedMidX: 1144, buttonWidth: 197) == nil,
                "clicks near the edge of a wide metrics item stay anchored to the item")
+
+        // The built-in display and a taller one placed to its left.
+        let builtInScreen = CGRect(x: 0, y: 0, width: 1470, height: 956)
+        let secondScreen = CGRect(x: -1920, y: 100, width: 1920, height: 1080)
+        let attachedScreens = [builtInScreen, secondScreen]
+        expect(!StatusItemAnchorSupport.isTrustworthyStatusFrame(CGRect(x: 1135, y: 932, width: 0, height: 0),
+                                                                 screenFrames: attachedScreens),
+               "a status item frame with no size is never an anchor")
+        expect(!StatusItemAnchorSupport.isTrustworthyStatusFrame(CGRect(x: 1135, y: 950, width: 38, height: 37),
+                                                                 screenFrames: attachedScreens),
+               "a status item parked above the top edge is not an anchor")
+        expect(StatusItemAnchorSupport.isTrustworthyStatusFrame(CGRect(x: 1135, y: 919, width: 38, height: 37),
+                                                                screenFrames: attachedScreens),
+               "a status item sitting in the menu bar band is a trustworthy anchor")
+        expect(StatusItemAnchorSupport.isTrustworthyStatusFrame(CGRect(x: -1000, y: 1143, width: 38, height: 37),
+                                                                screenFrames: attachedScreens),
+               "the menu bar band follows each screen's own top edge")
+        expect(!StatusItemAnchorSupport.isTrustworthyStatusFrame(CGRect(x: 1135, y: 0, width: 38, height: 37),
+                                                                 screenFrames: attachedScreens),
+               "a frame down at the bottom of a screen is not a menu bar item")
+
+        // The panel keeps its top edge and its center while its content resizes.
+        let panelArea = CGRect(x: 0, y: 0, width: 1470, height: 932)
+        let shortPanel = StatusItemAnchorSupport.pinnedPanelFrame(size: CGSize(width: 332, height: 375),
+                                                                  anchorMidX: 1283, anchorTop: 932,
+                                                                  visibleFrame: panelArea)
+        let tallPanel = StatusItemAnchorSupport.pinnedPanelFrame(size: CGSize(width: 332, height: 633),
+                                                                 anchorMidX: 1283, anchorTop: 932,
+                                                                 visibleFrame: panelArea)
+        let shrunkPanel = StatusItemAnchorSupport.pinnedPanelFrame(size: CGSize(width: 332, height: 375),
+                                                                   anchorMidX: 1283, anchorTop: 932,
+                                                                   visibleFrame: panelArea)
+        expect(shortPanel.midX == 1283 && tallPanel.midX == 1283 && shrunkPanel.midX == 1283,
+               "the pinned panel stays centered on its anchor through a content resize")
+        expect(shortPanel.maxY == 932 && tallPanel.maxY == 932 && shrunkPanel.maxY == 932,
+               "a taller panel grows downward instead of moving its top edge")
+        expect(shortPanel == shrunkPanel,
+               "going back to the first tab lands the panel exactly where it started")
+        expect(StatusItemAnchorSupport.pinnedPanelFrame(size: CGSize(width: 332, height: 375),
+                                                        anchorMidX: 20, anchorTop: 932,
+                                                        visibleFrame: panelArea).minX == 8,
+               "a panel anchored past the left edge stops at the margin")
+        expect(StatusItemAnchorSupport.pinnedPanelFrame(size: CGSize(width: 332, height: 375),
+                                                        anchorMidX: 1465, anchorTop: 932,
+                                                        visibleFrame: panelArea).maxX == 1462,
+               "a panel anchored past the right edge stops at the margin")
+        expect(StatusItemAnchorSupport.pinnedPanelFrame(size: CGSize(width: 332, height: 375),
+                                                        anchorMidX: -1910, anchorTop: 1155,
+                                                        visibleFrame: CGRect(x: -1920, y: 100,
+                                                                             width: 1920, height: 1055))
+                == CGRect(x: -1912, y: 780, width: 332, height: 375),
+               "a display left of the built-in one clamps against its own negative origin")
+        expect(StatusItemAnchorSupport.pinnedPanelFrame(size: CGSize(width: 332, height: 633),
+                                                        anchorMidX: 700, anchorTop: 300,
+                                                        visibleFrame: CGRect(x: 0, y: 0,
+                                                                             width: 1470, height: 300)).maxY == 300,
+               "a screen too short for the panel still shows its top")
         expect(registeredDefaults[DefaultsKey.menuBarHideIconWithMetrics] as? Bool == false,
                "the menu bar icon stays visible by default")
         expect(MenuBarSpacingSupport.shouldHideStatusIcon(optionEnabled: true, separateMetrics: false,
