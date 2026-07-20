@@ -4,6 +4,7 @@
 import AppKit
 import Combine
 import SwiftUI
+import UserNotifications
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowDelegate {
     private var statusController: StatusItemController!
@@ -33,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        UNUserNotificationCenter.current().delegate = self
 
         // Finish the on-disk rename for installs carried over from a pre-2.5
         // build, or retire a leftover old-named bundle. Returns true when we are
@@ -1518,5 +1520,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private func markUpdateShowcaseIntroSeen() {
         UserDefaults.standard.set(UpdateShowcaseInfo.releaseVersion,
                                   forKey: DefaultsKey.updateShowcaseIntroVersion)
+    }
+}
+
+extension AppDelegate: UNUserNotificationCenterDelegate {
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        if response.actionIdentifier == Notifier.whatsAppOrganizerUndoActionIdentifier {
+            DispatchQueue.main.async {
+                WhatsAppDownloadOrganizer.shared.undoLastRun()
+            }
+        }
+        completionHandler()
     }
 }

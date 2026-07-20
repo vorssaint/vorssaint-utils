@@ -209,6 +209,10 @@ final class Permissions: ObservableObject {
         open(pane: "Privacy_AllFiles")
     }
 
+    func openFilesAndFoldersSettings() {
+        open(pane: "Privacy_FilesAndFolders")
+    }
+
     /// Full Disk Access has no prompt API, and an app only shows up (toggled
     /// off) in its System Settings list once it has attempted to read a
     /// protected location. Touch likely protected paths to register the app,

@@ -87,6 +87,11 @@ struct SettingsView: View {
                             keywords: [l10n.s.cutPasteEnable]),
                 SidebarItem(page: .shelf, title: l10n.s.shelfName, icon: "tray.full",
                             keywords: [l10n.s.shelfEnable, l10n.s.shelfDropZoneToggle]),
+                SidebarItem(page: .whatsAppDownloads,
+                            title: FeatureStrings.whatsAppDownloads(l10n.language).title,
+                            icon: "arrow.down.doc",
+                            keywords: [FeatureStrings.whatsAppDownloads(l10n.language).automatic,
+                                       FeatureStrings.whatsAppDownloads(l10n.language).fileTypes]),
                 SidebarItem(page: .media, title: l10n.s.mediaName, icon: "photo.on.rectangle.angled",
                             keywords: ["PDF", "GIF", l10n.s.mediaStartConvertPDF, l10n.s.ocrName]),
             ]),
@@ -221,6 +226,7 @@ struct SettingsView: View {
         case .autoQuit: AutoQuitSettings()
         case .uninstaller: UninstallerView()
         case .urlCleaner: URLCleanerSettings()
+        case .whatsAppDownloads: WhatsAppDownloadsSettings()
         case .homebrew: HomebrewSettings()
         case .media: MediaSettings()
         case .clipboard: ClipboardSettings()

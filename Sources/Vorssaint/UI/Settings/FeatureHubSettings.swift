@@ -341,6 +341,13 @@ private struct PermissionsPortalSections: View {
         case .accessibility: return permissions.accessibility ? .granted : .missing
         case .screenRecording: return permissions.screenRecording ? .granted : .missing
         case .fullDiskAccess: return permissions.fullDiskAccess ? .granted : .missing
+        case .filesAndFolders:
+            guard AppFeature.whatsAppDownloads.isAvailable else { return .unknown }
+            switch WhatsAppDownloadManager.shared.accessStatus {
+            case .available: return .granted
+            case .denied: return .missing
+            case .unknown: return .unknown
+            }
         case .notifications:
             switch permissions.notifications {
             case .granted: return .granted
@@ -471,7 +478,7 @@ private struct PermissionPortalRow: View {
         case .accessibility, .screenRecording, .fullDiskAccess: return true
         case .notifications: return Permissions.shared.notifications == .undetermined
         case .camera: return Permissions.shared.camera == .undetermined
-        case .automationFinder, .automationTerminal, .audioCapture: return false
+        case .filesAndFolders, .automationFinder, .automationTerminal, .audioCapture: return false
         }
     }
 
@@ -486,7 +493,7 @@ private struct PermissionPortalRow: View {
                 Permissions.shared.refresh()
             }
         case .camera: Permissions.shared.requestCamera()
-        case .automationFinder, .automationTerminal, .audioCapture:
+        case .filesAndFolders, .automationFinder, .automationTerminal, .audioCapture:
             break
         }
     }
@@ -496,6 +503,7 @@ private struct PermissionPortalRow: View {
         case .accessibility: Permissions.shared.openAccessibilitySettings()
         case .screenRecording: Permissions.shared.openScreenRecordingSettings()
         case .fullDiskAccess: Permissions.shared.openFullDiskAccessSettings()
+        case .filesAndFolders: Permissions.shared.openFilesAndFoldersSettings()
         case .notifications: Permissions.shared.openNotificationSettings()
         case .automationFinder, .automationTerminal: Permissions.shared.openAutomationSettings()
         case .audioCapture: Permissions.shared.openAudioCaptureSettings()
@@ -528,6 +536,7 @@ extension AppFeature {
         case .finderCutPaste: return s.cutPasteName
         case .shelf: return s.shelfName
         case .urlCleaner: return s.urlCleanerName
+        case .whatsAppDownloads: return FeatureStrings.whatsAppDownloads(L10n.shared.language).title
         case .mixer: return s.mixerSection
         case .soundOutputSwitcher: return s.soundOutputSwitcherTitle
         case .micMute: return s.micMuteName
@@ -576,6 +585,8 @@ extension AppFeature {
         case .finderCutPaste: return hub.descFinderCutPaste
         case .shelf: return hub.descShelf
         case .urlCleaner: return hub.descURLCleaner
+        case .whatsAppDownloads:
+            return FeatureStrings.whatsAppDownloads(L10n.shared.language).hubDescription
         case .mixer: return hub.descMixer
         case .soundOutputSwitcher: return hub.descSoundOutputSwitcher
         case .micMute: return hub.descMicMute
@@ -612,6 +623,7 @@ extension AppPermission {
         case .accessibility: return hub.permAccessibility
         case .screenRecording: return hub.permScreenRecording
         case .fullDiskAccess: return hub.permFullDisk
+        case .filesAndFolders: return hub.permFilesAndFolders
         case .notifications: return hub.permNotifications
         case .automationFinder: return hub.permAutomationFinder
         case .automationTerminal: return hub.permAutomationTerminal
@@ -625,6 +637,7 @@ extension AppPermission {
         case .accessibility: return hub.explainAccessibility
         case .screenRecording: return hub.explainScreenRecording
         case .fullDiskAccess: return hub.explainFullDisk
+        case .filesAndFolders: return hub.explainFilesAndFolders
         case .notifications: return hub.explainNotifications
         case .automationFinder: return hub.explainAutomationFinder
         case .automationTerminal: return hub.explainAutomationTerminal

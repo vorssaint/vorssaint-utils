@@ -18,7 +18,7 @@ enum AppFeature: String, CaseIterable {
     // Mouse and keyboard
     case scrollInverter, smoothScroll, mouseNavigation, middleClick, keyboardDebounce, textSnippets
     // Clipboard and files
-    case clipboardHistory, pastePlain, finderCutPaste, shelf, urlCleaner
+    case clipboardHistory, pastePlain, finderCutPaste, shelf, urlCleaner, whatsAppDownloads
     // Sound
     case mixer, soundOutputSwitcher, micMute, musicBlock
     // Energy and display
@@ -38,7 +38,7 @@ enum FeatureGroup: String, CaseIterable {
 
 /// System permissions surfaced by the hub's transparency portal.
 enum AppPermission: String, CaseIterable {
-    case accessibility, screenRecording, fullDiskAccess, notifications,
+    case accessibility, screenRecording, fullDiskAccess, filesAndFolders, notifications,
          automationFinder, automationTerminal, audioCapture, camera
 }
 
@@ -50,7 +50,7 @@ extension AppFeature {
         case .scrollInverter, .smoothScroll, .mouseNavigation, .middleClick, .keyboardDebounce,
              .textSnippets:
             return .mouseKeyboard
-        case .clipboardHistory, .pastePlain, .finderCutPaste, .shelf, .urlCleaner:
+        case .clipboardHistory, .pastePlain, .finderCutPaste, .shelf, .urlCleaner, .whatsAppDownloads:
             return .clipboardFiles
         case .mixer, .soundOutputSwitcher, .micMute, .musicBlock:
             return .sound
@@ -83,6 +83,7 @@ extension AppFeature {
         case .finderCutPaste: return "scissors"
         case .shelf: return "tray.full"
         case .urlCleaner: return "link"
+        case .whatsAppDownloads: return "arrow.down.doc"
         case .mixer: return "slider.horizontal.3"
         case .soundOutputSwitcher: return "hifispeaker"
         case .micMute: return "mic.slash"
@@ -147,7 +148,7 @@ extension AppFeature {
         case .musicBlock: return [DefaultsKey.musicBlockEnabled]
         case .brightness: return [DefaultsKey.brightnessControlEnabled]
         case .extraBrightness: return [DefaultsKey.extraBrightnessEnabled]
-        case .windowLayout, .mixer, .micMute, .keepAwake,
+        case .windowLayout, .mixer, .micMute, .keepAwake, .whatsAppDownloads,
              .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .screenshot, .cameraPreview, .scratchpad,
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
@@ -181,7 +182,9 @@ extension AppFeature {
         case .homebrew: return [.automationTerminal]
         case .mixer: return [.audioCapture]
         case .monitorCPU, .monitorMemory, .monitorDisk, .monitorPower: return [.notifications]
-        case .clipboardHistory, .shelf, .urlCleaner, .soundOutputSwitcher, .musicBlock,
+        case .whatsAppDownloads: return [.filesAndFolders, .notifications]
+        case .clipboardHistory, .shelf, .urlCleaner,
+             .soundOutputSwitcher, .musicBlock,
              .extraBrightness, .quickLauncher, .colorPicker, .micMute, .mediaTools,
              .scratchpad, .monitorGPU, .monitorNetwork:
             return []
@@ -235,6 +238,10 @@ extension AppFeature {
             case (.cleaner, .notifications):
                 return (stringFor(DefaultsKey.cleanerScheduleFrequency) ?? "off") != "off"
                     && boolFor(DefaultsKey.cleanerScheduleNotify)
+            case (.whatsAppDownloads, .notifications):
+                return (boolFor(DefaultsKey.whatsAppDownloadsAutomaticEnabled)
+                        || boolFor(DefaultsKey.whatsAppOrganizerEnabled))
+                    && boolFor(DefaultsKey.whatsAppDownloadsNotify)
             default:
                 return true
             }
@@ -273,6 +280,7 @@ extension AppPermission {
         case .accessibility: return "accessibility"
         case .screenRecording: return "rectangle.dashed.badge.record"
         case .fullDiskAccess: return "externaldrive.badge.person.crop"
+        case .filesAndFolders: return "folder.badge.person.crop"
         case .notifications: return "bell.badge"
         case .automationFinder, .automationTerminal: return "gearshape.2"
         case .audioCapture: return "waveform"

@@ -58,6 +58,16 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Vorssaint shows your camera only in the preview window you open, so you can check how you look before a call. Nothing is recorded or leaves your Mac.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Vorssaint checks local metadata in Downloads to review, organize or trash only confirmed WhatsApp files you choose.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>Vorssaint organizes confirmed WhatsApp downloads in a destination folder you explicitly choose.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Vorssaint organizes confirmed WhatsApp downloads in a destination folder you explicitly choose.</string>
+	<key>NSNetworkVolumesUsageDescription</key>
+	<string>Vorssaint organizes confirmed WhatsApp downloads in a destination folder you explicitly choose.</string>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>Vorssaint organizes confirmed WhatsApp downloads in a destination folder you explicitly choose.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Vorssaint</string>
 	<key>NSPrincipalClass</key>
