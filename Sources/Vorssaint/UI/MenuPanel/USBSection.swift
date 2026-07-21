@@ -346,6 +346,8 @@ struct USBSection: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(Color.blue.opacity(0.15), lineWidth: 0.8)
         )
+    }
+
     private func deviceColor(for device: USBDeviceItem) -> Color {
         if device.category == .charger { return .orange }
         if device.category == .ethernet { return .green }
