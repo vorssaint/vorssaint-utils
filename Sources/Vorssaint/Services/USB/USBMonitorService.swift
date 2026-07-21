@@ -258,29 +258,24 @@ final class USBMonitorService: ObservableObject {
 
         guard isACConnected else { return nil }
 
-        var displayName = "Power supply"
-        var tag: String? = nil
+        let displayName = "Power supply"
+        var tag: String = "MagSafe"
 
         if let adapterDetails = IOPSCopyExternalPowerAdapterDetails()?.takeRetainedValue() as? [String: Any] {
-            let name = (adapterDetails["Name"] as? String ?? "").lowercased()
             let watts = adapterDetails["Watts"] as? Int ?? (adapterDetails["Watts"] as? Double).map(Int.init)
-            let family = adapterDetails["Family"] as? Int ?? 0
+            let name = (adapterDetails["Name"] as? String ?? "").lowercased()
             let desc = (adapterDetails["Description"] as? String ?? "").lowercased()
             let combined = "\(name) \(desc)"
 
-            if combined.contains("magsafe") || family == 0xe0004000 || family == 1 || family == 2 || family == 3 {
-                displayName = "MagSafe Power"
-                tag = watts != nil && watts! > 0 ? "MagSafe \(watts!)W" : "MagSafe"
-            } else if combined.contains("usb-c") || combined.contains("pd") || combined.contains("type-c") || (watts != nil && watts! > 0) {
-                displayName = "USB-C Power"
+            if combined.contains("usb-c") && !combined.contains("magsafe") {
                 tag = watts != nil && watts! > 0 ? "USB-C \(watts!)W" : "USB-C"
+            } else if let w = watts, w > 0 {
+                tag = "MagSafe \(w)W"
             } else {
-                displayName = "Power supply"
-                tag = watts != nil && watts! > 0 ? "\(watts!)W" : "AC Power"
+                tag = "MagSafe"
             }
         } else {
-            displayName = "Power supply"
-            tag = "AC Power"
+            tag = "MagSafe"
         }
 
         let rightStatus = "⚡ \(pct)%"

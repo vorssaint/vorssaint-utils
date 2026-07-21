@@ -30,9 +30,9 @@ struct MonitorPanelConfig: View {
 
     @AppStorage(DefaultsKey.monitorShowDisk) private var showDisk = true
     @AppStorage(DefaultsKey.monitorShowUSB) private var showUSB = true
-    @AppStorage(DefaultsKey.usbShowTechnicalDetails) private var usbTechDetails = true
-    @AppStorage(DefaultsKey.usbShowEthernet) private var usbShowEthernet = true
-    @AppStorage(DefaultsKey.usbShowPowerCable) private var usbShowPower = true
+    @AppStorage(DefaultsKey.usbShowTechnicalDetails) private var usbTechDetails = false
+    @AppStorage(DefaultsKey.usbShowEthernet) private var usbShowEthernet = false
+    @AppStorage(DefaultsKey.usbShowPowerCable) private var usbShowPower = false
     @AppStorage(DefaultsKey.monitorDiskUsage) private var diskUsage = true
     @AppStorage(DefaultsKey.monitorDiskActivity) private var diskActivity = true
     @AppStorage(DefaultsKey.monitorDiskSMART) private var diskSMART = true

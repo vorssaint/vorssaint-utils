@@ -7,7 +7,7 @@ struct USBSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var usbMonitor = USBMonitorService.shared
     @Environment(\.colorScheme) private var colorScheme
-    @AppStorage(DefaultsKey.usbShowTechnicalDetails) private var showTechDetails = true
+    @AppStorage(DefaultsKey.usbShowTechnicalDetails) private var showTechDetails = false
     var collapsible = true
 
     var body: some View {
