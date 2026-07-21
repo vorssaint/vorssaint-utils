@@ -957,6 +957,12 @@ struct MetricsTests {
         // MARK: Registered defaults
 
         let registeredDefaults = Defaults.registeredDefaults
+        expect(registeredDefaults[DefaultsKey.menuBarMemoryMetric] as? String == "used",
+               "menu bar memory metric defaults to Used (matches Activity Monitor)")
+        expect(Defaults.sanitizedMenuBarMemoryMetric("app") == "app",
+               "app is an allowed memory metric")
+        expect(Defaults.sanitizedMenuBarMemoryMetric("bogus") == "used",
+               "unknown memory metric values fall back to used")
         expect(registeredDefaults[DefaultsKey.keepAwakeAutoStart] as? Bool == false,
                "Keep Awake launch restore is opt-in")
         expect(registeredDefaults[DefaultsKey.keepAwakeExternalDisplay] as? Bool == false,
