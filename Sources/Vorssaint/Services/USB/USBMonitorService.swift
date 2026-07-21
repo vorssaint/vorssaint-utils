@@ -48,17 +48,26 @@ struct USBDeviceItem: Identifiable, Hashable, Codable {
 
     var iconName: String {
         switch category {
-        case .usbDevice:
-            if isExternalStorage { return "externaldrive" }
-            let combined = "\(name) \(vendor ?? "")".lowercased()
-            if combined.contains("hub") { return "rectangle.grid.2x2" }
-            if combined.contains("keyboard") { return "keyboard" }
-            if combined.contains("mouse") || combined.contains("trackpad") { return "mouse" }
-            if combined.contains("camera") || combined.contains("webcam") { return "web.camera" }
-            if combined.contains("audio") || combined.contains("sound") || combined.contains("mic") || combined.contains("headset") { return "headphones" }
-            return "cable.connector"
-        case .ethernet: return "network"
         case .charger: return "bolt.fill"
+        case .ethernet: return "network"
+        case .usbDevice:
+            let combined = "\(name) \(vendor ?? "")".lowercased()
+            if combined.contains("wlan") || combined.contains("wifi") || combined.contains("802.11") || combined.contains("wireless") {
+                return "wifi"
+            }
+            if combined.contains("display") || combined.contains("monitor") || combined.contains("hdmi") || combined.contains("billboard") || combined.contains("displaylink") || combined.contains("dp ") || combined.contains("video") {
+                return "display"
+            }
+            if combined.contains("card reader") || combined.contains("sd reader") || combined.contains("sdcard") || combined.contains("sd/mmc") || combined.contains("rts5") || combined.contains("gl32") {
+                return "sdcard"
+            }
+            if combined.contains("keyboard") || combined.contains("keypad") { return "keyboard" }
+            if combined.contains("mouse") || combined.contains("trackpad") || combined.contains("pointing") { return "mouse" }
+            if combined.contains("camera") || combined.contains("webcam") || combined.contains("isight") || combined.contains("uvc") { return "web.camera" }
+            if combined.contains("audio") || combined.contains("sound") || combined.contains("mic") || combined.contains("headset") || combined.contains("dac") { return "headphones" }
+            if combined.contains("hub") || isHub { return "rectangle.grid.2x2" }
+            if isExternalStorage { return "externaldrive" }
+            return "cable.connector"
         }
     }
 
@@ -72,8 +81,8 @@ struct USBDeviceItem: Identifiable, Hashable, Codable {
         case 5000: return "5 Gbps"
         case 10000: return "10 Gbps"
         case 20000: return "20 Gbps"
-        case 40000: return "40 Gbps"
-        case 80000: return "80 Gbps"
+        case 40000: return "⚡ TB4 40 Gbps"
+        case 80000: return "⚡ TB5 80 Gbps"
         default:
             if mbps >= 1000 {
                 return String(format: "%.1f Gbps", Double(mbps) / 1000.0)

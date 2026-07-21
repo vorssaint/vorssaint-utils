@@ -94,15 +94,18 @@ struct USBSection: View {
     private func usbDeviceRow(_ device: USBDeviceItem) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             // Header Row: Icon + Name + Vendor + Eject
+            let devColor = deviceColor(for: device)
+
+            // Header Row: Icon + Name + Vendor + Eject
             HStack(spacing: 8) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.accentColor.opacity(0.14))
+                        .fill(devColor.opacity(0.14))
                         .frame(width: 24, height: 24)
 
                     Image(systemName: device.iconName)
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(devColor)
                 }
 
                 Text(device.name)
@@ -145,9 +148,9 @@ struct USBSection: View {
                     .padding(.vertical, 2)
                     .background(
                         Capsule()
-                            .fill(Color.accentColor.opacity(0.12))
+                            .fill(devColor.opacity(0.12))
                     )
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(devColor)
 
                 Spacer(minLength: 4)
 
@@ -343,5 +346,19 @@ struct USBSection: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(Color.blue.opacity(0.15), lineWidth: 0.8)
         )
+    private func deviceColor(for device: USBDeviceItem) -> Color {
+        if device.category == .charger { return .orange }
+        if device.category == .ethernet { return .green }
+        let combined = "\(device.name) \(device.vendor ?? "")".lowercased()
+        if combined.contains("wlan") || combined.contains("wifi") || combined.contains("802.11") || combined.contains("wireless") {
+            return .cyan
+        }
+        if combined.contains("display") || combined.contains("monitor") || combined.contains("hdmi") || combined.contains("billboard") || combined.contains("displaylink") {
+            return .indigo
+        }
+        guard let mbps = device.speedMbps else { return .secondary }
+        if mbps >= 40000 { return .purple } // USB4 / Thunderbolt 3/4/5
+        if mbps >= 5000 { return .blue }    // USB 3.0 / 3.1 / 3.2 SuperSpeed
+        return .secondary                   // USB 1.1 / 2.0 High Speed
     }
 }
