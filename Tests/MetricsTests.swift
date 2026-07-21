@@ -4807,6 +4807,15 @@ struct MetricsTests {
                && switcherCloseMissing.remainingItemIDs == ["a", "b"]
                && switcherCloseMissing.selectedIndex == 1,
                "App Switcher close leaves selection intact when the item is not present")
+        expect(SwitcherSupport.closeVerificationDecision(windowIsPresent: false,
+                                                         attempt: 0) == .remove,
+               "App Switcher removes a window once close verification no longer finds it")
+        expect(SwitcherSupport.closeVerificationDecision(windowIsPresent: true,
+                                                         attempt: 1) == .retry,
+               "App Switcher retries close verification while attempts remain")
+        expect(SwitcherSupport.closeVerificationDecision(windowIsPresent: true,
+                                                         attempt: 2) == .keep,
+               "App Switcher keeps a window when the final verification still finds it")
         let searchRecords = [
             SwitcherSearchRecord(id: "alpha", title: "Inbox", appName: "Alpha"),
             SwitcherSearchRecord(id: "beta", title: "Vorssaint Roadmap", appName: "Beta"),

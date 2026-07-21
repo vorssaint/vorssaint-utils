@@ -28,6 +28,11 @@ final class WindowPreviewProvider {
     private static let cacheByteBudget = 64 * 1024 * 1024
     private var captureTask: Task<Void, Never>?
     private var warmTask: Task<Void, Never>?
+    private let warmEnumerationQueue = DispatchQueue(
+        label: "com.vorssaint.switcher-preview-warm-enumeration",
+        qos: .utility)
+    /// Main-thread-only generation that invalidates delayed and in-flight warm work.
+    private var warmGeneration = 0
     private var activationToken: NSObjectProtocol?
     private var pendingWarmPid: pid_t?
     private var pressureSource: DispatchSourceMemoryPressure?
@@ -382,6 +387,7 @@ final class WindowPreviewProvider {
     /// time the switcher opens, most tiles have a real last-seen preview even
     /// if their window is parked again.
     func startWarming() {
+        dispatchPrecondition(condition: .onQueue(.main))
         guard activationToken == nil else { return }
         activationToken = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
@@ -397,6 +403,8 @@ final class WindowPreviewProvider {
     }
 
     func stopWarming() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        warmGeneration &+= 1
         if let activationToken {
             NSWorkspace.shared.notificationCenter.removeObserver(activationToken)
         }
@@ -409,16 +417,34 @@ final class WindowPreviewProvider {
     /// Waits for the stage/space transition to settle, then captures the
     /// activated app's windows. Never prunes: warming only adds fresh entries.
     private func scheduleWarm(pid: pid_t) {
+        dispatchPrecondition(condition: .onQueue(.main))
         guard Permissions.shared.screenRecording else { return }
         pendingWarmPid = pid
+        warmGeneration &+= 1
+        let expectedGeneration = warmGeneration
+        warmTask?.cancel()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
-            guard let self, self.pendingWarmPid == pid, self.activationToken != nil else { return }
+            guard let self,
+                  self.pendingWarmPid == pid,
+                  self.warmingIsCurrent(expectedGeneration)
+            else { return }
             self.pendingWarmPid = nil
-            let items = WindowEnumerator.listWindows(for: pid)
-            guard !items.isEmpty else { return }
-            warmTask?.cancel()
+            dispatchPrecondition(condition: .onQueue(.main))
+            let request = WindowEnumerator.makeRequest(filterPID: pid,
+                                                       maximumCount: 12,
+                                                       includeWindowlessFinder: false,
+                                                       groupByApp: false)
             warmTask = Task(priority: .utility) { [weak self] in
                 guard let self else { return }
+                let snapshot = await self.warmSnapshot(using: request)
+                guard !Task.isCancelled,
+                      !snapshot.items.isEmpty,
+                      await MainActor.run(body: {
+                          self.warmingIsCurrent(expectedGeneration)
+                      })
+                else { return }
+
+                let items = snapshot.items
                 for item in items {
                     guard !Task.isCancelled, let id = item.previewWindowID else { continue }
                     guard let image = Self.captureViaWindowServer(id) else { continue }
@@ -427,7 +453,9 @@ final class WindowPreviewProvider {
                         if let rectified = Self.rectifiedStripCapture(image) {
                             let copy = Self.bitmapCopy(rectified)
                             await MainActor.run {
-                                guard self.cache[id] == nil else { return }
+                                guard self.warmingIsCurrent(expectedGeneration),
+                                      self.cache[id] == nil
+                                else { return }
                                 self.store(copy, for: id)
                             }
                         }
@@ -443,11 +471,36 @@ final class WindowPreviewProvider {
                         continue
                     }
                     let scaled = Self.bitmapCopy(image, maxPixelSize: Self.defaultMaxPixelSize)
-                    await MainActor.run { self.store(scaled, for: id) }
+                    await MainActor.run {
+                        guard self.warmingIsCurrent(expectedGeneration) else { return }
+                        self.store(scaled, for: id)
+                    }
                 }
-                await MainActor.run { self.pruneCache(keeping: []) }
+                await MainActor.run {
+                    guard self.warmingIsCurrent(expectedGeneration) else { return }
+                    self.pruneCache(keeping: [])
+                }
             }
         }
+    }
+
+    private func warmSnapshot(using request: WindowEnumerator.Request) async -> WindowEnumerator.Snapshot {
+        await withCheckedContinuation { continuation in
+            warmEnumerationQueue.async {
+                dispatchPrecondition(condition: .notOnQueue(.main))
+                let snapshot = autoreleasepool {
+                    WindowEnumerator.captureSnapshot(using: request)
+                }
+                continuation.resume(returning: snapshot)
+            }
+        }
+    }
+
+    private func warmingIsCurrent(_ expectedGeneration: Int) -> Bool {
+        dispatchPrecondition(condition: .onQueue(.main))
+        return warmGeneration == expectedGeneration
+            && activationToken != nil
+            && Permissions.shared.screenRecording
     }
 
     private struct PreviewTarget {

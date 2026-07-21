@@ -11,6 +11,12 @@ struct SwitcherCloseState: Equatable {
     let shouldEndSession: Bool
 }
 
+enum SwitcherCloseVerificationDecision: Equatable {
+    case remove
+    case retry
+    case keep
+}
+
 struct SwitcherActivationPlan: Equatable {
     let activateAllWindows: Bool
     let makeAppFrontmostAfterActivation: Bool
@@ -638,6 +644,13 @@ enum SwitcherSupport {
                                   selectedIndex: clampedSelection(nextIndex, count: remaining.count),
                                   didRemove: true,
                                   shouldEndSession: false)
+    }
+
+    static func closeVerificationDecision(windowIsPresent: Bool,
+                                          attempt: Int,
+                                          maximumAttempt: Int = 2) -> SwitcherCloseVerificationDecision {
+        guard windowIsPresent else { return .remove }
+        return attempt < maximumAttempt ? .retry : .keep
     }
 
     static func filteredSearchIDs(records: [SwitcherSearchRecord], query: String) -> [String] {
