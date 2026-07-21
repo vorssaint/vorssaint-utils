@@ -64,14 +64,14 @@ struct USBDeviceItem: Identifiable, Hashable, Codable {
         if let subtitle = customSubtitle { return subtitle }
         guard let mbps = speedMbps else { return "Unknown Speed" }
         switch mbps {
-        case 1, 2: return "USB 1.0 Low Speed (1.5 Mbps)"
-        case 12: return "USB 1.1 Full Speed (12 Mbps)"
-        case 480: return "USB 2.0 High Speed (480 Mbps)"
-        case 5000: return "USB 3.0 / 3.1 / 3.2 Gen1 (5 Gbps)"
-        case 10000: return "USB 3.1 Gen2 / 3.2 Gen2x1 (10 Gbps)"
-        case 20000: return "USB 3.2 Gen2x2 (20 Gbps)"
-        case 40000: return "USB4 / Thunderbolt 3/4 (40 Gbps)"
-        case 80000: return "USB4 v2 / Thunderbolt 5 (80 Gbps)"
+        case 1, 2: return "1.5 Mbps"
+        case 12: return "12 Mbps"
+        case 480: return "480 Mbps"
+        case 5000: return "5 Gbps"
+        case 10000: return "10 Gbps"
+        case 20000: return "20 Gbps"
+        case 40000: return "40 Gbps"
+        case 80000: return "80 Gbps"
         default:
             if mbps >= 1000 {
                 return String(format: "%.1f Gbps", Double(mbps) / 1000.0)

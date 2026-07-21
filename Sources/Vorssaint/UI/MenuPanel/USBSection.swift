@@ -115,18 +115,17 @@ struct USBSection: View {
                 }
             }
 
-            // Subtitle Row: Speed Badge + VID:PID Chip
+            // Line 2: Speed Badge + VID:PID Chip
             HStack(alignment: .center, spacing: 6) {
                 Text(device.speedLabel)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 10, weight: .semibold))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(
                         Capsule()
-                            .fill(Color.accentColor.opacity(0.1))
+                            .fill(Color.accentColor.opacity(0.12))
                     )
                     .foregroundStyle(Color.accentColor)
-                    .lineLimit(1)
 
                 Spacer(minLength: 4)
 
@@ -153,13 +152,13 @@ struct USBSection: View {
                 }
             }
 
-            // Extended Technical Details Row (When Info Toggle is ON)
+            // Line 3: Version (BCD) + Serial Number (Technical Details Mode)
             if showTechDetails && (device.usbVersionBCD != nil || device.serialFormatted != nil) {
                 HStack(alignment: .center, spacing: 6) {
                     if device.usbVersionBCD != nil {
                         Text(device.bcdHexLabel)
                             .font(.system(size: 9.5, weight: .regular))
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(.secondary)
                     }
 
                     Spacer(minLength: 4)
