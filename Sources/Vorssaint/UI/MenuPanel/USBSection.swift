@@ -68,21 +68,7 @@ struct USBSection: View {
                         }
 
                         if !usbDevices.isEmpty {
-                            let (hubs, nonHubs) = groupDevices(usbDevices)
-                            if !hubs.isEmpty {
-                                ForEach(hubs) { hub in
-                                    hubGroupContainer(hub: hub, allDevices: usbDevices)
-                                }
-                                ForEach(nonHubs.filter { dev in
-                                    !hubs.contains(where: { h in dev.parentId == h.id })
-                                }) { standalone in
-                                    usbDeviceRow(standalone)
-                                }
-                            } else {
-                                ForEach(usbDevices) { device in
-                                    usbDeviceRow(device)
-                                }
-                            }
+                            renderUSBDevicesList(usbDevices)
                         }
                     }
                 }
@@ -109,17 +95,20 @@ struct USBSection: View {
                 }
 
                 Text(device.name)
-                    .font(.system(size: 12.5, weight: .bold))
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .layoutPriority(1)
 
                 Spacer(minLength: 4)
 
                 if let vendor = device.vendor, !vendor.isEmpty, vendor != device.name {
                     Text(vendor)
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 10.5, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
 
                 if device.isExternalStorage {
@@ -259,31 +248,28 @@ struct USBSection: View {
         )
     }
 
-    private func groupDevices(_ devices: [USBDeviceItem]) -> (hubs: [USBDeviceItem], nonHubs: [USBDeviceItem]) {
+    @ViewBuilder
+    private func renderUSBDevicesList(_ devices: [USBDeviceItem]) -> some View {
         let allHubs = devices.filter { $0.isHub }
-        var primaryHubs: [USBDeviceItem] = []
-        for hub in allHubs {
-            if let pId = hub.parentId, allHubs.contains(where: { $0.id == pId }) {
-                continue
-            }
-            if !primaryHubs.contains(where: { $0.id == hub.id }) {
-                primaryHubs.append(hub)
+        let nonHubs = devices.filter { !$0.isHub }
+
+        if !allHubs.isEmpty {
+            let masterHub = allHubs.max(by: { ($0.speedMbps ?? 0) < ($1.speedMbps ?? 0) }) ?? allHubs[0]
+            masterHubContainer(hub: masterHub, childDevices: nonHubs)
+        } else {
+            VStack(spacing: 6) {
+                ForEach(nonHubs) { device in
+                    usbDeviceRow(device)
+                }
             }
         }
-        let nonHubs = devices.filter { !$0.isHub }
-        return (primaryHubs.isEmpty ? allHubs : primaryHubs, nonHubs)
     }
 
-    private func hubGroupContainer(hub: USBDeviceItem, allDevices: [USBDeviceItem]) -> some View {
-        let children = allDevices.filter { dev in
-            if dev.id == hub.id { return false }
-            if dev.parentId == hub.id { return true }
-            if let vendor = hub.vendor, let devVendor = dev.vendor, !vendor.isEmpty, vendor == devVendor { return true }
-            return false
-        }
+    private func masterHubContainer(hub: USBDeviceItem, childDevices: [USBDeviceItem]) -> some View {
+        let hubTitle = (hub.vendor != nil && !hub.vendor!.isEmpty && hub.vendor != hub.name) ? "\(hub.name) (\(hub.vendor!))" : hub.name
 
         return VStack(alignment: .leading, spacing: 6) {
-            // Parent Hub Header
+            // Master Hub Header
             HStack(spacing: 8) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -295,19 +281,13 @@ struct USBSection: View {
                         .foregroundStyle(Color.blue)
                 }
 
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(hub.name)
-                        .font(.system(size: 12.5, weight: .bold))
-                        .foregroundStyle(.primary)
+                Text(hubTitle)
+                    .font(.system(size: 12.5, weight: .bold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
 
-                    if let vendor = hub.vendor, !vendor.isEmpty {
-                        Text(vendor)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Spacer()
+                Spacer(minLength: 4)
 
                 Text(hub.speedLabel)
                     .font(.system(size: 10, weight: .semibold))
@@ -321,12 +301,12 @@ struct USBSection: View {
             }
 
             // Indented Children Sub-Devices
-            if !children.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(children) { child in
+            if !childDevices.isEmpty {
+                VStack(alignment: .leading, spacing: 5) {
+                    ForEach(childDevices) { child in
                         HStack(spacing: 6) {
                             Rectangle()
-                                .fill(Color.blue.opacity(0.3))
+                                .fill(Color.blue.opacity(0.35))
                                 .frame(width: 2)
                                 .padding(.vertical, 2)
 
@@ -334,7 +314,7 @@ struct USBSection: View {
                         }
                     }
                 }
-                .padding(.leading, 8)
+                .padding(.leading, 6)
             }
         }
         .padding(9)
@@ -344,7 +324,7 @@ struct USBSection: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.blue.opacity(0.15), lineWidth: 0.8)
+                .stroke(Color.blue.opacity(0.18), lineWidth: 0.8)
         )
     }
 
