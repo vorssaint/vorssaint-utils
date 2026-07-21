@@ -181,6 +181,7 @@ enum DefaultsKey {
     static let monitorShowSystem = "monitorShowSystem"
     static let monitorShowNetwork = "monitorShowNetwork"
     static let monitorShowDisk = "monitorShowDisk"
+    static let monitorShowUSB = "monitorShowUSB"
     static let monitorShowPower = "monitorShowPower"
     static let monitorShowMixer = "monitorShowMixer"
     static let monitorShowFanControlBeta = "monitorShowFanControlBeta"
@@ -686,6 +687,7 @@ enum Defaults {
         DefaultsKey.monitorShowSystem: true,
         DefaultsKey.monitorShowNetwork: true,
         DefaultsKey.monitorShowDisk: true,
+        DefaultsKey.monitorShowUSB: true,
         DefaultsKey.monitorShowPower: true,
         DefaultsKey.monitorShowMixer: true,
         DefaultsKey.monitorShowFanControlBeta: false,

@@ -553,6 +553,7 @@ extension AppFeature {
         case .monitorMemory: return s.monitorShowMemory
         case .monitorNetwork: return s.monitorShowNetwork
         case .monitorDisk: return s.diskSection
+        case .monitorUSB: return s.usbSection
         case .monitorPower: return s.powerSection
         }
     }
@@ -601,6 +602,7 @@ extension AppFeature {
         case .monitorMemory: return hub.descMonitorMemory
         case .monitorNetwork: return hub.descMonitorNetwork
         case .monitorDisk: return hub.descMonitorDisk
+        case .monitorUSB: return "List and manage connected USB devices, speeds, and versions."
         case .monitorPower: return hub.descMonitorPower
         }
     }

@@ -29,6 +29,7 @@ struct MonitorPanelConfig: View {
     @AppStorage(DefaultsKey.monitorNetTest) private var netTest = true
 
     @AppStorage(DefaultsKey.monitorShowDisk) private var showDisk = true
+    @AppStorage(DefaultsKey.monitorShowUSB) private var showUSB = true
     @AppStorage(DefaultsKey.monitorDiskUsage) private var diskUsage = true
     @AppStorage(DefaultsKey.monitorDiskActivity) private var diskActivity = true
     @AppStorage(DefaultsKey.monitorDiskSMART) private var diskSMART = true
@@ -84,6 +85,10 @@ struct MonitorPanelConfig: View {
                 Toggle(l10n.s.monitorItemDiskSMART, isOn: $diskSMART)
                 Toggle(l10n.s.monitorItemDiskProtection, isOn: $diskProtection)
                 Toggle(l10n.s.monitorItemDiskTools, isOn: $diskTools)
+            }
+        }
+        if AppFeature.monitorUSB.isAvailable {
+            block(.usb, title: l10n.s.usbSection, master: $showUSB) {
             }
         }
         if AppFeature.monitorPower.isAvailable {
@@ -148,5 +153,5 @@ struct MonitorPanelConfig: View {
 }
 
 private enum PanelConfigBlock: Hashable {
-    case system, network, disk, power
+    case system, network, disk, usb, power
 }

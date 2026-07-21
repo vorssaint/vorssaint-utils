@@ -1024,6 +1024,11 @@ struct Strings {
     let highlightsTry: String
     let highlightsSeeAll: String
 
+    var usbSection: String = "USB Devices"
+    var usbConnectedDevices: String = "Connected USB Devices"
+    var usbNoDevices: String = "No USB devices connected"
+    var usbEject: String = "Eject USB Device"
+
     var monitorSysFanSpeeds: String = "Fan speeds"
     var monitorSysDetailedTemps: String = "Detailed temperatures"
     var monitorOff: String = "Off"

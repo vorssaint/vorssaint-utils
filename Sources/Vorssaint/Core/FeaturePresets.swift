@@ -92,7 +92,7 @@ extension AppFeature {
                 ? .idle : .mouse
         case .clipboardHistory, .urlCleaner, .extraBrightness,
              .monitorCPU, .monitorGPU, .monitorMemory,
-             .monitorNetwork, .monitorDisk, .monitorPower:
+             .monitorNetwork, .monitorDisk, .monitorUSB, .monitorPower:
             return .periodic
         case .pastePlain, .mixer, .soundOutputSwitcher, .micMute,
              .musicBlock, .keepAwake, .brightness, .quickLauncher, .quickToggles, .colorPicker,

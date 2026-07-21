@@ -15,7 +15,7 @@ enum SettingsPage: Hashable {
 /// features only disappears when ALL of them are switched off in the hub.
 enum FeatureVisibilitySupport {
     static let monitorFeatures: [AppFeature] = [
-        .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
+        .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorUSB, .monitorPower,
     ]
 
     /// Features gating a page; empty means the page is part of the app and
