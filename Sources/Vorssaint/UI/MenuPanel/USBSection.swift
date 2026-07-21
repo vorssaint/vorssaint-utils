@@ -10,6 +10,10 @@ struct USBSection: View {
     @AppStorage(DefaultsKey.usbShowTechnicalDetails) private var showTechDetails = false
     var collapsible = true
 
+    private var chargers: [USBDeviceItem] { usbMonitor.devices.filter { $0.category == .charger } }
+    private var ethernetAdapters: [USBDeviceItem] { usbMonitor.devices.filter { $0.category == .ethernet } }
+    private var usbDevices: [USBDeviceItem] { usbMonitor.devices.filter { $0.category == .usbDevice } }
+
     var body: some View {
         PanelSection(.usb, title: l10n.s.usbSection, collapsible: collapsible) {
             VStack(alignment: .leading, spacing: 8) {
