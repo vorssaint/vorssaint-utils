@@ -37,6 +37,16 @@ final class WindowLayoutService: ObservableObject {
     private var gestureTap: CFMachPort?
     private var gestureRunLoopSource: CFRunLoopSource?
     private var activeGesture: WindowPointerGesture?
+    private var pendingGesture: PendingWindowGesture?
+    private var assistiveModeSuspensions: [CGWindowID: EnhancedUserInterfaceSuspension] = [:]
+    private var settleTimers: [CGWindowID: Timer] = [:]
+    private var gestureAssistiveMode: EnhancedUserInterfaceSuspension?
+    /// Stamped on the press this service gives back to the system so none of
+    /// our own taps mistake it for a fresh one.
+    private static let syntheticEventMarker: Int64 = 0x564F5253
+    /// Read on every pointer event, so it is resolved once instead of per
+    /// click.
+    private static let ownProcessID = Int64(getpid())
     private let frameTolerance: CGFloat = 8
     private let anchorTolerance: CGFloat = 36
     private let moveGestureUpdateInterval: TimeInterval = 1.0 / 120.0
@@ -67,6 +77,14 @@ final class WindowLayoutService: ObservableObject {
     func suspend() {
         unregisterHotkeys()
         stopGestureTap()
+        for timer in settleTimers.values { timer.invalidate() }
+        settleTimers.removeAll()
+        let suspensions = assistiveModeSuspensions.values
+        assistiveModeSuspensions.removeAll()
+        // With the grant already revoked there is no safe way to touch the
+        // apps again; the flag comes back when the assistive client sets it.
+        guard AXIsProcessTrusted() else { return }
+        for suspension in suspensions { suspension.resume() }
     }
 
     func shortcutConflictTitle(_ shortcut: GlobalShortcut) -> String? {
@@ -93,7 +111,7 @@ final class WindowLayoutService: ObservableObject {
             guard let previous = previousFrames[target.windowID] else {
                 return finish(.failure(.noRestore))
             }
-            return setFrame(previous, on: target.window)
+            return setFrame(previous, on: target.window, windowID: target.windowID)
                 ? finish(.success(restored: true))
                 : finish(.failure(.failed))
         }
@@ -114,7 +132,8 @@ final class WindowLayoutService: ObservableObject {
                         targetRect: rect,
                         screenVisibleFrame: destination.visibleFrame,
                         action: .nextDisplay,
-                        on: target.window) {
+                        on: target.window,
+                        windowID: target.windowID) {
                 lastActions[target.windowID] = .nextDisplay
                 return finish(.success(restored: false))
             }
@@ -134,7 +153,8 @@ final class WindowLayoutService: ObservableObject {
                     targetRect: placement.rect,
                     screenVisibleFrame: screen.visibleFrame,
                     action: effectiveAction,
-                    on: target.window) {
+                    on: target.window,
+                    windowID: target.windowID) {
             lastActions[target.windowID] = effectiveAction
             return finish(.success(restored: false))
         }
@@ -199,39 +219,113 @@ final class WindowLayoutService: ObservableObject {
         return WindowLayoutPlacement(frame: axFrame(fromAppKit: integral), rect: integral)
     }
 
-    private func setFrame(_ frame: WindowLayoutFrame, on window: AXUIElement) -> Bool {
+    private func setFrame(_ frame: WindowLayoutFrame, on window: AXUIElement, windowID: CGWindowID) -> Bool {
         setFrame(frame,
                  targetRect: appKitFrame(fromAX: frame),
                  screenVisibleFrame: appKitFrame(fromAX: frame),
                  action: .restore,
-                 on: window)
+                 on: window,
+                 windowID: windowID)
     }
 
     private func setFrame(_ frame: WindowLayoutFrame,
                           targetRect: NSRect,
                           screenVisibleFrame: NSRect,
                           action: WindowLayoutAction,
-                          on window: AXUIElement) -> Bool {
+                          on window: AXUIElement,
+                          windowID: CGWindowID) -> Bool {
+        cancelSettle(for: windowID)
+        assistiveModeSuspensions.removeValue(forKey: windowID)?.resume()
+        assistiveModeSuspensions[windowID] = EnhancedUserInterfaceSuspension.suspend(forAppOf: window)
+
         let original = self.frame(of: window)
         if attempt(frame, targetRect: targetRect, action: action, on: window) {
+            assistiveModeSuspensions.removeValue(forKey: windowID)?.resume()
             return true
         }
 
-        if let original, shouldUseMaximizeFallback(for: action) {
+        // Some apps commit Accessibility size changes with a short delay, so
+        // the reads above can still see the old frame. Judging failure now and
+        // restoring the original is what used to leave windows moved but never
+        // resized (issue #334): let the window settle before deciding.
+        scheduleSettle(SettleContext(window: window,
+                                     windowID: windowID,
+                                     frame: frame,
+                                     targetRect: targetRect,
+                                     screenVisibleFrame: screenVisibleFrame,
+                                     action: action,
+                                     original: original),
+                       attempt: 0)
+        return true
+    }
+
+    private func scheduleSettle(_ context: SettleContext, attempt: Int) {
+        let timer = Timer(timeInterval: 0.15, repeats: false) { [weak self] _ in
+            guard let self else { return }
+            self.settleTimers[context.windowID] = nil
+            self.continueSettle(context, attempt: attempt)
+        }
+        settleTimers[context.windowID] = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func continueSettle(_ context: SettleContext, attempt: Int) {
+        if verified(context) {
+            concludeSettle(context, success: true)
+            return
+        }
+        if self.attempt(context.frame,
+                        targetRect: context.targetRect,
+                        action: context.action,
+                        on: context.window) {
+            concludeSettle(context, success: true)
+            return
+        }
+        if attempt == 0 {
+            scheduleSettle(context, attempt: 1)
+            return
+        }
+        if let original = context.original, shouldUseMaximizeFallback(for: context.action) {
             let currentRect = appKitFrame(fromAX: original)
             let maxFrame = axFrame(fromAppKit: WindowLayoutGeometry.rect(for: .maximize,
                                                                          current: currentRect,
-                                                                         visibleFrame: screenVisibleFrame))
-            applyFrame(maxFrame, on: window)
-            if attempt(frame, targetRect: targetRect, action: action, on: window) {
-                return true
+                                                                         visibleFrame: context.screenVisibleFrame))
+            applyFrame(maxFrame, on: context.window)
+            if self.attempt(context.frame,
+                            targetRect: context.targetRect,
+                            action: context.action,
+                            on: context.window) {
+                concludeSettle(context, success: true)
+                return
             }
         }
+        concludeSettle(context, success: false)
+    }
 
-        if let original {
-            applyFrame(original, on: window)
+    private func verified(_ context: SettleContext) -> Bool {
+        guard let actual = frame(of: context.window) else { return false }
+        return actual.isClose(to: context.frame, tolerance: frameTolerance)
+            || accepted(actual: actual, targetRect: context.targetRect, action: context.action)
+    }
+
+    // The action already reported success while the window was settling, so a
+    // refusal this late restores the window, undoes the bookkeeping and
+    // republishes the result the panel feedback listens to.
+    private func concludeSettle(_ context: SettleContext, success: Bool) {
+        assistiveModeSuspensions.removeValue(forKey: context.windowID)?.resume()
+        guard !success else { return }
+        if let original = context.original {
+            applyFrame(original, on: context.window)
         }
-        return false
+        if context.action != .restore {
+            previousFrames.removeValue(forKey: context.windowID)
+            lastActions.removeValue(forKey: context.windowID)
+        }
+        lastResult = .failure(.failed)
+    }
+
+    private func cancelSettle(for windowID: CGWindowID) {
+        settleTimers.removeValue(forKey: windowID)?.invalidate()
     }
 
     private func attempt(_ frame: WindowLayoutFrame,
@@ -365,6 +459,12 @@ final class WindowLayoutService: ObservableObject {
         failedShortcutActions = failures
     }
 
+    /// Lets go of the layout keys while a shortcut field is listening, so the
+    /// user can record a combination the layout actions already use. The
+    /// gesture tap is left alone: it watches the mouse, not the keyboard. The
+    /// next `syncWithPreferences` takes the keys back.
+    func suspendShortcuts() { unregisterHotkeys() }
+
     private func unregisterHotkeys() {
         for ref in hotKeyRefs.values {
             UnregisterEventHotKey(ref)
@@ -392,10 +492,10 @@ final class WindowLayoutService: ObservableObject {
             place: .headInsertEventTap,
             options: .defaultTap,
             eventsOfInterest: mask,
-            callback: { _, type, event, userInfo in
+            callback: { proxy, type, event, userInfo in
                 guard let userInfo else { return Unmanaged.passUnretained(event) }
                 let service = Unmanaged<WindowLayoutService>.fromOpaque(userInfo).takeUnretainedValue()
-                return service.handleGestureEvent(type: type, event: event)
+                return service.handleGestureEvent(proxy: proxy, type: type, event: event)
             },
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
@@ -412,6 +512,9 @@ final class WindowLayoutService: ObservableObject {
     }
 
     private func stopGestureTap() {
+        // A press still under custody has to go back to the app before the
+        // tap that is holding it disappears, or that click is simply lost.
+        flushPending(proxy: nil, at: nil)
         if let gestureTap {
             CGEvent.tapEnable(tap: gestureTap, enable: false)
         }
@@ -421,83 +524,196 @@ final class WindowLayoutService: ObservableObject {
         gestureTap = nil
         gestureRunLoopSource = nil
         activeGesture = nil
+        pendingGesture = nil
+        endGestureAssistiveMode()
         isGestureRunning = false
     }
 
-    private func handleGestureEvent(type: CGEventType,
+    private var gestureState: WindowGestureState {
+        if activeGesture != nil { return .active }
+        if pendingGesture != nil { return .pending }
+        return .idle
+    }
+
+    private var trackedGestureButton: WindowPointerGesture.Button? {
+        activeGesture?.button ?? pendingGesture?.button
+    }
+
+    /// Whether the button that started the press is still down. Only worth
+    /// asking when the tap was switched off, because that is the one moment
+    /// the release can reach the app without passing through here.
+    private func isTrackedButtonDown() -> Bool {
+        guard let button = trackedGestureButton else { return false }
+        return CGEventSource.buttonState(.combinedSessionState,
+                                         button: button == .primary ? .left : .right)
+    }
+
+    /// A press that carries the chord is held back, not taken: the app only
+    /// loses it once the pointer moves far enough to mean a window gesture.
+    /// A press that ends where it started is handed straight back, so an
+    /// ordinary modifier click keeps working in every app.
+    private func handleGestureEvent(proxy: CGEventTapProxy?,
+                                    type: CGEventType,
                                     event: CGEvent) -> Unmanaged<CGEvent>? {
-        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            activeGesture = nil
-            if let gestureTap { CGEvent.tapEnable(tap: gestureTap, enable: true) }
+        // The press this service gave back to the system. Looking at it again
+        // would take it right back and never let go.
+        if event.getIntegerValueField(.eventSourceUserData) == Self.syntheticEventMarker
+            || event.getIntegerValueField(.eventSourceUnixProcessID) == Self.ownProcessID {
             return Unmanaged.passUnretained(event)
         }
 
-        // Never enter Accessibility from a live tap after the grant is
-        // revoked. A blocked AX call here would stall system input.
-        guard AXIsProcessTrusted() else {
-            activeGesture = nil
-            return Unmanaged.passUnretained(event)
+        let tapDisabled = type == .tapDisabledByTimeout || type == .tapDisabledByUserInput
+        if tapDisabled, let gestureTap {
+            CGEvent.tapEnable(tap: gestureTap, enable: true)
         }
 
-        if var gesture = activeGesture {
-            switch (gesture.button, type) {
-            case (.primary, .leftMouseDragged), (.secondary, .rightMouseDragged):
-                let now = ProcessInfo.processInfo.systemUptime
-                let updateInterval: TimeInterval
-                switch gesture.kind {
-                case .move:
-                    updateInterval = moveGestureUpdateInterval
-                case .resize:
-                    updateInterval = resizeGestureUpdateInterval
-                }
-                if now - gesture.lastAppliedAt >= updateInterval {
-                    apply(gesture, pointer: event.location)
-                    gesture.lastAppliedAt = now
-                    activeGesture = gesture
-                }
-                return nil
-            case (.primary, .leftMouseUp), (.secondary, .rightMouseUp):
-                apply(gesture, pointer: event.location)
-                activeGesture = nil
-                return nil
+        var chord: (button: WindowPointerGesture.Button, wantsResize: Bool)?
+        let input: WindowGestureInput
+        if tapDisabled {
+            input = .tapDisabled(buttonStillDown: isTrackedButtonDown())
+        } else if !AXIsProcessTrusted() {
+            // Never enter Accessibility from a live tap after the grant is
+            // revoked. A blocked AX call here would stall system input.
+            input = .accessibilityLost
+        } else {
+            switch type {
+            case .leftMouseDown, .rightMouseDown:
+                let button: WindowPointerGesture.Button =
+                    type == .leftMouseDown ? .primary : .secondary
+                chord = gestureChord(type: type, flags: event.flags)
+                input = .buttonDown(sameButton: button == trackedGestureButton,
+                                    chordMatched: chord != nil)
+            case .leftMouseDragged, .rightMouseDragged:
+                let button: WindowPointerGesture.Button =
+                    type == .leftMouseDragged ? .primary : .secondary
+                let pastSlop = pendingGesture.map {
+                    WindowGestureSupport.exceedsDragSlop(from: $0.origin, to: event.location)
+                } ?? false
+                input = .buttonDragged(tracked: button == trackedGestureButton, pastSlop: pastSlop)
+            case .leftMouseUp, .rightMouseUp:
+                let button: WindowPointerGesture.Button =
+                    type == .leftMouseUp ? .primary : .secondary
+                input = .buttonUp(tracked: button == trackedGestureButton)
             default:
-                return Unmanaged.passUnretained(event)
+                input = .otherEvent
             }
         }
 
-        guard type == .leftMouseDown || type == .rightMouseDown else {
+        var decision = WindowGestureSupport.decide(state: gestureState, input: input)
+        switch decision {
+        case .restartAsIdle:
+            pendingGesture = nil
+            decision = WindowGestureSupport.decide(state: .idle, input: input)
+        case .flushThenRestart:
+            flushPending(proxy: proxy, at: event.location)
+            decision = WindowGestureSupport.decide(state: .idle, input: input)
+        default:
+            break
+        }
+
+        switch decision {
+        case .passThrough, .restartAsIdle, .flushThenRestart:
+            return Unmanaged.passUnretained(event)
+
+        case .hold:
+            return nil
+
+        case .arm:
+            guard let chord else { return Unmanaged.passUnretained(event) }
+            return arm(chord: chord, event: event)
+
+        case .promote:
+            guard let pending = pendingGesture else { return nil }
+            promote(pending, pointer: event.location)
+            return nil
+
+        case .applyMove:
+            guard var gesture = activeGesture else { return nil }
+            let now = ProcessInfo.processInfo.systemUptime
+            let updateInterval: TimeInterval
+            switch gesture.kind {
+            case .move:
+                updateInterval = moveGestureUpdateInterval
+            case .resize:
+                updateInterval = resizeGestureUpdateInterval
+            }
+            if now - gesture.lastAppliedAt >= updateInterval {
+                apply(gesture, pointer: event.location)
+                gesture.lastAppliedAt = now
+                activeGesture = gesture
+            }
+            return nil
+
+        case .applyFinish:
+            if let gesture = activeGesture {
+                apply(gesture, pointer: event.location)
+            }
+            activeGesture = nil
+            endGestureAssistiveMode()
+            return nil
+
+        case .replayThenPass:
+            // The held press goes back first and this release closes the pair,
+            // so the app sees one ordinary click and never half of one.
+            flushPending(proxy: proxy, at: event.location)
+            return Unmanaged.passUnretained(event)
+
+        case .flushThenPass:
+            // A disabled tap carries no position, and its proxy is no longer a
+            // dependable way back into the stream.
+            flushPending(proxy: tapDisabled ? nil : proxy,
+                         at: tapDisabled ? nil : event.location)
+            return Unmanaged.passUnretained(event)
+
+        case .dropState:
+            activeGesture = nil
+            pendingGesture = nil
+            endGestureAssistiveMode()
             return Unmanaged.passUnretained(event)
         }
+    }
+
+    private func endGestureAssistiveMode() {
+        let suspension = gestureAssistiveMode
+        gestureAssistiveMode = nil
+        // With the grant revoked there is no safe way to touch the app again;
+        // the flag comes back when the assistive client sets it.
+        guard AXIsProcessTrusted() else { return }
+        suspension?.resume()
+    }
+
+    private func gestureChord(type: CGEventType,
+                              flags: CGEventFlags) -> (button: WindowPointerGesture.Button,
+                                                       wantsResize: Bool)? {
         let moveModifiers = WindowGestureSupport.modifiers(
             from: UserDefaults.standard.string(forKey: DefaultsKey.windowGestureModifiers)
         )
         let resizeModifiers = WindowGestureSupport.resizeModifiers(from: moveModifiers)
-        let wantsResize: Bool
-        let button: WindowPointerGesture.Button
         if type == .leftMouseDown,
-           WindowGestureSupport.modifiersMatch(eventFlags: event.flags, expected: moveModifiers) {
-            wantsResize = false
-            button = .primary
-        } else if type == .leftMouseDown,
-                  WindowGestureSupport.modifiersMatch(eventFlags: event.flags,
-                                                      expected: resizeModifiers) {
-            wantsResize = true
-            button = .primary
-        } else if type == .rightMouseDown,
-                  WindowGestureSupport.modifiersMatch(eventFlags: event.flags,
-                                                      expected: moveModifiers) {
-            wantsResize = true
-            button = .secondary
-        } else {
-            return Unmanaged.passUnretained(event)
+           WindowGestureSupport.modifiersMatch(eventFlags: flags, expected: moveModifiers) {
+            return (.primary, false)
         }
+        if type == .leftMouseDown,
+           WindowGestureSupport.modifiersMatch(eventFlags: flags, expected: resizeModifiers) {
+            return (.primary, true)
+        }
+        if type == .rightMouseDown,
+           WindowGestureSupport.modifiersMatch(eventFlags: flags, expected: moveModifiers) {
+            return (.secondary, true)
+        }
+        return nil
+    }
 
+    /// Takes custody of a press that matches the chord over a window this
+    /// service can actually move. Anything it cannot move keeps its click.
+    private func arm(chord: (button: WindowPointerGesture.Button, wantsResize: Bool),
+                     event: CGEvent) -> Unmanaged<CGEvent>? {
         guard let target = gestureTarget(at: event.location,
-                                         requiresResize: wantsResize)
+                                         requiresResize: chord.wantsResize)
         else { return Unmanaged.passUnretained(event) }
 
         let resolvedKind: WindowPointerGesture.Kind
-        if wantsResize {
+        if chord.wantsResize {
             let frame = CGRect(origin: target.frame.origin, size: target.frame.size)
             let edges = WindowGestureSupport.resizeEdges(at: event.location, in: frame)
             guard !edges.isEmpty else { return Unmanaged.passUnretained(event) }
@@ -506,18 +722,62 @@ final class WindowLayoutService: ObservableObject {
             resolvedKind = .move
         }
 
-        if UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureRaiseWindow) {
-            _ = target.app.activate(options: [])
-            AXUIElementPerformAction(target.window, kAXRaiseAction as CFString)
-        }
-        activeGesture = WindowPointerGesture(window: target.window,
-                                             kind: resolvedKind,
-                                             button: button,
-                                             originalFrame: CGRect(origin: target.frame.origin,
-                                                                   size: target.frame.size),
-                                             pointerStart: event.location,
-                                             lastAppliedAt: ProcessInfo.processInfo.systemUptime)
+        // Without a copy there is nothing to give back, and keeping a press
+        // that can never be returned is worse than not holding it at all.
+        guard let down = event.copy() else { return Unmanaged.passUnretained(event) }
+        pendingGesture = PendingWindowGesture(down: down,
+                                              button: chord.button,
+                                              kind: resolvedKind,
+                                              window: target.window,
+                                              app: target.app,
+                                              originalFrame: CGRect(origin: target.frame.origin,
+                                                                    size: target.frame.size),
+                                              origin: event.location)
         return nil
+    }
+
+    /// The press became a gesture. Raising happens here and not at the press,
+    /// so a plain modifier click never activates or reorders a window.
+    private func promote(_ pending: PendingWindowGesture, pointer: CGPoint) {
+        pendingGesture = nil
+        // Suspended for the whole gesture, not per frame write: the writes come
+        // at pointer speed and the flag only needs to move twice.
+        gestureAssistiveMode?.resume()
+        gestureAssistiveMode = EnhancedUserInterfaceSuspension.suspend(forAppOf: pending.window)
+        if UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureRaiseWindow) {
+            _ = pending.app.activate(options: [])
+            AXUIElementPerformAction(pending.window, kAXRaiseAction as CFString)
+        }
+        // The press point stays the anchor: measuring from where the slop was
+        // crossed would leave the window trailing the pointer for good.
+        var gesture = WindowPointerGesture(window: pending.window,
+                                           kind: pending.kind,
+                                           button: pending.button,
+                                           originalFrame: pending.originalFrame,
+                                           pointerStart: pending.origin,
+                                           lastAppliedAt: ProcessInfo.processInfo.systemUptime)
+        apply(gesture, pointer: pointer)
+        gesture.lastAppliedAt = ProcessInfo.processInfo.systemUptime
+        activeGesture = gesture
+    }
+
+    /// Puts a held press back into the stream. It carries the release point
+    /// and the current time so the app reads the pair as one short click on
+    /// one element, however long the button was held.
+    private func flushPending(proxy: CGEventTapProxy?, at point: CGPoint?) {
+        guard let pending = pendingGesture else { return }
+        pendingGesture = nil
+        let down = pending.down
+        down.location = point ?? pending.origin
+        down.timestamp = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
+        down.setIntegerValueField(.eventSourceUserData, value: Self.syntheticEventMarker)
+        if let proxy {
+            // Posted through the tap it is leaving, which places it ahead of
+            // the event this callback is about to return.
+            down.tapPostEvent(proxy)
+        } else {
+            down.post(tap: .cgSessionEventTap)
+        }
     }
 
     private func apply(_ gesture: WindowPointerGesture, pointer: CGPoint) {
@@ -741,6 +1001,18 @@ private struct WindowLayoutTarget {
     let frame: WindowLayoutFrame
 }
 
+/// Everything the deferred settle verification needs to finish judging a
+/// discrete layout action after the grace period.
+private struct SettleContext {
+    let window: AXUIElement
+    let windowID: CGWindowID
+    let frame: WindowLayoutFrame
+    let targetRect: NSRect
+    let screenVisibleFrame: NSRect
+    let action: WindowLayoutAction
+    let original: WindowLayoutFrame?
+}
+
 private struct WindowLayoutPlacement {
     let frame: WindowLayoutFrame
     let rect: NSRect
@@ -750,6 +1022,19 @@ private struct WindowGestureTarget {
     let window: AXUIElement
     let app: NSRunningApplication
     let frame: WindowLayoutFrame
+}
+
+/// A press the tap is holding while it is still undecided. It keeps the
+/// original event so the click can be handed back untouched, with its
+/// modifiers and its click count intact.
+private struct PendingWindowGesture {
+    let down: CGEvent
+    let button: WindowPointerGesture.Button
+    let kind: WindowPointerGesture.Kind
+    let window: AXUIElement
+    let app: NSRunningApplication
+    let originalFrame: CGRect
+    let origin: CGPoint
 }
 
 private struct WindowPointerGesture {

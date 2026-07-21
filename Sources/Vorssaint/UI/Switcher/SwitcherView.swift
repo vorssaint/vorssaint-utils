@@ -725,6 +725,20 @@ private struct WindowCard: View {
         window.isMinimized || window.isFullscreen
     }
 
+    /// Without a thumbnail the app icon already fills the card, so the small
+    /// corner badge would only repeat it.
+    private var showsAppBadge: Bool {
+        preview != nil
+    }
+
+    private static let appBadgeSize: CGFloat = 32
+    /// App artwork is drawn on the system icon grid, which leaves a clear
+    /// margin around it (measured at 9.4% of the side on every app checked).
+    /// The frame hangs past the row by that much so the artwork itself, and
+    /// not its empty margin, lines up with the card edge and with the status
+    /// badges across the row.
+    private static let appBadgeArtworkInset: CGFloat = (appBadgeSize * 0.094).rounded()
+
     var body: some View {
         VStack(spacing: 7) {
             ZStack {
@@ -744,27 +758,26 @@ private struct WindowCard: View {
                         .frame(width: 80, height: 80)
                 }
 
-                // Small app badge over the thumbnail corner.
-                if preview != nil, let icon = window.appIcon {
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Spacer()
-                            Image(nsImage: icon)
-                                .resizable()
-                                .frame(width: 32, height: 32)
-                                .shadow(radius: 3)
-                                .padding(7)
-                        }
-                    }
-                }
-
-                if hasStatusBadges {
-                    VStack {
-                        Spacer()
-                        HStack(spacing: 5) {
-                            statusBadges
-                            Spacer()
+                // One row along the bottom of the thumbnail: the app on the
+                // left, the window's state on the right, sharing a baseline.
+                if showsAppBadge || hasStatusBadges {
+                    VStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        HStack(alignment: .bottom, spacing: 8) {
+                            if showsAppBadge, let icon = window.appIcon {
+                                Image(nsImage: icon)
+                                    .resizable()
+                                    .frame(width: Self.appBadgeSize, height: Self.appBadgeSize)
+                                    .shadow(radius: 3)
+                                    .padding(.leading, -Self.appBadgeArtworkInset)
+                                    .padding(.bottom, -Self.appBadgeArtworkInset)
+                            }
+                            Spacer(minLength: 0)
+                            if hasStatusBadges {
+                                HStack(spacing: 5) {
+                                    statusBadges
+                                }
+                            }
                         }
                         .padding(7)
                     }

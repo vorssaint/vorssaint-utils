@@ -15,6 +15,20 @@ struct UpdateHighlightsView: View {
     private var s: Strings { l10n.s }
     private var hub: FeatureHubStrings { FeatureStrings.hub(l10n.language) }
 
+    /// The window is sized by the view, so both axes are declared here and
+    /// nothing about the content is allowed to move them: a window whose size
+    /// keeps being recomputed while it is on screen makes the layout engine
+    /// fight whoever placed it. The numbers come from measuring the tallest
+    /// page in all thirteen languages.
+    private enum Layout {
+        static let width: CGFloat = 600
+        static let pageHeight: CGFloat = 406
+        static let height: CGFloat = 541
+        /// Captions get two lines everywhere; the reserved page height is
+        /// built for exactly that.
+        static let captionLines = 2
+    }
+
     private struct Highlight: Identifiable {
         let id: String
         let symbol: String
@@ -91,12 +105,18 @@ struct UpdateHighlightsView: View {
             .padding(.top, 24)
             .padding(.bottom, 16)
 
-            if pages.indices.contains(clamped) {
-                page(pages[clamped])
-                    .id(pages[clamped].id)
-                    .transition(.opacity)
-                    .animation(.easeInOut(duration: 0.18), value: clamped)
+            // The page area keeps the same height on every page and in every
+            // language, so turning a page fades the content instead of
+            // resizing the window under it.
+            ZStack {
+                if pages.indices.contains(clamped) {
+                    page(pages[clamped])
+                        .id(pages[clamped].id)
+                        .transition(.opacity)
+                        .animation(.easeInOut(duration: 0.18), value: clamped)
+                }
             }
+            .frame(height: Layout.pageHeight)
 
             ZStack {
                 // The side buttons have different widths, so the dots sit in
@@ -137,7 +157,7 @@ struct UpdateHighlightsView: View {
             .padding(.top, 16)
             .padding(.bottom, 20)
         }
-        .frame(width: 600)
+        .frame(width: Layout.width, height: Layout.height)
     }
 
     private func page(_ highlight: Highlight) -> some View {
@@ -180,6 +200,7 @@ struct UpdateHighlightsView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                    .lineLimit(Layout.captionLines)
                     .frame(maxWidth: 440)
                     .fixedSize(horizontal: false, vertical: true)
             }

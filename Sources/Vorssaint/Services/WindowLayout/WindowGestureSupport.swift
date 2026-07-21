@@ -13,9 +13,129 @@ struct WindowGestureResizeEdges: OptionSet, Equatable {
     static let bottom = WindowGestureResizeEdges(rawValue: 1 << 3)
 }
 
+/// Whether a press is still undecided, already moving a window, or none of
+/// the two.
+enum WindowGestureState: Equatable {
+    case idle
+    case pending
+    case active
+}
+
+/// What the pointer tap saw, reduced to the facts the decision needs.
+/// `tracked` means the event belongs to the button that started the press.
+enum WindowGestureInput: Equatable {
+    case buttonDown(sameButton: Bool, chordMatched: Bool)
+    case buttonDragged(tracked: Bool, pastSlop: Bool)
+    case buttonUp(tracked: Bool)
+    case otherEvent
+    /// The system switched the tap off. Unlike every other input this one does
+    /// not mean the press is still under way: while the tap was off its events
+    /// went straight to the app, so whether the button is still down has to be
+    /// asked separately.
+    case tapDisabled(buttonStillDown: Bool)
+    case accessibilityLost
+}
+
+/// What the tap does with the event it is holding.
+enum WindowGestureDecision: Equatable {
+    /// Hand the event back to the system untouched.
+    case passThrough
+    /// Take custody of the press while it is still undecided.
+    case arm
+    /// Keep the press: the pointer has not moved enough to mean a gesture.
+    case hold
+    /// The press became a window gesture.
+    case promote
+    /// Keep driving the window with this movement.
+    case applyMove
+    /// Last movement of the gesture.
+    case applyFinish
+    /// The press was only a click: give the held press back, then the release.
+    case replayThenPass
+    /// Give the held press back and let this event through as well.
+    case flushThenPass
+    /// Forget the gesture without giving anything back.
+    case dropState
+    /// A new press arrived over a stale one: forget it and judge this event
+    /// as if nothing were pending.
+    case restartAsIdle
+    /// A second button went down while the first press was still held: give
+    /// that press back, since its own release is still coming, then judge
+    /// this event as if nothing were pending.
+    case flushThenRestart
+}
+
 enum WindowGestureSupport {
     static let defaultModifiers: GlobalShortcutModifiers = [.control, .command]
     static let moveModifierMask: GlobalShortcutModifiers = [.control, .option, .command]
+
+    /// How far the pointer may wander between press and release and still
+    /// count as a plain click. Below it the press is handed back to the app
+    /// untouched, so a modifier click keeps working everywhere; past it the
+    /// press becomes a window gesture. Deliberately its own constant: tuning
+    /// one pointer feature must never move another.
+    static let dragSlop: CGFloat = 6
+
+    static func exceedsDragSlop(from origin: CGPoint, to point: CGPoint) -> Bool {
+        let dx = point.x - origin.x
+        let dy = point.y - origin.y
+        return (dx * dx + dy * dy).squareRoot() > dragSlop
+    }
+
+    /// The whole custody rule in one pure function, so every path that takes
+    /// or returns a press is provable without Accessibility, a tap or a
+    /// window. A press is only ever kept while it may still become a gesture,
+    /// and a press that never became one is always given back exactly once.
+    static func decide(state: WindowGestureState,
+                       input: WindowGestureInput) -> WindowGestureDecision {
+        switch state {
+        case .idle:
+            if case .buttonDown(_, let chordMatched) = input {
+                return chordMatched ? .arm : .passThrough
+            }
+            return .passThrough
+
+        case .pending:
+            switch input {
+            case .buttonDragged(let tracked, let pastSlop):
+                guard tracked else { return .flushThenPass }
+                return pastSlop ? .promote : .hold
+            case .buttonUp(let tracked):
+                return tracked ? .replayThenPass : .flushThenPass
+            case .buttonDown(let sameButton, _):
+                // Same button pressing again means its release never arrived.
+                // The app never saw that press, so dropping it leaves nothing
+                // half done, and replaying it here would click at a stale
+                // spot. A different button means the first one is still held
+                // and its release is still coming, so that press has to go
+                // back or the app would get a release it never pressed.
+                return sameButton ? .restartAsIdle : .flushThenRestart
+            case .tapDisabled(let buttonStillDown):
+                // Giving the press back only closes into a whole click if a
+                // release is still coming. With the button already up, the
+                // release went to the app while the tap was off, so handing
+                // the press back now would leave it pressed with nothing to
+                // lift it.
+                return buttonStillDown ? .flushThenPass : .dropState
+            case .otherEvent, .accessibilityLost:
+                return .flushThenPass
+            }
+
+        case .active:
+            switch input {
+            case .buttonDragged(let tracked, _):
+                return tracked ? .applyMove : .passThrough
+            case .buttonUp(let tracked):
+                return tracked ? .applyFinish : .passThrough
+            case .buttonDown, .otherEvent:
+                return .passThrough
+            case .tapDisabled, .accessibilityLost:
+                // The app never received the press that started the gesture,
+                // so there is nothing to give back.
+                return .dropState
+            }
+        }
+    }
 
     static var defaultModifierStorageValue: String {
         storageValue(for: defaultModifiers)
