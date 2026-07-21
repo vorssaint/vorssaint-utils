@@ -325,8 +325,6 @@ final class USBMonitorService: ObservableObject {
                 let capacityString = capacityBytes > 0 ? ByteCountFormatter.string(fromByteCount: Int64(capacityBytes), countStyle: .file) : ""
 
                 let volId = "vol-\(url.path)"
-                let lowerName = name.lowercased()
-                let isSDCard = lowerName.contains("sd") || lowerName.contains("card") || lowerName.contains("untitld") || lowerName.contains("dcim")
 
                 items.append(USBDeviceItem(
                     id: volId,
