@@ -112,6 +112,16 @@ struct GlobalShortcut: Equatable, Hashable {
         self = shortcut
     }
 
+    /// Delete on its own means "take the shortcut off" while a shortcut field
+    /// is listening, which is how every shortcut field on this system behaves.
+    /// Held together with Control, Option or Command it is an ordinary key and
+    /// records like any other.
+    static func clearsShortcut(keyCode: Int64, modifiers: GlobalShortcutModifiers) -> Bool {
+        guard keyCode == Int64(kVK_Delete) || keyCode == Int64(kVK_ForwardDelete)
+        else { return false }
+        return !modifiers.hasPrimaryModifier
+    }
+
     static let keepAwakeDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_K),
                                                  modifiers: [.control, .option, .command])
     static let shelfDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_D),
@@ -347,6 +357,17 @@ struct GlobalShortcut: Equatable, Hashable {
         case kVK_RightArrow: return "→"
         case kVK_UpArrow: return "↑"
         case kVK_DownArrow: return "↓"
+        // Editing and navigation keys. They print as the caps the keyboard
+        // itself carries, the same way the arrows above do: spelling them out
+        // ("Page Down") would overflow the shortcut field on a full keyboard
+        // combination, and these caps are what every menu on this system shows.
+        case kVK_Delete: return "⌫"
+        case kVK_ForwardDelete: return "⌦"
+        case kVK_Home: return "↖"
+        case kVK_End: return "↘"
+        case kVK_PageUp: return "⇞"
+        case kVK_PageDown: return "⇟"
+        case kVK_ANSI_KeypadEnter: return "⌤"
         case kVK_ANSI_Minus: return "-"
         case kVK_ANSI_Equal: return "="
         case kVK_ANSI_LeftBracket: return "["
@@ -370,6 +391,16 @@ struct GlobalShortcut: Equatable, Hashable {
         case kVK_F10: return "F10"
         case kVK_F11: return "F11"
         case kVK_F12: return "F12"
+        // The upper function keys exist on full and external keyboards and are
+        // rarely claimed by anything else, which makes them good shortcuts.
+        case kVK_F13: return "F13"
+        case kVK_F14: return "F14"
+        case kVK_F15: return "F15"
+        case kVK_F16: return "F16"
+        case kVK_F17: return "F17"
+        case kVK_F18: return "F18"
+        case kVK_F19: return "F19"
+        case kVK_F20: return "F20"
         // The extra ISO key beside/above Tab (§ on British, ^ on German
         // keyboards) has no ANSI constant; without a label it could not be
         // recorded as a shortcut at all on ISO keyboards (issue #187).
@@ -405,6 +436,18 @@ struct GlobalShortcut: Equatable, Hashable {
               !CharacterSet.controlCharacters.contains(scalar)
         else { return nil }
         return label.uppercased()
+    }
+}
+
+/// The sentence under a listening shortcut field. Built in one place so every
+/// shortcut surface says the same thing, and so it only promises that Delete
+/// clears where Delete can actually take the shortcut off.
+enum ShortcutRecordingCaption {
+    static func text(_ strings: Strings, canClear: Bool) -> String {
+        let parts = canClear
+            ? [strings.shortcutRecording, strings.shortcutEscapeHint, strings.shortcutDeleteHint]
+            : [strings.shortcutRecording, strings.shortcutEscapeHint]
+        return parts.joined(separator: " ")
     }
 }
 
@@ -541,6 +584,20 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .radialMenu: return .radialMenu
         case .scratchpad: return .scratchpad
         }
+    }
+
+    /// The features whose own shortcuts have to go quiet while the user is
+    /// recording a new one, or the combination being typed fires the feature
+    /// instead of landing in the field. Derived from the roles, so a shortcut
+    /// added later is covered the day its role is added. Re-registering is a
+    /// plain `FeatureRuntime.sync` of this same list.
+    static var featuresToSilenceWhileRecording: [AppFeature] {
+        var seen: Set<AppFeature> = []
+        var features = allCases.compactMap { seen.insert($0.feature).inserted ? $0.feature : nil }
+        // Window layout keeps one shortcut per action instead of a role, so it
+        // is the one holder of global keys the list above cannot reach.
+        if seen.insert(.windowLayout).inserted { features.append(.windowLayout) }
+        return features
     }
 
     /// Roles whose shortcut is live given a defaults reader, for the keyboard

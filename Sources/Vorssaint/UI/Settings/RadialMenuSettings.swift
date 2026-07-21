@@ -378,6 +378,25 @@ private struct RadialItemEditor: View {
 
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.dismiss) private var dismiss
+    @State private var shortcutMessage: ShortcutMessage?
+
+    /// What the line under the form is saying about the shortcut field: the
+    /// calm hint while it listens, or the reason a press did not stick.
+    enum ShortcutMessage {
+        case hint(String)
+        case problem(String)
+
+        var text: String {
+            switch self {
+            case .hint(let text), .problem(let text): return text
+            }
+        }
+
+        var isProblem: Bool {
+            if case .problem = self { return true }
+            return false
+        }
+    }
 
     private var availableTools: [RadialMenuTool] {
         RadialMenuTool.allCases.filter { $0.feature.isAvailable }
@@ -426,6 +445,13 @@ private struct RadialItemEditor: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
+            if item.kind == .shortcut, let shortcutMessage {
+                Text(shortcutMessage.text)
+                    .font(.caption)
+                    .foregroundStyle(shortcutMessage.isProblem ? AnyShapeStyle(.orange)
+                                                               : AnyShapeStyle(.secondary))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if item.kind == .submenu {
                 Text(text.submenuCaption)
                     .font(.caption)
@@ -463,6 +489,7 @@ private struct RadialItemEditor: View {
         Binding(get: { item.kind }, set: { kind in
             guard kind != item.kind else { return }
             item.kind = kind
+            shortcutMessage = nil
             switch kind {
             case .tool: item.payload = availableTools.first?.rawValue ?? ""
             case .media: item.payload = RadialMenuMediaKey.playPause.rawValue
@@ -489,11 +516,28 @@ private struct RadialItemEditor: View {
             LabeledContent(text.kindShortcut) {
                 ShortcutRecorderButton(shortcut: GlobalShortcut(storageValue: item.payload) ?? .radialMenuDefault,
                                        isEnabled: true,
-                                       recordingTitle: l10n.s.shortcutRecording,
+                                       waitingTitle: l10n.s.shortcutPressKeys,
                                        emptyTitle: item.payload.isEmpty ? l10n.s.shortcutNone : nil,
-                                       invalidAction: {},
-                                       captureAction: { item.payload = $0.storageValue })
-                    .frame(width: 108, height: 28)
+                                       clearAction: {
+                                           item.payload = ""
+                                           shortcutMessage = nil
+                                       },
+                                       notCapturedAction: {
+                                           shortcutMessage = .problem(l10n.s.shortcutNotCaptured)
+                                       },
+                                       recordingChanged: { recording in
+                                           shortcutMessage = recording
+                                               ? .hint(ShortcutRecordingCaption.text(l10n.s, canClear: true))
+                                               : nil
+                                       },
+                                       invalidAction: {
+                                           shortcutMessage = .problem(l10n.s.shortcutInvalid)
+                                       },
+                                       captureAction: {
+                                           item.payload = $0.storageValue
+                                           shortcutMessage = nil
+                                       })
+                    .frame(width: 108)
             }
         case .tool:
             Picker(text.toolLabel, selection: $item.payload) {

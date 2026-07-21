@@ -372,6 +372,12 @@ final class WindowLayoutService: ObservableObject {
         failedShortcutActions = failures
     }
 
+    /// Lets go of the layout keys while a shortcut field is listening, so the
+    /// user can record a combination the layout actions already use. The
+    /// gesture tap is left alone: it watches the mouse, not the keyboard. The
+    /// next `syncWithPreferences` takes the keys back.
+    func suspendShortcuts() { unregisterHotkeys() }
+
     private func unregisterHotkeys() {
         for ref in hotKeyRefs.values {
             UnregisterEventHotKey(ref)

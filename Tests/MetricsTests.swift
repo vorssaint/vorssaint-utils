@@ -1736,6 +1736,62 @@ struct MetricsTests {
         expect(GlobalShortcut(keyCode: Int64(kVK_ISO_Section),
                               modifiers: [.control, .option, .command]).isValid,
                "the extra ISO key (paragraph/caret above Tab) is recordable as a shortcut")
+
+        // MARK: Editing, navigation and upper function keys as shortcuts (#308)
+
+        let recorderModifiers: GlobalShortcutModifiers = [.control, .option, .command]
+        let editingAndNavigationKeys: [(Int, String)] = [
+            (kVK_Delete, "delete"), (kVK_ForwardDelete, "forward delete"),
+            (kVK_Home, "home"), (kVK_End, "end"),
+            (kVK_PageUp, "page up"), (kVK_PageDown, "page down"),
+            (kVK_ANSI_KeypadEnter, "keypad enter"),
+        ]
+        for (keyCode, name) in editingAndNavigationKeys {
+            let shortcut = GlobalShortcut(keyCode: Int64(keyCode), modifiers: recorderModifiers)
+            expect(shortcut.isValid, "\(name) is recordable as a shortcut")
+            expect(!shortcut.displayString.isEmpty
+                   && shortcut.displayString != "Key \(keyCode)",
+                   "\(name) prints a real cap instead of a raw key code")
+        }
+        let upperFunctionKeys: [(Int, String)] = [
+            (kVK_F13, "F13"), (kVK_F14, "F14"), (kVK_F15, "F15"), (kVK_F16, "F16"),
+            (kVK_F17, "F17"), (kVK_F18, "F18"), (kVK_F19, "F19"), (kVK_F20, "F20"),
+        ]
+        for (keyCode, name) in upperFunctionKeys {
+            let shortcut = GlobalShortcut(keyCode: Int64(keyCode), modifiers: recorderModifiers)
+            expect(shortcut.isValid, "\(name) is recordable as a shortcut")
+            expect(shortcut.displayString.hasSuffix(name), "\(name) prints its own cap")
+        }
+        expect(Set(editingAndNavigationKeys.map {
+                   GlobalShortcut(keyCode: Int64($0.0), modifiers: recorderModifiers).displayString
+               }).count == editingAndNavigationKeys.count,
+               "each editing and navigation key prints a cap of its own")
+
+        // Delete on its own clears the field; held with a real modifier it is
+        // an ordinary key and records like any other.
+        expect(GlobalShortcut.clearsShortcut(keyCode: Int64(kVK_Delete), modifiers: []),
+               "delete alone clears the shortcut")
+        expect(GlobalShortcut.clearsShortcut(keyCode: Int64(kVK_ForwardDelete), modifiers: [.shift]),
+               "forward delete with only Shift still clears the shortcut")
+        expect(!GlobalShortcut.clearsShortcut(keyCode: Int64(kVK_Delete), modifiers: recorderModifiers),
+               "delete with a real modifier records instead of clearing")
+        expect(!GlobalShortcut.clearsShortcut(keyCode: Int64(kVK_ANSI_D), modifiers: []),
+               "an ordinary key never clears the shortcut")
+
+        // MARK: Shortcuts the app silences while a field is listening (#308)
+
+        let silenced = GlobalShortcutRole.featuresToSilenceWhileRecording
+        expect(Set(silenced).count == silenced.count,
+               "the list of features to silence has no repeats")
+        expect(GlobalShortcutRole.allCases.allSatisfy { silenced.contains($0.feature) },
+               "every configurable shortcut's feature is silenced while recording")
+        expect(silenced.contains(.windowLayout),
+               "the window layout keys are silenced too, though they have no role")
+        expect(silenced.contains(.switcher) && silenced.contains(.radialMenu)
+               && silenced.contains(.keepAwake) && silenced.contains(.clipboardHistory),
+               "the features that hold a global key are all in the silenced list")
+        expect(silenced.allSatisfy { AppFeature.allCases.contains($0) },
+               "the silenced list only names real features, so re-syncing them restores the keys")
         expect(registeredDefaults[DefaultsKey.extraBrightnessEnabled] as? Bool == false,
                "extra brightness is opt-in")
         expect(registeredDefaults[DefaultsKey.extraBrightnessLevel] as? Int == 100,
@@ -5020,6 +5076,22 @@ struct MetricsTests {
             expect(!strings.launchAtLoginNeedsApplications.isEmpty
                    && !strings.launchAtLoginNeedsApplications.contains("—"),
                    "\(prefix) launch at login location note is present without em dash")
+            // Shortcut recording: the waiting cap, the two hints under the row
+            // and the honest message for a combination that never arrived (#308).
+            let shortcutCaptureStrings = [strings.shortcutPressKeys, strings.shortcutEscapeHint,
+                                          strings.shortcutDeleteHint, strings.shortcutNotCaptured,
+                                          strings.shortcutRecording, strings.shortcutInvalid]
+            expect(shortcutCaptureStrings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
+                   "\(prefix) shortcut recording strings are present without em dash")
+            expect(!ShortcutRecordingCaption.text(strings, canClear: false).isEmpty
+                   && !ShortcutRecordingCaption.text(strings, canClear: false)
+                       .contains(strings.shortcutDeleteHint),
+                   "\(prefix) a field that cannot clear never promises that Delete clears")
+            expect(ShortcutRecordingCaption.text(strings, canClear: true)
+                       .contains(strings.shortcutDeleteHint),
+                   "\(prefix) a field that can clear says so")
+            expect(strings.shortcutPressKeys.count <= 16,
+                   "\(prefix) the waiting cap stays short enough for the field")
             let ocrQRStrings = [strings.ocrQRToggle, strings.ocrQRCaption, strings.ocrQRCopied,
                                 strings.qrResultTitle, strings.qrResultCopy, strings.qrResultOpen]
             expect(ocrQRStrings.allSatisfy { !$0.isEmpty && !$0.contains("—") },

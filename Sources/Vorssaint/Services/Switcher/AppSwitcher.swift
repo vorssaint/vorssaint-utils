@@ -68,6 +68,7 @@ final class AppSwitcher: ObservableObject {
     private let routeLock = NSLock()
     private var routeSessionActive = false
     private var routeShortcut = GlobalShortcut.switcherDefault
+    private var routeCapturing = false
 
     /// The panel appears only after this delay, like the system switcher: a
     /// quick ⌘Tab flick switches with no UI at all, which is what makes rapid
@@ -137,6 +138,16 @@ final class AppSwitcher: ObservableObject {
     /// resets its own permissions, so a revoked Accessibility grant can never
     /// leave a live tap behind.
     func suspend() { removeTap() }
+
+    /// While a shortcut field is listening, every key has to reach it, even
+    /// the switcher's own combination. This is a flag the routing reads, not a
+    /// teardown: tearing the tap down and rebuilding it per recording would
+    /// churn the window server's keyboard path for no reason (issue #275).
+    /// Main thread only, like every other write to the routing state.
+    func setCapturingShortcut(_ capturing: Bool) {
+        if capturing, sessionActive { cancelSession() }
+        routeLock.withLock { routeCapturing = capturing }
+    }
 
     // MARK: - Event tap
 
@@ -267,7 +278,13 @@ final class AppSwitcher: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
-        let (active, shortcut) = routeLock.withLock { (routeSessionActive, routeShortcut) }
+        let (active, shortcut, capturing) = routeLock.withLock {
+            (routeSessionActive, routeShortcut, routeCapturing)
+        }
+        // A shortcut field in Settings has the keyboard: hand every key
+        // straight through so the user can record this feature's own
+        // combination instead of opening the switcher with it.
+        if capturing { return Unmanaged.passUnretained(event) }
         if !active {
             guard type == .keyDown,
                   shortcut.matches(event: event, allowingExtraShift: true)
