@@ -947,6 +947,10 @@ struct Strings {
     let shortcutNone: String
     let shortcutClear: String
     let shortcutInvalid: String
+    let shortcutPressKeys: String
+    let shortcutEscapeHint: String
+    let shortcutDeleteHint: String
+    let shortcutNotCaptured: String
     let shortcutConflictFormat: String
     let shortcutUnavailable: String
     let shelfShortcutToggle: String
@@ -1827,6 +1831,10 @@ extension Strings {
         shortcutNone: "Nenhum",
         shortcutClear: "Remover atalho",
         shortcutInvalid: "Use pelo menos Control, Option ou Command junto com uma tecla.",
+        shortcutPressKeys: "Pressione",
+        shortcutEscapeHint: "Esc cancela.",
+        shortcutDeleteHint: "Delete remove.",
+        shortcutNotCaptured: "Nada foi capturado. O macOS ou outro app já usa essa combinação. Tente outra.",
         shortcutConflictFormat: "Este atalho já está em uso por %@.",
         shortcutUnavailable: "O macOS recusou este atalho. Escolha outro.",
         shelfShortcutToggle: "Atalho da área temporária",
@@ -2704,6 +2712,10 @@ extension Strings {
         shortcutNone: "None",
         shortcutClear: "Remove shortcut",
         shortcutInvalid: "Use at least Control, Option or Command with a key.",
+        shortcutPressKeys: "Press keys",
+        shortcutEscapeHint: "Escape cancels.",
+        shortcutDeleteHint: "Delete clears.",
+        shortcutNotCaptured: "Nothing was captured. macOS or another app already uses that combination. Try another one.",
         shortcutConflictFormat: "This shortcut is already used by %@.",
         shortcutUnavailable: "macOS rejected this shortcut. Choose another one.",
         shelfShortcutToggle: "Shelf shortcut",
