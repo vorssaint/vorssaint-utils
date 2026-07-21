@@ -173,6 +173,9 @@ struct USBSection: View {
                         Text(device.bcdHexLabel)
                             .font(.system(size: 9.5, weight: .regular))
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                            .layoutPriority(1)
                     }
 
                     Spacer(minLength: 4)
@@ -180,6 +183,8 @@ struct USBSection: View {
                     if let sn = device.serialFormatted {
                         Text(sn)
                             .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1.5)
                             .background(
@@ -254,8 +259,30 @@ struct USBSection: View {
         let nonHubs = devices.filter { !$0.isHub }
 
         if !allHubs.isEmpty {
+            let hubIDs = Set(allHubs.map { $0.id })
             let masterHub = allHubs.max(by: { ($0.speedMbps ?? 0) < ($1.speedMbps ?? 0) }) ?? allHubs[0]
-            masterHubContainer(hub: masterHub, childDevices: nonHubs)
+
+            // Devices physically connected under hub chips
+            let hubChildren = nonHubs.filter { dev in
+                guard let pId = dev.parentId else { return false }
+                return hubIDs.contains(pId)
+            }
+
+            // Standalone devices connected directly to Mac ports (e.g. SL300 SSD, TP-Link LAN)
+            let standaloneDevices = nonHubs.filter { dev in
+                guard let pId = dev.parentId else { return true }
+                return !hubIDs.contains(pId)
+            }
+
+            VStack(spacing: 8) {
+                if !hubChildren.isEmpty || !allHubs.isEmpty {
+                    masterHubContainer(hub: masterHub, childDevices: hubChildren)
+                }
+
+                ForEach(standaloneDevices) { device in
+                    usbDeviceRow(device)
+                }
+            }
         } else {
             VStack(spacing: 6) {
                 ForEach(nonHubs) { device in
@@ -332,6 +359,9 @@ struct USBSection: View {
         if device.category == .charger { return .orange }
         if device.category == .ethernet { return .green }
         let combined = "\(device.name) \(device.vendor ?? "")".lowercased()
+        if combined.contains("ax88") || combined.contains("rtl81") || combined.contains("ethernet") || combined.contains("lan adapter") || combined.contains("asix") {
+            return .green
+        }
         if combined.contains("wlan") || combined.contains("wifi") || combined.contains("802.11") || combined.contains("wireless") {
             return .cyan
         }

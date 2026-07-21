@@ -52,8 +52,14 @@ struct USBDeviceItem: Identifiable, Hashable, Codable {
         case .ethernet: return "network"
         case .usbDevice:
             let combined = "\(name) \(vendor ?? "")".lowercased()
+            if combined.contains("ax88") || combined.contains("rtl81") || combined.contains("ethernet") || combined.contains("lan adapter") || combined.contains("asix") {
+                return "network"
+            }
             if combined.contains("wlan") || combined.contains("wifi") || combined.contains("802.11") || combined.contains("wireless") {
                 return "wifi"
+            }
+            if combined.contains("logitech") || combined.contains("insta360") || combined.contains("opal") || combined.contains("razer") || combined.contains("facecam") || combined.contains("c920") || combined.contains("brio") || combined.contains("camera") || combined.contains("webcam") || combined.contains("isight") || combined.contains("uvc") {
+                return "web.camera"
             }
             if combined.contains("display") || combined.contains("monitor") || combined.contains("hdmi") || combined.contains("billboard") || combined.contains("displaylink") || combined.contains("dp ") || combined.contains("video") {
                 return "display"
@@ -61,11 +67,20 @@ struct USBDeviceItem: Identifiable, Hashable, Codable {
             if combined.contains("card reader") || combined.contains("sd reader") || combined.contains("sdcard") || combined.contains("sd/mmc") || combined.contains("rts5") || combined.contains("gl32") {
                 return "sdcard"
             }
+            if combined.contains("wacom") || combined.contains("tablet") || combined.contains("cintiq") || combined.contains("intuos") {
+                return "applepencil"
+            }
+            if combined.contains("capture") || combined.contains("elgato") || combined.contains("avermedia") || combined.contains("cam link") {
+                return "video.fill"
+            }
             if combined.contains("keyboard") || combined.contains("keypad") { return "keyboard" }
             if combined.contains("mouse") || combined.contains("trackpad") || combined.contains("pointing") { return "mouse" }
-            if combined.contains("camera") || combined.contains("webcam") || combined.contains("isight") || combined.contains("uvc") { return "web.camera" }
-            if combined.contains("audio") || combined.contains("sound") || combined.contains("mic") || combined.contains("headset") || combined.contains("dac") { return "headphones" }
-            if combined.contains("hub") || isHub { return "rectangle.grid.2x2" }
+            if combined.contains("audio") || combined.contains("sound") || combined.contains("mic") || combined.contains("headset") || combined.contains("dac") || combined.contains("focusrite") || combined.contains("scarlett") {
+                return "headphones"
+            }
+            if combined.contains("hub") || combined.contains("dock") || combined.contains("genesys") || combined.contains("vli") || combined.contains("rts54") || isHub {
+                return "rectangle.grid.2x2"
+            }
             if isExternalStorage { return "externaldrive" }
             return "cable.connector"
         }
