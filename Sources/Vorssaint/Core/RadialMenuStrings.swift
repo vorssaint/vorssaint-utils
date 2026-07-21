@@ -51,6 +51,12 @@ struct RadialMenuFeatureStrings {
     let mouseTriggerBack: String
     let mouseTriggerForward: String
     let mouseTriggerWarning: String
+    let buttonTestLabel: String
+    let buttonTestWaiting: String
+    let buttonTestSeen: String
+    let buttonTestOther: String
+    let buttonTestBlind: String
+    let buttonTestHint: String
 }
 
 extension FeatureStrings {
@@ -121,7 +127,13 @@ extension RadialMenuFeatureStrings {
         mouseTriggerOff: "Off",
         mouseTriggerBack: "Back side button",
         mouseTriggerForward: "Forward side button",
-        mouseTriggerWarning: "While this is on, that button no longer goes back or forward in apps. If you navigate with it, leave this off."
+        mouseTriggerWarning: "While this is on, that button no longer goes back or forward in apps. If you navigate with it, leave this off.",
+        buttonTestLabel: "Button test",
+        buttonTestWaiting: "Press the button now",
+        buttonTestSeen: "Vorssaint sees this button",
+        buttonTestOther: "That was a different button",
+        buttonTestBlind: "Vorssaint cannot watch the mouse right now",
+        buttonTestHint: "If nothing lights up, macOS is not sending that button to apps. Mice that come with their own software often turn the side buttons into something else. Change it back there, or give the button a key combination and use that combination above."
     )
 
     static let ptBR = RadialMenuFeatureStrings(
@@ -171,7 +183,13 @@ extension RadialMenuFeatureStrings {
         mouseTriggerOff: "Desligado",
         mouseTriggerBack: "Botão lateral de voltar",
         mouseTriggerForward: "Botão lateral de avançar",
-        mouseTriggerWarning: "Enquanto isso está ligado, esse botão deixa de voltar ou avançar nos apps. Se você navega com ele, deixe desligado."
+        mouseTriggerWarning: "Enquanto isso está ligado, esse botão deixa de voltar ou avançar nos apps. Se você navega com ele, deixe desligado.",
+        buttonTestLabel: "Teste do botão",
+        buttonTestWaiting: "Aperte o botão agora",
+        buttonTestSeen: "O Vorssaint enxerga esse botão",
+        buttonTestOther: "Esse foi outro botão",
+        buttonTestBlind: "O Vorssaint não consegue observar o mouse agora",
+        buttonTestHint: "Se nada acender, o macOS não está entregando esse botão para os apps. Mouses que vêm com programa próprio costumam trocar os botões laterais por outra coisa. Volte lá e desfaça, ou dê uma combinação de teclas ao botão e use essa combinação acima."
     )
 
     static let tr = RadialMenuFeatureStrings(
@@ -221,7 +239,13 @@ extension RadialMenuFeatureStrings {
         mouseTriggerOff: "Kapalı",
         mouseTriggerBack: "Geri yan düğmesi",
         mouseTriggerForward: "İleri yan düğmesi",
-        mouseTriggerWarning: "Bu açıkken o düğme uygulamalarda artık geri veya ileri gitmez. Onunla geziniyorsanız kapalı bırakın."
+        mouseTriggerWarning: "Bu açıkken o düğme uygulamalarda artık geri veya ileri gitmez. Onunla geziniyorsanız kapalı bırakın.",
+        buttonTestLabel: "Düğme testi",
+        buttonTestWaiting: "Şimdi düğmeye basın",
+        buttonTestSeen: "Vorssaint bu düğmeyi görüyor",
+        buttonTestOther: "Bu başka bir düğmeydi",
+        buttonTestBlind: "Vorssaint şu anda fareyi izleyemiyor",
+        buttonTestHint: "Hiçbir şey yanmıyorsa macOS o düğmeyi uygulamalara iletmiyordur. Kendi yazılımıyla gelen fareler yan düğmeleri çoğu zaman başka bir şeye çevirir. Oradan geri alın veya düğmeye bir tuş birleşimi verip o birleşimi yukarıda kullanın."
     )
 
     static let ru = RadialMenuFeatureStrings(
@@ -271,7 +295,13 @@ extension RadialMenuFeatureStrings {
         mouseTriggerOff: "Выключено",
         mouseTriggerBack: "Боковая кнопка «Назад»",
         mouseTriggerForward: "Боковая кнопка «Вперёд»",
-        mouseTriggerWarning: "Пока это включено, кнопка перестаёт работать как «Назад» и «Вперёд» в приложениях. Если вы так переходите по страницам, оставьте выключенным."
+        mouseTriggerWarning: "Пока это включено, кнопка перестаёт работать как «Назад» и «Вперёд» в приложениях. Если вы так переходите по страницам, оставьте выключенным.",
+        buttonTestLabel: "Проверка кнопки",
+        buttonTestWaiting: "Нажмите кнопку сейчас",
+        buttonTestSeen: "Vorssaint видит эту кнопку",
+        buttonTestOther: "Это была другая кнопка",
+        buttonTestBlind: "Vorssaint сейчас не может следить за мышью",
+        buttonTestHint: "Если ничего не загорается, macOS не передаёт эту кнопку приложениям. Мыши со своей программой часто заменяют боковые кнопки чем-то другим. Верните там как было или назначьте кнопке сочетание клавиш и используйте его выше."
     )
 
     static let es = RadialMenuFeatureStrings(
@@ -321,7 +351,13 @@ extension RadialMenuFeatureStrings {
         mouseTriggerOff: "Desactivado",
         mouseTriggerBack: "Botón lateral de retroceso",
         mouseTriggerForward: "Botón lateral de avance",
-        mouseTriggerWarning: "Mientras esté activado, ese botón deja de ir atrás o adelante en las apps. Si navegas con él, déjalo desactivado."
+        mouseTriggerWarning: "Mientras esté activado, ese botón deja de ir atrás o adelante en las apps. Si navegas con él, déjalo desactivado.",
+        buttonTestLabel: "Prueba del botón",
+        buttonTestWaiting: "Pulsa el botón ahora",
+        buttonTestSeen: "Vorssaint ve este botón",
+        buttonTestOther: "Ese fue otro botón",
+        buttonTestBlind: "Vorssaint no puede observar el ratón ahora",
+        buttonTestHint: "Si no se enciende nada, macOS no está enviando ese botón a las apps. Los ratones que traen su propio programa suelen convertir los botones laterales en otra cosa. Deshazlo allí, o dale una combinación de teclas al botón y usa esa combinación arriba."
     )
 
     static let de = RadialMenuFeatureStrings(
@@ -371,7 +407,13 @@ extension RadialMenuFeatureStrings {
         mouseTriggerOff: "Aus",
         mouseTriggerBack: "Seitliche Zurück-Taste",
         mouseTriggerForward: "Seitliche Vorwärts-Taste",
-        mouseTriggerWarning: "Solange das aktiv ist, geht die Taste in Apps nicht mehr zurück oder vor. Wer damit navigiert, lässt es besser aus."
+        mouseTriggerWarning: "Solange das aktiv ist, geht die Taste in Apps nicht mehr zurück oder vor. Wer damit navigiert, lässt es besser aus.",
+        buttonTestLabel: "Tastentest",
+        buttonTestWaiting: "Jetzt die Taste drücken",
+        buttonTestSeen: "Vorssaint sieht diese Taste",
+        buttonTestOther: "Das war eine andere Taste",
+        buttonTestBlind: "Vorssaint kann die Maus gerade nicht beobachten",
+        buttonTestHint: "Leuchtet nichts auf, gibt macOS diese Taste nicht an Apps weiter. Mäuse mit eigener Software belegen die Seitentasten oft anders. Dort zurückstellen, oder der Taste eine Tastenkombination geben und diese oben verwenden."
     )
 
     static let fr = RadialMenuFeatureStrings(
@@ -421,7 +463,13 @@ extension RadialMenuFeatureStrings {
         mouseTriggerOff: "Désactivé",
         mouseTriggerBack: "Bouton latéral précédent",
         mouseTriggerForward: "Bouton latéral suivant",
-        mouseTriggerWarning: "Tant que c'est activé, ce bouton ne fait plus précédent ou suivant dans les apps. Si vous naviguez avec, laissez désactivé."
+        mouseTriggerWarning: "Tant que c'est activé, ce bouton ne fait plus précédent ou suivant dans les apps. Si vous naviguez avec, laissez désactivé.",
+        buttonTestLabel: "Test du bouton",
+        buttonTestWaiting: "Appuyez sur le bouton",
+        buttonTestSeen: "Vorssaint voit ce bouton",
+        buttonTestOther: "C'était un autre bouton",
+        buttonTestBlind: "Vorssaint ne peut pas observer la souris pour le moment",
+        buttonTestHint: "Si rien ne s'allume, macOS ne transmet pas ce bouton aux apps. Les souris livrées avec leur propre logiciel changent souvent les boutons latéraux. Rétablissez-le là-bas, ou donnez une combinaison de touches au bouton et utilisez cette combinaison ci-dessus."
     )
 
     static let it = RadialMenuFeatureStrings(
@@ -471,7 +519,13 @@ extension RadialMenuFeatureStrings {
         mouseTriggerOff: "Disattivato",
         mouseTriggerBack: "Pulsante laterale indietro",
         mouseTriggerForward: "Pulsante laterale avanti",
-        mouseTriggerWarning: "Finché è attivo, quel pulsante non va più indietro o avanti nelle app. Se lo usi per navigare, lascialo disattivato."
+        mouseTriggerWarning: "Finché è attivo, quel pulsante non va più indietro o avanti nelle app. Se lo usi per navigare, lascialo disattivato.",
+        buttonTestLabel: "Prova del pulsante",
+        buttonTestWaiting: "Premi ora il pulsante",
+        buttonTestSeen: "Vorssaint vede questo pulsante",
+        buttonTestOther: "Quello era un altro pulsante",
+        buttonTestBlind: "Vorssaint non riesce a osservare il mouse in questo momento",
+        buttonTestHint: "Se non si accende nulla, macOS non sta passando quel pulsante alle app. I mouse che arrivano con un programma proprio spesso trasformano i pulsanti laterali in altro. Rimettilo com'era da lì, oppure assegna al pulsante una combinazione di tasti e usa quella combinazione qui sopra."
     )
 
     static let ja = RadialMenuFeatureStrings(
@@ -521,7 +575,13 @@ extension RadialMenuFeatureStrings {
         mouseTriggerOff: "オフ",
         mouseTriggerBack: "サイドの「戻る」ボタン",
         mouseTriggerForward: "サイドの「進む」ボタン",
-        mouseTriggerWarning: "オンの間、そのボタンではアプリ内で戻る/進むができなくなります。ナビゲーションに使っている場合はオフのままにしてください。"
+        mouseTriggerWarning: "オンの間、そのボタンではアプリ内で戻る/進むができなくなります。ナビゲーションに使っている場合はオフのままにしてください。",
+        buttonTestLabel: "ボタンのテスト",
+        buttonTestWaiting: "いまボタンを押してください",
+        buttonTestSeen: "Vorssaint はこのボタンを認識しています",
+        buttonTestOther: "いまのは別のボタンです",
+        buttonTestBlind: "Vorssaint はいまマウスを見られません",
+        buttonTestHint: "何も光らない場合、macOS がそのボタンをアプリに渡していません。専用ソフトが付属するマウスは、サイドボタンを別の動作に置き換えていることがよくあります。そちらで元に戻すか、ボタンにキーの組み合わせを割り当てて、その組み合わせを上で使ってください。"
     )
 
     static let ko = RadialMenuFeatureStrings(
@@ -571,7 +631,13 @@ extension RadialMenuFeatureStrings {
         mouseTriggerOff: "끔",
         mouseTriggerBack: "뒤로 가기 측면 버튼",
         mouseTriggerForward: "앞으로 가기 측면 버튼",
-        mouseTriggerWarning: "이 기능이 켜져 있는 동안 해당 버튼은 앱에서 뒤로/앞으로 이동하지 않습니다. 이 버튼으로 탐색한다면 꺼 두세요."
+        mouseTriggerWarning: "이 기능이 켜져 있는 동안 해당 버튼은 앱에서 뒤로/앞으로 이동하지 않습니다. 이 버튼으로 탐색한다면 꺼 두세요.",
+        buttonTestLabel: "버튼 테스트",
+        buttonTestWaiting: "지금 버튼을 눌러 보세요",
+        buttonTestSeen: "Vorssaint가 이 버튼을 인식합니다",
+        buttonTestOther: "방금 것은 다른 버튼입니다",
+        buttonTestBlind: "지금은 Vorssaint가 마우스를 살펴볼 수 없습니다",
+        buttonTestHint: "아무것도 켜지지 않으면 macOS가 그 버튼을 앱에 전달하지 않는 것입니다. 전용 프로그램이 함께 오는 마우스는 옆 버튼을 다른 동작으로 바꿔 두는 경우가 많습니다. 거기서 되돌리거나, 버튼에 키 조합을 지정하고 그 조합을 위에서 사용하세요."
     )
 
     static let zhHans = RadialMenuFeatureStrings(
@@ -621,7 +687,13 @@ extension RadialMenuFeatureStrings {
         mouseTriggerOff: "关闭",
         mouseTriggerBack: "侧面后退键",
         mouseTriggerForward: "侧面前进键",
-        mouseTriggerWarning: "开启期间，该按钮在应用里不再后退或前进。如果你用它来导航，请保持关闭。"
+        mouseTriggerWarning: "开启期间，该按钮在应用里不再后退或前进。如果你用它来导航，请保持关闭。",
+        buttonTestLabel: "按键测试",
+        buttonTestWaiting: "现在按一下该按键",
+        buttonTestSeen: "Vorssaint 能看到这个按键",
+        buttonTestOther: "刚才是另一个按键",
+        buttonTestBlind: "Vorssaint 现在无法观察鼠标",
+        buttonTestHint: "如果没有任何反应，说明 macOS 没有把该按键交给应用。自带软件的鼠标常把侧键改成了别的功能。请到那边改回来，或者给该按键设置一个快捷键组合，然后在上面使用这个组合。"
     )
 
     static let zhTW = RadialMenuFeatureStrings(
@@ -671,7 +743,13 @@ extension RadialMenuFeatureStrings {
         mouseTriggerOff: "關閉",
         mouseTriggerBack: "側面上一頁鍵",
         mouseTriggerForward: "側面下一頁鍵",
-        mouseTriggerWarning: "開啟期間，該按鈕在 App 裡不再上一頁或下一頁。如果你用它來瀏覽，請保持關閉。"
+        mouseTriggerWarning: "開啟期間，該按鈕在 App 裡不再上一頁或下一頁。如果你用它來瀏覽，請保持關閉。",
+        buttonTestLabel: "按鍵測試",
+        buttonTestWaiting: "現在按一下該按鍵",
+        buttonTestSeen: "Vorssaint 看得到這個按鍵",
+        buttonTestOther: "剛才是另一個按鍵",
+        buttonTestBlind: "Vorssaint 目前無法觀察滑鼠",
+        buttonTestHint: "如果沒有任何反應，表示 macOS 沒有把該按鍵交給 App。自帶軟體的滑鼠常把側鍵改成別的功能。請到那邊改回來，或者給該按鍵設定一組快速鍵，然後在上面使用這組快速鍵。"
     )
 
     static let zhHK = RadialMenuFeatureStrings(
@@ -721,6 +799,12 @@ extension RadialMenuFeatureStrings {
         mouseTriggerOff: "關閉",
         mouseTriggerBack: "側面上一頁鍵",
         mouseTriggerForward: "側面下一頁鍵",
-        mouseTriggerWarning: "開啟期間，該按鈕在 App 裡不再上一頁或下一頁。如果你用它來瀏覽，請保持關閉。"
+        mouseTriggerWarning: "開啟期間，該按鈕在 App 裡不再上一頁或下一頁。如果你用它來瀏覽，請保持關閉。",
+        buttonTestLabel: "按鍵測試",
+        buttonTestWaiting: "現在按一下該按鍵",
+        buttonTestSeen: "Vorssaint 看得到這個按鍵",
+        buttonTestOther: "剛才是另一個按鍵",
+        buttonTestBlind: "Vorssaint 目前無法觀察滑鼠",
+        buttonTestHint: "如果沒有任何反應，表示 macOS 沒有把該按鍵交給 App。自帶軟體的滑鼠常把側鍵改成別的功能。請到那邊改回來，或者給該按鍵設定一組快速鍵，然後在上面使用這組快速鍵。"
     )
 }

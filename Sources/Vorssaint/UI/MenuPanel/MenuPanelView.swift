@@ -87,9 +87,12 @@ struct MenuPanelView: View {
     @State private var selectedMetric: MetricDetailKind?
 
     /// Cap the panel to the usable screen height so it never overflows the menu
-    /// bar; taller content scrolls inside.
+    /// bar; taller content scrolls inside. Measured against the display the
+    /// menu bar icon is on, which is not always the one holding the key window.
     private var maxHeight: CGFloat {
-        max(360, (NSScreen.main?.visibleFrame.height ?? 760) - 24)
+        let anchored = PanelInteractionState.shared.anchorScreen
+            .flatMap { anchor in anchor.isStillAttached ? anchor : nil }
+        return max(360, ((anchored ?? NSScreen.withMenuBar)?.visibleFrame.height ?? 760) - 24)
     }
 
     var body: some View {
