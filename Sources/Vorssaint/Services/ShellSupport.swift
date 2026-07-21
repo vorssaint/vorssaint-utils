@@ -79,7 +79,10 @@ enum AdminShell {
 
         bringAppToFront()
         let source = "do shell script \(appleScriptString(command)) with administrator privileges with prompt \(appleScriptString(prompt))"
-        return Shell.run("/usr/bin/osascript", ["-e", source]).status == 0
+        // A person typing a password is not a stuck command: the short default
+        // timeout would tear the dialog down mid-typing. Ten minutes bounds a
+        // dialog nobody answers without ever rushing one that is being read.
+        return Shell.run("/usr/bin/osascript", ["-e", source], timeout: 600).status == 0
     }
 
     static func run(_ command: String, prompt: String, completion: @escaping (Bool) -> Void) {
