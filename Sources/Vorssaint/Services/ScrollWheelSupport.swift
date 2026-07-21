@@ -20,6 +20,18 @@ enum ScrollWheelSupport {
     /// still attributed to the same touch device.
     static let touchGestureGraceSeconds: TimeInterval = 1.0
 
+    /// Marks the smooth glide so neither feature handles it twice. Events a
+    /// process posts come back through that same process's taps (measured at
+    /// every tap location), so without the mark the inverter would turn the
+    /// glide around again and cancel the flip smooth scrolling already
+    /// applied.
+    static let syntheticTag: Int64 = 0x564F5253  // "VORS"
+
+    /// Points in one scroll line. The window server measures the fixed-point
+    /// delta in lines, so an event that moved forty points reports four;
+    /// replaying that number as pixels would travel a tenth of the distance.
+    static let pointsPerLine: Double = 10
+
     static func isMouseWheel(_ traits: ScrollWheelEventTraits,
                              secondsSinceLastGesturePhase: TimeInterval?) -> Bool {
         if !traits.isContinuous {

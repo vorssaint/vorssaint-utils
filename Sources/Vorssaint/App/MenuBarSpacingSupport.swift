@@ -238,4 +238,25 @@ enum MenuBarSpacingSupport {
             && renderedTitleLength == 0
             && !mustShowForSignal
     }
+
+    /// How many refreshes in a row a metric may render nothing before its item
+    /// goes. Long enough to ride out a sensor that skips a tick, short enough
+    /// that a reading which stops for good does not leave an empty slot behind.
+    /// Refreshes come from the monitor tick and from anything else that redraws
+    /// the bar, so this is a small number of seconds, not an exact delay.
+    static let emptyMetricRendersBeforeRemoval = 5
+
+    /// Whether a pinned metric keeps its own item in the menu bar right now.
+    /// A reading that is momentarily unavailable renders nothing for a tick,
+    /// and taking the item away and putting it back for that is both a
+    /// visible flicker and the churn the menu bar copes with worst. An item
+    /// that already exists stays and goes blank, until the reading has been
+    /// missing long enough to call it gone.
+    static func keepsMetricStatusItem(hasRenderedTitle: Bool,
+                                      itemExists: Bool,
+                                      consecutiveEmptyRenders: Int = 0) -> Bool {
+        if hasRenderedTitle { return true }
+        guard itemExists else { return false }
+        return consecutiveEmptyRenders < emptyMetricRendersBeforeRemoval
+    }
 }

@@ -14,6 +14,112 @@ struct MixerOutputPreferences: Equatable {
     let volumes: [String: Double]
 }
 
+/// How a mixer row is identified.
+struct MixerRowIdentity: Equatable {
+    /// Identifies the row in the list and its engine. Always present.
+    let rowID: String
+    /// The key the row's volume and route are stored under, or nil when the
+    /// process has no bundle id. A display name is not an identity (two
+    /// unrelated processes can share one), so a row without a bundle id is
+    /// listed and adjustable for as long as it runs, but never inherits or
+    /// stores a saved volume.
+    let persistenceID: String?
+}
+
+/// Decides which engine build may be installed when it lands.
+///
+/// Building a tap takes tens of milliseconds off the main thread, and the
+/// mixer can throw every engine away in the meantime (the output device
+/// changed, the feature was switched off). Each build carries the token it
+/// started with and is installed only while that token is still the row's
+/// current one, so a late build is discarded instead of leaving a second live
+/// tap on the same app rendering the sound twice.
+struct MixerEngineBuilds {
+    private var tokens: [String: Int] = [:]
+    private var nextToken = 1
+
+    var isEmpty: Bool { tokens.isEmpty }
+
+    /// Claims the row for a build. Nil when one is already in flight, so a
+    /// slider being dragged cannot queue a build per tick.
+    mutating func begin(_ id: String) -> Int? {
+        guard tokens[id] == nil else { return nil }
+        let token = nextToken
+        nextToken += 1
+        tokens[id] = token
+        return token
+    }
+
+    func isCurrent(_ id: String, token: Int) -> Bool { tokens[id] == token }
+
+    /// Frees the row for the next build. A late build that no longer owns the
+    /// row leaves the current one untouched.
+    mutating func finish(_ id: String, token: Int) {
+        guard tokens[id] == token else { return }
+        tokens.removeValue(forKey: id)
+    }
+
+    /// Marks everything in flight as stale. Tokens are never reused, so builds
+    /// already queued can no longer be installed, while a fresh build for the
+    /// same row can start right away.
+    mutating func invalidateAll() { tokens.removeAll() }
+
+}
+
+/// Arbitrates the refresh passes that read the audio HAL.
+///
+/// Reading device and process properties is done off the main thread, because
+/// a device being reconfigured can hold a single read for as long as the audio
+/// daemon holds that device. What comes back is published on the main thread,
+/// and this decides which pass gets to do that.
+///
+/// Three rules, in the same spirit as the engine build tokens above: only one
+/// pass reads at a time, a request that arrives while a pass is reading is
+/// remembered and runs once it lands, and a pass whose generation is no longer
+/// current is dropped instead of publishing what it saw.
+struct MixerRefreshCoordinator {
+    private(set) var generation = 0
+    private(set) var isReading = false
+    private var requestedAgain = false
+
+    /// Claims the slot for a pass, or nil when one is already reading. The
+    /// request is remembered either way, so nothing is silently lost.
+    mutating func begin() -> Int? {
+        guard !isReading else {
+            requestedAgain = true
+            return nil
+        }
+        isReading = true
+        generation += 1
+        return generation
+    }
+
+    /// Frees the slot and reports whether this pass may still publish. A pass
+    /// from a generation that is gone leaves the slot alone: it belongs to
+    /// whatever replaced it.
+    mutating func finish(_ generation: Int) -> Bool {
+        guard generation == self.generation else { return false }
+        isReading = false
+        return true
+    }
+
+    /// Whether a refresh was asked for while the pass was reading, and clears
+    /// the request so it runs exactly once.
+    mutating func takeRepeatRequest() -> Bool {
+        defer { requestedAgain = false }
+        return requestedAgain
+    }
+
+    /// Drops whatever is in flight: what it read is already out of date,
+    /// because the audio environment just changed on purpose (or is no longer
+    /// being watched at all).
+    mutating func discardInFlight() {
+        generation += 1
+        isReading = false
+        requestedAgain = false
+    }
+}
+
 enum MixerRoutingSupport {
     static let systemDefaultSelectionID = "__system_default__"
     static let finderBundleIdentifier = "com.apple.finder"
@@ -127,6 +233,77 @@ enum MixerRoutingSupport {
         guard let defaultOutputDeviceUID else { return true }
         return selectedOutputDeviceUID != defaultOutputDeviceUID
             && targetOutputDeviceUID != defaultOutputDeviceUID
+    }
+
+    /// The last gate before a tap is built: a row is tapped only when the user
+    /// actually adjusted it, either to a volume other than 100% or to an output
+    /// other than the system default. An app that is merely listed is never
+    /// part of any tap, so the mixer can neither mute it nor re-render its
+    /// sound.
+    static func rowMayBeTapped(savedVolume: Double?,
+                               savedRouteUID: String?,
+                               defaultOutputDeviceUID: String?) -> Bool {
+        if let savedVolume, !isUnity(savedVolume) { return true }
+        guard let savedRouteUID else { return false }
+        guard let defaultOutputDeviceUID else { return true }
+        return savedRouteUID != defaultOutputDeviceUID
+    }
+
+    /// Identity of a row: the bundle id when the app has one, otherwise a
+    /// per-process identity that lives only as long as the process does.
+    static func rowIdentity(bundleIdentifier: String?, ownerPid: pid_t) -> MixerRowIdentity {
+        guard let bundleID = sanitizedAppID(bundleIdentifier ?? "") else {
+            return MixerRowIdentity(rowID: "\(unidentifiedRowPrefix)\(ownerPid)",
+                                    persistenceID: nil)
+        }
+        return MixerRowIdentity(rowID: bundleID, persistenceID: bundleID)
+    }
+
+    static let unidentifiedRowPrefix = "process:"
+
+    /// Window used to fold a row's comings and goings into one decision.
+    static let engineChurnCoalescingWindow: Double = 0.2
+
+    /// How long to keep an engine whose row has no audio object left; nil
+    /// means let it go now.
+    ///
+    /// An app that recreates its audio unit between clips loses its audio
+    /// object and gets a new one moments later, which used to cost a tap
+    /// teardown and a rebuild per notification. Nothing is audible in that
+    /// gap (there is no live object to attenuate), so the tap is kept for a
+    /// short window and the churn folds into a single decision. A row that
+    /// still has an object is never delayed: sound is only attenuated while a
+    /// tap covers the object that is playing.
+    static func engineTeardownDelay(hasAudioObjects: Bool,
+                                    lastChangeAt: Double?,
+                                    now: Double,
+                                    window: Double = engineChurnCoalescingWindow) -> Double? {
+        guard !hasAudioObjects else { return nil }
+        guard let lastChangeAt else { return window }
+        let elapsed = max(0, now - lastChangeAt)
+        guard elapsed < window else { return nil }
+        return window - elapsed
+    }
+
+    /// What to put back as the system input device when the app stops steering
+    /// it. Nil means leave the system alone: nothing was overridden, something
+    /// else has chosen a different input since, or the original device is gone.
+    static func restorableInputDeviceUID(originalUID: String?,
+                                         appliedUID: String?,
+                                         currentUID: String?,
+                                         availableUIDs: Set<String>) -> String? {
+        guard let originalUID, let appliedUID, originalUID != appliedUID else { return nil }
+        guard currentUID == appliedUID else { return nil }
+        guard availableUIDs.contains(originalUID) else { return nil }
+        return originalUID
+    }
+
+    /// A volume the app lowered on its own only goes back up while it is still
+    /// the value the app set. Anything else means the volume was changed since,
+    /// and that choice wins.
+    static func shouldRestoreOutputVolume(appliedVolume: Double, currentVolume: Double?) -> Bool {
+        guard let currentVolume else { return false }
+        return abs(currentVolume - appliedVolume) < 0.005
     }
 
     /// Pro audio hosts (DAWs and live rack hosts) own their output device,

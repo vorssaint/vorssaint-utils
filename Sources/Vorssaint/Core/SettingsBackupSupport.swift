@@ -107,6 +107,29 @@ enum SettingsBackupSupport {
               let settings = payload[settingsKey] as? [String: Any]
         else { return nil }
         let allowed = exportKeys()
-        return settings.filter { allowed.contains($0.key) }
+        return settings.filter { allowed.contains($0.key) && valueLooksRight($0.key, $0.value) }
+    }
+
+    /// A backup is a file the user can hand around and edit, so a value has to
+    /// look like the setting it claims to be before it is written back. The
+    /// registered defaults already say what each setting is, and a value of
+    /// the wrong shape is dropped rather than restored: a number where a
+    /// switch belongs, or text where a number belongs, would otherwise reach
+    /// code that trusts its own settings.
+    static func valueLooksRight(_ key: String, _ value: Any) -> Bool {
+        guard let expected = Defaults.registeredDefaults[key] else {
+            // Not a registered setting, so there is nothing to compare
+            // against; the allowed list is the only gate for these.
+            return true
+        }
+        switch expected {
+        case is Bool: return value is Bool
+        case is Int: return value is Int
+        case is Double: return (value is Double) || (value is Int)
+        case is String: return value is String
+        case is [Any]: return value is [Any]
+        case is [String: Any]: return value is [String: Any]
+        default: return true
+        }
     }
 }

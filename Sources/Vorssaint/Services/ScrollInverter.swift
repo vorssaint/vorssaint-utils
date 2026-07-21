@@ -19,6 +19,9 @@ final class ScrollInverter: ObservableObject {
     /// True while the event tap is installed and inverting.
     @Published private(set) var isRunning = false
 
+    /// This process's own id, compared against the one every event carries.
+    private static let ownProcessID = Int64(getpid())
+
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     /// Timestamp (ns, event clock) of the last event carrying a gesture phase —
@@ -91,6 +94,15 @@ final class ScrollInverter: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
         guard type == .scrollWheel else { return Unmanaged.passUnretained(event) }
+        // Smooth scrolling swallows the wheel before this tap and already
+        // turned its glide around, so flipping the glide here would cancel
+        // that out and inverting would look broken while both are on. The
+        // process id is checked too: the only scroll events this app posts
+        // are those glide frames.
+        guard event.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.syntheticTag,
+              event.getIntegerValueField(.eventSourceUnixProcessID) != Self.ownProcessID else {
+            return Unmanaged.passUnretained(event)
+        }
 
         let traits = ScrollWheelEventTraits(
             isContinuous: event.getIntegerValueField(.scrollWheelEventIsContinuous) != 0,

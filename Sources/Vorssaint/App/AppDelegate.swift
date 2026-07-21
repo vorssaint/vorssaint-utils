@@ -33,6 +33,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        beginStartupWatch()
+        Self.boundAccessibilityWaits()
 
         // Finish the on-disk rename for installs carried over from a pre-2.5
         // build, or retire a leftover old-named bundle. Returns true when we are
@@ -43,6 +45,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // choice is the last thing the user expressed in the app; startup
         // never turns the item off.
         LaunchAtLogin.repairAtStartup()
+
+        // Switch back on any display a previous run left off. A run that ends
+        // without putting one back leaves a screen dark with no app around to
+        // offer it back, so the repair happens before anything else can care
+        // about which displays are attached.
+        BrightnessService.shared.restoreDisplaysLeftOff()
 
         // An accessory (LSUIElement) app gets no default main menu, so the standard
         // keyboard shortcuts (Cmd+H/M/W/Q and the Edit shortcuts Cmd+C/V/X/A) have
@@ -117,19 +125,72 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             .store(in: &cancellables)
 
         let defaults = UserDefaults.standard
-        if !defaults.bool(forKey: DefaultsKey.hasOnboarded) {
-            showOnboarding(mode: .full)
-        } else {
-            // Keep the last seen version marker current without opening
-            // post-update release notes; the update flow already previews them.
-            defaults.set(OnboardingInfo.currentFeatureSet, forKey: DefaultsKey.featuresOnboardingVersion)
-            defaults.set(AppInfo.version, forKey: DefaultsKey.lastUpdateIntroVersion)
-            presentUpdateIntros()
+        // Whatever opens a window at startup waits for the next turn of the
+        // run loop, so the menu bar icon is on screen first. A start that goes
+        // wrong after this point then leaves the app reachable instead of
+        // invisible. And if the previous start never finished, the extra
+        // windows are skipped entirely this time: the app comes up bare rather
+        // than walking into the same thing twice.
+        let skipStartupWindows = startupOfPreviousRunDidNotFinish
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            if !defaults.bool(forKey: DefaultsKey.hasOnboarded) {
+                guard !skipStartupWindows else { return }
+                self.showOnboarding(mode: .full)
+            } else {
+                // Keep the last seen version marker current without opening
+                // post-update release notes; the update flow already previews
+                // them.
+                defaults.set(OnboardingInfo.currentFeatureSet, forKey: DefaultsKey.featuresOnboardingVersion)
+                defaults.set(AppInfo.version, forKey: DefaultsKey.lastUpdateIntroVersion)
+                guard !skipStartupWindows else { return }
+                self.presentUpdateIntros()
+            }
         }
+    }
+
+    /// Asking another app about its windows waits for that app to answer, and
+    /// the wait allowed by default is a second and a half per question. An app
+    /// that is busy saving, or stuck on a slow disk, would hold this one still
+    /// for that long each time, and this app asks in places where the whole
+    /// session is waiting on it. The limit is set once here, low enough that a
+    /// slow answer is dropped rather than felt. The value matches what the
+    /// window features already settled on for themselves. It applies to every
+    /// question asked from this process, whichever element it is asked of, so
+    /// it also covers the places that never set one of their own.
+    private static func boundAccessibilityWaits() {
+        AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 0.35)
+    }
+
+    // MARK: - Startup that did not finish
+
+    /// A start is marked as under way before anything else happens and cleared
+    /// once the app has been running healthily for a while, or when it is
+    /// quit properly. Finding the mark still set means the previous run died
+    /// on the way up, and this one leaves the optional windows out of it.
+    private var startupOfPreviousRunDidNotFinish = false
+
+    /// How long a run has to last before its start counts as having worked.
+    /// Comfortably past the point where the reported failures happened.
+    private static let healthyStartupSeconds: TimeInterval = 20
+
+    private func beginStartupWatch() {
+        let defaults = UserDefaults.standard
+        startupOfPreviousRunDidNotFinish = defaults.bool(forKey: DefaultsKey.startupDidNotFinish)
+        defaults.set(true, forKey: DefaultsKey.startupDidNotFinish)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.healthyStartupSeconds) {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.startupDidNotFinish)
+        }
+    }
+
+    private func endStartupWatch() {
+        UserDefaults.standard.removeObject(forKey: DefaultsKey.startupDidNotFinish)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
+        // Quitting properly means the start worked, whenever it happened.
+        endStartupWatch()
         if AppFeature.brightness.isAvailable {
             BrightnessService.shared.restoreDisplaysBeforeTermination()
         }
@@ -146,6 +207,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         DockPreviewService.shared.stop()
         SoundOutputSwitcher.shared.stop()
         AppVolumeMixer.shared.stopAll()
+        // Puts the system input back if a microphone was chosen here: the
+        // app's audio settings must not outlive the app.
+        AudioInputDeviceManager.shared.stop()
         // Flushes any scratchpad edit still inside the save debounce.
         ScratchpadService.shared.suspend()
         // The clipboard history persists through an async pipeline; the last
@@ -291,13 +355,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         popoverIsSwitchingAnchor = true
         MenuPanelFocus.shared.setSwitchingMetricAnchor(true)
         let expectedMidX = statusButtonMidX(button)
+        // The panel measures itself against this while the popover lays out,
+        // so it has to be right before the content is asked for its size.
+        PanelInteractionState.shared.anchorScreen = statusScreen(for: button)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
-        if let window = popover.contentViewController?.view.window,
-           let targetMidX = correctedPopoverMidX(for: button) {
-            beginPopoverDriftCorrection(window: window, targetMidX: targetMidX)
-        } else {
-            endPopoverDriftCorrection()
+        if let window = popover.contentViewController?.view.window {
+            beginPopoverDriftCorrection(window: window,
+                                        anchor: resolvePanelAnchor(for: button, window: window))
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self, weak button] in
             guard let self,
@@ -309,7 +374,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 MenuPanelFocus.shared.setSwitchingMetricAnchor(false)
                 return
             }
-            if let expectedMidX,
+            // The pinned anchor is the yardstick; a reported frame the system
+            // has since parked out of the way is not.
+            if let expectedMidX = self.popoverAnchor?.midX ?? expectedMidX,
                let popoverMidX = self.popover.contentViewController?.view.window?.frame.midX,
                abs(popoverMidX - expectedMidX) <= 34 {
                 self.popoverIsSwitchingAnchor = false
@@ -332,8 +399,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// (no mouse event) capture nothing, so they never "correct" toward a
     /// pointer parked anywhere on screen.
     private var lastStatusClick: (x: CGFloat, at: Date)?
-    private var popoverDriftTargetMidX: CGFloat?
+    private var popoverAnchor: PanelAnchor?
+    private var lastGoodPanelAnchor: PanelAnchor?
     private var popoverDriftObservers: [NSObjectProtocol] = []
+
+    /// How long a captured click still counts as "where the icon is".
+    private static let statusClickFreshness: TimeInterval = 0.5
+
+    /// The spot an open panel holds: the horizontal middle and the top edge it
+    /// must keep across content resizes, plus the screen the menu bar icon was
+    /// on. The screen travels with the anchor instead of being read back from
+    /// the panel's window, because a window already flung to a corner can
+    /// report a different display and would then be clamped against that one.
+    private struct PanelAnchor {
+        let midX: CGFloat
+        let top: CGFloat
+        let screen: NSScreen?
+        /// False when it came from a fallback, so a guess never becomes the
+        /// remembered good anchor for the rest of the session.
+        let trusted: Bool
+        /// True when the anchor is known to beat the status item's frame from
+        /// the moment the panel opens, because a physical click landed clearly
+        /// outside that frame. Otherwise the anchor waits: while the frame
+        /// still describes a spot in the menu bar the system places the panel
+        /// better than any remembered point can, following the icon as the bar
+        /// shuffles items around it.
+        let overridesSoundFrame: Bool
+        /// The button the anchor was taken from, so "does the frame still
+        /// describe the bar?" asks the item the panel is actually hanging off
+        /// (a metric item, not necessarily the main icon).
+        weak var button: NSStatusBarButton?
+    }
 
     private func captureStatusClick() {
         guard let event = NSApp.currentEvent,
@@ -350,7 +446,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// button's bounds), so the correction moves the popover's window instead.
     private func correctedPopoverMidX(for button: NSStatusBarButton) -> CGFloat? {
         guard let click = lastStatusClick,
-              Date().timeIntervalSince(click.at) < 0.5,
+              Date().timeIntervalSince(click.at) < Self.statusClickFreshness,
               let reportedMidX = statusButtonMidX(button),
               StatusItemAnchorSupport.anchorDriftX(clickX: click.x,
                                                    reportedMidX: reportedMidX,
@@ -363,14 +459,97 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         .leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp,
     ]
 
+    /// The screen the menu bar icon lives on, for the panel's height cap and
+    /// for clamping it once it is open.
+    private func statusScreen(for button: NSStatusBarButton) -> NSScreen? {
+        if let frame = button.window?.frame,
+           let hosting = NSScreen.screens.first(where: { $0.frame.intersects(frame) }) {
+            return hosting
+        }
+        // A window parked out of the visible area reports no screen of its own,
+        // and that is exactly the state this path exists for, so fall back to
+        // the display that owns the bar rather than to whichever one happens to
+        // hold the key window.
+        return button.window?.screen ?? NSScreen.withMenuBar
+    }
+
+    /// Whether the item the panel hangs off still reports a frame that sits in
+    /// a menu bar. While it does, the system's own placement wins and the
+    /// remembered anchor stays out of the way; once it stops (a bar that hides
+    /// itself parks the window out of the visible area) the anchor takes over.
+    private func frameStillDescribesMenuBar(_ anchor: PanelAnchor) -> Bool {
+        guard let frame = anchor.button?.window?.frame else { return false }
+        return StatusItemAnchorSupport.isTrustworthyStatusFrame(
+            frame, screenFrames: NSScreen.screens.map(\.frame))
+    }
+
+    /// The spot the panel must hold while it is open, decided at the moment it
+    /// opens: the user has just clicked the icon, so the menu bar is up and its
+    /// frame is at its most trustworthy. Everything after that (a bar that
+    /// slides away, a status item stranded at the slot it was born in) is read
+    /// from a frame that no longer describes where the icon is.
+    private func resolvePanelAnchor(for button: NSStatusBarButton, window: NSWindow) -> PanelAnchor {
+        let screen = statusScreen(for: button)
+        let statusFrame = button.window?.frame
+        let frameIsSound = statusFrame.map {
+            StatusItemAnchorSupport.isTrustworthyStatusFrame($0, screenFrames: NSScreen.screens.map(\.frame))
+        } ?? false
+        if frameIsSound, statusFrame != nil {
+            // Where the popover has just been placed is the anchor: with a
+            // sound frame the system put it exactly right, including its own
+            // clamping near a screen edge, so holding that spot changes
+            // nothing about how an open panel looks. It is held in reserve,
+            // though, and only applied once that frame stops describing the
+            // bar. A fresh physical click that clearly disagrees with the
+            // frame is the stranded item instead, and then the click marks
+            // where the icon really is and outranks the frame right away.
+            let corrected = correctedPopoverMidX(for: button)
+            return PanelAnchor(midX: corrected ?? window.frame.midX,
+                               top: window.frame.maxY,
+                               screen: screen,
+                               trusted: true,
+                               overridesSoundFrame: corrected != nil,
+                               button: button)
+        }
+        // The frame points nowhere, so the panel it just positioned is nowhere
+        // either. Best available, in order: the spot this session last held, a
+        // click still fresh enough to mean something, then the corner of the
+        // screen the status area lives in.
+        // The remembered spot is only worth reusing while it still describes
+        // somewhere that exists. One captured on a display that has since been
+        // unplugged would put the panel against an edge of the display that is
+        // left, which is the very thing this is here to prevent.
+        if let remembered = lastGoodPanelAnchor,
+           let rememberedScreen = remembered.screen,
+           rememberedScreen.isStillAttached,
+           rememberedScreen.displayID == screen?.displayID {
+            // Reused for an item whose frame is already pointing nowhere, so it
+            // has to act now rather than wait for a frame that will not recover.
+            return PanelAnchor(midX: remembered.midX, top: remembered.top,
+                               screen: screen, trusted: true,
+                               overridesSoundFrame: true, button: button)
+        }
+        lastGoodPanelAnchor = nil
+        let visible = screen?.visibleFrame ?? window.frame
+        if let click = lastStatusClick,
+           Date().timeIntervalSince(click.at) < Self.statusClickFreshness {
+            return PanelAnchor(midX: click.x, top: visible.maxY, screen: screen,
+                               trusted: false, overridesSoundFrame: true, button: button)
+        }
+        return PanelAnchor(midX: visible.maxX, top: visible.maxY, screen: screen,
+                           trusted: false, overridesSoundFrame: true, button: button)
+    }
+
     /// Slides the popover window so its center (and thus the arrow tip, which
     /// keeps its offset from the window) lands on the real icon, and keeps it
-    /// there: NSPopover re-derives the window frame from the stale button
-    /// frame on every content resize (switching panel tabs), which would
-    /// fling the panel back to the phantom slot.
-    private func beginPopoverDriftCorrection(window: NSWindow, targetMidX: CGFloat) {
+    /// there: the popover places its window again from the status item's frame
+    /// on every content resize (switching panel tabs), which would fling the
+    /// panel to wherever that frame currently claims to be.
+    private func beginPopoverDriftCorrection(window: NSWindow, anchor: PanelAnchor) {
         endPopoverDriftCorrection()
-        popoverDriftTargetMidX = targetMidX
+        popoverAnchor = anchor
+        if anchor.trusted { lastGoodPanelAnchor = anchor }
+        PanelInteractionState.shared.anchorScreen = anchor.screen
         applyPopoverDriftFrame(window)
         for name in [NSWindow.didMoveNotification, NSWindow.didResizeNotification] {
             popoverDriftObservers.append(NotificationCenter.default.addObserver(
@@ -383,24 +562,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func applyPopoverDriftFrame(_ window: NSWindow) {
-        guard let targetMidX = popoverDriftTargetMidX else { return }
-        var frame = window.frame
-        var midX = targetMidX
-        if let visible = (window.screen ?? NSScreen.main)?.visibleFrame {
-            let margin: CGFloat = 8
-            midX = min(max(midX, visible.minX + frame.width / 2 + margin),
-                       visible.maxX - frame.width / 2 - margin)
-        }
+        guard let anchor = popoverAnchor,
+              // A healthy bar places the panel better than the anchor can, and
+              // keeps it under an icon that shifts as items come and go, so the
+              // anchor stays dormant until that frame stops meaning anything.
+              anchor.overridesSoundFrame || !frameStillDescribesMenuBar(anchor),
+              let visible = anchorVisibleFrame(anchor, window: window) else { return }
+        let frame = window.frame
+        let target = StatusItemAnchorSupport.pinnedPanelFrame(size: frame.size,
+                                                              anchorMidX: anchor.midX,
+                                                              anchorTop: anchor.top,
+                                                              visibleFrame: visible)
         // The 2pt tolerance breaks the loop with our own setFrame's didMove.
-        guard abs(frame.midX - midX) > 2 else { return }
-        frame.origin.x = (midX - frame.width / 2).rounded()
-        window.setFrame(frame, display: true)
+        guard abs(frame.midX - target.midX) > 2 || abs(frame.maxY - target.maxY) > 2 else { return }
+        window.setFrame(target, display: true)
+    }
+
+    /// The usable area the panel is clamped to. Prefers the anchor's own screen
+    /// and only falls back when that display has since been unplugged.
+    private func anchorVisibleFrame(_ anchor: PanelAnchor, window: NSWindow) -> CGRect? {
+        if let screen = anchor.screen, screen.isStillAttached {
+            return screen.visibleFrame
+        }
+        return (window.screen ?? NSScreen.withMenuBar)?.visibleFrame
     }
 
     private func endPopoverDriftCorrection() {
         popoverDriftObservers.forEach { NotificationCenter.default.removeObserver($0) }
         popoverDriftObservers.removeAll()
-        popoverDriftTargetMidX = nil
+        popoverAnchor = nil
+        // Nothing is measuring itself against a screen with the panel closed,
+        // and holding one keeps a display object alive for no reason.
+        PanelInteractionState.shared.anchorScreen = nil
     }
 
     private func switchMetricPopover(to detailKind: MetricDetailKind, anchoredTo button: NSStatusBarButton) {
@@ -439,6 +632,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         guard allowRecentClose || Date().timeIntervalSince(popoverClosedAt) > 0.35 else { return }
         guard let button = button ?? statusController.button else { return }
 
+        // The panel measures itself against this while the popover lays out, so
+        // it has to be known before the content is asked for its size.
+        PanelInteractionState.shared.anchorScreen = statusScreen(for: button)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         if let window = popover.contentViewController?.view.window {
             // Keep the panel alive next to fullscreen apps and on any Space —
@@ -449,11 +645,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             }
             window.contentView?.layoutSubtreeIfNeeded()
             window.makeKey()
-            if let targetMidX = correctedPopoverMidX(for: button) {
-                beginPopoverDriftCorrection(window: window, targetMidX: targetMidX)
-            } else {
-                endPopoverDriftCorrection()
-            }
             if animate {
                 animatePopoverOpen(window)
             } else {
@@ -464,9 +655,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         if activate {
             NSApp.activate(ignoringOtherApps: true)
         }
-        // Only arm the dismiss monitor if the popover actually presented — otherwise
-        // popoverDidClose never fires and the global monitor would leak indefinitely.
-        guard popover.isShown else { return }
+        // Only arm the monitors and the anchor if the popover actually presented
+        // — otherwise popoverDidClose never fires and both would leak, holding a
+        // display object and a window observer for the rest of the session.
+        guard popover.isShown else {
+            endPopoverDriftCorrection()
+            return
+        }
+        if let window = popover.contentViewController?.view.window {
+            beginPopoverDriftCorrection(window: window,
+                                        anchor: resolvePanelAnchor(for: button, window: window))
+        }
         installPopoverDismissMonitor()
     }
 
@@ -1077,13 +1276,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         window.isRestorable = false
         window.isMovableByWindowBackground = true
         window.delegate = self
-        centerOnboardingWindow(window)
+        centerIntroWindow(window)
         onboardingWindow = window
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         DispatchQueue.main.async { [weak self, weak window] in
             guard let self, let window, window === self.onboardingWindow else { return }
-            self.centerOnboardingWindow(window)
+            self.centerIntroWindow(window)
         }
     }
 
@@ -1135,13 +1334,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         window.isRestorable = false
         window.isMovableByWindowBackground = true
         window.delegate = self
-        centerUpdateShowcaseWindow(window)
+        centerIntroWindow(window)
         updateHighlightsWindow = window
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         DispatchQueue.main.async { [weak self, weak window] in
             guard let self, let window, window === self.updateHighlightsWindow else { return }
-            self.centerUpdateShowcaseWindow(window)
+            self.centerIntroWindow(window)
         }
     }
 
@@ -1187,13 +1386,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         window.isRestorable = false
         window.isMovableByWindowBackground = true
         window.delegate = self
-        centerUpdateShowcaseWindow(window)
+        centerIntroWindow(window)
         updateShowcaseWindow = window
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         DispatchQueue.main.async { [weak self, weak window] in
             guard let self, let window, window === self.updateShowcaseWindow else { return }
-            self.centerUpdateShowcaseWindow(window)
+            self.centerIntroWindow(window)
         }
     }
 
@@ -1235,13 +1434,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         window.isMovableByWindowBackground = true
         window.delegate = self
         supportIntroCanClose = false
-        centerSupportIntroWindow(window)
+        centerIntroWindow(window)
         supportIntroWindow = window
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         DispatchQueue.main.async { [weak self, weak window] in
             guard let self, let window, window === self.supportIntroWindow else { return }
-            self.centerSupportIntroWindow(window)
+            self.centerIntroWindow(window)
         }
     }
 
@@ -1289,89 +1488,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         window.isRestorable = false
         window.isMovableByWindowBackground = true
         window.delegate = self
-        centerDockPreviewIntroWindow(window)
+        centerIntroWindow(window)
         dockPreviewIntroWindow = window
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         DispatchQueue.main.async { [weak self, weak window] in
             guard let self, let window, window === self.dockPreviewIntroWindow else { return }
-            self.centerDockPreviewIntroWindow(window)
+            self.centerIntroWindow(window)
         }
     }
 
-    private func centerOnboardingWindow(_ window: NSWindow) {
+    /// Centers one of the windows whose content decides its own size (the
+    /// onboarding, the tour, the release notes and the two intros). The size
+    /// always comes from the view itself: asking for any other size leaves
+    /// the layout engine correcting a window that was already placed, and on
+    /// some systems that ends the app instead of settling. The origin is kept
+    /// inside the visible area, so a window taller than the screen starts at
+    /// the top instead of hanging below it.
+    private func centerIntroWindow(_ window: NSWindow) {
         window.contentView?.layoutSubtreeIfNeeded()
+        if let fitting = window.contentViewController?.view.fittingSize,
+           fitting.width > 0, fitting.height > 0 {
+            window.setContentSize(fitting)
+        }
         let visible = (window.screen ?? popover.contentViewController?.view.window?.screen)?.visibleFrame ?? NSScreen.pointerVisibleFrame
-        let margin: CGFloat = 40
-        let availableWidth = max(1, visible.width - margin)
-        let availableHeight = max(1, visible.height - margin)
-        let width = min(max(window.frame.width, 540), availableWidth)
-        let height = min(max(window.frame.height, 600), availableHeight)
-        let frame = NSRect(x: visible.midX - width / 2,
-                           y: visible.midY - height / 2,
-                           width: width,
-                           height: height)
-        window.setFrame(frame.integral, display: false)
-    }
-
-    private func centerDockPreviewIntroWindow(_ window: NSWindow) {
-        window.contentView?.layoutSubtreeIfNeeded()
-        let visible = (window.screen ?? popover.contentViewController?.view.window?.screen)?.visibleFrame ?? NSScreen.pointerVisibleFrame
-        let margin: CGFloat = 40
-        let availableWidth = max(1, visible.width - margin)
-        let availableHeight = max(1, visible.height - margin)
-        let width = min(max(window.frame.width, 660), availableWidth)
-        let height = min(max(window.frame.height, 600), availableHeight)
-        let frame = NSRect(x: visible.midX - width / 2,
-                           y: visible.midY - height / 2,
-                           width: width,
-                           height: height)
-        window.setFrame(frame.integral, display: false)
-    }
-
-    private func centerWhatsNewWindow(_ window: NSWindow) {
-        window.contentView?.layoutSubtreeIfNeeded()
-        let visible = (window.screen ?? popover.contentViewController?.view.window?.screen)?.visibleFrame ?? NSScreen.pointerVisibleFrame
-        let margin: CGFloat = 40
-        let availableWidth = max(1, visible.width - margin)
-        let availableHeight = max(1, visible.height - margin)
-        let width = min(max(window.frame.width, 640), availableWidth)
-        let height = min(max(window.frame.height, 600), availableHeight)
-        let frame = NSRect(x: visible.midX - width / 2,
-                           y: visible.midY - height / 2,
-                           width: width,
-                           height: height)
-        window.setFrame(frame.integral, display: false)
-    }
-
-    private func centerSupportIntroWindow(_ window: NSWindow) {
-        window.contentView?.layoutSubtreeIfNeeded()
-        let visible = (window.screen ?? popover.contentViewController?.view.window?.screen)?.visibleFrame ?? NSScreen.pointerVisibleFrame
-        let margin: CGFloat = 40
-        let availableWidth = max(1, visible.width - margin)
-        let availableHeight = max(1, visible.height - margin)
-        let width = min(max(window.frame.width, 560), availableWidth)
-        let height = min(max(window.frame.height, 430), availableHeight)
-        let frame = NSRect(x: visible.midX - width / 2,
-                           y: visible.midY - height / 2,
-                           width: width,
-                           height: height)
-        window.setFrame(frame.integral, display: false)
-    }
-
-    private func centerUpdateShowcaseWindow(_ window: NSWindow) {
-        window.contentView?.layoutSubtreeIfNeeded()
-        let visible = (window.screen ?? popover.contentViewController?.view.window?.screen)?.visibleFrame ?? NSScreen.pointerVisibleFrame
-        let margin: CGFloat = 40
-        let availableWidth = max(1, visible.width - margin)
-        let availableHeight = max(1, visible.height - margin)
-        let width = min(CGFloat(680), availableWidth)
-        let height = min(CGFloat(600), availableHeight)
-        let frame = NSRect(x: visible.midX - width / 2,
-                           y: visible.midY - height / 2,
-                           width: width,
-                           height: height)
-        window.setFrame(frame.integral, display: false)
+        let size = window.frame.size
+        let x = min(max(visible.midX - size.width / 2, visible.minX), max(visible.minX, visible.maxX - size.width))
+        let y = min(max(visible.midY - size.height / 2, visible.minY), max(visible.minY, visible.maxY - size.height))
+        window.setFrameOrigin(NSPoint(x: x.rounded(), y: y.rounded()))
     }
 
     /// The pre-install update preview, shown before any download from BOTH the
@@ -1407,13 +1551,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         window.isRestorable = false
         window.isMovableByWindowBackground = true
         window.delegate = self
-        centerWhatsNewWindow(window)
+        centerIntroWindow(window)
         updatePreviewWindow = window
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         DispatchQueue.main.async { [weak self, weak window] in
             guard let self, let window, window === self.updatePreviewWindow else { return }
-            self.centerWhatsNewWindow(window)
+            self.centerIntroWindow(window)
         }
     }
 

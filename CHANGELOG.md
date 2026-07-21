@@ -4,15 +4,77 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [3.1.15]
+## [3.1.16]
 
 ### Summary
-Vorssaint 3.1.15 fixes a rare failure to launch on a Mac whose display was
-still waking up, where the app would show no menu bar icon and quit.
+Vorssaint 3.1.16 cleans up the sound of boosted apps and repairs maximizing
+and window layout in browsers where windows moved without taking their new
+size.
 
 ### Fixed
-- The app could fail to launch on a Mac whose display was still waking up,
-  showing no menu bar icon. It now starts reliably.
+- Boosting an app's volume above 100% no longer adds a crackling noise while
+  the sound is loud. The boost now eases the peaks down for a moment instead
+  of chopping them off.
+- Maximizing with the green button no longer leaves some windows parked at
+  the left edge of the screen with their old size. Browsers that take a
+  moment to resize now fill the screen properly.
+- Window layout shortcuts, the panel buttons and the drag gesture now resize
+  those same browsers correctly instead of moving the window and leaving its
+  size behind.
+
+## [3.1.15] - 2026-07-21
+
+### Summary
+Vorssaint 3.1.15 fixes starts that could leave the app with no menu bar icon
+or quit it right away, freezes where the app stopped responding, a crash
+while choosing a screenshot area, and an external display that could go dark
+and stay dark. It also gives back the clicks that moving windows by dragging
+was taking from other apps, repairs smooth scrolling, the brightness keys and
+the shortcut recorder, and brings the window switcher back on the first
+press.
+
+### Fixed
+- Moving and resizing windows by dragging no longer takes the modifier click
+  away from other apps. A click that does not move now goes to the app as
+  usual, and the window only follows the pointer once you actually drag.
+- The window switcher opens on the first press again after you close every
+  window of an app or move to another desktop. With nothing left to switch to,
+  the shortcut now stays quiet instead of falling back to the system switcher.
+- Smooth scrolling moves the right distance on mice that report the wheel
+  continuously, and the speed setting now works on them.
+- Smooth scrolling no longer reverses the scroll direction on its own.
+  Inverting the direction works alongside it, and so does Shift to scroll
+  sideways.
+- The app could start with no menu bar icon and quit a few seconds later.
+  It now starts reliably, including on a Mac whose display was still waking
+  up.
+- The app could quit at startup right after an update, while the tour of the
+  new features was opening. The tour now keeps the same size on every page.
+- The app could stop responding for a while at a time, often right when
+  headphones or another audio device connected. It no longer waits on the
+  audio system, on other apps that are busy, or on commands that never
+  answer, and it stops watching audio properly when the mixer or the mic
+  mute is switched off instead of leaving watchers behind.
+- An external display could go dark while its brightness was adjusted and
+  stay dark until it was unplugged. It recovers now, and a screen switched
+  off here comes back at the next start.
+- Choosing a screenshot area no longer quits the app when the drag ends with
+  more than one finger leaving the trackpad. Cancelling with Escape is safe
+  too. Thanks to @lei1024.
+- Window Switcher previews show the whole window. A window pushed over the
+  edge of the screen used to appear as a thin strip.
+- Brightness keys follow the pointer on keyboards other than the built-in
+  one, including with the lid closed.
+- Per-app volume no longer jumps loud or quiet when an app changes what it
+  is playing. Quitting or switching the mixer off puts back the input
+  device and the volume it changed.
+- The panel stays under its icon when the menu bar is set to hide itself.
+  Switching tabs no longer moves it to the edge of the screen.
+- Recording a shortcut captures it instead of running it. Delete clears the
+  shortcut, more keys can be recorded, and the field no longer overlaps the
+  text beside it while it listens.
+- The radial menu settings now say whether the app can see the mouse button
+  you picked, so a button the mouse itself has taken over is obvious.
 
 ## [3.1.14] - 2026-07-18
 
