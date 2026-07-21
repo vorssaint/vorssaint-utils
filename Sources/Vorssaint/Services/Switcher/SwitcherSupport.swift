@@ -125,6 +125,16 @@ enum SwitcherSupport {
     /// Grid resolution used to classify window captures.
     static let captureAlphaGridSize = 8
 
+    /// Keeps the visual threshold anchored to the physical key event. Work done
+    /// after the event consumes the threshold instead of adding another delay.
+    static func remainingAppearanceDelay(eventTimestamp: UInt64,
+                                         now: UInt64,
+                                         threshold: TimeInterval) -> TimeInterval {
+        guard eventTimestamp > 0, now >= eventTimestamp else { return threshold }
+        let elapsed = TimeInterval(now - eventTimestamp) / 1_000_000_000
+        return max(0, threshold - elapsed)
+    }
+
     static func usesIconRowLayout(iconRowMode: Bool, simpleMode: Bool) -> Bool {
         iconRowMode || simpleMode
     }

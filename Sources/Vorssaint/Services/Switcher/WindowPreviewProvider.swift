@@ -63,6 +63,7 @@ final class WindowPreviewProvider {
     /// window's capture, so each backing window is captured once.
     func refreshPreviews(for items: [SwitcherItem],
                          maxPixelSize: CGFloat = defaultMaxPixelSize,
+                         existingWindowIDs: Set<CGWindowID>? = nil,
                          onUpdate: @escaping (CGWindowID, CGImage) -> Void) {
         guard Permissions.shared.screenRecording else { return }
 
@@ -84,7 +85,7 @@ final class WindowPreviewProvider {
         // window cannot be recaptured — an evicted preview is gone until that
         // window becomes active again. Drop only windows that no longer exist,
         // then bound memory by dropping the least recently used extras.
-        pruneCache(keeping: seen)
+        pruneCache(keeping: seen, existingWindowIDs: existingWindowIDs)
 
         captureTask = Task(priority: .userInitiated) { [weak self] in
             guard let self else { return }
@@ -337,8 +338,9 @@ final class WindowPreviewProvider {
 
     // MARK: - Cache lifetime
 
-    private func pruneCache(keeping active: Set<CGWindowID>) {
-        let existing = Self.existingWindowIDs() ?? Set(cache.keys)
+    private func pruneCache(keeping active: Set<CGWindowID>,
+                            existingWindowIDs: Set<CGWindowID>? = nil) {
+        let existing = existingWindowIDs ?? Self.existingWindowIDs() ?? Set(cache.keys)
         cache = cache.filter { existing.contains($0.key) }
         lastTouched = lastTouched.filter { cache[$0.key] != nil }
         let victims = SwitcherSupport.staleCacheVictims(ids: Set(cache.keys),

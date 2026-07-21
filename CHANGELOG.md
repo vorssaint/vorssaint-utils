@@ -21,6 +21,10 @@ size.
 - Window layout shortcuts, the panel buttons and the drag gesture now resize
   those same browsers correctly instead of moving the window and leaving its
   size behind.
+- App Switcher now appears without waiting for every open app to answer
+  Accessibility queries. Its window list stays warm in the background, and
+  the native-like visual threshold starts at the key press instead of after
+  window discovery finishes.
 
 ## [3.1.15] - 2026-07-21
 

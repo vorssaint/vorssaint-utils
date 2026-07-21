@@ -5,6 +5,7 @@ import AppKit
 import ApplicationServices
 import Combine
 import CoreGraphics
+import os.signpost
 import SwiftUI
 
 private struct SwitcherSourceContext {
@@ -22,6 +23,8 @@ private struct SwitcherSourceContext {
 /// wherever the user is.
 final class AppSwitcher: ObservableObject {
     static let shared = AppSwitcher()
+    private static let latencyLog = OSLog(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
+                                          category: "switcher-latency")
 
     @Published private(set) var windows: [SwitcherItem] = []
     @Published private(set) var previews: [CGWindowID: CGImage] = [:]
@@ -75,6 +78,8 @@ final class AppSwitcher: ObservableObject {
     /// toggling feel instant instead of flashing a window.
     private static let appearanceDelay: TimeInterval = 0.1
     private var pendingShow: DispatchWorkItem?
+    private var presentationSignpostID: OSSignpostID?
+    private var presentationEventTimestamp: UInt64?
     /// True once the user moved the selection themselves.
     private var userNavigated = false
     /// Mouse position when the panel appeared; hover is inert until it moves.
@@ -123,6 +128,7 @@ final class AppSwitcher: ObservableObject {
             // the first ⌘Tab.
             let panel = ensurePanel()
             panel.contentViewController?.view.layoutSubtreeIfNeeded()
+            SwitcherWindowCatalog.shared.start()
             if !capturesPreviews {
                 WindowPreviewProvider.shared.stopWarming()
             } else {
@@ -130,6 +136,7 @@ final class AppSwitcher: ObservableObject {
             }
         } else {
             removeTap()
+            SwitcherWindowCatalog.shared.stop()
             WindowPreviewProvider.shared.stopWarming()
         }
     }
@@ -352,7 +359,9 @@ final class AppSwitcher: ObservableObject {
             let tapAlive = lifecycleLock.withLock { tap != nil && !shouldStopTapThread }
             guard tapAlive else { return Unmanaged.passUnretained(event) }
             let reversed = shortcut.shiftIsNavigationModifier && flags.contains(.maskShift)
-            beginSession(reversed: reversed, shortcut: shortcut)
+            beginSession(reversed: reversed,
+                         shortcut: shortcut,
+                         eventTimestamp: event.timestamp)
             // The shortcut belongs to the switcher while the feature is on, so
             // the press is always consumed. With every window closed there is
             // nothing to switch to and nothing appears at all, instead of the
@@ -424,12 +433,20 @@ final class AppSwitcher: ObservableObject {
     /// Opens a session for the current windows. Does nothing when there is
     /// nothing to switch to; the caller consumes the press either way.
     @discardableResult
-    private func beginSession(reversed: Bool, shortcut: GlobalShortcut) -> Bool {
+    private func beginSession(reversed: Bool,
+                              shortcut: GlobalShortcut,
+                              eventTimestamp: CGEventTimestamp) -> Bool {
         guard let reportedFrontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
         else { return false }
-        let windows = WindowEnumerator.listWindows()
-        guard !windows.isEmpty else { return false }
-        let focusedSourceWindowID = focusedWindowID(for: reportedFrontPID)
+        beginPresentationTrace(eventTimestamp: eventTimestamp)
+        let snapshot = SwitcherWindowCatalog.shared.snapshot()
+        markSnapshotReady(snapshot)
+        let windows = snapshot.items
+        guard !windows.isEmpty else {
+            finishPresentationTrace(shown: false)
+            return false
+        }
+        let focusedSourceWindowID = snapshot.focusedWindowID(for: reportedFrontPID)
         // The foreground window is what a session is measured against, and it
         // does not always exist: an app left with no windows, or with all of
         // them minimized or on another Space, still owns the keyboard. The
@@ -477,15 +494,18 @@ final class AppSwitcher: ObservableObject {
         sessionShortcut = shortcut
         shiftBackNavigationHeld = reversed && shortcut.shiftIsNavigationModifier
 
+        scheduleShowPanel(eventTimestamp: eventTimestamp)
         if capturesPreviews {
-            WindowPreviewProvider.shared.refreshPreviews(for: list, maxPixelSize: 640 * PreviewSizing.scale) { [weak self] windowID, image in
+            WindowPreviewProvider.shared.refreshPreviews(for: list,
+                                                         maxPixelSize: 640 * PreviewSizing.scale,
+                                                         existingWindowIDs: snapshot.existingWindowIDs) { [weak self] windowID, image in
                 guard let self,
                       self.sessionActive,
                       self.sessionItems.contains(where: { $0.previewWindowID == windowID }) else { return }
                 self.previews[windowID] = image
             }
         }
-        scheduleShowPanel()
+        SwitcherWindowCatalog.shared.refreshAfterSessionStart()
         return true
     }
 
@@ -545,21 +565,6 @@ final class AppSwitcher: ObservableObject {
                                                                   frontmostPID: frontmostPID,
                                                                   reversed: reversed)
         return groups[groupIndex].representativeIndex
-    }
-
-    private func focusedWindowID(for pid: pid_t) -> CGWindowID? {
-        guard Permissions.shared.accessibility else { return nil }
-        let app = AXUIElementCreateApplication(pid)
-        // The tap thread waits on the session start, so a hung frontmost app
-        // must not hold the keyboard hostage for the 6s default AX timeout.
-        AXUIElementSetMessagingTimeout(app, 0.35)
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value) == .success,
-              let value,
-              CFGetTypeID(value) == AXUIElementGetTypeID()
-        else { return nil }
-        let window = value as! AXUIElement
-        return AXWindowResolver.windowID(for: window)
     }
 
     /// Records a switch into the window MRU: the activated window moves to the
@@ -814,6 +819,7 @@ final class AppSwitcher: ObservableObject {
         sessionActive = false
         pendingShow?.cancel()
         pendingShow = nil
+        finishPresentationTrace(shown: false)
         WindowPreviewProvider.shared.cancel()
         panel?.orderOut(nil)
         sessionItems = []
@@ -836,14 +842,19 @@ final class AppSwitcher: ObservableObject {
 
     /// Shows the panel after a short delay — quick flicks commit before it
     /// fires and never see any UI, exactly like the system switcher.
-    private func scheduleShowPanel() {
+    private func scheduleShowPanel(eventTimestamp: CGEventTimestamp) {
         pendingShow?.cancel()
         let work = DispatchWorkItem { [weak self] in
             guard let self, self.sessionActive else { return }
             self.showPanel()
         }
         pendingShow = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.appearanceDelay, execute: work)
+        let delay = SwitcherSupport.remainingAppearanceDelay(
+            eventTimestamp: UInt64(eventTimestamp),
+            now: DispatchTime.now().uptimeNanoseconds,
+            threshold: Self.appearanceDelay
+        )
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
     private func showPanel() {
@@ -853,6 +864,50 @@ final class AppSwitcher: ObservableObject {
         panel.setFrame(centeredFrame(for: currentPanelSize), display: true)
         panel.invalidateShadow()
         panel.orderFrontRegardless()
+        finishPresentationTrace(shown: true)
+    }
+
+    private func beginPresentationTrace(eventTimestamp: CGEventTimestamp) {
+        finishPresentationTrace(shown: false)
+        let signpostID = OSSignpostID(log: Self.latencyLog)
+        presentationSignpostID = signpostID
+        presentationEventTimestamp = UInt64(eventTimestamp)
+        os_signpost(.begin,
+                    log: Self.latencyLog,
+                    name: "Present switcher",
+                    signpostID: signpostID,
+                    "event_timestamp=%llu",
+                    UInt64(eventTimestamp))
+    }
+
+    private func markSnapshotReady(_ snapshot: WindowEnumerator.Snapshot) {
+        guard let signpostID = presentationSignpostID else { return }
+        let ageMilliseconds = max(0, ProcessInfo.processInfo.systemUptime - snapshot.capturedAt) * 1_000
+        os_signpost(.event,
+                    log: Self.latencyLog,
+                    name: "Snapshot ready",
+                    signpostID: signpostID,
+                    "windows=%d age_ms=%.1f",
+                    snapshot.items.count,
+                    ageMilliseconds)
+    }
+
+    private func finishPresentationTrace(shown: Bool) {
+        guard let signpostID = presentationSignpostID else { return }
+        let latencyMilliseconds = presentationEventTimestamp.map { eventTimestamp in
+            let now = DispatchTime.now().uptimeNanoseconds
+            guard now >= eventTimestamp else { return 0 }
+            return Double(now - eventTimestamp) / 1_000_000
+        } ?? 0
+        os_signpost(.end,
+                    log: Self.latencyLog,
+                    name: "Present switcher",
+                    signpostID: signpostID,
+                    "shown=%d latency_ms=%.1f",
+                    shown ? 1 : 0,
+                    latencyMilliseconds)
+        presentationSignpostID = nil
+        presentationEventTimestamp = nil
     }
 
     /// Re-fits the panel after the grid changed mid-session (e.g. an app quit

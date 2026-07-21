@@ -1101,6 +1101,27 @@ struct MetricsTests {
                                                         simpleMode: true,
                                                         dockPreviewEnabled: true),
                "window previews still request Screen Recording where needed")
+        let switcherAppearanceThreshold: TimeInterval = 0.1
+        expectClose(SwitcherSupport.remainingAppearanceDelay(
+            eventTimestamp: 1_000_000_000,
+            now: 1_000_000_000,
+            threshold: switcherAppearanceThreshold
+        ), 0.1, "App Switcher keeps the native-like threshold when setup is instant")
+        expectClose(SwitcherSupport.remainingAppearanceDelay(
+            eventTimestamp: 1_000_000_000,
+            now: 1_040_000_000,
+            threshold: switcherAppearanceThreshold
+        ), 0.06, "App Switcher setup consumes rather than adds to the appearance threshold")
+        expectClose(SwitcherSupport.remainingAppearanceDelay(
+            eventTimestamp: 1_000_000_000,
+            now: 1_200_000_000,
+            threshold: switcherAppearanceThreshold
+        ), 0, "App Switcher shows immediately once setup already exceeded the threshold")
+        expectClose(SwitcherSupport.remainingAppearanceDelay(
+            eventTimestamp: 2_000_000_000,
+            now: 1_000_000_000,
+            threshold: switcherAppearanceThreshold
+        ), 0.1, "App Switcher fails safely when event and uptime clocks cannot be compared")
         let regularBundlePaths: [pid_t: String] = [101: "/Applications/Primary.app"]
         expect(SwitcherSupport.embeddedHostPID(
             helperBundlePath: "/Applications/Primary.app/Contents/Frameworks/Window Helper.app",
