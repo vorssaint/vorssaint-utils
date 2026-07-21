@@ -934,6 +934,26 @@ struct MetricsTests {
                                        freePages: 20, speculativePages: 0, fileBackedPages: 0) == 0,
                "memory used clamps impossible available memory")
 
+        // MARK: App memory
+
+        let appUsed = MetricFormat.appMemory(totalBytes: 16 * 1024,
+                                             pageSize: 1024,
+                                             internalPages: 10,
+                                             purgeablePages: 3)
+        expect(appUsed == 7 * 1024, "app memory excludes purgeable pages from internal pages")
+        expect(MetricFormat.appMemory(totalBytes: 16 * 1024, pageSize: 1024,
+                                      internalPages: 2, purgeablePages: 5) == 0,
+               "app memory is zero when purgeable pages exceed internal pages")
+        expect(MetricFormat.appMemory(totalBytes: 16, pageSize: 1,
+                                      internalPages: 100, purgeablePages: 0) == 16,
+               "app memory clamps to total physical memory")
+        expect(MetricFormat.appMemory(totalBytes: 0, pageSize: 1024,
+                                      internalPages: 10, purgeablePages: 0) == 0,
+               "app memory is zero when total is zero")
+        expect(MetricFormat.appMemory(totalBytes: 16 * 1024, pageSize: 0,
+                                      internalPages: 10, purgeablePages: 0) == 0,
+               "app memory is zero when page size is zero")
+
         // MARK: Registered defaults
 
         let registeredDefaults = Defaults.registeredDefaults
