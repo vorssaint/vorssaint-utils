@@ -30,6 +30,7 @@ struct USBDeviceItem: Identifiable, Hashable, Codable {
     let bsdName: String?
     var category: USBItemCategory = .usbDevice
     var customSubtitle: String? = nil
+    var volumeCapacity: String? = nil
 
     var hexVIDPID: String {
         guard vendorId > 0 || productId > 0 else { return "" }
@@ -121,6 +122,7 @@ struct USBDeviceItem: Identifiable, Hashable, Codable {
     }
 
     var versionLabel: String {
+        if let cap = volumeCapacity { return cap }
         guard let bcd = usbVersionBCD else { return "USB" }
         let major = (bcd >> 8) & 0xFF
         let minorHigh = (bcd >> 4) & 0x0F
@@ -330,7 +332,7 @@ final class USBMonitorService: ObservableObject {
                     id: volId,
                     parentId: nil,
                     name: name,
-                    vendor: isSDCard ? "SD Card Volume" : "External Volume",
+                    vendor: nil,
                     vendorId: 0,
                     productId: 0,
                     serialNumber: nil,
@@ -341,7 +343,8 @@ final class USBMonitorService: ObservableObject {
                     isHub: false,
                     bsdName: url.lastPathComponent,
                     category: .usbDevice,
-                    customSubtitle: capacityString.isEmpty ? nil : capacityString
+                    customSubtitle: nil,
+                    volumeCapacity: capacityString.isEmpty ? nil : capacityString
                 ))
             }
         }
