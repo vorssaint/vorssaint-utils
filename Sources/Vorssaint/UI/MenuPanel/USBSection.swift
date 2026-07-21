@@ -54,12 +54,30 @@ struct USBSection: View {
                     }
                     .padding(.vertical, 6)
                 } else {
-                    VStack(spacing: 6) {
-                        ForEach(usbMonitor.devices) { device in
-                            if device.category == .charger {
-                                powerSupplyRow(device)
+                    VStack(spacing: 8) {
+                        ForEach(chargers) { device in
+                            powerSupplyRow(device)
+                        }
+
+                        ForEach(ethernetAdapters) { device in
+                            usbDeviceRow(device)
+                        }
+
+                        if !usbDevices.isEmpty {
+                            let (hubs, nonHubs) = groupDevices(usbDevices)
+                            if !hubs.isEmpty {
+                                ForEach(hubs) { hub in
+                                    hubGroupContainer(hub: hub, allDevices: usbDevices)
+                                }
+                                ForEach(nonHubs.filter { dev in
+                                    !hubs.contains(where: { h in dev.parentId == h.id })
+                                }) { standalone in
+                                    usbDeviceRow(standalone)
+                                }
                             } else {
-                                usbDeviceRow(device)
+                                ForEach(usbDevices) { device in
+                                    usbDeviceRow(device)
+                                }
                             }
                         }
                     }
@@ -231,6 +249,95 @@ struct USBSection: View {
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(Color.primary.opacity(0.06), lineWidth: 0.5)
+        )
+    }
+
+    private func groupDevices(_ devices: [USBDeviceItem]) -> (hubs: [USBDeviceItem], nonHubs: [USBDeviceItem]) {
+        let allHubs = devices.filter { $0.isHub }
+        var primaryHubs: [USBDeviceItem] = []
+        for hub in allHubs {
+            if let pId = hub.parentId, allHubs.contains(where: { $0.id == pId }) {
+                continue
+            }
+            if !primaryHubs.contains(where: { $0.id == hub.id }) {
+                primaryHubs.append(hub)
+            }
+        }
+        let nonHubs = devices.filter { !$0.isHub }
+        return (primaryHubs.isEmpty ? allHubs : primaryHubs, nonHubs)
+    }
+
+    private func hubGroupContainer(hub: USBDeviceItem, allDevices: [USBDeviceItem]) -> some View {
+        let children = allDevices.filter { dev in
+            if dev.id == hub.id { return false }
+            if dev.parentId == hub.id { return true }
+            if let vendor = hub.vendor, let devVendor = dev.vendor, !vendor.isEmpty, vendor == devVendor { return true }
+            return false
+        }
+
+        return VStack(alignment: .leading, spacing: 6) {
+            // Parent Hub Header
+            HStack(spacing: 8) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.blue.opacity(0.16))
+                        .frame(width: 24, height: 24)
+
+                    Image(systemName: "rectangle.grid.2x2.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Color.blue)
+                }
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(hub.name)
+                        .font(.system(size: 12.5, weight: .bold))
+                        .foregroundStyle(.primary)
+
+                    if let vendor = hub.vendor, !vendor.isEmpty {
+                        Text(vendor)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                Text(hub.speedLabel)
+                    .font(.system(size: 10, weight: .semibold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(Color.blue.opacity(0.12))
+                    )
+                    .foregroundStyle(Color.blue)
+            }
+
+            // Indented Children Sub-Devices
+            if !children.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(children) { child in
+                        HStack(spacing: 6) {
+                            Rectangle()
+                                .fill(Color.blue.opacity(0.3))
+                                .frame(width: 2)
+                                .padding(.vertical, 2)
+
+                            usbDeviceRow(child)
+                        }
+                    }
+                }
+                .padding(.leading, 8)
+            }
+        }
+        .padding(9)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.primary.opacity(colorScheme == .dark ? 0.05 : 0.025))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.blue.opacity(0.15), lineWidth: 0.8)
         )
     }
 }

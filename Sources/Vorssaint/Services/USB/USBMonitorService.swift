@@ -16,6 +16,7 @@ enum USBItemCategory: String, Codable {
 
 struct USBDeviceItem: Identifiable, Hashable, Codable {
     let id: String // Unique ID: vendorId-productId-serial
+    var parentId: String? = nil
     let name: String
     let vendor: String?
     let vendorId: Int
@@ -25,6 +26,7 @@ struct USBDeviceItem: Identifiable, Hashable, Codable {
     let portMaxSpeedMbps: Int?
     let usbVersionBCD: Int?
     let isExternalStorage: Bool
+    var isHub: Bool = false
     let bsdName: String?
     var category: USBItemCategory = .usbDevice
     var customSubtitle: String? = nil
@@ -376,9 +378,35 @@ final class USBMonitorService: ObservableObject {
         let serialClean = serial?.trimmingCharacters(in: .whitespaces) ?? ""
         let idString = !serialClean.isEmpty ? "\(vendorId)-\(productId)-\(serialClean)" : "\(vendorId)-\(productId)-\(registryName)"
 
+        let deviceName = productString ?? registryName
+        let isHubDevice = deviceName.lowercased().contains("hub") || registryName.lowercased().contains("hub") || intValue("bDeviceClass") == 9
+
+        var parentId: String? = nil
+        var parentEntry: io_registry_entry_t = 0
+        if IORegistryEntryGetParentEntry(entry, kIOServicePlane, &parentEntry) == KERN_SUCCESS, parentEntry != 0 {
+            defer { IOObjectRelease(parentEntry) }
+            var pProps: Unmanaged<CFMutableDictionary>?
+            if IORegistryEntryCreateCFProperties(parentEntry, &pProps, kCFAllocatorDefault, 0) == KERN_SUCCESS,
+               let pDict = pProps?.takeRetainedValue() as? [String: Any] {
+                let pVid = (pDict["idVendor"] as? NSNumber)?.intValue ?? 0
+                let pPid = (pDict["idProduct"] as? NSNumber)?.intValue ?? 0
+                let pSerial = (pDict["USB Serial Number"] as? String ?? "").trimmingCharacters(in: .whitespaces)
+                let pName = pDict["USB Product Name"] as? String ?? (pDict["kUSBProductString"] as? String ?? "")
+                let pRegName = tryGetIORegistryName(parentEntry) ?? ""
+                if pVid > 0 || pPid > 0 {
+                    let pCleanSerial = pSerial
+                    let pIdentifier = !pCleanSerial.isEmpty ? "\(pVid)-\(pPid)-\(pCleanSerial)" : "\(pVid)-\(pPid)-\(pName.isEmpty ? pRegName : pName)"
+                    if pIdentifier != idString {
+                        parentId = pIdentifier
+                    }
+                }
+            }
+        }
+
         return USBDeviceItem(
             id: idString,
-            name: productString ?? registryName,
+            parentId: parentId,
+            name: deviceName,
             vendor: vendorString,
             vendorId: vendorId,
             productId: productId,
@@ -387,6 +415,7 @@ final class USBMonitorService: ObservableObject {
             portMaxSpeedMbps: nil,
             usbVersionBCD: usbVersionBCD,
             isExternalStorage: isStorage,
+            isHub: isHubDevice,
             bsdName: bsdName
         )
     }
