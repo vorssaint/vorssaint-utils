@@ -95,13 +95,12 @@ final class AppVolumeMixer: ObservableObject {
     private var lastAudibleVolume: [String: Double] = [:]
     private var listenerInstalled = false
     /// The global HAL listeners (devices, default output, process list), kept
-    /// so stop() can hand the blocks back to
-    /// AudioObjectRemovePropertyListenerBlock when the mixer leaves the hub.
+    /// so stop() can remove each one again when the mixer leaves the hub.
     private var globalListeners: [AudioObjectPropertySelector] = []
-    /// One IsRunningOutput listener per live process object, kept so the block
-    /// can be handed back to AudioObjectRemovePropertyListenerBlock when the
-    /// process disappears. Without removal, a week of app churn leaves
-    /// thousands of dead listener blocks registered with the HAL.
+    /// One IsRunningOutput listener per live process object, kept so the
+    /// registration can be removed when the process disappears. Without
+    /// removal, a week of app churn leaves thousands of dead listeners
+    /// registered with the HAL.
     private var runningListeners = Set<AudioObjectID>()
     private var stopped = false
     private var lastAutomaticLoweredOutputUID: String?

@@ -35,8 +35,8 @@ press.
 - The app could stop responding for a while at a time, often right when
   headphones or another audio device connected. It no longer waits on the
   audio system, on other apps that are busy, or on commands that never
-  answer, and it stops watching audio properly when the mixer is switched
-  off instead of leaving watchers behind.
+  answer, and it stops watching audio properly when the mixer or the mic
+  mute is switched off instead of leaving watchers behind.
 - An external display could go dark while its brightness was adjusted and
   stay dark until it was unplugged. It recovers now, and a screen switched
   off here comes back at the next start.

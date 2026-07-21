@@ -498,7 +498,7 @@ extension RadialMenuFeatureStrings {
         buttonTestSeen: "Vorssaint vede questo pulsante",
         buttonTestOther: "Quello era un altro pulsante",
         buttonTestBlind: "Vorssaint non riesce a osservare il mouse in questo momento",
-        buttonTestHint: "Se non si accende nulla, macOS non sta passando quel pulsante alle app. I mouse che arrivano con un programma proprio spesso trasformano i pulsanti laterali in altro. Rimettilo com era da lì, oppure assegna al pulsante una combinazione di tasti e usa quella combinazione qui sopra."
+        buttonTestHint: "Se non si accende nulla, macOS non sta passando quel pulsante alle app. I mouse che arrivano con un programma proprio spesso trasformano i pulsanti laterali in altro. Rimettilo com'era da lì, oppure assegna al pulsante una combinazione di tasti e usa quella combinazione qui sopra."
     )
 
     static let ja = RadialMenuFeatureStrings(
