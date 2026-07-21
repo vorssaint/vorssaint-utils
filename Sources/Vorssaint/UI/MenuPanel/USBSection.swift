@@ -70,26 +70,29 @@ struct USBSection: View {
     }
 
     private func usbDeviceRow(_ device: USBDeviceItem) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
+            // Header Row: Icon + Name + Vendor + Eject
             HStack(spacing: 8) {
-                Image(systemName: device.iconName)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 20, height: 20)
-                    .background(
-                        Circle()
-                            .fill(Color.accentColor.opacity(0.12))
-                    )
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.14))
+                        .frame(width: 24, height: 24)
+
+                    Image(systemName: device.iconName)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                }
 
                 Text(device.name)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 12.5, weight: .bold))
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
 
-                Spacer()
+                Spacer(minLength: 4)
 
                 if let vendor = device.vendor, !vendor.isEmpty, vendor != device.name {
                     Text(vendor)
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -99,12 +102,12 @@ struct USBSection: View {
                         usbMonitor.eject(device)
                     } label: {
                         Image(systemName: "eject.fill")
-                            .font(.system(size: 10))
+                            .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.secondary)
-                            .padding(4)
+                            .frame(width: 20, height: 20)
                             .background(
                                 Circle()
-                                    .fill(Color.primary.opacity(0.06))
+                                    .fill(Color.primary.opacity(0.08))
                             )
                     }
                     .buttonStyle(.plain)
@@ -112,75 +115,106 @@ struct USBSection: View {
                 }
             }
 
+            // Subtitle Row: Speed Badge + VID:PID Chip
             HStack(alignment: .center, spacing: 6) {
                 Text(device.speedLabel)
-                    .font(.system(size: 10.5, weight: .regular))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 10, weight: .medium))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(Color.accentColor.opacity(0.1))
+                    )
+                    .foregroundStyle(Color.accentColor)
                     .lineLimit(1)
 
-                Spacer()
+                Spacer(minLength: 4)
 
                 if showTechDetails && !device.hexVIDPID.isEmpty {
                     Text(device.hexVIDPID)
-                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(Color.primary.opacity(0.06))
+                        )
                         .foregroundStyle(.secondary)
                 } else if !showTechDetails {
                     Text(device.versionLabel)
                         .font(.system(size: 9.5, weight: .medium))
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1.5)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
                         .background(
                             Capsule()
-                                .fill(Color.primary.opacity(0.08))
+                                .fill(Color.primary.opacity(0.06))
                         )
                         .foregroundStyle(.secondary)
                 }
             }
 
+            // Extended Technical Details Row (When Info Toggle is ON)
             if showTechDetails && (device.usbVersionBCD != nil || device.serialFormatted != nil) {
                 HStack(alignment: .center, spacing: 6) {
                     if device.usbVersionBCD != nil {
                         Text(device.bcdHexLabel)
-                            .font(.system(size: 10, weight: .regular))
+                            .font(.system(size: 9.5, weight: .regular))
                             .foregroundStyle(.tertiary)
                     }
 
-                    Spacer()
+                    Spacer(minLength: 4)
 
                     if let sn = device.serialFormatted {
                         Text(sn)
-                            .font(.system(size: 10, weight: .regular, design: .monospaced))
+                            .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                    .fill(Color.primary.opacity(0.04))
+                            )
                             .foregroundStyle(.tertiary)
                     }
                 }
             }
         }
-        .padding(8)
+        .padding(9)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color.primary.opacity(colorScheme == .dark ? 0.04 : 0.02))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 0.5)
         )
     }
 
     private func powerSupplyRow(_ device: USBDeviceItem) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: "bolt.fill")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(Color.accentColor)
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.orange.opacity(0.14))
+                    .frame(width: 22, height: 22)
+
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(Color.orange)
+            }
 
             Text(device.name)
                 .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.primary)
 
             if let tag = device.vendor, !tag.isEmpty {
                 Text(tag)
-                    .font(.system(size: 9.5, weight: .semibold))
+                    .font(.system(size: 9.5, weight: .bold))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(
                         Capsule()
-                            .fill(Color.accentColor.opacity(0.12))
+                            .fill(Color.orange.opacity(0.12))
                     )
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.orange)
             }
 
             Spacer()
@@ -190,10 +224,14 @@ struct USBSection: View {
                 .foregroundStyle(.primary)
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 7)
+        .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color.primary.opacity(colorScheme == .dark ? 0.04 : 0.02))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 0.5)
         )
     }
 }
