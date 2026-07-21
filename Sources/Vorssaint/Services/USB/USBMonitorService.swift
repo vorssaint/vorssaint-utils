@@ -46,7 +46,15 @@ struct USBDeviceItem: Identifiable, Hashable, Codable {
 
     var iconName: String {
         switch category {
-        case .usbDevice: return isExternalStorage ? "externaldrive" : "cable.connector"
+        case .usbDevice:
+            if isExternalStorage { return "externaldrive" }
+            let combined = "\(name) \(vendor ?? "")".lowercased()
+            if combined.contains("hub") { return "rectangle.grid.2x2" }
+            if combined.contains("keyboard") { return "keyboard" }
+            if combined.contains("mouse") || combined.contains("trackpad") { return "mouse" }
+            if combined.contains("camera") || combined.contains("webcam") { return "web.camera" }
+            if combined.contains("audio") || combined.contains("sound") || combined.contains("mic") || combined.contains("headset") { return "headphones" }
+            return "cable.connector"
         case .ethernet: return "network"
         case .charger: return "bolt.fill"
         }
