@@ -709,6 +709,9 @@ extension Strings {
         memoryStyleDot: "점",
         memoryStylePercent: "%",
         memoryStyleBoth: "둘 다",
+        monitorMemoryMetricLabel: "메모리 측정 방식",
+        memoryMetricUsed: "사용 중인 메모리",
+        memoryMetricApp: "앱 메모리",
 
         systemUptime: "가동 시간",
         batteryCharge: "충전량",

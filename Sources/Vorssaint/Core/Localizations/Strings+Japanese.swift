@@ -708,6 +708,9 @@ extension Strings {
         memoryStyleDot: "ドット",
         memoryStylePercent: "%",
         memoryStyleBoth: "両方",
+        monitorMemoryMetricLabel: "メモリの測定方法",
+        memoryMetricUsed: "使用中のメモリ",
+        memoryMetricApp: "Appメモリ",
 
         systemUptime: "稼働時間",
         batteryCharge: "充電量",

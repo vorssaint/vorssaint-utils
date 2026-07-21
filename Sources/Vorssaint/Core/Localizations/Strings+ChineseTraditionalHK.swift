@@ -709,6 +709,9 @@ extension Strings {
         memoryStyleDot: "圓點",
         memoryStylePercent: "%",
         memoryStyleBoth: "兩者",
+        monitorMemoryMetricLabel: "記憶體計量方式",
+        memoryMetricUsed: "已用記憶體",
+        memoryMetricApp: "App 記憶體",
 
         systemUptime: "已運作",
         batteryCharge: "電量",

@@ -708,6 +708,9 @@ extension Strings {
         memoryStyleDot: "Punto",
         memoryStylePercent: "%",
         memoryStyleBoth: "Ambos",
+        monitorMemoryMetricLabel: "Medir memoria como",
+        memoryMetricUsed: "Memoria usada",
+        memoryMetricApp: "Memoria de apps",
 
         systemUptime: "Activo desde hace",
         batteryCharge: "Carga",

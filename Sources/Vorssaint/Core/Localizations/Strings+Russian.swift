@@ -709,6 +709,9 @@ extension Strings {
         memoryStyleDot: "Точка",
         memoryStylePercent: "%",
         memoryStyleBoth: "Оба",
+        monitorMemoryMetricLabel: "Как измерять память",
+        memoryMetricUsed: "Занято памяти",
+        memoryMetricApp: "Память приложений",
 
         systemUptime: "Время работы",
         batteryCharge: "Заряд",

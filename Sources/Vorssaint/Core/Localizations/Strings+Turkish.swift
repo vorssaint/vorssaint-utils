@@ -708,6 +708,9 @@ extension Strings {
         memoryStyleDot: "Nokta",
         memoryStylePercent: "%",
         memoryStyleBoth: "İkisi de",
+        monitorMemoryMetricLabel: "Belleği şu şekilde ölç",
+        memoryMetricUsed: "Kullanılan Bellek",
+        memoryMetricApp: "Uygulama Belleği",
 
         systemUptime: "Çalışma süresi",
         batteryCharge: "Şarj",

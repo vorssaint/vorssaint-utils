@@ -708,6 +708,9 @@ extension Strings {
         memoryStyleDot: "圆点",
         memoryStylePercent: "%",
         memoryStyleBoth: "两者",
+        monitorMemoryMetricLabel: "内存计量方式",
+        memoryMetricUsed: "已用内存",
+        memoryMetricApp: "App 内存",
 
         systemUptime: "已运行",
         batteryCharge: "电量",
