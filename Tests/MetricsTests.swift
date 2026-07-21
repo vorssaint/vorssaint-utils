@@ -1193,7 +1193,45 @@ struct MetricsTests {
         expect(SwitcherSupport.sessionSourceItem(frontmostPID: 303,
                                                  focusedWindowID: nil,
                                                  items: [embeddedWindow]) == nil,
-               "App Switcher leaves the system shortcut alone when the foreground app is missing")
+               "App Switcher reports no foreground window when the app in front owns none")
+        expect(SwitcherSupport.initialSelectionPosition(pids: [101, 202, 303],
+                                                        hasForegroundEntry: true,
+                                                        frontmostPID: 101,
+                                                        reversed: false) == 1,
+               "App Switcher starts one step past the foreground window")
+        expect(SwitcherSupport.initialSelectionPosition(pids: [101],
+                                                        hasForegroundEntry: true,
+                                                        frontmostPID: 101,
+                                                        reversed: false) == 0,
+               "App Switcher stays on the only entry there is")
+        expect(SwitcherSupport.initialSelectionPosition(pids: [101, 202, 303],
+                                                        hasForegroundEntry: true,
+                                                        frontmostPID: 101,
+                                                        reversed: true) == 2,
+               "App Switcher starts from the far end when the session opens backward")
+        expect(SwitcherSupport.initialSelectionPosition(pids: [202, 303],
+                                                        hasForegroundEntry: false,
+                                                        frontmostPID: 101,
+                                                        reversed: false) == 0,
+               "App Switcher opens on the first entry when the app in front has no window (issue #324)")
+        expect(SwitcherSupport.initialSelectionPosition(pids: [101, 101, 202],
+                                                        hasForegroundEntry: false,
+                                                        frontmostPID: 101,
+                                                        reversed: false) == 2,
+               "App Switcher skips the windows the app in front left minimized or on another Space")
+        expect(SwitcherSupport.initialSelectionPosition(pids: [101, 101],
+                                                        hasForegroundEntry: false,
+                                                        frontmostPID: 101,
+                                                        reversed: false) == 0,
+               "App Switcher still opens when every window belongs to the app in front")
+        expect(SwitcherSupport.initialSelectionPosition(pids: [],
+                                                        hasForegroundEntry: false,
+                                                        frontmostPID: 101,
+                                                        reversed: false) == 0,
+               "App Switcher keeps the selection in range with nothing to show")
+        expect(SwitcherSupport.appPID(forFrontmost: 202, items: [embeddedWindow]) == 101
+               && SwitcherSupport.appPID(forFrontmost: 303, items: [embeddedWindow]) == 303,
+               "App Switcher reads the app behind an embedded window helper")
         expect(SwitcherSupport.isCompatibilityLayerApp(
             bundleIdentifier: nil,
             executablePath: "/usr/local/bin/wine64-preloader",
@@ -1281,8 +1319,13 @@ struct MetricsTests {
                "highlights tour never leaks into another release")
         expect(registeredDefaults[DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect] as? Bool == false,
                "headphone disconnect volume lowering is opt-in")
-        expect(registeredDefaults[DefaultsKey.mixerHeadphonesDisconnectVolumePercent] as? Int == 0,
-               "headphone disconnect volume keeps the existing mute behavior by default")
+        expect(registeredDefaults[DefaultsKey.mixerHeadphonesDisconnectVolumePercent] as? Int
+               == Defaults.defaultMixerHeadphonesDisconnectVolumePercent,
+               "headphone disconnect protection starts at an audible volume, never at silence")
+        expect(Defaults.defaultMixerHeadphonesDisconnectVolumePercent
+               >= Defaults.minimumMixerHeadphonesDisconnectVolumePercent
+               && Defaults.defaultMixerHeadphonesDisconnectVolumePercent < 100,
+               "the headphone disconnect default is a real reduction that can still be heard")
         expect(registeredDefaults[DefaultsKey.mixerShowFinder] as? Bool == true,
                "Finder returns to the mixer by default")
         expect(registeredDefaults[DefaultsKey.soundOutputSwitcherEnabled] as? Bool == false,
@@ -1719,6 +1762,62 @@ struct MetricsTests {
         expect(GlobalShortcut(keyCode: Int64(kVK_ISO_Section),
                               modifiers: [.control, .option, .command]).isValid,
                "the extra ISO key (paragraph/caret above Tab) is recordable as a shortcut")
+
+        // MARK: Editing, navigation and upper function keys as shortcuts (#308)
+
+        let recorderModifiers: GlobalShortcutModifiers = [.control, .option, .command]
+        let editingAndNavigationKeys: [(Int, String)] = [
+            (kVK_Delete, "delete"), (kVK_ForwardDelete, "forward delete"),
+            (kVK_Home, "home"), (kVK_End, "end"),
+            (kVK_PageUp, "page up"), (kVK_PageDown, "page down"),
+            (kVK_ANSI_KeypadEnter, "keypad enter"),
+        ]
+        for (keyCode, name) in editingAndNavigationKeys {
+            let shortcut = GlobalShortcut(keyCode: Int64(keyCode), modifiers: recorderModifiers)
+            expect(shortcut.isValid, "\(name) is recordable as a shortcut")
+            expect(!shortcut.displayString.isEmpty
+                   && shortcut.displayString != "Key \(keyCode)",
+                   "\(name) prints a real cap instead of a raw key code")
+        }
+        let upperFunctionKeys: [(Int, String)] = [
+            (kVK_F13, "F13"), (kVK_F14, "F14"), (kVK_F15, "F15"), (kVK_F16, "F16"),
+            (kVK_F17, "F17"), (kVK_F18, "F18"), (kVK_F19, "F19"), (kVK_F20, "F20"),
+        ]
+        for (keyCode, name) in upperFunctionKeys {
+            let shortcut = GlobalShortcut(keyCode: Int64(keyCode), modifiers: recorderModifiers)
+            expect(shortcut.isValid, "\(name) is recordable as a shortcut")
+            expect(shortcut.displayString.hasSuffix(name), "\(name) prints its own cap")
+        }
+        expect(Set(editingAndNavigationKeys.map {
+                   GlobalShortcut(keyCode: Int64($0.0), modifiers: recorderModifiers).displayString
+               }).count == editingAndNavigationKeys.count,
+               "each editing and navigation key prints a cap of its own")
+
+        // Delete on its own clears the field; held with a real modifier it is
+        // an ordinary key and records like any other.
+        expect(GlobalShortcut.clearsShortcut(keyCode: Int64(kVK_Delete), modifiers: []),
+               "delete alone clears the shortcut")
+        expect(GlobalShortcut.clearsShortcut(keyCode: Int64(kVK_ForwardDelete), modifiers: [.shift]),
+               "forward delete with only Shift still clears the shortcut")
+        expect(!GlobalShortcut.clearsShortcut(keyCode: Int64(kVK_Delete), modifiers: recorderModifiers),
+               "delete with a real modifier records instead of clearing")
+        expect(!GlobalShortcut.clearsShortcut(keyCode: Int64(kVK_ANSI_D), modifiers: []),
+               "an ordinary key never clears the shortcut")
+
+        // MARK: Shortcuts the app silences while a field is listening (#308)
+
+        let silenced = GlobalShortcutRole.featuresToSilenceWhileRecording
+        expect(Set(silenced).count == silenced.count,
+               "the list of features to silence has no repeats")
+        expect(GlobalShortcutRole.allCases.allSatisfy { silenced.contains($0.feature) },
+               "every configurable shortcut's feature is silenced while recording")
+        expect(silenced.contains(.windowLayout),
+               "the window layout keys are silenced too, though they have no role")
+        expect(silenced.contains(.switcher) && silenced.contains(.radialMenu)
+               && silenced.contains(.keepAwake) && silenced.contains(.clipboardHistory),
+               "the features that hold a global key are all in the silenced list")
+        expect(silenced.allSatisfy { AppFeature.allCases.contains($0) },
+               "the silenced list only names real features, so re-syncing them restores the keys")
         expect(registeredDefaults[DefaultsKey.extraBrightnessEnabled] as? Bool == false,
                "extra brightness is opt-in")
         expect(registeredDefaults[DefaultsKey.extraBrightnessLevel] as? Int == 100,
@@ -2488,6 +2587,122 @@ struct MetricsTests {
                == CGPoint(x: 440, y: 320),
                "left and top resizing reanchors only after the accepted size is known")
 
+        // MARK: Click versus drag custody (issue #321)
+
+        let slopOrigin = CGPoint(x: 100, y: 80)
+        expect(!WindowGestureSupport.exceedsDragSlop(from: slopOrigin, to: slopOrigin),
+               "a press that never moves stays a click")
+        expect(!WindowGestureSupport.exceedsDragSlop(from: slopOrigin, to: CGPoint(x: 106, y: 80)),
+               "movement exactly at the slop still counts as a click")
+        expect(WindowGestureSupport.exceedsDragSlop(from: slopOrigin, to: CGPoint(x: 106.1, y: 80)),
+               "movement past the slop becomes a window gesture")
+        expect(!WindowGestureSupport.exceedsDragSlop(from: slopOrigin, to: CGPoint(x: 94, y: 80)),
+               "the slop is symmetric in both directions")
+        expect(WindowGestureSupport.exceedsDragSlop(from: slopOrigin, to: CGPoint(x: 105, y: 85)),
+               "diagonal movement is measured as a distance, not per axis")
+        expect(!WindowGestureSupport.exceedsDragSlop(from: slopOrigin, to: CGPoint(x: 95, y: 77)),
+               "hand jitter under the slop keeps the click")
+
+        expect(WindowGestureSupport.decide(state: .idle,
+                                           input: .buttonDown(sameButton: false, chordMatched: false)) == .passThrough,
+               "a press without the chord is never touched")
+        expect(WindowGestureSupport.decide(state: .idle,
+                                           input: .buttonDown(sameButton: false, chordMatched: true)) == .arm,
+               "a press with the chord is only held, not taken")
+        expect(WindowGestureSupport.decide(state: .idle,
+                                           input: .buttonDragged(tracked: false, pastSlop: true)) == .passThrough,
+               "movement with nothing held is never touched")
+        expect(WindowGestureSupport.decide(state: .idle, input: .buttonUp(tracked: false)) == .passThrough,
+               "a release with nothing held is never touched")
+        expect(WindowGestureSupport.decide(state: .idle,
+                                           input: .tapDisabled(buttonStillDown: false)) == .passThrough,
+               "an idle tap has nothing to give back when it is switched off")
+
+        expect(WindowGestureSupport.decide(state: .pending,
+                                           input: .buttonDragged(tracked: true, pastSlop: false)) == .hold,
+               "jitter under the slop keeps the press held")
+        expect(WindowGestureSupport.decide(state: .pending,
+                                           input: .buttonDragged(tracked: true, pastSlop: true)) == .promote,
+               "movement past the slop turns the held press into a gesture")
+        expect(WindowGestureSupport.decide(state: .pending,
+                                           input: .buttonDragged(tracked: false, pastSlop: true)) == .flushThenPass,
+               "movement of another button gives the held press back")
+        expect(WindowGestureSupport.decide(state: .pending, input: .buttonUp(tracked: true)) == .replayThenPass,
+               "a release without movement gives the whole click back to the app")
+        expect(WindowGestureSupport.decide(state: .pending, input: .buttonUp(tracked: false)) == .flushThenPass,
+               "a release of another button gives the held press back")
+        expect(WindowGestureSupport.decide(state: .pending,
+                                           input: .buttonDown(sameButton: true, chordMatched: true)) == .restartAsIdle,
+               "the same button pressing again replaces a held press whose release went missing")
+        expect(WindowGestureSupport.decide(state: .pending,
+                                           input: .buttonDown(sameButton: true, chordMatched: false)) == .restartAsIdle,
+               "a stale held press is cleared even when the new press has no chord")
+        expect(WindowGestureSupport.decide(state: .pending,
+                                           input: .buttonDown(sameButton: false, chordMatched: true)) == .flushThenRestart,
+               "a second button gives the first press back instead of eating it")
+        expect(WindowGestureSupport.decide(state: .pending,
+                                           input: .buttonDown(sameButton: false, chordMatched: false)) == .flushThenRestart,
+               "a second button without the chord also gives the first press back")
+        expect(WindowGestureSupport.decide(state: .pending, input: .otherEvent) == .flushThenPass,
+               "anything unexpected gives the held press back")
+        expect(WindowGestureSupport.decide(state: .pending,
+                                           input: .tapDisabled(buttonStillDown: true)) == .flushThenPass,
+               "a tap switched off while the button is still down gives the click back")
+        expect(WindowGestureSupport.decide(state: .pending,
+                                           input: .tapDisabled(buttonStillDown: false)) == .dropState,
+               "a press whose release already reached the app is never handed back pressed")
+        expect(WindowGestureSupport.decide(state: .pending, input: .accessibilityLost) == .flushThenPass,
+               "losing Accessibility mid press still gives the click back")
+
+        expect(WindowGestureSupport.decide(state: .active,
+                                           input: .buttonDragged(tracked: true, pastSlop: false)) == .applyMove,
+               "a running gesture keeps following the pointer")
+        expect(WindowGestureSupport.decide(state: .active, input: .buttonUp(tracked: true)) == .applyFinish,
+               "releasing ends a running gesture")
+        expect(WindowGestureSupport.decide(state: .active, input: .buttonUp(tracked: false)) == .passThrough,
+               "another button is never swallowed by a running gesture")
+        expect(WindowGestureSupport.decide(state: .active, input: .otherEvent) == .passThrough,
+               "a running gesture never swallows unrelated events")
+        expect(WindowGestureSupport.decide(state: .active,
+                                           input: .tapDisabled(buttonStillDown: true)) == .dropState,
+               "a gesture that already took the press has nothing to give back")
+        expect(WindowGestureSupport.decide(state: .active, input: .accessibilityLost) == .dropState,
+               "losing Accessibility mid gesture drops it without a phantom click")
+
+        // No path may invent a release, and every held press is given back
+        // exactly once: only these decisions replay, and none of them can be
+        // reached twice for the same press.
+        let allInputs: [WindowGestureInput] = [
+            .buttonDown(sameButton: true, chordMatched: true),
+            .buttonDown(sameButton: true, chordMatched: false),
+            .buttonDown(sameButton: false, chordMatched: true),
+            .buttonDown(sameButton: false, chordMatched: false),
+            .buttonDragged(tracked: true, pastSlop: true),
+            .buttonDragged(tracked: true, pastSlop: false),
+            .buttonDragged(tracked: false, pastSlop: true),
+            .buttonDragged(tracked: false, pastSlop: false),
+            .buttonUp(tracked: true), .buttonUp(tracked: false),
+            .otherEvent, .tapDisabled(buttonStillDown: true),
+            .tapDisabled(buttonStillDown: false), .accessibilityLost,
+        ]
+        var pendingExits = 0
+        var pendingReplays = 0
+        for input in allInputs {
+            let decision = WindowGestureSupport.decide(state: .pending, input: input)
+            if decision != .hold {
+                pendingExits += 1
+                if decision == .replayThenPass || decision == .flushThenPass
+                    || decision == .flushThenRestart { pendingReplays += 1 }
+            }
+            let replaying: [WindowGestureDecision] = [.replayThenPass, .flushThenPass, .flushThenRestart]
+            expect(!replaying.contains(WindowGestureSupport.decide(state: .idle, input: input)),
+                   "nothing is ever replayed while no press is held")
+            expect(!replaying.contains(WindowGestureSupport.decide(state: .active, input: input)),
+                   "a press already spent on a gesture is never replayed")
+        }
+        expect(pendingExits == 13 && pendingReplays == 9,
+               "every way out of a held press either promotes it, replaces it or gives it back")
+
         expect(MediaImageFormat.sanitized("pdf") == .pdf,
                "Image converter accepts the PDF format")
         expect(MediaImageFormat.pdf.fileExtension == "pdf",
@@ -2591,10 +2806,28 @@ struct MetricsTests {
         expectClose(Defaults.sanitizedAppVolume(.infinity), 1, "non-finite app volume falls back to unity")
         expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(35) == 35,
                "headphone disconnect volume preserves valid percentages")
-        expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(-5) == 0,
-               "headphone disconnect volume clamps low values")
+        expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(-5)
+               == Defaults.minimumMixerHeadphonesDisconnectVolumePercent,
+               "headphone disconnect volume never drops below the audible floor")
+        expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(0)
+               == Defaults.minimumMixerHeadphonesDisconnectVolumePercent,
+               "headphone disconnect protection lowers the speakers, it never silences them")
         expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(105) == 100,
                "headphone disconnect volume clamps high values")
+        let headphonesSuite = "vorss.tests.mixer.headphones"
+        if let silentHeadphoneVolume = UserDefaults(suiteName: headphonesSuite) {
+            silentHeadphoneVolume.removePersistentDomain(forName: headphonesSuite)
+            silentHeadphoneVolume.set(0, forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
+            Defaults.migrateSilentHeadphonesDisconnectVolume(in: silentHeadphoneVolume)
+            expect(silentHeadphoneVolume.integer(forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
+                   == Defaults.defaultMixerHeadphonesDisconnectVolumePercent,
+                   "a stored volume of zero from the first release of the option migrates to the default")
+            silentHeadphoneVolume.set(60, forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
+            Defaults.migrateSilentHeadphonesDisconnectVolume(in: silentHeadphoneVolume)
+            expect(silentHeadphoneVolume.integer(forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent) == 60,
+                   "a volume the user chose is never migrated")
+            silentHeadphoneVolume.removePersistentDomain(forName: headphonesSuite)
+        }
         expect(Defaults.sanitizedAppOutputDeviceUID(" BuiltInSpeakerDevice ") == "BuiltInSpeakerDevice",
                "audio output device UIDs are trimmed")
         expect(Defaults.sanitizedAppOutputDeviceUID("") == nil,
@@ -2728,6 +2961,172 @@ struct MetricsTests {
                                                    targetOutputDeviceUID: "BuiltInSpeakerDevice",
                                                    defaultOutputDeviceUID: "BuiltInSpeakerDevice"),
                "a persistent mixer row waits for an audio connection before building a tap")
+
+        // Issue #296. A tap mutes the app on the real output, so which build
+        // may be installed, when an engine is allowed to go away and who may
+        // be tapped at all decide whether an app suddenly plays at full
+        // volume, plays twice as loud, or goes silent.
+        expect(!MixerRoutingSupport.rowMayBeTapped(savedVolume: nil,
+                                                   savedRouteUID: nil,
+                                                   defaultOutputDeviceUID: "BuiltInSpeakerDevice"),
+               "an app with no saved volume and no saved route is never tapped")
+        expect(!MixerRoutingSupport.rowMayBeTapped(savedVolume: 1,
+                                                   savedRouteUID: nil,
+                                                   defaultOutputDeviceUID: "BuiltInSpeakerDevice"),
+               "a row saved at 100 percent is never tapped")
+        expect(!MixerRoutingSupport.rowMayBeTapped(savedVolume: nil,
+                                                   savedRouteUID: "BuiltInSpeakerDevice",
+                                                   defaultOutputDeviceUID: "BuiltInSpeakerDevice"),
+               "a row routed to the device that is already the default is never tapped")
+        expect(MixerRoutingSupport.rowMayBeTapped(savedVolume: 0.4,
+                                                  savedRouteUID: nil,
+                                                  defaultOutputDeviceUID: "BuiltInSpeakerDevice"),
+               "a row the user turned down is tapped")
+        expect(MixerRoutingSupport.rowMayBeTapped(savedVolume: nil,
+                                                  savedRouteUID: "ExternalDisplay",
+                                                  defaultOutputDeviceUID: "BuiltInSpeakerDevice"),
+               "a row routed to another output is tapped")
+
+        var mixerBuilds = MixerEngineBuilds()
+        expect(mixerBuilds.isEmpty, "a mixer with nothing being built has no builds in flight")
+        // No real token is ever negative, so the sentinel cannot pass a check.
+        let firstBuild = mixerBuilds.begin("com.example.Player") ?? -1
+        expect(firstBuild > 0, "the first engine build for a row starts")
+        expect(mixerBuilds.begin("com.example.Player") == nil,
+               "a second engine build for the same row is refused while one is in flight")
+        expect(mixerBuilds.isCurrent("com.example.Player", token: firstBuild),
+               "a build that nothing invalidated is the one to install")
+        mixerBuilds.finish("com.example.Player", token: firstBuild)
+        expect(mixerBuilds.isEmpty,
+               "finishing a build frees the row for the next one")
+        let staleBuild = mixerBuilds.begin("com.example.Player") ?? -1
+        mixerBuilds.invalidateAll()
+        expect(!mixerBuilds.isCurrent("com.example.Player", token: staleBuild),
+               "an engine build that lands after everything was invalidated is discarded")
+        let freshBuild = mixerBuilds.begin("com.example.Player") ?? -1
+        expect(freshBuild > 0 && freshBuild != staleBuild
+               && mixerBuilds.isCurrent("com.example.Player", token: freshBuild),
+               "the build started after an invalidation is the one to install")
+        mixerBuilds.finish("com.example.Player", token: staleBuild)
+        expect(mixerBuilds.isCurrent("com.example.Player", token: freshBuild),
+               "a stale build landing late leaves the current build alone")
+        var manyBuilds = MixerEngineBuilds()
+        let firstRow = manyBuilds.begin("com.example.Player") ?? -1
+        let secondRow = manyBuilds.begin("com.example.Radio") ?? -1
+        manyBuilds.invalidateAll()
+        expect(manyBuilds.isEmpty,
+               "invalidating clears every engine build in flight")
+        expect(!manyBuilds.isCurrent("com.example.Player", token: firstRow)
+               && !manyBuilds.isCurrent("com.example.Radio", token: secondRow),
+               "one invalidation makes every row's build in flight stale")
+
+        var refreshes = MixerRefreshCoordinator()
+        expect(!refreshes.isReading, "a mixer that is not reading the audio devices holds no slot")
+        // No real generation is ever negative, so the sentinel cannot pass.
+        let firstRefresh = refreshes.begin() ?? -1
+        expect(firstRefresh > 0 && refreshes.isReading, "the first refresh takes the slot")
+        expect(refreshes.begin() == nil,
+               "a second refresh is refused while one is still reading the audio devices")
+        expect(refreshes.takeRepeatRequest(),
+               "the refused refresh is remembered so nothing asked for is lost")
+        expect(!refreshes.takeRepeatRequest(),
+               "a remembered refresh runs once, not on every landing")
+        expect(refreshes.finish(firstRefresh), "the refresh that owns the slot publishes what it read")
+        expect(!refreshes.isReading, "finishing a refresh frees the slot for the next one")
+        let secondRefresh = refreshes.begin() ?? -1
+        expect(secondRefresh > firstRefresh, "generations move forward, never repeat")
+        expect(!refreshes.finish(firstRefresh),
+               "a refresh from an older generation never publishes")
+        expect(refreshes.isReading,
+               "an older refresh landing late leaves the current one holding the slot")
+        expect(refreshes.finish(secondRefresh), "the current refresh still publishes after that")
+
+        var discarded = MixerRefreshCoordinator()
+        let staleRefresh = discarded.begin() ?? -1
+        _ = discarded.begin()
+        discarded.discardInFlight()
+        expect(!discarded.isReading, "discarding what is in flight frees the slot at once")
+        expect(!discarded.finish(staleRefresh),
+               "a refresh reading while the output changed publishes nothing")
+        expect(!discarded.takeRepeatRequest(),
+               "discarding also drops the repeat request, since a fresh refresh follows it")
+        let afterDiscard = discarded.begin() ?? -1
+        expect(afterDiscard > staleRefresh && discarded.finish(afterDiscard),
+               "the refresh started after a discard is the one that publishes")
+
+        expect(MixerRoutingSupport.engineTeardownDelay(hasAudioObjects: true,
+                                                       lastChangeAt: nil,
+                                                       now: 100) == nil,
+               "a row that still has audio is never left waiting for its tap")
+        expect(MixerRoutingSupport.engineTeardownDelay(hasAudioObjects: true,
+                                                       lastChangeAt: 99.9,
+                                                       now: 100) == nil,
+               "a row that got its audio back is handled at once")
+        expect(MixerRoutingSupport.engineTeardownDelay(hasAudioObjects: false,
+                                                       lastChangeAt: nil,
+                                                       now: 100,
+                                                       window: 0.2) == 0.2,
+               "a row that just lost its audio objects keeps its tap for one window")
+        expectClose(MixerRoutingSupport.engineTeardownDelay(hasAudioObjects: false,
+                                                            lastChangeAt: 99.95,
+                                                            now: 100,
+                                                            window: 0.2) ?? -1,
+                    0.15,
+                    "repeated churn in one window waits out the remainder instead of acting again")
+        expect(MixerRoutingSupport.engineTeardownDelay(hasAudioObjects: false,
+                                                       lastChangeAt: 99.5,
+                                                       now: 100,
+                                                       window: 0.2) == nil,
+               "a row still without audio after the window loses its tap")
+        expect(MixerRoutingSupport.engineTeardownDelay(hasAudioObjects: false,
+                                                       lastChangeAt: 101,
+                                                       now: 100,
+                                                       window: 0.2) == 0.2,
+               "a clock that jumps backwards falls back to a full window")
+
+        let identifiedRow = MixerRoutingSupport.rowIdentity(bundleIdentifier: "com.example.Player",
+                                                           ownerPid: 501)
+        expect(identifiedRow.rowID == "com.example.Player"
+               && identifiedRow.persistenceID == "com.example.Player",
+               "an app with a bundle id keeps it as both row and storage identity")
+        let unidentifiedRow = MixerRoutingSupport.rowIdentity(bundleIdentifier: nil, ownerPid: 501)
+        let otherUnidentifiedRow = MixerRoutingSupport.rowIdentity(bundleIdentifier: nil, ownerPid: 502)
+        expect(!unidentifiedRow.rowID.isEmpty && unidentifiedRow.persistenceID == nil,
+               "an app without a bundle id is still listable but has nothing to store a volume under")
+        expect(unidentifiedRow.rowID != otherUnidentifiedRow.rowID,
+               "two processes without a bundle id are separate rows, so neither inherits the other's volume")
+        expect(MixerRoutingSupport.rowIdentity(bundleIdentifier: "   ", ownerPid: 501).persistenceID == nil,
+               "a blank bundle id is not an identity")
+
+        expect(MixerRoutingSupport.restorableInputDeviceUID(originalUID: "BuiltInMicrophoneDevice",
+                                                            appliedUID: "USBMicrophone",
+                                                            currentUID: "USBMicrophone",
+                                                            availableUIDs: ["BuiltInMicrophoneDevice",
+                                                                            "USBMicrophone"])
+               == "BuiltInMicrophoneDevice",
+               "the microphone the system had before the app changed it is put back")
+        expect(MixerRoutingSupport.restorableInputDeviceUID(originalUID: "BuiltInMicrophoneDevice",
+                                                            appliedUID: "USBMicrophone",
+                                                            currentUID: "HeadsetMicrophone",
+                                                            availableUIDs: ["BuiltInMicrophoneDevice",
+                                                                            "USBMicrophone"]) == nil,
+               "a microphone chosen elsewhere since is left alone")
+        expect(MixerRoutingSupport.restorableInputDeviceUID(originalUID: "BuiltInMicrophoneDevice",
+                                                            appliedUID: "USBMicrophone",
+                                                            currentUID: "USBMicrophone",
+                                                            availableUIDs: ["USBMicrophone"]) == nil,
+               "a microphone that is gone is not restored")
+        expect(MixerRoutingSupport.restorableInputDeviceUID(originalUID: nil,
+                                                            appliedUID: nil,
+                                                            currentUID: "USBMicrophone",
+                                                            availableUIDs: ["USBMicrophone"]) == nil,
+               "nothing is restored when the app never changed the microphone")
+        expect(MixerRoutingSupport.shouldRestoreOutputVolume(appliedVolume: 0.25, currentVolume: 0.25),
+               "a volume still at the value the app set goes back to what it was")
+        expect(!MixerRoutingSupport.shouldRestoreOutputVolume(appliedVolume: 0.25, currentVolume: 0.6),
+               "a volume changed since the app lowered it is left alone")
+        expect(!MixerRoutingSupport.shouldRestoreOutputVolume(appliedVolume: 0.25, currentVolume: nil),
+               "a volume that cannot be read is left alone")
         expect(!MixerRoutingSupport.isHiddenFromMixer(bundleIdentifier: "com.apple.finder",
                                                       showFinder: true),
                "Finder shows in the mixer when enabled")
@@ -3473,6 +3872,31 @@ struct MetricsTests {
         }
         expect(!SwitcherSupport.captureLooksTransformed(alphaGrid: [], gridSize: 8),
                "switcher capture classifier tolerates a malformed alpha grid")
+
+        // Pixel counts measured on a 620 by 452 point window: whole on screen,
+        // hanging over the bottom edge, and hanging past the side edge.
+        let probeWindow = CGSize(width: 620, height: 452)
+        expect(SwitcherSupport.captureCoversWindow(imageWidth: 1240, imageHeight: 904,
+                                                   windowSize: probeWindow),
+               "switcher keeps a capture that covers the whole window")
+        expect(!SwitcherSupport.captureCoversWindow(imageWidth: 1240, imageHeight: 144,
+                                                    windowSize: probeWindow),
+               "switcher rejects the band captured for a window hanging over the bottom edge")
+        expect(!SwitcherSupport.captureCoversWindow(imageWidth: 120, imageHeight: 904,
+                                                    windowSize: probeWindow),
+               "switcher rejects the band captured for a window hanging past the side edge")
+        expect(SwitcherSupport.captureCoversWindow(imageWidth: 620, imageHeight: 452,
+                                                   windowSize: probeWindow),
+               "switcher coverage check ignores the display scale, so a plain screen passes")
+        expect(SwitcherSupport.captureCoversWindow(imageWidth: 2200, imageHeight: 424,
+                                                   windowSize: CGSize(width: 1100, height: 212)),
+               "switcher keeps the capture of a window that really is that wide")
+        expect(SwitcherSupport.captureCoversWindow(imageWidth: 1240, imageHeight: 144,
+                                                   windowSize: .zero),
+               "switcher coverage check passes when the window size says nothing")
+        expect(SwitcherSupport.captureCoversWindow(imageWidth: 0, imageHeight: 904,
+                                                   windowSize: probeWindow),
+               "switcher coverage check passes when a capture reports no pixels")
 
         expect(SwitcherSupport.staleCacheVictims(ids: [1, 2, 3], active: [], lastTouched: [:], limit: 3).isEmpty,
                "switcher preview cache keeps everything under the limit")
@@ -4712,6 +5136,22 @@ struct MetricsTests {
             expect(!strings.launchAtLoginNeedsApplications.isEmpty
                    && !strings.launchAtLoginNeedsApplications.contains("—"),
                    "\(prefix) launch at login location note is present without em dash")
+            // Shortcut recording: the waiting cap, the two hints under the row
+            // and the honest message for a combination that never arrived (#308).
+            let shortcutCaptureStrings = [strings.shortcutPressKeys, strings.shortcutEscapeHint,
+                                          strings.shortcutDeleteHint, strings.shortcutNotCaptured,
+                                          strings.shortcutRecording, strings.shortcutInvalid]
+            expect(shortcutCaptureStrings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
+                   "\(prefix) shortcut recording strings are present without em dash")
+            expect(!ShortcutRecordingCaption.text(strings, canClear: false).isEmpty
+                   && !ShortcutRecordingCaption.text(strings, canClear: false)
+                       .contains(strings.shortcutDeleteHint),
+                   "\(prefix) a field that cannot clear never promises that Delete clears")
+            expect(ShortcutRecordingCaption.text(strings, canClear: true)
+                       .contains(strings.shortcutDeleteHint),
+                   "\(prefix) a field that can clear says so")
+            expect(strings.shortcutPressKeys.count <= 16,
+                   "\(prefix) the waiting cap stays short enough for the field")
             let ocrQRStrings = [strings.ocrQRToggle, strings.ocrQRCaption, strings.ocrQRCopied,
                                 strings.qrResultTitle, strings.qrResultCopy, strings.qrResultOpen]
             expect(ocrQRStrings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
@@ -5257,7 +5697,7 @@ struct MetricsTests {
                    "no em-dash in visible camera preview strings (\(language.rawValue))")
             let radialMenuValues = Mirror(reflecting: FeatureStrings.radialMenu(language)).children
                 .compactMap { $0.value as? String }
-            expect(radialMenuValues.count == 44 && radialMenuValues.allSatisfy { !$0.isEmpty },
+            expect(radialMenuValues.count == 50 && radialMenuValues.allSatisfy { !$0.isEmpty },
                    "every radial menu string is set for \(language.rawValue)")
             expect(radialMenuValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible radial menu strings (\(language.rawValue))")
@@ -5495,6 +5935,60 @@ struct MetricsTests {
         expect(BrightnessSupport.steppedBrightness(0.97, delta: BrightnessSupport.brightnessKeyStep) == 1.0
                 && BrightnessSupport.steppedBrightness(0.03, delta: -BrightnessSupport.brightnessKeyStep) == 0.0,
                "key steps clamp at both ends of the range")
+
+        // Keyboards other than the built-in one send brightness as a plain
+        // key press, which is why the pointer never got a say on them
+        // (issue #287). Codes measured against the display server.
+        func functionKey(_ code: Int,
+                         down: Bool = true,
+                         modifiers: Bool = false,
+                         functionKeys: Bool = true) -> BrightnessSupport.BrightnessKeyEvent? {
+            BrightnessSupport.brightnessFunctionKeyEvent(keyCode: code,
+                                                         isKeyDown: down,
+                                                         isRepeat: false,
+                                                         hasModifiers: modifiers,
+                                                         functionKeysAdjustBrightness: functionKeys)
+        }
+        expect(functionKey(144)?.delta == BrightnessSupport.brightnessKeyStep,
+               "the dedicated brightness up code steps up by one sixteenth")
+        expect(functionKey(145)?.delta == -BrightnessSupport.brightnessKeyStep,
+               "the dedicated brightness down code steps down by one sixteenth")
+        expect(functionKey(113)?.delta == BrightnessSupport.brightnessKeyStep,
+               "F15 steps up while the system still offers it as a brightness key")
+        expect(functionKey(107)?.delta == -BrightnessSupport.brightnessKeyStep,
+               "F14 steps down while the system still offers it as a brightness key")
+        expect(functionKey(113, functionKeys: false) == nil
+                && functionKey(107, functionKeys: false) == nil,
+               "the function keys are left alone once the system stops using them")
+        expect(functionKey(144, functionKeys: false)?.delta == BrightnessSupport.brightnessKeyStep,
+               "the dedicated codes mean brightness whatever the function keys do")
+        expect(functionKey(144, modifiers: true) == nil,
+               "a modified press belongs to the system, not to us")
+        expect(functionKey(0) == nil && functionKey(53) == nil,
+               "ordinary typing never decodes as brightness")
+        expect(functionKey(145, down: false)?.isKeyDown == false,
+               "the release decodes too, so a consumed press consumes both halves")
+        expect(BrightnessSupport.isBrightnessKeyCode(144)
+                && BrightnessSupport.isBrightnessKeyCode(145)
+                && BrightnessSupport.isBrightnessKeyCode(107)
+                && BrightnessSupport.isBrightnessKeyCode(113),
+               "the four brightness codes are recognized on the fast path")
+        expect(!BrightnessSupport.isBrightnessKeyCode(0)
+                && !BrightnessSupport.isBrightnessKeyCode(36),
+               "letters and Return leave the fast path immediately")
+        expect(BrightnessSupport.functionKeysAdjustBrightness(symbolicHotKeys: nil),
+               "the system ships the function keys as brightness keys")
+        expect(BrightnessSupport.functionKeysAdjustBrightness(symbolicHotKeys: [:]),
+               "an untouched shortcut list means the defaults are in force")
+        expect(!BrightnessSupport.functionKeysAdjustBrightness(
+            symbolicHotKeys: ["53": ["enabled": false]]),
+               "turning the system shortcut off gives the function key back")
+        expect(!BrightnessSupport.functionKeysAdjustBrightness(
+            symbolicHotKeys: ["54": ["enabled": NSNumber(value: false)]]),
+               "the shortcut flag is read whichever way it was stored")
+        expect(BrightnessSupport.functionKeysAdjustBrightness(
+            symbolicHotKeys: ["53": ["enabled": true], "54": ["enabled": true]]),
+               "shortcuts left switched on keep the function keys as brightness")
 
         // Pointer routing on system-routed displays (issue #268): the system
         // only ever steps its native target, so any other display the
@@ -5790,6 +6284,21 @@ struct MetricsTests {
         expect(ScreenshotSupport.isClick(from: CGPoint(x: 5, y: 5), to: CGPoint(x: 7, y: 8))
                 && !ScreenshotSupport.isClick(from: .zero, to: CGPoint(x: 12, y: 0)),
                "a tiny drag is a click, a real drag is not")
+
+        // A gesture that ends with more than one release, like a drag made
+        // with three fingers, delivers events after the capture is over.
+        expect(ScreenshotSupport.selectionAcceptsPointerInput(sessionIsOver: false,
+                                                              capturePending: false),
+               "a live selection answers the pointer")
+        expect(!ScreenshotSupport.selectionAcceptsPointerInput(sessionIsOver: true,
+                                                               capturePending: false),
+               "a session that is over ignores the tail of a gesture")
+        expect(!ScreenshotSupport.selectionAcceptsPointerInput(sessionIsOver: false,
+                                                               capturePending: true),
+               "a capture already on its way ignores further pointer input")
+        expect(!ScreenshotSupport.selectionAcceptsPointerInput(sessionIsOver: true,
+                                                               capturePending: true),
+               "both at once still ignores the pointer")
 
         let cocoa = ScreenshotSupport.cocoaRect(fromWindowServer: CGRect(x: 10, y: 30, width: 200, height: 100),
                                                 mainScreenHeight: 900)
@@ -6272,8 +6781,32 @@ struct MetricsTests {
                 && !backupKeys.contains(DefaultsKey.sleepDisabledFlag)
                 && !backupKeys.contains(DefaultsKey.micMuteActive)
                 && !backupKeys.contains(DefaultsKey.cleanerLastAutoRun)
-                && !backupKeys.contains(DefaultsKey.statusItemPlacementGeneration),
+                && !backupKeys.contains(DefaultsKey.statusItemPlacementGeneration)
+                && !backupKeys.contains(DefaultsKey.displaysSwitchedOff),
                "backup never carries private content, live state or machine markers")
+        expect(Defaults.registeredDefaults[DefaultsKey.displaysSwitchedOff] == nil,
+               "a display switched off is a repair note for this machine, not a setting")
+        expect(Defaults.registeredDefaults[DefaultsKey.startupDidNotFinish] == nil,
+               "a start that did not finish is a note for this machine, not a setting")
+
+        // A stored shortcut is text on disk and can arrive edited or through
+        // an imported settings file, so the number is checked before it ever
+        // reaches an API that takes a narrower type.
+        expect(GlobalShortcut(storageValue: "command:-1") == nil,
+               "a negative key code never becomes a shortcut")
+        expect(GlobalShortcut(storageValue: "command:99999999") == nil,
+               "a key code past the end of the range never becomes a shortcut")
+        expect(GlobalShortcut(storageValue: "command:\(Int64.min)") == nil,
+               "the smallest possible number never becomes a shortcut")
+        expect(!GlobalShortcut(keyCode: -1, modifiers: [.command]).isValid
+                && !GlobalShortcut(keyCode: 70000, modifiers: [.command]).isValid,
+               "a shortcut built with a number out of range is not valid")
+        expect(GlobalShortcut(keyCode: -1, modifiers: [.command]).carbonKeyCode == 0,
+               "a number out of range converts to nothing instead of trapping")
+        expect(GlobalShortcut(storageValue: "control+option+command:40") != nil,
+               "an ordinary stored shortcut still reads back")
+        expect(!backupKeys.contains(DefaultsKey.startupDidNotFinish),
+               "the backup never carries a note about a start that did not finish")
         expect(backupKeys.contains(DefaultsKey.hasOnboarded)
                 && backupKeys.contains(DefaultsKey.dockPreviewIntroVersion)
                 && backupKeys.contains(DefaultsKey.featuresOnboardingVersion)
@@ -6302,6 +6835,24 @@ struct MetricsTests {
             SettingsBackupSupport.formatVersionKey: 99,
             SettingsBackupSupport.settingsKey: [String: Any](),
         ]) == nil, "a future format version is rejected")
+
+        // A backup file can be edited by hand, and a value of the wrong shape
+        // would reach code that trusts its own settings.
+        let wrongShapes: [String: Any] = [
+            SettingsBackupSupport.formatVersionKey: 1,
+            SettingsBackupSupport.settingsKey: [
+                DefaultsKey.smoothScrollEnabled: "yes please",
+                DefaultsKey.monitorInterval: "soon",
+                DefaultsKey.smoothScrollStep: 60,
+            ] as [String: Any],
+        ]
+        let shapeChecked = SettingsBackupSupport.sanitizedSettings(from: wrongShapes)
+        expect(shapeChecked?[DefaultsKey.smoothScrollEnabled] == nil,
+               "text where a switch belongs is dropped on import")
+        expect(shapeChecked?[DefaultsKey.monitorInterval] == nil,
+               "text where a number belongs is dropped on import")
+        expect(shapeChecked?[DefaultsKey.smoothScrollStep] as? Int == 60,
+               "a value of the right shape still restores")
 
         // MARK: Result
 

@@ -312,15 +312,19 @@ final class DiskSampler {
         process.arguments = ["info", "-plist", mountPath]
         let output = Pipe()
         process.standardOutput = output
-        process.standardError = Pipe()
+        // An error stream nobody reads fills up and stops the command for
+        // good, so it goes nowhere instead of into a pipe.
+        process.standardError = FileHandle.nullDevice
         do {
             try process.run()
         } catch {
             return nil
         }
+        // Read first, wait second: a volume whose description does not fit in
+        // the pipe would otherwise leave both sides waiting on each other.
+        let data = output.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else { return nil }
-        let data = output.fileHandleForReading.readDataToEndOfFile()
         var format = PropertyListSerialization.PropertyListFormat.xml
         guard let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: &format),
               let dict = plist as? [String: Any] else { return nil }

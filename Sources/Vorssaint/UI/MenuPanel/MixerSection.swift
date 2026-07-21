@@ -18,7 +18,7 @@ struct MixerSection: View {
     @AppStorage(DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect)
     private var lowerOnHeadphonesDisconnect = false
     @AppStorage(DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
-    private var headphonesDisconnectVolumePercent = 0
+    private var headphonesDisconnectVolumePercent = Defaults.defaultMixerHeadphonesDisconnectVolumePercent
     @AppStorage(DefaultsKey.soundOutputSwitcherEnabled)
     private var soundOutputSwitcherEnabled = false
     @State private var soundOutputSwitcherUIDs: [String] = []
@@ -141,7 +141,9 @@ struct MixerSection: View {
 
             if lowerOnHeadphonesDisconnect {
                 HStack(spacing: 8) {
-                    Stepper(value: headphonesDisconnectVolumeBinding, in: 0...100, step: 5) {
+                    Stepper(value: headphonesDisconnectVolumeBinding,
+                            in: Defaults.minimumMixerHeadphonesDisconnectVolumePercent...100,
+                            step: 5) {
                         Text(l10n.s.mixerHeadphonesDisconnectVolume)
                             .font(.system(size: 10.5, weight: .medium))
                     }

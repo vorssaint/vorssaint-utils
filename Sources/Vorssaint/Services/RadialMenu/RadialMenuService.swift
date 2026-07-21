@@ -25,6 +25,27 @@ final class RadialMenuService: ObservableObject {
     @Published private(set) var holdPhase = false
     /// True when macOS refused the shortcut (taken by another app).
     @Published private(set) var registrationFailed = false
+    /// True while the app is actually able to watch for the chosen mouse
+    /// button. Off means the button can never open the wheel, whatever the
+    /// setting says, and the settings screen can say so instead of leaving
+    /// the user guessing.
+    @Published private(set) var isWatchingMouseButton = false
+    /// The last extra mouse button that arrived while the settings screen was
+    /// asking. Nil means nothing has arrived yet.
+    @Published private(set) var lastMouseButtonSeen: Int?
+    /// Set only while the settings screen is on screen.
+    private var isReportingMouseButtons = false
+
+    /// Starts and stops reporting which extra mouse buttons arrive. Costs
+    /// nothing: it only decides whether the tap that already exists writes
+    /// down what it sees.
+    func setReportingMouseButtons(_ reporting: Bool) {
+        isReportingMouseButtons = reporting
+        if !reporting, lastMouseButtonSeen != nil { lastMouseButtonSeen = nil }
+        // A tap the system disabled behind our back reads exactly like a
+        // button that never arrives, so the state is refreshed on the way in.
+        if reporting { syncMouseTap() }
+    }
 
     /// Drives the wheel's appear animation: false in the pre-warmed idle
     /// render, true the moment a session fills the stack.
@@ -117,6 +138,7 @@ final class RadialMenuService: ObservableObject {
         mouseTapSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        if !isWatchingMouseButton { isWatchingMouseButton = true }
     }
 
     private func tearDownMouseTap() {
@@ -129,6 +151,7 @@ final class RadialMenuService: ObservableObject {
         }
         mouseTap = nil
         mouseTapSource = nil
+        if isWatchingMouseButton { isWatchingMouseButton = false }
     }
 
     private func handleMouseTap(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
@@ -136,8 +159,15 @@ final class RadialMenuService: ObservableObject {
             if let mouseTap { CGEvent.tapEnable(tap: mouseTap, enable: true) }
             return Unmanaged.passUnretained(event)
         }
-        guard let button = mouseTrigger.buttonNumber,
-              event.getIntegerValueField(.mouseEventButtonNumber) == button
+        let pressed = Int(event.getIntegerValueField(.mouseEventButtonNumber))
+        // While the settings screen is asking, every extra button that
+        // arrives is reported, so the user can tell a button this app cannot
+        // see from one that is simply set to something else. Nothing new
+        // watches for it: the tap that is already required does the telling.
+        if isReportingMouseButtons, type == .otherMouseDown {
+            lastMouseButtonSeen = pressed
+        }
+        guard let button = mouseTrigger.buttonNumber, pressed == button
         else { return Unmanaged.passUnretained(event) }
 
         // The source lives on the main run loop, so this already runs on

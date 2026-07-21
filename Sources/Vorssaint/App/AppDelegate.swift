@@ -33,6 +33,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        beginStartupWatch()
+        Self.boundAccessibilityWaits()
 
         // Finish the on-disk rename for installs carried over from a pre-2.5
         // build, or retire a leftover old-named bundle. Returns true when we are
@@ -43,6 +45,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // choice is the last thing the user expressed in the app; startup
         // never turns the item off.
         LaunchAtLogin.repairAtStartup()
+
+        // Switch back on any display a previous run left off. A run that ends
+        // without putting one back leaves a screen dark with no app around to
+        // offer it back, so the repair happens before anything else can care
+        // about which displays are attached.
+        BrightnessService.shared.restoreDisplaysLeftOff()
 
         // An accessory (LSUIElement) app gets no default main menu, so the standard
         // keyboard shortcuts (Cmd+H/M/W/Q and the Edit shortcuts Cmd+C/V/X/A) have
@@ -117,19 +125,72 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             .store(in: &cancellables)
 
         let defaults = UserDefaults.standard
-        if !defaults.bool(forKey: DefaultsKey.hasOnboarded) {
-            showOnboarding(mode: .full)
-        } else {
-            // Keep the last seen version marker current without opening
-            // post-update release notes; the update flow already previews them.
-            defaults.set(OnboardingInfo.currentFeatureSet, forKey: DefaultsKey.featuresOnboardingVersion)
-            defaults.set(AppInfo.version, forKey: DefaultsKey.lastUpdateIntroVersion)
-            presentUpdateIntros()
+        // Whatever opens a window at startup waits for the next turn of the
+        // run loop, so the menu bar icon is on screen first. A start that goes
+        // wrong after this point then leaves the app reachable instead of
+        // invisible. And if the previous start never finished, the extra
+        // windows are skipped entirely this time: the app comes up bare rather
+        // than walking into the same thing twice.
+        let skipStartupWindows = startupOfPreviousRunDidNotFinish
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            if !defaults.bool(forKey: DefaultsKey.hasOnboarded) {
+                guard !skipStartupWindows else { return }
+                self.showOnboarding(mode: .full)
+            } else {
+                // Keep the last seen version marker current without opening
+                // post-update release notes; the update flow already previews
+                // them.
+                defaults.set(OnboardingInfo.currentFeatureSet, forKey: DefaultsKey.featuresOnboardingVersion)
+                defaults.set(AppInfo.version, forKey: DefaultsKey.lastUpdateIntroVersion)
+                guard !skipStartupWindows else { return }
+                self.presentUpdateIntros()
+            }
         }
+    }
+
+    /// Asking another app about its windows waits for that app to answer, and
+    /// the wait allowed by default is a second and a half per question. An app
+    /// that is busy saving, or stuck on a slow disk, would hold this one still
+    /// for that long each time, and this app asks in places where the whole
+    /// session is waiting on it. The limit is set once here, low enough that a
+    /// slow answer is dropped rather than felt. The value matches what the
+    /// window features already settled on for themselves. It applies to every
+    /// question asked from this process, whichever element it is asked of, so
+    /// it also covers the places that never set one of their own.
+    private static func boundAccessibilityWaits() {
+        AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 0.35)
+    }
+
+    // MARK: - Startup that did not finish
+
+    /// A start is marked as under way before anything else happens and cleared
+    /// once the app has been running healthily for a while, or when it is
+    /// quit properly. Finding the mark still set means the previous run died
+    /// on the way up, and this one leaves the optional windows out of it.
+    private var startupOfPreviousRunDidNotFinish = false
+
+    /// How long a run has to last before its start counts as having worked.
+    /// Comfortably past the point where the reported failures happened.
+    private static let healthyStartupSeconds: TimeInterval = 20
+
+    private func beginStartupWatch() {
+        let defaults = UserDefaults.standard
+        startupOfPreviousRunDidNotFinish = defaults.bool(forKey: DefaultsKey.startupDidNotFinish)
+        defaults.set(true, forKey: DefaultsKey.startupDidNotFinish)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.healthyStartupSeconds) {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.startupDidNotFinish)
+        }
+    }
+
+    private func endStartupWatch() {
+        UserDefaults.standard.removeObject(forKey: DefaultsKey.startupDidNotFinish)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
+        // Quitting properly means the start worked, whenever it happened.
+        endStartupWatch()
         if AppFeature.brightness.isAvailable {
             BrightnessService.shared.restoreDisplaysBeforeTermination()
         }
@@ -146,6 +207,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         DockPreviewService.shared.stop()
         SoundOutputSwitcher.shared.stop()
         AppVolumeMixer.shared.stopAll()
+        // Puts the system input back if a microphone was chosen here: the
+        // app's audio settings must not outlive the app.
+        AudioInputDeviceManager.shared.stop()
         // Flushes any scratchpad edit still inside the save debounce.
         ScratchpadService.shared.suspend()
         // The clipboard history persists through an async pipeline; the last

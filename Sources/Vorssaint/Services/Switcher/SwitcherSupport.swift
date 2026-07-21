@@ -139,16 +139,18 @@ enum SwitcherSupport {
         dockPreviewEnabled || (switcherEnabled && capturesPreviews(simpleMode: simpleMode))
     }
 
-    /// Resolves the foreground surface before the custom switcher takes over
-    /// ⌘Tab. Fullscreen and custom-rendered apps can expose no Accessibility
-    /// window; failing open keeps the system switcher available instead of
-    /// mistaking an older off-screen window for the source.
+    /// Resolves the foreground surface a session is measured against: the
+    /// window the user is looking at right now. It can legitimately not exist
+    /// (the app in front was left with no windows, or all of them are
+    /// minimized or parked on another Space), and nil says exactly that
+    /// instead of mistaking an older off-screen window for the source. The
+    /// session opens either way; `initialSelectionPosition` handles the
+    /// sourceless case.
     static func sessionSourceItem(frontmostPID: pid_t?,
                                   focusedWindowID: CGWindowID?,
                                   items: [SwitcherItem]) -> SwitcherItem? {
         guard let frontmostPID else { return nil }
-        let appPID = items.first(where: { $0.windowOwnerPID == frontmostPID })?.pid
-            ?? frontmostPID
+        let appPID = appPID(forFrontmost: frontmostPID, items: items)
         let candidates = items.filter { $0.pid == appPID }
         if let focusedWindowID,
            let focused = candidates.first(where: { $0.windowID == focusedWindowID }) {
@@ -156,6 +158,13 @@ enum SwitcherSupport {
         }
         return candidates.first(where: { $0.isOnScreen && !$0.isMinimized })
             ?? candidates.first(where: { $0.windowID == nil })
+    }
+
+    /// The regular app behind the process holding the keyboard. Multi-process
+    /// apps render their windows in an embedded helper, so the front process
+    /// is not always the one the entries are filed under.
+    static func appPID(forFrontmost frontmostPID: pid_t, items: [SwitcherItem]) -> pid_t {
+        items.first(where: { $0.windowOwnerPID == frontmostPID })?.pid ?? frontmostPID
     }
 
     /// Whether a process looks like a compatibility layer hosting a program
@@ -231,6 +240,33 @@ enum SwitcherSupport {
         ]
         let transparent = probes.filter { alphaGrid[$0.0 * gridSize + $0.1] < 0.05 }.count
         return transparent >= 2
+    }
+
+    /// How far the two axes of a capture may disagree before it counts as a
+    /// slice of a window instead of the whole window.
+    static let captureCoverageTolerance = 0.08
+
+    /// Whether a capture holds the whole window or only the part of it that
+    /// was inside a display. The window server clips a window capture to the
+    /// visible region, so a window hanging over a screen edge comes back as a
+    /// thin band of real content while still reporting its full size. Measured
+    /// with a 620 by 452 point window: fully visible it captures 2.00 by 2.00
+    /// pixels per point, hanging over the bottom edge 2.00 by 0.32, hanging
+    /// past the side edge 0.19 by 2.00. Comparing the two axes catches that
+    /// without caring about the display scale, so a plain screen and a Retina
+    /// screen both score the same. A window with nothing to measure passes,
+    /// because there is no evidence either way.
+    static func captureCoversWindow(imageWidth: Int,
+                                    imageHeight: Int,
+                                    windowSize: CGSize,
+                                    tolerance: Double = captureCoverageTolerance) -> Bool {
+        guard windowSize.width.isFinite, windowSize.height.isFinite,
+              windowSize.width > 1, windowSize.height > 1
+        else { return true }
+        let horizontal = Double(imageWidth) / Double(windowSize.width)
+        let vertical = Double(imageHeight) / Double(windowSize.height)
+        guard horizontal > 0, vertical > 0 else { return true }
+        return max(horizontal, vertical) / min(horizontal, vertical) <= 1 + tolerance
     }
 
     /// Corners of the opaque quadrilateral in a capture, in top-left-origin
@@ -385,6 +421,27 @@ enum SwitcherSupport {
                                            itemIDs: items.filter { $0.pid == item.pid }.map(\.id)))
         }
         return groups
+    }
+
+    /// Where a session starts. `pids` is the list in display order, one entry
+    /// per position the shortcut steps through: one per window in the grid,
+    /// one per app in the icon row.
+    ///
+    /// The foreground window always sits first, so the selection starts one
+    /// step past it and a single press already switches. When there is no
+    /// foreground window the list holds nothing the user is looking at, except
+    /// windows the front app left minimized or on another Space; those are
+    /// skipped for the same reason, so one press still lands somewhere else.
+    static func initialSelectionPosition(pids: [pid_t],
+                                         hasForegroundEntry: Bool,
+                                         frontmostPID: pid_t?,
+                                         reversed: Bool) -> Int {
+        guard !pids.isEmpty else { return 0 }
+        if reversed { return pids.count - 1 }
+        guard hasForegroundEntry else {
+            return pids.firstIndex { $0 != frontmostPID } ?? 0
+        }
+        return pids.count > 1 ? 1 : 0
     }
 
     /// Moves between rows without wrapping. When the row below is shorter,

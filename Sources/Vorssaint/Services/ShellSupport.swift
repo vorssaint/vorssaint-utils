@@ -5,8 +5,15 @@ import AppKit
 import CoreServices
 
 enum Shell {
+    /// A command that stops answering must not keep a thread forever. Nothing
+    /// here asks a question that is worth more than a few seconds, and a tool
+    /// waiting on a damaged disk or a share that went away can wait for good.
+    static let defaultTimeout: TimeInterval = 5
+
     @discardableResult
-    static func run(_ path: String, _ args: [String]) -> (status: Int32, output: String) {
+    static func run(_ path: String,
+                    _ args: [String],
+                    timeout: TimeInterval = defaultTimeout) -> (status: Int32, output: String) {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: path)
         p.arguments = args
@@ -14,8 +21,28 @@ enum Shell {
         p.standardOutput = pipe
         p.standardError = pipe
         do { try p.run() } catch { return (-1, "") }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        p.waitUntilExit()
+        // The pipe is drained on its own thread. Reading after waiting would
+        // deadlock the moment a command writes more than the pipe holds, and
+        // waiting without a limit is what turns a stuck command into a stuck
+        // app.
+        var data = Data()
+        let drained = DispatchSemaphore(value: 0)
+        DispatchQueue.global(qos: .utility).async {
+            data = pipe.fileHandleForReading.readDataToEndOfFile()
+            drained.signal()
+        }
+        let finished = DispatchSemaphore(value: 0)
+        DispatchQueue.global(qos: .utility).async {
+            p.waitUntilExit()
+            finished.signal()
+        }
+        if finished.wait(timeout: .now() + timeout) == .timedOut {
+            p.terminate()
+            _ = finished.wait(timeout: .now() + 1)
+            _ = drained.wait(timeout: .now() + 1)
+            return (-1, String(data: data, encoding: .utf8) ?? "")
+        }
+        _ = drained.wait(timeout: .now() + 1)
         return (p.terminationStatus, String(data: data, encoding: .utf8) ?? "")
     }
 }
@@ -52,7 +79,10 @@ enum AdminShell {
 
         bringAppToFront()
         let source = "do shell script \(appleScriptString(command)) with administrator privileges with prompt \(appleScriptString(prompt))"
-        return Shell.run("/usr/bin/osascript", ["-e", source]).status == 0
+        // A person typing a password is not a stuck command: the short default
+        // timeout would tear the dialog down mid-typing. Ten minutes bounds a
+        // dialog nobody answers without ever rushing one that is being read.
+        return Shell.run("/usr/bin/osascript", ["-e", source], timeout: 600).status == 0
     }
 
     static func run(_ command: String, prompt: String, completion: @escaping (Bool) -> Void) {

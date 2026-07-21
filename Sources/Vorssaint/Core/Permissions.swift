@@ -96,12 +96,18 @@ final class Permissions: ObservableObject {
 
     /// Full refresh including Full Disk Access. Runs at launch and on activation.
     func refresh() {
-        let fda = Self.probeFullDiskAccess()
         refreshActivePermissions()
         refreshNotificationPermission()
         refreshCameraPermission()
-        DispatchQueue.main.async {
-            if self.fullDiskAccess != fda { self.fullDiskAccess = fda }
+        // Checking Full Disk Access means asking the system about protected
+        // folders, and every refused answer costs time. Doing that where the
+        // app is starting up holds back the menu bar icon, so it moves off
+        // and reports back.
+        DispatchQueue.global(qos: .utility).async {
+            let granted = Self.probeFullDiskAccess()
+            DispatchQueue.main.async {
+                if self.fullDiskAccess != granted { self.fullDiskAccess = granted }
+            }
         }
     }
 
@@ -119,6 +125,15 @@ final class Permissions: ObservableObject {
     }
 
     private func refreshNotificationPermission() {
+        // Asking the system for the notification centre ends the process
+        // outright when it cannot resolve this app, which is what happens
+        // when the bundle is replaced or moved out from under a running copy.
+        // An update does exactly that, so reporting nothing beats dying.
+        guard Bundle.main.bundleIdentifier != nil,
+              FileManager.default.fileExists(atPath: Bundle.main.bundlePath) else {
+            if notifications != .unknown { notifications = .unknown }
+            return
+        }
         UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
             let state: NotificationPermissionState
             switch settings.authorizationStatus {

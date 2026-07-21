@@ -70,23 +70,43 @@ enum ScreenshotCaptureEngine {
 
     /// The window's own buffer via the window server (same capture the
     /// switcher thumbnails use), full resolution, falling back to
-    /// ScreenCaptureKit when the private route is unavailable.
+    /// ScreenCaptureKit when the private route is unavailable or when it
+    /// returns only the visible slice of a window that runs off the screen.
     static func captureWindow(_ windowID: CGWindowID, scale: CGFloat) async -> CGImage? {
+        var clippedFallback: CGImage?
         if let image = WindowPreviewProvider.captureViaWindowServer(windowID) {
-            return image
+            let bounds = windowBounds(windowID)
+            if bounds.map({ SwitcherSupport.captureCoversWindow(imageWidth: image.width,
+                                                                imageHeight: image.height,
+                                                                windowSize: $0.size) }) ?? true {
+                return image
+            }
+            clippedFallback = image
         }
         guard let content = try? await SCShareableContent.excludingDesktopWindows(
             false, onScreenWindowsOnly: true),
             let window = content.windows.first(where: { $0.windowID == windowID })
-        else { return nil }
+        else { return clippedFallback }
         let configuration = SCStreamConfiguration()
         configuration.width = max(1, Int((window.frame.width * scale).rounded()))
         configuration.height = max(1, Int((window.frame.height * scale).rounded()))
         configuration.showsCursor = false
         configuration.colorSpaceName = CGColorSpace.sRGB
         let filter = SCContentFilter(desktopIndependentWindow: window)
-        return try? await SCScreenshotManager.captureImage(contentFilter: filter,
-                                                           configuration: configuration)
+        let capture = try? await SCScreenshotManager.captureImage(contentFilter: filter,
+                                                                  configuration: configuration)
+        return capture ?? clippedFallback
+    }
+
+    /// The window's size as the window server knows it, used to tell a whole
+    /// window capture from one clipped to the part inside a display.
+    private static func windowBounds(_ windowID: CGWindowID) -> CGRect? {
+        guard let info = CGWindowListCopyWindowInfo([.optionIncludingWindow], windowID) as? [[String: Any]],
+              let dict = info.first?[kCGWindowBounds as String] as? [String: CGFloat]
+        else { return nil }
+        let bounds = CGRect(x: dict["X"] ?? 0, y: dict["Y"] ?? 0,
+                            width: dict["Width"] ?? 0, height: dict["Height"] ?? 0)
+        return bounds.width > 1 && bounds.height > 1 ? bounds : nil
     }
 
     /// On-screen windows a click can capture, front to back, in the window

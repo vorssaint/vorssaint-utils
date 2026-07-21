@@ -59,6 +59,15 @@ enum ScreenshotSupport {
         abs(end.x - origin.x) < clickDragThreshold && abs(end.y - origin.y) < clickDragThreshold
     }
 
+    /// Whether the selection surface should still answer the pointer. Once a
+    /// capture is on its way, or the session is over, every remaining event
+    /// has to do nothing: the surface has already left the screen and the
+    /// picture is being taken. Gestures that end with more than one release,
+    /// like a drag made with three fingers, deliver exactly those late events.
+    static func selectionAcceptsPointerInput(sessionIsOver: Bool, capturePending: Bool) -> Bool {
+        !sessionIsOver && !capturePending
+    }
+
     // MARK: - Coordinate conversions
 
     /// Window-server rectangles (top-left origin, global) into Cocoa global

@@ -879,6 +879,11 @@ final class ClipboardHistoryService: ObservableObject {
         }
     }
 
+    /// Lets go of the global key while a shortcut field is listening, so the
+    /// user can record the very combination this feature uses. The next
+    /// `syncWithPreferences` takes it back.
+    func suspendShortcut() { unregisterHotkey() }
+
     private func unregisterHotkey() {
         if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
         hotKeyRef = nil

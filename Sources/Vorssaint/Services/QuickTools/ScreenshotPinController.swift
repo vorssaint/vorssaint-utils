@@ -179,7 +179,10 @@ private final class ScreenshotPinWindow: NSPanel {
     // MARK: Content
 
     private final class PinContentView: NSView {
-        private unowned let pinWindow: ScreenshotPinWindow
+        /// Weak for the same reason the capture surface is: closing a pin
+        /// releases its window from inside this view's own event handling,
+        /// so a menu item or a second click can arrive with the window gone.
+        private weak var pinWindow: ScreenshotPinWindow?
 
         init(image: CGImage, window: ScreenshotPinWindow) {
             pinWindow = window
@@ -201,6 +204,7 @@ private final class ScreenshotPinWindow: NSPanel {
         }
 
         override func mouseDown(with event: NSEvent) {
+            guard let pinWindow else { return }
             if event.clickCount == 2 {
                 pinWindow.closePin()
                 return
@@ -210,6 +214,7 @@ private final class ScreenshotPinWindow: NSPanel {
         }
 
         override func menu(for event: NSEvent) -> NSMenu? {
+            guard let pinWindow else { return nil }
             let menu = NSMenu()
             menu.addItem(withTitle: strings.copyButton,
                          action: #selector(menuCopy), keyEquivalent: "").target = self
@@ -246,17 +251,18 @@ private final class ScreenshotPinWindow: NSPanel {
             return menu
         }
 
-        @objc private func menuCopy() { pinWindow.copyImage() }
-        @objc private func menuSave() { pinWindow.saveImage() }
-        @objc private func menuClose() { pinWindow.closePin() }
+        @objc private func menuCopy() { pinWindow?.copyImage() }
+        @objc private func menuSave() { pinWindow?.saveImage() }
+        @objc private func menuClose() { pinWindow?.closePin() }
         @objc private func menuCloseAll() { ScreenshotPinController.shared.closeAll() }
 
         @objc private func menuOpacity(_ sender: NSMenuItem) {
-            guard let percent = sender.representedObject as? Int else { return }
+            guard let pinWindow, let percent = sender.representedObject as? Int else { return }
             pinWindow.setOpacity(CGFloat(percent) / 100)
         }
 
         @objc private func menuClickThrough() {
+            guard let pinWindow else { return }
             pinWindow.setClickThrough(!pinWindow.ignoresMouseEvents)
         }
     }

@@ -141,6 +141,62 @@ enum BrightnessSupport {
         return BrightnessKeyEvent(delta: delta, isKeyDown: state == 10, isRepeat: (raw & 0x1) != 0)
     }
 
+    /// Keyboards other than the built-in one do not send brightness as a
+    /// media key at all. They send an ordinary key press: either one of the
+    /// two dedicated brightness codes, or F14 and F15, which the system
+    /// offers as brightness keys in its own keyboard shortcuts whenever an
+    /// external keyboard is attached. Measured against the display server:
+    /// all four move brightness by the same sixteenth of the range as the
+    /// built-in keys (issue #287).
+    enum BrightnessKeyCode {
+        static let increase = 144
+        static let decrease = 145
+        static let functionIncrease = 113
+        static let functionDecrease = 107
+    }
+
+    /// Cheap enough for the hot path: every keystroke in the session passes
+    /// through the tap, and only these four may cost anything more.
+    static func isBrightnessKeyCode(_ keyCode: Int) -> Bool {
+        keyCode == BrightnessKeyCode.increase || keyCode == BrightnessKeyCode.decrease
+            || keyCode == BrightnessKeyCode.functionIncrease
+            || keyCode == BrightnessKeyCode.functionDecrease
+    }
+
+    static func brightnessFunctionKeyEvent(keyCode: Int,
+                                           isKeyDown: Bool,
+                                           isRepeat: Bool,
+                                           hasModifiers: Bool,
+                                           functionKeysAdjustBrightness: Bool) -> BrightnessKeyEvent? {
+        // A modified press means something else: the system opens its own
+        // display settings, and finer steps are its business too.
+        guard !hasModifiers else { return nil }
+        let delta: Double
+        switch keyCode {
+        case BrightnessKeyCode.increase: delta = brightnessKeyStep
+        case BrightnessKeyCode.decrease: delta = -brightnessKeyStep
+        case BrightnessKeyCode.functionIncrease where functionKeysAdjustBrightness:
+            delta = brightnessKeyStep
+        case BrightnessKeyCode.functionDecrease where functionKeysAdjustBrightness:
+            delta = -brightnessKeyStep
+        default: return nil
+        }
+        return BrightnessKeyEvent(delta: delta, isKeyDown: isKeyDown, isRepeat: isRepeat)
+    }
+
+    /// Whether F14 and F15 still mean brightness. The system ships them
+    /// switched on, so an absent entry means yes; a user who turned them off
+    /// in the system's keyboard shortcuts gets them left alone.
+    static func functionKeysAdjustBrightness(symbolicHotKeys: [String: Any]?) -> Bool {
+        guard let symbolicHotKeys else { return true }
+        for identifier in ["53", "54"] {
+            guard let entry = symbolicHotKeys[identifier] as? [String: Any] else { continue }
+            if let enabled = entry["enabled"] as? Bool, !enabled { return false }
+            if let enabled = entry["enabled"] as? NSNumber, !enabled.boolValue { return false }
+        }
+        return true
+    }
+
     static func steppedBrightness(_ current: Double, delta: Double) -> Double {
         min(max(current + delta, 0), 1)
     }
