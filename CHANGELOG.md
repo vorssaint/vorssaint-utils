@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [3.1.16]
+
+### Summary
+Vorssaint 3.1.16 cleans up the sound of boosted apps. Raising an app above
+100% no longer adds crackling to loud audio.
+
+### Fixed
+- Boosting an app's volume above 100% no longer adds a crackling noise while
+  the sound is loud. The boost now eases the peaks down for a moment instead
+  of chopping them off.
+
 ## [3.1.15] - 2026-07-21
 
 ### Summary

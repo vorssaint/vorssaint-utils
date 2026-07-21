@@ -1377,6 +1377,16 @@ private final class TapGainEngine: GainEngine {
     /// torn float write is harmless here (one transient sample scale).
     private final class GainBox { var value: Float = 1 }
 
+    /// One limiter per output buffer, preallocated so the realtime thread
+    /// never allocates. Touched only by the IO proc once rendering starts.
+    private final class LimiterBox {
+        var limiters: ContiguousArray<BoostLimiter>
+        init(sampleRate: Double, bufferCount: Int) {
+            limiters = ContiguousArray(repeating: BoostLimiter(sampleRate: sampleRate),
+                                       count: bufferCount)
+        }
+    }
+
     private let gainBox = GainBox()
     private var tapID = AudioObjectID(0)
     private var aggregateID = AudioObjectID(0)
@@ -1413,6 +1423,12 @@ private final class TapGainEngine: GainEngine {
         }
 
         let box = gainBox
+        // A boost pushes loud samples past full scale, and clamping the
+        // overshoot flattens every peak into audible crackle (issue #326).
+        // The limiter turns the whole signal down for just the moment a peak
+        // would not fit, so a boosted app gets louder without distorting.
+        let limiterBox = LimiterBox(sampleRate: Self.nominalSampleRate(of: aggregateID),
+                                    bufferCount: 8)
         guard AudioDeviceCreateIOProcIDWithBlock(&ioProc, aggregateID, nil, { _, input, _, output, _ in
             let inputBuffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
             let outputBuffers = UnsafeMutableAudioBufferListPointer(output)
@@ -1423,13 +1439,19 @@ private final class TapGainEngine: GainEngine {
                 guard let source = inputBuffer.mData?.assumingMemoryBound(to: Float.self),
                       let destination = outputBuffers[index].mData?.assumingMemoryBound(to: Float.self)
                 else { continue }
-                let frames = min(Int(inputBuffer.mDataByteSize),
-                                 Int(outputBuffers[index].mDataByteSize)) / MemoryLayout<Float>.size
-                vDSP_vsmul(source, 1, &gain, destination, 1, vDSP_Length(frames))
-                // A boost can push samples past [-1, 1]; hard-limit so nothing out
-                // of range reaches the device (a clean clip, never garbage).
-                if boosting {
-                    vDSP_vclip(destination, 1, &low, &high, destination, 1, vDSP_Length(frames))
+                let samples = min(Int(inputBuffer.mDataByteSize),
+                                  Int(outputBuffers[index].mDataByteSize)) / MemoryLayout<Float>.size
+                vDSP_vsmul(source, 1, &gain, destination, 1, vDSP_Length(samples))
+                guard boosting else { continue }
+                let channels = Int(outputBuffers[index].mNumberChannels)
+                if index < limiterBox.limiters.count, channels > 0, samples % channels == 0 {
+                    limiterBox.limiters[index].process(destination,
+                                                       frames: samples / channels,
+                                                       channels: channels)
+                } else {
+                    // A stream shaped like nothing a tap produces still must
+                    // not hand the device samples out of range.
+                    vDSP_vclip(destination, 1, &low, &high, destination, 1, vDSP_Length(samples))
                 }
             }
         }) == noErr else {
@@ -1442,6 +1464,16 @@ private final class TapGainEngine: GainEngine {
             stop()
             return nil
         }
+    }
+
+    /// The rate the aggregate renders at, for the limiter's release timing.
+    /// A failed read falls back to the common device rate; being off by a
+    /// device's worth of rate only shifts the release by milliseconds.
+    private static func nominalSampleRate(of deviceID: AudioObjectID) -> Double {
+        var sampleRate: Float64 = 0
+        guard AppVolumeMixer.read(deviceID, kAudioDevicePropertyNominalSampleRate, &sampleRate),
+              sampleRate > 0 else { return 48000 }
+        return sampleRate
     }
 
     func stop() {

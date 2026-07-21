@@ -1276,7 +1276,7 @@ struct MetricsTests {
         // per-release decision: this check fails on every version bump so the
         // decision above is made consciously, never by omission.
         let plistVersion = (NSDictionary(contentsOfFile: "Resources/Info.plist")?["CFBundleShortVersionString"] as? String) ?? ""
-        expect(plistVersion == "3.1.15",
+        expect(plistVersion == "3.1.16",
                "bumping the app version requires re-deciding the support prompt pin above")
         // 3.1.15 ships as a fix-only release with no new features to tour, so
         // the highlights pin stays on the last feature release (3.1.14) and the
@@ -3196,6 +3196,83 @@ struct MetricsTests {
                                                                       otherName: "AirPods Pro",
                                                                       otherUID: "aa"),
                "identically named devices order deterministically by uid")
+
+        // MARK: Boost limiter (issue #326)
+
+        // A boost above 100% used to clamp overshooting samples, flattening
+        // every peak into crackle. The limiter must cap peaks without touching
+        // audio that already fits, and its gain must ride across buffers.
+
+        func sine(amplitude: Float, frames: Int, channels: Int = 1) -> [Float] {
+            var samples = [Float](repeating: 0, count: frames * channels)
+            for frame in 0..<frames {
+                let value = amplitude * Float(sin(2 * Double.pi * 440 * Double(frame) / 48000))
+                for channel in 0..<channels { samples[frame * channels + channel] = value }
+            }
+            return samples
+        }
+        func limited(_ samples: [Float], channels: Int = 1,
+                     with limiter: inout BoostLimiter) -> [Float] {
+            var output = samples
+            output.withUnsafeMutableBufferPointer { buffer in
+                limiter.process(buffer.baseAddress!,
+                                frames: samples.count / channels,
+                                channels: channels)
+            }
+            return output
+        }
+
+        var quietLimiter = BoostLimiter(sampleRate: 48000)
+        let quiet = sine(amplitude: 0.6, frames: 4800)
+        expect(limited(quiet, with: &quietLimiter) == quiet,
+               "audio inside the ceiling passes through bit-identical")
+
+        var loudLimiter = BoostLimiter(sampleRate: 48000)
+        let loud = limited(sine(amplitude: 1.5, frames: 9600), with: &loudLimiter)
+        expect(loud.allSatisfy { abs($0) <= BoostLimiter.ceiling + 0.0001 },
+               "boosted peaks never leave the ceiling")
+        let steady = loud.dropFirst(4800)
+        let pinned = steady.filter { abs($0) >= BoostLimiter.ceiling - 0.001 }.count
+        expect(pinned < steady.count / 5,
+               "the limiter rides the level instead of flattening the wave into clipping")
+
+        var recoveryLimiter = BoostLimiter(sampleRate: 48000)
+        _ = limited(sine(amplitude: 1.5, frames: 4800), with: &recoveryLimiter)
+        let afterLoud = limited(sine(amplitude: 0.5, frames: 48000), with: &recoveryLimiter)
+        expect(afterLoud.prefix(480).max()! < 0.45,
+               "right after a loud stretch the gain is still turned down")
+        expect(afterLoud.suffix(4800).max()! > 0.499,
+               "the gain recovers to unity once the audio gets quiet")
+
+        var wholeLimiter = BoostLimiter(sampleRate: 48000)
+        var chunkedLimiter = BoostLimiter(sampleRate: 48000)
+        let long = sine(amplitude: 1.5, frames: 2048)
+        let whole = limited(long, with: &wholeLimiter)
+        let chunked = limited(Array(long[0..<1024]), with: &chunkedLimiter)
+            + limited(Array(long[1024...]), with: &chunkedLimiter)
+        expect(whole == chunked,
+               "splitting the stream into buffers does not change the result")
+
+        var stereoLimiter = BoostLimiter(sampleRate: 48000)
+        var stereo = [Float](repeating: 0, count: 9600 * 2)
+        for frame in 0..<9600 {
+            let value = Float(sin(2 * Double.pi * 440 * Double(frame) / 48000))
+            stereo[frame * 2] = 1.5 * value
+            stereo[frame * 2 + 1] = 0.75 * value
+        }
+        let linked = limited(stereo, channels: 2, with: &stereoLimiter)
+        var stereoLinked = true
+        for frame in 0..<9600 where abs(linked[frame * 2 + 1] - linked[frame * 2] / 2) > 0.0001 {
+            stereoLinked = false
+            break
+        }
+        expect(stereoLinked,
+               "both channels of a frame share one gain so the stereo image stays put")
+
+        var fallbackLimiter = BoostLimiter(sampleRate: 0)
+        let fallbackLimited = limited(sine(amplitude: 1.5, frames: 480), with: &fallbackLimiter)
+        expect(fallbackLimited.allSatisfy { abs($0) <= BoostLimiter.ceiling + 0.0001 },
+               "an unreadable sample rate still limits at the common device rate")
 
         // MARK: Shelf persistence
 
