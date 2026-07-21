@@ -5779,6 +5779,60 @@ struct MetricsTests {
                 && BrightnessSupport.steppedBrightness(0.03, delta: -BrightnessSupport.brightnessKeyStep) == 0.0,
                "key steps clamp at both ends of the range")
 
+        // Keyboards other than the built-in one send brightness as a plain
+        // key press, which is why the pointer never got a say on them
+        // (issue #287). Codes measured against the display server.
+        func functionKey(_ code: Int,
+                         down: Bool = true,
+                         modifiers: Bool = false,
+                         functionKeys: Bool = true) -> BrightnessSupport.BrightnessKeyEvent? {
+            BrightnessSupport.brightnessFunctionKeyEvent(keyCode: code,
+                                                         isKeyDown: down,
+                                                         isRepeat: false,
+                                                         hasModifiers: modifiers,
+                                                         functionKeysAdjustBrightness: functionKeys)
+        }
+        expect(functionKey(144)?.delta == BrightnessSupport.brightnessKeyStep,
+               "the dedicated brightness up code steps up by one sixteenth")
+        expect(functionKey(145)?.delta == -BrightnessSupport.brightnessKeyStep,
+               "the dedicated brightness down code steps down by one sixteenth")
+        expect(functionKey(113)?.delta == BrightnessSupport.brightnessKeyStep,
+               "F15 steps up while the system still offers it as a brightness key")
+        expect(functionKey(107)?.delta == -BrightnessSupport.brightnessKeyStep,
+               "F14 steps down while the system still offers it as a brightness key")
+        expect(functionKey(113, functionKeys: false) == nil
+                && functionKey(107, functionKeys: false) == nil,
+               "the function keys are left alone once the system stops using them")
+        expect(functionKey(144, functionKeys: false)?.delta == BrightnessSupport.brightnessKeyStep,
+               "the dedicated codes mean brightness whatever the function keys do")
+        expect(functionKey(144, modifiers: true) == nil,
+               "a modified press belongs to the system, not to us")
+        expect(functionKey(0) == nil && functionKey(53) == nil,
+               "ordinary typing never decodes as brightness")
+        expect(functionKey(145, down: false)?.isKeyDown == false,
+               "the release decodes too, so a consumed press consumes both halves")
+        expect(BrightnessSupport.isBrightnessKeyCode(144)
+                && BrightnessSupport.isBrightnessKeyCode(145)
+                && BrightnessSupport.isBrightnessKeyCode(107)
+                && BrightnessSupport.isBrightnessKeyCode(113),
+               "the four brightness codes are recognized on the fast path")
+        expect(!BrightnessSupport.isBrightnessKeyCode(0)
+                && !BrightnessSupport.isBrightnessKeyCode(36),
+               "letters and Return leave the fast path immediately")
+        expect(BrightnessSupport.functionKeysAdjustBrightness(symbolicHotKeys: nil),
+               "the system ships the function keys as brightness keys")
+        expect(BrightnessSupport.functionKeysAdjustBrightness(symbolicHotKeys: [:]),
+               "an untouched shortcut list means the defaults are in force")
+        expect(!BrightnessSupport.functionKeysAdjustBrightness(
+            symbolicHotKeys: ["53": ["enabled": false]]),
+               "turning the system shortcut off gives the function key back")
+        expect(!BrightnessSupport.functionKeysAdjustBrightness(
+            symbolicHotKeys: ["54": ["enabled": NSNumber(value: false)]]),
+               "the shortcut flag is read whichever way it was stored")
+        expect(BrightnessSupport.functionKeysAdjustBrightness(
+            symbolicHotKeys: ["53": ["enabled": true], "54": ["enabled": true]]),
+               "shortcuts left switched on keep the function keys as brightness")
+
         // Pointer routing on system-routed displays (issue #268): the system
         // only ever steps its native target, so any other display the
         // pointer picks must be stepped by the app.

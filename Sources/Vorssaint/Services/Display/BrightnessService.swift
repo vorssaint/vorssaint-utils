@@ -70,6 +70,26 @@ final class BrightnessService: ObservableObject {
     /// only, so ordinary typing never touches it.
     private var keyTap: CFMachPort?
     private var keyTapSource: CFRunLoopSource?
+    /// Second tap for keyboards that send brightness as an ordinary key
+    /// press instead of a media key. Every keystroke in the session passes
+    /// through it, so it runs on its own thread: the window server waits for
+    /// a tap to answer, and waiting on the main run loop is what made typing
+    /// stutter once already.
+    private let keyThreadLock = NSLock()
+    private var functionKeyTap: CFMachPort?
+    private var functionKeyRunLoop: CFRunLoop?
+    private var functionKeyThread: Thread?
+    private var shouldStopFunctionKeyThread = false
+    private var pendingFunctionKeyRestart = false
+    /// Whether F14 and F15 still mean brightness for the system. Sampled when
+    /// the tap goes up, never from the tap thread.
+    private var functionKeysAdjustBrightness = true
+    /// Whether the app's own overlay stands in for the system's, sampled with
+    /// the tap so the tap thread never reads published state.
+    private var overlayReplacesNativeOSD = false
+    /// Codes whose press this app consumed, so the matching release is
+    /// consumed as well and the system never sees half a key.
+    private var swallowedKeyCodes = Set<Int>()
     /// Serializes every I2C transaction and rebuild; DDC displays drop
     /// commands that interleave.
     private let workQueue = DispatchQueue(label: "com.vorssaint.utils.brightness", qos: .userInitiated)
@@ -155,6 +175,7 @@ final class BrightnessService: ObservableObject {
         guard running else { return }
         running = false
         removeKeyTap()
+        removeFunctionKeyTap()
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         screenObserver = nil
         rebuildDebounce?.cancel()
@@ -437,6 +458,21 @@ final class BrightnessService: ObservableObject {
             && (wantsKeyRouting || wantsBrightnessOSD)
             && Permissions.shared.accessibility
         if wanted { installKeyTap() } else { removeKeyTap() }
+        // The plain key press path only earns its keystroke tap when the
+        // pointer actually decides the target.
+        if wanted, wantsKeyRouting {
+            let hotKeys = UserDefaults(suiteName: "com.apple.symbolichotkeys")?
+                .dictionary(forKey: "AppleSymbolicHotKeys")
+            let adjusts = BrightnessSupport.functionKeysAdjustBrightness(symbolicHotKeys: hotKeys)
+            let overlayReplaces = wantsBrightnessOSD
+            keyThreadLock.withLock {
+                functionKeysAdjustBrightness = adjusts
+                overlayReplacesNativeOSD = overlayReplaces
+            }
+            installFunctionKeyTap()
+        } else {
+            removeFunctionKeyTap()
+        }
     }
 
     private func installKeyTap() {
@@ -469,6 +505,189 @@ final class BrightnessService: ObservableObject {
         }
         keyTapSource = nil
         keyTap = nil
+    }
+
+    // MARK: - Brightness keys on other keyboards
+
+    private func installFunctionKeyTap() {
+        let thread = keyThreadLock.withLock { () -> Thread? in
+            if functionKeyThread != nil {
+                if shouldStopFunctionKeyThread { pendingFunctionKeyRestart = true }
+                return nil
+            }
+            shouldStopFunctionKeyThread = false
+            pendingFunctionKeyRestart = false
+            let thread = Thread { [weak self] in self?.runFunctionKeyTap() }
+            thread.name = "Vorssaint Brightness Keys"
+            thread.qualityOfService = .userInteractive
+            functionKeyThread = thread
+            return thread
+        }
+        thread?.start()
+    }
+
+    private func removeFunctionKeyTap() {
+        let snapshot = keyThreadLock.withLock {
+            () -> (runLoop: CFRunLoop?, tap: CFMachPort?, threadExists: Bool) in
+            shouldStopFunctionKeyThread = true
+            pendingFunctionKeyRestart = false
+            swallowedKeyCodes.removeAll()
+            return (functionKeyRunLoop, functionKeyTap, functionKeyThread != nil)
+        }
+        if let tap = snapshot.tap { CGEvent.tapEnable(tap: tap, enable: false) }
+        if let runLoop = snapshot.runLoop {
+            CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue) {
+                CFRunLoopStop(runLoop)
+            }
+            CFRunLoopWakeUp(runLoop)
+        } else if !snapshot.threadExists {
+            keyThreadLock.withLock {
+                shouldStopFunctionKeyThread = false
+                functionKeyThread = nil
+            }
+        }
+    }
+
+    private func runFunctionKeyTap() {
+        autoreleasepool {
+            let runLoop = CFRunLoopGetCurrent()
+            keyThreadLock.withLock { functionKeyRunLoop = runLoop }
+            let stopBeforeCreating = keyThreadLock.withLock { shouldStopFunctionKeyThread }
+            guard !stopBeforeCreating else {
+                if clearFunctionKeyThread() { installFunctionKeyTap() }
+                return
+            }
+            let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
+                | CGEventMask(1 << CGEventType.keyUp.rawValue)
+            guard let tap = CGEvent.tapCreate(
+                tap: .cgSessionEventTap,
+                place: .headInsertEventTap,
+                options: .defaultTap,
+                eventsOfInterest: mask,
+                callback: { _, type, event, userInfo in
+                    guard let userInfo else { return Unmanaged.passUnretained(event) }
+                    let service = Unmanaged<BrightnessService>.fromOpaque(userInfo)
+                        .takeUnretainedValue()
+                    return service.routeFunctionKey(type: type, event: event)
+                },
+                userInfo: Unmanaged.passUnretained(self).toOpaque()
+            ) else {
+                _ = clearFunctionKeyThread()
+                return
+            }
+            let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+            keyThreadLock.withLock { functionKeyTap = tap }
+            CFRunLoopAddSource(runLoop, source, .commonModes)
+            CGEvent.tapEnable(tap: tap, enable: true)
+            if keyThreadLock.withLock({ shouldStopFunctionKeyThread }) {
+                CGEvent.tapEnable(tap: tap, enable: false)
+            } else {
+                CFRunLoopRun()
+            }
+            CGEvent.tapEnable(tap: tap, enable: false)
+            CFRunLoopRemoveSource(runLoop, source, .commonModes)
+            if clearFunctionKeyThread() { installFunctionKeyTap() }
+        }
+    }
+
+    private func clearFunctionKeyThread() -> Bool {
+        keyThreadLock.withLock {
+            let restart = pendingFunctionKeyRestart
+            functionKeyTap = nil
+            functionKeyRunLoop = nil
+            functionKeyThread = nil
+            shouldStopFunctionKeyThread = false
+            pendingFunctionKeyRestart = false
+            swallowedKeyCodes.removeAll()
+            return restart
+        }
+    }
+
+    /// Runs on the tap thread. The window server holds every keystroke in the
+    /// session until this returns, so anything that is not one of the four
+    /// brightness codes leaves immediately, and nothing here reads state that
+    /// belongs to the main thread: the target display comes from the display
+    /// server and the route from behind the state lock.
+    private func routeFunctionKey(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            let tap = keyThreadLock.withLock { shouldStopFunctionKeyThread ? nil : functionKeyTap }
+            if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+            return Unmanaged.passUnretained(event)
+        }
+        guard type == .keyDown || type == .keyUp else {
+            return Unmanaged.passUnretained(event)
+        }
+        let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
+        guard BrightnessSupport.isBrightnessKeyCode(keyCode) else {
+            return Unmanaged.passUnretained(event)
+        }
+        // A release is consumed only when its press was, so the system never
+        // receives half a key.
+        guard type == .keyDown else {
+            let consumed = keyThreadLock.withLock { swallowedKeyCodes.remove(keyCode) != nil }
+            return consumed ? nil : Unmanaged.passUnretained(event)
+        }
+
+        let adjusts = keyThreadLock.withLock { functionKeysAdjustBrightness }
+        let modifiers = event.flags.intersection([.maskCommand, .maskControl,
+                                                  .maskAlternate, .maskShift])
+        guard let press = BrightnessSupport.brightnessFunctionKeyEvent(
+            keyCode: keyCode,
+            isKeyDown: true,
+            isRepeat: event.getIntegerValueField(.keyboardEventAutorepeat) != 0,
+            hasModifiers: !modifiers.isEmpty,
+            functionKeysAdjustBrightness: adjusts)
+        else { return Unmanaged.passUnretained(event) }
+
+        var displayID: CGDirectDisplayID = 0
+        var matched: UInt32 = 0
+        guard CGGetDisplaysWithPoint(event.location, 1, &displayID, &matched) == .success,
+              matched > 0
+        else { return Unmanaged.passUnretained(event) }
+
+        stateLock.lock()
+        let route = routes[displayID]
+        stateLock.unlock()
+        guard let route else { return Unmanaged.passUnretained(event) }
+        if route.method == .system {
+            // Same rule the media keys follow, so both kinds of keyboard
+            // behave alike: the built-in panel keeps the system's own handling
+            // and its animation unless the app's own overlay replaces it, and
+            // every other system-routed display has to be stepped here,
+            // because the system only ever moves its native target.
+            let overlayReplacesNative = keyThreadLock.withLock { overlayReplacesNativeOSD }
+            guard BrightnessSupport.stepsSystemRoutedDisplay(
+                followsPointer: true,
+                displayIsBuiltIn: CGDisplayIsBuiltin(displayID) != 0,
+                overlayReplacesNative: overlayReplacesNative
+            ), BrightnessBridge.setBrightness != nil else {
+                return Unmanaged.passUnretained(event)
+            }
+        }
+        keyThreadLock.withLock { _ = swallowedKeyCodes.insert(keyCode) }
+        DispatchQueue.main.async { [weak self] in
+            self?.applyKeyStep(press, to: displayID, method: route.method)
+        }
+        return nil
+    }
+
+    /// The actual step, always on the main thread, shared by both key paths.
+    private func applyKeyStep(_ press: BrightnessSupport.BrightnessKeyEvent,
+                              to displayID: CGDirectDisplayID,
+                              method: BrightnessDisplay.Method) {
+        let showOSD = UserDefaults.standard.bool(forKey: DefaultsKey.brightnessOSDEnabled)
+        let current: Double?
+        if method == .system {
+            current = currentSystemBrightness(
+                for: displayID,
+                fallback: displays.first(where: { $0.id == displayID })?.brightness)
+        } else {
+            current = displays.first(where: { $0.id == displayID })?.brightness
+        }
+        guard let current else { return }
+        setBrightness(BrightnessSupport.steppedBrightness(current, delta: press.delta),
+                      for: displayID,
+                      showOSD: showOSD)
     }
 
     /// Routes a handled brightness key press to the pointer display when that

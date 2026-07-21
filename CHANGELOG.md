@@ -37,6 +37,8 @@ is set to hide itself.
 - Choosing a screenshot area no longer quits the app when the drag ends with
   more than one finger leaving the trackpad. Cancelling with Escape is safe
   too. Thanks to @lei1024.
+- Brightness keys follow the pointer on keyboards other than the built-in
+  one, including with the lid closed.
 - Per-app volume no longer jumps loud or quiet when an app changes what it
   is playing. Quitting or switching the mixer off puts back the input
   device and the volume it changed.
