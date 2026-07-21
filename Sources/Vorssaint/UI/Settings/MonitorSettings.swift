@@ -20,6 +20,7 @@ struct MonitorSettings: View {
     @AppStorage(DefaultsKey.menuBarHideIconWithMetrics) private var hideIconWithMetrics = false
     @AppStorage(DefaultsKey.monitorInterval) private var interval = 2
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
+    @AppStorage(DefaultsKey.menuBarMemoryMetric) private var memoryMetric = "used"
     @AppStorage(DefaultsKey.monitorShowFanControlBeta) private var showFanControlBeta = false
 
     @AppStorage(DefaultsKey.monitorGraphCPU) private var graphCPU = true
@@ -86,6 +87,11 @@ struct MonitorSettings: View {
                     Text("°F").tag(TemperatureUnit.fahrenheit.rawValue)
                 }
                 .pickerStyle(.segmented)
+                Picker(l10n.s.monitorMemoryMetricLabel, selection: $memoryMetric) {
+                    Text(l10n.s.memoryMetricUsed).tag("used")
+                    Text(l10n.s.memoryMetricApp).tag("app")
+                }
+                .pickerStyle(.segmented)
             }
             monitorAlertsSection
             Section(l10n.s.monitorPanelSection) {
@@ -133,6 +139,7 @@ struct MonitorSettings: View {
             if TemperatureUnit(rawValue: temperatureUnit) == nil {
                 temperatureUnit = TemperatureUnit.celsius.rawValue
             }
+            memoryMetric = Defaults.sanitizedMenuBarMemoryMetric(memoryMetric)
         }
         .onDisappear {
             SystemMonitor.shared.panelDidDisappear()
