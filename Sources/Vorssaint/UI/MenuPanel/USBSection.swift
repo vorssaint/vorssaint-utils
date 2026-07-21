@@ -110,23 +110,6 @@ struct USBSection: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.65)
                 }
-
-                if device.isExternalStorage {
-                    Button {
-                        usbMonitor.eject(device)
-                    } label: {
-                        Image(systemName: "eject.fill")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 20, height: 20)
-                            .background(
-                                Circle()
-                                    .fill(Color.primary.opacity(0.08))
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .help(l10n.s.usbEject)
-                }
             }
 
             // Line 2: Speed Badge + VID:PID Chip
