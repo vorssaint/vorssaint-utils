@@ -182,6 +182,9 @@ enum DefaultsKey {
     static let monitorShowNetwork = "monitorShowNetwork"
     static let monitorShowDisk = "monitorShowDisk"
     static let monitorShowUSB = "monitorShowUSB"
+    static let usbShowTechnicalDetails = "usbShowTechnicalDetails"
+    static let usbShowEthernet = "usbShowEthernet"
+    static let usbShowPowerCable = "usbShowPowerCable"
     static let monitorShowPower = "monitorShowPower"
     static let monitorShowMixer = "monitorShowMixer"
     static let monitorShowFanControlBeta = "monitorShowFanControlBeta"
@@ -688,6 +691,9 @@ enum Defaults {
         DefaultsKey.monitorShowNetwork: true,
         DefaultsKey.monitorShowDisk: true,
         DefaultsKey.monitorShowUSB: true,
+        DefaultsKey.usbShowTechnicalDetails: true,
+        DefaultsKey.usbShowEthernet: true,
+        DefaultsKey.usbShowPowerCable: true,
         DefaultsKey.monitorShowPower: true,
         DefaultsKey.monitorShowMixer: true,
         DefaultsKey.monitorShowFanControlBeta: false,

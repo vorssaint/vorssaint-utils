@@ -4,7 +4,15 @@
 import AppKit
 import Foundation
 import IOKit
+import IOKit.ps
 import IOKit.usb
+import SystemConfiguration
+
+enum USBItemCategory: String, Codable {
+    case usbDevice
+    case ethernet
+    case charger
+}
 
 struct USBDeviceItem: Identifiable, Hashable, Codable {
     let id: String // Unique ID: vendorId-productId-serial
@@ -18,15 +26,41 @@ struct USBDeviceItem: Identifiable, Hashable, Codable {
     let usbVersionBCD: Int?
     let isExternalStorage: Bool
     let bsdName: String?
+    var category: USBItemCategory = .usbDevice
+    var customSubtitle: String? = nil
+
+    var hexVIDPID: String {
+        guard vendorId > 0 || productId > 0 else { return "" }
+        return String(format: "%04X:%04X", vendorId, productId)
+    }
+
+    var bcdHexLabel: String {
+        guard let bcd = usbVersionBCD else { return "" }
+        return String(format: "USB Version: %@ (0x%04X)", versionLabel, bcd)
+    }
+
+    var serialFormatted: String? {
+        guard let sn = serialNumber, !sn.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        return "SN: \(sn)"
+    }
+
+    var iconName: String {
+        switch category {
+        case .usbDevice: return isExternalStorage ? "externaldrive" : "cable.connector"
+        case .ethernet: return "network"
+        case .charger: return "bolt.fill"
+        }
+    }
 
     var speedLabel: String {
+        if let subtitle = customSubtitle { return subtitle }
         guard let mbps = speedMbps else { return "Unknown Speed" }
         switch mbps {
         case 1, 2: return "USB 1.0 Low Speed (1.5 Mbps)"
         case 12: return "USB 1.1 Full Speed (12 Mbps)"
         case 480: return "USB 2.0 High Speed (480 Mbps)"
         case 5000: return "USB 3.0 / 3.1 / 3.2 Gen1 (5 Gbps)"
-        case 10000: return "USB 3.1 / 3.2 Gen2 (10 Gbps)"
+        case 10000: return "USB 3.1 Gen2 / 3.2 Gen2x1 (10 Gbps)"
         case 20000: return "USB 3.2 Gen2x2 (20 Gbps)"
         case 40000: return "USB4 / Thunderbolt 3/4 (40 Gbps)"
         case 80000: return "USB4 v2 / Thunderbolt 5 (80 Gbps)"
@@ -153,6 +187,17 @@ final class USBMonitorService: ObservableObject {
         var items: [USBDeviceItem] = []
         var seenIds = Set<String>()
 
+        let showEthernet = UserDefaults.standard.bool(forKey: DefaultsKey.usbShowEthernet)
+        let showPower = UserDefaults.standard.bool(forKey: DefaultsKey.usbShowPowerCable)
+
+        if showPower, let charger = scanPowerSource() {
+            items.append(charger)
+        }
+
+        if showEthernet {
+            items.append(contentsOf: scanEthernetAdapters())
+        }
+
         func scanMatching(name: String) {
             guard let matching = IOServiceMatching(name) else { return }
             var iterator: io_iterator_t = 0
@@ -175,9 +220,80 @@ final class USBMonitorService: ObservableObject {
         scanMatching(name: kIOUSBDeviceClassName)
 
         return items.sorted {
-            ($0.vendor ?? "") < ($1.vendor ?? "") ||
+            if $0.category != $1.category {
+                return $0.category.rawValue < $1.category.rawValue
+            }
+            return ($0.vendor ?? "") < ($1.vendor ?? "") ||
             ($0.vendor == $1.vendor && $0.name < $1.name)
         }
+    }
+
+    private func scanPowerSource() -> USBDeviceItem? {
+        guard let snapshot = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
+              let sources = IOPSCopyPowerSourcesList(snapshot)?.takeRetainedValue() as? [CFTypeRef] else {
+            return nil
+        }
+        for ps in sources {
+            guard let desc = IOPSGetPowerSourceDescription(snapshot, ps)?.takeUnretainedValue() as? [String: Any] else { continue }
+            if let state = desc[kIOPSPowerSourceStateKey as String] as? String,
+               state == (kIOPSACPowerValue as String) {
+                let name = desc[kIOPSNameKey as String] as? String ?? "Power Adapter"
+                let pct = desc[kIOPSCurrentCapacityKey as String] as? Int ?? 0
+                let isCharging = desc[kIOPSIsChargingKey as String] as? Bool ?? false
+                let statusStr = isCharging ? "Connected (Charging \(pct)%)" : "Connected (AC Power \(pct)%)"
+                return USBDeviceItem(
+                    id: "power-charger-adapter",
+                    name: name,
+                    vendor: "Power Adapter",
+                    vendorId: 0,
+                    productId: 0,
+                    serialNumber: nil,
+                    speedMbps: nil,
+                    portMaxSpeedMbps: nil,
+                    usbVersionBCD: nil,
+                    isExternalStorage: false,
+                    bsdName: nil,
+                    category: .charger,
+                    customSubtitle: statusStr
+                )
+            }
+        }
+        return nil
+    }
+
+    private func scanEthernetAdapters() -> [USBDeviceItem] {
+        var items: [USBDeviceItem] = []
+        guard let store = SCDynamicStoreCreate(nil, "VorssaintEthernet" as CFString, nil, nil),
+              let interfaces = SCNetworkInterfaceCopyAll() as? [SCNetworkInterface] else {
+            return items
+        }
+        for iface in interfaces {
+            let type = SCNetworkInterfaceGetInterfaceType(iface) as String?
+            if type == (kSCNetworkInterfaceTypeEthernet as String) {
+                guard let bsd = SCNetworkInterfaceGetBSDName(iface) as String? else { continue }
+                let key = "State:/Network/Interface/\(bsd)/Link" as CFString
+                let isLinkActive = (SCDynamicStoreCopyValue(store, key) as? [String: Any])?["Active"] as? Bool ?? false
+                if isLinkActive {
+                    let displayName = SCNetworkInterfaceGetLocalizedDisplayName(iface) as String? ?? "Ethernet Adapter (\(bsd))"
+                    items.append(USBDeviceItem(
+                        id: "ethernet-\(bsd)",
+                        name: displayName,
+                        vendor: "LAN Cable",
+                        vendorId: 0,
+                        productId: 0,
+                        serialNumber: nil,
+                        speedMbps: 1000,
+                        portMaxSpeedMbps: nil,
+                        usbVersionBCD: nil,
+                        isExternalStorage: false,
+                        bsdName: bsd,
+                        category: .ethernet,
+                        customSubtitle: "Active Link (\(bsd))"
+                    ))
+                }
+            }
+        }
+        return items
     }
 
     private func parseDevice(from entry: io_registry_entry_t) -> USBDeviceItem? {

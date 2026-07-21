@@ -7,6 +7,7 @@ struct USBSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var usbMonitor = USBMonitorService.shared
     @Environment(\.colorScheme) private var colorScheme
+    @AppStorage(DefaultsKey.usbShowTechnicalDetails) private var showTechDetails = true
     var collapsible = true
 
     var body: some View {
@@ -18,6 +19,18 @@ struct USBSection: View {
                         .foregroundStyle(.secondary)
 
                     Spacer()
+
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showTechDetails.toggle()
+                        }
+                    } label: {
+                        Image(systemName: showTechDetails ? "info.circle.fill" : "info.circle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(showTechDetails ? Color.accentColor : .secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(l10n.s.usbShowTechDetails)
 
                     Button {
                         usbMonitor.refresh()
@@ -53,31 +66,61 @@ struct USBSection: View {
     }
 
     private func usbDeviceRow(_ device: USBDeviceItem) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: device.isExternalStorage ? "externaldrive.fill" : "cable.connector")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 22, height: 22)
-                .background(
-                    Circle()
-                        .fill(Color.accentColor.opacity(0.12))
-                )
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Image(systemName: device.iconName)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 20, height: 20)
+                    .background(
+                        Circle()
+                            .fill(Color.accentColor.opacity(0.12))
+                    )
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(device.name)
-                        .font(.system(size: 12, weight: .semibold))
+                Text(device.name)
+                    .font(.system(size: 12, weight: .bold))
+                    .lineLimit(1)
+
+                Spacer()
+
+                if let vendor = device.vendor, !vendor.isEmpty, vendor != device.name {
+                    Text(vendor)
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
-
-                    if let vendor = device.vendor, !vendor.isEmpty, vendor != device.name {
-                        Text("(\(vendor))")
-                            .font(.system(size: 10.5))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
                 }
 
-                HStack(spacing: 6) {
+                if device.isExternalStorage {
+                    Button {
+                        usbMonitor.eject(device)
+                    } label: {
+                        Image(systemName: "eject.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .padding(4)
+                            .background(
+                                Circle()
+                                    .fill(Color.primary.opacity(0.06))
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .help(l10n.s.usbEject)
+                }
+            }
+
+            HStack(alignment: .center, spacing: 6) {
+                Text(device.speedLabel)
+                    .font(.system(size: 10.5, weight: .regular))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                Spacer()
+
+                if showTechDetails && !device.hexVIDPID.isEmpty {
+                    Text(device.hexVIDPID)
+                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                } else if !showTechDetails {
                     Text(device.versionLabel)
                         .font(.system(size: 9.5, weight: .medium))
                         .padding(.horizontal, 5)
@@ -87,31 +130,25 @@ struct USBSection: View {
                                 .fill(Color.primary.opacity(0.08))
                         )
                         .foregroundStyle(.secondary)
-
-                    Text(device.speedLabel)
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
                 }
             }
 
-            Spacer()
+            if showTechDetails && (device.usbVersionBCD != nil || device.serialFormatted != nil) {
+                HStack(alignment: .center, spacing: 6) {
+                    if device.usbVersionBCD != nil {
+                        Text(device.bcdHexLabel)
+                            .font(.system(size: 10, weight: .regular))
+                            .foregroundStyle(.tertiary)
+                    }
 
-            if device.isExternalStorage {
-                Button {
-                    usbMonitor.eject(device)
-                } label: {
-                    Image(systemName: "eject.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .padding(5)
-                        .background(
-                            Circle()
-                                .fill(Color.primary.opacity(0.06))
-                        )
+                    Spacer()
+
+                    if let sn = device.serialFormatted {
+                        Text(sn)
+                            .font(.system(size: 10, weight: .regular, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    }
                 }
-                .buttonStyle(.plain)
-                .help(l10n.s.usbEject)
             }
         }
         .padding(8)

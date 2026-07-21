@@ -1028,6 +1028,9 @@ struct Strings {
     var usbConnectedDevices: String = "Connected USB Devices"
     var usbNoDevices: String = "No USB devices connected"
     var usbEject: String = "Eject USB Device"
+    var usbShowTechDetails: String = "Show Technical Details (VID:PID, Serial, BCD)"
+    var usbShowEthernet: String = "Show Ethernet / LAN Adapter"
+    var usbShowPowerCable: String = "Show Charger / Power Supply"
 
     var monitorSysFanSpeeds: String = "Fan speeds"
     var monitorSysDetailedTemps: String = "Detailed temperatures"
