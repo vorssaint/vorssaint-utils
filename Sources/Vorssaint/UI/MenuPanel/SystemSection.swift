@@ -603,7 +603,8 @@ struct SystemSection: View {
                 .foregroundStyle(.secondary)
             PressureIndicator(pressure: monitor.snapshot.memoryPressure)
             Spacer()
-            if let used = monitor.snapshot.memoryUsed, let total = monitor.snapshot.memoryTotal {
+            let memoryValue = MenuBarMemoryMetric.current == .app ? monitor.snapshot.memoryAppUsed : monitor.snapshot.memoryUsed
+            if let used = memoryValue, let total = monitor.snapshot.memoryTotal {
                 Text("\(formatMemory(used)) / \(formatMemory(total))")
                     .font(.system(size: 11, weight: .medium))
                     .monospacedDigit()

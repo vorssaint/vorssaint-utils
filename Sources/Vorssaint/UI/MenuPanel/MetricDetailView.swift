@@ -321,7 +321,8 @@ struct MetricDetailView: View {
                 row(l10n.s.temperatures, snapshot.gpuTemperature.map(formatTemperature) ?? l10n.s.monitorUnavailable),
             ]
         case .memory:
-            let used = snapshot.memoryUsed.map(formatMemory) ?? l10n.s.networkMeasuring
+            let memoryValue = MenuBarMemoryMetric.current == .app ? snapshot.memoryAppUsed : snapshot.memoryUsed
+            let used = memoryValue.map(formatMemory) ?? l10n.s.networkMeasuring
             let total = snapshot.memoryTotal.map(formatMemory) ?? "-"
             return [
                 row(l10n.s.memorySection, "\(used) / \(total)"),
@@ -391,7 +392,8 @@ struct MetricDetailView: View {
         case .gpu:
             return snapshot.gpuUsage.map(MetricFormat.percent) ?? "-"
         case .memory:
-            guard let used = snapshot.memoryUsed, let total = snapshot.memoryTotal, total > 0 else { return "-" }
+            let memoryValue = MenuBarMemoryMetric.current == .app ? snapshot.memoryAppUsed : snapshot.memoryUsed
+            guard let used = memoryValue, let total = snapshot.memoryTotal, total > 0 else { return "-" }
             return MetricFormat.percent(Double(used) / Double(total))
         case .network:
             return snapshot.netDownBytesPerSec.map(MetricFormat.bytesPerSecCompact) ?? "-"
@@ -412,7 +414,8 @@ struct MetricDetailView: View {
         case .gpu:
             return snapshot.gpuTemperature.map(formatTemperature) ?? l10n.s.temperatures
         case .memory:
-            guard let used = snapshot.memoryUsed, let total = snapshot.memoryTotal else { return l10n.s.memoryPressure }
+            let memoryValue = MenuBarMemoryMetric.current == .app ? snapshot.memoryAppUsed : snapshot.memoryUsed
+            guard let used = memoryValue, let total = snapshot.memoryTotal else { return l10n.s.memoryPressure }
             return "\(formatMemory(used)) / \(formatMemory(total))"
         case .network:
             return "\(l10n.s.networkUpload) \(snapshot.netUpBytesPerSec.map(MetricFormat.bytesPerSecCompact) ?? "-")"
