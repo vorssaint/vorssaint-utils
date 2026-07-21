@@ -2994,6 +2994,40 @@ struct MetricsTests {
                && !manyBuilds.isCurrent("com.example.Radio", token: secondRow),
                "one invalidation makes every row's build in flight stale")
 
+        var refreshes = MixerRefreshCoordinator()
+        expect(!refreshes.isReading, "a mixer that is not reading the audio devices holds no slot")
+        // No real generation is ever negative, so the sentinel cannot pass.
+        let firstRefresh = refreshes.begin() ?? -1
+        expect(firstRefresh > 0 && refreshes.isReading, "the first refresh takes the slot")
+        expect(refreshes.begin() == nil,
+               "a second refresh is refused while one is still reading the audio devices")
+        expect(refreshes.takeRepeatRequest(),
+               "the refused refresh is remembered so nothing asked for is lost")
+        expect(!refreshes.takeRepeatRequest(),
+               "a remembered refresh runs once, not on every landing")
+        expect(refreshes.finish(firstRefresh), "the refresh that owns the slot publishes what it read")
+        expect(!refreshes.isReading, "finishing a refresh frees the slot for the next one")
+        let secondRefresh = refreshes.begin() ?? -1
+        expect(secondRefresh > firstRefresh, "generations move forward, never repeat")
+        expect(!refreshes.finish(firstRefresh),
+               "a refresh from an older generation never publishes")
+        expect(refreshes.isReading,
+               "an older refresh landing late leaves the current one holding the slot")
+        expect(refreshes.finish(secondRefresh), "the current refresh still publishes after that")
+
+        var discarded = MixerRefreshCoordinator()
+        let staleRefresh = discarded.begin() ?? -1
+        _ = discarded.begin()
+        discarded.discardInFlight()
+        expect(!discarded.isReading, "discarding what is in flight frees the slot at once")
+        expect(!discarded.finish(staleRefresh),
+               "a refresh reading while the output changed publishes nothing")
+        expect(!discarded.takeRepeatRequest(),
+               "discarding also drops the repeat request, since a fresh refresh follows it")
+        let afterDiscard = discarded.begin() ?? -1
+        expect(afterDiscard > staleRefresh && discarded.finish(afterDiscard),
+               "the refresh started after a discard is the one that publishes")
+
         expect(MixerRoutingSupport.engineTeardownDelay(hasAudioObjects: true,
                                                        lastChangeAt: nil,
                                                        now: 100) == nil,

@@ -66,6 +66,60 @@ struct MixerEngineBuilds {
 
 }
 
+/// Arbitrates the refresh passes that read the audio HAL.
+///
+/// Reading device and process properties is done off the main thread, because
+/// a device being reconfigured can hold a single read for as long as the audio
+/// daemon holds that device. What comes back is published on the main thread,
+/// and this decides which pass gets to do that.
+///
+/// Three rules, in the same spirit as the engine build tokens above: only one
+/// pass reads at a time, a request that arrives while a pass is reading is
+/// remembered and runs once it lands, and a pass whose generation is no longer
+/// current is dropped instead of publishing what it saw.
+struct MixerRefreshCoordinator {
+    private(set) var generation = 0
+    private(set) var isReading = false
+    private var requestedAgain = false
+
+    /// Claims the slot for a pass, or nil when one is already reading. The
+    /// request is remembered either way, so nothing is silently lost.
+    mutating func begin() -> Int? {
+        guard !isReading else {
+            requestedAgain = true
+            return nil
+        }
+        isReading = true
+        generation += 1
+        return generation
+    }
+
+    /// Frees the slot and reports whether this pass may still publish. A pass
+    /// from a generation that is gone leaves the slot alone: it belongs to
+    /// whatever replaced it.
+    mutating func finish(_ generation: Int) -> Bool {
+        guard generation == self.generation else { return false }
+        isReading = false
+        return true
+    }
+
+    /// Whether a refresh was asked for while the pass was reading, and clears
+    /// the request so it runs exactly once.
+    mutating func takeRepeatRequest() -> Bool {
+        defer { requestedAgain = false }
+        return requestedAgain
+    }
+
+    /// Drops whatever is in flight: what it read is already out of date,
+    /// because the audio environment just changed on purpose (or is no longer
+    /// being watched at all).
+    mutating func discardInFlight() {
+        generation += 1
+        isReading = false
+        requestedAgain = false
+    }
+}
+
 enum MixerRoutingSupport {
     static let systemDefaultSelectionID = "__system_default__"
     static let finderBundleIdentifier = "com.apple.finder"

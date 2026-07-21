@@ -107,10 +107,25 @@ final class AppVolumeMixer: ObservableObject {
     private var lastAutomaticLoweredOutputUID: String?
     /// The output volume as it was before the headphone disconnect protection
     /// lowered it, so the speakers can be handed back the way they were found.
-    private var loweredOutput: (uid: String, previousVolume: Float32, appliedVolume: Float32)?
+    private var loweredOutput: LoweredOutput?
     private var refreshPending = false
     private var lastListenerRefreshAt: CFAbsoluteTime = 0
+    /// Decides which HAL pass gets to publish: one reader at a time, and a
+    /// pass the mixer no longer wants is dropped rather than publishing state
+    /// that is already out of date.
+    private var refresh = MixerRefreshCoordinator()
     private let buildQueue = DispatchQueue(label: "com.vorssaint.utils.mixer", qos: .userInitiated)
+    /// Every CoreAudio property read runs here, and every HAL notification is
+    /// delivered here. Reads serialize behind the audio daemon's device state,
+    /// so while a device is being reconfigured (headphones pairing, an
+    /// interface renegotiating, a display with audio waking) a single read can
+    /// wait for as long as the daemon holds that device — and a reconfiguration
+    /// is exactly what fires the listeners in the first place.
+    ///
+    /// Deliberately not `buildQueue`: creating a tap and its aggregate device
+    /// takes far longer than reading a property, and the panel must never wait
+    /// behind one to learn which devices exist.
+    private let halQueue = DispatchQueue(label: "com.vorssaint.utils.mixer.hal", qos: .userInitiated)
 
     private init() {}
 
@@ -161,6 +176,9 @@ final class AppVolumeMixer: ObservableObject {
         stopAll()
         sessionVolumes.removeAll()
         sessionRoutes.removeAll()
+        // A refresh already reading the HAL must not publish into a mixer that
+        // is no longer watching, nor re-register the listeners just removed.
+        refresh.discardInFlight()
         pruneRunningListeners(keeping: [])
         removeGlobalListeners()
         if !apps.isEmpty { apps = [] }
@@ -170,17 +188,23 @@ final class AppVolumeMixer: ObservableObject {
         if needsPermission { needsPermission = false }
     }
 
+    /// The listener blocks are delivered on `halQueue`, never on the main
+    /// thread: a device reconfiguration can fire them in bursts, and the HAL
+    /// runs each one before it moves on. All they do is ask the main thread for
+    /// a refresh, so the coalescing state stays main-thread owned.
     private func installListener(selector: AudioObjectPropertySelector) {
         var address = AudioObjectPropertyAddress(mSelector: selector,
                                                  mScope: kAudioObjectPropertyScopeGlobal,
                                                  mElement: kAudioObjectPropertyElementMain)
         let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-            self?.scheduleListenerRefresh()
+            DispatchQueue.main.async { self?.scheduleListenerRefresh() }
         }
-        AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, .main, block)
+        AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, halQueue, block)
         globalListeners.append((selector, block))
     }
 
+    /// Removal only matches when the queue is the one the listener was
+    /// registered with, so this has to hand back `halQueue` too.
     private func removeGlobalListeners() {
         guard listenerInstalled else { return }
         listenerInstalled = false
@@ -189,7 +213,7 @@ final class AppVolumeMixer: ObservableObject {
                                                      mScope: kAudioObjectPropertyScopeGlobal,
                                                      mElement: kAudioObjectPropertyElementMain)
             AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject),
-                                                   &address, .main, entry.block)
+                                                   &address, halQueue, entry.block)
         }
         globalListeners.removeAll()
     }
@@ -198,9 +222,9 @@ final class AppVolumeMixer: ObservableObject {
         guard runningListeners[object] == nil else { return }
         var address = Self.isRunningOutputAddress()
         let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-            self?.scheduleListenerRefresh()
+            DispatchQueue.main.async { self?.scheduleListenerRefresh() }
         }
-        if AudioObjectAddPropertyListenerBlock(object, &address, .main, block) == noErr {
+        if AudioObjectAddPropertyListenerBlock(object, &address, halQueue, block) == noErr {
             runningListeners[object] = block
         }
     }
@@ -212,7 +236,7 @@ final class AppVolumeMixer: ObservableObject {
     private func pruneRunningListeners(keeping current: Set<AudioObjectID>) {
         for (object, block) in runningListeners where !current.contains(object) {
             var address = Self.isRunningOutputAddress()
-            AudioObjectRemovePropertyListenerBlock(object, &address, .main, block)
+            AudioObjectRemovePropertyListenerBlock(object, &address, halQueue, block)
             runningListeners.removeValue(forKey: object)
         }
     }
@@ -311,6 +335,10 @@ final class AppVolumeMixer: ObservableObject {
         }
 
         outputSwitchError = nil
+        // The system output just changed by this app's own hand, so a refresh
+        // still reading the previous devices is thrown away; the one at the end
+        // of this method replaces it.
+        refresh.discardInFlight()
         let preferences = MixerRoutingSupport.preferencesAfterUniversalOutputSwitch(
             outputDeviceUIDs: savedOutputDeviceUIDs(),
             volumes: savedVolumes(),
@@ -506,21 +534,94 @@ final class AppVolumeMixer: ObservableObject {
 
     // MARK: - Process discovery
 
+    /// The main-thread state one refresh pass needs, copied in so the HAL pass
+    /// never reads a property that another thread can be writing.
+    private struct RefreshRequest {
+        let previousDefaultUID: String?
+        let previousOutputDevices: [MixerOutputDevice]
+        let lowered: LoweredOutputState
+        let lowerOnHeadphonesDisconnect: Bool
+        let lowerToPercent: Int
+        let savedVolumes: [String: Double]
+        let savedOutputs: [String: String]
+        let sessionVolumes: [String: Double]
+        let sessionRoutes: [String: String]
+        let showFinder: Bool
+        let ownPid: pid_t
+    }
+
+    /// Everything one refresh read from the HAL, handed back for the main
+    /// thread to turn into published state.
+    private struct RefreshSnapshot {
+        let defaultUID: String?
+        let outputDevices: [MixerOutputDevice]
+        /// Nil where process taps do not exist (before macOS 14.4): the app
+        /// list stays empty and no process object is looked at.
+        let apps: [MixerApp]?
+        let processObjects: [AudioObjectID]
+        let lowered: LoweredOutputState
+    }
+
+    /// Kicks off one refresh. Reading the audio HAL happens on `halQueue`;
+    /// everything published, every engine and every listener record is touched
+    /// back on the main thread, where it lives.
     private func refreshApps() {
         // A throttled refresh can land after stop(); watching is over.
         guard listenerInstalled else { return }
-        let defaultUID = Self.defaultOutputDeviceUID()
-        let nextOutputDevices = Self.outputDevices(defaultUID: defaultUID)
-        let availableUIDs = Set(nextOutputDevices.map(\.uid))
-        if defaultUID != currentOutputDeviceUID, outputSwitchError != nil {
+        // A pass already reading the HAL holds the slot: running a second one
+        // now would read against state the first has not published yet. The
+        // request is remembered and runs as soon as that one lands.
+        guard let generation = refresh.begin() else { return }
+        let request = RefreshRequest(
+            previousDefaultUID: currentOutputDeviceUID,
+            previousOutputDevices: outputDevices,
+            lowered: LoweredOutputState(lastAutomaticLoweredOutputUID: lastAutomaticLoweredOutputUID,
+                                        loweredOutput: loweredOutput),
+            lowerOnHeadphonesDisconnect: UserDefaults.standard.bool(
+                forKey: DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect),
+            lowerToPercent: Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(
+                UserDefaults.standard.integer(forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)),
+            savedVolumes: savedVolumes(),
+            savedOutputs: savedOutputDeviceUIDs(),
+            sessionVolumes: sessionVolumes,
+            sessionRoutes: sessionRoutes,
+            showFinder: UserDefaults.standard.bool(forKey: DefaultsKey.mixerShowFinder),
+            ownPid: ProcessInfo.processInfo.processIdentifier)
+
+        halQueue.async { [weak self] in
+            let snapshot = Self.readSnapshot(request)
+            DispatchQueue.main.async {
+                self?.apply(snapshot, generation: generation)
+            }
+        }
+    }
+
+    /// Main thread. Turns one HAL snapshot into published state, engines and
+    /// listener records, in the same order the synchronous version used.
+    private func apply(_ snapshot: RefreshSnapshot, generation: Int) {
+        // The mixer no longer wants this pass (it stopped, or changed the
+        // output itself, while the pass was reading). The one thing still
+        // worth keeping is a volume the pass lowered on the HAL, so the
+        // speakers can be handed back later.
+        guard refresh.finish(generation) else {
+            if snapshot.lowered.loweredOutput != nil {
+                lastAutomaticLoweredOutputUID = snapshot.lowered.lastAutomaticLoweredOutputUID
+                loweredOutput = snapshot.lowered.loweredOutput
+            }
+            return
+        }
+        let refreshAgain = refresh.takeRepeatRequest()
+        guard listenerInstalled else { return }
+        defer { if refreshAgain { refreshApps() } }
+
+        lastAutomaticLoweredOutputUID = snapshot.lowered.lastAutomaticLoweredOutputUID
+        loweredOutput = snapshot.lowered.loweredOutput
+
+        if snapshot.defaultUID != currentOutputDeviceUID, outputSwitchError != nil {
             outputSwitchError = nil
         }
-        lowerVolumeIfHeadphonesDisconnected(previousDefaultUID: currentOutputDeviceUID,
-                                            previousOutputDevices: outputDevices,
-                                            nextDefaultUID: defaultUID,
-                                            nextOutputDevices: nextOutputDevices)
         let audioEnvironmentChanged = currentOutputDeviceUID != nil
-            && (defaultUID != currentOutputDeviceUID || nextOutputDevices != outputDevices)
+            && (snapshot.defaultUID != currentOutputDeviceUID || snapshot.outputDevices != outputDevices)
         if audioEnvironmentChanged {
             // Builds aimed at the previous audio environment can no longer be
             // installed; reconciliation below replaces the live engines one by
@@ -530,35 +631,68 @@ final class AppVolumeMixer: ObservableObject {
         // Assigning a @Published property signals SwiftUI even when the value is
         // identical, and refreshes run on every CoreAudio notification — publish
         // only real changes or a chatty HAL re-renders the panel continuously.
-        if currentOutputDeviceUID != defaultUID {
-            currentOutputDeviceUID = defaultUID
+        if currentOutputDeviceUID != snapshot.defaultUID {
+            currentOutputDeviceUID = snapshot.defaultUID
         }
-        if nextOutputDevices != outputDevices {
-            outputDevices = nextOutputDevices
+        if snapshot.outputDevices != outputDevices {
+            outputDevices = snapshot.outputDevices
         }
 
-        guard Self.isSupported else {
+        guard let next = snapshot.apps else {
             if !apps.isEmpty {
                 apps = []
             }
             return
         }
 
-        let ownPid = ProcessInfo.processInfo.processIdentifier
-        let saved = savedVolumes()
-        let savedOutputs = savedOutputDeviceUIDs()
-        let showFinder = UserDefaults.standard.bool(forKey: DefaultsKey.mixerShowFinder)
+        pruneRunningListeners(keeping: Set(snapshot.processObjects))
+        for object in snapshot.processObjects {
+            // Audio starting/stopping in a process flips IsRunningOutput
+            // without changing the object list — subscribe per object.
+            subscribeToRunningChanges(of: object)
+        }
+
+        guard audioEnvironmentChanged || next != apps else { return }
+        if apps != next {
+            apps = next
+        }
+        reconcileEngines(with: next)
+        clearPermissionIfNoActiveAdjustments()
+    }
+
+    /// Runs on `halQueue`. Every CoreAudio read of a refresh happens here and
+    /// nothing outside the returned snapshot is touched.
+    private static func readSnapshot(_ request: RefreshRequest) -> RefreshSnapshot {
+        let defaultUID = defaultOutputDeviceUID()
+        let nextOutputDevices = outputDevices(defaultUID: defaultUID)
+        let availableUIDs = Set(nextOutputDevices.map(\.uid))
+        let lowered = loweringOutputVolumeIfHeadphonesDisconnected(
+            state: request.lowered,
+            previousDefaultUID: request.previousDefaultUID,
+            previousOutputDevices: request.previousOutputDevices,
+            nextDefaultUID: defaultUID,
+            nextOutputDevices: nextOutputDevices,
+            lowerOnDisconnect: request.lowerOnHeadphonesDisconnect,
+            lowerToPercent: request.lowerToPercent)
+
+        guard isSupported else {
+            return RefreshSnapshot(defaultUID: defaultUID,
+                                   outputDevices: nextOutputDevices,
+                                   apps: nil,
+                                   processObjects: [],
+                                   lowered: lowered)
+        }
+
+        let ownPid = request.ownPid
+        let saved = request.savedVolumes
+        let savedOutputs = request.savedOutputs
+        let showFinder = request.showFinder
         var groups: [pid_t: [AudioObjectID]] = [:]
         var playing: Set<pid_t> = []
         var bypassed: Set<pid_t> = []
         var bundleHints: [pid_t: String] = [:]
-        let processObjects = Self.audioProcessObjects()
-        pruneRunningListeners(keeping: Set(processObjects))
+        let processObjects = audioProcessObjects()
         for object in processObjects {
-            // Audio starting/stopping in a process flips IsRunningOutput
-            // without changing the object list — subscribe per object.
-            subscribeToRunningChanges(of: object)
-
             var pid: pid_t = -1
             guard Self.read(object, kAudioProcessPropertyPID, &pid), pid > 0, pid != ownPid else { continue }
 
@@ -601,7 +735,9 @@ final class AppVolumeMixer: ObservableObject {
             let identity = MixerRoutingSupport.rowIdentity(bundleIdentifier: bundleHints[owner],
                                                            ownerPid: owner)
             let isBypassed = bypassed.contains(owner)
-            let route = isBypassed ? nil : storedRoute(for: identity, saved: savedOutputs)
+            let route = isBypassed ? nil : storedRoute(for: identity,
+                                                       saved: savedOutputs,
+                                                       session: request.sessionRoutes)
             next.append(MixerApp(id: identity.rowID,
                                  persistenceID: identity.persistenceID,
                                  ownerPid: owner,
@@ -617,7 +753,9 @@ final class AppVolumeMixer: ObservableObject {
                                  outputDeviceUnavailable: isBypassed ? false : MixerRoutingSupport.selectedDeviceUnavailable(
                                     selectedUID: route,
                                     availableUIDs: availableUIDs),
-                                 volume: isBypassed ? 1 : (storedVolume(for: identity, saved: saved) ?? 1)))
+                                 volume: isBypassed ? 1 : (storedVolume(for: identity,
+                                                                       saved: saved,
+                                                                       session: request.sessionVolumes) ?? 1)))
         }
         if MixerRoutingSupport.needsPersistentFinderRow(
             showFinder: showFinder,
@@ -646,14 +784,13 @@ final class AppVolumeMixer: ObservableObject {
             MixerRoutingSupport.displayOrderedBefore(name: $0.name, id: $0.id,
                                                      otherName: $1.name, otherID: $1.id)
         }
-        next = Self.coalescingAppsWithDuplicateIDs(next)
+        next = coalescingAppsWithDuplicateIDs(next)
 
-        guard audioEnvironmentChanged || next != apps else { return }
-        if apps != next {
-            apps = next
-        }
-        reconcileEngines(with: next)
-        clearPermissionIfNoActiveAdjustments()
+        return RefreshSnapshot(defaultUID: defaultUID,
+                               outputDevices: nextOutputDevices,
+                               apps: next,
+                               processObjects: processObjects,
+                               lowered: lowered)
     }
 
     private static func coalescingAppsWithDuplicateIDs(_ apps: [MixerApp]) -> [MixerApp] {
@@ -684,20 +821,43 @@ final class AppVolumeMixer: ObservableObject {
         return merged
     }
 
-    private func lowerVolumeIfHeadphonesDisconnected(previousDefaultUID: String?,
-                                                     previousOutputDevices: [MixerOutputDevice],
-                                                     nextDefaultUID: String?,
-                                                     nextOutputDevices: [MixerOutputDevice]) {
+    /// What the headphone disconnect protection has done to the system volume,
+    /// so it can be undone. Main-thread state; a refresh pass gets a copy and
+    /// hands the new value back.
+    private struct LoweredOutput {
+        let uid: String
+        let previousVolume: Float32
+        let appliedVolume: Float32
+    }
+
+    private struct LoweredOutputState {
+        var lastAutomaticLoweredOutputUID: String?
+        var loweredOutput: LoweredOutput?
+    }
+
+    /// Runs on `halQueue` as part of a refresh: reading and writing an output
+    /// device's volume are HAL calls, and this fires exactly when the audio
+    /// daemon is busiest (a device just went away).
+    private static func loweringOutputVolumeIfHeadphonesDisconnected(
+        state: LoweredOutputState,
+        previousDefaultUID: String?,
+        previousOutputDevices: [MixerOutputDevice],
+        nextDefaultUID: String?,
+        nextOutputDevices: [MixerOutputDevice],
+        lowerOnDisconnect: Bool,
+        lowerToPercent: Int) -> LoweredOutputState {
+        var state = state
         if let nextDefaultUID,
            nextOutputDevices.first(where: { $0.uid == nextDefaultUID })?.isHeadphones == true {
-            lastAutomaticLoweredOutputUID = nil
+            state.lastAutomaticLoweredOutputUID = nil
             // Headphones are back: the speakers get the volume they had before
             // the disconnect lowered them.
-            restoreLoweredOutputVolume(in: nextOutputDevices)
-            return
+            state.loweredOutput = restoringLoweredOutputVolume(state.loweredOutput,
+                                                               in: nextOutputDevices)
+            return state
         }
 
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect),
+        guard lowerOnDisconnect,
               let previousDefaultUID,
               let previousDefault = previousOutputDevices.first(where: { $0.uid == previousDefaultUID }),
               previousDefault.isHeadphones,
@@ -705,39 +865,45 @@ final class AppVolumeMixer: ObservableObject {
               let nextDefaultUID,
               let nextDefault = nextOutputDevices.first(where: { $0.uid == nextDefaultUID }),
               !nextDefault.isHeadphones,
-              lastAutomaticLoweredOutputUID != nextDefaultUID else {
-            return
+              state.lastAutomaticLoweredOutputUID != nextDefaultUID else {
+            return state
         }
 
-        let percent = Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(
-            UserDefaults.standard.integer(forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
-        )
-        let volume = Float32(Double(percent) / 100)
-        let previousVolume = Self.outputVolume(for: nextDefault.audioObjectID)
-        if Self.setOutputVolume(volume, for: nextDefault.audioObjectID) {
-            lastAutomaticLoweredOutputUID = nextDefaultUID
+        let volume = Float32(Double(lowerToPercent) / 100)
+        let previousVolume = outputVolume(for: nextDefault.audioObjectID)
+        if setOutputVolume(volume, for: nextDefault.audioObjectID) {
+            state.lastAutomaticLoweredOutputUID = nextDefaultUID
             if let previousVolume, previousVolume > volume {
-                loweredOutput = (uid: nextDefaultUID,
-                                 previousVolume: previousVolume,
-                                 appliedVolume: volume)
+                state.loweredOutput = LoweredOutput(uid: nextDefaultUID,
+                                                    previousVolume: previousVolume,
+                                                    appliedVolume: volume)
             }
         }
+        return state
     }
 
     /// Puts back the volume this feature lowered, as long as it is still the
     /// value the app set: anything else means it was changed since, and that
-    /// choice wins. Nothing the mixer changes on the system outlives it.
-    private func restoreLoweredOutputVolume(in devices: [MixerOutputDevice]? = nil) {
-        guard let lowered = loweredOutput else { return }
-        guard let device = (devices ?? outputDevices).first(where: { $0.uid == lowered.uid }) else {
+    /// choice wins. Returns what is left to restore later.
+    private static func restoringLoweredOutputVolume(_ lowered: LoweredOutput?,
+                                                     in devices: [MixerOutputDevice]) -> LoweredOutput? {
+        guard let lowered else { return nil }
+        guard let device = devices.first(where: { $0.uid == lowered.uid }) else {
             // The device is not around to restore right now; it may come back.
-            return
+            return lowered
         }
-        loweredOutput = nil
         guard MixerRoutingSupport.shouldRestoreOutputVolume(
             appliedVolume: Double(lowered.appliedVolume),
-            currentVolume: Self.outputVolume(for: device.audioObjectID).map(Double.init)) else { return }
-        _ = Self.setOutputVolume(lowered.previousVolume, for: device.audioObjectID)
+            currentVolume: outputVolume(for: device.audioObjectID).map(Double.init)) else { return nil }
+        _ = setOutputVolume(lowered.previousVolume, for: device.audioObjectID)
+        return nil
+    }
+
+    /// Teardown path only, and deliberately synchronous: `stopAll()` runs while
+    /// the app is quitting, so anything the mixer still owes the system has to
+    /// be handed back before the process goes away.
+    private func restoreLoweredOutputVolume() {
+        loweredOutput = Self.restoringLoweredOutputVolume(loweredOutput, in: outputDevices)
     }
 
     /// Brings the running engines in line with the current app list: drops
@@ -862,15 +1028,28 @@ final class AppVolumeMixer: ObservableObject {
     }
 
     /// The volume of a row: from disk when the app has a bundle id, otherwise
-    /// from this session only.
-    private func storedVolume(for identity: MixerRowIdentity, saved: [String: Double]) -> Double? {
-        guard let key = identity.persistenceID else { return sessionVolumes[identity.rowID] }
+    /// from this session only. Static so a refresh pass can resolve rows off
+    /// the main thread from copies of the session maps.
+    private static func storedVolume(for identity: MixerRowIdentity,
+                                     saved: [String: Double],
+                                     session: [String: Double]) -> Double? {
+        guard let key = identity.persistenceID else { return session[identity.rowID] }
         return saved[key]
     }
 
-    private func storedRoute(for identity: MixerRowIdentity, saved: [String: String]) -> String? {
-        guard let key = identity.persistenceID else { return sessionRoutes[identity.rowID] }
+    private static func storedRoute(for identity: MixerRowIdentity,
+                                    saved: [String: String],
+                                    session: [String: String]) -> String? {
+        guard let key = identity.persistenceID else { return session[identity.rowID] }
         return saved[key]
+    }
+
+    private func storedVolume(for identity: MixerRowIdentity, saved: [String: Double]) -> Double? {
+        Self.storedVolume(for: identity, saved: saved, session: sessionVolumes)
+    }
+
+    private func storedRoute(for identity: MixerRowIdentity, saved: [String: String]) -> String? {
+        Self.storedRoute(for: identity, saved: saved, session: sessionRoutes)
     }
 
     private func persistVolume(_ volume: Double, for app: MixerApp) {

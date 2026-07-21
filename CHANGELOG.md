@@ -31,8 +31,10 @@ is set to hide itself.
   up.
 - The app could quit at startup right after an update, while the tour of the
   new features was opening. The tour now keeps the same size on every page.
-- The app could stop responding for a while at a time. It no longer waits
-  on other apps that are busy or on commands that never answer.
+- The app could stop responding for a while at a time, often right when
+  headphones or another audio device connected. It no longer waits on the
+  audio system, on other apps that are busy, or on commands that never
+  answer.
 - An external display could go dark while its brightness was adjusted and
   stay dark until it was unplugged. It recovers now, and a screen switched
   off here comes back at the next start.
