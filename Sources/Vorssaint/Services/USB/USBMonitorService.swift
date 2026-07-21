@@ -46,6 +46,20 @@ struct USBDeviceItem: Identifiable, Hashable, Codable {
         return "SN: \(sn)"
     }
 
+    var cleanVendor: String? {
+        guard let v = vendor?.trimmingCharacters(in: .whitespacesAndNewlines), !v.isEmpty, v != name else { return nil }
+        var cleaned = v
+        cleaned = cleaned.replacingOccurrences(of: ", Inc.", with: "")
+        cleaned = cleaned.replacingOccurrences(of: " Inc.", with: "")
+        cleaned = cleaned.replacingOccurrences(of: " Inc", with: "")
+        cleaned = cleaned.replacingOccurrences(of: " Corp.", with: "")
+        cleaned = cleaned.replacingOccurrences(of: " Corporation", with: "")
+        cleaned = cleaned.replacingOccurrences(of: " Ltd.", with: "")
+        cleaned = cleaned.replacingOccurrences(of: " Co., Ltd.", with: "")
+        cleaned = cleaned.replacingOccurrences(of: " Technology", with: "")
+        return cleaned.isEmpty ? nil : cleaned
+    }
+
     var iconName: String {
         switch category {
         case .charger: return "bolt.fill"

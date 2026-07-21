@@ -103,12 +103,12 @@ struct USBSection: View {
 
                 Spacer(minLength: 4)
 
-                if let vendor = device.vendor, !vendor.isEmpty, vendor != device.name {
+                if let vendor = device.cleanVendor {
                     Text(vendor)
                         .font(.system(size: 10.5, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                        .minimumScaleFactor(0.65)
                 }
 
                 if device.isExternalStorage {
@@ -166,32 +166,32 @@ struct USBSection: View {
                 }
             }
 
-            // Line 3: Version (BCD) + Serial Number (Technical Details Mode)
+            // Line 3 & 4: Version (BCD) + Serial Number (Stacked for full line width)
             if showTechDetails && (device.usbVersionBCD != nil || device.serialFormatted != nil) {
-                HStack(alignment: .center, spacing: 6) {
+                VStack(alignment: .leading, spacing: 3) {
                     if device.usbVersionBCD != nil {
                         Text(device.bcdHexLabel)
                             .font(.system(size: 9.5, weight: .regular))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.75)
-                            .layoutPriority(1)
                     }
 
-                    Spacer(minLength: 4)
-
                     if let sn = device.serialFormatted {
-                        Text(sn)
-                            .font(.system(size: 9.5, weight: .medium, design: .monospaced))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1.5)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                    .fill(Color.primary.opacity(0.04))
-                            )
-                            .foregroundStyle(.tertiary)
+                        HStack {
+                            Text(sn)
+                                .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.6)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1.5)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                        .fill(Color.primary.opacity(0.04))
+                                )
+                                .foregroundStyle(.tertiary)
+                            Spacer()
+                        }
                     }
                 }
             }
