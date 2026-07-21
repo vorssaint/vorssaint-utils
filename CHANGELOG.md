@@ -10,13 +10,17 @@ All notable changes to this project are documented here. The format follows
 Vorssaint 3.1.15 fixes starts that could leave the app with no menu bar icon
 or quit it right after an update, and a crash while choosing a screenshot
 area. It also gives back the clicks that moving windows by dragging was taking
-from other apps, repairs smooth scrolling, and keeps the menu bar panel under
-its icon when the menu bar is set to hide itself.
+from other apps, repairs smooth scrolling, brings the window switcher back on
+the first press, and keeps the menu bar panel under its icon when the menu bar
+is set to hide itself.
 
 ### Fixed
 - Moving and resizing windows by dragging no longer takes the modifier click
   away from other apps. A click that does not move now goes to the app as
   usual, and the window only follows the pointer once you actually drag.
+- The window switcher opens on the first press again after you close every
+  window of an app or move to another desktop. With nothing left to switch to,
+  the shortcut now stays quiet instead of falling back to the system switcher.
 - Smooth scrolling moves the right distance on mice that report the wheel
   continuously, and the speed setting now works on them.
 - Smooth scrolling no longer reverses the scroll direction on its own.

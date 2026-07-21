@@ -1167,7 +1167,45 @@ struct MetricsTests {
         expect(SwitcherSupport.sessionSourceItem(frontmostPID: 303,
                                                  focusedWindowID: nil,
                                                  items: [embeddedWindow]) == nil,
-               "App Switcher leaves the system shortcut alone when the foreground app is missing")
+               "App Switcher reports no foreground window when the app in front owns none")
+        expect(SwitcherSupport.initialSelectionPosition(pids: [101, 202, 303],
+                                                        hasForegroundEntry: true,
+                                                        frontmostPID: 101,
+                                                        reversed: false) == 1,
+               "App Switcher starts one step past the foreground window")
+        expect(SwitcherSupport.initialSelectionPosition(pids: [101],
+                                                        hasForegroundEntry: true,
+                                                        frontmostPID: 101,
+                                                        reversed: false) == 0,
+               "App Switcher stays on the only entry there is")
+        expect(SwitcherSupport.initialSelectionPosition(pids: [101, 202, 303],
+                                                        hasForegroundEntry: true,
+                                                        frontmostPID: 101,
+                                                        reversed: true) == 2,
+               "App Switcher starts from the far end when the session opens backward")
+        expect(SwitcherSupport.initialSelectionPosition(pids: [202, 303],
+                                                        hasForegroundEntry: false,
+                                                        frontmostPID: 101,
+                                                        reversed: false) == 0,
+               "App Switcher opens on the first entry when the app in front has no window (issue #324)")
+        expect(SwitcherSupport.initialSelectionPosition(pids: [101, 101, 202],
+                                                        hasForegroundEntry: false,
+                                                        frontmostPID: 101,
+                                                        reversed: false) == 2,
+               "App Switcher skips the windows the app in front left minimized or on another Space")
+        expect(SwitcherSupport.initialSelectionPosition(pids: [101, 101],
+                                                        hasForegroundEntry: false,
+                                                        frontmostPID: 101,
+                                                        reversed: false) == 0,
+               "App Switcher still opens when every window belongs to the app in front")
+        expect(SwitcherSupport.initialSelectionPosition(pids: [],
+                                                        hasForegroundEntry: false,
+                                                        frontmostPID: 101,
+                                                        reversed: false) == 0,
+               "App Switcher keeps the selection in range with nothing to show")
+        expect(SwitcherSupport.appPID(forFrontmost: 202, items: [embeddedWindow]) == 101
+               && SwitcherSupport.appPID(forFrontmost: 303, items: [embeddedWindow]) == 303,
+               "App Switcher reads the app behind an embedded window helper")
         expect(SwitcherSupport.isCompatibilityLayerApp(
             bundleIdentifier: nil,
             executablePath: "/usr/local/bin/wine64-preloader",
