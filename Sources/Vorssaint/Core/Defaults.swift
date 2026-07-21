@@ -77,6 +77,13 @@ enum DefaultsKey {
     static let brightnessControlEnabled = "brightnessControlEnabled" // sliders for every display
     static let brightnessKeysEnabled = "brightnessKeysEnabled" // brightness keys act on the display under the pointer
     static let brightnessOSDEnabled = "brightnessOSDEnabled" // brightness adjustment overlay
+    // Displays this app switched off, so a run that ends without putting them
+    // back can be repaired on the next start instead of needing a replug.
+    static let displaysSwitchedOff = "displaysSwitchedOff"
+    // Set while a start is under way and cleared once the app has run
+    // healthily for a while, or when it is quit properly. Found still set at
+    // the next start, it means the previous one died on the way up.
+    static let startupDidNotFinish = "startupDidNotFinish"
     static let musicBlockEnabled = "musicBlockEnabled"
     static let musicBlockReplacementPath = "musicBlockReplacementPath"  // app bundle path ("" = none)
     static let cleanerScheduleFrequency = "cleanerScheduleFrequency"    // off | daily | weekly
@@ -588,7 +595,7 @@ enum Defaults {
         DefaultsKey.updateShowcaseMediaOverride: "",
         DefaultsKey.mixerShowFinder: true,
         DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect: false,
-        DefaultsKey.mixerHeadphonesDisconnectVolumePercent: 0,
+        DefaultsKey.mixerHeadphonesDisconnectVolumePercent: defaultMixerHeadphonesDisconnectVolumePercent,
         DefaultsKey.soundOutputSwitcherEnabled: false,
         DefaultsKey.soundOutputSwitcherShortcut: GlobalShortcut.soundOutputSwitcherDefault.storageValue,
         // Finder never benefits from being "quit" (it just relaunches), so
@@ -879,6 +886,7 @@ enum Defaults {
         migrateLegacySwitcherWindowShortcut(in: defaults)
         migrateLegacyKeyboardDebounceWindow(in: defaults)
         migrateUtilityOrderForScreenshot(in: defaults)
+        migrateSilentHeadphonesDisconnectVolume(in: defaults)
     }
 
     static func migrateLegacySwitcherWindowShortcut(in defaults: UserDefaults) {
@@ -1066,8 +1074,24 @@ enum Defaults {
         return min(max(volume, 0), 2)
     }
 
+    /// The volume the speakers are set to when headphones disconnect. It is a
+    /// protection against a sudden blast, not a mute, so it never goes low
+    /// enough to leave the sound inaudible.
+    static let minimumMixerHeadphonesDisconnectVolumePercent = 10
+    static let defaultMixerHeadphonesDisconnectVolumePercent = 25
+
     static func sanitizedMixerHeadphonesDisconnectVolumePercent(_ percent: Int) -> Int {
-        min(max(percent, 0), 100)
+        min(max(percent, minimumMixerHeadphonesDisconnectVolumePercent), 100)
+    }
+
+    /// The option shipped with a stored value of 0, so ticking the box without
+    /// touching the stepper silenced the speakers on the next disconnect. A
+    /// value below the floor becomes the sane default.
+    static func migrateSilentHeadphonesDisconnectVolume(in defaults: UserDefaults) {
+        guard let stored = defaults.object(forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent) as? Int,
+              stored < minimumMixerHeadphonesDisconnectVolumePercent else { return }
+        defaults.set(defaultMixerHeadphonesDisconnectVolumePercent,
+                     forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
     }
 
     static func sanitizedAppOutputDeviceUID(_ value: Any?) -> String? {

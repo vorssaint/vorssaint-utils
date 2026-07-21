@@ -68,6 +68,7 @@ final class AppSwitcher: ObservableObject {
     private let routeLock = NSLock()
     private var routeSessionActive = false
     private var routeShortcut = GlobalShortcut.switcherDefault
+    private var routeCapturing = false
 
     /// The panel appears only after this delay, like the system switcher: a
     /// quick ⌘Tab flick switches with no UI at all, which is what makes rapid
@@ -137,6 +138,16 @@ final class AppSwitcher: ObservableObject {
     /// resets its own permissions, so a revoked Accessibility grant can never
     /// leave a live tap behind.
     func suspend() { removeTap() }
+
+    /// While a shortcut field is listening, every key has to reach it, even
+    /// the switcher's own combination. This is a flag the routing reads, not a
+    /// teardown: tearing the tap down and rebuilding it per recording would
+    /// churn the window server's keyboard path for no reason (issue #275).
+    /// Main thread only, like every other write to the routing state.
+    func setCapturingShortcut(_ capturing: Bool) {
+        if capturing, sessionActive { cancelSession() }
+        routeLock.withLock { routeCapturing = capturing }
+    }
 
     // MARK: - Event tap
 
@@ -267,7 +278,13 @@ final class AppSwitcher: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
-        let (active, shortcut) = routeLock.withLock { (routeSessionActive, routeShortcut) }
+        let (active, shortcut, capturing) = routeLock.withLock {
+            (routeSessionActive, routeShortcut, routeCapturing)
+        }
+        // A shortcut field in Settings has the keyboard: hand every key
+        // straight through so the user can record this feature's own
+        // combination instead of opening the switcher with it.
+        if capturing { return Unmanaged.passUnretained(event) }
         if !active {
             guard type == .keyDown,
                   shortcut.matches(event: event, allowingExtraShift: true)
@@ -335,9 +352,12 @@ final class AppSwitcher: ObservableObject {
             let tapAlive = lifecycleLock.withLock { tap != nil && !shouldStopTapThread }
             guard tapAlive else { return Unmanaged.passUnretained(event) }
             let reversed = shortcut.shiftIsNavigationModifier && flags.contains(.maskShift)
-            return beginSession(reversed: reversed, shortcut: shortcut)
-                ? nil
-                : Unmanaged.passUnretained(event)
+            beginSession(reversed: reversed, shortcut: shortcut)
+            // The shortcut belongs to the switcher while the feature is on, so
+            // the press is always consumed. With every window closed there is
+            // nothing to switch to and nothing appears at all, instead of the
+            // system switcher taking the press back.
+            return nil
         }
 
         let shortcut = sessionShortcut ?? GlobalShortcut.saved(for: DefaultsKey.switcherShortcut,
@@ -401,28 +421,38 @@ final class AppSwitcher: ObservableObject {
 
     // MARK: - Session lifecycle
 
+    /// Opens a session for the current windows. Does nothing when there is
+    /// nothing to switch to; the caller consumes the press either way.
+    @discardableResult
     private func beginSession(reversed: Bool, shortcut: GlobalShortcut) -> Bool {
         guard let reportedFrontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
         else { return false }
         let windows = WindowEnumerator.listWindows()
         guard !windows.isEmpty else { return false }
         let focusedSourceWindowID = focusedWindowID(for: reportedFrontPID)
-        guard let source = SwitcherSupport.sessionSourceItem(frontmostPID: reportedFrontPID,
-                                                             focusedWindowID: focusedSourceWindowID,
-                                                             items: windows)
-        else { return false }
+        // The foreground window is what a session is measured against, and it
+        // does not always exist: an app left with no windows, or with all of
+        // them minimized or on another Space, still owns the keyboard. The
+        // switcher opens either way. Bailing out here handed ⌘Tab back to the
+        // system, so the shortcut looked dead until it was pressed a second
+        // time (issue #324).
+        let source = SwitcherSupport.sessionSourceItem(frontmostPID: reportedFrontPID,
+                                                       focusedWindowID: focusedSourceWindowID,
+                                                       items: windows)
 
-        let list = orderedForSession(windows, currentID: source.id)
+        let list = orderedForSession(windows, currentID: source?.id)
         sessionItems = list
         totalWindowCount = list.count
         searchQuery = ""
         self.windows = list
-        sessionSourceContext = SwitcherSourceContext(itemID: source.id,
-                                                     pid: source.pid,
-                                                     windowID: source.windowID,
-                                                     windowOwnerPID: source.windowOwnerPID,
-                                                     isFullscreen: source.isFullscreen)
-        sessionStartItemID = source.id
+        sessionSourceContext = source.map { source in
+            SwitcherSourceContext(itemID: source.id,
+                                  pid: source.pid,
+                                  windowID: source.windowID,
+                                  windowOwnerPID: source.windowOwnerPID,
+                                  isFullscreen: source.isFullscreen)
+        }
+        sessionStartItemID = source?.id
         recomputeLayouts(for: list)
         if !capturesPreviews {
             previews = [:]
@@ -436,8 +466,13 @@ final class AppSwitcher: ObservableObject {
         userNavigated = false
         // Index 0 is the on-screen window; index 1 is the most-recently-used
         // other window — the toggle target, which may be another window of the
-        // same app. Shift starts from the far end.
-        selectedIndex = initialSelectionIndex(in: list, reversed: reversed)
+        // same app. Shift starts from the far end. With no on-screen window
+        // the session opens on the first entry from another app.
+        selectedIndex = initialSelectionIndex(in: list,
+                                              reversed: reversed,
+                                              hasForegroundItem: source != nil,
+                                              frontmostPID: SwitcherSupport.appPID(forFrontmost: reportedFrontPID,
+                                                                                   items: list))
         sessionActive = true
         sessionShortcut = shortcut
         shiftBackNavigationHeld = reversed && shortcut.shiftIsNavigationModifier
@@ -469,8 +504,10 @@ final class AppSwitcher: ObservableObject {
     /// Orders a session's windows so the on-screen window is first and the rest
     /// follow most-recently-used order, falling back to the app-activation
     /// order the enumerator already applied. This is what lets ⌘Tab toggle
-    /// between two windows of the same app, not just two apps.
-    private func orderedForSession(_ items: [SwitcherItem], currentID: String) -> [SwitcherItem] {
+    /// between two windows of the same app, not just two apps. With no
+    /// on-screen window to lead the list, plain most-recently-used order is
+    /// already the right answer.
+    private func orderedForSession(_ items: [SwitcherItem], currentID: String?) -> [SwitcherItem] {
         return items.enumerated()
             .sorted { lhs, rhs in
                 sortKey(lhs.element, currentID: currentID, original: lhs.offset)
@@ -487,15 +524,26 @@ final class AppSwitcher: ObservableObject {
         return (2, 0, original)
     }
 
-    private func initialSelectionIndex(in items: [SwitcherItem], reversed: Bool) -> Int {
+    private func initialSelectionIndex(in items: [SwitcherItem],
+                                       reversed: Bool,
+                                       hasForegroundItem: Bool,
+                                       frontmostPID: pid_t) -> Int {
         guard !items.isEmpty else { return 0 }
         guard usesIconRowLayout else {
-            return reversed ? max(0, items.count - 1) : (items.count > 1 ? 1 : 0)
+            return SwitcherSupport.initialSelectionPosition(pids: items.map(\.pid),
+                                                            hasForegroundEntry: hasForegroundItem,
+                                                            frontmostPID: frontmostPID,
+                                                            reversed: reversed)
         }
 
+        // The icon row steps app by app, so the same rule runs over the groups
+        // and lands on the chosen group's representative window.
         let groups = SwitcherSupport.appGroups(items: items)
         guard !groups.isEmpty else { return 0 }
-        let groupIndex = reversed ? max(0, groups.count - 1) : (groups.count > 1 ? 1 : 0)
+        let groupIndex = SwitcherSupport.initialSelectionPosition(pids: groups.map(\.pid),
+                                                                  hasForegroundEntry: hasForegroundItem,
+                                                                  frontmostPID: frontmostPID,
+                                                                  reversed: reversed)
         return groups[groupIndex].representativeIndex
     }
 
