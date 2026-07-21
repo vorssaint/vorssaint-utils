@@ -69,6 +69,11 @@ struct RadialMenuSettings: View {
                     Text(text.mouseTriggerWarning)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    // A button the mouse's own software has turned into
+                    // something else never reaches any app, and from the
+                    // outside that looks exactly like a wrong setting. This
+                    // tells the two apart without asking anyone to guess.
+                    buttonTestRow
                 }
                 Picker(text.positionLabel, selection: $atPointer) {
                     Text(text.positionPointer).tag(true)
@@ -202,6 +207,38 @@ struct RadialMenuSettings: View {
     private func requestAccessibilityIfNeeded(_ on: Bool) {
         guard on, RadialMenuSupport.needsAccessibility(items), !permissions.accessibility else { return }
         permissions.requestAccessibility()
+    }
+
+    private var buttonTestRow: some View {
+        let seen = service.lastMouseButtonSeen
+        let expected = RadialMenuMouseTrigger.sanitized(mouseTriggerRaw).buttonNumber
+        let state: (icon: String, tint: Color, message: String) = {
+            if !service.isWatchingMouseButton {
+                return ("exclamationmark.circle.fill", .orange, text.buttonTestBlind)
+            }
+            guard let seen else {
+                return ("circle.dashed", .secondary, text.buttonTestWaiting)
+            }
+            if let expected, Int64(seen) == expected {
+                return ("checkmark.circle.fill", .green, text.buttonTestSeen)
+            }
+            return ("exclamationmark.circle.fill", .orange, text.buttonTestOther)
+        }()
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: state.icon)
+                    .foregroundStyle(state.tint)
+                Text(text.buttonTestLabel)
+                Spacer()
+                Text(state.message)
+                    .foregroundStyle(.secondary)
+            }
+            Text(text.buttonTestHint)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .onAppear { RadialMenuService.shared.setReportingMouseButtons(true) }
+        .onDisappear { RadialMenuService.shared.setReportingMouseButtons(false) }
     }
 }
 
@@ -562,4 +599,5 @@ private struct RadialSymbolPicker: View {
         .buttonStyle(.plain)
         .help(symbol ?? text.automaticLabel)
     }
+
 }

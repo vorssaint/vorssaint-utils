@@ -47,6 +47,9 @@ is set to hide itself.
 - The panel stays under its icon when the menu bar is set to hide itself.
   Switching tabs no longer moves it to the edge of the screen.
 
+- The radial menu settings now say whether the app can see the mouse button
+  you picked, so a button the mouse itself has taken over is obvious.
+
 ## [3.1.14] - 2026-07-18
 
 ### Summary
