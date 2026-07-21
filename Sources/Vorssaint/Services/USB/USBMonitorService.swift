@@ -144,7 +144,8 @@ final class USBMonitorService: ObservableObject {
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .defaultMode)
 
         let callback: IOServiceMatchingCallback = { context, iterator in
-            let service = Unmanaged<USBMonitorService>.fromOpaque(context!).takeUnretainedValue()
+            guard let context = context else { return }
+            let service = Unmanaged<USBMonitorService>.fromOpaque(context).takeUnretainedValue()
             while case let entry = IOIteratorNext(iterator), entry != 0 {
                 IOObjectRelease(entry)
             }
