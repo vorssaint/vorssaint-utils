@@ -242,32 +242,64 @@ final class USBMonitorService: ObservableObject {
               let sources = IOPSCopyPowerSourcesList(snapshot)?.takeRetainedValue() as? [CFTypeRef] else {
             return nil
         }
+
+        var pct = 0
+        var isACConnected = false
+
         for ps in sources {
             guard let desc = IOPSGetPowerSourceDescription(snapshot, ps)?.takeUnretainedValue() as? [String: Any] else { continue }
             if let state = desc[kIOPSPowerSourceStateKey as String] as? String,
                state == (kIOPSACPowerValue as String) {
-                let name = desc[kIOPSNameKey as String] as? String ?? "Power Adapter"
-                let pct = desc[kIOPSCurrentCapacityKey as String] as? Int ?? 0
-                let isCharging = desc[kIOPSIsChargingKey as String] as? Bool ?? false
-                let statusStr = isCharging ? "Connected (Charging \(pct)%)" : "Connected (AC Power \(pct)%)"
-                return USBDeviceItem(
-                    id: "power-charger-adapter",
-                    name: name,
-                    vendor: "Power Adapter",
-                    vendorId: 0,
-                    productId: 0,
-                    serialNumber: nil,
-                    speedMbps: nil,
-                    portMaxSpeedMbps: nil,
-                    usbVersionBCD: nil,
-                    isExternalStorage: false,
-                    bsdName: nil,
-                    category: .charger,
-                    customSubtitle: statusStr
-                )
+                isACConnected = true
+                pct = desc[kIOPSCurrentCapacityKey as String] as? Int ?? 0
+                break
             }
         }
-        return nil
+
+        guard isACConnected else { return nil }
+
+        var displayName = "Power supply"
+        var tag: String? = nil
+
+        if let adapterDetails = IOPSCopyExternalPowerAdapterDetails()?.takeRetainedValue() as? [String: Any] {
+            let name = (adapterDetails["Name"] as? String ?? "").lowercased()
+            let watts = adapterDetails["Watts"] as? Int ?? (adapterDetails["Watts"] as? Double).map(Int.init)
+            let family = adapterDetails["Family"] as? Int ?? 0
+            let desc = (adapterDetails["Description"] as? String ?? "").lowercased()
+            let combined = "\(name) \(desc)"
+
+            if combined.contains("magsafe") || family == 0xe0004000 || family == 1 || family == 2 || family == 3 {
+                displayName = "MagSafe Power"
+                tag = watts != nil && watts! > 0 ? "MagSafe \(watts!)W" : "MagSafe"
+            } else if combined.contains("usb-c") || combined.contains("pd") || combined.contains("type-c") || (watts != nil && watts! > 0) {
+                displayName = "USB-C Power"
+                tag = watts != nil && watts! > 0 ? "USB-C \(watts!)W" : "USB-C"
+            } else {
+                displayName = "Power supply"
+                tag = watts != nil && watts! > 0 ? "\(watts!)W" : "AC Power"
+            }
+        } else {
+            displayName = "Power supply"
+            tag = "AC Power"
+        }
+
+        let rightStatus = "⚡ \(pct)%"
+
+        return USBDeviceItem(
+            id: "power-charger-adapter",
+            name: displayName,
+            vendor: tag,
+            vendorId: 0,
+            productId: 0,
+            serialNumber: nil,
+            speedMbps: nil,
+            portMaxSpeedMbps: nil,
+            usbVersionBCD: nil,
+            isExternalStorage: false,
+            bsdName: nil,
+            category: .charger,
+            customSubtitle: rightStatus
+        )
     }
 
     private func scanEthernetAdapters() -> [USBDeviceItem] {

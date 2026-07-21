@@ -56,7 +56,11 @@ struct USBSection: View {
                 } else {
                     VStack(spacing: 6) {
                         ForEach(usbMonitor.devices) { device in
-                            usbDeviceRow(device)
+                            if device.category == .charger {
+                                powerSupplyRow(device)
+                            } else {
+                                usbDeviceRow(device)
+                            }
                         }
                     }
                 }
@@ -152,6 +156,41 @@ struct USBSection: View {
             }
         }
         .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary.opacity(colorScheme == .dark ? 0.04 : 0.02))
+        )
+    }
+
+    private func powerSupplyRow(_ device: USBDeviceItem) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "bolt.fill")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Color.accentColor)
+
+            Text(device.name)
+                .font(.system(size: 12, weight: .bold))
+
+            if let tag = device.vendor, !tag.isEmpty {
+                Text(tag)
+                    .font(.system(size: 9.5, weight: .semibold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(Color.accentColor.opacity(0.12))
+                    )
+                    .foregroundStyle(Color.accentColor)
+            }
+
+            Spacer()
+
+            Text(device.speedLabel)
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color.primary.opacity(colorScheme == .dark ? 0.04 : 0.02))
