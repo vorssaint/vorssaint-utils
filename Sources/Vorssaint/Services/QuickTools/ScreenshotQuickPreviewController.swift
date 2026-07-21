@@ -78,8 +78,7 @@ final class ScreenshotQuickPreviewController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary,
                                     .transient, .ignoresCycle]
 
-        let visibleFrame = NSScreen.screens.first { $0.frame.intersects(capture.anchorRect) }?.visibleFrame
-                ?? NSScreen.withMouse.visibleFrame
+        let visibleFrame = NSScreen.screens.first { $0.frame.intersects(capture.anchorRect) }?.visibleFrame ?? NSScreen.withMouse?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
 
         // A default action means this HUD is just a confirmation, not
         // something the person needs to act on — keep it out of the way in
