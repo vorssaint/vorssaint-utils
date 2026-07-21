@@ -221,6 +221,14 @@ final class USBMonitorService: ObservableObject {
         while case let entry = IOIteratorNext(removedIterator), entry != 0 {
             IOObjectRelease(entry)
         }
+
+        // Observe Volume Mount/Unmount for SD Cards and External Media
+        NotificationCenter.default.addObserver(forName: NSWorkspace.didMountNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.refresh()
+        }
+        NotificationCenter.default.addObserver(forName: NSWorkspace.didUnmountNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.refresh()
+        }
     }
 
     private func stopMonitoring() {
@@ -268,6 +276,22 @@ final class USBMonitorService: ObservableObject {
         scanMatching(name: "IOUSBHostDevice")
         scanMatching(name: kIOUSBDeviceClassName)
 
+        // Scan Mounted Removable External Volumes (SD Cards, Flash Drives, External Media)
+        let externalVolumes = scanMountedExternalVolumes()
+        for vol in externalVolumes {
+            if !seenIds.contains(vol.id) {
+                let isAlreadyListed = items.contains(where: { dev in
+                    if let bsd = dev.bsdName, !bsd.isEmpty, vol.id.contains(bsd) { return true }
+                    if dev.isExternalStorage && dev.name.lowercased() == vol.name.lowercased() { return true }
+                    return false
+                })
+                if !isAlreadyListed {
+                    seenIds.insert(vol.id)
+                    items.append(vol)
+                }
+            }
+        }
+
         return items.sorted {
             if $0.category != $1.category {
                 return $0.category.rawValue < $1.category.rawValue
@@ -275,6 +299,53 @@ final class USBMonitorService: ObservableObject {
             return ($0.vendor ?? "") < ($1.vendor ?? "") ||
             ($0.vendor == $1.vendor && $0.name < $1.name)
         }
+    }
+
+    private func scanMountedExternalVolumes() -> [USBDeviceItem] {
+        var items: [USBDeviceItem] = []
+        guard let volumeURLs = FileManager.default.mountedVolumeURLs(
+            includingResourceValuesForKeys: [.volumeIsRemovableKey, .volumeIsEjectableKey, .volumeLocalizedNameKey, .volumeNameKey, .volumeTotalCapacityKey],
+            options: [.skipHiddenVolumes]
+        ) else {
+            return items
+        }
+
+        for url in volumeURLs {
+            guard let values = try? url.resourceValues(forKeys: [.volumeIsRemovableKey, .volumeIsEjectableKey, .volumeLocalizedNameKey, .volumeNameKey, .volumeTotalCapacityKey]) else { continue }
+            let isRemovable = values.volumeIsRemovable ?? false
+            let isEjectable = values.volumeIsEjectable ?? false
+
+            if url.path == "/" || url.path == "/System/Volumes/Data" || url.path.hasPrefix("/System/") { continue }
+
+            if isRemovable || isEjectable {
+                let name = values.volumeLocalizedName ?? values.volumeName ?? url.lastPathComponent
+                let capacityBytes = values.volumeTotalCapacity ?? 0
+                let capacityString = capacityBytes > 0 ? ByteCountFormatter.string(fromByteCount: Int64(capacityBytes), countStyle: .file) : ""
+
+                let volId = "vol-\(url.path)"
+                let lowerName = name.lowercased()
+                let isSDCard = lowerName.contains("sd") || lowerName.contains("card") || lowerName.contains("untitld") || lowerName.contains("dcim")
+
+                items.append(USBDeviceItem(
+                    id: volId,
+                    parentId: nil,
+                    name: name,
+                    vendor: isSDCard ? "SD Card Volume" : "External Volume",
+                    vendorId: 0,
+                    productId: 0,
+                    serialNumber: nil,
+                    speedMbps: 5000,
+                    portMaxSpeedMbps: nil,
+                    usbVersionBCD: nil,
+                    isExternalStorage: true,
+                    isHub: false,
+                    bsdName: url.lastPathComponent,
+                    category: .usbDevice,
+                    customSubtitle: capacityString.isEmpty ? nil : capacityString
+                ))
+            }
+        }
+        return items
     }
 
     private func scanPowerSource() -> USBDeviceItem? {
@@ -470,9 +541,15 @@ final class USBMonitorService: ObservableObject {
     }
 
     func eject(_ device: USBDeviceItem) {
-        guard let bsdName = device.bsdName else { return }
-        let volumePath = "/dev/\(bsdName)"
-        let url = URL(fileURLWithPath: volumePath)
+        let url: URL
+        if device.id.hasPrefix("vol-") {
+            let path = device.id.replacingOccurrences(of: "vol-", with: "")
+            url = URL(fileURLWithPath: path)
+        } else if let bsdName = device.bsdName {
+            url = URL(fileURLWithPath: "/dev/\(bsdName)")
+        } else {
+            return
+        }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             try? NSWorkspace.shared.unmountAndEjectDevice(at: url)
             self?.refresh()
