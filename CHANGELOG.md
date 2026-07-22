@@ -8,7 +8,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Summary
 Vorssaint 3.2.0 lets the extra buttons on a mouse press keyboard shortcuts
-you choose. It also cleans up the sound of boosted apps, brings back per app
+you choose. It also cleans up the sound of boosted apps, keeps apps in the
+volume mixer from waking up from sleep with no sound, brings back per app
 volume levels that 3.1.15 stopped saving for some games and tools, and
 repairs maximizing and window layout in browsers where windows moved without
 taking their new size.
@@ -38,6 +39,9 @@ taking their new size.
 - The volume level chosen for some games and tools stopped being saved in
   3.1.15 and came back at full on the next launch. It is saved again, and
   levels saved before 3.1.15 come back on their own.
+- An app with its volume adjusted in the mixer could lose its sound entirely
+  after the Mac woke from sleep, until Vorssaint was quit. The mixer now
+  notices when the wake broke its audio path and repairs it on its own.
 - App Switcher now appears without waiting for every open app to answer
   Accessibility queries. Its window list stays warm in the background, and
   the native-like visual threshold starts at the key press instead of after

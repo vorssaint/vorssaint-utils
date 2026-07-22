@@ -3079,6 +3079,49 @@ struct MetricsTests {
                                                        window: 0.2) == 0.2,
                "a clock that jumps backwards falls back to a full window")
 
+        // Render health of a live engine (issue #341): a tap whose aggregate
+        // stopped rendering after wake keeps muting the app and must be caught.
+        typealias RenderLook = MixerRoutingSupport.EngineRenderObservation
+        expect(MixerRoutingSupport.engineRenderVerdict(previous: RenderLook(cycles: 7, at: 90),
+                                                       cycles: 7,
+                                                       isPlaying: false,
+                                                       now: 100) == nil,
+               "a silent app gives no render verdict and clears the observation")
+        expect(MixerRoutingSupport.engineRenderVerdict(previous: nil,
+                                                       cycles: 7,
+                                                       isPlaying: true,
+                                                       now: 100,
+                                                       window: 1.5)
+               == .note(RenderLook(cycles: 7, at: 100), recheckAfter: 1.5),
+               "the first look notes the count and schedules a conclusive recheck")
+        expect(MixerRoutingSupport.engineRenderVerdict(previous: RenderLook(cycles: 7, at: 100),
+                                                       cycles: 9,
+                                                       isPlaying: true,
+                                                       now: 100.4,
+                                                       window: 1.5)
+               == .note(RenderLook(cycles: 9, at: 100.4), recheckAfter: nil),
+               "an advancing count is healthy and needs no extra pass")
+        expect(MixerRoutingSupport.engineRenderVerdict(previous: RenderLook(cycles: 7, at: 100),
+                                                       cycles: 7,
+                                                       isPlaying: true,
+                                                       now: 100.5,
+                                                       window: 1.5)
+               == .stalled(recheckAfter: 1.0),
+               "a count at rest inside the window waits out the remainder")
+        expect(MixerRoutingSupport.engineRenderVerdict(previous: RenderLook(cycles: 7, at: 100),
+                                                       cycles: 7,
+                                                       isPlaying: true,
+                                                       now: 102,
+                                                       window: 1.5) == .wedged,
+               "a count at rest for the whole window while the app plays is wedged")
+        expect(MixerRoutingSupport.engineRenderVerdict(previous: RenderLook(cycles: 7, at: 101),
+                                                       cycles: 7,
+                                                       isPlaying: true,
+                                                       now: 100,
+                                                       window: 1.5)
+               == .stalled(recheckAfter: 1.5),
+               "a clock that jumps backwards waits a full window before judging")
+
         let identifiedRow = MixerRoutingSupport.rowIdentity(bundleIdentifier: "com.example.Player",
                                                            ownerPid: 501,
                                                            displayName: "Player")

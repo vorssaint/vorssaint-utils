@@ -86,6 +86,10 @@ final class AppVolumeMixer: ObservableObject {
     /// above: the wait before letting a tap go has to be measured from the
     /// moment the audio disappeared, not from whenever the tap was built.
     private var objectsLostAt: [String: Double] = [:]
+    /// The last render count seen for each row's engine, so reconciliation
+    /// can tell an engine that is rendering from one the HAL quietly stopped
+    /// driving after sleep or a device reconfiguration (issue #341).
+    private var engineRenderProgress: [String: MixerRoutingSupport.EngineRenderObservation] = [:]
     private var engineReconcilePending = false
     /// Volumes and routes of rows without a bundle id: adjustable while the
     /// process runs, never written to disk.
@@ -102,6 +106,10 @@ final class AppVolumeMixer: ObservableObject {
     /// registered with the HAL.
     private var runningListeners = Set<AudioObjectID>()
     private var stopped = false
+    /// Waking is the one moment the render path of a live tap can die with no
+    /// audio notification left to reveal it, so the wake itself asks for a
+    /// refresh and reconciliation verifies every engine is still rendering.
+    private var wakeObserver: NSObjectProtocol?
     private var lastAutomaticLoweredOutputUID: String?
     /// The output volume as it was before the headphone disconnect protection
     /// lowered it, so the speakers can be handed back the way they were found.
@@ -153,6 +161,13 @@ final class AppVolumeMixer: ObservableObject {
         if Self.isSupported {
             installListener(selector: kAudioHardwarePropertyProcessObjectList)
         }
+        if wakeObserver == nil {
+            wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.didWakeNotification,
+                object: nil, queue: .main) { [weak self] _ in
+                self?.refreshApps()
+            }
+        }
         refreshApps()
     }
 
@@ -165,6 +180,7 @@ final class AppVolumeMixer: ObservableObject {
         engines.removeAll()
         engineChangeAt.removeAll()
         objectsLostAt.removeAll()
+        engineRenderProgress.removeAll()
         restoreLoweredOutputVolume()
     }
 
@@ -179,6 +195,10 @@ final class AppVolumeMixer: ObservableObject {
         refresh.discardInFlight()
         pruneRunningListeners(keeping: [])
         removeGlobalListeners()
+        if let wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+            self.wakeObserver = nil
+        }
         if !apps.isEmpty { apps = [] }
         if !outputDevices.isEmpty { outputDevices = [] }
         if currentOutputDeviceUID != nil { currentOutputDeviceUID = nil }
@@ -510,6 +530,8 @@ final class AppVolumeMixer: ObservableObject {
         engine.gain = Float(latestApp.volume)
         let previous = engines.updateValue(engine, forKey: id)
         engineChangeAt[id] = CFAbsoluteTimeGetCurrent()
+        // The fresh engine starts its render count over.
+        engineRenderProgress.removeValue(forKey: id)
         previous?.stop()
     }
 
@@ -519,6 +541,7 @@ final class AppVolumeMixer: ObservableObject {
         engines.removeValue(forKey: id)?.stop()
         engineChangeAt.removeValue(forKey: id)
         objectsLostAt.removeValue(forKey: id)
+        engineRenderProgress.removeValue(forKey: id)
     }
 
     private func rowMayBeTapped(_ app: MixerApp) -> Bool {
@@ -972,6 +995,35 @@ final class AppVolumeMixer: ObservableObject {
             // starts its own wait rather than inheriting this one.
             objectsLostAt.removeValue(forKey: id)
 
+            // Waking from sleep, or a device renegotiating right after, can
+            // leave the aggregate wedged: its IO proc never runs again while
+            // the tap keeps muting the app, and nothing else about the engine
+            // looks wrong, so it used to be kept forever and the app stayed
+            // silent until quit (issue #341). A render count that stops
+            // moving while the app is playing is conclusive: the engine goes
+            // away at once, which unmutes the app even if the rebuild below
+            // cannot land yet, and a fresh tap takes its place.
+            switch MixerRoutingSupport.engineRenderVerdict(previous: engineRenderProgress[id],
+                                                           cycles: engine.renderCycles,
+                                                           isPlaying: app.isPlaying,
+                                                           now: now) {
+            case .note(let observation, let recheckAfter):
+                engineRenderProgress[id] = observation
+                if let recheckAfter {
+                    nextPassDelay = min(nextPassDelay ?? recheckAfter, recheckAfter)
+                }
+            case .stalled(let recheckAfter):
+                nextPassDelay = min(nextPassDelay ?? recheckAfter, recheckAfter)
+            case .wedged:
+                engines.removeValue(forKey: id)?.stop()
+                engineRenderProgress.removeValue(forKey: id)
+                engineChangeAt[id] = now
+                applyRouting(for: app)
+                continue
+            case nil:
+                engineRenderProgress.removeValue(forKey: id)
+            }
+
             guard engine.tappedObjects != app.audioObjects
                 || engine.outputDeviceUID != app.effectiveOutputDeviceUID
                 || !appNeedsEngine(app) else { continue }
@@ -987,6 +1039,7 @@ final class AppVolumeMixer: ObservableObject {
             // other rebuild keeps its tap until the replacement is running.
             if !outputDevices.contains(where: { $0.uid == engine.outputDeviceUID }) {
                 engines.removeValue(forKey: id)?.stop()
+                engineRenderProgress.removeValue(forKey: id)
             }
             applyRouting(for: app)
         }
@@ -1359,6 +1412,10 @@ private protocol GainEngine: AnyObject {
     var gain: Float { get set }
     var tappedObjects: [AudioObjectID] { get }
     var outputDeviceUID: String { get }
+    /// How many IO callbacks the engine has completed. A count that stops
+    /// moving while the tapped app is playing means the aggregate is no
+    /// longer rendering, so the tap can only mute (issue #341).
+    var renderCycles: UInt64 { get }
     func stop()
 }
 
@@ -1378,6 +1435,11 @@ private final class TapGainEngine: GainEngine {
     /// torn float write is harmless here (one transient sample scale).
     private final class GainBox { var value: Float = 1 }
 
+    /// Written on the realtime audio thread, read from the main thread; the
+    /// reader only asks whether the value moved at all, so being one
+    /// callback behind is harmless.
+    private final class CycleBox { var value: UInt64 = 0 }
+
     /// One limiter per output buffer, preallocated so the realtime thread
     /// never allocates. Touched only by the IO proc once rendering starts.
     private final class LimiterBox {
@@ -1389,6 +1451,8 @@ private final class TapGainEngine: GainEngine {
     }
 
     private let gainBox = GainBox()
+    private let cycleBox = CycleBox()
+    var renderCycles: UInt64 { cycleBox.value }
     private var tapID = AudioObjectID(0)
     private var aggregateID = AudioObjectID(0)
     private var ioProc: AudioDeviceIOProcID?
@@ -1430,7 +1494,9 @@ private final class TapGainEngine: GainEngine {
         // would not fit, so a boosted app gets louder without distorting.
         let limiterBox = LimiterBox(sampleRate: Self.nominalSampleRate(of: aggregateID),
                                     bufferCount: 8)
+        let cycles = cycleBox
         guard AudioDeviceCreateIOProcIDWithBlock(&ioProc, aggregateID, nil, { _, input, _, output, _ in
+            cycles.value &+= 1
             let inputBuffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
             let outputBuffers = UnsafeMutableAudioBufferListPointer(output)
             var gain = box.value
