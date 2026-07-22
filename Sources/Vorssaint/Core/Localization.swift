@@ -1023,6 +1023,33 @@ struct Strings {
     let highlightsConfigure: String
     let highlightsTry: String
     let highlightsSeeAll: String
+
+    var usbSection: String = "USB Devices"
+    var usbConnectedDevices: String = "Connected USB Devices"
+    var usbNoDevices: String = "No USB devices connected"
+    var usbEject: String = "Eject USB Device"
+    var usbShowTechDetails: String = "Show Technical Details (VID:PID, Serial, BCD)"
+    var usbShowEthernet: String = "Show Ethernet / LAN Adapter"
+    var usbShowPowerCable: String = "Show Charger / Power Supply"
+
+    var monitorSysFanSpeeds: String = "Fan speeds"
+    var monitorSysDetailedTemps: String = "Detailed temperatures"
+    var monitorOff: String = "Off"
+    var monitorRPM: String = "RPM"
+    var monitorFansTitle: String = "Fans"
+
+    var tempCPUPerformanceCores: String = "CPU Performance Cores"
+    var tempCPUEfficiencyCores: String = "CPU Efficiency Cores"
+    var tempGraphics: String = "Graphics"
+    var tempSSD: String = "SSD"
+    var tempPalmRest: String = "Palm Rest"
+    var tempAirflow: String = "Airflow"
+    var tempAirPort: String = "AirPort"
+
+    var fanFallbackName: String = "Fan"
+    var fanLeftFallbackName: String = "Left Fan"
+    var fanRightFallbackName: String = "Right Fan"
+    var fanNumberedFallbackNamePattern: String = "Fan %d"
 }
 
 // MARK: - Português (Brasil)
@@ -1902,7 +1929,23 @@ extension Strings {
         highlightsCaptionScreenshot: "A captura de tela ganhou uma lupa de pixels e leitura de QR codes",
         highlightsConfigure: "Configurar",
         highlightsTry: "Experimentar",
-        highlightsSeeAll: "Ver todas as mudanças"
+        highlightsSeeAll: "Ver todas as mudanças",
+        monitorSysFanSpeeds: "Velocidade das ventoinhas",
+        monitorSysDetailedTemps: "Temperaturas detalhadas",
+        monitorOff: "Desligado",
+        monitorRPM: "RPM",
+        monitorFansTitle: "Ventoinhas",
+        tempCPUPerformanceCores: "Núcleos de Performance do CPU",
+        tempCPUEfficiencyCores: "Núcleos de Eficiência do CPU",
+        tempGraphics: "Gráficos",
+        tempSSD: "SSD",
+        tempPalmRest: "Apoio de mãos",
+        tempAirflow: "Fluxo de ar",
+        tempAirPort: "AirPort",
+        fanFallbackName: "Ventoinha",
+        fanLeftFallbackName: "Ventoinha Esquerda",
+        fanRightFallbackName: "Ventoinha Direita",
+        fanNumberedFallbackNamePattern: "Ventoinha %d"
     )
 }
 
@@ -2783,6 +2826,22 @@ extension Strings {
         highlightsCaptionScreenshot: "The screenshot tool gained a pixel loupe and QR code reading",
         highlightsConfigure: "Set up",
         highlightsTry: "Try it",
-        highlightsSeeAll: "See all changes"
+        highlightsSeeAll: "See all changes",
+        monitorSysFanSpeeds: "Fan speeds",
+        monitorSysDetailedTemps: "Detailed temperatures",
+        monitorOff: "Off",
+        monitorRPM: "RPM",
+        monitorFansTitle: "Fans",
+        tempCPUPerformanceCores: "CPU Performance Cores",
+        tempCPUEfficiencyCores: "CPU Efficiency Cores",
+        tempGraphics: "Graphics",
+        tempSSD: "SSD",
+        tempPalmRest: "Palm Rest",
+        tempAirflow: "Airflow",
+        tempAirPort: "AirPort",
+        fanFallbackName: "Fan",
+        fanLeftFallbackName: "Left Fan",
+        fanRightFallbackName: "Right Fan",
+        fanNumberedFallbackNamePattern: "Fan %d"
     )
 }

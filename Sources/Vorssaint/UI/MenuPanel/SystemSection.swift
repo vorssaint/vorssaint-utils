@@ -40,6 +40,9 @@ struct SystemSection: View {
     @AppStorage(DefaultsKey.menuBarPower) private var menuBarPower = false
     @AppStorage(DefaultsKey.menuBarSeparateMetrics) private var separateMenuBarMetrics = false
     @AppStorage(DefaultsKey.monitorSysTemps) private var sysTemps = true
+    @AppStorage(DefaultsKey.monitorSysFanSpeeds) private var sysFanSpeeds = true
+    @AppStorage(DefaultsKey.monitorSysDetailedTemps) private var sysDetailedTemps = false
+    @AppStorage(DefaultsKey.monitorSysDetailedTempsExpanded) private var detailedTempsExpanded = false
     @AppStorage(DefaultsKey.monitorSysCPU) private var sysCPU = true
     @AppStorage(DefaultsKey.monitorSysGPU) private var sysGPU = true
     @AppStorage(DefaultsKey.monitorSysBattery) private var sysBattery = true
@@ -120,7 +123,7 @@ struct SystemSection: View {
 
     /// Card subsections, in order, filtered by the per-item toggles (and whether a
     /// battery exists). Drives divider interleaving so only rendered blocks get one.
-    private enum Block: String, PanelOrderItem { case temps, usage, memory, alerts, uptime }
+    private enum Block: String, PanelOrderItem { case temps, fanSpeeds, usage, memory, alerts, uptime }
 
     // Hub availability per metric family: an unavailable metric leaves the
     // card entirely, including the edit-mode hidden rows.
@@ -145,6 +148,7 @@ struct SystemSection: View {
     private func isBlockAvailable(_ block: Block) -> Bool {
         switch block {
         case .temps, .usage: return cpuAvailable || gpuAvailable || powerAvailable
+        case .fanSpeeds: return monitor.snapshot.hasFans
         case .memory: return memoryAvailable
         case .alerts, .uptime: return true
         }
@@ -168,6 +172,7 @@ struct SystemSection: View {
     private func isVisible(_ block: Block) -> Bool {
         switch block {
         case .temps: return sysTemps
+        case .fanSpeeds: return sysFanSpeeds
         case .usage: return usageVisible
         case .memory: return sysMemory
         case .alerts: return sysAlerts
@@ -179,6 +184,8 @@ struct SystemSection: View {
         PanelLayout.resetItemOrder(key: DefaultsKey.panelSystemOrder)
         systemOrderRaw = ""
         sysTemps = true
+        sysFanSpeeds = true
+        sysDetailedTemps = false
         sysCPU = true
         sysGPU = true
         sysBattery = true
@@ -191,6 +198,7 @@ struct SystemSection: View {
     private func blockContent(_ block: Block, editing: Bool) -> some View {
         switch block {
         case .temps: temperatureGrid(editing: editing)
+        case .fanSpeeds: fanSpeedsRow(editing: editing)
         case .usage: usageRows(editing: editing)
         case .memory: memoryRows(editing: editing)
         case .alerts: alertRows(editing: editing)
@@ -295,8 +303,152 @@ struct SystemSection: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
+
+                if sysDetailedTemps, !monitor.snapshot.detailedTemperatures.isEmpty {
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            detailedTempsExpanded.toggle()
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(l10n.s.monitorSysDetailedTemps)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.secondary)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(.tertiary)
+                                .rotationEffect(.degrees(detailedTempsExpanded ? 90 : 0))
+                            Spacer()
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 4)
+
+                    if detailedTempsExpanded {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(monitor.snapshot.detailedTemperatures) { reading in
+                                HStack {
+                                    Text(localizedLabel(for: reading.labelType))
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                    Text(MetricFormat.temperature(reading.valueCelsius, unit: displayTemperatureUnit))
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .monospacedDigit()
+                                }
+                                .padding(.horizontal, 4)
+                            }
+                        }
+                        .padding(.top, 2)
+                    }
+                }
             }
         }
+    }
+
+    private func localizedLabel(for type: TemperatureLabelType) -> String {
+        switch type {
+        case .cpuPerformanceCores: return l10n.s.tempCPUPerformanceCores
+        case .cpuEfficiencyCores: return l10n.s.tempCPUEfficiencyCores
+        case .cpu: return l10n.s.cpuLabel
+        case .graphics: return l10n.s.tempGraphics
+        case .battery: return l10n.s.batteryLabel
+        case .ssd: return l10n.s.tempSSD
+        case .palmRest: return l10n.s.tempPalmRest
+        case .airflow: return l10n.s.tempAirflow
+        case .airport: return l10n.s.tempAirPort
+        }
+    }
+
+    @ViewBuilder
+    private func fanSpeedsRow(editing: Bool) -> some View {
+        if !sysFanSpeeds {
+            PanelHiddenItemRow(title: l10n.s.monitorSysFanSpeeds,
+                               systemImage: "fanblades",
+                               isVisible: $sysFanSpeeds)
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    subsectionLabel(l10n.s.monitorFansTitle)
+                    Spacer(minLength: 0)
+                    if editing {
+                        PanelInlineHideButton(isVisible: $sysFanSpeeds)
+                    }
+                }
+                if monitor.snapshot.fans.isEmpty {
+                    Text(l10n.s.monitorUnavailable)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                } else {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(monitor.snapshot.fans) { fan in
+                            fanRowContent(name: fan.name, rpm: fan.rpm, percent: fan.percent)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func fanRowContent(name: String, rpm: Double?, percent: Int?) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "fanblades")
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+                .frame(width: 12)
+            
+            Text(name)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(width: 58, alignment: .leading)
+            
+            if let rpm {
+                if rpm == 0 {
+                    UsageBar(fraction: 0)
+                    Text(l10n.s.monitorOff)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 60, alignment: .trailing)
+                    Text("")
+                        .frame(width: 30)
+                } else {
+                    let fraction = percent.map { Double($0) / 100.0 } ?? 0.0
+                    UsageBar(fraction: fraction, tint: .accentColor)
+                    
+                    Text(String(format: "%.0f %@", rpm, l10n.s.monitorRPM))
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .monospacedDigit()
+                        .frame(width: 60, alignment: .trailing)
+                    
+                    if let percent {
+                        Text("\(percent)%")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 30, alignment: .trailing)
+                    } else {
+                        Text("-")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 30, alignment: .trailing)
+                    }
+                }
+            } else {
+                UsageBar(fraction: 0)
+                Text("-")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 60, alignment: .trailing)
+                Text("-")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 30, alignment: .trailing)
+            }
+        }
+        .padding(.horizontal, 4)
     }
 
     private func temperatureCell(icon: String, label: String, value: Double?) -> some View {

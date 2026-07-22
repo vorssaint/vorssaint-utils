@@ -162,6 +162,7 @@ enum DefaultsKey {
     static let menuBarBatteryTime = "menuBarBatteryTime"
     static let menuBarPeripheralBattery = "menuBarPeripheralBattery"
     static let menuBarPower = "menuBarPower"
+    static let menuBarFanSpeed = "menuBarFanSpeed"
     static let menuBarPreset = "menuBarPreset"           // dense
     static let menuBarMetricSpacing = "menuBarMetricSpacing" // standard | compact
     static let menuBarMetricAppearance = "menuBarMetricAppearance" // values | bars
@@ -183,6 +184,10 @@ enum DefaultsKey {
     static let monitorShowSystem = "monitorShowSystem"
     static let monitorShowNetwork = "monitorShowNetwork"
     static let monitorShowDisk = "monitorShowDisk"
+    static let monitorShowUSB = "monitorShowUSB"
+    static let usbShowTechnicalDetails = "usbShowTechnicalDetails"
+    static let usbShowEthernet = "usbShowEthernet"
+    static let usbShowPowerCable = "usbShowPowerCable"
     static let monitorShowPower = "monitorShowPower"
     static let monitorShowMixer = "monitorShowMixer"
     static let monitorShowFanControlBeta = "monitorShowFanControlBeta"
@@ -202,6 +207,9 @@ enum DefaultsKey {
     static let monitorSysMemory = "monitorSysMemory"
     static let monitorSysAlerts = "monitorSysAlerts"
     static let monitorSysUptime = "monitorSysUptime"
+    static let monitorSysFanSpeeds = "monitorSysFanSpeeds"
+    static let monitorSysDetailedTemps = "monitorSysDetailedTemps"
+    static let monitorSysDetailedTempsExpanded = "monitorSysDetailedTempsExpanded"
     static let monitorNetSpeed = "monitorNetSpeed"
     static let monitorNetApps = "monitorNetApps"
     static let monitorNetTotals = "monitorNetTotals"
@@ -524,7 +532,7 @@ enum Defaults {
         "gpu", "gpuTemperature",
         "memory",
         "battery", "batteryTime", "batteryTemperature", "peripheralBattery",
-        "network", "diskUsage", "diskActivity", "power",
+        "network", "diskUsage", "diskActivity", "power", "fanSpeed",
     ]
     static let allowedMenuBarLabelStyles = ["compact", "classic"]
     static let allowedMenuBarMemoryStyles = ["dot", "percent", "both"]
@@ -663,6 +671,8 @@ enum Defaults {
         DefaultsKey.menuBarCPUTemperature: false,
         DefaultsKey.menuBarGPUTemperature: false,
         DefaultsKey.menuBarBatteryTemperature: false,
+        DefaultsKey.menuBarFanSpeed: false,
+        DefaultsKey.monitorSysDetailedTempsExpanded: false,
         DefaultsKey.menuBarBatteryTime: false,
         DefaultsKey.menuBarDiskUsage: false,
         DefaultsKey.menuBarDiskActivity: false,
@@ -686,6 +696,10 @@ enum Defaults {
         DefaultsKey.monitorShowSystem: true,
         DefaultsKey.monitorShowNetwork: true,
         DefaultsKey.monitorShowDisk: true,
+        DefaultsKey.monitorShowUSB: true,
+        DefaultsKey.usbShowTechnicalDetails: false,
+        DefaultsKey.usbShowEthernet: false,
+        DefaultsKey.usbShowPowerCable: false,
         DefaultsKey.monitorShowPower: true,
         DefaultsKey.monitorShowMixer: true,
         DefaultsKey.monitorShowFanControlBeta: false,
@@ -705,6 +719,8 @@ enum Defaults {
         DefaultsKey.monitorSysMemory: true,
         DefaultsKey.monitorSysAlerts: true,
         DefaultsKey.monitorSysUptime: true,
+        DefaultsKey.monitorSysFanSpeeds: true,
+        DefaultsKey.monitorSysDetailedTemps: false,
         DefaultsKey.monitorNetSpeed: true,
         DefaultsKey.monitorNetApps: true,
         DefaultsKey.monitorNetTotals: true,

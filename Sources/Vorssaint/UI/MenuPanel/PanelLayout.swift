@@ -10,7 +10,7 @@ protocol PanelOrderItem: RawRepresentable, CaseIterable, Hashable where RawValue
 /// stable identifiers persisted in the saved order and the collapsed set, so
 /// renaming a case would orphan a user's stored layout — keep them stable.
 enum PanelSectionID: String, CaseIterable, Identifiable {
-    case keepAwake, brightness, mixer, system, network, disk, power, fanControl, utilities, controls,
+    case keepAwake, brightness, mixer, system, network, disk, usb, power, fanControl, utilities, controls,
          toggles
 
     var id: String { rawValue }
@@ -24,6 +24,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
         case .system: return s.systemSection
         case .network: return s.networkSection
         case .disk: return s.diskSection
+        case .usb: return s.usbSection
         case .power: return s.powerSection
         case .fanControl: return s.fanControlBetaSection
         case .utilities: return s.utilitiesSection
@@ -40,6 +41,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
         case .system: return "cpu"
         case .network: return "network"
         case .disk: return "internaldrive"
+        case .usb: return "cable.connector"
         case .power: return "bolt.fill"
         case .fanControl: return "fanblades.fill"
         case .utilities: return "wrench.and.screwdriver.fill"
@@ -59,6 +61,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
         case .system: return DefaultsKey.monitorShowSystem
         case .network: return DefaultsKey.monitorShowNetwork
         case .disk: return DefaultsKey.monitorShowDisk
+        case .usb: return DefaultsKey.monitorShowUSB
         case .power: return DefaultsKey.monitorShowPower
         case .fanControl: return DefaultsKey.monitorShowFanControlBeta
         case .utilities: return DefaultsKey.panelShowUtilities
@@ -82,6 +85,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
         case .system: return [.monitorCPU, .monitorGPU, .monitorMemory]
         case .network: return [.monitorNetwork]
         case .disk: return [.monitorDisk]
+        case .usb: return [.monitorUSB]
         case .power: return [.monitorPower]
         // The fan curves read the same thermal picture as the monitor, so the
         // beta rides on the monitor family being present at all.
@@ -119,6 +123,8 @@ enum PanelLayout {
         for id in PanelSectionID.allCases where seen.insert(id).inserted {
             if id == .disk, let networkIndex = result.firstIndex(of: .network) {
                 result.insert(id, at: networkIndex + 1)
+            } else if id == .usb, let diskIndex = result.firstIndex(of: .disk) {
+                result.insert(id, at: diskIndex + 1)
             } else if id == .controls, let utilitiesIndex = result.firstIndex(of: .utilities) {
                 result.insert(id, at: utilitiesIndex + 1)
             } else if id == .brightness, let keepAwakeIndex = result.firstIndex(of: .keepAwake) {

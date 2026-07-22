@@ -21,6 +21,7 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.menuBarBatteryTime) private var batteryTime = false
     @AppStorage(DefaultsKey.menuBarPeripheralBattery) private var peripheralBattery = false
     @AppStorage(DefaultsKey.menuBarPower) private var power = false
+    @AppStorage(DefaultsKey.menuBarFanSpeed) private var fanSpeed = false
     @AppStorage(DefaultsKey.menuBarMetricOrder) private var metricOrder = ""
     @AppStorage(DefaultsKey.menuBarCombineTemperatures) private var combineTemperatures = true
     @AppStorage(DefaultsKey.menuBarMetricAppearance) private var metricAppearance = "values"
@@ -33,11 +34,12 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.menuBarNetworkUploadFirst) private var networkUploadFirst = false
     @AppStorage(DefaultsKey.menuBarMemoryStyle) private var memoryStyle = "percent"
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
-
+ 
     var body: some View {
         let _ = metricOrder
         let _ = combineTemperatures
         let _ = metricAppearance
+        let _ = fanSpeed
         let _ = usageBarNormalColor
         let _ = usageBarElevatedColor
         let _ = usageBarCriticalColor
@@ -97,6 +99,7 @@ struct MenuBarMetricsPreview: View {
         let _ = batteryTime
         let _ = peripheralBattery
         let _ = power
+        let _ = fanSpeed
         return MenuBarMetric.enabled(in: .standard)
     }
 
@@ -216,6 +219,7 @@ struct MenuBarMetricsPreview: View {
         .fixedSize(horizontal: true, vertical: true)
     }
 
+    @ViewBuilder
     private func usageBarBlock(label: String,
                                fraction: Double?,
                                style: MenuBarBlockStyle,
@@ -226,45 +230,77 @@ struct MenuBarMetricsPreview: View {
         let innerHeight = barHeight - 4.2
         let clamped = fraction.map(MenuBarUsageBarSupport.clampedFraction)
 
-        return HStack(spacing: 2) {
-            VStack(spacing: -1.8) {
-                ForEach(Array(label.prefix(3).enumerated()), id: \.offset) { _, character in
-                    Text(String(character))
-                        .font(.system(size: style == .readable ? 6.5 : 6.1,
-                                      weight: .semibold))
-                        .frame(height: (size.height - 2) / 3)
+        if label == "FAN" {
+            VStack(spacing: 0) {
+                Text(label)
+                    .font(.system(size: style == .readable ? 7.2 : 6.6, weight: .medium))
+                    .frame(height: style == .readable ? 10 : 9)
+                
+                ZStack {
+                    Circle()
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1.6)
+                    if let clamped, clamped > 0 {
+                        Circle()
+                            .trim(from: 0, to: CGFloat(min(1.0, max(0.0, clamped))))
+                            .stroke(
+                                clamped < 0.6 ? Color.accentColor :
+                                clamped < 0.85 ? Color.yellow : Color.red,
+                                style: StrokeStyle(lineWidth: 1.6, lineCap: .round)
+                            )
+                            .rotationEffect(.degrees(-90))
+                    } else if clamped == nil {
+                        Rectangle()
+                            .fill(Color.white.opacity(0.55))
+                            .frame(width: 4, height: 1.0)
+                    }
                 }
+                .frame(width: style == .readable ? 11.5 : 10.5, height: style == .readable ? 11.5 : 10.5)
+                .padding(.top, style == .readable ? 1 : 0.5)
             }
-            .frame(width: style == .readable ? 6.5 : 6)
-
-            if let pressure {
-                Circle()
-                    .fill(dotColor(pressure))
-                    .frame(width: style == .readable ? 4.8 : 4.4,
-                           height: style == .readable ? 4.8 : 4.4)
-                    .padding(.trailing, 0.2)
-            }
-
-            ZStack(alignment: .bottom) {
-                RoundedRectangle(cornerRadius: 2.2, style: .continuous)
-                    .stroke(Color.white, lineWidth: 1.15)
-                if let clamped, clamped > 0 {
-                    RoundedRectangle(cornerRadius: 1.2, style: .continuous)
-                        .fill(usageBarColor(for: clamped))
-                        .frame(width: barWidth - 4.2,
-                               height: max(1, innerHeight * clamped))
-                        .padding(.bottom, 2.1)
-                } else if clamped == nil {
-                    Rectangle()
-                        .fill(Color.white.opacity(0.55))
-                        .frame(width: barWidth - 4.8, height: 1)
+            .foregroundStyle(.white)
+            .frame(width: style == .readable ? 21 : 19, height: style == .readable ? 23 : 21)
+            .fixedSize(horizontal: true, vertical: true)
+        } else {
+            HStack(spacing: 2) {
+                VStack(spacing: -1.8) {
+                    ForEach(Array(label.prefix(3).enumerated()), id: \.offset) { _, character in
+                        Text(String(character))
+                            .font(.system(size: style == .readable ? 6.5 : 6.1,
+                                          weight: .semibold))
+                            .frame(height: (size.height - 2) / 3)
+                    }
                 }
+                .frame(width: style == .readable ? 6.5 : 6)
+
+                if let pressure {
+                    Circle()
+                        .fill(dotColor(pressure))
+                        .frame(width: style == .readable ? 4.8 : 4.4,
+                               height: style == .readable ? 4.8 : 4.4)
+                        .padding(.trailing, 0.2)
+                }
+
+                ZStack(alignment: .bottom) {
+                    RoundedRectangle(cornerRadius: 2.2, style: .continuous)
+                        .stroke(Color.white, lineWidth: 1.15)
+                    if let clamped, clamped > 0 {
+                        RoundedRectangle(cornerRadius: 1.2, style: .continuous)
+                            .fill(usageBarColor(for: clamped))
+                            .frame(width: barWidth - 4.2,
+                                   height: max(1, innerHeight * clamped))
+                            .padding(.bottom, 2.1)
+                    } else if clamped == nil {
+                        Rectangle()
+                            .fill(Color.white.opacity(0.55))
+                            .frame(width: barWidth - 4.8, height: 1)
+                    }
+                }
+                .frame(width: barWidth, height: barHeight)
             }
-            .frame(width: barWidth, height: barHeight)
+            .foregroundStyle(.white)
+            .frame(width: size.width, height: size.height)
+            .fixedSize(horizontal: true, vertical: true)
         }
-        .foregroundStyle(.white)
-        .frame(width: size.width, height: size.height)
-        .fixedSize(horizontal: true, vertical: true)
     }
 
     private func usageBarColor(for fraction: Double) -> Color {

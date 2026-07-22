@@ -14,6 +14,8 @@ struct MonitorPanelConfig: View {
 
     @AppStorage(DefaultsKey.monitorShowSystem) private var showSystem = true
     @AppStorage(DefaultsKey.monitorSysTemps) private var sysTemps = true
+    @AppStorage(DefaultsKey.monitorSysDetailedTemps) private var sysDetailedTemps = false
+    @AppStorage(DefaultsKey.monitorSysFanSpeeds) private var sysFanSpeeds = true
     @AppStorage(DefaultsKey.monitorSysCPU) private var sysCPU = true
     @AppStorage(DefaultsKey.monitorSysGPU) private var sysGPU = true
     @AppStorage(DefaultsKey.monitorSysBattery) private var sysBattery = true
@@ -27,6 +29,10 @@ struct MonitorPanelConfig: View {
     @AppStorage(DefaultsKey.monitorNetTest) private var netTest = true
 
     @AppStorage(DefaultsKey.monitorShowDisk) private var showDisk = true
+    @AppStorage(DefaultsKey.monitorShowUSB) private var showUSB = true
+    @AppStorage(DefaultsKey.usbShowTechnicalDetails) private var usbTechDetails = false
+    @AppStorage(DefaultsKey.usbShowEthernet) private var usbShowEthernet = false
+    @AppStorage(DefaultsKey.usbShowPowerCable) private var usbShowPower = false
     @AppStorage(DefaultsKey.monitorDiskUsage) private var diskUsage = true
     @AppStorage(DefaultsKey.monitorDiskActivity) private var diskActivity = true
     @AppStorage(DefaultsKey.monitorDiskSMART) private var diskSMART = true
@@ -48,6 +54,9 @@ struct MonitorPanelConfig: View {
                 if AppFeature.monitorCPU.isAvailable || AppFeature.monitorGPU.isAvailable
                     || AppFeature.monitorPower.isAvailable {
                     Toggle(l10n.s.temperatures, isOn: $sysTemps)
+                    Toggle(l10n.s.monitorSysDetailedTemps, isOn: $sysDetailedTemps)
+                        .disabled(!sysTemps)
+                    Toggle(l10n.s.monitorSysFanSpeeds, isOn: $sysFanSpeeds)
                 }
                 if AppFeature.monitorCPU.isAvailable {
                     Toggle(l10n.s.cpuLabel, isOn: $sysCPU)
@@ -79,6 +88,13 @@ struct MonitorPanelConfig: View {
                 Toggle(l10n.s.monitorItemDiskSMART, isOn: $diskSMART)
                 Toggle(l10n.s.monitorItemDiskProtection, isOn: $diskProtection)
                 Toggle(l10n.s.monitorItemDiskTools, isOn: $diskTools)
+            }
+        }
+        if AppFeature.monitorUSB.isAvailable {
+            block(.usb, title: l10n.s.usbSection, master: $showUSB) {
+                Toggle(l10n.s.usbShowTechDetails, isOn: $usbTechDetails)
+                Toggle(l10n.s.usbShowEthernet, isOn: $usbShowEthernet)
+                Toggle(l10n.s.usbShowPowerCable, isOn: $usbShowPower)
             }
         }
         if AppFeature.monitorPower.isAvailable {
@@ -143,5 +159,5 @@ struct MonitorPanelConfig: View {
 }
 
 private enum PanelConfigBlock: Hashable {
-    case system, network, disk, power
+    case system, network, disk, usb, power
 }
