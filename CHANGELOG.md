@@ -8,11 +8,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Summary
 Vorssaint 3.2.0 lets the extra buttons on a mouse press keyboard shortcuts
-you choose. It also cleans up the sound of boosted apps, keeps apps in the
-volume mixer from waking up from sleep with no sound, brings back per app
-volume levels that 3.1.15 stopped saving for some games and tools, and
-repairs maximizing and window layout in browsers where windows moved without
-taking their new size.
+you choose, and the App Switcher and Dock previews now show windows sitting
+on other desktops and take you to them. It also cleans up the sound of
+boosted
+apps, keeps apps in the volume mixer from waking up from sleep with no
+sound, brings back per app volume levels that 3.1.15 stopped saving for some
+games and tools, and repairs maximizing and window layout in browsers where
+windows moved without taking their new size.
 
 ### Added
 - Mouse button shortcuts. Give any extra mouse button a key combination and
@@ -25,6 +27,9 @@ taking their new size.
   instead.
 
 ### Fixed
+- The App Switcher and the Dock previews only showed windows from the
+  desktop you were on. Windows parked on other desktops now appear too, and
+  picking one takes you to it.
 - Restoring the menu panel's quick controls to their default layout now
   brings back a hidden Text snippets toggle too.
 - Boosting an app's volume above 100% no longer adds a crackling noise while

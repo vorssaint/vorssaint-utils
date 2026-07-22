@@ -22,6 +22,7 @@ enum WindowActivator {
                          sourceWindowID: CGWindowID? = nil,
                          sourceWindowOwnerPID: pid_t? = nil) {
         cancelPendingMinimizeRestore()
+        SpaceHop.cancelPending()
 
         if item.pid == ProcessInfo.processInfo.processIdentifier {
             activateOwnWindow(item)
@@ -47,6 +48,15 @@ enum WindowActivator {
                                              state: retryState,
                                              delays: Self.fullscreenFocusRetryDelays)
             }
+            return
+        }
+        // A window parked on a Space that is not visible cannot be reached by
+        // the Accessibility passes below; the hop travels there first and then
+        // runs the same focus pass on arrival (issue #339).
+        if SpaceHop.beginIfNeeded(windowID: windowID,
+                                  appPID: item.pid,
+                                  windowOwnerPID: windowOwnerPID,
+                                  app: app) {
             return
         }
         watchTargetMinimizeIfNeeded(windowID: windowID,
@@ -507,6 +517,25 @@ enum WindowActivator {
         AXUIElementSetAttributeValue(axWindow, kAXMainAttribute as CFString, kCFBooleanTrue)
         AXUIElementSetAttributeValue(axWindow, kAXFocusedAttribute as CFString, kCFBooleanTrue)
         return true
+    }
+
+    /// Whether Accessibility can currently resolve this window at all. Windows
+    /// on a hidden Space cannot be resolved; minimized windows can, wherever
+    /// they came from (see SpaceHop.beginIfNeeded).
+    static func canResolveAXWindow(windowID: CGWindowID, pid: pid_t) -> Bool {
+        guard Permissions.shared.accessibility else { return false }
+        let axApp = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(axApp, 0.35)
+        return axElement(windowID: windowID, in: axApp) != nil
+    }
+
+    /// Focus pass run by SpaceHop once the target window's Space became
+    /// visible and Accessibility can finally describe the window.
+    static func focusAfterSpaceHop(windowID: CGWindowID, appPID: pid_t, windowOwnerPID: pid_t) {
+        guard let app = NSRunningApplication(processIdentifier: appPID), !app.isTerminated else { return }
+        prepareWindowForActivation(windowID: windowID, pid: windowOwnerPID)
+        activateApp(app, allWindows: false)
+        focusWindow(windowID: windowID, pid: windowOwnerPID)
     }
 
     private static func axElement(windowID: CGWindowID, in axApp: AXUIElement) -> AXUIElement? {

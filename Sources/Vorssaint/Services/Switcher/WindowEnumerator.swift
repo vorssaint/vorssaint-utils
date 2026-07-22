@@ -186,6 +186,28 @@ enum WindowEnumerator {
         var seen = Set<CGWindowID>()
         var windows: [SwitcherItem] = []
 
+        // Accessibility cannot describe windows parked on a Space that is not
+        // visible, so the ghost veto below would silently hide real windows
+        // (issue #339). The window server tells them apart: a real parked
+        // window belongs to a Space, a stale leftover surface belongs to none.
+        // Resolved lazily and cached, so fully Accessibility-confirmed lists
+        // pay nothing.
+        var visibleSpaces: Set<UInt64>?
+        var hiddenSpaceVerdicts: [CGWindowID: Bool] = [:]
+        func isOnHiddenSpace(_ windowID: CGWindowID) -> Bool {
+            if let verdict = hiddenSpaceVerdicts[windowID] { return verdict }
+            if visibleSpaces == nil {
+                visibleSpaces = SpaceWindowBridge.topology()?.visibleSpaces ?? []
+            }
+            guard let visible = visibleSpaces, !visible.isEmpty else { return false }
+            let verdict = SpaceHopSupport.isParkedOnHiddenSpace(
+                windowSpaces: SpaceWindowBridge.spaces(of: windowID),
+                visibleSpaces: visible
+            )
+            hiddenSpaceVerdicts[windowID] = verdict
+            return verdict
+        }
+
         // No cap during enumeration: the raw window-server order is not
         // "visible first" (windows parked on other Spaces can come before the
         // frontmost app), so truncating here silently drops whole apps on
@@ -205,7 +227,8 @@ enum WindowEnumerator {
             guard let appPID else { continue }
             if let filterPID = request.filterPID, appPID != filterPID { continue }
             let axWindow = accessibilityWindows[windowOwnerPID]?.byID[CGWindowID(windowID)]
-            if accessibilityWindows[windowOwnerPID] != nil, axWindow == nil {
+            if accessibilityWindows[windowOwnerPID] != nil, axWindow == nil,
+               !isOnHiddenSpace(CGWindowID(windowID)) {
                 continue
             }
             let cgFrame = CGRect(x: (boundsDict["X"] as? NSNumber)?.doubleValue ?? 0,
@@ -245,7 +268,10 @@ enum WindowEnumerator {
             // fullscreen windows on another Space can be reported off-screen
             // and untitled by WindowServer; if Accessibility confirms the same
             // window id, keep it switchable and fall back to the app name.
-            if !isOnScreen && displayTitle.isEmpty && axWindow == nil { continue }
+            // Windows the window server places on a hidden Space are equally
+            // real even when untitled (their titles need Screen Recording).
+            if !isOnScreen && displayTitle.isEmpty && axWindow == nil
+                && !isOnHiddenSpace(windowID) { continue }
 
             seen.insert(windowID)
             windows.append(.window(id: windowID,

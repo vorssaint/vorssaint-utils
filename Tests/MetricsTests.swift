@@ -1122,6 +1122,46 @@ struct MetricsTests {
             now: 1_000_000_000,
             threshold: switcherAppearanceThreshold
         ), 0.1, "App Switcher fails safely when event and uptime clocks cannot be compared")
+        expect(SpaceHopSupport.isParkedOnHiddenSpace(windowSpaces: [4], visibleSpaces: [3]),
+               "a window whose only Space is not visible is parked on a hidden Space")
+        expect(!SpaceHopSupport.isParkedOnHiddenSpace(windowSpaces: [3], visibleSpaces: [3]),
+               "a window on the visible Space is not parked")
+        expect(!SpaceHopSupport.isParkedOnHiddenSpace(windowSpaces: [], visibleSpaces: [3]),
+               "a surface on no Space is a leftover, never a parked window")
+        expect(!SpaceHopSupport.isParkedOnHiddenSpace(windowSpaces: [4], visibleSpaces: []),
+               "an unreadable visible-Space set never claims a parked window")
+        expect(!SpaceHopSupport.isParkedOnHiddenSpace(windowSpaces: [3, 4], visibleSpaces: [3]),
+               "a window pinned to several Spaces including a visible one is reachable")
+        expect(SpaceHopSupport.arrowSteps(orderedSpacesPerDisplay: [[3, 4, 5]],
+                                          visibleSpaces: [3],
+                                          target: 5) == 2,
+               "space travel counts the presses to the right")
+        expect(SpaceHopSupport.arrowSteps(orderedSpacesPerDisplay: [[3, 4, 5]],
+                                          visibleSpaces: [5],
+                                          target: 3) == -2,
+               "space travel counts the presses to the left")
+        expect(SpaceHopSupport.arrowSteps(orderedSpacesPerDisplay: [[3, 4]],
+                                          visibleSpaces: [3],
+                                          target: 3) == nil,
+               "space travel is never suggested toward a visible Space")
+        expect(SpaceHopSupport.arrowSteps(orderedSpacesPerDisplay: [[3, 4]],
+                                          visibleSpaces: [3],
+                                          target: 9) == nil,
+               "space travel is never suggested toward an unknown Space")
+        expect(SpaceHopSupport.arrowSteps(orderedSpacesPerDisplay: [[3, 4], [8, 9]],
+                                          visibleSpaces: [3, 8],
+                                          target: 9) == nil,
+               "space travel is never replayed with several displays (the shortcut moves the focused one)")
+        expect(SpaceHopSupport.arrowSteps(orderedSpacesPerDisplay: [(0...40).map { UInt64($0) }],
+                                          visibleSpaces: [0],
+                                          target: 40) == nil,
+               "space travel refuses hops beyond the press cap")
+        expect(SpaceHopSupport.eventFlags(fromCarbonModifiers: 0x840000) == [.maskControl, .maskSecondaryFn],
+               "the registered control+function mask replays with both flags")
+        expect(SpaceHopSupport.eventFlags(fromCarbonModifiers: 0x20000 | 0x100000) == [.maskShift, .maskCommand],
+               "shift and command translate independently")
+        expect(SpaceHopSupport.eventFlags(fromCarbonModifiers: 0x80000) == [.maskAlternate],
+               "option translates to the alternate flag")
         let regularBundlePaths: [pid_t: String] = [101: "/Applications/Primary.app"]
         expect(SwitcherSupport.embeddedHostPID(
             helperBundlePath: "/Applications/Primary.app/Contents/Frameworks/Window Helper.app",
