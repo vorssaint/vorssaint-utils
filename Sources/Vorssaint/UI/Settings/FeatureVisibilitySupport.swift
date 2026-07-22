@@ -24,7 +24,8 @@ enum FeatureVisibilitySupport {
         switch page {
         case .energy: return [.keepAwake, .brightness, .extraBrightness]
         case .monitor: return monitorFeatures
-        case .mouse: return [.scrollInverter, .smoothScroll, .mouseNavigation, .middleClick]
+        case .mouse: return [.scrollInverter, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts,
+                             .middleClick]
         case .switcher: return [.switcher, .dockPreview, .dockClick]
         case .windowLayout: return [.windowLayout]
         case .autoQuit: return [.autoQuit]

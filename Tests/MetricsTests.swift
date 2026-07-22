@@ -1297,18 +1297,18 @@ struct MetricsTests {
         // per-release decision: this check fails on every version bump so the
         // decision above is made consciously, never by omission.
         let plistVersion = (NSDictionary(contentsOfFile: "Resources/Info.plist")?["CFBundleShortVersionString"] as? String) ?? ""
-        expect(plistVersion == "3.1.16",
+        expect(plistVersion == "3.2.0",
                "bumping the app version requires re-deciding the support prompt pin above")
-        // 3.1.15 ships as a fix-only release with no new features to tour, so
-        // the highlights pin stays on the last feature release (3.1.14) and the
-        // tour does not re-appear. A feature release re-curates the rows and
-        // moves this pin to the shipping version.
-        expect(UpdateHighlightsInfo.releaseVersion == "3.1.14",
+        // 3.2.0 is a feature release, so the tour pin moves to it and the
+        // pages are re-curated: mouse button shortcuts is the headline. Later
+        // 3.2.0 tasks that add headline features extend the pages, the same
+        // way the changelog block grows.
+        expect(UpdateHighlightsInfo.releaseVersion == "3.2.0",
                "re-decide the highlights tour on a feature release: re-curate its rows and move the pin to the shipping version")
-        expect(UpdateHighlightsInfo.shouldShow(appVersion: "3.1.14", lastSeenVersion: "3.1.13")
-               && UpdateHighlightsInfo.shouldShow(appVersion: "3.1.14", lastSeenVersion: nil),
+        expect(UpdateHighlightsInfo.shouldShow(appVersion: "3.2.0", lastSeenVersion: "3.1.15")
+               && UpdateHighlightsInfo.shouldShow(appVersion: "3.2.0", lastSeenVersion: nil),
                "highlights tour shows once after updating to its pinned release")
-        expect(!UpdateHighlightsInfo.shouldShow(appVersion: "3.1.14", lastSeenVersion: "3.1.14"),
+        expect(!UpdateHighlightsInfo.shouldShow(appVersion: "3.2.0", lastSeenVersion: "3.2.0"),
                "highlights tour stays hidden after it is seen")
         expect(!UpdateHighlightsInfo.shouldShow(appVersion: "3.1.15", lastSeenVersion: nil),
                "highlights tour never leaks into another release")
@@ -3080,18 +3080,30 @@ struct MetricsTests {
                "a clock that jumps backwards falls back to a full window")
 
         let identifiedRow = MixerRoutingSupport.rowIdentity(bundleIdentifier: "com.example.Player",
-                                                           ownerPid: 501)
+                                                           ownerPid: 501,
+                                                           displayName: "Player")
         expect(identifiedRow.rowID == "com.example.Player"
                && identifiedRow.persistenceID == "com.example.Player",
                "an app with a bundle id keeps it as both row and storage identity")
-        let unidentifiedRow = MixerRoutingSupport.rowIdentity(bundleIdentifier: nil, ownerPid: 501)
-        let otherUnidentifiedRow = MixerRoutingSupport.rowIdentity(bundleIdentifier: nil, ownerPid: 502)
-        expect(!unidentifiedRow.rowID.isEmpty && unidentifiedRow.persistenceID == nil,
-               "an app without a bundle id is still listable but has nothing to store a volume under")
-        expect(unidentifiedRow.rowID != otherUnidentifiedRow.rowID,
-               "two processes without a bundle id are separate rows, so neither inherits the other's volume")
-        expect(MixerRoutingSupport.rowIdentity(bundleIdentifier: "   ", ownerPid: 501).persistenceID == nil,
-               "a blank bundle id is not an identity")
+        let namedRow = MixerRoutingSupport.rowIdentity(bundleIdentifier: nil,
+                                                       ownerPid: 501,
+                                                       displayName: "Retro Game")
+        let otherNamedRow = MixerRoutingSupport.rowIdentity(bundleIdentifier: nil,
+                                                            ownerPid: 502,
+                                                            displayName: "Retro Game")
+        expect(namedRow.persistenceID == "Retro Game",
+               "an app without a bundle id saves its volume under its display name, the same key older versions used")
+        expect(!namedRow.rowID.isEmpty && namedRow.rowID != otherNamedRow.rowID,
+               "two same-named processes without a bundle id stay separate rows")
+        let namelessRow = MixerRoutingSupport.rowIdentity(bundleIdentifier: nil,
+                                                          ownerPid: 501,
+                                                          displayName: nil)
+        expect(!namelessRow.rowID.isEmpty && namelessRow.persistenceID == nil,
+               "a process with neither bundle id nor name is still listable but stores nothing")
+        expect(MixerRoutingSupport.rowIdentity(bundleIdentifier: "   ",
+                                               ownerPid: 501,
+                                               displayName: "  ").persistenceID == nil,
+               "blank identifiers are not identities")
 
         expect(MixerRoutingSupport.restorableInputDeviceUID(originalUID: "BuiltInMicrophoneDevice",
                                                             appliedUID: "USBMicrophone",
@@ -5576,13 +5588,13 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 43, "feature catalog has 43 features")
+        expect(AppFeature.allCases.count == 44, "feature catalog has 44 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
             "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit",
-            "scrollInverter", "smoothScroll", "mouseNavigation", "middleClick", "keyboardDebounce",
-            "textSnippets",
+            "scrollInverter", "smoothScroll", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
+            "keyboardDebounce", "textSnippets",
             "clipboardHistory", "pastePlain", "finderCutPaste", "shelf", "urlCleaner",
             "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
             "keepAwake", "brightness", "extraBrightness",
@@ -5875,7 +5887,7 @@ struct MetricsTests {
         expect(pageVisible(.mouse, available: [.middleClick]),
                "one remaining mouse feature keeps the mouse page")
         expect(!pageVisible(.mouse, available: []),
-               "the mouse page hides only with all four mouse features off")
+               "the mouse page hides only with all five mouse features off")
         expect(!pageVisible(.energy, available: allFeatures.subtracting([.keepAwake, .brightness,
                                                                          .extraBrightness])),
                "energy hides when all three display features are off")
@@ -6811,6 +6823,75 @@ struct MetricsTests {
                 && GlobalShortcutRole.radialMenu.feature == .radialMenu,
                "the radial menu shortcut role gates on the feature toggle")
 
+        // MARK: Mouse button shortcuts (issue #282)
+
+        expect(Defaults.registeredDefaults[DefaultsKey.mouseButtonShortcutsEnabled] as? Bool == false,
+               "mouse button shortcuts ship off by default")
+        expect((Defaults.registeredDefaults[DefaultsKey.mouseButtonShortcuts] as? [String: String])?.isEmpty == true,
+               "the mapping dictionary registers empty so it travels with backups")
+        expect(Defaults.registeredDefaults[DefaultsKey.panelControlMouseButtonShortcuts] as? Bool == true,
+               "the mouse button shortcuts panel row ships visible like its siblings")
+        expect(AppFeature.mouseButtonShortcuts.enabledKeys == [DefaultsKey.mouseButtonShortcutsEnabled]
+                && AppFeature.mouseButtonShortcuts.permissions == [.accessibility]
+                && AppFeature.mouseButtonShortcuts.group == .mouseKeyboard,
+               "the hub knows the feature's switch, permission and group")
+
+        expect(MouseButtonShortcutSupport.canMap(3) && MouseButtonShortcutSupport.canMap(31)
+                && !MouseButtonShortcutSupport.canMap(0) && !MouseButtonShortcutSupport.canMap(1)
+                && !MouseButtonShortcutSupport.canMap(2) && !MouseButtonShortcutSupport.canMap(32),
+               "only the extra buttons above the middle can carry a shortcut")
+        expect(MouseButtonShortcutSupport.backButtonNumber == MouseNavigationSupport.backButtonNumber
+                && MouseButtonShortcutSupport.forwardButtonNumber == MouseNavigationSupport.forwardButtonNumber,
+               "button shortcuts and mouse navigation agree on which button is which")
+
+        let buttonCombo = GlobalShortcut(keyCode: 0, modifiers: [.command, .shift])
+        let decodedButtons = MouseButtonShortcutSupport.decode([
+            "3": buttonCombo.storageValue,
+            "4": "command:11",
+            "2": "command:11",
+            "40": "command:11",
+            "junk": "command:11",
+            "5": "garbage",
+            "6": ":48",
+        ])
+        expect(decodedButtons.count == 2 && decodedButtons[3] == buttonCombo && decodedButtons[4] != nil,
+               "decoding keeps valid extra-button mappings and drops everything else")
+        expect(MouseButtonShortcutSupport.decode(MouseButtonShortcutSupport.encode(decodedButtons))
+                == decodedButtons,
+               "mappings round-trip through their stored form")
+        expect(MouseButtonShortcutSupport.decode(nil).isEmpty,
+               "no stored mappings decode to none")
+        expect(MouseButtonShortcutSupport.sortedButtons([5: buttonCombo, 3: buttonCombo, 12: buttonCombo])
+                == [3, 5, 12],
+               "settings rows sort by button number")
+
+        expect(MouseButtonShortcutSupport.firesShortcut(for: 3, isAvailable: true, isEnabled: true,
+                                                        mappings: [3: buttonCombo],
+                                                        claimedByWheel: { _ in false }) == buttonCombo,
+               "an available, enabled mapping fires its combination")
+        expect(MouseButtonShortcutSupport.firesShortcut(for: 3, isAvailable: true, isEnabled: true,
+                                                        mappings: [3: buttonCombo],
+                                                        claimedByWheel: { $0 == 3 }) == nil,
+               "the radial menu's summoner button never doubles as a shortcut")
+        expect(MouseButtonShortcutSupport.firesShortcut(for: 3, isAvailable: false, isEnabled: true,
+                                                        mappings: [3: buttonCombo],
+                                                        claimedByWheel: { _ in false }) == nil
+                && MouseButtonShortcutSupport.firesShortcut(for: 3, isAvailable: true, isEnabled: false,
+                                                            mappings: [3: buttonCombo],
+                                                            claimedByWheel: { _ in false }) == nil
+                && MouseButtonShortcutSupport.firesShortcut(for: 4, isAvailable: true, isEnabled: true,
+                                                            mappings: [3: buttonCombo],
+                                                            claimedByWheel: { _ in false }) == nil,
+               "hub-off, switch-off and unmapped buttons all stay inert")
+        expect(!MouseButtonShortcutSupport.claimsButton(3) && !MouseButtonShortcutSupport.claimsButton(4),
+               "with the feature off no button is claimed away from navigation")
+        expect(MouseButtonShortcutSupport.buttonName(for: 3, strings: .enUS)
+                == MouseButtonFeatureStrings.enUS.backButtonName
+                && MouseButtonShortcutSupport.buttonName(for: 4, strings: .enUS)
+                == MouseButtonFeatureStrings.enUS.forwardButtonName
+                && MouseButtonShortcutSupport.buttonName(for: 5, strings: .enUS) == "Button 6",
+               "buttons are named by their job or their printed count")
+
         // MARK: Settings backup
 
         let backupKeys = SettingsBackupSupport.exportKeys()
@@ -6853,6 +6934,10 @@ struct MetricsTests {
                 && backupKeys.contains(DefaultsKey.radialMenuItems)
                 && backupKeys.contains(DefaultsKey.panelControlRadialMenu),
                "the radial menu wheel and choices travel with the settings backup")
+        expect(backupKeys.contains(DefaultsKey.mouseButtonShortcutsEnabled)
+                && backupKeys.contains(DefaultsKey.mouseButtonShortcuts)
+                && backupKeys.contains(DefaultsKey.panelControlMouseButtonShortcuts),
+               "mouse button shortcuts travel with the settings backup")
         expect(backupKeys.contains(DefaultsKey.panelShowToggles)
                 && backupKeys.contains(DefaultsKey.panelToggleOrder)
                 && backupKeys.contains(DefaultsKey.panelToggleDarkMode),

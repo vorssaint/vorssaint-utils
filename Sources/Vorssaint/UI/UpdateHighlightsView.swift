@@ -43,50 +43,14 @@ struct UpdateHighlightsView: View {
     /// uninstalled in the hub stay out; their Settings pages are gone too.
     private var highlights: [Highlight] {
         var pages: [Highlight] = []
-        if AppFeature.radialMenu.isAvailable {
+        if AppFeature.mouseButtonShortcuts.isAvailable {
             pages.append(Highlight(
-                id: "radial", symbol: AppFeature.radialMenu.symbolName,
-                imageName: "highlights-radial",
-                title: AppFeature.radialMenu.hubTitle(s, hub: hub),
-                caption: AppFeature.radialMenu.hubDescription(hub),
+                id: "mousebuttons", symbol: AppFeature.mouseButtonShortcuts.symbolName,
+                imageName: "highlights-mousebuttons",
+                title: AppFeature.mouseButtonShortcuts.hubTitle(s, hub: hub),
+                caption: AppFeature.mouseButtonShortcuts.hubDescription(hub),
                 actionLabel: s.highlightsConfigure,
-                action: { openSettings(.radialMenu) }))
-        }
-        if AppFeature.cameraPreview.isAvailable {
-            pages.append(Highlight(
-                id: "camera", symbol: AppFeature.cameraPreview.symbolName,
-                imageName: "highlights-camera",
-                title: AppFeature.cameraPreview.hubTitle(s, hub: hub),
-                caption: AppFeature.cameraPreview.hubDescription(hub),
-                actionLabel: s.highlightsTry,
-                action: { CameraPreviewService.shared.show() }))
-        }
-        if AppFeature.scratchpad.isAvailable {
-            pages.append(Highlight(
-                id: "scratchpad", symbol: AppFeature.scratchpad.symbolName,
-                imageName: "highlights-scratchpad",
-                title: AppFeature.scratchpad.hubTitle(s, hub: hub),
-                caption: AppFeature.scratchpad.hubDescription(hub),
-                actionLabel: s.highlightsTry,
-                action: { ScratchpadService.shared.show() }))
-        }
-        if AppFeature.dockPreview.isAvailable {
-            pages.append(Highlight(
-                id: "dock", symbol: AppFeature.dockPreview.symbolName,
-                imageName: "highlights-dock",
-                title: AppFeature.dockPreview.hubTitle(s, hub: hub),
-                caption: s.highlightsCaptionDockPreview,
-                actionLabel: s.highlightsConfigure,
-                action: { openSettings(.switcher) }))
-        }
-        if AppFeature.screenshot.isAvailable {
-            pages.append(Highlight(
-                id: "screenshot", symbol: AppFeature.screenshot.symbolName,
-                imageName: "highlights-loupe",
-                title: AppFeature.screenshot.hubTitle(s, hub: hub),
-                caption: s.highlightsCaptionScreenshot,
-                actionLabel: s.highlightsConfigure,
-                action: { openSettings(.screenshot) }))
+                action: { openSettings(.mouse) }))
         }
         return pages
     }
@@ -217,7 +181,7 @@ struct UpdateHighlightsView: View {
     /// At least one featured item survives in the hub, so the tour has a
     /// page to show. The gate reads this before opening the window.
     static var hasContent: Bool {
-        [AppFeature.radialMenu, .cameraPreview, .scratchpad, .dockPreview, .screenshot]
+        [AppFeature.mouseButtonShortcuts]
             .contains { $0.isAvailable }
     }
 

@@ -101,12 +101,17 @@ final class RecorderButton: NSButton {
     deinit {
         for observer in observers { NotificationCenter.default.removeObserver(observer) }
         guard isRecording else { return }
-        // Last resort. Leaving the app's shortcuts suspended would be worse
-        // than the bug this fixes, so give them back even from here.
+        // Last resort. Leaving the app's shortcuts suspended, or the
+        // recording tap eating the keyboard, would be worse than the bug
+        // this fixes, so give both back even from here.
         if Thread.isMainThread {
+            ShortcutRecordingTap.end()
             ShortcutCapture.end()
         } else {
-            DispatchQueue.main.async { ShortcutCapture.end() }
+            DispatchQueue.main.async {
+                ShortcutRecordingTap.end()
+                ShortcutCapture.end()
+            }
         }
     }
 
@@ -121,6 +126,14 @@ final class RecorderButton: NSButton {
         isRecording = true
         awaitingKeyForHeldModifiers = false
         ShortcutCapture.begin()
+        // The tap keeps the typed combination to the field: without it, a
+        // combination the system or another app answers to performs that
+        // action while being recorded. When the tap cannot exist (no
+        // Accessibility), the view events below still record as before.
+        ShortcutRecordingTap.begin { [weak self] keyCode, modifiers in
+            guard let self, self.isRecording else { return }
+            self.handleRecordingKey(keyCode: keyCode, modifiers: modifiers)
+        }
         observeExits()
         refreshTitle()
         recordingChanged?(true)
@@ -134,6 +147,7 @@ final class RecorderButton: NSButton {
         awaitingKeyForHeldModifiers = false
         for observer in observers { NotificationCenter.default.removeObserver(observer) }
         observers.removeAll()
+        ShortcutRecordingTap.end()
         ShortcutCapture.end()
         refreshTitle()
         recordingChanged?(false)
@@ -187,10 +201,15 @@ final class RecorderButton: NSButton {
     }
 
     private func handleRecordingKey(_ event: NSEvent) {
+        handleRecordingKey(keyCode: Int64(event.keyCode),
+                           modifiers: GlobalShortcutModifiers(eventFlags: event.modifierFlags))
+    }
+
+    /// The one recording path, fed by the swallowing tap or, without it, by
+    /// the view events above.
+    private func handleRecordingKey(keyCode: Int64, modifiers: GlobalShortcutModifiers) {
         // A key arrived, so the modifiers being held did produce something.
         awaitingKeyForHeldModifiers = false
-        let keyCode = Int64(event.keyCode)
-        let modifiers = GlobalShortcutModifiers(eventFlags: event.modifierFlags)
 
         if keyCode == Int64(kVK_Escape), !modifiers.hasPrimaryModifier {
             stopRecording()
@@ -202,7 +221,8 @@ final class RecorderButton: NSButton {
             clearAction()
             return
         }
-        guard let captured = GlobalShortcut(event: event) else {
+        let captured = GlobalShortcut(keyCode: keyCode, modifiers: modifiers)
+        guard captured.isValid else {
             NSSound.beep()
             invalidAction?()
             return

@@ -23,10 +23,9 @@ struct MixerOutputDevice: Identifiable, Equatable {
 struct MixerApp: Identifiable, Equatable {
     /// Identifies the row and its engine while the app runs.
     let id: String
-    /// The key this row's volume and route are saved under, or nil when the
-    /// app has no bundle id. Such a row is still listed and adjustable, but
-    /// nothing about it is written to disk: two unrelated processes can share
-    /// a display name, and one would inherit the other's volume.
+    /// The key this row's volume and route are saved under: bundle id, or
+    /// display name for a process without one. Nil when neither exists; such
+    /// a row is still listed and adjustable, but writes nothing to disk.
     let persistenceID: String?
     let ownerPid: pid_t
     let name: String
@@ -751,9 +750,12 @@ final class AppVolumeMixer: ObservableObject {
 
         var next: [MixerApp] = []
         for (owner, objects) in groups {
-            let name = ResponsibleProcess.displayName(pid: owner, fallback: "pid \(owner)")
+            let fallbackName = "pid \(owner)"
+            let name = ResponsibleProcess.displayName(pid: owner, fallback: fallbackName)
+            // The pid fallback is not a name to save under: pids recycle.
             let identity = MixerRoutingSupport.rowIdentity(bundleIdentifier: bundleHints[owner],
-                                                           ownerPid: owner)
+                                                           ownerPid: owner,
+                                                           displayName: name == fallbackName ? nil : name)
             let isBypassed = bypassed.contains(owner)
             let route = isBypassed ? nil : storedRoute(for: identity,
                                                        saved: savedOutputs,
@@ -1047,9 +1049,9 @@ final class AppVolumeMixer: ObservableObject {
         return Defaults.sanitizedAppOutputDevices(raw)
     }
 
-    /// The volume of a row: from disk when the app has a bundle id, otherwise
-    /// from this session only. Static so a refresh pass can resolve rows off
-    /// the main thread from copies of the session maps.
+    /// The volume of a row: from disk when the row has a key to save under,
+    /// otherwise from this session only. Static so a refresh pass can resolve
+    /// rows off the main thread from copies of the session maps.
     private static func storedVolume(for identity: MixerRowIdentity,
                                      saved: [String: Double],
                                      session: [String: Double]) -> Double? {
@@ -1074,9 +1076,8 @@ final class AppVolumeMixer: ObservableObject {
 
     private func persistVolume(_ volume: Double, for app: MixerApp) {
         guard let id = app.persistenceID else {
-            // No bundle id, no identity worth writing down: a display name is
-            // shared by unrelated processes, and one would come back wearing
-            // the other's volume. The slider still works while the app runs.
+            // Neither a bundle id nor a display name: nothing stable to write
+            // down. The slider still works while the app runs.
             if isUnity(volume) {
                 sessionVolumes.removeValue(forKey: app.id)
             } else {

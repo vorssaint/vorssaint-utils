@@ -104,7 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                     .scrollInverter, .smoothScroll, .mouseNavigation, .switcher,
                     .dockPreview, .finderCutPaste, .autoQuit, .dockClick,
                     .middleClick, .windowMaximizer, .keyboardDebounce, .windowLayout,
-                    .textSnippets, .brightness, .radialMenu,
+                    .textSnippets, .brightness, .radialMenu, .mouseButtonShortcuts,
                 ])
             }
             .store(in: &cancellables)

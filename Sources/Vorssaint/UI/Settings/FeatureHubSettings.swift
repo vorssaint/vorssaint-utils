@@ -520,6 +520,7 @@ extension AppFeature {
         case .scrollInverter: return s.invertMouseScroll
         case .smoothScroll: return s.smoothScrollName
         case .mouseNavigation: return hub.titleMouseNavigation
+        case .mouseButtonShortcuts: return FeatureStrings.mouseButtons(L10n.shared.language).pageTitle
         case .middleClick: return s.middleClickSection
         case .keyboardDebounce: return s.keyDebounceName
         case .textSnippets: return FeatureStrings.snippets(L10n.shared.language).pageTitle
@@ -568,6 +569,7 @@ extension AppFeature {
         case .scrollInverter: return hub.descScrollInverter
         case .smoothScroll: return hub.descSmoothScroll
         case .mouseNavigation: return hub.descMouseNavigation
+        case .mouseButtonShortcuts: return FeatureStrings.mouseButtons(L10n.shared.language).hubDescription
         case .middleClick: return hub.descMiddleClick
         case .keyboardDebounce: return hub.descKeyboardDebounce
         case .textSnippets: return FeatureStrings.snippets(L10n.shared.language).hubDescription

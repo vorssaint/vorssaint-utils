@@ -18,11 +18,11 @@ struct MixerOutputPreferences: Equatable {
 struct MixerRowIdentity: Equatable {
     /// Identifies the row in the list and its engine. Always present.
     let rowID: String
-    /// The key the row's volume and route are stored under, or nil when the
-    /// process has no bundle id. A display name is not an identity (two
-    /// unrelated processes can share one), so a row without a bundle id is
-    /// listed and adjustable for as long as it runs, but never inherits or
-    /// stores a saved volume.
+    /// The key the row's volume and route are stored under: the bundle id
+    /// when the process has one, otherwise its display name (the only handle
+    /// that survives a relaunch — pids recycle, names don't). Nil when the
+    /// process offers neither, in which case the row is listed and adjustable
+    /// for as long as it runs but stores nothing.
     let persistenceID: String?
 }
 
@@ -240,11 +240,17 @@ enum MixerRoutingSupport {
     }
 
     /// Identity of a row: the bundle id when the app has one, otherwise a
-    /// per-process identity that lives only as long as the process does.
-    static func rowIdentity(bundleIdentifier: String?, ownerPid: pid_t) -> MixerRowIdentity {
+    /// per-process row that saves under its display name. Games and tools
+    /// distributed as bare executables have no bundle id, and the name is the
+    /// key their volume has always been saved under, so it also brings back
+    /// what the user saved on older versions. Two same-named processes stay
+    /// separate rows (and engines) but share the saved volume.
+    static func rowIdentity(bundleIdentifier: String?,
+                            ownerPid: pid_t,
+                            displayName: String?) -> MixerRowIdentity {
         guard let bundleID = sanitizedAppID(bundleIdentifier ?? "") else {
             return MixerRowIdentity(rowID: "\(unidentifiedRowPrefix)\(ownerPid)",
-                                    persistenceID: nil)
+                                    persistenceID: sanitizedAppID(displayName ?? ""))
         }
         return MixerRowIdentity(rowID: bundleID, persistenceID: bundleID)
     }

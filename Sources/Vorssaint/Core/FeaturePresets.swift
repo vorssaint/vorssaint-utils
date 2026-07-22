@@ -76,7 +76,7 @@ extension AppFeature {
     var energyProfile: FeatureEnergyProfile {
         switch self {
         case .scrollInverter, .smoothScroll, .windowMaximizer, .middleClick,
-             .mouseNavigation, .dockPreview, .dockClick, .shelf:
+             .mouseNavigation, .mouseButtonShortcuts, .dockPreview, .dockClick, .shelf:
             return .mouse
         case .switcher, .keyboardDebounce, .finderCutPaste:
             return .keyboard

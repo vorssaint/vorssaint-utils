@@ -4,14 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [3.1.16]
+## [3.2.0]
 
 ### Summary
-Vorssaint 3.1.16 cleans up the sound of boosted apps and repairs maximizing
-and window layout in browsers where windows moved without taking their new
-size.
+Vorssaint 3.2.0 lets the extra buttons on a mouse press keyboard shortcuts
+you choose. It also cleans up the sound of boosted apps, brings back per app
+volume levels that 3.1.15 stopped saving for some games and tools, and
+repairs maximizing and window layout in browsers where windows moved without
+taking their new size.
+
+### Added
+- Mouse button shortcuts. Give any extra mouse button a key combination and
+  it presses those keys for you. Set it up in Settings under Mouse, with a
+  quick toggle in the menu panel.
+
+### Changed
+- Recording a shortcut now keeps the keys to itself. A combination that used
+  to trigger the app or the system while you typed it lands in the field
+  instead.
 
 ### Fixed
+- Restoring the menu panel's quick controls to their default layout now
+  brings back a hidden Text snippets toggle too.
 - Boosting an app's volume above 100% no longer adds a crackling noise while
   the sound is loud. The boost now eases the peaks down for a moment instead
   of chopping them off.
@@ -21,6 +35,9 @@ size.
 - Window layout shortcuts, the panel buttons and the drag gesture now resize
   those same browsers correctly instead of moving the window and leaving its
   size behind.
+- The volume level chosen for some games and tools stopped being saved in
+  3.1.15 and came back at full on the next launch. It is saved again, and
+  levels saved before 3.1.15 come back on their own.
 - App Switcher now appears without waiting for every open app to answer
   Accessibility queries. Its window list stays warm in the background, and
   the native-like visual threshold starts at the key press instead of after

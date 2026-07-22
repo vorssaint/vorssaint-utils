@@ -160,6 +160,12 @@ final class RadialMenuService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
         let pressed = Int(event.getIntegerValueField(.mouseEventButtonNumber))
+        // While the mouse button shortcuts capture row is listening, the
+        // press belongs to it, even this wheel's own summoner: that capture
+        // tap swallows the gesture and tells the user the button is taken.
+        if MouseButtonShortcutService.isCaptureActive {
+            return Unmanaged.passUnretained(event)
+        }
         // While the settings screen is asking, every extra button that
         // arrives is reported, so the user can tell a button this app cannot
         // see from one that is simply set to something else. Nothing new

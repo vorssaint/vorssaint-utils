@@ -95,11 +95,17 @@ final class MouseNavigationService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
-        // A side button claimed as the radial menu's summoner belongs to the
-        // wheel. This tap runs at the HID level, before the menu's session
-        // tap, so the whole gesture passes through untouched for the menu to
-        // take downstream; the other side button keeps navigating.
-        if RadialMenuSupport.claimsMouseButton(buttonNumber) {
+        // A side button claimed as the radial menu's summoner, or carrying a
+        // mouse button shortcut, belongs to that feature. This tap runs at
+        // the HID level, before those session taps, so the whole gesture
+        // passes through untouched for the owner to take downstream; the
+        // other side button keeps navigating. While the shortcut capture row
+        // is listening, every press belongs to it, including a button with no
+        // mapping yet, or the capture could never see the button it is asked
+        // to watch for.
+        if RadialMenuSupport.claimsMouseButton(buttonNumber)
+            || MouseButtonShortcutSupport.claimsButton(buttonNumber)
+            || MouseButtonShortcutService.isCaptureActive {
             return Unmanaged.passUnretained(event)
         }
 

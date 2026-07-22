@@ -105,13 +105,6 @@ struct GlobalShortcut: Equatable, Hashable {
         guard isValid else { return nil }
     }
 
-    init?(event: NSEvent) {
-        let shortcut = GlobalShortcut(keyCode: Int64(event.keyCode),
-                                      modifiers: GlobalShortcutModifiers(eventFlags: event.modifierFlags))
-        guard shortcut.isValid else { return nil }
-        self = shortcut
-    }
-
     /// Delete on its own means "take the shortcut off" while a shortcut field
     /// is listening, which is how every shortcut field on this system behaves.
     /// Held together with Control, Option or Command it is an ordinary key and

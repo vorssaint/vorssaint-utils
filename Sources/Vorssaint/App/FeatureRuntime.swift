@@ -131,6 +131,7 @@ final class FeatureRuntime: ObservableObject {
         .scrollInverter: { ScrollInverter.shared.syncWithPreferences() },
         .smoothScroll: { SmoothScrollService.shared.syncWithPreferences() },
         .mouseNavigation: { MouseNavigationService.shared.syncWithPreferences() },
+        .mouseButtonShortcuts: { MouseButtonShortcutService.shared.syncWithPreferences() },
         .middleClick: { MiddleClickService.shared.syncWithPreferences() },
         .keyboardDebounce: { KeyboardDebounceService.shared.syncWithPreferences() },
         .textSnippets: { TextSnippetService.shared.syncWithPreferences() },

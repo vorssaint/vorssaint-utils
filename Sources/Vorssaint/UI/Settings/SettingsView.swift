@@ -68,7 +68,8 @@ struct SettingsView: View {
             (categories.windowsControls, [
                 SidebarItem(page: .mouse, title: l10n.s.tabMouse, icon: "computermouse",
                             keywords: [l10n.s.invertMouseScroll, l10n.s.middleClickTapPicker,
-                                       l10n.s.smoothScrollName, l10n.s.mouseNavigationEnable]),
+                                       l10n.s.smoothScrollName, l10n.s.mouseNavigationEnable,
+                                       FeatureStrings.mouseButtons(l10n.language).pageTitle]),
                 SidebarItem(page: .switcher, title: l10n.s.tabSwitcher, icon: "rectangle.on.rectangle",
                             keywords: [l10n.s.switcherEnable, l10n.s.dockClickMinimize,
                                        l10n.s.dockClickCycleWindows]),
@@ -680,6 +681,7 @@ struct MouseSettings: View {
     @AppStorage(DefaultsKey.smoothScrollEnabled) private var smoothScrollEnabled = false
     @AppStorage(DefaultsKey.smoothScrollStep) private var smoothScrollStep = SmoothScrollSupport.defaultStep
     @AppStorage(DefaultsKey.mouseNavigationEnabled) private var mouseNavigationEnabled = false
+    @AppStorage(DefaultsKey.mouseButtonShortcutsEnabled) private var mouseButtonShortcutsEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.middleClickTapFingers) private var middleClickTapFingers = 0
 
@@ -748,6 +750,9 @@ struct MouseSettings: View {
                     }
                 }
             }
+            if AppFeature.mouseButtonShortcuts.isAvailable {
+                MouseButtonShortcutsSection()
+            }
             if AppFeature.middleClick.isAvailable {
                 Section(l10n.s.middleClickSection) {
                     Toggle(l10n.s.middleClickEnable, isOn: $middleClickEnabled)
@@ -795,6 +800,7 @@ struct MouseSettings: View {
         let anyEngaged = (inverterEnabled && AppFeature.scrollInverter.isAvailable)
             || (smoothScrollEnabled && AppFeature.smoothScroll.isAvailable)
             || (mouseNavigationEnabled && AppFeature.mouseNavigation.isAvailable)
+            || (mouseButtonShortcutsEnabled && AppFeature.mouseButtonShortcuts.isAvailable)
             || (middleClickEnabled && AppFeature.middleClick.isAvailable)
         return anyEngaged && !permissions.accessibility
     }

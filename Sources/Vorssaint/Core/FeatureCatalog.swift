@@ -16,7 +16,8 @@ enum AppFeature: String, CaseIterable {
     // Windows and Dock
     case switcher, dockPreview, dockClick, windowMaximizer, windowLayout, autoQuit
     // Mouse and keyboard
-    case scrollInverter, smoothScroll, mouseNavigation, middleClick, keyboardDebounce, textSnippets
+    case scrollInverter, smoothScroll, mouseNavigation, mouseButtonShortcuts, middleClick,
+         keyboardDebounce, textSnippets
     // Clipboard and files
     case clipboardHistory, pastePlain, finderCutPaste, shelf, urlCleaner
     // Sound
@@ -47,8 +48,8 @@ extension AppFeature {
         switch self {
         case .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit:
             return .windowsDock
-        case .scrollInverter, .smoothScroll, .mouseNavigation, .middleClick, .keyboardDebounce,
-             .textSnippets:
+        case .scrollInverter, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
+             .keyboardDebounce, .textSnippets:
             return .mouseKeyboard
         case .clipboardHistory, .pastePlain, .finderCutPaste, .shelf, .urlCleaner:
             return .clipboardFiles
@@ -75,6 +76,7 @@ extension AppFeature {
         case .scrollInverter: return "arrow.up.arrow.down"
         case .smoothScroll: return "cursorarrow.motionlines"
         case .mouseNavigation: return "arrow.left.arrow.right"
+        case .mouseButtonShortcuts: return "button.programmable"
         case .middleClick: return "computermouse"
         case .keyboardDebounce: return "keyboard"
         case .textSnippets: return "text.append"
@@ -134,6 +136,7 @@ extension AppFeature {
         case .scrollInverter: return [DefaultsKey.scrollInverterEnabled]
         case .smoothScroll: return [DefaultsKey.smoothScrollEnabled]
         case .mouseNavigation: return [DefaultsKey.mouseNavigationEnabled]
+        case .mouseButtonShortcuts: return [DefaultsKey.mouseButtonShortcutsEnabled]
         case .middleClick: return [DefaultsKey.middleClickEnabled]
         case .keyboardDebounce: return [DefaultsKey.keyboardDebounceEnabled]
         case .textSnippets: return [DefaultsKey.textSnippetsEnabled]
@@ -161,8 +164,8 @@ extension AppFeature {
     /// monitor only notifies when an alert is on, and so on).
     var permissions: [AppPermission] {
         switch self {
-        case .scrollInverter, .smoothScroll, .mouseNavigation, .middleClick, .keyboardDebounce,
-             .textSnippets, .dockClick, .windowMaximizer, .windowLayout, .autoQuit,
+        case .scrollInverter, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
+             .keyboardDebounce, .textSnippets, .dockClick, .windowMaximizer, .windowLayout, .autoQuit,
              .cleaningMode, .pastePlain, .radialMenu:
             return [.accessibility]
         case .finderCutPaste: return [.accessibility, .automationFinder]

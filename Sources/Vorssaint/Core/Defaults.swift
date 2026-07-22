@@ -37,6 +37,8 @@ enum DefaultsKey {
     static let smoothScrollEnabled = "smoothScrollEnabled"
     static let smoothScrollStep = "smoothScrollStep"      // pixels per wheel tick
     static let mouseNavigationEnabled = "mouseNavigationEnabled" // side buttons trigger Back and Forward
+    static let mouseButtonShortcutsEnabled = "mouseButtonShortcutsEnabled" // extra buttons press a key combination (issue #282)
+    static let mouseButtonShortcuts = "mouseButtonShortcuts" // [button number: GlobalShortcut storage value]
     static let switcherEnabled = "switcherEnabled"
     static let switcherShortcut = "switcherShortcut"      // GlobalShortcut storage value
     static let switcherWindowShortcut = "switcherWindowShortcut" // GlobalShortcut storage value
@@ -124,6 +126,7 @@ enum DefaultsKey {
     static let panelControlMiddleClick = "panelControlMiddleClick"
     static let panelControlTextSnippets = "panelControlTextSnippets"
     static let panelControlRadialMenu = "panelControlRadialMenu"
+    static let panelControlMouseButtonShortcuts = "panelControlMouseButtonShortcuts"
     // Quick-control categories start collapsed and remember being opened.
     static let panelControlWindowsExpanded = "panelControlWindowsExpanded"
     static let panelControlInputExpanded = "panelControlInputExpanded"
@@ -389,7 +392,7 @@ enum UpdateHighlightsInfo {
     /// The single release whose first launch shows the tour; any other
     /// version never shows it. Bump deliberately for releases with headline
     /// features worth a tour.
-    static let releaseVersion = "3.1.14"
+    static let releaseVersion = "3.2.0"
 
     static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
         appVersion == releaseVersion && lastSeenVersion != releaseVersion
@@ -548,6 +551,8 @@ enum Defaults {
         DefaultsKey.smoothScrollEnabled: false,
         DefaultsKey.smoothScrollStep: 40,
         DefaultsKey.mouseNavigationEnabled: false,
+        DefaultsKey.mouseButtonShortcutsEnabled: false,
+        DefaultsKey.mouseButtonShortcuts: [String: String](),
         DefaultsKey.switcherEnabled: true,
         DefaultsKey.switcherShortcut: "command:48",
         DefaultsKey.switcherWindowShortcut: GlobalShortcut.switcherWindowDefault.storageValue,
@@ -633,6 +638,7 @@ enum Defaults {
         DefaultsKey.panelControlMiddleClick: true,
         DefaultsKey.panelControlTextSnippets: true,
         DefaultsKey.panelControlRadialMenu: true,
+        DefaultsKey.panelControlMouseButtonShortcuts: true,
         DefaultsKey.panelControlWindowsExpanded: false,
         DefaultsKey.panelControlInputExpanded: false,
         DefaultsKey.panelControlFilesExpanded: false,

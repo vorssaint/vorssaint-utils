@@ -940,7 +940,7 @@ struct UtilitiesSection: View {
 
 private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
     case mouseScroll, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
-         dockClick, dockClickCycle, middleClick, textSnippets, radialMenu
+         dockClick, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts
 
     var id: String { rawValue }
 
@@ -961,6 +961,7 @@ private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
         case .middleClick: return .middleClick
         case .textSnippets: return .textSnippets
         case .radialMenu: return .radialMenu
+        case .mouseButtonShortcuts: return .mouseButtonShortcuts
         }
     }
 }
@@ -976,7 +977,8 @@ private enum ControlCategory: String, CaseIterable, Identifiable {
         switch item {
         case .switcher, .dockPreview, .dockClick, .dockClickCycle, .windowMaximize, .autoQuit:
             return .windows
-        case .mouseScroll, .mouseNavigation, .middleClick, .keyDebounce, .textSnippets, .radialMenu:
+        case .mouseScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
+             .textSnippets, .radialMenu:
             return .inputDevices
         case .cutPaste, .shelf:
             return .files
@@ -1014,6 +1016,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.textSnippetsEnabled) private var textSnippetsEnabled = false
     @AppStorage(DefaultsKey.radialMenuEnabled) private var radialMenuEnabled = false
+    @AppStorage(DefaultsKey.mouseButtonShortcutsEnabled) private var mouseButtonShortcutsEnabled = false
     @AppStorage(DefaultsKey.panelControlMouseScroll) private var showScroll = true
     @AppStorage(DefaultsKey.panelControlMouseNavigation) private var showMouseNavigation = true
     @AppStorage(DefaultsKey.panelControlSwitcher) private var showSwitcher = true
@@ -1028,6 +1031,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.panelControlMiddleClick) private var showMiddleClick = true
     @AppStorage(DefaultsKey.panelControlTextSnippets) private var showTextSnippets = true
     @AppStorage(DefaultsKey.panelControlRadialMenu) private var showRadialMenu = true
+    @AppStorage(DefaultsKey.panelControlMouseButtonShortcuts) private var showMouseButtonShortcuts = true
     @AppStorage(DefaultsKey.panelControlWindowsExpanded) private var windowsExpanded = false
     @AppStorage(DefaultsKey.panelControlInputExpanded) private var inputExpanded = false
     @AppStorage(DefaultsKey.panelControlFilesExpanded) private var filesExpanded = false
@@ -1141,6 +1145,7 @@ struct QuickControlsSection: View {
         case .middleClick: return middleClickEnabled
         case .textSnippets: return textSnippetsEnabled
         case .radialMenu: return radialMenuEnabled
+        case .mouseButtonShortcuts: return mouseButtonShortcutsEnabled
         }
     }
 
@@ -1212,6 +1217,7 @@ struct QuickControlsSection: View {
         case .middleClick: return showMiddleClick
         case .textSnippets: return showTextSnippets
         case .radialMenu: return showRadialMenu
+        case .mouseButtonShortcuts: return showMouseButtonShortcuts
         }
     }
 
@@ -1478,6 +1484,28 @@ struct QuickControlsSection: View {
                         requestAccessibilityIfNeeded(enabled)
                     }
                 }
+        case .mouseButtonShortcuts:
+            let buttonStrings = FeatureStrings.mouseButtons(l10n.language)
+            PanelToggleRow(title: buttonStrings.pageTitle,
+                           caption: caption(buttonStrings.panelCaption,
+                                            needsAccessibility: mouseButtonShortcutsEnabled),
+                           systemImage: "button.programmable",
+                           isOn: $mouseButtonShortcutsEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showMouseButtonShortcuts,
+                           needsAttention: mouseButtonShortcutsEnabled && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: accessibilityPermissionAction(mouseButtonShortcutsEnabled),
+                           accessoryTitle: mouseButtonShortcutsEnabled ? buttonStrings.manageButton : nil,
+                           accessoryAction: {
+                               SettingsRouter.shared.page = .mouse
+                               appDelegate()?.openSettingsWindow()
+                           })
+                .onChange(of: mouseButtonShortcutsEnabled) { _, enabled in
+                    MouseButtonShortcutService.shared.syncWithPreferences()
+                    requestAccessibilityIfNeeded(enabled)
+                }
         }
     }
 
@@ -1503,7 +1531,9 @@ struct QuickControlsSection: View {
         showDockClick = true
         showDockClickCycle = true
         showMiddleClick = true
+        showTextSnippets = true
         showRadialMenu = true
+        showMouseButtonShortcuts = true
         windowsExpanded = false
         inputExpanded = false
         filesExpanded = false
