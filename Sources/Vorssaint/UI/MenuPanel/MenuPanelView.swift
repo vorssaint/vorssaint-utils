@@ -1531,6 +1531,7 @@ struct QuickControlsSection: View {
         showDockClick = true
         showDockClickCycle = true
         showMiddleClick = true
+        showTextSnippets = true
         showRadialMenu = true
         showMouseButtonShortcuts = true
         windowsExpanded = false

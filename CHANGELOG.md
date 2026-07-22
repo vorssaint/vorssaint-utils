@@ -23,6 +23,8 @@ their new size.
   instead.
 
 ### Fixed
+- Restoring the menu panel's quick controls to their default layout now
+  brings back a hidden Text snippets toggle too.
 - Boosting an app's volume above 100% no longer adds a crackling noise while
   the sound is loud. The boost now eases the peaks down for a moment instead
   of chopping them off.
