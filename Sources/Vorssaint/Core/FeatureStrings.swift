@@ -75,6 +75,42 @@ enum FeatureStrings {
         case .zhHK: return .zhHK
         }
     }
+
+    static func mixer(_ language: AppLanguage) -> MixerFeatureStrings {
+        switch language {
+        case .enUS: return .enUS
+        case .ptBR: return .ptBR
+        case .tr: return .tr
+        case .ru: return .ru
+        case .es: return .es
+        case .de: return .de
+        case .fr: return .fr
+        case .it: return .it
+        case .ja: return .ja
+        case .ko: return .ko
+        case .zhHans: return .zhHans
+        case .zhTW: return .zhTW
+        case .zhHK: return .zhHK
+        }
+    }
+}
+
+struct MixerFeatureStrings {
+    let hideInactiveApps: String
+
+    static let enUS = MixerFeatureStrings(hideInactiveApps: "Hide inactive apps")
+    static let ptBR = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inativos")
+    static let tr = MixerFeatureStrings(hideInactiveApps: "Etkin olmayan uygulamaları gizle")
+    static let ru = MixerFeatureStrings(hideInactiveApps: "Скрывать неактивные приложения")
+    static let es = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inactivas")
+    static let de = MixerFeatureStrings(hideInactiveApps: "Inaktive Apps ausblenden")
+    static let fr = MixerFeatureStrings(hideInactiveApps: "Masquer les apps inactives")
+    static let it = MixerFeatureStrings(hideInactiveApps: "Nascondi le app inattive")
+    static let ja = MixerFeatureStrings(hideInactiveApps: "非アクティブなアプリを隠す")
+    static let ko = MixerFeatureStrings(hideInactiveApps: "비활성 앱 숨기기")
+    static let zhHans = MixerFeatureStrings(hideInactiveApps: "隐藏不活跃的 App")
+    static let zhTW = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App")
+    static let zhHK = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App")
 }
 
 extension SettingsCategoryStrings {

@@ -161,6 +161,34 @@ enum RadialMenuSupport {
     /// Root plus one submenu level. Deeper nesting turns the wheel into a maze.
     static let maxDepth = 2
 
+    /// Curated built-in symbols for the editor. The picker filters this list
+    /// at runtime so older supported macOS releases only show symbols they own.
+    static let symbolNames = [
+        "star.fill", "heart.fill", "bolt.fill", "flame.fill", "sparkles",
+        "folder.fill", "doc.fill", "tray.full.fill", "terminal.fill", "globe",
+        "envelope.fill", "message.fill", "music.note", "headphones", "camera.fill",
+        "photo.fill", "video.fill", "gamecontroller.fill", "calendar", "clock.fill",
+        "house.fill", "cart.fill", "hammer.fill", "paintbrush.fill", "book.fill",
+        "keyboard", "magnifyingglass", "airplane",
+        "checkmark.circle.fill", "xmark.circle.fill", "plus.circle.fill", "minus.circle.fill",
+        "exclamationmark.triangle.fill", "questionmark.circle.fill", "info.circle.fill",
+        "lock.fill", "lock.open.fill", "key.fill", "person.fill", "person.2.fill",
+        "bell.fill", "flag.fill", "bookmark.fill", "tag.fill",
+        "paperclip", "link", "scissors", "doc.on.clipboard",
+        "square.and.arrow.up", "square.and.arrow.down", "trash.fill", "archivebox.fill",
+        "externaldrive.fill", "internaldrive.fill", "display", "desktopcomputer",
+        "laptopcomputer", "iphone", "ipad", "applewatch",
+        "wifi", "network", "antenna.radiowaves.left.and.right",
+        "speaker.wave.2.fill", "mic.fill", "waveform",
+        "play.fill", "pause.fill", "stop.fill", "backward.fill", "forward.fill",
+        "shuffle", "repeat",
+        "sun.max.fill", "moon.fill", "lightbulb.fill", "battery.100", "power",
+        "eye.fill", "eye.slash.fill", "location.fill", "map.fill",
+        "paperplane.fill", "bubble.left.fill", "phone.fill",
+        "gearshape.fill", "slider.horizontal.3", "switch.2", "command",
+        "printer.fill", "textformat", "number",
+    ]
+
     /// Whether the target can actually run for this kind. The editor blocks
     /// saving what fails here, and `sanitized` drops it, so the two can never
     /// disagree about what belongs on a wheel.

@@ -130,6 +130,16 @@ enum MixerRoutingSupport {
         abs(volume - 1) < 0.005
     }
 
+    /// Inactive apps with a custom volume or output remain visible so hiding
+    /// idle rows can never conceal a setting the user may want to undo.
+    static func shouldShowApp(isPlaying: Bool,
+                              volume: Double,
+                              selectedOutputDeviceUID: String?,
+                              hideInactiveApps: Bool) -> Bool {
+        guard hideInactiveApps else { return true }
+        return isPlaying || !isUnity(volume) || selectedOutputDeviceUID != nil
+    }
+
     static func sanitizedDeviceUID(_ value: Any?) -> String? {
         guard let raw = value as? String else { return nil }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
