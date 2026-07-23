@@ -171,6 +171,24 @@ enum QuickToolsSupport {
             .joined(separator: "\n")
     }
 
+    // MARK: - Paste as plain text
+
+    /// Whether a menu item is an app's own matching-style paste, judged by its
+    /// key equivalent instead of its localized title. The universal
+    /// convention is ⌥⇧⌘V; in the AX menu attributes that is command
+    /// character "V" with the shift (1) and option (2) bits set and nothing
+    /// else (0 alone means a plain ⌘ equivalent). ⇧⌘V and ⌃ variants are
+    /// deliberately out: in several apps those are different edit commands,
+    /// and pressing one would touch the document (issue #349).
+    static func isMatchStyleEquivalent(commandCharacter: String?,
+                                       modifierMask: UInt32?,
+                                       isEnabled: Bool) -> Bool {
+        let shiftAndOption: UInt32 = 1 | 2
+        return commandCharacter?.uppercased() == "V"
+            && modifierMask == shiftAndOption
+            && isEnabled
+    }
+
     /// The payload as a web link for the optional open action. Limited to
     /// http and https on purpose: a scanned code must never be able to launch
     /// an arbitrary URL scheme (mailto, tel, custom app schemes and so on).

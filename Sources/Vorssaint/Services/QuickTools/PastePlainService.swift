@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import ApplicationServices
 import Carbon.HIToolbox
 
 /// Pastes the clipboard as plain text on a global shortcut: strips fonts,
@@ -61,6 +62,16 @@ final class PastePlainService: ObservableObject {
         guard !isPerforming else { return }
         let pasteboard = NSPasteboard.general
         guard let plain = Self.plainText(from: pasteboard), !plain.isEmpty else { return }
+
+        // An app that ships its own matching-style paste does this better
+        // than any synthesized ⌘V: the destination decides the typing
+        // attributes (a stripped string pasted normally can leave the
+        // insertion point stuck with the styling of what it landed in,
+        // issue #349), the pasteboard keeps the original formatting for
+        // later pastes, and held modifier keys don't matter to a menu
+        // press. The strip-and-restore dance below stays as the fallback
+        // for every app without that command.
+        if pressNativeMatchStyleItem() { return }
 
         // Deep-copy the current content first: items can't be re-attached to
         // the pasteboard once it is cleared. If the pasteboard still holds our
@@ -137,6 +148,65 @@ final class PastePlainService: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) { [weak self] in
             self?.postPasteWhenModifiersReleased(attempt: attempt + 1, completion: completion)
         }
+    }
+
+    /// Presses the frontmost app's own matching-style paste when its menus
+    /// carry the universal ⌥⇧⌘V equivalent. Found by key equivalent, never by
+    /// localized title, same as the mouse navigation menu press. Returns
+    /// false when the app has no such command (or refuses the press) so the
+    /// caller falls back to the synthesized paste.
+    private func pressNativeMatchStyleItem() -> Bool {
+        guard let app = NSWorkspace.shared.frontmostApplication else { return false }
+        let application = AXUIElementCreateApplication(app.processIdentifier)
+        // A busy target must not hold the main thread for AX's default
+        // multi-second timeout; every traversed element gets the same bound.
+        AXUIElementSetMessagingTimeout(application, 0.35)
+        guard let menuBar: AXUIElement = Self.attribute(kAXMenuBarAttribute, from: application) else {
+            return false
+        }
+        var visited = 0
+        guard let item = Self.findMatchStyleItem(in: menuBar, depth: 0, visited: &visited) else {
+            return false
+        }
+        return AXUIElementPerformAction(item, kAXPressAction as CFString) == .success
+    }
+
+    /// Depth 3 is a direct item of a top level menu (bar, bar item, menu,
+    /// item), where every app keeps its paste commands; anything deeper is
+    /// out of reach on purpose, and the visited cap keeps a pathological
+    /// menu bar from stalling the press.
+    private static func findMatchStyleItem(in element: AXUIElement,
+                                           depth: Int,
+                                           visited: inout Int) -> AXUIElement? {
+        guard depth <= 3, visited < 600 else { return nil }
+        visited += 1
+        AXUIElementSetMessagingTimeout(element, 0.35)
+
+        let command: String? = attribute(kAXMenuItemCmdCharAttribute, from: element)
+        let modifiers: NSNumber? = attribute(kAXMenuItemCmdModifiersAttribute, from: element)
+        let enabled: NSNumber? = attribute(kAXEnabledAttribute, from: element)
+        if QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: command,
+                                                    modifierMask: modifiers?.uint32Value,
+                                                    isEnabled: enabled?.boolValue != false) {
+            return element
+        }
+
+        guard depth < 3 else { return nil }
+        let children: [AXUIElement] = attribute(kAXChildrenAttribute, from: element) ?? []
+        for child in children {
+            if let match = findMatchStyleItem(in: child, depth: depth + 1, visited: &visited) {
+                return match
+            }
+        }
+        return nil
+    }
+
+    private static func attribute<T>(_ name: String, from element: AXUIElement) -> T? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else {
+            return nil
+        }
+        return value as? T
     }
 
     /// The clipboard's text without any formatting: the plain string when

@@ -4368,6 +4368,50 @@ struct MetricsTests {
         expect(QuickToolsSupport.openableURL(from: "example.com") == nil,
                "a bare host with no scheme is not opened")
 
+        // Paste plain delegates only to the universal ⌥⇧⌘V equivalent
+        // (shift = 1, option = 2 in the AX modifier mask); anything else in
+        // an app's menus is some other edit command and must not be pressed.
+        expect(QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "V",
+                                                        modifierMask: 3,
+                                                        isEnabled: true),
+               "V with shift+option is an app's own matching-style paste")
+        expect(QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "v",
+                                                        modifierMask: 3,
+                                                        isEnabled: true),
+               "the command character match ignores case")
+        expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "V",
+                                                         modifierMask: 0,
+                                                         isEnabled: true),
+               "plain ⌘V is the regular paste, never pressed as match style")
+        expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "V",
+                                                         modifierMask: 1,
+                                                         isEnabled: true),
+               "⇧⌘V alone is a different command in several apps")
+        expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "V",
+                                                         modifierMask: 3 | 4,
+                                                         isEnabled: true),
+               "a control variant is not the matching-style paste")
+        expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "V",
+                                                         modifierMask: 3 | 8,
+                                                         isEnabled: true),
+               "an equivalent without the command key does not qualify")
+        expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "C",
+                                                         modifierMask: 3,
+                                                         isEnabled: true),
+               "other command characters never match")
+        expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: nil,
+                                                         modifierMask: 3,
+                                                         isEnabled: true),
+               "an item with no key equivalent never matches")
+        expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "V",
+                                                         modifierMask: nil,
+                                                         isEnabled: true),
+               "an unreadable modifier mask never matches")
+        expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "V",
+                                                         modifierMask: 3,
+                                                         isEnabled: false),
+               "a disabled item is left alone so the fallback paste still runs")
+
         // Launcher grid: 8 items in 3 columns (rows of 3, 3, 2).
         expect(QuickToolsSupport.gridIndex(after: 0, count: 8, columns: 3, direction: .right) == 1,
                "launcher grid moves right within a row")

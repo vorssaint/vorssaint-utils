@@ -8,15 +8,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Summary
 Vorssaint 3.2.0 lets the extra buttons on a mouse press keyboard shortcuts
-you choose, and the App Switcher and Dock previews now show windows sitting
-on other desktops and take you to them. It also lets you hide apps you never
-adjust from the volume mixer, cleans up the sound of boosted apps, keeps
-apps in the volume mixer from waking up from sleep with no
-sound, brings back per app volume levels that 3.1.15 stopped saving for some
-games and tools, repairs maximizing and window layout in browsers where
-windows moved without taking their new size, and stops external monitors
-from going black while their brightness is adjusted. Snippet triggers can
-now fire with any capitalization when you want them to.
+you choose, shows windows from other desktops in the App Switcher and Dock
+previews, and lets you hide apps from the volume mixer. It also cleans up
+the sound of boosted apps and fixes a batch of volume, window layout,
+monitor brightness and paste as plain text issues.
 
 ### Added
 - Mouse button shortcuts. Give any extra mouse button a key combination and
@@ -58,6 +53,9 @@ now fire with any capitalization when you want them to.
 - An app with its volume adjusted in the mixer could lose its sound entirely
   after the Mac woke from sleep, until Vorssaint was quit. The mixer now
   notices when the wake broke its audio path and repairs it on its own.
+- Pasting as plain text could leave the text you typed next carrying the
+  style of the pasted line in some notes and rich text apps. When an app
+  offers its own matching style paste, Vorssaint now uses it.
 - The Drives tab showed a drive's format and location twice, next to its name
   and again in the SMART area. The little tags now appear only once.
 - Some external monitors could go black while their brightness was adjusted,
