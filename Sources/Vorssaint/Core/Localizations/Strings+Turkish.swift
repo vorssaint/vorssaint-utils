@@ -878,6 +878,8 @@ extension Strings {
         highlightsCaptionScreenshot: "Ekran görüntüsü aracına piksel büyüteci ve QR kod okuma eklendi",
         highlightsConfigure: "Ayarla",
         highlightsTry: "Dene",
-        highlightsSeeAll: "Tüm değişiklikleri gör"
+        highlightsSeeAll: "Tüm değişiklikleri gör",
+        switcherCurrentSpaceOnly: "Yalnızca geçerli masaüstünü göster",
+        switcherCurrentSpaceOnlyCaption: "Değiştiricide yalnızca bulunduğunuz masaüstündeki pencereler listelenir. Bir pencere seçmek sizi asla başka bir masaüstüne taşımaz."
     )
 }

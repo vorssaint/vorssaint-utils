@@ -879,6 +879,8 @@ extension Strings {
         highlightsCaptionScreenshot: "Инструмент снимков экрана получил пиксельную лупу и чтение QR-кодов",
         highlightsConfigure: "Настроить",
         highlightsTry: "Попробовать",
-        highlightsSeeAll: "Все изменения"
+        highlightsSeeAll: "Все изменения",
+        switcherCurrentSpaceOnly: "Показывать только текущий рабочий стол",
+        switcherCurrentSpaceOnlyCaption: "В переключателе видны только окна рабочего стола, на котором вы находитесь. Выбор окна никогда не переносит вас на другой рабочий стол."
     )
 }

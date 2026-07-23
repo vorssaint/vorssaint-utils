@@ -878,6 +878,8 @@ extension Strings {
         highlightsCaptionScreenshot: "Lo screenshot ha guadagnato una lente dei pixel e la lettura dei codici QR",
         highlightsConfigure: "Configura",
         highlightsTry: "Prova",
-        highlightsSeeAll: "Vedi tutte le modifiche"
+        highlightsSeeAll: "Vedi tutte le modifiche",
+        switcherCurrentSpaceOnly: "Mostra solo la scrivania attuale",
+        switcherCurrentSpaceOnlyCaption: "Mostra nel commutatore solo le finestre della scrivania in cui ti trovi. Scegliere una finestra non ti porta mai su un'altra scrivania."
     )
 }

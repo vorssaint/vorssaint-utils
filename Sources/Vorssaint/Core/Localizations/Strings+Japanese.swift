@@ -878,6 +878,8 @@ extension Strings {
         highlightsCaptionScreenshot: "スクリーンショットにピクセルルーペとQRコードの読み取りが加わりました",
         highlightsConfigure: "設定する",
         highlightsTry: "試す",
-        highlightsSeeAll: "すべての変更を見る"
+        highlightsSeeAll: "すべての変更を見る",
+        switcherCurrentSpaceOnly: "現在のデスクトップのみ表示",
+        switcherCurrentSpaceOnlyCaption: "今いるデスクトップのウインドウだけをスイッチャーに表示します。ウインドウを選んでも別のデスクトップには移動しません。"
     )
 }

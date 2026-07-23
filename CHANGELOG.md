@@ -30,7 +30,8 @@ from going black while their brightness is adjusted.
 ### Fixed
 - The App Switcher and the Dock previews only showed windows from the
   desktop you were on. Windows parked on other desktops now appear too, and
-  picking one takes you to it.
+  picking one takes you to it. Prefer the old way? An option in the switcher
+  settings keeps it to the current desktop.
 - Restoring the menu panel's quick controls to their default layout now
   brings back a hidden Text snippets toggle too.
 - Boosting an app's volume above 100% no longer adds a crackling noise while

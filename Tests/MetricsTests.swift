@@ -1282,6 +1282,8 @@ struct MetricsTests {
                "App Switcher leaves the system shortcut alone without a foreground app")
         expect(registeredDefaults[DefaultsKey.switcherShowWindowlessFinder] as? Bool == true,
                "Finder without windows stays visible in the switcher by default")
+        expect(registeredDefaults[DefaultsKey.switcherCurrentSpaceOnly] as? Bool == false,
+               "the switcher keeps showing every desktop unless the user opts out (issue #337)")
         expect(registeredDefaults[DefaultsKey.dockPreviewEnabled] as? Bool == false,
                "Dock Preview is opt-in for clean installs")
         expect(registeredDefaults[DefaultsKey.autoCheckUpdates] as? Bool == true,
@@ -5275,6 +5277,12 @@ struct MetricsTests {
             expect(!strings.switcherIconRowModeCaption.isEmpty, "\(prefix) App Switcher icon-row caption is present")
             expect(!strings.switcherSimpleMode.isEmpty, "\(prefix) App Switcher simple-mode title is present")
             expect(!strings.switcherSimpleModeCaption.isEmpty, "\(prefix) App Switcher simple-mode caption is present")
+            expect(!strings.switcherCurrentSpaceOnly.isEmpty
+                   && !strings.switcherCurrentSpaceOnly.contains("—"),
+                   "\(prefix) App Switcher current-desktop title is present without em dash")
+            expect(!strings.switcherCurrentSpaceOnlyCaption.isEmpty
+                   && !strings.switcherCurrentSpaceOnlyCaption.contains("—"),
+                   "\(prefix) App Switcher current-desktop caption is present without em dash")
             expect(!strings.switcherShortcutHintApps.isEmpty, "\(prefix) App Switcher app shortcut hint is present")
             expect(!strings.switcherShortcutHintWindows.isEmpty, "\(prefix) App Switcher window shortcut hint is present")
             expect(!strings.networkApps.isEmpty, "\(prefix) network app usage title is present")

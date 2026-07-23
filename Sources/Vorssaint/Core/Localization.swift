@@ -1023,6 +1023,8 @@ struct Strings {
     let highlightsConfigure: String
     let highlightsTry: String
     let highlightsSeeAll: String
+    let switcherCurrentSpaceOnly: String
+    let switcherCurrentSpaceOnlyCaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -1902,7 +1904,9 @@ extension Strings {
         highlightsCaptionScreenshot: "A captura de tela ganhou uma lupa de pixels e leitura de QR codes",
         highlightsConfigure: "Configurar",
         highlightsTry: "Experimentar",
-        highlightsSeeAll: "Ver todas as mudanças"
+        highlightsSeeAll: "Ver todas as mudanças",
+        switcherCurrentSpaceOnly: "Mostrar só a Mesa atual",
+        switcherCurrentSpaceOnlyCaption: "Mostra no alternador apenas as janelas da Mesa em que você está. Escolher uma janela nunca leva você para outra Mesa."
     )
 }
 
@@ -2783,6 +2787,8 @@ extension Strings {
         highlightsCaptionScreenshot: "The screenshot tool gained a pixel loupe and QR code reading",
         highlightsConfigure: "Set up",
         highlightsTry: "Try it",
-        highlightsSeeAll: "See all changes"
+        highlightsSeeAll: "See all changes",
+        switcherCurrentSpaceOnly: "Show only the current desktop",
+        switcherCurrentSpaceOnlyCaption: "Lists only windows from the desktop you are on. Picking a window never moves you to another desktop."
     )
 }

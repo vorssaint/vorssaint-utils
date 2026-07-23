@@ -27,20 +27,23 @@ enum WindowEnumerator {
         listWindows(filterPID: nil,
                     maximumCount: maximumCount,
                     includeWindowlessFinder: UserDefaults.standard.bool(forKey: DefaultsKey.switcherShowWindowlessFinder),
-                    groupByApp: UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs))
+                    groupByApp: UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs),
+                    currentSpaceOnly: UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly))
     }
 
     static func listWindows(for pid: pid_t, maximumCount: Int = 12) -> [SwitcherItem] {
         listWindows(filterPID: pid,
                     maximumCount: maximumCount,
                     includeWindowlessFinder: false,
-                    groupByApp: false)
+                    groupByApp: false,
+                    currentSpaceOnly: false)
     }
 
     private static func listWindows(filterPID: pid_t?,
                                     maximumCount: Int,
                                     includeWindowlessFinder: Bool,
-                                    groupByApp: Bool) -> [SwitcherItem] {
+                                    groupByApp: Bool,
+                                    currentSpaceOnly: Bool) -> [SwitcherItem] {
         let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
 
         let ownPid = ProcessInfo.processInfo.processIdentifier
@@ -137,6 +140,12 @@ enum WindowEnumerator {
                 : embeddedHostPIDs[windowOwnerPID]
             guard let appPID else { continue }
             if let filterPID, appPID != filterPID { continue }
+            // Current-Space mode (issue #337): windows living on another
+            // desktop are left out entirely, including minimized ones that
+            // kept their desktop of origin, so picking an entry never moves
+            // the user somewhere else. Windows the server cannot place on any
+            // Space are not "elsewhere", so they keep the regular treatment.
+            if currentSpaceOnly, isOnHiddenSpace(CGWindowID(windowID)) { continue }
             let axWindow = accessibilityWindows[windowOwnerPID]?.byID[CGWindowID(windowID)]
             if accessibilityWindows[windowOwnerPID] != nil, axWindow == nil,
                !isOnHiddenSpace(CGWindowID(windowID)) {
@@ -199,7 +208,8 @@ enum WindowEnumerator {
                                        regularApps: regularApps,
                                        embeddedHostPIDs: embeddedHostPIDs,
                                        seen: &seen,
-                                       filterPID: filterPID)
+                                       filterPID: filterPID,
+                                       excludeWindow: { currentSpaceOnly && isOnHiddenSpace($0) })
         if includeWindowlessFinder {
             appendWindowlessFinder(to: &windows, regularApps: regularApps)
         }
@@ -314,7 +324,8 @@ enum WindowEnumerator {
                                                        regularApps: [pid_t: String],
                                                        embeddedHostPIDs: [pid_t: pid_t],
                                                        seen: inout Set<CGWindowID>,
-                                                       filterPID: pid_t?) {
+                                                       filterPID: pid_t?,
+                                                       excludeWindow: (CGWindowID) -> Bool = { _ in false }) {
         let tracker = AppActivationTracker.shared
         let pids = snapshots.keys
             .filter { windowOwnerPID in
@@ -337,6 +348,7 @@ enum WindowEnumerator {
                   let list = snapshots[windowOwnerPID] else { continue }
             for entry in list.ordered {
                 guard !seen.contains(entry.id),
+                      !excludeWindow(entry.id),
                       let frame = switchableFrame(entry.snapshot.frame,
                                                   fallback: nil,
                                                   isMinimized: entry.snapshot.isMinimized) else { continue }

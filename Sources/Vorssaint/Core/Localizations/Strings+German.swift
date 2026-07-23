@@ -878,6 +878,8 @@ extension Strings {
         highlightsCaptionScreenshot: "Das Bildschirmfoto-Werkzeug hat eine Pixel-Lupe und QR-Code-Erkennung erhalten",
         highlightsConfigure: "Einrichten",
         highlightsTry: "Ausprobieren",
-        highlightsSeeAll: "Alle Änderungen ansehen"
+        highlightsSeeAll: "Alle Änderungen ansehen",
+        switcherCurrentSpaceOnly: "Nur den aktuellen Schreibtisch anzeigen",
+        switcherCurrentSpaceOnlyCaption: "Zeigt im Umschalter nur Fenster des Schreibtischs, auf dem du gerade bist. Die Auswahl eines Fensters wechselt nie zu einem anderen Schreibtisch."
     )
 }
