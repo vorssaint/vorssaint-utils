@@ -9,17 +9,27 @@ All notable changes to this project are documented here. The format follows
 ### Summary
 Vorssaint 3.2.0 lets the extra buttons on a mouse press keyboard shortcuts
 you choose, and the App Switcher and Dock previews now show windows sitting
-on other desktops and take you to them. It also cleans up the sound of
-boosted
-apps, keeps apps in the volume mixer from waking up from sleep with no
+on other desktops and take you to them. It also lets you hide apps you never
+adjust from the volume mixer, cleans up the sound of boosted apps, keeps
+apps in the volume mixer from waking up from sleep with no
 sound, brings back per app volume levels that 3.1.15 stopped saving for some
-games and tools, and repairs maximizing and window layout in browsers where
-windows moved without taking their new size.
+games and tools, repairs maximizing and window layout in browsers where
+windows moved without taking their new size, and stops external monitors
+from going black while their brightness is adjusted. Snippet triggers can
+now fire with any capitalization when you want them to.
 
 ### Added
 - Mouse button shortcuts. Give any extra mouse button a key combination and
   it presses those keys for you. Set it up in Settings under Mouse, with a
   quick toggle in the menu panel.
+- Hide apps from the volume mixer. Right click an app in the list, or
+  uncheck it in the new chooser at the bottom of the mixer; hidden apps play
+  normally and the same menu brings them back.
+- Eject one drive at a time. Every removable drive in the Drives tab now
+  carries its own eject button, so you no longer need to eject all of them
+  together or reach for the Finder.
+- Snippet triggers that ignore capitalization. Turn it on for a snippet in
+  its editor and the trigger fires however it is capitalized.
 
 ### Changed
 - Recording a shortcut now keeps the keys to itself. A combination that used
@@ -29,7 +39,8 @@ windows moved without taking their new size.
 ### Fixed
 - The App Switcher and the Dock previews only showed windows from the
   desktop you were on. Windows parked on other desktops now appear too, and
-  picking one takes you to it.
+  picking one takes you to it. Prefer the old way? An option in the switcher
+  settings keeps it to the current desktop.
 - Restoring the menu panel's quick controls to their default layout now
   brings back a hidden Text snippets toggle too.
 - Boosting an app's volume above 100% no longer adds a crackling noise while
@@ -47,6 +58,12 @@ windows moved without taking their new size.
 - An app with its volume adjusted in the mixer could lose its sound entirely
   after the Mac woke from sleep, until Vorssaint was quit. The mixer now
   notices when the wake broke its audio path and repairs it on its own.
+- The Drives tab showed a drive's format and location twice, next to its name
+  and again in the SMART area. The little tags now appear only once.
+- Some external monitors could go black while their brightness was adjusted,
+  until their cable was plugged in again. Brightness commands now keep the
+  spacing monitors expect, and a screen that reconnects always comes back
+  visible.
 - App Switcher now appears without waiting for every open app to answer
   Accessibility queries. Its window list stays warm in the background, and
   the native-like visual threshold starts at the key press instead of after

@@ -23,6 +23,7 @@ enum WindowEnumerator {
         let maximumCount: Int
         let includeWindowlessFinder: Bool
         let groupByApp: Bool
+        let currentSpaceOnly: Bool
         let ownPID: pid_t
         let apps: [RunningApp]
         let ownWindowTitles: [CGWindowID: String]
@@ -35,6 +36,7 @@ enum WindowEnumerator {
                     maximumCount: maximumCount,
                     includeWindowlessFinder: includeWindowlessFinder,
                     groupByApp: groupByApp,
+                    currentSpaceOnly: currentSpaceOnly,
                     ownPID: ownPID,
                     apps: apps,
                     ownWindowTitles: ownWindowTitles,
@@ -89,13 +91,15 @@ enum WindowEnumerator {
         captureSnapshot(using: makeRequest(filterPID: pid,
                                            maximumCount: maximumCount,
                                            includeWindowlessFinder: false,
-                                           groupByApp: false)).items
+                                           groupByApp: false,
+                                           currentSpaceOnly: false)).items
     }
 
     static func makeRequest(filterPID: pid_t? = nil,
                             maximumCount: Int = WindowEnumerator.maximumCount,
                             includeWindowlessFinder: Bool? = nil,
-                            groupByApp: Bool? = nil) -> Request {
+                            groupByApp: Bool? = nil,
+                            currentSpaceOnly: Bool? = nil) -> Request {
         let apps = NSWorkspace.shared.runningApplications.map { app in
             RunningApp(pid: app.processIdentifier,
                        isRegular: app.activationPolicy == .regular,
@@ -119,6 +123,8 @@ enum WindowEnumerator {
                         ?? UserDefaults.standard.bool(forKey: DefaultsKey.switcherShowWindowlessFinder),
                        groupByApp: groupByApp
                         ?? UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs),
+                       currentSpaceOnly: currentSpaceOnly
+                        ?? UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly),
                        ownPID: ProcessInfo.processInfo.processIdentifier,
                        apps: apps,
                        ownWindowTitles: ownWindowTitles,
@@ -226,6 +232,12 @@ enum WindowEnumerator {
                 : embeddedHostPIDs[windowOwnerPID]
             guard let appPID else { continue }
             if let filterPID = request.filterPID, appPID != filterPID { continue }
+            // Current-Space mode (issue #337): windows living on another
+            // desktop are left out entirely, including minimized ones that
+            // kept their desktop of origin, so picking an entry never moves
+            // the user somewhere else. Windows the server cannot place on any
+            // Space are not "elsewhere", so they keep the regular treatment.
+            if request.currentSpaceOnly, isOnHiddenSpace(CGWindowID(windowID)) { continue }
             let axWindow = accessibilityWindows[windowOwnerPID]?.byID[CGWindowID(windowID)]
             if accessibilityWindows[windowOwnerPID] != nil, axWindow == nil,
                !isOnHiddenSpace(CGWindowID(windowID)) {
@@ -291,7 +303,10 @@ enum WindowEnumerator {
                                        seen: &seen,
                                        filterPID: request.filterPID,
                                        ownPID: request.ownPID,
-                                       activationRanks: request.activationRanks)
+                                       activationRanks: request.activationRanks,
+                                       excludeWindow: {
+                                           request.currentSpaceOnly && isOnHiddenSpace($0)
+                                       })
         if request.includeWindowlessFinder {
             appendWindowlessFinder(to: &windows,
                                    regularApps: regularApps,
@@ -456,7 +471,8 @@ enum WindowEnumerator {
                                                        seen: inout Set<CGWindowID>,
                                                        filterPID: pid_t?,
                                                        ownPID: pid_t,
-                                                       activationRanks: [pid_t: Int]) {
+                                                       activationRanks: [pid_t: Int],
+                                                       excludeWindow: (CGWindowID) -> Bool = { _ in false }) {
         let pids = snapshots.keys
             .filter { windowOwnerPID in
                 guard windowOwnerPID != ownPID else { return false }
@@ -478,6 +494,7 @@ enum WindowEnumerator {
                   let list = snapshots[windowOwnerPID] else { continue }
             for entry in list.ordered {
                 guard !seen.contains(entry.id),
+                      !excludeWindow(entry.id),
                       let frame = switchableFrame(entry.snapshot.frame,
                                                   fallback: nil,
                                                   isMinimized: entry.snapshot.isMinimized) else { continue }

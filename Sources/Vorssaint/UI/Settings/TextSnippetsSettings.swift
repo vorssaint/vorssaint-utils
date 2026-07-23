@@ -174,7 +174,12 @@ private struct SnippetEditor: View {
     }
 
     private var duplicateTrigger: Bool {
-        others.contains { $0.trigger == sanitizedTrigger }
+        others.contains { other in
+            if snippet.ignoresCase || other.ignoresCase {
+                return other.trigger.compare(sanitizedTrigger, options: .caseInsensitive) == .orderedSame
+            }
+            return other.trigger == sanitizedTrigger
+        }
     }
 
     var body: some View {
@@ -189,6 +194,7 @@ private struct SnippetEditor: View {
                     Text(text.expansionDelimiter).tag(TextSnippet.Expansion.afterDelimiter)
                     Text(text.expansionImmediate).tag(TextSnippet.Expansion.immediate)
                 }
+                Toggle(text.ignoreCaseLabel, isOn: $snippet.ignoresCase)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(text.replacementLabel)
                     TextEditor(text: $snippet.replacement)

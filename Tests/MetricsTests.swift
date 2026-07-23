@@ -1303,6 +1303,8 @@ struct MetricsTests {
                "App Switcher leaves the system shortcut alone without a foreground app")
         expect(registeredDefaults[DefaultsKey.switcherShowWindowlessFinder] as? Bool == true,
                "Finder without windows stays visible in the switcher by default")
+        expect(registeredDefaults[DefaultsKey.switcherCurrentSpaceOnly] as? Bool == false,
+               "the switcher keeps showing every desktop unless the user opts out (issue #337)")
         expect(registeredDefaults[DefaultsKey.dockPreviewEnabled] as? Bool == false,
                "Dock Preview is opt-in for clean installs")
         expect(registeredDefaults[DefaultsKey.autoCheckUpdates] as? Bool == true,
@@ -3217,17 +3219,40 @@ struct MetricsTests {
                "a volume changed since the app lowered it is left alone")
         expect(!MixerRoutingSupport.shouldRestoreOutputVolume(appliedVolume: 0.25, currentVolume: nil),
                "a volume that cannot be read is left alone")
-        expect(!MixerRoutingSupport.isHiddenFromMixer(bundleIdentifier: "com.apple.finder",
-                                                      showFinder: true),
+        expect(!MixerRoutingSupport.isHiddenFromMixer(
+                    persistenceID: "com.apple.finder",
+                    hiddenIDs: MixerRoutingSupport.hiddenRowIDs(hiddenApps: [:], showFinder: true)),
                "Finder shows in the mixer when enabled")
-        expect(MixerRoutingSupport.isHiddenFromMixer(bundleIdentifier: "com.apple.finder",
-                                                     showFinder: false),
+        expect(MixerRoutingSupport.isHiddenFromMixer(
+                    persistenceID: "com.apple.finder",
+                    hiddenIDs: MixerRoutingSupport.hiddenRowIDs(hiddenApps: [:], showFinder: false)),
                "Finder can be hidden from the mixer")
-        expect(!MixerRoutingSupport.isHiddenFromMixer(bundleIdentifier: "com.example.Player",
-                                                      showFinder: false),
+        expect(MixerRoutingSupport.isHiddenFromMixer(
+                    persistenceID: "com.example.Player",
+                    hiddenIDs: MixerRoutingSupport.hiddenRowIDs(
+                        hiddenApps: ["com.example.Player": "Player"], showFinder: true)),
+               "any app the user hid stays out of the mixer list")
+        expect(!MixerRoutingSupport.isHiddenFromMixer(
+                    persistenceID: "com.example.Player",
+                    hiddenIDs: MixerRoutingSupport.hiddenRowIDs(hiddenApps: [:], showFinder: false)),
                "hiding Finder leaves every other app visible")
-        expect(!MixerRoutingSupport.isHiddenFromMixer(bundleIdentifier: nil, showFinder: false),
-               "apps without a bundle id still show in the mixer")
+        expect(MixerRoutingSupport.isHiddenFromMixer(
+                    persistenceID: "Bare Tool",
+                    hiddenIDs: MixerRoutingSupport.hiddenRowIDs(
+                        hiddenApps: ["Bare Tool": "Bare Tool"], showFinder: true)),
+               "apps saved under a display name can be hidden too")
+        expect(!MixerRoutingSupport.isHiddenFromMixer(persistenceID: nil,
+                                                      hiddenIDs: ["com.example.Player"]),
+               "a row with nothing to remember it by is always listed")
+        let hiddenSanitized = MixerRoutingSupport.sanitizedHiddenApps([
+            "com.example.Player": "Player",
+            "com.apple.finder": "Finder",
+            "": "Nameless",
+            "com.example.Silent": "",
+            "com.example.Broken": 3,
+        ])
+        expect(hiddenSanitized == ["com.example.Player": "Player"],
+               "the hidden map keeps only real entries and never carries the Finder")
         expect(MixerRoutingSupport.needsPersistentFinderRow(showFinder: true,
                                                             hasFinderRow: false),
                "Finder gets a persistent row before Quick Look opens")
@@ -5305,6 +5330,12 @@ struct MetricsTests {
             expect(!strings.switcherIconRowModeCaption.isEmpty, "\(prefix) App Switcher icon-row caption is present")
             expect(!strings.switcherSimpleMode.isEmpty, "\(prefix) App Switcher simple-mode title is present")
             expect(!strings.switcherSimpleModeCaption.isEmpty, "\(prefix) App Switcher simple-mode caption is present")
+            expect(!strings.switcherCurrentSpaceOnly.isEmpty
+                   && !strings.switcherCurrentSpaceOnly.contains("—"),
+                   "\(prefix) App Switcher current-desktop title is present without em dash")
+            expect(!strings.switcherCurrentSpaceOnlyCaption.isEmpty
+                   && !strings.switcherCurrentSpaceOnlyCaption.contains("—"),
+                   "\(prefix) App Switcher current-desktop caption is present without em dash")
             expect(!strings.switcherShortcutHintApps.isEmpty, "\(prefix) App Switcher app shortcut hint is present")
             expect(!strings.switcherShortcutHintWindows.isEmpty, "\(prefix) App Switcher window shortcut hint is present")
             expect(!strings.networkApps.isEmpty, "\(prefix) network app usage title is present")
@@ -6071,6 +6102,29 @@ struct MetricsTests {
         expect(!BrightnessSupport.canDisableDisplay(activeDisplayIDs: [1, 3], target: 8),
                "an inactive display cannot enter the disable path")
 
+        expect(BrightnessSupport.ddcCommandDelay(nowMicroseconds: 1_000_000,
+                                                 lastCommandEndMicroseconds: nil) == 0,
+               "the first DDC command to a display waits nothing")
+        expect(BrightnessSupport.ddcCommandDelay(nowMicroseconds: 1_010_000,
+                                                 lastCommandEndMicroseconds: 1_000_000) == 40_000,
+               "a command chasing another waits out the standard's interval")
+        expect(BrightnessSupport.ddcCommandDelay(nowMicroseconds: 1_050_000,
+                                                 lastCommandEndMicroseconds: 1_000_000) == 0
+                && BrightnessSupport.ddcCommandDelay(nowMicroseconds: 2_000_000,
+                                                     lastCommandEndMicroseconds: 1_000_000) == 0,
+               "an elapsed interval clears the wait entirely")
+        expect(BrightnessSupport.ddcCommandDelay(nowMicroseconds: 1_000_000,
+                                                 lastCommandEndMicroseconds: 2_000_000) == 0,
+               "a clock that moved backwards never blocks the bus")
+
+        expect(BrightnessSupport.reconnectedDimLevel(0.0) == BrightnessSupport.reconnectionDimFloor
+                && BrightnessSupport.reconnectedDimLevel(0.1) == BrightnessSupport.reconnectionDimFloor,
+               "a near-black dim returns from a connection gap at the visible floor")
+        expect(BrightnessSupport.reconnectedDimLevel(0.7) == 0.7
+                && BrightnessSupport.reconnectedDimLevel(1.0) == 1.0
+                && BrightnessSupport.reconnectedDimLevel(1.4) == 1.0,
+               "visible dim levels return from a gap untouched, clamped to the range")
+
         expect(BrightnessSupport.softwareDimFactor(for: 1.0) == 1.0
                 && BrightnessSupport.softwareDimFactor(for: 0.0) == 0.0,
                "software dimming spans the whole range and zero really is black")
@@ -6256,10 +6310,34 @@ struct MetricsTests {
         expect(TextSnippetSupport.expand("plain", date: fixedDate, clipboard: nil) == "plain",
                "text without variables passes through untouched")
 
-        let storedSnippets = [email, dateSnippet]
+        // Per-snippet capitalization option (issue #304)
+        let caseless = TextSnippet(name: "Caseless", trigger: ";email", replacement: "me@x.com",
+                                   expansion: .afterDelimiter, enabled: true, ignoresCase: true)
+        expect(TextSnippetSupport.match(buffer: "x ;EMAIL", expansion: .afterDelimiter,
+                                        snippets: [caseless]) == caseless
+                && TextSnippetSupport.match(buffer: "x ;EmAiL", expansion: .afterDelimiter,
+                                            snippets: [caseless]) == caseless,
+               "a snippet that ignores capitalization fires on any casing")
+        expect(TextSnippetSupport.match(buffer: "x ;EMAIL", expansion: .afterDelimiter,
+                                        snippets: [email]) == nil,
+               "exact snippets still require the configured casing")
+        expect(TextSnippetSupport.match(buffer: ";EMAI", expansion: .afterDelimiter,
+                                        snippets: [caseless]) == nil,
+               "a half-typed trigger stays quiet regardless of casing")
+        expect(!TextSnippetSupport.completes(";e", trigger: ";email", ignoresCase: true),
+               "a buffer shorter than the trigger never completes it")
+
+        let storedSnippets = [email, dateSnippet, caseless]
         expect(TextSnippetSupport.decode(TextSnippetSupport.encode(storedSnippets)) == storedSnippets,
                "snippets round-trip through persistence")
         expect(TextSnippetSupport.decode(nil).isEmpty, "no stored data means no snippets")
+        let legacySnippetJSON = """
+        [{"id":"1B6E2F0A-1111-4222-8333-444455556666","name":"Old","trigger":";old",\
+        "replacement":"x","expansion":"afterDelimiter","enabled":true}]
+        """
+        let legacySnippets = TextSnippetSupport.decode(legacySnippetJSON.data(using: .utf8))
+        expect(legacySnippets.count == 1 && legacySnippets.first?.ignoresCase == false,
+               "snippets saved before the capitalization option decode and keep matching exactly")
 
         // MARK: Radial menu (issue #220)
 

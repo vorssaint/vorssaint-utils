@@ -530,7 +530,10 @@ extension Strings {
         mixerInputFallback: "Bu mikrofon geri dönene kadar varsayılan kullanılıyor.",
         mixerInputTooltip: "Mikrofon seç",
         mixerInputErrorFormat: "Geçiş yapılamadı: %@",
-        mixerShowFinder: "Finder'ı göster",
+        mixerVisibleApps: "Listedeki uygulamalar",
+        mixerAllShown: "Tümü",
+        mixerHiddenCountLabel: "Gizli",
+        mixerHideFromList: "Listeden gizle",
 
         updatesSection: "Güncellemeler",
         autoCheckToggle: "Güncellemeleri otomatik denetle",
@@ -878,6 +881,8 @@ extension Strings {
         highlightsCaptionScreenshot: "Ekran görüntüsü aracına piksel büyüteci ve QR kod okuma eklendi",
         highlightsConfigure: "Ayarla",
         highlightsTry: "Dene",
-        highlightsSeeAll: "Tüm değişiklikleri gör"
+        highlightsSeeAll: "Tüm değişiklikleri gör",
+        switcherCurrentSpaceOnly: "Yalnızca geçerli masaüstünü göster",
+        switcherCurrentSpaceOnlyCaption: "Değiştiricide yalnızca bulunduğunuz masaüstündeki pencereler listelenir. Bir pencere seçmek sizi asla başka bir masaüstüne taşımaz."
     )
 }

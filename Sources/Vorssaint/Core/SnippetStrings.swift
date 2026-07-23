@@ -31,6 +31,7 @@ struct SnippetFeatureStrings {
     let deleteButton: String
     let saveButton: String
     let manageButton: String
+    let ignoreCaseLabel: String
 }
 
 extension FeatureStrings {
@@ -78,7 +79,8 @@ extension SnippetFeatureStrings {
         triggerTooShort: "트리거는 2자 이상이어야 합니다.",
         deleteButton: "삭제",
         saveButton: "저장",
-        manageButton: "스니펫 관리"
+        manageButton: "스니펫 관리",
+        ignoreCaseLabel: "대소문자 구분 안 함"
     )
 }
 
@@ -107,7 +109,8 @@ extension SnippetFeatureStrings {
         triggerTooShort: "The trigger needs at least 2 characters.",
         deleteButton: "Delete",
         saveButton: "Save",
-        manageButton: "Manage snippets"
+        manageButton: "Manage snippets",
+        ignoreCaseLabel: "Ignore capitalization"
     )
 
     static let ptBR = SnippetFeatureStrings(
@@ -134,7 +137,8 @@ extension SnippetFeatureStrings {
         triggerTooShort: "O gatilho precisa de pelo menos 2 caracteres.",
         deleteButton: "Apagar",
         saveButton: "Salvar",
-        manageButton: "Gerenciar snippets"
+        manageButton: "Gerenciar snippets",
+        ignoreCaseLabel: "Ignorar maiúsculas e minúsculas"
     )
 
     static let tr = SnippetFeatureStrings(
@@ -161,7 +165,8 @@ extension SnippetFeatureStrings {
         triggerTooShort: "Tetikleyici en az 2 karakter olmalı.",
         deleteButton: "Sil",
         saveButton: "Kaydet",
-        manageButton: "Parçacıkları yönet"
+        manageButton: "Parçacıkları yönet",
+        ignoreCaseLabel: "Büyük küçük harf farkını yok say"
     )
 
     static let ru = SnippetFeatureStrings(
@@ -188,7 +193,8 @@ extension SnippetFeatureStrings {
         triggerTooShort: "Триггеру нужно не меньше 2 символов.",
         deleteButton: "Удалить",
         saveButton: "Сохранить",
-        manageButton: "Управление сниппетами"
+        manageButton: "Управление сниппетами",
+        ignoreCaseLabel: "Не учитывать регистр"
     )
 
     static let es = SnippetFeatureStrings(
@@ -215,7 +221,8 @@ extension SnippetFeatureStrings {
         triggerTooShort: "El disparador necesita al menos 2 caracteres.",
         deleteButton: "Eliminar",
         saveButton: "Guardar",
-        manageButton: "Gestionar fragmentos"
+        manageButton: "Gestionar fragmentos",
+        ignoreCaseLabel: "Ignorar mayúsculas y minúsculas"
     )
 
     static let de = SnippetFeatureStrings(
@@ -242,7 +249,8 @@ extension SnippetFeatureStrings {
         triggerTooShort: "Das Kürzel braucht mindestens 2 Zeichen.",
         deleteButton: "Löschen",
         saveButton: "Sichern",
-        manageButton: "Textbausteine verwalten"
+        manageButton: "Textbausteine verwalten",
+        ignoreCaseLabel: "Groß- und Kleinschreibung ignorieren"
     )
 
     static let fr = SnippetFeatureStrings(
@@ -269,7 +277,8 @@ extension SnippetFeatureStrings {
         triggerTooShort: "Le déclencheur doit faire au moins 2 caractères.",
         deleteButton: "Supprimer",
         saveButton: "Enregistrer",
-        manageButton: "Gérer les extraits"
+        manageButton: "Gérer les extraits",
+        ignoreCaseLabel: "Ignorer les majuscules et minuscules"
     )
 
     static let it = SnippetFeatureStrings(
@@ -296,7 +305,8 @@ extension SnippetFeatureStrings {
         triggerTooShort: "Il trigger richiede almeno 2 caratteri.",
         deleteButton: "Elimina",
         saveButton: "Salva",
-        manageButton: "Gestisci frammenti"
+        manageButton: "Gestisci frammenti",
+        ignoreCaseLabel: "Ignora maiuscole e minuscole"
     )
 
     static let ja = SnippetFeatureStrings(
@@ -323,7 +333,8 @@ extension SnippetFeatureStrings {
         triggerTooShort: "トリガーは2文字以上必要です。",
         deleteButton: "削除",
         saveButton: "保存",
-        manageButton: "スニペットを管理"
+        manageButton: "スニペットを管理",
+        ignoreCaseLabel: "大文字と小文字を区別しない"
     )
 
     static let zhHans = SnippetFeatureStrings(
@@ -350,7 +361,8 @@ extension SnippetFeatureStrings {
         triggerTooShort: "触发词至少需要 2 个字符。",
         deleteButton: "删除",
         saveButton: "存储",
-        manageButton: "管理文本片段"
+        manageButton: "管理文本片段",
+        ignoreCaseLabel: "忽略大小写"
     )
 
     static let zhTW = SnippetFeatureStrings(
@@ -377,7 +389,8 @@ extension SnippetFeatureStrings {
         triggerTooShort: "觸發詞至少需要 2 個字元。",
         deleteButton: "刪除",
         saveButton: "儲存",
-        manageButton: "管理文字片段"
+        manageButton: "管理文字片段",
+        ignoreCaseLabel: "忽略大小寫"
     )
 
     static let zhHK = SnippetFeatureStrings(
@@ -404,6 +417,7 @@ extension SnippetFeatureStrings {
         triggerTooShort: "觸發詞至少需要 2 個字元。",
         deleteButton: "刪除",
         saveButton: "儲存",
-        manageButton: "管理文字片段"
+        manageButton: "管理文字片段",
+        ignoreCaseLabel: "忽略大小寫"
     )
 }

@@ -34,6 +34,7 @@ enum SettingsBackupSupport {
         DefaultsKey.language,
         DefaultsKey.appVolumes,
         DefaultsKey.appOutputDevices,
+        DefaultsKey.mixerHiddenApps,
         DefaultsKey.preferredInputDevice,
         DefaultsKey.soundOutputSwitcherDeviceUIDs,
         DefaultsKey.menuBarCPU,

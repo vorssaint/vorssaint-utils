@@ -21,6 +21,26 @@ struct TextSnippet: Codable, Identifiable, Equatable {
     var replacement = ""
     var expansion = Expansion.afterDelimiter
     var enabled = true
+    var ignoresCase = false
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, trigger, replacement, expansion, enabled, ignoresCase
+    }
+}
+
+extension TextSnippet {
+    /// Snippets stored before the capitalization option existed have no
+    /// `ignoresCase` key; they keep matching exactly, as they always did.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        trigger = try container.decode(String.self, forKey: .trigger)
+        replacement = try container.decode(String.self, forKey: .replacement)
+        expansion = try container.decode(Expansion.self, forKey: .expansion)
+        enabled = try container.decode(Bool.self, forKey: .enabled)
+        ignoresCase = try container.decodeIfPresent(Bool.self, forKey: .ignoresCase) ?? false
+    }
 }
 
 /// The pure half of the snippets engine: buffer bookkeeping, trigger
@@ -58,11 +78,21 @@ enum TextSnippetSupport {
         for snippet in snippets where snippet.enabled
             && snippet.expansion == expansion
             && !snippet.trigger.isEmpty
-            && buffer.hasSuffix(snippet.trigger) {
+            && completes(buffer, trigger: snippet.trigger, ignoresCase: snippet.ignoresCase) {
             if let current = best, current.trigger.count >= snippet.trigger.count { continue }
             best = snippet
         }
         return best
+    }
+
+    /// Whether the buffer just finished typing the trigger. The insensitive
+    /// path compares exactly `trigger.count` characters, so the deletes the
+    /// expansion posts always erase precisely what the user typed.
+    static func completes(_ buffer: String, trigger: String, ignoresCase: Bool) -> Bool {
+        guard ignoresCase else { return buffer.hasSuffix(trigger) }
+        guard buffer.count >= trigger.count else { return false }
+        return String(buffer.suffix(trigger.count))
+            .compare(trigger, options: .caseInsensitive) == .orderedSame
     }
 
     /// Replaces the dynamic variables. Unknown {{tags}} pass through

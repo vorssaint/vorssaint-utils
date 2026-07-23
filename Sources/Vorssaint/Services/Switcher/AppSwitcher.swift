@@ -751,7 +751,8 @@ final class AppSwitcher: ObservableObject {
         let request = WindowEnumerator.makeRequest(filterPID: pid,
                                                    maximumCount: 64,
                                                    includeWindowlessFinder: false,
-                                                   groupByApp: false)
+                                                   groupByApp: false,
+                                                   currentSpaceOnly: false)
         closeVerificationQueue.async { [weak self] in
             dispatchPrecondition(condition: .notOnQueue(.main))
             let snapshot = autoreleasepool {

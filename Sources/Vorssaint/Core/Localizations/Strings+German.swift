@@ -530,7 +530,10 @@ extension Strings {
         mixerInputFallback: "Standard wird verwendet, bis dieses Mikrofon zurück ist.",
         mixerInputTooltip: "Mikrofon wählen",
         mixerInputErrorFormat: "Wechsel fehlgeschlagen: %@",
-        mixerShowFinder: "Finder anzeigen",
+        mixerVisibleApps: "Apps in der Liste",
+        mixerAllShown: "Alle",
+        mixerHiddenCountLabel: "Ausgeblendet",
+        mixerHideFromList: "Aus der Liste ausblenden",
 
         updatesSection: "Updates",
         autoCheckToggle: "Automatisch nach Updates suchen",
@@ -878,6 +881,8 @@ extension Strings {
         highlightsCaptionScreenshot: "Das Bildschirmfoto-Werkzeug hat eine Pixel-Lupe und QR-Code-Erkennung erhalten",
         highlightsConfigure: "Einrichten",
         highlightsTry: "Ausprobieren",
-        highlightsSeeAll: "Alle Änderungen ansehen"
+        highlightsSeeAll: "Alle Änderungen ansehen",
+        switcherCurrentSpaceOnly: "Nur den aktuellen Schreibtisch anzeigen",
+        switcherCurrentSpaceOnlyCaption: "Zeigt im Umschalter nur Fenster des Schreibtischs, auf dem du gerade bist. Die Auswahl eines Fensters wechselt nie zu einem anderen Schreibtisch."
     )
 }

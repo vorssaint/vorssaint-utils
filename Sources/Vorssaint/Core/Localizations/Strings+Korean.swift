@@ -531,7 +531,10 @@ extension Strings {
         mixerInputFallback: "이 마이크가 돌아올 때까지 기본 입력을 사용합니다.",
         mixerInputTooltip: "마이크 선택",
         mixerInputErrorFormat: "변경하지 못했습니다: %@",
-        mixerShowFinder: "Finder 표시",
+        mixerVisibleApps: "목록에 표시할 앱",
+        mixerAllShown: "모두",
+        mixerHiddenCountLabel: "숨김",
+        mixerHideFromList: "목록에서 숨기기",
 
         updatesSection: "업데이트",
         autoCheckToggle: "업데이트 자동 확인",
@@ -879,6 +882,8 @@ extension Strings {
         highlightsCaptionScreenshot: "스크린샷 도구에 픽셀 루페와 QR 코드 읽기가 추가되었습니다",
         highlightsConfigure: "설정하기",
         highlightsTry: "사용해 보기",
-        highlightsSeeAll: "모든 변경 사항 보기"
+        highlightsSeeAll: "모든 변경 사항 보기",
+        switcherCurrentSpaceOnly: "현재 데스크탑만 표시",
+        switcherCurrentSpaceOnlyCaption: "지금 있는 데스크탑의 윈도우만 전환기에 표시합니다. 윈도우를 선택해도 다른 데스크탑으로 이동하지 않습니다."
     )
 }

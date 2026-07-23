@@ -825,6 +825,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherSimpleMode) private var switcherSimpleMode = false
     @AppStorage(DefaultsKey.switcherMergeTabs) private var switcherMergeTabs = false
     @AppStorage(DefaultsKey.switcherShowWindowlessFinder) private var switcherShowWindowlessFinder = true
+    @AppStorage(DefaultsKey.switcherCurrentSpaceOnly) private var switcherCurrentSpaceOnly = false
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
@@ -883,6 +884,12 @@ struct SwitcherSettings: View {
                     Toggle(l10n.s.switcherMergeTabs, isOn: $switcherMergeTabs)
                         .disabled(!switcherEnabled)
                     Text(l10n.s.switcherMergeTabsCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Toggle(l10n.s.switcherCurrentSpaceOnly, isOn: $switcherCurrentSpaceOnly)
+                        .disabled(!switcherEnabled)
+                    Text(l10n.s.switcherCurrentSpaceOnlyCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
 

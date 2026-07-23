@@ -433,7 +433,8 @@ final class WindowPreviewProvider {
             let request = WindowEnumerator.makeRequest(filterPID: pid,
                                                        maximumCount: 12,
                                                        includeWindowlessFinder: false,
-                                                       groupByApp: false)
+                                                       groupByApp: false,
+                                                       currentSpaceOnly: false)
             warmTask = Task(priority: .utility) { [weak self] in
                 guard let self else { return }
                 let snapshot = await self.warmSnapshot(using: request)

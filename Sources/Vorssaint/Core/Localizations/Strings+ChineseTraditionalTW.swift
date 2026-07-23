@@ -531,7 +531,10 @@ extension Strings {
         mixerInputFallback: "此麥克風重新可用前，使用預設輸入。",
         mixerInputTooltip: "選擇麥克風",
         mixerInputErrorFormat: "無法切換：%@",
-        mixerShowFinder: "顯示 Finder",
+        mixerVisibleApps: "列表中的 App",
+        mixerAllShown: "全部",
+        mixerHiddenCountLabel: "已隱藏",
+        mixerHideFromList: "從列表中隱藏",
 
         updatesSection: "更新",
         autoCheckToggle: "自動檢查更新",
@@ -879,6 +882,8 @@ extension Strings {
         highlightsCaptionScreenshot: "截圖工具新增了像素放大鏡和 QR 碼讀取",
         highlightsConfigure: "設定",
         highlightsTry: "試試看",
-        highlightsSeeAll: "查看所有變更"
+        highlightsSeeAll: "查看所有變更",
+        switcherCurrentSpaceOnly: "僅顯示目前的桌面",
+        switcherCurrentSpaceOnlyCaption: "切換器中只顯示你所在桌面的視窗。選擇視窗不會把你帶到其他桌面。"
     )
 }

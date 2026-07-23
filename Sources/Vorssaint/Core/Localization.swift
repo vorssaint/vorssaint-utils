@@ -655,7 +655,10 @@ struct Strings {
     let mixerInputFallback: String
     let mixerInputTooltip: String
     let mixerInputErrorFormat: String
-    let mixerShowFinder: String
+    let mixerVisibleApps: String
+    let mixerAllShown: String
+    let mixerHiddenCountLabel: String
+    let mixerHideFromList: String
 
     // MARK: Settings — updates
     let updatesSection: String
@@ -1023,6 +1026,8 @@ struct Strings {
     let highlightsConfigure: String
     let highlightsTry: String
     let highlightsSeeAll: String
+    let switcherCurrentSpaceOnly: String
+    let switcherCurrentSpaceOnlyCaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -1554,7 +1559,10 @@ extension Strings {
         mixerInputFallback: "Usando o padrão até esse microfone voltar.",
         mixerInputTooltip: "Escolher microfone",
         mixerInputErrorFormat: "Não foi possível trocar: %@",
-        mixerShowFinder: "Mostrar Finder",
+        mixerVisibleApps: "Apps na lista",
+        mixerAllShown: "Todos",
+        mixerHiddenCountLabel: "Escondidos",
+        mixerHideFromList: "Esconder da lista",
 
         updatesSection: "Atualizações",
         autoCheckToggle: "Procurar atualizações automaticamente",
@@ -1902,7 +1910,9 @@ extension Strings {
         highlightsCaptionScreenshot: "A captura de tela ganhou uma lupa de pixels e leitura de QR codes",
         highlightsConfigure: "Configurar",
         highlightsTry: "Experimentar",
-        highlightsSeeAll: "Ver todas as mudanças"
+        highlightsSeeAll: "Ver todas as mudanças",
+        switcherCurrentSpaceOnly: "Mostrar só a Mesa atual",
+        switcherCurrentSpaceOnlyCaption: "Mostra no alternador apenas as janelas da Mesa em que você está. Escolher uma janela nunca leva você para outra Mesa."
     )
 }
 
@@ -2435,7 +2445,10 @@ extension Strings {
         mixerInputFallback: "Using default until this microphone returns.",
         mixerInputTooltip: "Choose microphone",
         mixerInputErrorFormat: "Could not switch: %@",
-        mixerShowFinder: "Show Finder",
+        mixerVisibleApps: "Apps in the list",
+        mixerAllShown: "All",
+        mixerHiddenCountLabel: "Hidden",
+        mixerHideFromList: "Hide from the list",
 
         updatesSection: "Updates",
         autoCheckToggle: "Check for updates automatically",
@@ -2783,6 +2796,8 @@ extension Strings {
         highlightsCaptionScreenshot: "The screenshot tool gained a pixel loupe and QR code reading",
         highlightsConfigure: "Set up",
         highlightsTry: "Try it",
-        highlightsSeeAll: "See all changes"
+        highlightsSeeAll: "See all changes",
+        switcherCurrentSpaceOnly: "Show only the current desktop",
+        switcherCurrentSpaceOnlyCaption: "Lists only windows from the desktop you are on. Picking a window never moves you to another desktop."
     )
 }

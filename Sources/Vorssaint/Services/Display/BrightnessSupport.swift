@@ -24,6 +24,26 @@ enum BrightnessSupport {
     static let retryAttempts = 4
     static let replyLength = 11
 
+    /// The DDC/CI standard also spaces whole commands apart: a host waits at
+    /// least 50ms after one command before starting the next. The pauses
+    /// above pace the steps inside a command; without this one, a slider
+    /// drag or a held brightness key chains commands at the write pause,
+    /// five times faster than monitors are promised, and some react to the
+    /// stream by dropping their signal until they are power cycled
+    /// (issue #301).
+    static let commandIntervalMicroseconds: UInt64 = 50_000
+
+    /// How long the next command must still wait, given when the previous
+    /// one to the same display finished. A first command, or a clock that
+    /// moved backwards, waits nothing.
+    static func ddcCommandDelay(nowMicroseconds: UInt64,
+                                lastCommandEndMicroseconds: UInt64?) -> UInt32 {
+        guard let last = lastCommandEndMicroseconds, last <= nowMicroseconds else { return 0 }
+        let elapsed = nowMicroseconds - last
+        guard elapsed < commandIntervalMicroseconds else { return 0 }
+        return UInt32(commandIntervalMicroseconds - elapsed)
+    }
+
     /// Wraps a DDC payload: length-tagged header, payload, XOR checksum. The
     /// checksum seed covers the destination address, and the sub-address only
     /// participates for multi-byte payloads (single-byte requests omit it).
@@ -110,6 +130,18 @@ enum BrightnessSupport {
     static func scaledGammaTable(_ table: [Float], factor: Float) -> [Float] {
         guard factor < 1 else { return table }
         return table.map { $0 * factor }
+    }
+
+    /// The dim level put back on a display that just returned from a
+    /// connection gap. The saved level is honoured, but never so dark that
+    /// the screen reads as dead: replugging the cable is the one gesture
+    /// left to someone facing a black picture, and it has to land on
+    /// something visible (issue #301). Live control is untouched and still
+    /// reaches true black.
+    static let reconnectionDimFloor = 0.25
+
+    static func reconnectedDimLevel(_ saved: Double) -> Double {
+        max(min(saved, 1), reconnectionDimFloor)
     }
 
     // MARK: - Brightness keys

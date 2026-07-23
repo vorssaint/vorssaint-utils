@@ -372,8 +372,34 @@ enum MixerRoutingSupport {
         "com.motu.",             // Digital Performer
     ]
 
-    static func isHiddenFromMixer(bundleIdentifier: String?, showFinder: Bool) -> Bool {
-        bundleIdentifier == finderBundleIdentifier && !showFinder
+    /// The hidden-apps map as stored: persistence id to display name, both
+    /// sanitized. The Finder entry never lives here — its visibility has its
+    /// own preference key — so an entry for it (an old backup, a hand-edited
+    /// plist) is dropped instead of shadowing that key.
+    static func sanitizedHiddenApps(_ raw: [String: Any]) -> [String: String] {
+        var sanitized: [String: String] = [:]
+        for (rawID, rawName) in raw {
+            guard let appID = sanitizedAppID(rawID),
+                  appID != finderBundleIdentifier,
+                  let name = sanitizedAppID((rawName as? String) ?? "") else { continue }
+            sanitized[appID] = name
+        }
+        return sanitized
+    }
+
+    /// Every persistence id a refresh must leave out of the list: the apps the
+    /// user hid, plus the Finder while its own toggle says so.
+    static func hiddenRowIDs(hiddenApps: [String: String], showFinder: Bool) -> Set<String> {
+        var ids = Set(hiddenApps.keys)
+        if !showFinder { ids.insert(finderBundleIdentifier) }
+        return ids
+    }
+
+    /// A row without a persistence id cannot be hidden: there is no stable key
+    /// to remember it under, so it is always listed while it runs.
+    static func isHiddenFromMixer(persistenceID: String?, hiddenIDs: Set<String>) -> Bool {
+        guard let persistenceID else { return false }
+        return hiddenIDs.contains(persistenceID)
     }
 
     /// How many parent processes to inspect when the responsible process is
