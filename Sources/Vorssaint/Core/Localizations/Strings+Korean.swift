@@ -531,7 +531,10 @@ extension Strings {
         mixerInputFallback: "이 마이크가 돌아올 때까지 기본 입력을 사용합니다.",
         mixerInputTooltip: "마이크 선택",
         mixerInputErrorFormat: "변경하지 못했습니다: %@",
-        mixerShowFinder: "Finder 표시",
+        mixerVisibleApps: "목록에 표시할 앱",
+        mixerAllShown: "모두",
+        mixerHiddenCountLabel: "숨김",
+        mixerHideFromList: "목록에서 숨기기",
 
         updatesSection: "업데이트",
         autoCheckToggle: "업데이트 자동 확인",

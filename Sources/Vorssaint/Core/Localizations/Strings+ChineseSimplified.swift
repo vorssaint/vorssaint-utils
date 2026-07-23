@@ -530,7 +530,10 @@ extension Strings {
         mixerInputFallback: "在此麦克风恢复前使用默认输入。",
         mixerInputTooltip: "选择麦克风",
         mixerInputErrorFormat: "无法切换：%@",
-        mixerShowFinder: "显示访达",
+        mixerVisibleApps: "列表中的应用",
+        mixerAllShown: "全部",
+        mixerHiddenCountLabel: "已隐藏",
+        mixerHideFromList: "从列表中隐藏",
 
         updatesSection: "更新",
         autoCheckToggle: "自动检查更新",

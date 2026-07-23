@@ -655,7 +655,10 @@ struct Strings {
     let mixerInputFallback: String
     let mixerInputTooltip: String
     let mixerInputErrorFormat: String
-    let mixerShowFinder: String
+    let mixerVisibleApps: String
+    let mixerAllShown: String
+    let mixerHiddenCountLabel: String
+    let mixerHideFromList: String
 
     // MARK: Settings — updates
     let updatesSection: String
@@ -1556,7 +1559,10 @@ extension Strings {
         mixerInputFallback: "Usando o padrão até esse microfone voltar.",
         mixerInputTooltip: "Escolher microfone",
         mixerInputErrorFormat: "Não foi possível trocar: %@",
-        mixerShowFinder: "Mostrar Finder",
+        mixerVisibleApps: "Apps na lista",
+        mixerAllShown: "Todos",
+        mixerHiddenCountLabel: "Escondidos",
+        mixerHideFromList: "Esconder da lista",
 
         updatesSection: "Atualizações",
         autoCheckToggle: "Procurar atualizações automaticamente",
@@ -2439,7 +2445,10 @@ extension Strings {
         mixerInputFallback: "Using default until this microphone returns.",
         mixerInputTooltip: "Choose microphone",
         mixerInputErrorFormat: "Could not switch: %@",
-        mixerShowFinder: "Show Finder",
+        mixerVisibleApps: "Apps in the list",
+        mixerAllShown: "All",
+        mixerHiddenCountLabel: "Hidden",
+        mixerHideFromList: "Hide from the list",
 
         updatesSection: "Updates",
         autoCheckToggle: "Check for updates automatically",

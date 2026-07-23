@@ -3198,17 +3198,40 @@ struct MetricsTests {
                "a volume changed since the app lowered it is left alone")
         expect(!MixerRoutingSupport.shouldRestoreOutputVolume(appliedVolume: 0.25, currentVolume: nil),
                "a volume that cannot be read is left alone")
-        expect(!MixerRoutingSupport.isHiddenFromMixer(bundleIdentifier: "com.apple.finder",
-                                                      showFinder: true),
+        expect(!MixerRoutingSupport.isHiddenFromMixer(
+                    persistenceID: "com.apple.finder",
+                    hiddenIDs: MixerRoutingSupport.hiddenRowIDs(hiddenApps: [:], showFinder: true)),
                "Finder shows in the mixer when enabled")
-        expect(MixerRoutingSupport.isHiddenFromMixer(bundleIdentifier: "com.apple.finder",
-                                                     showFinder: false),
+        expect(MixerRoutingSupport.isHiddenFromMixer(
+                    persistenceID: "com.apple.finder",
+                    hiddenIDs: MixerRoutingSupport.hiddenRowIDs(hiddenApps: [:], showFinder: false)),
                "Finder can be hidden from the mixer")
-        expect(!MixerRoutingSupport.isHiddenFromMixer(bundleIdentifier: "com.example.Player",
-                                                      showFinder: false),
+        expect(MixerRoutingSupport.isHiddenFromMixer(
+                    persistenceID: "com.example.Player",
+                    hiddenIDs: MixerRoutingSupport.hiddenRowIDs(
+                        hiddenApps: ["com.example.Player": "Player"], showFinder: true)),
+               "any app the user hid stays out of the mixer list")
+        expect(!MixerRoutingSupport.isHiddenFromMixer(
+                    persistenceID: "com.example.Player",
+                    hiddenIDs: MixerRoutingSupport.hiddenRowIDs(hiddenApps: [:], showFinder: false)),
                "hiding Finder leaves every other app visible")
-        expect(!MixerRoutingSupport.isHiddenFromMixer(bundleIdentifier: nil, showFinder: false),
-               "apps without a bundle id still show in the mixer")
+        expect(MixerRoutingSupport.isHiddenFromMixer(
+                    persistenceID: "Bare Tool",
+                    hiddenIDs: MixerRoutingSupport.hiddenRowIDs(
+                        hiddenApps: ["Bare Tool": "Bare Tool"], showFinder: true)),
+               "apps saved under a display name can be hidden too")
+        expect(!MixerRoutingSupport.isHiddenFromMixer(persistenceID: nil,
+                                                      hiddenIDs: ["com.example.Player"]),
+               "a row with nothing to remember it by is always listed")
+        let hiddenSanitized = MixerRoutingSupport.sanitizedHiddenApps([
+            "com.example.Player": "Player",
+            "com.apple.finder": "Finder",
+            "": "Nameless",
+            "com.example.Silent": "",
+            "com.example.Broken": 3,
+        ])
+        expect(hiddenSanitized == ["com.example.Player": "Player"],
+               "the hidden map keeps only real entries and never carries the Finder")
         expect(MixerRoutingSupport.needsPersistentFinderRow(showFinder: true,
                                                             hasFinderRow: false),
                "Finder gets a persistent row before Quick Look opens")

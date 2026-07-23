@@ -530,7 +530,10 @@ extension Strings {
         mixerInputFallback: "Bu mikrofon geri dönene kadar varsayılan kullanılıyor.",
         mixerInputTooltip: "Mikrofon seç",
         mixerInputErrorFormat: "Geçiş yapılamadı: %@",
-        mixerShowFinder: "Finder'ı göster",
+        mixerVisibleApps: "Listedeki uygulamalar",
+        mixerAllShown: "Tümü",
+        mixerHiddenCountLabel: "Gizli",
+        mixerHideFromList: "Listeden gizle",
 
         updatesSection: "Güncellemeler",
         autoCheckToggle: "Güncellemeleri otomatik denetle",

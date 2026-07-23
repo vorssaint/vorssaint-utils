@@ -531,7 +531,10 @@ extension Strings {
         mixerInputFallback: "此咪高峰恢復前，使用預設輸入。",
         mixerInputTooltip: "選取咪高峰",
         mixerInputErrorFormat: "無法切換：%@",
-        mixerShowFinder: "顯示 Finder",
+        mixerVisibleApps: "列表中的 App",
+        mixerAllShown: "全部",
+        mixerHiddenCountLabel: "已隱藏",
+        mixerHideFromList: "從列表中隱藏",
 
         updatesSection: "更新",
         autoCheckToggle: "自動檢查更新",

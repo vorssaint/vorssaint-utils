@@ -13,8 +13,6 @@ struct MixerSection: View {
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var inputManager = AudioInputDeviceManager.shared
     @ObservedObject private var outputSwitcher = SoundOutputSwitcher.shared
-    @AppStorage(DefaultsKey.mixerShowFinder)
-    private var showFinder = true
     @AppStorage(DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect)
     private var lowerOnHeadphonesDisconnect = false
     @AppStorage(DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
@@ -22,6 +20,7 @@ struct MixerSection: View {
     @AppStorage(DefaultsKey.soundOutputSwitcherEnabled)
     private var soundOutputSwitcherEnabled = false
     @State private var soundOutputSwitcherUIDs: [String] = []
+    @State private var showListChooser = false
     @State private var normalSliderTint = Color(nsColor: .controlAccentColor)
     @State private var accentRevision = 0
     @State private var lastResolvedAccent: NSColor?
@@ -49,9 +48,9 @@ struct MixerSection: View {
                 } else {
                     mixerRows
                 }
-                if AppVolumeMixer.isSupported {
+                if AppVolumeMixer.isSupported, !listChoices.isEmpty {
                     Divider()
-                    finderVisibilityToggle
+                    listVisibilityFooter
                 }
             }
             .panelCard()
@@ -307,21 +306,101 @@ struct MixerSection: View {
         )
     }
 
-    private var finderVisibilityToggle: some View {
-        HStack(spacing: 8) {
-            Text(l10n.s.mixerShowFinder)
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
-            Spacer(minLength: 6)
-            Toggle(l10n.s.mixerShowFinder, isOn: $showFinder)
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .controlSize(.mini)
-                .accessibilityLabel(l10n.s.mixerShowFinder)
+    /// One entry per app the list knows about: visible rows checked, hidden
+    /// apps unchecked, everything in one alphabetical run so the menu reads
+    /// like the list itself.
+    private struct MixerListChoice: Identifiable {
+        let id: String
+        let name: String
+        let isListed: Bool
+        /// A row with nothing stable to remember it by cannot be hidden; it
+        /// still shows here so the menu mirrors the list.
+        let canToggle: Bool
+    }
+
+    private var listChoices: [MixerListChoice] {
+        // The hidden list updates the moment a box is unchecked, while the
+        // visible rows only change when the next HAL refresh lands. Keyed by
+        // persistence id with the hidden entry winning, a just-hidden app
+        // shows up once (unchecked) instead of twice during that gap.
+        var seen = Set<String>()
+        var choices = mixer.hiddenApps.map { hidden -> MixerListChoice in
+            seen.insert(hidden.id)
+            return MixerListChoice(id: hidden.id, name: hidden.name, isListed: false, canToggle: true)
         }
-        .onChange(of: showFinder) { _, _ in
-            mixer.syncWithPreferences()
+        for app in mixer.apps {
+            let id = app.persistenceID ?? app.id
+            guard seen.insert(id).inserted else { continue }
+            choices.append(MixerListChoice(id: id, name: app.name,
+                                           isListed: true, canToggle: app.persistenceID != nil))
         }
+        choices.sort {
+            MixerRoutingSupport.displayOrderedBefore(name: $0.name, id: $0.id,
+                                                     otherName: $1.name, otherID: $1.id)
+        }
+        return choices
+    }
+
+    /// Which apps the list shows (issue #300): the row reads how many are
+    /// hidden and opens a check per app, right in the panel so several can be
+    /// checked or unchecked in one go. Hidden apps stay here even while they
+    /// are not running, so they can always be brought back.
+    private var listVisibilityFooter: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                showListChooser.toggle()
+            } label: {
+                HStack(spacing: 8) {
+                    Text(l10n.s.mixerVisibleApps)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 6)
+                    Text(mixer.hiddenApps.isEmpty
+                         ? l10n.s.mixerAllShown
+                         : "\(l10n.s.mixerHiddenCountLabel): \(mixer.hiddenApps.count)")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(showListChooser ? 90 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(l10n.s.mixerVisibleApps)
+            .accessibilityValue(mixer.hiddenApps.isEmpty
+                                ? l10n.s.mixerAllShown
+                                : "\(l10n.s.mixerHiddenCountLabel): \(mixer.hiddenApps.count)")
+
+            if showListChooser {
+                ForEach(listChoices) { choice in
+                    Toggle(isOn: listedBinding(for: choice)) {
+                        Text(choice.name)
+                            .font(.system(size: 10.5))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .toggleStyle(.checkbox)
+                    .controlSize(.small)
+                    .disabled(!choice.canToggle)
+                }
+            }
+        }
+        .animation(.easeOut(duration: 0.15), value: showListChooser)
+    }
+
+    private func listedBinding(for choice: MixerListChoice) -> Binding<Bool> {
+        Binding(
+            get: { choice.isListed },
+            set: { listed in
+                if listed {
+                    mixer.showInList(id: choice.id)
+                } else if let app = mixer.apps.first(where: { ($0.persistenceID ?? $0.id) == choice.id }) {
+                    mixer.hideFromList(app)
+                }
+            }
+        )
     }
 
     private func inputDeviceTitle(_ device: MixerInputDevice) -> String {
@@ -516,6 +595,15 @@ private struct MixerRow: View {
             }
         }
         .padding(.vertical, 2)
+        .contextMenu {
+            // Same action as unchecking the app in the footer menu, one
+            // right-click closer (issue #300).
+            if app.persistenceID != nil {
+                Button(l10n.s.mixerHideFromList) {
+                    mixer.hideFromList(app)
+                }
+            }
+        }
     }
 
     private var volumeBinding: Binding<Double> {

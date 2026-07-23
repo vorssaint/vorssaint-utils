@@ -530,7 +530,10 @@ extension Strings {
         mixerInputFallback: "このマイクが戻るまでデフォルトを使用します。",
         mixerInputTooltip: "マイクを選択",
         mixerInputErrorFormat: "変更できませんでした: %@",
-        mixerShowFinder: "Finder を表示",
+        mixerVisibleApps: "リストに表示するアプリ",
+        mixerAllShown: "すべて",
+        mixerHiddenCountLabel: "非表示",
+        mixerHideFromList: "リストから隠す",
 
         updatesSection: "アップデート",
         autoCheckToggle: "アップデートを自動的に確認",

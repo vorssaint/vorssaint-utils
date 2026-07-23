@@ -530,7 +530,10 @@ extension Strings {
         mixerInputFallback: "Usando el predeterminado hasta que vuelva este micrófono.",
         mixerInputTooltip: "Elegir micrófono",
         mixerInputErrorFormat: "No se pudo cambiar: %@",
-        mixerShowFinder: "Mostrar Finder",
+        mixerVisibleApps: "Apps en la lista",
+        mixerAllShown: "Todas",
+        mixerHiddenCountLabel: "Ocultas",
+        mixerHideFromList: "Ocultar de la lista",
 
         updatesSection: "Actualizaciones",
         autoCheckToggle: "Buscar actualizaciones automáticamente",
