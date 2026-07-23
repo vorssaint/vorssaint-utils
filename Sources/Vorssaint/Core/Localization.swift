@@ -1028,6 +1028,11 @@ struct Strings {
     let highlightsSeeAll: String
     let switcherCurrentSpaceOnly: String
     let switcherCurrentSpaceOnlyCaption: String
+    let switcherMinimizedPlacementLabel: String
+    let switcherMinimizedPlacementNormal: String
+    let switcherMinimizedPlacementEnd: String
+    let switcherMinimizedPlacementHidden: String
+    let switcherShowFullscreenWindows: String
 }
 
 // MARK: - Português (Brasil)
@@ -1912,7 +1917,12 @@ extension Strings {
         highlightsTry: "Experimentar",
         highlightsSeeAll: "Ver todas as mudanças",
         switcherCurrentSpaceOnly: "Mostrar só a Mesa atual",
-        switcherCurrentSpaceOnlyCaption: "Mostra no alternador apenas as janelas da Mesa em que você está. Escolher uma janela nunca leva você para outra Mesa."
+        switcherCurrentSpaceOnlyCaption: "Mostra no alternador apenas as janelas da Mesa em que você está. Escolher uma janela nunca leva você para outra Mesa.",
+        switcherMinimizedPlacementLabel: "Janelas minimizadas",
+        switcherMinimizedPlacementNormal: "Ordem normal",
+        switcherMinimizedPlacementEnd: "Colocar no final",
+        switcherMinimizedPlacementHidden: "Ocultar",
+        switcherShowFullscreenWindows: "Mostrar janelas em tela cheia"
     )
 }
 
@@ -2798,6 +2808,11 @@ extension Strings {
         highlightsTry: "Try it",
         highlightsSeeAll: "See all changes",
         switcherCurrentSpaceOnly: "Show only the current desktop",
-        switcherCurrentSpaceOnlyCaption: "Lists only windows from the desktop you are on. Picking a window never moves you to another desktop."
+        switcherCurrentSpaceOnlyCaption: "Lists only windows from the desktop you are on. Picking a window never moves you to another desktop.",
+        switcherMinimizedPlacementLabel: "Minimized windows",
+        switcherMinimizedPlacementNormal: "Normal ordering",
+        switcherMinimizedPlacementEnd: "Place at end",
+        switcherMinimizedPlacementHidden: "Hide",
+        switcherShowFullscreenWindows: "Show fullscreen windows"
     )
 }

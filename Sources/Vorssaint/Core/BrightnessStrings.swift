@@ -62,7 +62,7 @@ extension BrightnessFeatureStrings {
         keysToggle: "Brightness keys follow the pointer",
         keysCaption: "The keyboard brightness keys change the display under the pointer.",
         osdToggle: "Show brightness when adjusting",
-        osdCaption: "Shows the brightness percentage when you use the brightness keys or sliders.",
+        osdCaption: "Shows the brightness percentage when you use the brightness keys or sliders."
     )
 
     static let ptBR = BrightnessFeatureStrings(
@@ -81,7 +81,7 @@ extension BrightnessFeatureStrings {
         keysToggle: "Teclas de brilho seguem o ponteiro",
         keysCaption: "As teclas de brilho do teclado mudam a tela onde o ponteiro está.",
         osdToggle: "Mostrar brilho ao ajustar",
-        osdCaption: "Mostra a porcentagem de brilho ao usar as teclas ou os controles de brilho.",
+        osdCaption: "Mostra a porcentagem de brilho ao usar as teclas ou os controles de brilho."
     )
 
     static let tr = BrightnessFeatureStrings(
@@ -100,7 +100,7 @@ extension BrightnessFeatureStrings {
         keysToggle: "Parlaklık tuşları imleci izler",
         keysCaption: "Klavyedeki parlaklık tuşları imlecin bulunduğu ekranı değiştirir.",
         osdToggle: "Parlaklık ayarlanırken göster",
-        osdCaption: "Parlaklık tuşlarını veya kaydırıcıları kullandığınızda parlaklık yüzdesini gösterir.",
+        osdCaption: "Parlaklık tuşlarını veya kaydırıcıları kullandığınızda parlaklık yüzdesini gösterir."
     )
 
     static let ru = BrightnessFeatureStrings(
@@ -119,7 +119,7 @@ extension BrightnessFeatureStrings {
         keysToggle: "Клавиши яркости следуют за указателем",
         keysCaption: "Клавиши яркости на клавиатуре меняют экран, на котором находится указатель.",
         osdToggle: "Показывать яркость при регулировке",
-        osdCaption: "Показывает яркость в процентах при использовании клавиш или ползунков яркости.",
+        osdCaption: "Показывает яркость в процентах при использовании клавиш или ползунков яркости."
     )
 
     static let es = BrightnessFeatureStrings(
@@ -138,7 +138,7 @@ extension BrightnessFeatureStrings {
         keysToggle: "Las teclas de brillo siguen al puntero",
         keysCaption: "Las teclas de brillo del teclado cambian la pantalla donde está el puntero.",
         osdToggle: "Mostrar el brillo al ajustarlo",
-        osdCaption: "Muestra el porcentaje de brillo al usar las teclas o los controles de brillo.",
+        osdCaption: "Muestra el porcentaje de brillo al usar las teclas o los controles de brillo."
     )
 
     static let de = BrightnessFeatureStrings(
@@ -157,7 +157,7 @@ extension BrightnessFeatureStrings {
         keysToggle: "Helligkeitstasten folgen dem Zeiger",
         keysCaption: "Die Helligkeitstasten der Tastatur ändern das Display, auf dem der Zeiger steht.",
         osdToggle: "Helligkeit beim Anpassen anzeigen",
-        osdCaption: "Zeigt den Helligkeitswert in Prozent bei Verwendung der Helligkeitstasten oder Regler.",
+        osdCaption: "Zeigt den Helligkeitswert in Prozent bei Verwendung der Helligkeitstasten oder Regler."
     )
 
     static let fr = BrightnessFeatureStrings(
@@ -176,7 +176,7 @@ extension BrightnessFeatureStrings {
         keysToggle: "Les touches de luminosité suivent le pointeur",
         keysCaption: "Les touches de luminosité du clavier règlent l'écran où se trouve le pointeur.",
         osdToggle: "Afficher la luminosité pendant le réglage",
-        osdCaption: "Affiche le pourcentage de luminosité avec les touches ou les curseurs de luminosité.",
+        osdCaption: "Affiche le pourcentage de luminosité avec les touches ou les curseurs de luminosité."
     )
 
     static let it = BrightnessFeatureStrings(
@@ -195,7 +195,7 @@ extension BrightnessFeatureStrings {
         keysToggle: "I tasti di luminosità seguono il puntatore",
         keysCaption: "I tasti di luminosità della tastiera regolano lo schermo dove si trova il puntatore.",
         osdToggle: "Mostra la luminosità durante la regolazione",
-        osdCaption: "Mostra la percentuale di luminosità quando usi i tasti o i cursori della luminosità.",
+        osdCaption: "Mostra la percentuale di luminosità quando usi i tasti o i cursori della luminosità."
     )
 
     static let ja = BrightnessFeatureStrings(
@@ -214,7 +214,7 @@ extension BrightnessFeatureStrings {
         keysToggle: "輝度キーはポインタに従う",
         keysCaption: "キーボードの輝度キーが、ポインタのあるディスプレイを調整します。",
         osdToggle: "明るさの調整時に表示",
-        osdCaption: "輝度キーまたはスライダを使うと、明るさをパーセントで表示します。",
+        osdCaption: "輝度キーまたはスライダを使うと、明るさをパーセントで表示します."
     )
 
     static let ko = BrightnessFeatureStrings(
@@ -233,7 +233,7 @@ extension BrightnessFeatureStrings {
         keysToggle: "밝기 키가 포인터를 따라감",
         keysCaption: "키보드의 밝기 키로 포인터가 있는 디스플레이를 조절합니다.",
         osdToggle: "밝기 조절 시 표시",
-        osdCaption: "밝기 키나 슬라이더를 사용할 때 밝기를 백분율로 표시합니다.",
+        osdCaption: "밝기 키나 슬라이더를 사용할 때 밝기를 백분율로 표시합니다."
     )
 
     static let zhHans = BrightnessFeatureStrings(
@@ -252,7 +252,7 @@ extension BrightnessFeatureStrings {
         keysToggle: "亮度键跟随指针",
         keysCaption: "键盘上的亮度键调节指针所在的显示器。",
         osdToggle: "调节亮度时显示",
-        osdCaption: "使用亮度键或滑块时显示亮度百分比。",
+        osdCaption: "使用亮度键或滑块时显示亮度百分比."
     )
 
     static let zhTW = BrightnessFeatureStrings(
@@ -271,7 +271,7 @@ extension BrightnessFeatureStrings {
         keysToggle: "亮度鍵跟隨指標",
         keysCaption: "鍵盤上的亮度鍵調整指標所在的顯示器。",
         osdToggle: "調整亮度時顯示",
-        osdCaption: "使用亮度鍵或滑桿時顯示亮度百分比。",
+        osdCaption: "使用亮度鍵或滑桿時顯示亮度百分比."
     )
 
     static let zhHK = BrightnessFeatureStrings(
@@ -290,6 +290,6 @@ extension BrightnessFeatureStrings {
         keysToggle: "亮度鍵跟隨指標",
         keysCaption: "鍵盤上的亮度鍵調整指標所在的顯示器。",
         osdToggle: "調整亮度時顯示",
-        osdCaption: "使用亮度鍵或滑桿時顯示亮度百分比。",
+        osdCaption: "使用亮度鍵或滑桿時顯示亮度百分比."
     )
 }

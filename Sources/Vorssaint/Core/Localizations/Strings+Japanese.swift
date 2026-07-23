@@ -883,6 +883,11 @@ extension Strings {
         highlightsTry: "試す",
         highlightsSeeAll: "すべての変更を見る",
         switcherCurrentSpaceOnly: "現在のデスクトップのみ表示",
-        switcherCurrentSpaceOnlyCaption: "今いるデスクトップのウインドウだけをスイッチャーに表示します。ウインドウを選んでも別のデスクトップには移動しません。"
+        switcherCurrentSpaceOnlyCaption: "今いるデスクトップのウインドウだけをスイッチャーに表示します。ウインドウを選んでも別のデスクトップには移動しません。",
+        switcherMinimizedPlacementLabel: "最小化されたウインドウ",
+        switcherMinimizedPlacementNormal: "通常の順序",
+        switcherMinimizedPlacementEnd: "最後に配置",
+        switcherMinimizedPlacementHidden: "非表示",
+        switcherShowFullscreenWindows: "フルスクリーンのウインドウを表示"
     )
 }

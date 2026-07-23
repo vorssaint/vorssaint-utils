@@ -825,6 +825,8 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherSimpleMode) private var switcherSimpleMode = false
     @AppStorage(DefaultsKey.switcherMergeTabs) private var switcherMergeTabs = false
     @AppStorage(DefaultsKey.switcherShowWindowlessFinder) private var switcherShowWindowlessFinder = true
+    @AppStorage(DefaultsKey.switcherMinimizedPlacement) private var switcherMinimizedPlacement = WindowSwitchMinimizedPlacement.normal.rawValue
+    @AppStorage(DefaultsKey.switcherShowFullscreenWindows) private var switcherShowFullscreenWindows = true
     @AppStorage(DefaultsKey.switcherCurrentSpaceOnly) private var switcherCurrentSpaceOnly = false
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
@@ -886,6 +888,22 @@ struct SwitcherSettings: View {
                     Text(l10n.s.switcherMergeTabsCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    Picker(l10n.s.switcherMinimizedPlacementLabel, selection: $switcherMinimizedPlacement) {
+                        Text(l10n.s.switcherMinimizedPlacementNormal).tag(WindowSwitchMinimizedPlacement.normal.rawValue)
+                        Text(l10n.s.switcherMinimizedPlacementEnd).tag(WindowSwitchMinimizedPlacement.end.rawValue)
+                        Text(l10n.s.switcherMinimizedPlacementHidden).tag(WindowSwitchMinimizedPlacement.hidden.rawValue)
+                    }
+                    .disabled(!switcherEnabled)
+                    .onChange(of: switcherMinimizedPlacement) { _, _ in
+                        AppSwitcher.shared.syncWithPreferences()
+                    }
+
+                    Toggle(l10n.s.switcherShowFullscreenWindows, isOn: $switcherShowFullscreenWindows)
+                        .disabled(!switcherEnabled)
+                        .onChange(of: switcherShowFullscreenWindows) { _, _ in
+                            AppSwitcher.shared.syncWithPreferences()
+                        }
 
                     Toggle(l10n.s.switcherCurrentSpaceOnly, isOn: $switcherCurrentSpaceOnly)
                         .disabled(!switcherEnabled)

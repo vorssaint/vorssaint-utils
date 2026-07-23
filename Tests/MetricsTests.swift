@@ -1086,6 +1086,29 @@ struct MetricsTests {
                "App Switcher icon-row mode is optional")
         expect(registeredDefaults[DefaultsKey.switcherSimpleMode] as? Bool == false,
                "App Switcher simple mode preserves previews until requested")
+        expect(registeredDefaults[DefaultsKey.switcherMinimizedPlacement] as? String
+               == WindowSwitchMinimizedPlacement.normal.rawValue,
+               "App Switcher keeps minimized windows in normal ordering by default")
+        expect(registeredDefaults[DefaultsKey.switcherShowFullscreenWindows] as? Bool == true,
+               "App Switcher shows fullscreen windows by default")
+        let windowSwitchSuite = "vorss.tests.switcher.settings"
+        if let switcherDefaults = UserDefaults(suiteName: windowSwitchSuite) {
+            switcherDefaults.removePersistentDomain(forName: windowSwitchSuite)
+            let defaultSwitcherSettings = WindowSwitchSettings.load(from: switcherDefaults)
+            expect(defaultSwitcherSettings.minimizedPlacement == .normal
+                   && defaultSwitcherSettings.showFullscreenWindows,
+                   "App Switcher settings load backward-compatible defaults for existing installs")
+            switcherDefaults.set(WindowSwitchMinimizedPlacement.end.rawValue,
+                                 forKey: DefaultsKey.switcherMinimizedPlacement)
+            switcherDefaults.set(false, forKey: DefaultsKey.switcherShowFullscreenWindows)
+            let persistedSwitcherSettings = WindowSwitchSettings.load(from: switcherDefaults)
+            expect(persistedSwitcherSettings.minimizedPlacement == .end
+                   && !persistedSwitcherSettings.showFullscreenWindows,
+                   "App Switcher settings load persisted sorting and visibility choices")
+            switcherDefaults.removePersistentDomain(forName: windowSwitchSuite)
+        } else {
+            expect(false, "App Switcher settings test defaults are available")
+        }
         expect(SwitcherSupport.usesIconRowLayout(iconRowMode: false, simpleMode: true),
                "App Switcher simple mode always uses the app icon row")
         expect(!SwitcherSupport.capturesPreviews(simpleMode: true),
@@ -1280,6 +1303,53 @@ struct MetricsTests {
                                                  focusedWindowID: nil,
                                                  items: [embeddedWindow]) == nil,
                "App Switcher leaves the system shortcut alone without a foreground app")
+        let switchPipelineItems = [
+            SwitcherItem.window(id: 201, title: "Normal A", appName: "A", pid: 20,
+                                isOnScreen: true,
+                                frame: CGRect(x: 20, y: 20, width: 900, height: 600)),
+            SwitcherItem.window(id: 202, title: "Minimized", appName: "B", pid: 10,
+                                isOnScreen: false, isMinimized: true,
+                                frame: CGRect(x: 20, y: 20, width: 900, height: 600)),
+            SwitcherItem.window(id: 203, title: "Fullscreen", appName: "C", pid: 30,
+                                isOnScreen: true, isFullscreen: true,
+                                frame: CGRect(x: 20, y: 20, width: 900, height: 600)),
+            SwitcherItem.window(id: 204, title: "Maximized", appName: "B", pid: 10,
+                                isOnScreen: true, isMaximized: true,
+                                frame: CGRect(x: 20, y: 20, width: 900, height: 600)),
+            SwitcherItem.window(id: 205, title: "Normal B", appName: "B", pid: 10,
+                                isOnScreen: true,
+                                frame: CGRect(x: 20, y: 20, width: 900, height: 600)),
+        ]
+        let sortRank: [pid_t: Int] = [10: 0, 20: 1, 30: 2]
+        let sortIDs: ([SwitcherItem]) -> [CGWindowID] = { items in
+            items.compactMap(\.windowID)
+        }
+        let minimizedAtEnd = WindowSwitchSettings(minimizedPlacement: .end)
+        let filteredPipelineItems = WindowSwitchCandidatePipeline.filter(switchPipelineItems, settings: minimizedAtEnd)
+        let partitionedPipelineItems = WindowSwitchCandidatePipeline.partition(filteredPipelineItems, settings: minimizedAtEnd)
+        let sortedPrimaryPipelineItems = WindowSwitchCandidatePipeline.sort(partitionedPipelineItems.primary) {
+            sortRank[$0] ?? .max
+        }
+        let sortedDeferredPipelineItems = WindowSwitchCandidatePipeline.sort(partitionedPipelineItems.deferred) {
+            sortRank[$0] ?? .max
+        }
+        let mergedPipelineItems = WindowSwitchCandidatePipeline.merge(primary: sortedPrimaryPipelineItems,
+                                                                      deferred: sortedDeferredPipelineItems)
+        expect(sortIDs(mergedPipelineItems) == [204, 205, 201, 203, 202],
+               "App Switcher pipeline keeps minimized windows at the end with stable rank ordering")
+        expect(sortIDs(WindowSwitchCandidatePipeline.sort([
+            switchPipelineItems[4], switchPipelineItems[3], switchPipelineItems[0]
+        ]) { sortRank[$0] ?? .max }) == [205, 204, 201],
+               "App Switcher sort stage is stable for ties inside the same app rank")
+        expect(sortIDs(WindowSwitchCandidatePipeline.filter(
+            switchPipelineItems,
+            settings: WindowSwitchSettings(minimizedPlacement: .normal,
+                                           showFullscreenWindows: false))) == [201, 202, 204, 205],
+               "App Switcher filter stage applies fullscreen visibility toggle")
+        expect(sortIDs(WindowSwitchCandidatePipeline.filter(
+            switchPipelineItems,
+            settings: WindowSwitchSettings(minimizedPlacement: .hidden))) == [201, 203, 204, 205],
+               "App Switcher filter stage hides minimized windows when requested")
         expect(registeredDefaults[DefaultsKey.switcherShowWindowlessFinder] as? Bool == true,
                "Finder without windows stays visible in the switcher by default")
         expect(registeredDefaults[DefaultsKey.switcherCurrentSpaceOnly] as? Bool == false,

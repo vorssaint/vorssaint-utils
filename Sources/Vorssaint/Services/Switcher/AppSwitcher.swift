@@ -440,7 +440,8 @@ final class AppSwitcher: ObservableObject {
                                                        focusedWindowID: focusedSourceWindowID,
                                                        items: windows)
 
-        let list = orderedForSession(windows, currentID: source?.id)
+        let list = orderedForSession(windows, currentID: source?.id,
+                                     minimizedAtEnd: WindowSwitchSettings.load().minimizedPlacement == .end)
         sessionItems = list
         totalWindowCount = list.count
         searchQuery = ""
@@ -507,19 +508,26 @@ final class AppSwitcher: ObservableObject {
     /// between two windows of the same app, not just two apps. With no
     /// on-screen window to lead the list, plain most-recently-used order is
     /// already the right answer.
-    private func orderedForSession(_ items: [SwitcherItem], currentID: String?) -> [SwitcherItem] {
+    private func orderedForSession(_ items: [SwitcherItem], currentID: String?,
+                                   minimizedAtEnd: Bool) -> [SwitcherItem] {
         return items.enumerated()
             .sorted { lhs, rhs in
-                sortKey(lhs.element, currentID: currentID, original: lhs.offset)
-                    < sortKey(rhs.element, currentID: currentID, original: rhs.offset)
+                sortKey(lhs.element, currentID: currentID, original: lhs.offset, minimizedAtEnd: minimizedAtEnd)
+                    < sortKey(rhs.element, currentID: currentID, original: rhs.offset, minimizedAtEnd: minimizedAtEnd)
             }
             .map(\.element)
     }
 
     /// Sort key: on-screen item first (0), then items seen in the MRU by
     /// recency (1, rank), then everything else in its incoming order (2).
-    private func sortKey(_ item: SwitcherItem, currentID: String?, original: Int) -> (Int, Int, Int) {
+    /// When the "place minimized windows at end" preference is on, minimized
+    /// items are pinned to a trailing bucket (3) regardless of MRU recency —
+    /// otherwise a window minimized after being visited through the switcher
+    /// would keep its MRU rank and never move to the end.
+    private func sortKey(_ item: SwitcherItem, currentID: String?, original: Int,
+                         minimizedAtEnd: Bool) -> (Int, Int, Int) {
         if item.id == currentID { return (0, 0, 0) }
+        if minimizedAtEnd, item.isMinimized { return (3, 0, original) }
         if let rank = itemMRU.firstIndex(of: item.id) { return (1, rank, 0) }
         return (2, 0, original)
     }

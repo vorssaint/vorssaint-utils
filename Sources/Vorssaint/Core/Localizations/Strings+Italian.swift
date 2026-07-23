@@ -883,6 +883,11 @@ extension Strings {
         highlightsTry: "Prova",
         highlightsSeeAll: "Vedi tutte le modifiche",
         switcherCurrentSpaceOnly: "Mostra solo la scrivania attuale",
-        switcherCurrentSpaceOnlyCaption: "Mostra nel commutatore solo le finestre della scrivania in cui ti trovi. Scegliere una finestra non ti porta mai su un'altra scrivania."
+        switcherCurrentSpaceOnlyCaption: "Mostra nel commutatore solo le finestre della scrivania in cui ti trovi. Scegliere una finestra non ti porta mai su un'altra scrivania.",
+        switcherMinimizedPlacementLabel: "Finestre ridotte a icona",
+        switcherMinimizedPlacementNormal: "Ordine normale",
+        switcherMinimizedPlacementEnd: "Sposta alla fine",
+        switcherMinimizedPlacementHidden: "Nascondi",
+        switcherShowFullscreenWindows: "Mostra le finestre a schermo intero"
     )
 }
