@@ -70,6 +70,8 @@ and a batch of fixes.
 - The Drives tab no longer shows a drive's format and location twice.
 - External monitors no longer go dark while adjusting brightness, and a
   reconnected screen always comes back visible.
+- App Switcher opens without waiting for every app's Accessibility response;
+  its window catalog stays warm and the visual delay starts at the key press.
 
 ## [3.1.15] - 2026-07-21
 
