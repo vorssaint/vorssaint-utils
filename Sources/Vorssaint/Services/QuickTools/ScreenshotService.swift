@@ -132,8 +132,15 @@ final class ScreenshotService: ObservableObject {
 
     /// A finished capture goes to the floating preview, or straight into the
     /// editor when the direct edit preference is on.
+    ///
+    /// The clipboard copy happens first and independently, so it also reaches
+    /// the captures that open straight in the editor, where no preview button
+    /// exists to reach for.
     private func route(_ capture: ScreenshotSelectionController.Capture) {
         preview?.close()
+        if UserDefaults.standard.bool(forKey: DefaultsKey.screenshotCopyToClipboard) {
+            autoCopy(capture)
+        }
         if UserDefaults.standard.bool(forKey: DefaultsKey.screenshotOpenEditorDirectly) {
             openEditor(with: capture)
             return
@@ -175,6 +182,17 @@ final class ScreenshotService: ObservableObject {
             NSApp.setActivationPolicy(.accessory)
             promotedActivationForEditors = false
         }
+    }
+
+    /// Automatic copy stays quiet on success: the preview or the editor is
+    /// already appearing and says the capture happened, so a HUD on top of it
+    /// would only repeat that. A failure still beeps, since nothing else
+    /// would reveal an empty clipboard before the paste.
+    private func autoCopy(_ capture: ScreenshotSelectionController.Capture) {
+        if let image = flatten(capture), ScreenshotEditorController.copyImage(image) {
+            return
+        }
+        NSSound.beep()
     }
 
     @discardableResult

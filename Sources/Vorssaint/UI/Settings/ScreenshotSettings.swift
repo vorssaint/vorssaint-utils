@@ -18,6 +18,7 @@ struct ScreenshotSettings: View {
         ScreenshotSupport.Tool.defaultOrderStorage
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
     @AppStorage(DefaultsKey.screenshotOpenEditorDirectly) private var openEditorDirectly = false
+    @AppStorage(DefaultsKey.screenshotCopyToClipboard) private var copyToClipboard = false
 
     private var strings: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(l10n.language)
@@ -77,6 +78,10 @@ struct ScreenshotSettings: View {
             }
 
             Section {
+                Toggle(strings.autoCopyToggle, isOn: $copyToClipboard)
+                Text(strings.autoCopyCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 folderRow
                 Toggle(strings.downscaleToggle, isOn: $downscale)
                 Text(strings.downscaleCaption)

@@ -76,6 +76,8 @@ struct ScreenshotFeatureStrings {
     let backdropCustomLabel: String
     let openEditorToggle: String
     let openEditorCaption: String
+    let autoCopyToggle: String
+    let autoCopyCaption: String
     let hintLoupe: String
 }
 
@@ -172,6 +174,8 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "Custom",
         openEditorToggle: "Open the editor right after capturing",
         openEditorCaption: "The capture skips the floating preview and opens ready to annotate.",
+        autoCopyToggle: "Copy to the clipboard automatically",
+        autoCopyCaption: "Every capture goes to the clipboard as soon as it is taken, ready to paste. Saving a file stays a separate choice.",
         hintLoupe: "Z toggles the loupe"
     )
 
@@ -247,6 +251,8 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "Personalizado",
         openEditorToggle: "Abrir o editor logo após capturar",
         openEditorCaption: "A captura pula a pré-visualização flutuante e já abre pronta para anotar.",
+        autoCopyToggle: "Copiar para a área de transferência automaticamente",
+        autoCopyCaption: "Toda captura vai para a área de transferência assim que é feita, pronta para colar. Salvar um arquivo continua sendo uma escolha à parte.",
         hintLoupe: "Z alterna a lupa"
     )
 
@@ -322,6 +328,8 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "Özel",
         openEditorToggle: "Yakaladıktan hemen sonra düzenleyiciyi aç",
         openEditorCaption: "Yakalama, yüzen önizlemeyi atlar ve işaretlemeye hazır şekilde açılır.",
+        autoCopyToggle: "Otomatik olarak panoya kopyala",
+        autoCopyCaption: "Her yakalama alınır alınmaz panoya gider ve yapıştırmaya hazır olur. Dosya olarak kaydetmek ayrı bir seçim olarak kalır.",
         hintLoupe: "Z büyüteci açar/kapatır"
     )
 
@@ -397,6 +405,8 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "Свой",
         openEditorToggle: "Открывать редактор сразу после снимка",
         openEditorCaption: "Снимок пропускает плавающее окно предпросмотра и сразу открывается готовым к пометкам.",
+        autoCopyToggle: "Автоматически копировать в буфер обмена",
+        autoCopyCaption: "Каждый снимок попадает в буфер обмена сразу после съёмки и готов к вставке. Сохранение файла остаётся отдельным выбором.",
         hintLoupe: "Z включает лупу"
     )
 
@@ -472,6 +482,8 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "Personalizado",
         openEditorToggle: "Abrir el editor justo después de capturar",
         openEditorCaption: "La captura omite la previsualización flotante y se abre lista para anotar.",
+        autoCopyToggle: "Copiar al portapapeles automáticamente",
+        autoCopyCaption: "Cada captura va al portapapeles en cuanto se toma, lista para pegar. Guardar un archivo sigue siendo una elección aparte.",
         hintLoupe: "Z activa la lupa"
     )
 
@@ -547,6 +559,8 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "Eigene",
         openEditorToggle: "Editor direkt nach der Aufnahme öffnen",
         openEditorCaption: "Die Aufnahme überspringt die schwebende Vorschau und öffnet sich bereit für Anmerkungen.",
+        autoCopyToggle: "Automatisch in die Zwischenablage kopieren",
+        autoCopyCaption: "Jede Aufnahme landet sofort in der Zwischenablage, bereit zum Einfügen. Das Speichern als Datei bleibt eine eigene Entscheidung.",
         hintLoupe: "Z schaltet die Lupe um"
     )
 
@@ -622,6 +636,8 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "Personnalisé",
         openEditorToggle: "Ouvrir l'éditeur juste après la capture",
         openEditorCaption: "La capture ignore l'aperçu flottant et s'ouvre prête à être annotée.",
+        autoCopyToggle: "Copier automatiquement dans le presse-papiers",
+        autoCopyCaption: "Chaque capture va dans le presse-papiers dès qu'elle est prise, prête à être collée. Enregistrer un fichier reste un choix distinct.",
         hintLoupe: "Z active la loupe"
     )
 
@@ -697,6 +713,8 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "Personalizzato",
         openEditorToggle: "Apri l'editor subito dopo la cattura",
         openEditorCaption: "La cattura salta l'anteprima flottante e si apre pronta per le annotazioni.",
+        autoCopyToggle: "Copia automaticamente negli appunti",
+        autoCopyCaption: "Ogni cattura va negli appunti appena viene fatta, pronta da incollare. Salvare un file resta una scelta a parte.",
         hintLoupe: "Z attiva la lente"
     )
 
@@ -772,6 +790,8 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "カスタム",
         openEditorToggle: "撮影後すぐにエディタを開く",
         openEditorCaption: "撮影はフローティングプレビューを飛ばして、すぐに注釈を付けられる状態で開きます。",
+        autoCopyToggle: "自動的にクリップボードへコピー",
+        autoCopyCaption: "撮影した瞬間にクリップボードへ入り、すぐに貼り付けられます。ファイルとして保存するかどうかは別の選択のままです。",
         hintLoupe: "Zでルーペを切り替え"
     )
 
@@ -847,6 +867,8 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "사용자화",
         openEditorToggle: "캡처 후 바로 편집기 열기",
         openEditorCaption: "캡처가 떠 있는 미리보기를 건너뛰고 바로 주석을 남길 수 있는 상태로 열립니다.",
+        autoCopyToggle: "자동으로 클립보드에 복사",
+        autoCopyCaption: "캡처하는 즉시 클립보드에 담겨 바로 붙여넣을 수 있습니다. 파일로 저장하는 것은 여전히 별도의 선택입니다.",
         hintLoupe: "Z 키로 확대경 전환"
     )
 
@@ -922,6 +944,8 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "自定义",
         openEditorToggle: "截取后立即打开编辑器",
         openEditorCaption: "截屏会跳过浮动预览，直接打开即可开始标注。",
+        autoCopyToggle: "自动复制到剪贴板",
+        autoCopyCaption: "每次截屏后会立即进入剪贴板，随时可以粘贴。是否保存为文件仍是单独的选择。",
         hintLoupe: "按 Z 切换放大镜"
     )
 
@@ -997,6 +1021,8 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "自訂",
         openEditorToggle: "擷取後立即開啟編輯器",
         openEditorCaption: "截圖會略過浮動預覽，直接開啟即可開始標註。",
+        autoCopyToggle: "自動拷貝到剪貼板",
+        autoCopyCaption: "每次截圖後會立即進入剪貼板，隨時可以貼上。是否儲存為檔案仍是獨立的選擇。",
         hintLoupe: "按 Z 切換放大鏡"
     )
 
@@ -1072,6 +1098,8 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "自訂",
         openEditorToggle: "擷取後立即開啟編輯器",
         openEditorCaption: "截圖會略過浮動預覽，直接開啟即可開始標註。",
+        autoCopyToggle: "自動拷貝到剪貼板",
+        autoCopyCaption: "每次截圖後會立即進入剪貼板，隨時可以貼上。是否儲存為檔案仍是獨立的選擇。",
         hintLoupe: "按 Z 切換放大鏡"
     )
 }

@@ -324,6 +324,7 @@ enum DefaultsKey {
     static let screenshotBackdropStyle = "screenshotBackdropStyle"
     static let screenshotBackdropPresets = "screenshotBackdropPresets"
     static let screenshotOpenEditorDirectly = "screenshotOpenEditorDirectly"
+    static let screenshotCopyToClipboard = "screenshotCopyToClipboard"
     static let panelUtilityScreenshot = "panelUtilityScreenshot"
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
@@ -807,6 +808,7 @@ enum Defaults {
         DefaultsKey.screenshotBackdropStyle: "",
         DefaultsKey.screenshotBackdropPresets: "[]",
         DefaultsKey.screenshotOpenEditorDirectly: false,
+        DefaultsKey.screenshotCopyToClipboard: false,
         DefaultsKey.panelUtilityScreenshot: true,
         DefaultsKey.windowLayoutShortcutsEnabled: false,
         DefaultsKey.windowGestureEnabled: false,
