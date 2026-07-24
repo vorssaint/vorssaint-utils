@@ -5920,10 +5920,12 @@ struct MetricsTests {
                    "no em-dash in visible camera preview strings (\(language.rawValue))")
             let radialMenuValues = Mirror(reflecting: FeatureStrings.radialMenu(language)).children
                 .compactMap { $0.value as? String }
-            expect(radialMenuValues.count == 50 && radialMenuValues.allSatisfy { !$0.isEmpty },
+            expect(radialMenuValues.count == 53 && radialMenuValues.allSatisfy { !$0.isEmpty },
                    "every radial menu string is set for \(language.rawValue)")
             expect(radialMenuValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible radial menu strings (\(language.rawValue))")
+            expect(FeatureStrings.radialMenu(language).mediaOpenAppFormat.contains("%@"),
+                   "Now Playing keeps the app-name placeholder (\(language.rawValue))")
             let scratchpadValues = Mirror(reflecting: FeatureStrings.scratchpad(language)).children
                 .compactMap { $0.value as? String }
             expect(scratchpadValues.count == 15 && scratchpadValues.allSatisfy { !$0.isEmpty },
@@ -6534,10 +6536,51 @@ struct MetricsTests {
                     RadialMenuItem(kind: .submenu, children: [RadialMenuItem(kind: .shortcut, payload: "command:8")]),
                 ]),
                "only wheels that press keys need Accessibility, submenus included")
+        let nowPlayingItem = RadialMenuItem(kind: .media, payload: RadialMenuMediaKey.nowPlaying.rawValue)
+        expect(!RadialMenuSupport.needsAccessibility([nowPlayingItem])
+                && RadialMenuSupport.containsNowPlaying([nowPlayingItem])
+                && RadialMenuSupport.containsNowPlaying([
+                    RadialMenuItem(kind: .submenu, children: [nowPlayingItem]),
+                ]),
+               "Now Playing is found inside wheels without claiming a key-posting permission")
         expect(RadialMenuMediaKey.playPause.auxKeyType == 16
                 && RadialMenuMediaKey.previousTrack.auxKeyType == 20
-                && RadialMenuMediaKey.nextTrack.auxKeyType == 19,
+                && RadialMenuMediaKey.nextTrack.auxKeyType == 19
+                && RadialMenuMediaKey.nowPlaying.auxKeyType == nil,
                "media slices post the aux codes of the physical keys")
+        let nowPlayingInfo: [String: Any] = [
+            RadialNowPlayingSupport.titleKey: " Midnight City ",
+            RadialNowPlayingSupport.artistKey: "M83",
+            RadialNowPlayingSupport.albumKey: "Hurry Up, We're Dreaming",
+            RadialNowPlayingSupport.artworkDataKey: Data([1, 2, 3]),
+            RadialNowPlayingSupport.playbackRateKey: 1.0,
+        ]
+        expect(RadialNowPlayingSupport.playbackIsActive(remoteIsPlaying: nil, info: nowPlayingInfo)
+                && RadialNowPlayingSupport.playbackIsActive(remoteIsPlaying: true, info: [:])
+                && !RadialNowPlayingSupport.playbackIsActive(remoteIsPlaying: false, info: nowPlayingInfo),
+               "Now Playing accepts the remote state or a positive playback rate")
+        let nowPlayingSnapshot = RadialNowPlayingSupport.snapshot(
+            info: nowPlayingInfo,
+            isPlaying: true,
+            appBundleIdentifier: " com.apple.Music ",
+            appPID: 42)
+        expect(nowPlayingSnapshot?.title == "Midnight City"
+                && nowPlayingSnapshot?.artist == "M83"
+                && nowPlayingSnapshot?.album == "Hurry Up, We're Dreaming"
+                && nowPlayingSnapshot?.artworkData == Data([1, 2, 3])
+                && nowPlayingSnapshot?.appBundleIdentifier == "com.apple.Music"
+                && nowPlayingSnapshot?.appPID == 42
+                && nowPlayingSnapshot?.radialLabel == "Midnight City\nM83",
+               "Now Playing metadata is sanitized into the radial label and floating card")
+        expect(RadialNowPlayingSupport.snapshot(info: nowPlayingInfo,
+                                                isPlaying: false,
+                                                appBundleIdentifier: "com.apple.Music",
+                                                appPID: 42) == nil
+                && RadialNowPlayingSupport.snapshot(info: [:],
+                                                    isPlaying: true,
+                                                    appBundleIdentifier: nil,
+                                                    appPID: 0) == nil,
+               "paused or ownerless metadata degrades to Nothing Playing")
         expect(RadialMenuTool.allCases.allSatisfy { !$0.symbolName.isEmpty }
                 && RadialMenuTool.screenshot.feature == .screenshot
                 && RadialMenuTool.clipboardHistory.feature == .clipboardHistory

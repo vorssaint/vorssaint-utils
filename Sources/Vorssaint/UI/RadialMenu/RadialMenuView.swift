@@ -53,12 +53,13 @@ struct RadialMenuView: View {
         ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
             let unit = RadialMenuGeometry.unitPosition(index: index, itemCount: items.count)
             RadialChipView(item: item,
-                           name: item.displayName(text),
+                           name: item.displayName(text, nowPlayingState: service.nowPlayingState),
+                           nowPlayingState: service.nowPlayingState,
                            highlighted: service.highlightedIndex == index,
                            reduceMotion: reduceMotion)
                 .offset(x: unit.dx * RadialMenuLayout.ringRadius,
                         y: -unit.dyUp * RadialMenuLayout.ringRadius)
-                .accessibilityLabel(item.displayName(text))
+                .accessibilityLabel(item.displayName(text, nowPlayingState: service.nowPlayingState))
         }
     }
 
@@ -67,7 +68,7 @@ struct RadialMenuView: View {
     private var hub: some View {
         ZStack {
             if let index = service.highlightedIndex, items.indices.contains(index) {
-                Text(items[index].displayName(text))
+                Text(items[index].displayName(text, nowPlayingState: service.nowPlayingState))
                     .font(.system(size: 11, weight: .semibold))
                     .multilineTextAlignment(.center)
                     .lineLimit(3)
@@ -99,6 +100,7 @@ struct RadialMenuView: View {
 private struct RadialChipView: View {
     let item: RadialMenuItem
     let name: String
+    let nowPlayingState: RadialNowPlayingState
     let highlighted: Bool
     let reduceMotion: Bool
     @Environment(\.colorScheme) private var colorScheme
@@ -118,7 +120,19 @@ private struct RadialChipView: View {
 
     @ViewBuilder
     private var icon: some View {
-        if item.usesFileIcon {
+        if item.mediaKey == .nowPlaying {
+            if case let .playing(snapshot) = nowPlayingState,
+               let icon = RadialNowPlayingApplication.icon(for: snapshot) {
+                Image(nsImage: icon)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 34, height: 34)
+            } else {
+                Image(systemName: "music.note")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(highlighted ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+            }
+        } else if item.usesFileIcon {
             Image(nsImage: RadialMenuIconStore.fileIcon(for: item.payload))
                 .resizable()
                 .interpolation(.high)
@@ -186,7 +200,8 @@ enum RadialMenuIconStore {
 /// Name resolution shared by the wheel and the Settings editor: a custom name
 /// wins, everything else derives from the target in the user's language.
 extension RadialMenuItem {
-    func displayName(_ text: RadialMenuFeatureStrings) -> String {
+    func displayName(_ text: RadialMenuFeatureStrings,
+                     nowPlayingState: RadialNowPlayingState? = nil) -> String {
         if !name.isEmpty { return name }
         switch kind {
         case .app, .file:
@@ -204,6 +219,12 @@ extension RadialMenuItem {
             case .playPause: return text.mediaPlayPause
             case .previousTrack: return text.mediaPrevious
             case .nextTrack: return text.mediaNext
+            case .nowPlaying:
+                switch nowPlayingState {
+                case let .some(.playing(snapshot)): return snapshot.radialLabel ?? text.mediaNowPlaying
+                case .some(.nothingPlaying): return text.mediaNothingPlaying
+                case .some(.loading), .none: return text.mediaNowPlaying
+                }
             case nil: return text.kindMedia
             }
         case .submenu:
