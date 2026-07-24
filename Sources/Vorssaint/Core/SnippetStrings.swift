@@ -42,6 +42,7 @@ struct SnippetFeatureStrings {
     let folderLabel: String
     let folderPlaceholder: String
     let showInLibraryLabel: String
+    let variablesFormatCaption: String
 }
 
 extension FeatureStrings {
@@ -100,7 +101,8 @@ extension SnippetFeatureStrings {
         libraryFooterHint: "↩ 입력 · esc 닫기",
         folderLabel: "폴더",
         folderPlaceholder: "업무",
-        showInLibraryLabel: "빠른 메뉴에 표시"
+        showInLibraryLabel: "빠른 메뉴에 표시",
+        variablesFormatCaption: "콜론 뒤에 형식을 적으면 원하는 모양이 됩니다. 예: {{date:yyyy-MM-dd}}"
     )
 }
 
@@ -140,7 +142,8 @@ extension SnippetFeatureStrings {
         libraryFooterHint: "↩ inserts · esc closes",
         folderLabel: "Folder",
         folderPlaceholder: "Work",
-        showInLibraryLabel: "Show in the quick menu"
+        showInLibraryLabel: "Show in the quick menu",
+        variablesFormatCaption: "A format after a colon picks how they look, like {{date:yyyy-MM-dd}}."
     )
 
     static let ptBR = SnippetFeatureStrings(
@@ -178,7 +181,8 @@ extension SnippetFeatureStrings {
         libraryFooterHint: "↩ insere · esc fecha",
         folderLabel: "Pasta",
         folderPlaceholder: "Trabalho",
-        showInLibraryLabel: "Mostrar no menu rápido"
+        showInLibraryLabel: "Mostrar no menu rápido",
+        variablesFormatCaption: "Um formato depois de dois pontos escolhe a aparência, como {{date:yyyy-MM-dd}}."
     )
 
     static let tr = SnippetFeatureStrings(
@@ -216,7 +220,8 @@ extension SnippetFeatureStrings {
         libraryFooterHint: "↩ yazar · esc kapatır",
         folderLabel: "Klasör",
         folderPlaceholder: "İş",
-        showInLibraryLabel: "Hızlı menüde göster"
+        showInLibraryLabel: "Hızlı menüde göster",
+        variablesFormatCaption: "İki noktadan sonra yazılan biçim görünümü belirler, örneğin {{date:yyyy-MM-dd}}."
     )
 
     static let ru = SnippetFeatureStrings(
@@ -254,7 +259,8 @@ extension SnippetFeatureStrings {
         libraryFooterHint: "↩ вставить · esc закрыть",
         folderLabel: "Папка",
         folderPlaceholder: "Работа",
-        showInLibraryLabel: "Показывать в быстром меню"
+        showInLibraryLabel: "Показывать в быстром меню",
+        variablesFormatCaption: "Формат после двоеточия задаёт вид, например {{date:yyyy-MM-dd}}."
     )
 
     static let es = SnippetFeatureStrings(
@@ -292,7 +298,8 @@ extension SnippetFeatureStrings {
         libraryFooterHint: "↩ inserta · esc cierra",
         folderLabel: "Carpeta",
         folderPlaceholder: "Trabajo",
-        showInLibraryLabel: "Mostrar en el menú rápido"
+        showInLibraryLabel: "Mostrar en el menú rápido",
+        variablesFormatCaption: "Un formato después de dos puntos elige la apariencia, como {{date:yyyy-MM-dd}}."
     )
 
     static let de = SnippetFeatureStrings(
@@ -330,7 +337,8 @@ extension SnippetFeatureStrings {
         libraryFooterHint: "↩ einfügen · esc schließen",
         folderLabel: "Ordner",
         folderPlaceholder: "Arbeit",
-        showInLibraryLabel: "Im Schnellmenü zeigen"
+        showInLibraryLabel: "Im Schnellmenü zeigen",
+        variablesFormatCaption: "Ein Format nach einem Doppelpunkt bestimmt das Aussehen, etwa {{date:yyyy-MM-dd}}."
     )
 
     static let fr = SnippetFeatureStrings(
@@ -368,7 +376,8 @@ extension SnippetFeatureStrings {
         libraryFooterHint: "↩ insère · esc ferme",
         folderLabel: "Dossier",
         folderPlaceholder: "Travail",
-        showInLibraryLabel: "Afficher dans le menu rapide"
+        showInLibraryLabel: "Afficher dans le menu rapide",
+        variablesFormatCaption: "Un format après deux-points choisit l'apparence, par exemple {{date:yyyy-MM-dd}}."
     )
 
     static let it = SnippetFeatureStrings(
@@ -406,7 +415,8 @@ extension SnippetFeatureStrings {
         libraryFooterHint: "↩ inserisce · esc chiude",
         folderLabel: "Cartella",
         folderPlaceholder: "Lavoro",
-        showInLibraryLabel: "Mostra nel menu rapido"
+        showInLibraryLabel: "Mostra nel menu rapido",
+        variablesFormatCaption: "Un formato dopo i due punti sceglie l'aspetto, ad esempio {{date:yyyy-MM-dd}}."
     )
 
     static let ja = SnippetFeatureStrings(
@@ -444,7 +454,8 @@ extension SnippetFeatureStrings {
         libraryFooterHint: "↩ 入力 · esc 閉じる",
         folderLabel: "フォルダ",
         folderPlaceholder: "仕事",
-        showInLibraryLabel: "クイックメニューに表示"
+        showInLibraryLabel: "クイックメニューに表示",
+        variablesFormatCaption: "コロンの後に形式を書くと表示を選べます。例: {{date:yyyy-MM-dd}}"
     )
 
     static let zhHans = SnippetFeatureStrings(
@@ -482,7 +493,8 @@ extension SnippetFeatureStrings {
         libraryFooterHint: "↩ 输入 · esc 关闭",
         folderLabel: "文件夹",
         folderPlaceholder: "工作",
-        showInLibraryLabel: "在快捷菜单中显示"
+        showInLibraryLabel: "在快捷菜单中显示",
+        variablesFormatCaption: "冒号后加上格式就能自定样式,例如 {{date:yyyy-MM-dd}}。"
     )
 
     static let zhTW = SnippetFeatureStrings(
@@ -520,7 +532,8 @@ extension SnippetFeatureStrings {
         libraryFooterHint: "↩ 輸入 · esc 關閉",
         folderLabel: "檔案夾",
         folderPlaceholder: "工作",
-        showInLibraryLabel: "在快捷選單中顯示"
+        showInLibraryLabel: "在快捷選單中顯示",
+        variablesFormatCaption: "冒號後加上格式就能自訂樣式,例如 {{date:yyyy-MM-dd}}。"
     )
 
     static let zhHK = SnippetFeatureStrings(
@@ -558,6 +571,7 @@ extension SnippetFeatureStrings {
         libraryFooterHint: "↩ 輸入 · esc 關閉",
         folderLabel: "檔案夾",
         folderPlaceholder: "工作",
-        showInLibraryLabel: "在快捷選單中顯示"
+        showInLibraryLabel: "在快捷選單中顯示",
+        variablesFormatCaption: "喺冒號後加上格式就可以自訂樣式,例如 {{date:yyyy-MM-dd}}。"
     )
 }

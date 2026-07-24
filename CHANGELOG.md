@@ -7,9 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [3.2.0]
 
 ### Summary
-Vorssaint 3.2.0 adds a searchable snippet menu with folders, lets the extra
-buttons on a mouse press keyboard shortcuts you choose, and shows windows
-from other desktops in the App Switcher and Dock previews. It also lets you
+Vorssaint 3.2.0 adds a searchable snippet menu with folders and custom date
+formats in snippets, lets the extra buttons on a mouse press keyboard
+shortcuts you choose, and shows windows from other desktops in the App
+Switcher and Dock previews. It also lets you
 hide apps from the volume mixer, cleans up the sound of boosted apps and
 fixes a batch of volume, window layout, monitor brightness and paste as
 plain text issues.
@@ -29,6 +30,8 @@ plain text issues.
   together or reach for the Finder.
 - Snippet triggers that ignore capitalization. Turn it on for a snippet in
   its editor and the trigger fires however it is capitalized.
+- Date and time formats in snippets. Write a pattern after the variable,
+  like {{date:yyyy-MM-dd}}, and it expands in exactly that shape.
 
 ### Changed
 - Recording a shortcut now keeps the keys to itself. A combination that used

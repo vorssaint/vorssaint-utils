@@ -120,11 +120,54 @@ enum TextSnippetSupport {
         timeFormatter.timeStyle = .short
         let dateText = dateFormatter.string(from: date)
         let timeText = timeFormatter.string(from: date)
-        return replacement
+        let expanded = replacement
             .replacingOccurrences(of: "{{date}}", with: dateText)
             .replacingOccurrences(of: "{{time}}", with: timeText)
             .replacingOccurrences(of: "{{datetime}}", with: "\(dateText) \(timeText)")
+        // The clipboard goes in last so pasted text is never re-expanded.
+        return expandingFormattedDates(expanded, date: date, locale: locale)
             .replacingOccurrences(of: "{{clipboard}}", with: clipboard ?? "")
+    }
+
+    /// The date variables also take an explicit pattern after a colon, in the
+    /// system's own date-format language: {{date:yyyy-MM-dd}}, and the same
+    /// for time and datetime so every spelling works. The pattern keeps the
+    /// user's locale, so month and weekday names come out in their language.
+    private static let formattedDatePrefixes = ["{{date:", "{{time:", "{{datetime:"]
+
+    private static func expandingFormattedDates(_ text: String,
+                                                date: Date,
+                                                locale: Locale) -> String {
+        guard formattedDatePrefixes.contains(where: text.contains) else { return text }
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        var result = ""
+        var rest = Substring(text)
+        while let start = rest.range(of: "{{") {
+            result += rest[..<start.lowerBound]
+            let tail = rest[start.lowerBound...]
+            guard let close = tail.range(of: "}}"),
+                  let pattern = formattedPattern(in: tail[..<close.lowerBound]) else {
+                result += "{{"
+                rest = rest[start.upperBound...]
+                continue
+            }
+            formatter.dateFormat = pattern
+            result += formatter.string(from: date)
+            rest = rest[close.upperBound...]
+        }
+        return result + rest
+    }
+
+    /// The pattern inside one "{{name:pattern" chunk, nil when the tag is not
+    /// a date variable or the pattern is empty (both stay visible, like any
+    /// unknown tag).
+    private static func formattedPattern(in tag: Substring) -> String? {
+        for prefix in formattedDatePrefixes where tag.hasPrefix(prefix) {
+            let pattern = String(tag.dropFirst(prefix.count))
+            return pattern.isEmpty ? nil : pattern
+        }
+        return nil
     }
 
     // MARK: - Library

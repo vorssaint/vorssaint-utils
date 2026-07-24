@@ -82,6 +82,7 @@ struct TextSnippetsSettings: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(text.variablesHint)
                     Text(text.variablesCaption)
+                    Text(text.variablesFormatCaption)
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -256,6 +257,9 @@ private struct SnippetEditor: View {
                                 .strokeBorder(Color.primary.opacity(0.12))
                         )
                     Text(text.variablesHint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(text.variablesFormatCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

@@ -6326,6 +6326,36 @@ struct MetricsTests {
         expect(TextSnippetSupport.expand("plain", date: fixedDate, clipboard: nil) == "plain",
                "text without variables passes through untouched")
 
+        // Custom date patterns after a colon (issue #348)
+        let enUS = Locale(identifier: "en_US")
+        expect(TextSnippetSupport.expand("{{date:yyyy-MM-dd}}", date: fixedDate, clipboard: nil,
+                                         locale: enUS).hasPrefix("2025-07-0"),
+               "a pattern after the colon formats the date")
+        expect(TextSnippetSupport.expand("{{time:HH:mm}}", date: fixedDate, clipboard: nil,
+                                         locale: enUS)
+                .range(of: "^[0-9]{2}:[0-9]{2}$", options: .regularExpression) != nil,
+               "colons inside the pattern belong to the pattern")
+        expect(TextSnippetSupport.expand("{{datetime:yyyy}}", date: fixedDate, clipboard: nil,
+                                         locale: enUS) == "2025",
+               "every date variable takes a pattern")
+        expect(TextSnippetSupport.expand("{{date:MMMM}}", date: fixedDate, clipboard: nil,
+                                         locale: Locale(identifier: "pt_BR")).lowercased() == "julho",
+               "month and weekday names follow the locale")
+        expect(TextSnippetSupport.expand("on {{date}} ({{date:yyyy}})", date: fixedDate,
+                                         clipboard: nil, locale: enUS).contains("(2025)"),
+               "plain and formatted variables coexist")
+        expect(TextSnippetSupport.expand("{{date:}}", date: fixedDate, clipboard: nil) == "{{date:}}",
+               "an empty pattern stays visible like any typo")
+        expect(TextSnippetSupport.expand("{{foo:yyyy}}", date: fixedDate, clipboard: nil)
+                == "{{foo:yyyy}}",
+               "unknown tags with a colon stay visible")
+        expect(TextSnippetSupport.expand("{{date:yyyy", date: fixedDate, clipboard: nil)
+                == "{{date:yyyy",
+               "an unclosed tag passes through untouched")
+        expect(TextSnippetSupport.expand("clip: {{clipboard}}", date: fixedDate,
+                                         clipboard: "{{date:yyyy}}") == "clip: {{date:yyyy}}",
+               "pasted clipboard text is never re-expanded")
+
         // Per-snippet capitalization option (issue #304)
         let caseless = TextSnippet(name: "Caseless", trigger: ";email", replacement: "me@x.com",
                                    expansion: .afterDelimiter, enabled: true, ignoresCase: true)
