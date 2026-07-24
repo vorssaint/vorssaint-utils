@@ -276,7 +276,7 @@ final class RadialMenuService: ObservableObject {
     private func availableItems(_ items: [RadialMenuItem]) -> [RadialMenuItem] {
         items.compactMap { item in
             var item = item
-            if let tool = item.tool, !tool.feature.isAvailable { return nil }
+            if let tool = item.tool, !tool.isRunnable() { return nil }
             if item.kind == .submenu {
                 item.children = availableItems(item.children)
                 if item.children.isEmpty { return nil }
@@ -534,7 +534,7 @@ final class RadialMenuService: ObservableObject {
     }
 
     private func run(_ tool: RadialMenuTool) {
-        guard tool.feature.isAvailable else { return }
+        guard tool.isRunnable() else { return }
         // The same beat the quick panel gives screen-touching tools, so the
         // wheel is really gone before anything captures or presents.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
@@ -547,6 +547,8 @@ final class RadialMenuService: ObservableObject {
             case .quickLauncher: QuickLauncherService.shared.show()
             case .cameraPreview: CameraPreviewService.shared.show()
             case .scratchpad: ScratchpadService.shared.show()
+            case .shelf: ShelfService.shared.summon()
+            case .cleaningMode: CleaningModeManager.shared.activate()
             }
         }
     }

@@ -399,7 +399,7 @@ private struct RadialItemEditor: View {
     }
 
     private var availableTools: [RadialMenuTool] {
-        RadialMenuTool.allCases.filter { $0.feature.isAvailable }
+        RadialMenuTool.allCases.filter { $0.isRunnable() }
     }
 
     private var urlIsInvalid: Bool {
