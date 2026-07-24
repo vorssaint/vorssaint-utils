@@ -879,6 +879,7 @@ extension Strings {
         highlightsTitle: "Novedades de esta versión",
         highlightsCaptionDockPreview: "Dock Preview ahora funciona con la ampliación del Dock activada",
         highlightsCaptionScreenshot: "La captura de pantalla ganó una lupa de píxeles y lectura de códigos QR",
+        highlightsCaptionSnippetLibrary: "Un menú de fragmentos con búsqueda escribe cualquier fragmento en el cursor",
         highlightsConfigure: "Configurar",
         highlightsTry: "Probar",
         highlightsSeeAll: "Ver todos los cambios",

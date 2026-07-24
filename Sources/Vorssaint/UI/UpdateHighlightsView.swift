@@ -43,6 +43,15 @@ struct UpdateHighlightsView: View {
     /// uninstalled in the hub stay out; their Settings pages are gone too.
     private var highlights: [Highlight] {
         var pages: [Highlight] = []
+        if AppFeature.textSnippets.isAvailable {
+            pages.append(Highlight(
+                id: "snippetlibrary", symbol: AppFeature.textSnippets.symbolName,
+                imageName: "highlights-snippetlibrary",
+                title: FeatureStrings.snippets(l10n.language).libraryTitle,
+                caption: s.highlightsCaptionSnippetLibrary,
+                actionLabel: s.highlightsConfigure,
+                action: { openSettings(.textSnippets) }))
+        }
         if AppFeature.mouseButtonShortcuts.isAvailable {
             pages.append(Highlight(
                 id: "mousebuttons", symbol: AppFeature.mouseButtonShortcuts.symbolName,

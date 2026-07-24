@@ -5378,7 +5378,9 @@ struct MetricsTests {
             expect(ocrQRStrings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "\(prefix) screen QR strings are present without em dash")
             let highlightsStrings = [strings.highlightsTitle, strings.highlightsCaptionDockPreview,
-                                     strings.highlightsCaptionScreenshot, strings.highlightsConfigure,
+                                     strings.highlightsCaptionScreenshot,
+                                     strings.highlightsCaptionSnippetLibrary,
+                                     strings.highlightsConfigure,
                                      strings.highlightsTry, strings.highlightsSeeAll]
             expect(highlightsStrings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "\(prefix) update highlights strings are present without em dash")

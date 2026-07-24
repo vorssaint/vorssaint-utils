@@ -880,6 +880,7 @@ extension Strings {
         highlightsTitle: "此更新的新功能",
         highlightsCaptionDockPreview: "Dock Preview 現在可以在開啟 Dock 放大時使用",
         highlightsCaptionScreenshot: "截圖工具新增了像素放大鏡和 QR 碼讀取",
+        highlightsCaptionSnippetLibrary: "可搜尋的片段選單把任何片段直接輸入到游標處",
         highlightsConfigure: "設定",
         highlightsTry: "試試看",
         highlightsSeeAll: "查看所有變更",

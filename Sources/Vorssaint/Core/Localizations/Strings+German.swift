@@ -879,6 +879,7 @@ extension Strings {
         highlightsTitle: "Neu in diesem Update",
         highlightsCaptionDockPreview: "Dock Preview funktioniert jetzt auch mit eingeschalteter Dock-Vergrößerung",
         highlightsCaptionScreenshot: "Das Bildschirmfoto-Werkzeug hat eine Pixel-Lupe und QR-Code-Erkennung erhalten",
+        highlightsCaptionSnippetLibrary: "Ein durchsuchbares Schnipsel-Menü tippt jeden Schnipsel direkt am Cursor",
         highlightsConfigure: "Einrichten",
         highlightsTry: "Ausprobieren",
         highlightsSeeAll: "Alle Änderungen ansehen",

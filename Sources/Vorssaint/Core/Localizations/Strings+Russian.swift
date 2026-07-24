@@ -880,6 +880,7 @@ extension Strings {
         highlightsTitle: "Новое в этом обновлении",
         highlightsCaptionDockPreview: "Dock Preview теперь работает при включённом увеличении Dock",
         highlightsCaptionScreenshot: "Инструмент снимков экрана получил пиксельную лупу и чтение QR-кодов",
+        highlightsCaptionSnippetLibrary: "Меню сниппетов с поиском печатает любой сниппет прямо у курсора",
         highlightsConfigure: "Настроить",
         highlightsTry: "Попробовать",
         highlightsSeeAll: "Все изменения",
