@@ -12,10 +12,10 @@ formats in snippets, lets the extra buttons on a mouse press keyboard
 shortcuts you choose, and puts screenshots on autopilot: they can copy
 themselves to the clipboard, save into dated subfolders with your own file
 names, and run your favorite action right after each capture. It also shows
-windows from other desktops in the App Switcher and Dock previews, lets you
-hide apps from the volume mixer, cleans up the sound of boosted apps and
-fixes a batch of volume, window layout, monitor brightness and paste as
-plain text issues.
+windows from other desktops in the App Switcher and Dock previews, brings
+the Shelf and Cleaning Mode to the radial menu, lets you hide apps from the
+volume mixer, cleans up the sound of boosted apps and fixes a batch of
+volume, window layout, monitor brightness and paste as plain text issues.
 
 ### Added
 - A quick snippet menu. A shortcut of your choice opens a searchable menu
@@ -33,6 +33,9 @@ plain text issues.
 - Dated subfolders and custom file names for screenshots. Patterns like
   %y-%mo sort saves into monthly folders, and the file name can follow your
   own pattern with an auto-counting number. Thanks to @403Denied.
+- The Shelf and Cleaning Mode on the radial menu. Two new slices to add to
+  the wheel; a Shelf slice sleeps while the Shelf itself is switched off.
+  Thanks to @ruvelro.
 - Hide apps from the volume mixer. Right click an app in the list, or
   uncheck it in the new chooser at the bottom of the mixer; hidden apps play
   normally and the same menu brings them back.
