@@ -6101,7 +6101,7 @@ struct MetricsTests {
                    "no em-dash in visible scratchpad strings (\(language.rawValue))")
             let whatsAppValues = Mirror(reflecting: FeatureStrings.whatsAppDownloads(language)).children
                 .compactMap { $0.value as? String }
-            expect(whatsAppValues.count == 39 && whatsAppValues.allSatisfy { !$0.isEmpty },
+            expect(whatsAppValues.count == 40 && whatsAppValues.allSatisfy { !$0.isEmpty },
                    "every WhatsApp downloads string is set for \(language.rawValue)")
             expect(whatsAppValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in WhatsApp downloads strings (\(language.rawValue))")

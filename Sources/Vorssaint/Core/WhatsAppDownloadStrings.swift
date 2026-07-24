@@ -43,6 +43,7 @@ struct WhatsAppDownloadStrings {
     let notificationTitle: String
     let notificationFormat: String
     let scanFailed: String
+    let manageButton: String
 
     static func localized(_ language: AppLanguage) -> WhatsAppDownloadStrings {
         switch language {
@@ -103,7 +104,8 @@ extension WhatsAppDownloadStrings {
         localNote: "Only local file metadata is inspected. Vorssaint never reads chats or file contents.",
         notificationTitle: "WhatsApp cleanup",
         notificationFormat: "%1$d files (%2$@) moved to the Trash. %3$d failed.",
-        scanFailed: "Downloads could not be scanned. Check Files & Folders in System Settings."
+        scanFailed: "Downloads could not be scanned. Check Files & Folders in System Settings.",
+        manageButton: "Manage…"
     )
 
     static let es = WhatsAppDownloadStrings(
@@ -145,7 +147,8 @@ extension WhatsAppDownloadStrings {
         localNote: "Solo se consultan metadatos locales. Vorssaint nunca lee los chats ni el contenido de los archivos.",
         notificationTitle: "Limpieza de WhatsApp",
         notificationFormat: "%1$d archivos (%2$@) movidos a la Papelera. %3$d fallidos.",
-        scanFailed: "No se pudo analizar Descargas. Comprueba Archivos y carpetas en Ajustes del Sistema."
+        scanFailed: "No se pudo analizar Descargas. Comprueba Archivos y carpetas en Ajustes del Sistema.",
+        manageButton: "Gestionar…"
     )
 
     static let ptBR = WhatsAppDownloadStrings(
@@ -187,7 +190,8 @@ extension WhatsAppDownloadStrings {
         localNote: "Apenas metadados locais são consultados. O Vorssaint nunca lê conversas nem o conteúdo dos arquivos.",
         notificationTitle: "Limpeza do WhatsApp",
         notificationFormat: "%1$d arquivos (%2$@) movidos para a Lixeira. %3$d falharam.",
-        scanFailed: "Não foi possível verificar Downloads. Confira Arquivos e Pastas nos Ajustes do Sistema."
+        scanFailed: "Não foi possível verificar Downloads. Confira Arquivos e Pastas nos Ajustes do Sistema.",
+        manageButton: "Gerenciar…"
     )
 
     static let de = translated(language: .de,
@@ -328,6 +332,7 @@ extension WhatsAppDownloadStrings {
         let localNote: String
         let notificationFormat: String
         let scanFailed: String
+        let manageButton: String
     }
 
     private static func operational(_ language: AppLanguage) -> OperationalStrings {
@@ -344,7 +349,7 @@ extension WhatsAppDownloadStrings {
                 firstMessageFormat: "%d vorhandene Dateien erfüllen bereits deine Regeln. Wähle, ob sie oder nur künftige Downloads verwaltet werden.",
                 localNote: "Nur lokale Metadaten werden geprüft. Vorssaint liest weder Chats noch Dateiinhalte.",
                 notificationFormat: "%1$d Dateien (%2$@) in den Papierkorb verschoben. %3$d fehlgeschlagen.",
-                scanFailed: "Downloads konnte nicht geprüft werden. Kontrolliere Dateien & Ordner in den Systemeinstellungen.")
+                scanFailed: "Downloads konnte nicht geprüft werden. Kontrolliere Dateien & Ordner in den Systemeinstellungen.", manageButton: "Verwalten…")
         case .fr:
             return OperationalStrings(
                 automaticCaption: "Vérifie une fois par jour et place dans la Corbeille les fichiers correspondants arrivés à échéance.",
@@ -357,7 +362,7 @@ extension WhatsAppDownloadStrings {
                 firstMessageFormat: "%d fichiers existants correspondent déjà à vos règles. Choisissez de les inclure ou de ne gérer que les futurs téléchargements.",
                 localNote: "Seules les métadonnées locales sont consultées. Vorssaint ne lit ni les discussions ni le contenu des fichiers.",
                 notificationFormat: "%1$d fichiers (%2$@) placés dans la Corbeille. %3$d échecs.",
-                scanFailed: "Impossible d'analyser Téléchargements. Vérifiez Fichiers et dossiers dans Réglages Système.")
+                scanFailed: "Impossible d'analyser Téléchargements. Vérifiez Fichiers et dossiers dans Réglages Système.", manageButton: "Gérer…")
         case .it:
             return OperationalStrings(
                 automaticCaption: "Controlla una volta al giorno e sposta nel Cestino i file corrispondenti oltre il limite.",
@@ -370,7 +375,7 @@ extension WhatsAppDownloadStrings {
                 firstMessageFormat: "%d file esistenti rispettano già le regole. Scegli se includerli o gestire solo i download futuri.",
                 localNote: "Vengono controllati solo metadati locali. Vorssaint non legge chat o contenuti dei file.",
                 notificationFormat: "%1$d file (%2$@) spostati nel Cestino. %3$d non riusciti.",
-                scanFailed: "Impossibile controllare Download. Verifica File e cartelle nelle Impostazioni di Sistema.")
+                scanFailed: "Impossibile controllare Download. Verifica File e cartelle nelle Impostazioni di Sistema.", manageButton: "Gestisci…")
         case .tr:
             return OperationalStrings(
                 automaticCaption: "Günde bir kez denetler ve süresi dolan eşleşen dosyaları Çöp Sepeti'ne taşır.",
@@ -383,7 +388,7 @@ extension WhatsAppDownloadStrings {
                 firstMessageFormat: "%d mevcut dosya kurallarınıza uyuyor. Bunları dahil etmeyi veya yalnızca gelecekteki indirmeleri yönetmeyi seçin.",
                 localNote: "Yalnızca yerel meta veriler incelenir. Vorssaint sohbetleri veya dosya içeriklerini okumaz.",
                 notificationFormat: "%1$d dosya (%2$@) Çöp Sepeti'ne taşındı. %3$d başarısız.",
-                scanFailed: "İndirilenler taranamadı. Sistem Ayarları'nda Dosyalar ve Klasörler'i denetleyin.")
+                scanFailed: "İndirilenler taranamadı. Sistem Ayarları'nda Dosyalar ve Klasörler'i denetleyin.", manageButton: "Yönet…")
         case .ru:
             return OperationalStrings(
                 automaticCaption: "Раз в день проверяет и перемещает в Корзину подходящие файлы старше выбранного срока.",
@@ -396,7 +401,7 @@ extension WhatsAppDownloadStrings {
                 firstMessageFormat: "%d существующих файлов уже подходят под правила. Включите их или управляйте только будущими загрузками.",
                 localNote: "Проверяются только локальные метаданные. Vorssaint не читает чаты и содержимое файлов.",
                 notificationFormat: "%1$d файлов (%2$@) перемещено в Корзину. Ошибок: %3$d.",
-                scanFailed: "Не удалось проверить Загрузки. Проверьте «Файлы и папки» в Системных настройках.")
+                scanFailed: "Не удалось проверить Загрузки. Проверьте «Файлы и папки» в Системных настройках.", manageButton: "Управление…")
         case .ja:
             return OperationalStrings(
                 automaticCaption: "1日1回確認し、期限を過ぎた対象ファイルをゴミ箱へ移動します。",
@@ -408,7 +413,7 @@ extension WhatsAppDownloadStrings {
                 firstMessageFormat: "既存の%d件がすでにルールに一致します。含めるか、今後のダウンロードだけを管理するか選んでください。",
                 localNote: "ローカルのメタデータだけを確認します。チャットやファイル内容は読みません。",
                 notificationFormat: "%1$d件（%2$@）をゴミ箱へ移動しました。失敗%3$d件。",
-                scanFailed: "ダウンロードを確認できません。「ファイルとフォルダ」の許可を確認してください。")
+                scanFailed: "ダウンロードを確認できません。「ファイルとフォルダ」の許可を確認してください。", manageButton: "管理…")
         case .ko:
             return OperationalStrings(
                 automaticCaption: "하루 한 번 확인하고 보관 기간이 지난 대상 파일을 휴지통으로 이동합니다.",
@@ -420,7 +425,7 @@ extension WhatsAppDownloadStrings {
                 firstMessageFormat: "기존 파일 %d개가 이미 규칙에 맞습니다. 포함하거나 향후 다운로드만 관리하도록 선택하세요.",
                 localNote: "로컬 메타데이터만 확인합니다. 채팅이나 파일 내용은 읽지 않습니다.",
                 notificationFormat: "%1$d개(%2$@)를 휴지통으로 이동했습니다. %3$d개 실패.",
-                scanFailed: "다운로드 폴더를 검사할 수 없습니다. 시스템 설정의 파일 및 폴더를 확인하세요.")
+                scanFailed: "다운로드 폴더를 검사할 수 없습니다. 시스템 설정의 파일 및 폴더를 확인하세요.", manageButton: "관리…")
         case .zhHans:
             return OperationalStrings(
                 automaticCaption: "每天检查一次，并将超过期限的匹配文件移到废纸篓。",
@@ -432,7 +437,7 @@ extension WhatsAppDownloadStrings {
                 firstMessageFormat: "已有 %d 个文件符合规则。请选择包括它们，或仅管理未来下载。",
                 localNote: "只检查本地元数据。Vorssaint 绝不读取聊天或文件内容。",
                 notificationFormat: "%1$d 个文件（%2$@）已移到废纸篓。%3$d 个失败。",
-                scanFailed: "无法扫描下载文件夹。请检查系统设置中的“文件与文件夹”。")
+                scanFailed: "无法扫描下载文件夹。请检查系统设置中的“文件与文件夹”。", manageButton: "管理…")
         case .zhTW, .zhHK:
             return OperationalStrings(
                 automaticCaption: "每天檢查一次，並將超過期限的相符檔案移至垃圾桶。",
@@ -444,28 +449,28 @@ extension WhatsAppDownloadStrings {
                 firstMessageFormat: "已有 %d 個檔案符合規則。請選擇包括它們，或只管理日後下載。",
                 localNote: "只檢查本機中繼資料。Vorssaint 絕不讀取對話或檔案內容。",
                 notificationFormat: "%1$d 個檔案（%2$@）已移至垃圾桶。%3$d 個失敗。",
-                scanFailed: "無法掃描下載項目。請檢查系統設定中的「檔案與資料夾」。")
+                scanFailed: "無法掃描下載項目。請檢查系統設定中的「檔案與資料夾」。", manageButton: "管理…")
         case .enUS: return OperationalStrings(
             automaticCaption: enUS.automaticCaption, retentionCaption: enUS.retentionCaption,
             manualIntro: enUS.manualIntro, resultsFormat: enUS.resultsFormat,
             selectRules: enUS.selectRules, cleanSelectedFormat: enUS.cleanSelectedFormat,
             lastRunFormat: enUS.lastRunFormat, nextRunFormat: enUS.nextRunFormat,
             firstMessageFormat: enUS.firstMessageFormat, localNote: enUS.localNote,
-            notificationFormat: enUS.notificationFormat, scanFailed: enUS.scanFailed)
+            notificationFormat: enUS.notificationFormat, scanFailed: enUS.scanFailed, manageButton: enUS.manageButton)
         case .ptBR: return OperationalStrings(
             automaticCaption: ptBR.automaticCaption, retentionCaption: ptBR.retentionCaption,
             manualIntro: ptBR.manualIntro, resultsFormat: ptBR.resultsFormat,
             selectRules: ptBR.selectRules, cleanSelectedFormat: ptBR.cleanSelectedFormat,
             lastRunFormat: ptBR.lastRunFormat, nextRunFormat: ptBR.nextRunFormat,
             firstMessageFormat: ptBR.firstMessageFormat, localNote: ptBR.localNote,
-            notificationFormat: ptBR.notificationFormat, scanFailed: ptBR.scanFailed)
+            notificationFormat: ptBR.notificationFormat, scanFailed: ptBR.scanFailed, manageButton: ptBR.manageButton)
         case .es: return OperationalStrings(
             automaticCaption: es.automaticCaption, retentionCaption: es.retentionCaption,
             manualIntro: es.manualIntro, resultsFormat: es.resultsFormat,
             selectRules: es.selectRules, cleanSelectedFormat: es.cleanSelectedFormat,
             lastRunFormat: es.lastRunFormat, nextRunFormat: es.nextRunFormat,
             firstMessageFormat: es.firstMessageFormat, localNote: es.localNote,
-            notificationFormat: es.notificationFormat, scanFailed: es.scanFailed)
+            notificationFormat: es.notificationFormat, scanFailed: es.scanFailed, manageButton: es.manageButton)
         }
     }
 
@@ -495,6 +500,6 @@ extension WhatsAppDownloadStrings {
             firstTitle: firstTitle, firstMessageFormat: value.firstMessageFormat,
             futureOnly: future, includeExisting: existing, trashNote: trash,
             localNote: value.localNote, notificationTitle: notificationTitle,
-            notificationFormat: value.notificationFormat, scanFailed: value.scanFailed)
+            notificationFormat: value.notificationFormat, scanFailed: value.scanFailed, manageButton: value.manageButton)
     }
 }

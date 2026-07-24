@@ -11,6 +11,9 @@ import SwiftUI
 final class SettingsRouter: ObservableObject {
     static let shared = SettingsRouter()
     @Published var page: SettingsPage = .general
+    /// One-shot hint for the Cleaner page's tool switcher, so a panel surface
+    /// can land directly on a specific tool. Consumed and cleared on arrival.
+    @Published var cleanerTool: String?
     private init() {}
 }
 
