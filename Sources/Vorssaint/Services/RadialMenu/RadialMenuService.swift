@@ -287,6 +287,7 @@ final class RadialMenuService: ObservableObject {
         items.compactMap { item in
             var item = item
             if let tool = item.tool, !tool.isRunnable() { return nil }
+            if item.kind == .windowLayout, !AppFeature.windowLayout.isAvailable { return nil }
             if item.kind == .submenu {
                 item.children = availableItems(item.children)
                 if item.children.isEmpty { return nil }
@@ -544,6 +545,8 @@ final class RadialMenuService: ObservableObject {
             }
         case .tool:
             if let tool = item.tool { run(tool) }
+        case .windowLayout:
+            if let action = item.windowLayoutAction { run(action) }
         case .submenu:
             break
         }
@@ -569,9 +572,18 @@ final class RadialMenuService: ObservableObject {
         }
     }
 
-    // MARK: - Synthetic keys (need Accessibility, asked once and in context)
+    private func run(_ action: WindowLayoutAction) {
+        guard AppFeature.windowLayout.isAvailable, ensureAccessibilityPermission() else { return }
+        // Let the non-activating wheel disappear before resolving the window
+        // that was active behind it, matching the delay used by visual tools.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            if case .failure = WindowLayoutService.shared.apply(action) { NSSound.beep() }
+        }
+    }
 
-    private func ensurePostingTrust() -> Bool {
+    // MARK: - Accessibility-gated actions (asked once and in context)
+
+    private func ensureAccessibilityPermission() -> Bool {
         guard AXIsProcessTrusted() else {
             if promptedForAccessibility {
                 NSSound.beep()
@@ -588,7 +600,7 @@ final class RadialMenuService: ObservableObject {
     /// the synthetic key merges with the still-held modifiers (checked every
     /// 15 ms for up to ~1.5 s, with an extra beat once clean).
     private func postWhenModifiersReleased(attempt: Int, then post: @escaping () -> Void) {
-        guard ensurePostingTrust() else { return }
+        guard ensureAccessibilityPermission() else { return }
         let held = CGEventSource.flagsState(.combinedSessionState)
             .intersection([.maskCommand, .maskAlternate, .maskShift, .maskControl])
         if held.isEmpty || attempt >= 100 {

@@ -106,7 +106,9 @@ struct RadialMenuSettings: View {
                !permissions.accessibility {
                 Section {
                     PermissionRow(kind: .accessibility)
-                    Text(text.permissionCaption)
+                    Text(RadialMenuSupport.usesWindowLayout(items)
+                         ? FeatureStrings.windowLayout(l10n.language).missingPermission
+                         : text.permissionCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -274,6 +276,7 @@ private struct RadialItemRow: View {
         case .url: return text.kindURL
         case .shortcut: return text.kindShortcut
         case .tool: return text.kindTool
+        case .windowLayout: return FeatureStrings.windowLayout(L10n.shared.language).title
         case .media: return text.kindMedia
         case .submenu: return text.kindSubmenu
         }
@@ -440,6 +443,10 @@ private struct RadialItemEditor: View {
                     if !availableTools.isEmpty {
                         Text(text.kindTool).tag(RadialMenuItem.Kind.tool)
                     }
+                    if AppFeature.windowLayout.isAvailable {
+                        Text(FeatureStrings.windowLayout(l10n.language).title)
+                            .tag(RadialMenuItem.Kind.windowLayout)
+                    }
                     Text(text.kindMedia).tag(RadialMenuItem.Kind.media)
                     if allowsSubmenu {
                         Text(text.kindSubmenu).tag(RadialMenuItem.Kind.submenu)
@@ -506,6 +513,7 @@ private struct RadialItemEditor: View {
             shortcutMessage = nil
             switch kind {
             case .tool: item.payload = availableTools.first?.rawValue ?? ""
+            case .windowLayout: item.payload = WindowLayoutAction.leftHalf.rawValue
             case .media: item.payload = RadialMenuMediaKey.playPause.rawValue
             default: item.payload = ""
             }
@@ -558,6 +566,14 @@ private struct RadialItemEditor: View {
                 ForEach(availableTools) { tool in
                     Text(tool.feature.hubTitle(l10n.s, hub: FeatureStrings.hub(l10n.language)))
                         .tag(tool.rawValue)
+                }
+            }
+        case .windowLayout:
+            let windowText = FeatureStrings.windowLayout(l10n.language)
+            Picker(windowText.title, selection: $item.payload) {
+                ForEach(WindowLayoutAction.allCases) { action in
+                    Label(action.title(windowText), systemImage: action.symbolName)
+                        .tag(action.rawValue)
                 }
             }
         case .media:

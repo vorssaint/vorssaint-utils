@@ -179,6 +179,29 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .nextDisplay: return text.nextDisplay
         }
     }
+
+    /// Shared by every place that presents an individual placement action.
+    var symbolName: String {
+        switch self {
+        case .leftHalf, .leftThird: return "rectangle.leftthird.inset.filled"
+        case .rightHalf, .rightThird: return "rectangle.rightthird.inset.filled"
+        case .topHalf: return "rectangle.topthird.inset.filled"
+        case .bottomHalf: return "rectangle.bottomthird.inset.filled"
+        case .centerThird: return "rectangle.center.inset.filled"
+        case .leftTwoThirds: return "rectangle.leadinghalf.filled"
+        case .rightTwoThirds: return "rectangle.trailinghalf.filled"
+        case .topLeftSixth, .topLeft: return "arrow.up.left"
+        case .topCenterSixth: return "arrow.up"
+        case .topRightSixth, .topRight: return "arrow.up.right"
+        case .bottomLeftSixth, .bottomLeft: return "arrow.down.left"
+        case .bottomCenterSixth: return "arrow.down"
+        case .bottomRightSixth, .bottomRight: return "arrow.down.right"
+        case .maximize: return "arrow.up.left.and.arrow.down.right"
+        case .center: return "scope"
+        case .nextDisplay: return "arrow.right.to.line"
+        case .restore: return "arrow.uturn.backward"
+        }
+    }
 }
 
 enum WindowLayoutGeometry {

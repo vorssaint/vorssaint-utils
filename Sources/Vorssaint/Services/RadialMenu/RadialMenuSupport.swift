@@ -5,11 +5,11 @@ import CoreGraphics
 import Foundation
 
 /// One action on the wheel. `payload` carries the target: an app or file path,
-/// a link, a tool or media identifier, or a shortcut storage value. Submenus
-/// keep their actions in `children`.
+/// a link, tool, media or window-layout identifier, or a shortcut storage
+/// value. Submenus keep their actions in `children`.
 struct RadialMenuItem: Codable, Identifiable, Equatable {
     enum Kind: String, Codable, CaseIterable {
-        case app, file, url, shortcut, tool, media, submenu
+        case app, file, url, shortcut, tool, windowLayout, media, submenu
     }
 
     var id = UUID()
@@ -27,6 +27,10 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
         kind == .media ? RadialMenuMediaKey(rawValue: payload) : nil
     }
 
+    var windowLayoutAction: WindowLayoutAction? {
+        kind == .windowLayout ? WindowLayoutAction(rawValue: payload) : nil
+    }
+
     /// The symbol drawn when the user picked none. App and file items prefer
     /// their real file icons in the UI; these are the fallbacks.
     var defaultSymbolName: String {
@@ -36,6 +40,7 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
         case .url: return "link"
         case .shortcut: return "command"
         case .tool: return tool?.symbolName ?? "wrench.and.screwdriver"
+        case .windowLayout: return windowLayoutAction?.symbolName ?? AppFeature.windowLayout.symbolName
         case .media:
             switch mediaKey {
             case .previousTrack: return "backward.fill"
@@ -215,6 +220,7 @@ enum RadialMenuSupport {
         case .url: return normalizedURL(item.payload) != nil
         case .shortcut: return GlobalShortcut(storageValue: item.payload) != nil
         case .tool: return item.tool != nil
+        case .windowLayout: return item.windowLayoutAction != nil
         case .media: return item.mediaKey != nil
         case .submenu: return true
         }
@@ -305,15 +311,22 @@ enum RadialMenuSupport {
         RadialMenuItem(kind: .media, payload: RadialMenuMediaKey.previousTrack.rawValue),
     ]
 
-    /// True when any item, at any level, posts synthetic key events and so
-    /// needs the Accessibility permission.
+    /// True when any item, at any level, controls keyboard input or windows
+    /// and therefore needs the Accessibility permission.
     static func needsAccessibility(_ items: [RadialMenuItem]) -> Bool {
         items.contains { item in
             switch item.kind {
-            case .shortcut, .media: return true
+            case .shortcut, .windowLayout, .media: return true
             case .submenu: return needsAccessibility(item.children)
             default: return false
             }
+        }
+    }
+
+    static func usesWindowLayout(_ items: [RadialMenuItem]) -> Bool {
+        items.contains { item in
+            item.kind == .windowLayout
+                || (item.kind == .submenu && usesWindowLayout(item.children))
         }
     }
 }
