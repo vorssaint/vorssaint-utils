@@ -6,3 +6,12 @@
 
 /* macOS Camera permission prompt. */
 "NSCameraUsageDescription" = "Vorssaint 只會在你開啟的預覽視窗中顯示相機畫面，讓你在通話前確認自己的狀態。不會錄製任何內容，也不會有任何資料離開你的 Mac。";
+
+/* macOS Downloads folder permission prompt. */
+"NSDownloadsFolderUsageDescription" = "Vorssaint 檢查下載項目中的本機中繼資料，只檢視、整理或移至垃圾桶你選擇的已確認 WhatsApp 檔案。";
+
+/* macOS user-selected organizer destination prompts. */
+"NSDesktopFolderUsageDescription" = "Vorssaint 會將已確認的 WhatsApp 下載項目整理到你明確選擇的目標資料夾。";
+"NSDocumentsFolderUsageDescription" = "Vorssaint 會將已確認的 WhatsApp 下載項目整理到你明確選擇的目標資料夾。";
+"NSNetworkVolumesUsageDescription" = "Vorssaint 會將已確認的 WhatsApp 下載項目整理到你明確選擇的目標資料夾。";
+"NSRemovableVolumesUsageDescription" = "Vorssaint 會將已確認的 WhatsApp 下載項目整理到你明確選擇的目標資料夾。";

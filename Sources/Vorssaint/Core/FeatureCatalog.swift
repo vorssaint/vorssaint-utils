@@ -39,7 +39,7 @@ enum FeatureGroup: String, CaseIterable {
 
 /// System permissions surfaced by the hub's transparency portal.
 enum AppPermission: String, CaseIterable {
-    case accessibility, screenRecording, fullDiskAccess, notifications,
+    case accessibility, screenRecording, fullDiskAccess, filesAndFolders, notifications,
          automationFinder, automationTerminal, audioCapture, camera
 }
 
@@ -179,12 +179,13 @@ extension AppFeature {
         case .cameraPreview: return [.camera]
         case .keepAwake: return [.accessibility]
         case .brightness: return [.accessibility]
-        case .cleaner: return [.fullDiskAccess, .notifications]
+        case .cleaner: return [.fullDiskAccess, .filesAndFolders, .notifications]
         case .uninstaller: return [.fullDiskAccess, .automationFinder]
         case .homebrew: return [.automationTerminal]
         case .mixer: return [.audioCapture]
         case .monitorCPU, .monitorMemory, .monitorDisk, .monitorPower: return [.notifications]
-        case .clipboardHistory, .shelf, .urlCleaner, .soundOutputSwitcher, .musicBlock,
+        case .clipboardHistory, .shelf, .urlCleaner,
+             .soundOutputSwitcher, .musicBlock,
              .extraBrightness, .quickLauncher, .colorPicker, .micMute, .mediaTools,
              .scratchpad, .monitorGPU, .monitorNetwork:
             return []
@@ -236,8 +237,12 @@ extension AppFeature {
             case (.monitorPower, .notifications):
                 return boolFor(DefaultsKey.monitorAlertBattery)
             case (.cleaner, .notifications):
-                return (stringFor(DefaultsKey.cleanerScheduleFrequency) ?? "off") != "off"
+                let cleanerNotifies = (stringFor(DefaultsKey.cleanerScheduleFrequency) ?? "off") != "off"
                     && boolFor(DefaultsKey.cleanerScheduleNotify)
+                let whatsAppNotifies = (boolFor(DefaultsKey.whatsAppDownloadsAutomaticEnabled)
+                        || boolFor(DefaultsKey.whatsAppOrganizerEnabled))
+                    && boolFor(DefaultsKey.whatsAppDownloadsNotify)
+                return cleanerNotifies || whatsAppNotifies
             default:
                 return true
             }
@@ -276,6 +281,7 @@ extension AppPermission {
         case .accessibility: return "accessibility"
         case .screenRecording: return "rectangle.dashed.badge.record"
         case .fullDiskAccess: return "externaldrive.badge.person.crop"
+        case .filesAndFolders: return "folder.badge.person.crop"
         case .notifications: return "bell.badge"
         case .automationFinder, .automationTerminal: return "gearshape.2"
         case .audioCapture: return "waveform"

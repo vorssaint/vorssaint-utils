@@ -6,3 +6,12 @@
 
 /* macOS Camera permission prompt. */
 "NSCameraUsageDescription" = "Vorssaint는 사용자가 연 미리보기 윈도우에만 카메라를 표시하여 통화 전에 모습을 확인할 수 있도록 합니다. 아무것도 녹화되지 않으며 Mac 밖으로 전송되지 않습니다.";
+
+/* macOS Downloads folder permission prompt. */
+"NSDownloadsFolderUsageDescription" = "Vorssaint는 다운로드 폴더의 로컬 메타데이터를 확인하여 사용자가 선택한 확인된 WhatsApp 파일만 검토, 정리 또는 휴지통으로 이동합니다.";
+
+/* macOS user-selected organizer destination prompts. */
+"NSDesktopFolderUsageDescription" = "Vorssaint는 확인된 WhatsApp 다운로드를 사용자가 명시적으로 선택한 대상 폴더에 정리합니다.";
+"NSDocumentsFolderUsageDescription" = "Vorssaint는 확인된 WhatsApp 다운로드를 사용자가 명시적으로 선택한 대상 폴더에 정리합니다.";
+"NSNetworkVolumesUsageDescription" = "Vorssaint는 확인된 WhatsApp 다운로드를 사용자가 명시적으로 선택한 대상 폴더에 정리합니다.";
+"NSRemovableVolumesUsageDescription" = "Vorssaint는 확인된 WhatsApp 다운로드를 사용자가 명시적으로 선택한 대상 폴더에 정리합니다.";

@@ -4,6 +4,45 @@
 import SwiftUI
 import UserNotifications
 
+/// One Settings home for the installable Cleaner module. The system cleaner
+/// and WhatsApp downloads keep separate controls and schedules, while sharing
+/// the module's availability and permission portal entry.
+struct CleanerSettings: View {
+    @ObservedObject private var l10n = L10n.shared
+    @State private var tool = Tool.system
+
+    private enum Tool: String {
+        case system, whatsApp
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Picker("", selection: $tool) {
+                Label(l10n.s.cleanerName, systemImage: "sparkles")
+                    .tag(Tool.system)
+                Label(FeatureStrings.whatsAppDownloads(l10n.language).title,
+                      systemImage: "arrow.down.doc")
+                    .tag(Tool.whatsApp)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(maxWidth: 440)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 14)
+
+            Divider()
+
+            switch tool {
+            case .system:
+                CleanerView()
+            case .whatsApp:
+                WhatsAppDownloadsSettings()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+}
+
 /// The junk cleaner, built for one glance: a safe section that is fully
 /// selected and ready for a single click, and an optional section that
 /// starts unchecked and collapsed for whoever wants to dig. Every group has

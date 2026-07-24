@@ -75,6 +75,10 @@ enum FeatureStrings {
         case .zhHK: return .zhHK
         }
     }
+
+    static func whatsAppDownloads(_ language: AppLanguage) -> WhatsAppDownloadStrings {
+        WhatsAppDownloadStrings.localized(language)
+    }
 }
 
 extension SettingsCategoryStrings {

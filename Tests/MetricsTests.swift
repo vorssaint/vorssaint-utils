@@ -1880,6 +1880,22 @@ struct MetricsTests {
                "the schedule reports its outcome unless the user opts out")
         expect(registeredDefaults[DefaultsKey.cleanerBadgeSeen] as? Bool == false,
                "the red dot guiding to the cleaner shows until the cleaner opens once")
+        expect(registeredDefaults[DefaultsKey.whatsAppDownloadsAutomaticEnabled] as? Bool == false,
+               "WhatsApp automatic cleanup is opt-in")
+        expect(registeredDefaults[DefaultsKey.whatsAppDownloadsCategories] as? String
+               == "image,video,audio",
+               "WhatsApp cleanup starts with conservative media categories")
+        expect(registeredDefaults[DefaultsKey.whatsAppDownloadsRetentionDays] as? Int == 7,
+               "WhatsApp downloads keep a seven day default window")
+        expect(registeredDefaults[DefaultsKey.whatsAppDownloadsAccessConfirmed] as? Bool == false,
+               "WhatsApp cleanup never probes Downloads in the background before explicit access")
+        expect(registeredDefaults[DefaultsKey.whatsAppOrganizerEnabled] as? Bool == false,
+               "the experimental WhatsApp organizer is opt-in")
+        expect(registeredDefaults[DefaultsKey.whatsAppOrganizerDelayMinutes] as? Int == 5
+                && registeredDefaults[DefaultsKey.whatsAppOrganizerLayout] as? String == "flat"
+                && registeredDefaults[DefaultsKey.whatsAppOrganizerDuplicateAction] as? String
+                    == "trashNew",
+               "the organizer starts with a five minute grace period and safe duplicate policy")
         var utcCalendar = Calendar(identifier: .gregorian)
         utcCalendar.timeZone = TimeZone(identifier: "UTC") ?? .current
         func scheduleDate(_ day: Int, _ hour: Int, _ minute: Int) -> Date {
@@ -1931,6 +1947,108 @@ struct MetricsTests {
                    return CleanerSchedule.hour24(hour12: parts.hour12, isPM: parts.isPM) == hour
                },
                "every hour of the day round trips through the twelve hour pickers")
+
+        // MARK: WhatsApp downloads
+
+        expect(WhatsAppDownloadSupport.isWhatsAppAgent("WhatsApp")
+                && WhatsAppDownloadSupport.isWhatsAppAgent(" whatsapp ")
+                && !WhatsAppDownloadSupport.isWhatsAppAgent("Safari")
+                && !WhatsAppDownloadSupport.isWhatsAppAgent(nil),
+               "only an explicit WhatsApp quarantine agent is trusted")
+        expect(WhatsAppDownloadSupport.category(contentTypeIdentifier: "public.jpeg",
+                                                 extension: "jpeg") == .image
+                && WhatsAppDownloadSupport.category(contentTypeIdentifier: "public.mpeg-4",
+                                                     extension: "mp4") == .video
+                && WhatsAppDownloadSupport.category(contentTypeIdentifier: "public.mp3",
+                                                     extension: "mp3") == .audio
+                && WhatsAppDownloadSupport.category(contentTypeIdentifier: "com.adobe.pdf",
+                                                     extension: "pdf") == .document
+                && WhatsAppDownloadSupport.category(contentTypeIdentifier: nil,
+                                                     extension: "zip") == .archive,
+               "WhatsApp files land in the expected user-facing buckets")
+        expect(WhatsAppDownloadSupport.isIncompleteFile(extension: "download")
+                && WhatsAppDownloadSupport.isIncompleteFile(extension: "PART")
+                && !WhatsAppDownloadSupport.isIncompleteFile(extension: "pdf"),
+               "partial downloads can never become cleanup candidates")
+        let whatsNow = scheduleDate(20, 12, 0)
+        let whatsOld = scheduleDate(10, 12, 0)
+        let whatsRecent = scheduleDate(19, 12, 0)
+        expect(WhatsAppDownloadSupport.isOldEnough(downloadedAt: whatsOld,
+                                                   modifiedAt: whatsOld,
+                                                   now: whatsNow, retentionDays: 7,
+                                                   calendar: utcCalendar),
+               "an untouched old WhatsApp download passes retention")
+        expect(!WhatsAppDownloadSupport.isOldEnough(downloadedAt: whatsOld,
+                                                    modifiedAt: whatsRecent,
+                                                    now: whatsNow, retentionDays: 7,
+                                                    calendar: utcCalendar),
+               "a recent edit postpones WhatsApp cleanup")
+        expect(!WhatsAppDownloadSupport.isEligibleForAutomaticCleanup(
+                    category: .image, downloadedAt: whatsOld, modifiedAt: whatsOld,
+                    now: whatsNow, retentionDays: 7, enabledCategories: [.image],
+                    includeExisting: false, automaticStartDate: whatsRecent),
+               "future-only automation leaves pre-existing downloads alone")
+        expect(WhatsAppDownloadSupport.isEligibleForAutomaticCleanup(
+                    category: .image, downloadedAt: whatsOld, modifiedAt: whatsOld,
+                    now: whatsNow, retentionDays: 7, enabledCategories: [.image],
+                    includeExisting: true, automaticStartDate: whatsRecent),
+               "explicitly including existing downloads admits old matches")
+        let downloadsRoot = URL(fileURLWithPath: "/Users/test/Downloads")
+        expect(WhatsAppDownloadSupport.isDirectChild(
+                    URL(fileURLWithPath: "/Users/test/Downloads/file.pdf"), of: downloadsRoot)
+                && !WhatsAppDownloadSupport.isDirectChild(
+                    URL(fileURLWithPath: "/Users/test/Downloads/folder/file.pdf"), of: downloadsRoot)
+                && !WhatsAppDownloadSupport.isDirectChild(
+                    URL(fileURLWithPath: "/Users/test/Documents/file.pdf"), of: downloadsRoot),
+               "WhatsApp cleanup accepts only direct children of Downloads")
+        let organizedFile = URL(fileURLWithPath: "/Users/test/Downloads/WhatsApp/2026/07/file.pdf")
+        expect(WhatsAppDownloadSupport.isDescendant(organizedFile, of: downloadsRoot)
+                && !WhatsAppDownloadSupport.isDescendant(downloadsRoot, of: downloadsRoot)
+                && !WhatsAppDownloadSupport.isDescendant(
+                    URL(fileURLWithPath: "/Users/test/Download/file.pdf"), of: downloadsRoot),
+               "organized cleanup accepts descendants without path-prefix confusion")
+        let fourMinutesAgo = whatsNow.addingTimeInterval(-4 * 60)
+        let sixMinutesAgo = whatsNow.addingTimeInterval(-6 * 60)
+        expect(!WhatsAppDownloadSupport.isStableForOrganization(
+                    downloadedAt: sixMinutesAgo, modifiedAt: fourMinutesAgo,
+                    now: whatsNow, delayMinutes: 5)
+                && WhatsAppDownloadSupport.isStableForOrganization(
+                    downloadedAt: sixMinutesAgo, modifiedAt: sixMinutesAgo,
+                    now: whatsNow, delayMinutes: 5)
+                && WhatsAppDownloadSupport.sanitizedOrganizerDelayMinutes(999) == 5,
+               "organization waits for both download and modification activity to settle")
+        let undoCreatedAt = whatsNow.addingTimeInterval(-6 * 86_400)
+        expect(WhatsAppDownloadSupport.organizerUndoIsValid(
+                    createdAt: undoCreatedAt, now: whatsNow)
+                && !WhatsAppDownloadSupport.organizerUndoIsValid(
+                    createdAt: whatsNow.addingTimeInterval(-7 * 86_400), now: whatsNow)
+                && !WhatsAppDownloadSupport.organizerUndoIsValid(
+                    createdAt: whatsNow.addingTimeInterval(1), now: whatsNow),
+               "organizer undo is executable only during its seven day window")
+        expect(WhatsAppDownloadSupport.organizerRelativeComponents(
+                    layout: .flat, category: .image, date: whatsNow,
+                    calendar: utcCalendar).isEmpty
+                && WhatsAppDownloadSupport.organizerRelativeComponents(
+                    layout: .category, category: .image, date: whatsNow,
+                    calendar: utcCalendar) == ["Images"]
+                && WhatsAppDownloadSupport.organizerRelativeComponents(
+                    layout: .month, category: .image, date: whatsNow,
+                    calendar: utcCalendar) == ["2026", "07"],
+               "the organizer produces stable flat, type and month folder layouts")
+        expect(WhatsAppDownloadSupport.nextAutomaticCheck(
+                    after: scheduleDate(20, 8, 0), calendar: utcCalendar) == scheduleDate(20, 9, 0)
+                && WhatsAppDownloadSupport.nextAutomaticCheck(
+                    after: scheduleDate(20, 10, 0), calendar: utcCalendar) == scheduleDate(21, 9, 0),
+               "the hidden daily WhatsApp check targets nine in the morning")
+        expect(WhatsAppDownloadSupport.missedAutomaticCheck(
+                    now: scheduleDate(20, 12, 0), lastRun: scheduleDate(19, 9, 0),
+                    calendar: utcCalendar)
+                && !WhatsAppDownloadSupport.missedAutomaticCheck(
+                    now: scheduleDate(20, 8, 0), lastRun: scheduleDate(19, 9, 0),
+                    calendar: utcCalendar)
+                && !WhatsAppDownloadSupport.missedAutomaticCheck(
+                    now: scheduleDate(20, 12, 0), lastRun: nil, calendar: utcCalendar),
+               "missed WhatsApp checks recover after nine without a first-enable surprise")
         let panel500 = ExtraBrightnessSupport.panelReference(model: "MacBookPro18,1")
         let panel600 = ExtraBrightnessSupport.panelReference(model: "Mac16,7")
         expect(panel500.referenceEDR == 3.2 && panel500.bonus == 0.58,
@@ -5487,6 +5605,21 @@ struct MetricsTests {
         let baseAudioPrompt = infoPlist?["NSAudioCaptureUsageDescription"] as? String ?? ""
         expect(baseAudioPrompt.contains("Vorssaint taps individual app audio"),
                "base audio permission prompt is an English fallback")
+        let organizerFolderPromptKeys = [
+            "NSDesktopFolderUsageDescription", "NSDocumentsFolderUsageDescription",
+            "NSNetworkVolumesUsageDescription", "NSRemovableVolumesUsageDescription",
+        ]
+        expect(organizerFolderPromptKeys.allSatisfy {
+                   !(infoPlist?[$0] as? String ?? "").isEmpty
+               },
+               "the organizer declares every supported custom destination permission")
+        let localizedInfoPlists = (try? FileManager.default.contentsOfDirectory(
+            atPath: "Resources"))?.filter { $0.hasSuffix(".lproj") } ?? []
+        expect(localizedInfoPlists.allSatisfy { folder in
+            let value = (try? String(contentsOfFile: "Resources/\(folder)/InfoPlist.strings",
+                                     encoding: .utf8)) ?? ""
+            return organizerFolderPromptKeys.allSatisfy(value.contains)
+        }, "every localization explains custom organizer folder access")
         let turkishInfoPlistStrings = (try? String(contentsOfFile: "Resources/tr.lproj/InfoPlist.strings",
                                                    encoding: .utf8)) ?? ""
         expect(turkishInfoPlistStrings.contains("NSAudioCaptureUsageDescription")
@@ -5827,6 +5960,16 @@ struct MetricsTests {
         expect(activeSet(.notifications, on: [DefaultsKey.cleanerScheduleNotify],
                          strings: [DefaultsKey.cleanerScheduleFrequency: "off"]) == [],
                "an unscheduled cleaner does not use notifications")
+        expect(activeSet(.notifications,
+                         on: [DefaultsKey.whatsAppDownloadsAutomaticEnabled,
+                              DefaultsKey.whatsAppDownloadsNotify]) == [.cleaner],
+               "WhatsApp cleanup only uses notifications for an opted-in automatic summary")
+        expect(activeSet(.notifications,
+                         on: [DefaultsKey.whatsAppOrganizerEnabled,
+                              DefaultsKey.whatsAppDownloadsNotify]) == [.cleaner],
+               "the experimental WhatsApp organizer can offer an undo notification")
+        expect(activeSet(.filesAndFolders) == [.cleaner],
+               "the cleaner owns WhatsApp Downloads folder access")
 
         expect(activeSet(.fullDiskAccess) == [.cleaner, .uninstaller],
                "cleaner and uninstaller are on-demand full disk users")
@@ -5956,6 +6099,19 @@ struct MetricsTests {
                    "every scratchpad string is set for \(language.rawValue)")
             expect(scratchpadValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible scratchpad strings (\(language.rawValue))")
+            let whatsAppValues = Mirror(reflecting: FeatureStrings.whatsAppDownloads(language)).children
+                .compactMap { $0.value as? String }
+            expect(whatsAppValues.count == 39 && whatsAppValues.allSatisfy { !$0.isEmpty },
+                   "every WhatsApp downloads string is set for \(language.rawValue)")
+            expect(whatsAppValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in WhatsApp downloads strings (\(language.rawValue))")
+            let organizerValues = Mirror(
+                reflecting: WhatsAppOrganizerStrings.localized(language)).children
+                .compactMap { $0.value as? String }
+            expect(organizerValues.count == 30 && organizerValues.allSatisfy { !$0.isEmpty },
+                   "every WhatsApp organizer string is set for \(language.rawValue)")
+            expect(organizerValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in WhatsApp organizer strings (\(language.rawValue))")
             expect(FeatureStrings.screenshot(language).delaySecondsFormat.contains("%d"),
                    "screenshot delay format keeps its specifier (\(language.rawValue))")
             expect(FeatureStrings.screenshot(language).savedHUDFormat.contains("%@"),
@@ -6062,6 +6218,9 @@ struct MetricsTests {
                "app pages never hide")
         expect(!pageVisible(.shelf, available: allFeatures.subtracting([.shelf])),
                "single-feature pages follow their feature")
+        expect(!pageVisible(.cleaner,
+                            available: allFeatures.subtracting([.cleaner])),
+               "cleaner settings, including WhatsApp downloads, follow the cleaner module")
         expect(pageVisible(.quickTools, available: [.quickToggles]),
                "the quick toggles alone keep the quick tools page")
 
@@ -7308,6 +7467,27 @@ struct MetricsTests {
                 && backupKeys.contains(DefaultsKey.screenshotToolShortcutsEnabled)
                 && backupKeys.contains(DefaultsKey.panelUtilityScreenshot),
                "screenshot preferences travel with the settings backup")
+        expect(backupKeys.contains(DefaultsKey.whatsAppDownloadsAutomaticEnabled)
+                && backupKeys.contains(DefaultsKey.whatsAppDownloadsCategories)
+                && backupKeys.contains(DefaultsKey.whatsAppDownloadsRetentionDays)
+                && backupKeys.contains(DefaultsKey.whatsAppDownloadsNotify),
+               "portable WhatsApp cleanup choices travel with settings backup")
+        expect(backupKeys.contains(DefaultsKey.whatsAppOrganizerEnabled)
+                && backupKeys.contains(DefaultsKey.whatsAppOrganizerDelayMinutes)
+                && backupKeys.contains(DefaultsKey.whatsAppOrganizerCategories)
+                && backupKeys.contains(DefaultsKey.whatsAppOrganizerLayout)
+                && backupKeys.contains(DefaultsKey.whatsAppOrganizerDuplicateAction),
+               "portable WhatsApp organizer choices travel with settings backup")
+        expect(!backupKeys.contains(DefaultsKey.whatsAppDownloadsAutomaticStartDate)
+                && !backupKeys.contains(DefaultsKey.whatsAppDownloadsLastCleanup)
+                && !backupKeys.contains(DefaultsKey.whatsAppDownloadsExclusions)
+                && !backupKeys.contains(DefaultsKey.whatsAppDownloadsAccessConfirmed),
+               "machine-specific WhatsApp cleanup state never travels")
+        expect(!backupKeys.contains(DefaultsKey.whatsAppOrganizerDestinationPath)
+                && !backupKeys.contains(DefaultsKey.whatsAppOrganizerRecords)
+                && !backupKeys.contains(DefaultsKey.whatsAppOrganizerUndoTransaction)
+                && !backupKeys.contains(DefaultsKey.whatsAppOrganizerLastRun),
+               "organizer paths, digests and activity never travel to another Mac")
         expect(backupKeys.contains(DefaultsKey.cameraPreviewShortcut)
                 && backupKeys.contains(DefaultsKey.cameraPreviewShortcutEnabled)
                 && backupKeys.contains(DefaultsKey.panelUtilityCameraPreview),

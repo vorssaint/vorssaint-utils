@@ -113,6 +113,8 @@ if (( TEST )); then
         Sources/Vorssaint/Core/Localization.swift \
         Sources/Vorssaint/Core/Localizations/Strings+*.swift \
         Sources/Vorssaint/Core/FeatureStrings.swift \
+        Sources/Vorssaint/Core/WhatsAppDownloadStrings.swift \
+        Sources/Vorssaint/Core/WhatsAppOrganizerStrings.swift \
         Sources/Vorssaint/Core/ReleaseNotes.swift \
         Sources/Vorssaint/Core/URLCleaning.swift \
         Sources/Vorssaint/Services/GeneralPasteboardAccess.swift \
@@ -162,6 +164,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Cleaner/CleanerSupport.swift \
         Sources/Vorssaint/Services/Cleaner/CleanerPolicy.swift \
         Sources/Vorssaint/Services/Cleaner/CleanerSchedule.swift \
+        Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift \
         Tests/MetricsTests.swift \
         -o build/metrics-tests
     ./build/metrics-tests
