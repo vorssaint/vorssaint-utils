@@ -11,11 +11,14 @@ Vorssaint 3.2.0 adds a searchable snippet menu with folders and custom date
 formats in snippets, lets the extra buttons on a mouse press keyboard
 shortcuts you choose, and puts screenshots on autopilot: they can copy
 themselves to the clipboard, save into dated subfolders with your own file
-names, and run your favorite action right after each capture. It also shows
-windows from other desktops in the App Switcher and Dock previews, brings
-the Shelf and Cleaning Mode to the radial menu, lets you hide apps from the
-volume mixer, cleans up the sound of boosted apps and fixes a batch of
-volume, window layout, monitor brightness and paste as plain text issues.
+names, and run your favorite action right after each capture. The radial
+menu grows a lot: new slices for the Shelf, Cleaning Mode, Keep Awake and
+window layouts, plus a choice of how the wheel opens. The Cleaner learns to
+tidy WhatsApp downloads safely into the Trash. It also shows windows from
+other desktops in the App Switcher and Dock previews, lets you hide apps
+from the volume mixer, cleans up the sound of boosted apps and fixes a
+batch of volume, window layout, screenshot editor, monitor brightness and
+paste as plain text issues.
 
 ### Added
 - A quick snippet menu. A shortcut of your choice opens a searchable menu
@@ -33,9 +36,19 @@ volume, window layout, monitor brightness and paste as plain text issues.
 - Dated subfolders and custom file names for screenshots. Patterns like
   %y-%mo sort saves into monthly folders, and the file name can follow your
   own pattern with an auto-counting number. Thanks to @403Denied.
-- The Shelf and Cleaning Mode on the radial menu. Two new slices to add to
-  the wheel; a Shelf slice sleeps while the Shelf itself is switched off.
-  Thanks to @ruvelro.
+- More radial menu slices: the Shelf, Cleaning Mode, Keep Awake and window
+  layout actions can now live on the wheel. A Shelf slice sleeps while the
+  Shelf itself is switched off. Thanks to @ruvelro.
+- A choice of how the radial menu opens. Press or hold keeps the current
+  adaptive gesture, press keeps the wheel open, and hold runs the pointed
+  action the moment you let go. In Settings under Radial menu. Thanks to
+  @ruvelro.
+- Automatic cleanup for WhatsApp downloads, in the Cleaner. It only ever
+  moves files to the Trash, off by default, with categories, retention,
+  exclusions and a review list; an optional organizer files new downloads
+  into a folder of your choice with one-click undo. Thanks to @ruvelro.
+- The outline of the last capture area in the screenshot selector can now
+  be hidden in Settings under Screenshot. Thanks to @ruvelro.
 - Hide apps from the volume mixer. Right click an app in the list, or
   uncheck it in the new chooser at the bottom of the mixer; hidden apps play
   normally and the same menu brings them back.
@@ -60,6 +73,11 @@ volume, window layout, monitor brightness and paste as plain text issues.
   desktop you were on. Windows parked on other desktops now appear too, and
   picking one takes you to it. Prefer the old way? An option in the switcher
   settings keeps it to the current desktop.
+- Undo with Cmd Z now works in the screenshot editor, and clicking an
+  existing annotation selects it for editing instead of drawing a new one
+  on top. Thanks to @ruvelro.
+- The Homebrew page in Settings no longer breaks its layout in narrow
+  windows. Thanks to @ruvelro.
 - Restoring the menu panel's quick controls to their default layout now
   brings back a hidden Text snippets toggle too.
 - Boosting an app's volume above 100% no longer adds a crackling noise while
