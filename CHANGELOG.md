@@ -51,6 +51,8 @@ and a batch of fixes.
   it instead of drawing on top. Thanks to @ruvelro.
 - The Homebrew settings page no longer breaks in narrow windows.
   Thanks to @ruvelro.
+- Opening the Cleaner page no longer blanks the Settings sidebar on the
+  newest macOS, and its tool switcher shows again.
 - Restoring the panel's quick controls also brings back a hidden Text
   snippets toggle.
 - Boosting an app's volume above 100% no longer crackles at loud moments.

@@ -92,11 +92,31 @@ struct CleanerView: View {
     @ViewBuilder
     private var content: some View {
         switch cleaner.phase {
-        case .idle: idleState
-        case .scanning: busyState(l10n.s.cleanerScanning, detail: scanningDetail)
+        case .idle: settingsScrolling(idleState)
+        case .scanning: settingsScrolling(busyState(l10n.s.cleanerScanning, detail: scanningDetail))
         case .results: resultsState
-        case .cleaning: busyState(l10n.s.cleanerCleaning, detail: nil)
-        case let .done(freed, failed): doneState(freed: freed, failed: failed)
+        case .cleaning: settingsScrolling(busyState(l10n.s.cleanerCleaning, detail: nil))
+        case let .done(freed, failed): settingsScrolling(doneState(freed: freed, failed: failed))
+        }
+    }
+
+    /// On the Settings page every detail must host a scroll container: the
+    /// split view's sidebar loses its title bar safe area otherwise (macOS 27
+    /// beta) and its rows draw under the toolbar or vanish. Every other page
+    /// is a Form and gets this for free; the cleaner's List state scrolls on
+    /// its own, and these centered states scroll here — the minHeight keeps
+    /// them vertically centered exactly as before. The panel keeps the plain
+    /// layout: it never sits inside the split view.
+    @ViewBuilder
+    private func settingsScrolling(_ view: some View) -> some View {
+        if compact {
+            view
+        } else {
+            GeometryReader { proxy in
+                ScrollView {
+                    view.frame(maxWidth: .infinity, minHeight: proxy.size.height)
+                }
+            }
         }
     }
 
