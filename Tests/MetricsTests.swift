@@ -6746,7 +6746,8 @@ struct MetricsTests {
                 && RadialMenuTool.clipboardHistory.feature == .clipboardHistory
                 && RadialMenuTool.scratchpad.feature == .scratchpad
                 && RadialMenuTool.shelf.feature == .shelf
-                && RadialMenuTool.cleaningMode.feature == .cleaningMode,
+                && RadialMenuTool.cleaningMode.feature == .cleaningMode
+                && RadialMenuTool.keepAwake.feature == .keepAwake,
                "every wheel tool maps to a real feature and symbol")
         expect(!RadialMenuTool.shelf.isRunnable(isFeatureAvailable: { _ in true },
                                                 boolFor: { _ in false })

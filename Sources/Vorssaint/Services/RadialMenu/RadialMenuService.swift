@@ -568,6 +568,7 @@ final class RadialMenuService: ObservableObject {
             case .scratchpad: ScratchpadService.shared.show()
             case .shelf: ShelfService.shared.summon()
             case .cleaningMode: CleaningModeManager.shared.activate()
+            case .keepAwake: KeepAwakeManager.shared.toggle()
             }
         }
     }
