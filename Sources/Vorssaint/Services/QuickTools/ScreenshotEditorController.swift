@@ -1036,7 +1036,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         guard let image = model.exportImage(),
               let data = ScreenshotRenderer.pngData(from: image)
         else { return }
-        let url = ScreenshotService.saveDestination(strings: strings)
+        let url = ScreenshotService.saveDestination(strings: strings).url
         do {
             try data.write(to: url, options: .atomic)
             model.markExported()

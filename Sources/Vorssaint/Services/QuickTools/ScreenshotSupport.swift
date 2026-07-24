@@ -165,6 +165,18 @@ enum ScreenshotSupport {
         return CGRect(origin: CGPoint(x: x, y: y), size: size)
     }
 
+    /// A quieter, corner-anchored placement used when a default action is
+    /// configured — the HUD is now just a confirmation, not something the
+    /// person needs to act on, so it stays out of the way in the corner
+    /// instead of popping up next to the selection.
+    static func quickPreviewCornerFrame(size: CGSize, visibleFrame: CGRect) -> CGRect {
+        let inset: CGFloat = 16
+        let usable = visibleFrame.insetBy(dx: inset, dy: inset)
+        let x = max(usable.minX, usable.maxX - size.width)
+        let y = usable.minY
+        return CGRect(origin: CGPoint(x: x, y: y), size: size)
+    }
+
     // MARK: - Editor layout
 
     /// A fresh editor should be large enough for its controls and canvas,
@@ -215,6 +227,78 @@ enum ScreenshotSupport {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
         return "\(prefix) \(formatter.string(from: date)).png"
+    }
+
+    /// Expands a ShareX-style token pattern into a relative subfolder path,
+    /// e.g. "%y-%mo" becomes "24-03" and "%year/%month" becomes "2024/March".
+    /// Slashes in the pattern become nested folders; an empty pattern
+    /// expands to an empty string, meaning no subfolder.
+    static func expandSaveSubfolder(_ pattern: String, date: Date) -> String {
+        guard !pattern.isEmpty else { return "" }
+        return applyingDateTokens(pattern, date: date)
+    }
+    /// Expands a non-empty file name pattern with the same date tokens as
+    /// `expandSaveSubfolder`, plus "%#" (and "%##", "%###", …) for an
+    /// auto-incrementing, zero-padded number. Callers are responsible for
+    /// falling back to the default name when the pattern is blank, and for
+    /// appending the file extension.
+    static func expandFileNamePattern(_ pattern: String, date: Date, number: Int) -> String {
+        let withDate = applyingDateTokens(pattern, date: date)
+        return applyingNumberTokens(withDate, number: number)
+    }
+    /// Whether a file name pattern actually uses the number sequence, so
+    /// callers know whether to advance and persist it.
+    static func fileNamePatternUsesNumber(_ pattern: String) -> Bool {
+        pattern.contains("%#")
+    }
+    private static func applyingDateTokens(_ pattern: String, date: Date) -> String {
+        let calendar = Calendar(identifier: .gregorian)
+        let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+        let year = parts.year ?? 0
+        // Longer tokens are substituted first so "%year"/"%month" don't get
+        // clobbered by their short prefixes "%y"/"%mo" during replacement.
+        let tokens: [(String, String)] = [
+            ("%year", String(format: "%04d", year)),
+            ("%month", monthName(parts.month ?? 1)),
+            ("%y", String(format: "%02d", year % 100)),
+            ("%mo", String(format: "%02d", parts.month ?? 0)),
+            ("%d", String(format: "%02d", parts.day ?? 0)),
+            ("%h", String(format: "%02d", parts.hour ?? 0)),
+            ("%mi", String(format: "%02d", parts.minute ?? 0)),
+            ("%s", String(format: "%02d", parts.second ?? 0))
+        ]
+        var result = pattern
+        for (token, value) in tokens {
+            result = result.replacingOccurrences(of: token, with: value)
+        }
+        return result
+    }
+    /// Replaces runs like "%#", "%##", "%###" with `number`, zero-padded to
+    /// the run's length (minus the leading "%"). Matches are expanded from
+    /// the end of the string backwards so earlier ranges stay valid.
+    private static func applyingNumberTokens(_ pattern: String, number: Int) -> String {
+        guard let regex = try? NSRegularExpression(pattern: "%#+") else { return pattern }
+        let fullRange = NSRange(pattern.startIndex..<pattern.endIndex, in: pattern)
+        var result = pattern
+        let matches = regex.matches(in: pattern, range: fullRange)
+        for match in matches.reversed() {
+            guard let range = Range(match.range, in: result) else { continue }
+            let padding = max(match.range.length - 1, 1)
+            result.replaceSubrange(range, with: String(format: "%0\(padding)d", number))
+        }
+        return result
+    }
+
+    private static func monthName(_ month: Int) -> String {
+        var components = DateComponents()
+        components.year = 2000
+        components.month = month
+        components.day = 1
+        guard let date = Calendar(identifier: .gregorian).date(from: components) else { return "" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "LLLL"
+        return formatter.string(from: date)
     }
 
     /// First free variant of a file name: "name.png", "name 2.png", ….
@@ -508,10 +592,10 @@ enum ScreenshotSupport {
     /// A stable square of source pixels for the crop loupe. Near an image
     /// edge the sample slides inward instead of shrinking, while the loupe's
     /// crosshair still points at the exact adjusted pixel.
+
     static let captureLoupeBaseSampleSide: CGFloat = 12
     static let captureLoupeMinZoom: CGFloat = 0.5
     static let captureLoupeMaxZoom: CGFloat = 4
-
     static func captureLoupeZoom(_ zoom: CGFloat, adjustedBy scrollDelta: CGFloat) -> CGFloat {
         guard scrollDelta != 0 else {
             return min(max(zoom, captureLoupeMinZoom), captureLoupeMaxZoom)
@@ -519,7 +603,6 @@ enum ScreenshotSupport {
         let factor: CGFloat = scrollDelta > 0 ? 1.15 : 1 / 1.15
         return min(max(zoom * factor, captureLoupeMinZoom), captureLoupeMaxZoom)
     }
-
     static func captureLoupeSampleSide(zoom: CGFloat) -> CGFloat {
         let clamped = min(max(zoom, captureLoupeMinZoom), captureLoupeMaxZoom)
         return captureLoupeBaseSampleSide / clamped
@@ -804,4 +887,15 @@ enum ScreenshotSupport {
         else { return "[]" }
         return String(data: data, encoding: .utf8) ?? "[]"
     }
+}
+
+/// The action to run automatically right after a capture, chosen in
+/// Settings. `.none` leaves the quick-preview HUD waiting for the user, as
+/// before this setting existed.
+enum ScreenshotDefaultAction: String, CaseIterable {
+    case none = ""
+    case save
+    case saveAndCopy
+    case copy
+    case edit
 }
