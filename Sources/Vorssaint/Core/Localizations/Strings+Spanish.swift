@@ -883,6 +883,11 @@ extension Strings {
         highlightsTry: "Probar",
         highlightsSeeAll: "Ver todos los cambios",
         switcherCurrentSpaceOnly: "Mostrar solo el escritorio actual",
-        switcherCurrentSpaceOnlyCaption: "Muestra en el selector solo las ventanas del escritorio en el que estás. Elegir una ventana nunca te lleva a otro escritorio."
+        switcherCurrentSpaceOnlyCaption: "Muestra en el selector solo las ventanas del escritorio en el que estás. Elegir una ventana nunca te lleva a otro escritorio.",
+        switcherMinimizedPlacementLabel: "Ventanas minimizadas",
+        switcherMinimizedPlacementNormal: "Orden normal",
+        switcherMinimizedPlacementEnd: "Colocar al final",
+        switcherMinimizedPlacementHidden: "Ocultar",
+        switcherShowFullscreenWindows: "Mostrar ventanas en pantalla completa"
     )
 }

@@ -883,6 +883,11 @@ extension Strings {
         highlightsTry: "试一试",
         highlightsSeeAll: "查看全部更改",
         switcherCurrentSpaceOnly: "仅显示当前桌面",
-        switcherCurrentSpaceOnlyCaption: "切换器中只显示你所在桌面的窗口。选择窗口不会把你带到其他桌面。"
+        switcherCurrentSpaceOnlyCaption: "切换器中只显示你所在桌面的窗口。选择窗口不会把你带到其他桌面。",
+        switcherMinimizedPlacementLabel: "最小化的窗口",
+        switcherMinimizedPlacementNormal: "正常顺序",
+        switcherMinimizedPlacementEnd: "放到末尾",
+        switcherMinimizedPlacementHidden: "隐藏",
+        switcherShowFullscreenWindows: "显示全屏窗口"
     )
 }

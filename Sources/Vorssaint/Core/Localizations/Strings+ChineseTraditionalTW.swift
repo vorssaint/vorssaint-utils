@@ -884,6 +884,11 @@ extension Strings {
         highlightsTry: "試試看",
         highlightsSeeAll: "查看所有變更",
         switcherCurrentSpaceOnly: "僅顯示目前的桌面",
-        switcherCurrentSpaceOnlyCaption: "切換器中只顯示你所在桌面的視窗。選擇視窗不會把你帶到其他桌面。"
+        switcherCurrentSpaceOnlyCaption: "切換器中只顯示你所在桌面的視窗。選擇視窗不會把你帶到其他桌面。",
+        switcherMinimizedPlacementLabel: "已最小化的視窗",
+        switcherMinimizedPlacementNormal: "正常順序",
+        switcherMinimizedPlacementEnd: "放到最後",
+        switcherMinimizedPlacementHidden: "隱藏",
+        switcherShowFullscreenWindows: "顯示全螢幕視窗"
     )
 }
