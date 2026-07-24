@@ -7,103 +7,64 @@ All notable changes to this project are documented here. The format follows
 ## [3.2.0]
 
 ### Summary
-Vorssaint 3.2.0 adds a searchable snippet menu with folders and custom date
-formats in snippets, lets the extra buttons on a mouse press keyboard
-shortcuts you choose, and puts screenshots on autopilot: they can copy
-themselves to the clipboard, save into dated subfolders with your own file
-names, and run your favorite action right after each capture. The radial
-menu grows a lot: new slices for the Shelf, Cleaning Mode, Keep Awake and
-window layouts, plus a choice of how the wheel opens. The Cleaner learns to
-tidy WhatsApp downloads safely into the Trash. It also shows windows from
-other desktops in the App Switcher and Dock previews, lets you hide apps
-from the volume mixer, cleans up the sound of boosted apps and fixes a
-batch of volume, window layout, screenshot editor, monitor brightness and
-paste as plain text issues.
+Vorssaint 3.2.0 adds a searchable snippet menu, mouse button shortcuts,
+screenshot autopilot and new radial menu slices, and the Cleaner can tidy
+WhatsApp downloads. Plus windows from other desktops in the App Switcher
+and a batch of fixes.
 
 ### Added
-- A quick snippet menu. A shortcut of your choice opens a searchable menu
-  with your snippets, organized into folders; picking one types it right
-  where your cursor is. Turn it on in Settings under Text snippets.
-- Mouse button shortcuts. Give any extra mouse button a key combination and
-  it presses those keys for you. Set it up in Settings under Mouse, with a
-  quick toggle in the menu panel.
-- Screenshots that copy themselves. An option in Settings under Screenshot
-  puts every capture on the clipboard the moment it is taken, ready to
-  paste. Thanks to @kingstyles.
-- An after-capture action for screenshots. Pick Save, Copy, Save and copy or
-  Edit in Settings under Screenshot and it runs by itself on every capture;
-  the confirmation moves quietly to the corner. Thanks to @403Denied.
-- Dated subfolders and custom file names for screenshots. Patterns like
-  %y-%mo sort saves into monthly folders, and the file name can follow your
-  own pattern with an auto-counting number. Thanks to @403Denied.
-- More radial menu slices: the Shelf, Cleaning Mode, Keep Awake and window
-  layout actions can now live on the wheel. A Shelf slice sleeps while the
-  Shelf itself is switched off. Thanks to @ruvelro.
-- A choice of how the radial menu opens. Press or hold keeps the current
-  adaptive gesture, press keeps the wheel open, and hold runs the pointed
-  action the moment you let go. In Settings under Radial menu. Thanks to
-  @ruvelro.
-- Automatic cleanup for WhatsApp downloads, in the Cleaner. It only ever
-  moves files to the Trash, off by default, with categories, retention,
-  exclusions and a review list; an optional organizer files new downloads
-  into a folder of your choice with one-click undo. Thanks to @ruvelro.
-- The outline of the last capture area in the screenshot selector can now
-  be hidden in Settings under Screenshot. Thanks to @ruvelro.
-- Hide apps from the volume mixer. Right click an app in the list, or
-  uncheck it in the new chooser at the bottom of the mixer; hidden apps play
-  normally and the same menu brings them back.
-- Eject one drive at a time. Every removable drive in the Drives tab now
-  carries its own eject button, so you no longer need to eject all of them
-  together or reach for the Finder.
-- Snippet triggers that ignore capitalization. Turn it on for a snippet in
-  its editor and the trigger fires however it is capitalized.
-- Date and time formats in snippets. Write a pattern after the variable,
-  like {{date:yyyy-MM-dd}}, and it expands in exactly that shape.
+- A snippet menu. A shortcut opens your snippets in a searchable list and
+  picking one types it at the cursor. Under Text snippets.
+- Mouse button shortcuts. Any extra mouse button can press a key
+  combination for you. Under Mouse.
+- Screenshots can copy themselves to the clipboard the moment they are
+  taken. Under Screenshot. Thanks to @kingstyles.
+- Screenshots can run an action by themselves after each capture: save,
+  copy, both, or edit. Thanks to @403Denied.
+- Screenshot saves can use dated subfolders and your own file name pattern,
+  like %y-%mo. Thanks to @403Denied.
+- New radial menu slices: Shelf, Cleaning Mode, Keep Awake and window
+  layouts. Thanks to @ruvelro.
+- A choice of how the radial menu opens: press to keep it open, or hold and
+  release to run. Thanks to @ruvelro.
+- WhatsApp download cleanup in the Cleaner, always to the Trash and off by
+  default. An optional organizer files new downloads into a folder you
+  choose, with undo. Thanks to @ruvelro.
+- The last capture outline in the screenshot selector can be hidden.
+  Thanks to @ruvelro.
+- Hide apps from the volume mixer with a right click; the same menu brings
+  them back.
+- Each removable drive in the Drives tab now has its own eject button.
+- Snippet triggers can ignore capitalization, and date variables accept a
+  format, like {{date:yyyy-MM-dd}}.
 
 ### Changed
-- Recording a shortcut now keeps the keys to itself. A combination that used
-  to trigger the app or the system while you typed it lands in the field
-  instead.
-- The screenshot option to open the editor right after capturing became the
-  Edit choice of the new after-capture action. A setup that used it keeps
-  working unchanged.
+- Recording a shortcut keeps the keys to itself instead of triggering the
+  app or the system.
+- "Open the editor right after capturing" became the Edit after-capture
+  action; existing setups keep working unchanged.
 
 ### Fixed
-- The App Switcher and the Dock previews only showed windows from the
-  desktop you were on. Windows parked on other desktops now appear too, and
-  picking one takes you to it. Prefer the old way? An option in the switcher
-  settings keeps it to the current desktop.
-- Undo with Cmd Z now works in the screenshot editor, and clicking an
-  existing annotation selects it for editing instead of drawing a new one
-  on top. Thanks to @ruvelro.
-- The Homebrew page in Settings no longer breaks its layout in narrow
-  windows. Thanks to @ruvelro.
-- Restoring the menu panel's quick controls to their default layout now
-  brings back a hidden Text snippets toggle too.
-- Boosting an app's volume above 100% no longer adds a crackling noise while
-  the sound is loud. The boost now eases the peaks down for a moment instead
-  of chopping them off.
-- Maximizing with the green button no longer leaves some windows parked at
-  the left edge of the screen with their old size. Browsers that take a
-  moment to resize now fill the screen properly.
-- Window layout shortcuts, the panel buttons and the drag gesture now resize
-  those same browsers correctly instead of moving the window and leaving its
-  size behind.
-- The volume level chosen for some games and tools stopped being saved in
-  3.1.15 and came back at full on the next launch. It is saved again, and
-  levels saved before 3.1.15 come back on their own.
-- An app with its volume adjusted in the mixer could lose its sound entirely
-  after the Mac woke from sleep, until Vorssaint was quit. The mixer now
-  notices when the wake broke its audio path and repairs it on its own.
-- Pasting as plain text could leave the text you typed next carrying the
-  style of the pasted line in some notes and rich text apps. When an app
-  offers its own matching style paste, Vorssaint now uses it.
-- The Drives tab showed a drive's format and location twice, next to its name
-  and again in the SMART area. The little tags now appear only once.
-- Some external monitors could go black while their brightness was adjusted,
-  until their cable was plugged in again. Brightness commands now keep the
-  spacing monitors expect, and a screen that reconnects always comes back
-  visible.
+- The App Switcher and Dock previews now show windows from other desktops
+  too; an option keeps them to the current one.
+- Undo works in the screenshot editor, and clicking an annotation selects
+  it instead of drawing on top. Thanks to @ruvelro.
+- The Homebrew settings page no longer breaks in narrow windows.
+  Thanks to @ruvelro.
+- Restoring the panel's quick controls also brings back a hidden Text
+  snippets toggle.
+- Boosting an app's volume above 100% no longer crackles at loud moments.
+- The green button and window layout tools now resize slow browsers
+  properly instead of leaving them small or misplaced.
+- Volume levels for some games and tools were not saved since 3.1.15; they
+  are saved again and old ones come back.
+- The mixer repairs its audio path by itself after the Mac wakes, instead
+  of leaving an adjusted app silent.
+- Paste as plain text no longer leaves the pasted style on what you type
+  next in some rich text apps.
+- The Drives tab no longer shows a drive's format and location twice.
+- External monitors no longer go dark while adjusting brightness, and a
+  reconnected screen always comes back visible.
 
 ## [3.1.15] - 2026-07-21
 
