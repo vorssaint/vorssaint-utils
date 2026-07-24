@@ -11,6 +11,12 @@ struct SwitcherCloseState: Equatable {
     let shouldEndSession: Bool
 }
 
+enum SwitcherCloseVerificationDecision: Equatable {
+    case remove
+    case retry
+    case keep
+}
+
 struct SwitcherActivationPlan: Equatable {
     let activateAllWindows: Bool
     let makeAppFrontmostAfterActivation: Bool
@@ -124,6 +130,16 @@ struct SwitcherShortcutHints: Equatable {
 enum SwitcherSupport {
     /// Grid resolution used to classify window captures.
     static let captureAlphaGridSize = 8
+
+    /// Keeps the visual threshold anchored to the physical key event. Work done
+    /// after the event consumes the threshold instead of adding another delay.
+    static func remainingAppearanceDelay(eventTimestamp: UInt64,
+                                         now: UInt64,
+                                         threshold: TimeInterval) -> TimeInterval {
+        guard eventTimestamp > 0, now >= eventTimestamp else { return threshold }
+        let elapsed = TimeInterval(now - eventTimestamp) / 1_000_000_000
+        return max(0, threshold - elapsed)
+    }
 
     static func usesIconRowLayout(iconRowMode: Bool, simpleMode: Bool) -> Bool {
         iconRowMode || simpleMode
@@ -628,6 +644,13 @@ enum SwitcherSupport {
                                   selectedIndex: clampedSelection(nextIndex, count: remaining.count),
                                   didRemove: true,
                                   shouldEndSession: false)
+    }
+
+    static func closeVerificationDecision(windowIsPresent: Bool,
+                                          attempt: Int,
+                                          maximumAttempt: Int = 2) -> SwitcherCloseVerificationDecision {
+        guard windowIsPresent else { return .remove }
+        return attempt < maximumAttempt ? .retry : .keep
     }
 
     static func filteredSearchIDs(records: [SwitcherSearchRecord], query: String) -> [String] {

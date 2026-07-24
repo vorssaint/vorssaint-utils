@@ -1101,6 +1101,27 @@ struct MetricsTests {
                                                         simpleMode: true,
                                                         dockPreviewEnabled: true),
                "window previews still request Screen Recording where needed")
+        let switcherAppearanceThreshold: TimeInterval = 0.1
+        expectClose(SwitcherSupport.remainingAppearanceDelay(
+            eventTimestamp: 1_000_000_000,
+            now: 1_000_000_000,
+            threshold: switcherAppearanceThreshold
+        ), 0.1, "App Switcher keeps the native-like threshold when setup is instant")
+        expectClose(SwitcherSupport.remainingAppearanceDelay(
+            eventTimestamp: 1_000_000_000,
+            now: 1_040_000_000,
+            threshold: switcherAppearanceThreshold
+        ), 0.06, "App Switcher setup consumes rather than adds to the appearance threshold")
+        expectClose(SwitcherSupport.remainingAppearanceDelay(
+            eventTimestamp: 1_000_000_000,
+            now: 1_200_000_000,
+            threshold: switcherAppearanceThreshold
+        ), 0, "App Switcher shows immediately once setup already exceeded the threshold")
+        expectClose(SwitcherSupport.remainingAppearanceDelay(
+            eventTimestamp: 2_000_000_000,
+            now: 1_000_000_000,
+            threshold: switcherAppearanceThreshold
+        ), 0.1, "App Switcher fails safely when event and uptime clocks cannot be compared")
         expect(SpaceHopSupport.isParkedOnHiddenSpace(windowSpaces: [4], visibleSpaces: [3]),
                "a window whose only Space is not visible is parked on a hidden Space")
         expect(!SpaceHopSupport.isParkedOnHiddenSpace(windowSpaces: [3], visibleSpaces: [3]),
@@ -4950,6 +4971,15 @@ struct MetricsTests {
                && switcherCloseMissing.remainingItemIDs == ["a", "b"]
                && switcherCloseMissing.selectedIndex == 1,
                "App Switcher close leaves selection intact when the item is not present")
+        expect(SwitcherSupport.closeVerificationDecision(windowIsPresent: false,
+                                                         attempt: 0) == .remove,
+               "App Switcher removes a window once close verification no longer finds it")
+        expect(SwitcherSupport.closeVerificationDecision(windowIsPresent: true,
+                                                         attempt: 1) == .retry,
+               "App Switcher retries close verification while attempts remain")
+        expect(SwitcherSupport.closeVerificationDecision(windowIsPresent: true,
+                                                         attempt: 2) == .keep,
+               "App Switcher keeps a window when the final verification still finds it")
         let searchRecords = [
             SwitcherSearchRecord(id: "alpha", title: "Inbox", appName: "Alpha"),
             SwitcherSearchRecord(id: "beta", title: "Vorssaint Roadmap", appName: "Beta"),

@@ -69,6 +69,10 @@ plain text issues.
   until their cable was plugged in again. Brightness commands now keep the
   spacing monitors expect, and a screen that reconnects always comes back
   visible.
+- App Switcher now appears without waiting for every open app to answer
+  Accessibility queries. Its window list stays warm in the background, and
+  the native-like visual threshold starts at the key press instead of after
+  window discovery finishes.
 
 ## [3.1.15] - 2026-07-21
 
