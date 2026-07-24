@@ -11,6 +11,9 @@ import SwiftUI
 final class SettingsRouter: ObservableObject {
     static let shared = SettingsRouter()
     @Published var page: SettingsPage = .general
+    /// One-shot hint for the Cleaner page's tool switcher, so a panel surface
+    /// can land directly on a specific tool. Consumed and cleared on arrival.
+    @Published var cleanerTool: String?
     private init() {}
 }
 
@@ -92,6 +95,11 @@ struct SettingsView: View {
                             keywords: ["PDF", "GIF", l10n.s.mediaStartConvertPDF, l10n.s.ocrName]),
             ]),
             (categories.utilities, [
+                SidebarItem(page: .cleaner, title: l10n.s.cleanerName, icon: "sparkles",
+                            keywords: [l10n.s.cleanerScheduleTitle,
+                                       FeatureStrings.whatsAppDownloads(l10n.language).title,
+                                       FeatureStrings.whatsAppDownloads(l10n.language).automatic,
+                                       FeatureStrings.whatsAppDownloads(l10n.language).fileTypes]),
                 SidebarItem(page: .quickTools, title: l10n.s.quickToolsTab, icon: "wand.and.rays",
                             keywords: [l10n.s.launcherName, l10n.s.colorPickerName,
                                        l10n.s.micMuteName, l10n.s.ocrName,
@@ -222,6 +230,7 @@ struct SettingsView: View {
         case .autoQuit: AutoQuitSettings()
         case .uninstaller: UninstallerView()
         case .urlCleaner: URLCleanerSettings()
+        case .cleaner: CleanerSettings()
         case .homebrew: HomebrewSettings()
         case .media: MediaSettings()
         case .clipboard: ClipboardSettings()

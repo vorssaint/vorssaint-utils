@@ -39,6 +39,9 @@ final class MouseButtonShortcutService: ObservableObject {
     /// gesture leak to the app underneath. Only touched from the tap
     /// callback, which runs on the main run loop.
     private var consumedButtons: Set<Int64> = []
+    /// True while the tap only exists to swallow the pending Up of a button
+    /// whose Down it consumed; no new press is claimed in this state.
+    private var isDraining = false
 
     private init() {}
 
@@ -53,6 +56,7 @@ final class MouseButtonShortcutService: ObservableObject {
             stop()
             return
         }
+        isDraining = false
         // A tap the system disabled (Accessibility revoked and regranted)
         // never revives on its own; rebuild it instead of keeping the corpse.
         if let tap, !CGEvent.tapIsEnabled(tap: tap) {
@@ -113,6 +117,21 @@ final class MouseButtonShortcutService: ObservableObject {
     }
 
     private func stop() {
+        // A button whose Down this tap consumed must have its Up consumed by
+        // the same tap, or the app under the pointer receives half a click.
+        // With a claimed button still physically held, the tap stays alive
+        // in drain mode until the release arrives (handle() finishes the
+        // teardown), instead of dying between the halves. This also covers
+        // ending a capture right after the first press.
+        if !consumedButtons.isEmpty, tap != nil {
+            isDraining = true
+            isRunning = false
+            return
+        }
+        tearDownTap()
+    }
+
+    private func tearDownTap() {
         if let tap {
             CGEvent.tapEnable(tap: tap, enable: false)
             CFMachPortInvalidate(tap)
@@ -123,6 +142,7 @@ final class MouseButtonShortcutService: ObservableObject {
         tap = nil
         runLoopSource = nil
         consumedButtons.removeAll()
+        isDraining = false
         isRunning = false
     }
 
@@ -134,6 +154,9 @@ final class MouseButtonShortcutService: ObservableObject {
         let button = event.getIntegerValueField(.mouseEventButtonNumber)
 
         if type == .otherMouseDown {
+            if isDraining {
+                return Unmanaged.passUnretained(event)
+            }
             if isCapturing {
                 // The capture row reports every extra button, even one it
                 // will refuse, so it can explain instead of leaving the user
@@ -166,7 +189,17 @@ final class MouseButtonShortcutService: ObservableObject {
         guard consumedButtons.contains(button) else {
             return Unmanaged.passUnretained(event)
         }
-        if type == .otherMouseUp { consumedButtons.remove(button) }
+        if type == .otherMouseUp {
+            consumedButtons.remove(button)
+            // The drain existed only for this release; finishing outside the
+            // callback keeps the mach port teardown off the tap's own stack.
+            if isDraining, consumedButtons.isEmpty {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.isDraining, self.consumedButtons.isEmpty else { return }
+                    self.tearDownTap()
+                }
+            }
+        }
         return nil
     }
 

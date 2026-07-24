@@ -26,6 +26,9 @@ final class WindowLayoutService: ObservableObject {
     static let shared = WindowLayoutService()
 
     @Published private(set) var lastResult: WindowLayoutResult?
+    /// Bumped on every published result, so a late settle failure can tell
+    /// whether it still owns the feedback slot.
+    private var resultGeneration = 0
     @Published private(set) var failedShortcutActions: Set<WindowLayoutAction> = []
     @Published private(set) var isGestureRunning = false
 
@@ -163,6 +166,7 @@ final class WindowLayoutService: ObservableObject {
     }
 
     private func finish(_ result: WindowLayoutResult) -> WindowLayoutResult {
+        resultGeneration += 1
         lastResult = result
         return result
     }
@@ -254,7 +258,8 @@ final class WindowLayoutService: ObservableObject {
                                      targetRect: targetRect,
                                      screenVisibleFrame: screenVisibleFrame,
                                      action: action,
-                                     original: original),
+                                     original: original,
+                                     resultGeneration: resultGeneration + 1),
                        attempt: 0)
         return true
     }
@@ -321,7 +326,11 @@ final class WindowLayoutService: ObservableObject {
             previousFrames.removeValue(forKey: context.windowID)
             lastActions.removeValue(forKey: context.windowID)
         }
-        lastResult = .failure(.failed)
+        // A second action already published a fresh result; this stale
+        // failure must not overwrite the feedback the person is reading.
+        if context.resultGeneration == resultGeneration {
+            lastResult = .failure(.failed)
+        }
     }
 
     private func cancelSettle(for windowID: CGWindowID) {
@@ -1011,6 +1020,9 @@ private struct SettleContext {
     let screenVisibleFrame: NSRect
     let action: WindowLayoutAction
     let original: WindowLayoutFrame?
+    /// Which published result this settle belongs to; a late failure only
+    /// speaks when no newer action has published since.
+    let resultGeneration: Int
 }
 
 private struct WindowLayoutPlacement {

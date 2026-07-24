@@ -879,10 +879,12 @@ extension Strings {
         highlightsTitle: "Neu in diesem Update",
         highlightsCaptionDockPreview: "Dock Preview funktioniert jetzt auch mit eingeschalteter Dock-Vergrößerung",
         highlightsCaptionScreenshot: "Das Bildschirmfoto-Werkzeug hat eine Pixel-Lupe und QR-Code-Erkennung erhalten",
+        highlightsCaptionSnippetLibrary: "Ein durchsuchbares Schnipsel-Menü tippt jeden Schnipsel direkt am Cursor",
         highlightsConfigure: "Einrichten",
         highlightsTry: "Ausprobieren",
         highlightsSeeAll: "Alle Änderungen ansehen",
         switcherCurrentSpaceOnly: "Nur den aktuellen Schreibtisch anzeigen",
-        switcherCurrentSpaceOnlyCaption: "Zeigt im Umschalter nur Fenster des Schreibtischs, auf dem du gerade bist. Die Auswahl eines Fensters wechselt nie zu einem anderen Schreibtisch."
+        switcherCurrentSpaceOnlyCaption: "Zeigt im Umschalter nur Fenster des Schreibtischs, auf dem du gerade bist. Die Auswahl eines Fensters wechselt nie zu einem anderen Schreibtisch.",
+        shelfFileMissing: "Die Datei existiert nicht mehr"
     )
 }

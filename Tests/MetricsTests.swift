@@ -1078,6 +1078,24 @@ struct MetricsTests {
             expect(migrationDefaults.string(forKey: DefaultsKey.panelUtilityOrder)
                    == "homebrew,screenshot,cleaner",
                    "utility migration preserves a screenshot position already chosen")
+            migrationDefaults.set(true, forKey: DefaultsKey.screenshotOpenEditorDirectly)
+            Defaults.migrateScreenshotOpenEditorDirectly(in: migrationDefaults)
+            expect(migrationDefaults.string(forKey: DefaultsKey.screenshotDefaultAction)
+                   == ScreenshotDefaultAction.edit.rawValue
+                   && migrationDefaults.bool(forKey: DefaultsKey.screenshotOpenEditorDirectly) == false,
+                   "direct-to-editor migrates into the Edit after-capture action")
+            migrationDefaults.set(true, forKey: DefaultsKey.screenshotOpenEditorDirectly)
+            migrationDefaults.set(ScreenshotDefaultAction.save.rawValue,
+                                  forKey: DefaultsKey.screenshotDefaultAction)
+            Defaults.migrateScreenshotOpenEditorDirectly(in: migrationDefaults)
+            expect(migrationDefaults.string(forKey: DefaultsKey.screenshotDefaultAction)
+                   == ScreenshotDefaultAction.save.rawValue,
+                   "direct-to-editor migration never overrides a newer picker choice")
+            migrationDefaults.removeObject(forKey: DefaultsKey.screenshotOpenEditorDirectly)
+            migrationDefaults.removeObject(forKey: DefaultsKey.screenshotDefaultAction)
+            Defaults.migrateScreenshotOpenEditorDirectly(in: migrationDefaults)
+            expect(migrationDefaults.object(forKey: DefaultsKey.screenshotDefaultAction) == nil,
+                   "a setup that never used direct-to-editor keeps asking after capture")
             migrationDefaults.removePersistentDomain(forName: shortcutSuite)
         } else {
             expect(false, "test suite defaults are available")
@@ -1683,6 +1701,14 @@ struct MetricsTests {
                "brightness adjustment overlay arrives switched off")
         expect(registeredDefaults[DefaultsKey.screenshotOpenEditorDirectly] as? Bool == false,
                "capture keeps showing the preview unless the user opts into the editor")
+        expect(registeredDefaults[DefaultsKey.screenshotDefaultAction] as? String == "",
+               "captures keep asking what to do until an after-capture action is chosen")
+        expect(registeredDefaults[DefaultsKey.screenshotSaveSubfolder] as? String == ""
+                && registeredDefaults[DefaultsKey.screenshotFileNamePattern] as? String == "",
+               "subfolder and file name patterns arrive empty, keeping the stock naming")
+        expect(registeredDefaults[DefaultsKey.screenshotFileNumberStart] as? Int == 1
+                && registeredDefaults[DefaultsKey.screenshotFileNumberNext] as? Int == 1,
+               "the file number sequence starts counting at 1")
         expect(registeredDefaults[DefaultsKey.panelShowUtilities] as? Bool == true,
                "Utilities panel section is shown by default")
         expect(registeredDefaults[DefaultsKey.panelShowControls] as? Bool == true,
@@ -1875,6 +1901,22 @@ struct MetricsTests {
                "the schedule reports its outcome unless the user opts out")
         expect(registeredDefaults[DefaultsKey.cleanerBadgeSeen] as? Bool == false,
                "the red dot guiding to the cleaner shows until the cleaner opens once")
+        expect(registeredDefaults[DefaultsKey.whatsAppDownloadsAutomaticEnabled] as? Bool == false,
+               "WhatsApp automatic cleanup is opt-in")
+        expect(registeredDefaults[DefaultsKey.whatsAppDownloadsCategories] as? String
+               == "image,video,audio",
+               "WhatsApp cleanup starts with conservative media categories")
+        expect(registeredDefaults[DefaultsKey.whatsAppDownloadsRetentionDays] as? Int == 7,
+               "WhatsApp downloads keep a seven day default window")
+        expect(registeredDefaults[DefaultsKey.whatsAppDownloadsAccessConfirmed] as? Bool == false,
+               "WhatsApp cleanup never probes Downloads in the background before explicit access")
+        expect(registeredDefaults[DefaultsKey.whatsAppOrganizerEnabled] as? Bool == false,
+               "the experimental WhatsApp organizer is opt-in")
+        expect(registeredDefaults[DefaultsKey.whatsAppOrganizerDelayMinutes] as? Int == 5
+                && registeredDefaults[DefaultsKey.whatsAppOrganizerLayout] as? String == "flat"
+                && registeredDefaults[DefaultsKey.whatsAppOrganizerDuplicateAction] as? String
+                    == "trashNew",
+               "the organizer starts with a five minute grace period and safe duplicate policy")
         var utcCalendar = Calendar(identifier: .gregorian)
         utcCalendar.timeZone = TimeZone(identifier: "UTC") ?? .current
         func scheduleDate(_ day: Int, _ hour: Int, _ minute: Int) -> Date {
@@ -1926,6 +1968,108 @@ struct MetricsTests {
                    return CleanerSchedule.hour24(hour12: parts.hour12, isPM: parts.isPM) == hour
                },
                "every hour of the day round trips through the twelve hour pickers")
+
+        // MARK: WhatsApp downloads
+
+        expect(WhatsAppDownloadSupport.isWhatsAppAgent("WhatsApp")
+                && WhatsAppDownloadSupport.isWhatsAppAgent(" whatsapp ")
+                && !WhatsAppDownloadSupport.isWhatsAppAgent("SomeBrowser")
+                && !WhatsAppDownloadSupport.isWhatsAppAgent(nil),
+               "only an explicit WhatsApp quarantine agent is trusted")
+        expect(WhatsAppDownloadSupport.category(contentTypeIdentifier: "public.jpeg",
+                                                 extension: "jpeg") == .image
+                && WhatsAppDownloadSupport.category(contentTypeIdentifier: "public.mpeg-4",
+                                                     extension: "mp4") == .video
+                && WhatsAppDownloadSupport.category(contentTypeIdentifier: "public.mp3",
+                                                     extension: "mp3") == .audio
+                && WhatsAppDownloadSupport.category(contentTypeIdentifier: "com.adobe.pdf",
+                                                     extension: "pdf") == .document
+                && WhatsAppDownloadSupport.category(contentTypeIdentifier: nil,
+                                                     extension: "zip") == .archive,
+               "WhatsApp files land in the expected user-facing buckets")
+        expect(WhatsAppDownloadSupport.isIncompleteFile(extension: "download")
+                && WhatsAppDownloadSupport.isIncompleteFile(extension: "PART")
+                && !WhatsAppDownloadSupport.isIncompleteFile(extension: "pdf"),
+               "partial downloads can never become cleanup candidates")
+        let whatsNow = scheduleDate(20, 12, 0)
+        let whatsOld = scheduleDate(10, 12, 0)
+        let whatsRecent = scheduleDate(19, 12, 0)
+        expect(WhatsAppDownloadSupport.isOldEnough(downloadedAt: whatsOld,
+                                                   modifiedAt: whatsOld,
+                                                   now: whatsNow, retentionDays: 7,
+                                                   calendar: utcCalendar),
+               "an untouched old WhatsApp download passes retention")
+        expect(!WhatsAppDownloadSupport.isOldEnough(downloadedAt: whatsOld,
+                                                    modifiedAt: whatsRecent,
+                                                    now: whatsNow, retentionDays: 7,
+                                                    calendar: utcCalendar),
+               "a recent edit postpones WhatsApp cleanup")
+        expect(!WhatsAppDownloadSupport.isEligibleForAutomaticCleanup(
+                    category: .image, downloadedAt: whatsOld, modifiedAt: whatsOld,
+                    now: whatsNow, retentionDays: 7, enabledCategories: [.image],
+                    includeExisting: false, automaticStartDate: whatsRecent),
+               "future-only automation leaves pre-existing downloads alone")
+        expect(WhatsAppDownloadSupport.isEligibleForAutomaticCleanup(
+                    category: .image, downloadedAt: whatsOld, modifiedAt: whatsOld,
+                    now: whatsNow, retentionDays: 7, enabledCategories: [.image],
+                    includeExisting: true, automaticStartDate: whatsRecent),
+               "explicitly including existing downloads admits old matches")
+        let downloadsRoot = URL(fileURLWithPath: "/Users/test/Downloads")
+        expect(WhatsAppDownloadSupport.isDirectChild(
+                    URL(fileURLWithPath: "/Users/test/Downloads/file.pdf"), of: downloadsRoot)
+                && !WhatsAppDownloadSupport.isDirectChild(
+                    URL(fileURLWithPath: "/Users/test/Downloads/folder/file.pdf"), of: downloadsRoot)
+                && !WhatsAppDownloadSupport.isDirectChild(
+                    URL(fileURLWithPath: "/Users/test/Documents/file.pdf"), of: downloadsRoot),
+               "WhatsApp cleanup accepts only direct children of Downloads")
+        let organizedFile = URL(fileURLWithPath: "/Users/test/Downloads/WhatsApp/2026/07/file.pdf")
+        expect(WhatsAppDownloadSupport.isDescendant(organizedFile, of: downloadsRoot)
+                && !WhatsAppDownloadSupport.isDescendant(downloadsRoot, of: downloadsRoot)
+                && !WhatsAppDownloadSupport.isDescendant(
+                    URL(fileURLWithPath: "/Users/test/Download/file.pdf"), of: downloadsRoot),
+               "organized cleanup accepts descendants without path-prefix confusion")
+        let fourMinutesAgo = whatsNow.addingTimeInterval(-4 * 60)
+        let sixMinutesAgo = whatsNow.addingTimeInterval(-6 * 60)
+        expect(!WhatsAppDownloadSupport.isStableForOrganization(
+                    downloadedAt: sixMinutesAgo, modifiedAt: fourMinutesAgo,
+                    now: whatsNow, delayMinutes: 5)
+                && WhatsAppDownloadSupport.isStableForOrganization(
+                    downloadedAt: sixMinutesAgo, modifiedAt: sixMinutesAgo,
+                    now: whatsNow, delayMinutes: 5)
+                && WhatsAppDownloadSupport.sanitizedOrganizerDelayMinutes(999) == 5,
+               "organization waits for both download and modification activity to settle")
+        let undoCreatedAt = whatsNow.addingTimeInterval(-6 * 86_400)
+        expect(WhatsAppDownloadSupport.organizerUndoIsValid(
+                    createdAt: undoCreatedAt, now: whatsNow)
+                && !WhatsAppDownloadSupport.organizerUndoIsValid(
+                    createdAt: whatsNow.addingTimeInterval(-7 * 86_400), now: whatsNow)
+                && !WhatsAppDownloadSupport.organizerUndoIsValid(
+                    createdAt: whatsNow.addingTimeInterval(1), now: whatsNow),
+               "organizer undo is executable only during its seven day window")
+        expect(WhatsAppDownloadSupport.organizerRelativeComponents(
+                    layout: .flat, category: .image, date: whatsNow,
+                    calendar: utcCalendar).isEmpty
+                && WhatsAppDownloadSupport.organizerRelativeComponents(
+                    layout: .category, category: .image, date: whatsNow,
+                    calendar: utcCalendar) == ["Images"]
+                && WhatsAppDownloadSupport.organizerRelativeComponents(
+                    layout: .month, category: .image, date: whatsNow,
+                    calendar: utcCalendar) == ["2026", "07"],
+               "the organizer produces stable flat, type and month folder layouts")
+        expect(WhatsAppDownloadSupport.nextAutomaticCheck(
+                    after: scheduleDate(20, 8, 0), calendar: utcCalendar) == scheduleDate(20, 9, 0)
+                && WhatsAppDownloadSupport.nextAutomaticCheck(
+                    after: scheduleDate(20, 10, 0), calendar: utcCalendar) == scheduleDate(21, 9, 0),
+               "the hidden daily WhatsApp check targets nine in the morning")
+        expect(WhatsAppDownloadSupport.missedAutomaticCheck(
+                    now: scheduleDate(20, 12, 0), lastRun: scheduleDate(19, 9, 0),
+                    calendar: utcCalendar)
+                && !WhatsAppDownloadSupport.missedAutomaticCheck(
+                    now: scheduleDate(20, 8, 0), lastRun: scheduleDate(19, 9, 0),
+                    calendar: utcCalendar)
+                && !WhatsAppDownloadSupport.missedAutomaticCheck(
+                    now: scheduleDate(20, 12, 0), lastRun: nil, calendar: utcCalendar),
+               "missed WhatsApp checks recover after nine without a first-enable surprise")
         let panel500 = ExtraBrightnessSupport.panelReference(model: "MacBookPro18,1")
         let panel600 = ExtraBrightnessSupport.panelReference(model: "Mac16,7")
         expect(panel500.referenceEDR == 3.2 && panel500.bonus == 0.58,
@@ -3489,6 +3633,33 @@ struct MetricsTests {
                "healthy shelf items pass sanitizing untouched")
         expect(ShelfPersistenceSupport.sanitized([shelfFile, shelfText]) { _ in false } == [shelfText],
                "shelf files that no longer exist are dropped at load")
+        let bookmarkedShelfFile = ShelfPersistedItem(id: shelfFile.id, kind: .file,
+                                                     title: "notes.pdf", path: "/tmp/notes.pdf",
+                                                     bookmark: Data([1, 2, 3]))
+        let healedShelf = ShelfPersistenceSupport.sanitized(
+            [bookmarkedShelfFile],
+            fileExists: { $0 == "/tmp/moved/renamed.pdf" },
+            resolveBookmark: { _ in "/tmp/moved/renamed.pdf" })
+        expect(healedShelf.count == 1
+                && healedShelf.first?.path == "/tmp/moved/renamed.pdf"
+                && healedShelf.first?.title == "renamed.pdf"
+                && healedShelf.first?.id == shelfFile.id
+                && healedShelf.first?.bookmark == bookmarkedShelfFile.bookmark,
+               "a moved shelf file heals through its bookmark with its new path and name")
+        expect(ShelfPersistenceSupport.sanitized(
+                   [bookmarkedShelfFile],
+                   fileExists: { _ in false },
+                   resolveBookmark: { _ in "/tmp/also-gone.pdf" })
+                   .isEmpty,
+               "a bookmark that resolves to another dead path still drops the item")
+        expect(ShelfPersistenceSupport.sanitized(
+                   [bookmarkedShelfFile],
+                   fileExists: { $0 == "/tmp/notes.pdf" },
+                   resolveBookmark: { _ in
+                       expect(false, "a living shelf path never pays for bookmark resolution")
+                       return nil
+                   }).first?.path == "/tmp/notes.pdf",
+               "a living shelf file keeps its path without touching the bookmark")
         expect(ShelfPersistenceSupport.unmountedVolumeRoot(of: "/Volumes/NAS/docs/a.txt") == "/Volumes/NAS",
                "files under /Volumes report their volume root")
         expect(ShelfPersistenceSupport.unmountedVolumeRoot(of: "/Users/me/a.txt") == nil,
@@ -4388,6 +4559,50 @@ struct MetricsTests {
                "plain text is never an open link")
         expect(QuickToolsSupport.openableURL(from: "example.com") == nil,
                "a bare host with no scheme is not opened")
+
+        // Paste plain delegates only to the universal ⌥⇧⌘V equivalent
+        // (shift = 1, option = 2 in the AX modifier mask); anything else in
+        // an app's menus is some other edit command and must not be pressed.
+        expect(QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "V",
+                                                        modifierMask: 3,
+                                                        isEnabled: true),
+               "V with shift+option is an app's own matching-style paste")
+        expect(QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "v",
+                                                        modifierMask: 3,
+                                                        isEnabled: true),
+               "the command character match ignores case")
+        expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "V",
+                                                         modifierMask: 0,
+                                                         isEnabled: true),
+               "plain ⌘V is the regular paste, never pressed as match style")
+        expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "V",
+                                                         modifierMask: 1,
+                                                         isEnabled: true),
+               "⇧⌘V alone is a different command in several apps")
+        expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "V",
+                                                         modifierMask: 3 | 4,
+                                                         isEnabled: true),
+               "a control variant is not the matching-style paste")
+        expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "V",
+                                                         modifierMask: 3 | 8,
+                                                         isEnabled: true),
+               "an equivalent without the command key does not qualify")
+        expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "C",
+                                                         modifierMask: 3,
+                                                         isEnabled: true),
+               "other command characters never match")
+        expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: nil,
+                                                         modifierMask: 3,
+                                                         isEnabled: true),
+               "an item with no key equivalent never matches")
+        expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "V",
+                                                         modifierMask: nil,
+                                                         isEnabled: true),
+               "an unreadable modifier mask never matches")
+        expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "V",
+                                                         modifierMask: 3,
+                                                         isEnabled: false),
+               "a disabled item is left alone so the fallback paste still runs")
 
         // Launcher grid: 8 items in 3 columns (rows of 3, 3, 2).
         expect(QuickToolsSupport.gridIndex(after: 0, count: 8, columns: 3, direction: .right) == 1,
@@ -5364,7 +5579,9 @@ struct MetricsTests {
             expect(ocrQRStrings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "\(prefix) screen QR strings are present without em dash")
             let highlightsStrings = [strings.highlightsTitle, strings.highlightsCaptionDockPreview,
-                                     strings.highlightsCaptionScreenshot, strings.highlightsConfigure,
+                                     strings.highlightsCaptionScreenshot,
+                                     strings.highlightsCaptionSnippetLibrary,
+                                     strings.highlightsConfigure,
                                      strings.highlightsTry, strings.highlightsSeeAll]
             expect(highlightsStrings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "\(prefix) update highlights strings are present without em dash")
@@ -5445,6 +5662,21 @@ struct MetricsTests {
         let baseAudioPrompt = infoPlist?["NSAudioCaptureUsageDescription"] as? String ?? ""
         expect(baseAudioPrompt.contains("Vorssaint taps individual app audio"),
                "base audio permission prompt is an English fallback")
+        let organizerFolderPromptKeys = [
+            "NSDesktopFolderUsageDescription", "NSDocumentsFolderUsageDescription",
+            "NSNetworkVolumesUsageDescription", "NSRemovableVolumesUsageDescription",
+        ]
+        expect(organizerFolderPromptKeys.allSatisfy {
+                   !(infoPlist?[$0] as? String ?? "").isEmpty
+               },
+               "the organizer declares every supported custom destination permission")
+        let localizedInfoPlists = (try? FileManager.default.contentsOfDirectory(
+            atPath: "Resources"))?.filter { $0.hasSuffix(".lproj") } ?? []
+        expect(localizedInfoPlists.allSatisfy { folder in
+            let value = (try? String(contentsOfFile: "Resources/\(folder)/InfoPlist.strings",
+                                     encoding: .utf8)) ?? ""
+            return organizerFolderPromptKeys.allSatisfy(value.contains)
+        }, "every localization explains custom organizer folder access")
         let turkishInfoPlistStrings = (try? String(contentsOfFile: "Resources/tr.lproj/InfoPlist.strings",
                                                    encoding: .utf8)) ?? ""
         expect(turkishInfoPlistStrings.contains("NSAudioCaptureUsageDescription")
@@ -5785,6 +6017,16 @@ struct MetricsTests {
         expect(activeSet(.notifications, on: [DefaultsKey.cleanerScheduleNotify],
                          strings: [DefaultsKey.cleanerScheduleFrequency: "off"]) == [],
                "an unscheduled cleaner does not use notifications")
+        expect(activeSet(.notifications,
+                         on: [DefaultsKey.whatsAppDownloadsAutomaticEnabled,
+                              DefaultsKey.whatsAppDownloadsNotify]) == [.cleaner],
+               "WhatsApp cleanup only uses notifications for an opted-in automatic summary")
+        expect(activeSet(.notifications,
+                         on: [DefaultsKey.whatsAppOrganizerEnabled,
+                              DefaultsKey.whatsAppDownloadsNotify]) == [.cleaner],
+               "the experimental WhatsApp organizer can offer an undo notification")
+        expect(activeSet(.filesAndFolders) == [.cleaner],
+               "the cleaner owns WhatsApp Downloads folder access")
 
         expect(activeSet(.fullDiskAccess) == [.cleaner, .uninstaller],
                "cleaner and uninstaller are on-demand full disk users")
@@ -5904,7 +6146,7 @@ struct MetricsTests {
                    "no em-dash in visible camera preview strings (\(language.rawValue))")
             let radialMenuValues = Mirror(reflecting: FeatureStrings.radialMenu(language)).children
                 .compactMap { $0.value as? String }
-            expect(radialMenuValues.count == 50 && radialMenuValues.allSatisfy { !$0.isEmpty },
+            expect(radialMenuValues.count == 55 && radialMenuValues.allSatisfy { !$0.isEmpty },
                    "every radial menu string is set for \(language.rawValue)")
             expect(radialMenuValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible radial menu strings (\(language.rawValue))")
@@ -5914,10 +6156,27 @@ struct MetricsTests {
                    "every scratchpad string is set for \(language.rawValue)")
             expect(scratchpadValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible scratchpad strings (\(language.rawValue))")
+            let whatsAppValues = Mirror(reflecting: FeatureStrings.whatsAppDownloads(language)).children
+                .compactMap { $0.value as? String }
+            expect(whatsAppValues.count == 40 && whatsAppValues.allSatisfy { !$0.isEmpty },
+                   "every WhatsApp downloads string is set for \(language.rawValue)")
+            expect(whatsAppValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in WhatsApp downloads strings (\(language.rawValue))")
+            let organizerValues = Mirror(
+                reflecting: WhatsAppOrganizerStrings.localized(language)).children
+                .compactMap { $0.value as? String }
+            expect(organizerValues.count == 30 && organizerValues.allSatisfy { !$0.isEmpty },
+                   "every WhatsApp organizer string is set for \(language.rawValue)")
+            expect(organizerValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in WhatsApp organizer strings (\(language.rawValue))")
             expect(FeatureStrings.screenshot(language).delaySecondsFormat.contains("%d"),
                    "screenshot delay format keeps its specifier (\(language.rawValue))")
             expect(FeatureStrings.screenshot(language).savedHUDFormat.contains("%@"),
                    "screenshot saved format keeps its specifier (\(language.rawValue))")
+            expect(FeatureStrings.screenshot(language).savedAndCopiedHUDFormat.contains("%@"),
+                   "screenshot saved-and-copied format keeps its specifier (\(language.rawValue))")
+            expect(FeatureStrings.screenshot(language).fileNumberNextFormat.contains("%d"),
+                   "screenshot next-number format keeps its specifier (\(language.rawValue))")
             let strings: Strings = {
                 switch language {
                 case .enUS: return .enUS
@@ -6016,6 +6275,9 @@ struct MetricsTests {
                "app pages never hide")
         expect(!pageVisible(.shelf, available: allFeatures.subtracting([.shelf])),
                "single-feature pages follow their feature")
+        expect(!pageVisible(.cleaner,
+                            available: allFeatures.subtracting([.cleaner])),
+               "cleaner settings, including WhatsApp downloads, follow the cleaner module")
         expect(pageVisible(.quickTools, available: [.quickToggles]),
                "the quick toggles alone keep the quick tools page")
 
@@ -6310,6 +6572,36 @@ struct MetricsTests {
         expect(TextSnippetSupport.expand("plain", date: fixedDate, clipboard: nil) == "plain",
                "text without variables passes through untouched")
 
+        // Custom date patterns after a colon (issue #348)
+        let enUS = Locale(identifier: "en_US")
+        expect(TextSnippetSupport.expand("{{date:yyyy-MM-dd}}", date: fixedDate, clipboard: nil,
+                                         locale: enUS).hasPrefix("2025-07-0"),
+               "a pattern after the colon formats the date")
+        expect(TextSnippetSupport.expand("{{time:HH:mm}}", date: fixedDate, clipboard: nil,
+                                         locale: enUS)
+                .range(of: "^[0-9]{2}:[0-9]{2}$", options: .regularExpression) != nil,
+               "colons inside the pattern belong to the pattern")
+        expect(TextSnippetSupport.expand("{{datetime:yyyy}}", date: fixedDate, clipboard: nil,
+                                         locale: enUS) == "2025",
+               "every date variable takes a pattern")
+        expect(TextSnippetSupport.expand("{{date:MMMM}}", date: fixedDate, clipboard: nil,
+                                         locale: Locale(identifier: "pt_BR")).lowercased() == "julho",
+               "month and weekday names follow the locale")
+        expect(TextSnippetSupport.expand("on {{date}} ({{date:yyyy}})", date: fixedDate,
+                                         clipboard: nil, locale: enUS).contains("(2025)"),
+               "plain and formatted variables coexist")
+        expect(TextSnippetSupport.expand("{{date:}}", date: fixedDate, clipboard: nil) == "{{date:}}",
+               "an empty pattern stays visible like any typo")
+        expect(TextSnippetSupport.expand("{{foo:yyyy}}", date: fixedDate, clipboard: nil)
+                == "{{foo:yyyy}}",
+               "unknown tags with a colon stay visible")
+        expect(TextSnippetSupport.expand("{{date:yyyy", date: fixedDate, clipboard: nil)
+                == "{{date:yyyy",
+               "an unclosed tag passes through untouched")
+        expect(TextSnippetSupport.expand("clip: {{clipboard}}", date: fixedDate,
+                                         clipboard: "{{date:yyyy}}") == "clip: {{date:yyyy}}",
+               "pasted clipboard text is never re-expanded")
+
         // Per-snippet capitalization option (issue #304)
         let caseless = TextSnippet(name: "Caseless", trigger: ";email", replacement: "me@x.com",
                                    expansion: .afterDelimiter, enabled: true, ignoresCase: true)
@@ -6338,6 +6630,64 @@ struct MetricsTests {
         let legacySnippets = TextSnippetSupport.decode(legacySnippetJSON.data(using: .utf8))
         expect(legacySnippets.count == 1 && legacySnippets.first?.ignoresCase == false,
                "snippets saved before the capitalization option decode and keep matching exactly")
+        expect(legacySnippets.first?.folder == "" && legacySnippets.first?.showsInLibrary == true,
+               "snippets saved before the library have no folder and stay visible in it")
+
+        // MARK: Snippet library (issue #340)
+
+        let workMail = TextSnippet(name: "Work mail", trigger: ";wmail", replacement: "work@x.com",
+                                   expansion: .afterDelimiter, enabled: true, folder: "Work")
+        let workSig = TextSnippet(name: "Signature", trigger: ";sig", replacement: "Best, V",
+                                  expansion: .afterDelimiter, enabled: true, folder: "Work")
+        let homeNote = TextSnippet(name: "Address", trigger: ";addr", replacement: "Elm St 1",
+                                   expansion: .afterDelimiter, enabled: true, folder: "Home")
+        let loose = TextSnippet(name: "Loose", trigger: ";loose", replacement: "loose text",
+                                expansion: .afterDelimiter, enabled: true)
+        let hidden = TextSnippet(name: "Hidden", trigger: ";hide", replacement: "hidden",
+                                 expansion: .afterDelimiter, enabled: true, showsInLibrary: false)
+        let disabled = TextSnippet(name: "Off", trigger: ";off", replacement: "off",
+                                   expansion: .afterDelimiter, enabled: false)
+        let libraryPool = [loose, workMail, hidden, homeNote, disabled, workSig]
+
+        let allSections = TextSnippetSupport.librarySections(libraryPool, query: "")
+        expect(allSections.map(\.folder) == ["Home", "Work", ""],
+               "library folders come alphabetically with loose snippets closing the list")
+        expect(allSections.last?.snippets == [loose],
+               "disabled and hidden snippets never reach the library")
+        expect(allSections[1].snippets == [workMail, workSig],
+               "snippets keep their stored order inside a folder")
+        expect(TextSnippetSupport.libraryRows(allSections).map(\.name)
+                == ["Address", "Work mail", "Signature", "Loose"],
+               "the flat row list walks the sections in reading order")
+
+        expect(TextSnippetSupport.librarySections(libraryPool, query: "WORK").flatMap(\.snippets).count == 2,
+               "searching matches the folder name regardless of casing")
+        expect(TextSnippetSupport.librarySections(libraryPool, query: ";addr").flatMap(\.snippets) == [homeNote],
+               "searching matches the trigger")
+        expect(TextSnippetSupport.librarySections(libraryPool, query: "loose text").flatMap(\.snippets) == [loose],
+               "searching matches the snippet text")
+        expect(TextSnippetSupport.librarySections(libraryPool, query: "signat").flatMap(\.snippets) == [workSig],
+               "searching matches the name")
+        expect(TextSnippetSupport.librarySections(libraryPool, query: "zzz").isEmpty,
+               "a search with no matches yields no sections")
+        expect(TextSnippetSupport.librarySections(libraryPool, query: "  ").map(\.folder) == ["Home", "Work", ""],
+               "a whitespace-only search counts as empty")
+
+        expect(TextSnippetSupport.folderSuggestions(libraryPool) == ["Home", "Work"],
+               "folder suggestions are distinct and alphabetical")
+        expect(TextSnippetSupport.sanitizedFolder("  Work \n") == "Work",
+               "folder names lose surrounding whitespace")
+        expect(TextSnippetSupport.sanitizedFolder("   ") == "",
+               "a whitespace-only folder means no folder")
+
+        expect(GlobalShortcutRole.snippetLibrary.storageKey == DefaultsKey.snippetLibraryShortcut
+                && GlobalShortcutRole.snippetLibrary.defaultShortcut == .snippetLibraryDefault
+                && GlobalShortcutRole.snippetLibrary.requiredEnableKeys == [DefaultsKey.snippetLibraryEnabled]
+                && GlobalShortcutRole.snippetLibrary.feature == .textSnippets,
+               "the library shortcut role is wired to its own keys and the snippets feature")
+        let roleDefaults = GlobalShortcutRole.allCases.map(\.defaultShortcut)
+        expect(Set(roleDefaults).count == roleDefaults.count,
+               "no two shortcut roles ship the same default combination")
 
         // MARK: Radial menu (issue #220)
 
@@ -6402,6 +6752,7 @@ struct MetricsTests {
             RadialMenuItem(kind: .url, payload: "not a link"),
             RadialMenuItem(kind: .shortcut, payload: "garbage"),
             RadialMenuItem(kind: .tool, payload: "unknownTool"),
+            RadialMenuItem(kind: .windowLayout, payload: "unknownLayout"),
             RadialMenuItem(kind: .media, payload: "unknownKey"),
         ]).isEmpty,
                "slices that cannot run are dropped instead of rendering dead")
@@ -6427,9 +6778,22 @@ struct MetricsTests {
         expect(RadialMenuSupport.needsAccessibility([starter[3]]) == false
                 && RadialMenuSupport.needsAccessibility(starter)
                 && RadialMenuSupport.needsAccessibility([
+                    RadialMenuItem(kind: .windowLayout, payload: WindowLayoutAction.leftThird.rawValue),
+                ])
+                && RadialMenuSupport.needsAccessibility([
                     RadialMenuItem(kind: .submenu, children: [RadialMenuItem(kind: .shortcut, payload: "command:8")]),
                 ]),
-               "only wheels that press keys need Accessibility, submenus included")
+               "keyboard and window actions need Accessibility, submenus included")
+        let radialLayout = RadialMenuItem(kind: .windowLayout,
+                                          payload: WindowLayoutAction.leftThird.rawValue)
+        expect(RadialMenuSupport.sanitized([radialLayout]) == [radialLayout]
+                && radialLayout.windowLayoutAction == .leftThird
+                && radialLayout.effectiveSymbolName == WindowLayoutAction.leftThird.symbolName
+                && WindowLayoutAction.allCases.allSatisfy { !$0.symbolName.isEmpty }
+                && RadialMenuSupport.usesWindowLayout([
+                    RadialMenuItem(kind: .submenu, children: [radialLayout]),
+                ]),
+               "window-layout slices keep a valid placement and its automatic icon")
         expect(RadialMenuMediaKey.playPause.auxKeyType == 16
                 && RadialMenuMediaKey.previousTrack.auxKeyType == 20
                 && RadialMenuMediaKey.nextTrack.auxKeyType == 19,
@@ -6437,8 +6801,20 @@ struct MetricsTests {
         expect(RadialMenuTool.allCases.allSatisfy { !$0.symbolName.isEmpty }
                 && RadialMenuTool.screenshot.feature == .screenshot
                 && RadialMenuTool.clipboardHistory.feature == .clipboardHistory
-                && RadialMenuTool.scratchpad.feature == .scratchpad,
+                && RadialMenuTool.scratchpad.feature == .scratchpad
+                && RadialMenuTool.shelf.feature == .shelf
+                && RadialMenuTool.cleaningMode.feature == .cleaningMode
+                && RadialMenuTool.keepAwake.feature == .keepAwake,
                "every wheel tool maps to a real feature and symbol")
+        expect(!RadialMenuTool.shelf.isRunnable(isFeatureAvailable: { _ in true },
+                                                boolFor: { _ in false })
+                && RadialMenuTool.shelf.isRunnable(isFeatureAvailable: { _ in true },
+                                                   boolFor: { $0 == DefaultsKey.shelfEnabled })
+                && !RadialMenuTool.shelf.isRunnable(isFeatureAvailable: { _ in false },
+                                                    boolFor: { _ in true })
+                && RadialMenuTool.cleaningMode.isRunnable(isFeatureAvailable: { _ in true },
+                                                          boolFor: { _ in false }),
+               "Shelf wheel slices follow the Shelf master switch without affecting on-demand tools")
 
         // MARK: Dock click with AX-blind apps (issue #200)
 
@@ -6539,6 +6915,54 @@ struct MetricsTests {
                 && !ScreenshotSupport.isClick(from: .zero, to: CGPoint(x: 12, y: 0)),
                "a tiny drag is a click, a real drag is not")
 
+        var patternParts = DateComponents()
+        patternParts.year = 2026
+        patternParts.month = 7
+        patternParts.day = 24
+        patternParts.hour = 15
+        patternParts.minute = 4
+        patternParts.second = 9
+        if let patternDate = Calendar(identifier: .gregorian).date(from: patternParts) {
+            expect(ScreenshotSupport.expandSaveSubfolder("%y-%mo", date: patternDate) == "26-07",
+                   "short date tokens expand zero padded")
+            expect(ScreenshotSupport.expandSaveSubfolder("%year/%month", date: patternDate)
+                   == "2026/July",
+                   "long date tokens expand before their short prefixes and nest with slashes")
+            expect(ScreenshotSupport.expandSaveSubfolder("", date: patternDate) == "",
+                   "an empty subfolder pattern means no subfolder")
+            expect(ScreenshotSupport.expandSaveSubfolder("../up//./%y", date: patternDate)
+                   == "up/26",
+                   "dot, dot-dot and empty components never escape the base folder")
+            expect(ScreenshotSupport.expandFileNamePattern("Shot %d at %h.%mi.%s",
+                                                           date: patternDate, number: 0)
+                   == "Shot 24 at 15.04.09",
+                   "file name patterns expand the day and time tokens")
+            expect(ScreenshotSupport.expandFileNamePattern("Shot-%#", date: patternDate, number: 7)
+                   == "Shot-7",
+                   "a single number token renders the sequence unpadded")
+            expect(ScreenshotSupport.expandFileNamePattern("%###-%y", date: patternDate, number: 7)
+                   == "007-26",
+                   "a longer number token zero pads to its length")
+            expect(ScreenshotSupport.fileNamePatternUsesNumber("Shot-%#")
+                    && !ScreenshotSupport.fileNamePatternUsesNumber("Shot-%y"),
+                   "only patterns with the number token consume the sequence")
+            expect(ScreenshotSupport.expandFileNamePattern("a/b %h:%mi", date: patternDate, number: 0)
+                   == "a-b 15-04",
+                   "slashes and colons in a file name pattern become dashes")
+        } else {
+            expect(false, "gregorian calendar produced the fixed pattern date")
+        }
+
+        let cornerFrame = ScreenshotSupport.quickPreviewCornerFrame(
+            size: CGSize(width: 310, height: 210),
+            visibleFrame: CGRect(x: 0, y: 0, width: 1440, height: 900))
+        expect(cornerFrame == CGRect(x: 1114, y: 16, width: 310, height: 210),
+               "the after-capture confirmation sits inset in the bottom-right corner")
+        expect(ScreenshotDefaultAction(rawValue: "") == ScreenshotDefaultAction.none
+                && ScreenshotDefaultAction(rawValue: "saveAndCopy") == .saveAndCopy
+                && ScreenshotDefaultAction(rawValue: "bogus") == nil,
+               "after-capture actions decode from their stored raw values")
+
         // A gesture that ends with more than one release, like a drag made
         // with three fingers, delivers events after the capture is over.
         expect(ScreenshotSupport.selectionAcceptsPointerInput(sessionIsOver: false,
@@ -6605,6 +7029,22 @@ struct MetricsTests {
         expect(largeCaptureWindow.width <= 1470 * 0.90
                 && largeCaptureWindow.height <= 956 * 0.88,
                "a large screenshot editor stays inside the visible display")
+        expect(ScreenshotSupport.editorOwnsKeyEvent(eventWindowNumber: 42,
+                                                    editorWindowNumber: 42,
+                                                    editorIsKey: true),
+               "screenshot editor owns key events carrying its window number")
+        expect(ScreenshotSupport.editorOwnsKeyEvent(eventWindowNumber: 0,
+                                                    editorWindowNumber: 42,
+                                                    editorIsKey: true),
+               "screenshot editor owns windowless menu key equivalents while key")
+        expect(!ScreenshotSupport.editorOwnsKeyEvent(eventWindowNumber: 0,
+                                                     editorWindowNumber: 42,
+                                                     editorIsKey: false),
+               "inactive screenshot editor ignores windowless key events")
+        expect(!ScreenshotSupport.editorOwnsKeyEvent(eventWindowNumber: 7,
+                                                     editorWindowNumber: 42,
+                                                     editorIsKey: true),
+               "screenshot editor ignores events explicitly owned by another window")
         let previewFrame = ScreenshotSupport.quickPreviewFrame(
             size: CGSize(width: 286, height: 210),
             anchor: CGRect(x: 1100, y: 100, width: 300, height: 300),
@@ -6883,6 +7323,8 @@ struct MetricsTests {
                "the screenshot shortcut ships off like the other quick tools")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotAnnotationShadows] as? Bool == false,
                "screenshot annotation shadows ship off")
+        expect(Defaults.registeredDefaults[DefaultsKey.screenshotShowLastRegion] as? Bool == true,
+               "the previous capture outline stays visible by default, as it always was")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotToolShortcutsEnabled] as? Bool == true,
                "screenshot number shortcuts ship enabled")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotToolOrder] as? String
@@ -6964,6 +7406,26 @@ struct MetricsTests {
                "the radial menu opens at the pointer by default")
         expect(Defaults.registeredDefaults[DefaultsKey.radialMenuMouseButton] as? String == "off",
                "the side button trigger ships off")
+        expect(Defaults.registeredDefaults[DefaultsKey.radialMenuActivationMode] as? String == "pressOrHold",
+               "the radial menu preserves its adaptive gesture by default")
+        expect(RadialMenuActivationMode.sanitized("press") == .press
+                && RadialMenuActivationMode.sanitized("hold") == .hold
+                && RadialMenuActivationMode.sanitized(nil) == .pressOrHold
+                && RadialMenuActivationMode.sanitized("future-mode") == .pressOrHold,
+               "the radial activation mode decodes known values and safely falls back")
+        expect(!RadialMenuActivationMode.press.startsHeld(
+                    requestedHold: true, hasHeldButton: false, shortcutHasModifiers: true)
+                && RadialMenuActivationMode.hold.startsHeld(
+                    requestedHold: true, hasHeldButton: false, shortcutHasModifiers: true)
+                && RadialMenuActivationMode.pressOrHold.startsHeld(
+                    requestedHold: false, hasHeldButton: true, shortcutHasModifiers: false)
+                && !RadialMenuActivationMode.hold.startsHeld(
+                    requestedHold: false, hasHeldButton: false, shortcutHasModifiers: true),
+               "only hold-capable summons enter the held phase")
+        expect(RadialMenuActivationMode.pressOrHold.releaseAction(hasSelection: false) == .stayOpen
+                && RadialMenuActivationMode.hold.releaseAction(hasSelection: false) == .dismiss
+                && RadialMenuActivationMode.hold.releaseAction(hasSelection: true) == .select,
+               "release keeps the adaptive wheel, dismisses an empty strict hold, or selects its target")
         expect(RadialMenuMouseTrigger.sanitized("back") == .back
                 && RadialMenuMouseTrigger.sanitized("forward").buttonNumber == 4
                 && RadialMenuMouseTrigger.back.buttonNumber == 3
@@ -7075,10 +7537,32 @@ struct MetricsTests {
                "window gesture choices travel with the settings backup")
         expect(backupKeys.contains(DefaultsKey.screenshotFreeze)
                 && backupKeys.contains(DefaultsKey.screenshotSaveFolder)
+                && backupKeys.contains(DefaultsKey.screenshotShowLastRegion)
                 && backupKeys.contains(DefaultsKey.screenshotToolOrder)
                 && backupKeys.contains(DefaultsKey.screenshotToolShortcutsEnabled)
                 && backupKeys.contains(DefaultsKey.panelUtilityScreenshot),
                "screenshot preferences travel with the settings backup")
+        expect(backupKeys.contains(DefaultsKey.whatsAppDownloadsAutomaticEnabled)
+                && backupKeys.contains(DefaultsKey.whatsAppDownloadsCategories)
+                && backupKeys.contains(DefaultsKey.whatsAppDownloadsRetentionDays)
+                && backupKeys.contains(DefaultsKey.whatsAppDownloadsNotify),
+               "portable WhatsApp cleanup choices travel with settings backup")
+        expect(backupKeys.contains(DefaultsKey.whatsAppOrganizerEnabled)
+                && backupKeys.contains(DefaultsKey.whatsAppOrganizerDelayMinutes)
+                && backupKeys.contains(DefaultsKey.whatsAppOrganizerCategories)
+                && backupKeys.contains(DefaultsKey.whatsAppOrganizerLayout)
+                && backupKeys.contains(DefaultsKey.whatsAppOrganizerDuplicateAction),
+               "portable WhatsApp organizer choices travel with settings backup")
+        expect(!backupKeys.contains(DefaultsKey.whatsAppDownloadsAutomaticStartDate)
+                && !backupKeys.contains(DefaultsKey.whatsAppDownloadsLastCleanup)
+                && !backupKeys.contains(DefaultsKey.whatsAppDownloadsExclusions)
+                && !backupKeys.contains(DefaultsKey.whatsAppDownloadsAccessConfirmed),
+               "machine-specific WhatsApp cleanup state never travels")
+        expect(!backupKeys.contains(DefaultsKey.whatsAppOrganizerDestinationPath)
+                && !backupKeys.contains(DefaultsKey.whatsAppOrganizerRecords)
+                && !backupKeys.contains(DefaultsKey.whatsAppOrganizerUndoTransaction)
+                && !backupKeys.contains(DefaultsKey.whatsAppOrganizerLastRun),
+               "organizer paths, digests and activity never travel to another Mac")
         expect(backupKeys.contains(DefaultsKey.cameraPreviewShortcut)
                 && backupKeys.contains(DefaultsKey.cameraPreviewShortcutEnabled)
                 && backupKeys.contains(DefaultsKey.panelUtilityCameraPreview),
@@ -7092,6 +7576,7 @@ struct MetricsTests {
                 && backupKeys.contains(DefaultsKey.radialMenuShortcut)
                 && backupKeys.contains(DefaultsKey.radialMenuAtPointer)
                 && backupKeys.contains(DefaultsKey.radialMenuMouseButton)
+                && backupKeys.contains(DefaultsKey.radialMenuActivationMode)
                 && backupKeys.contains(DefaultsKey.radialMenuItems)
                 && backupKeys.contains(DefaultsKey.panelControlRadialMenu),
                "the radial menu wheel and choices travel with the settings backup")

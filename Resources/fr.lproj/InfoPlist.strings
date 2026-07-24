@@ -6,3 +6,12 @@
 
 /* macOS Camera permission prompt. */
 "NSCameraUsageDescription" = "Vorssaint affiche votre caméra uniquement dans la fenêtre d'aperçu que vous ouvrez, pour vérifier votre apparence avant un appel. Rien n'est enregistré et rien ne quitte votre Mac.";
+
+/* macOS Downloads folder permission prompt. */
+"NSDownloadsFolderUsageDescription" = "Vorssaint consulte les métadonnées locales de Téléchargements pour examiner, organiser ou placer dans la Corbeille uniquement les fichiers WhatsApp confirmés que vous choisissez.";
+
+/* macOS user-selected organizer destination prompts. */
+"NSDesktopFolderUsageDescription" = "Vorssaint organise les téléchargements WhatsApp confirmés dans un dossier de destination que vous choisissez explicitement.";
+"NSDocumentsFolderUsageDescription" = "Vorssaint organise les téléchargements WhatsApp confirmés dans un dossier de destination que vous choisissez explicitement.";
+"NSNetworkVolumesUsageDescription" = "Vorssaint organise les téléchargements WhatsApp confirmés dans un dossier de destination que vous choisissez explicitement.";
+"NSRemovableVolumesUsageDescription" = "Vorssaint organise les téléchargements WhatsApp confirmés dans un dossier de destination que vous choisissez explicitement.";

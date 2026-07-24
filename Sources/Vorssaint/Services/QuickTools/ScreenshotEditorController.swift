@@ -618,6 +618,7 @@ final class ScreenshotEditorModel: ObservableObject {
         switch tool {
         case .text:
             guard isTap else { return }
+            if selectExistingAnnotation(at: point) { return }
             registerUndo()
             var annotation = ScreenshotSupport.Annotation(
                 tool: .text, color: color, stroke: stroke)
@@ -628,6 +629,7 @@ final class ScreenshotEditorModel: ObservableObject {
             editingTextID = annotation.id
         case .sticker:
             guard isTap else { return }
+            if selectExistingAnnotation(at: point) { return }
             registerUndo()
             let bounds = CGRect(origin: .zero, size: imageSize)
             let side = ScreenshotSupport.stickerSide(for: imageSize, scale: scale)
@@ -643,6 +645,7 @@ final class ScreenshotEditorModel: ObservableObject {
             selectedID = annotation.id
         case .counter:
             guard isTap else { return }
+            if selectExistingAnnotation(at: point) { return }
             registerUndo()
             let annotation = ScreenshotSupport.Annotation(
                 tool: .counter,
@@ -659,8 +662,7 @@ final class ScreenshotEditorModel: ObservableObject {
                 if !undoStack.isEmpty { undoStack.removeLast() }
                 refreshUndoFlags()
                 refreshDirtyState()
-                selectedID = hitTest(point)
-                if selectedID != nil { tool = .select }
+                _ = selectExistingAnnotation(at: point)
             } else if let draftID {
                 selectedID = draftID
             }
@@ -683,6 +685,29 @@ final class ScreenshotEditorModel: ObservableObject {
         }
     }
 
+    /// A click on an existing mark always means "edit this", even while a
+    /// creation tool is active. Real drags still create with the active tool.
+    /// Sticker selection updates the style picker without mutating the mark;
+    /// text enters its inline editor immediately.
+    @discardableResult
+    private func selectExistingAnnotation(at point: CGPoint) -> Bool {
+        guard let hitID = hitTest(point, includeShapeInteriors: false),
+              let hit = annotations.first(where: { $0.id == hitID })
+        else {
+            selectedID = nil
+            return false
+        }
+        if hit.tool == .sticker {
+            selectedID = nil
+            sticker = ScreenshotSupport.StickerID.sanitized(hit.text)
+        }
+        selectedID = hitID
+        editingTextID = hit.tool == .text ? hitID : nil
+        clearTextSelection()
+        tool = .select
+        return true
+    }
+
     private func updateDraft(_ mutate: (inout ScreenshotSupport.Annotation) -> Void) {
         guard let draftID,
               let index = annotations.firstIndex(where: { $0.id == draftID })
@@ -690,7 +715,11 @@ final class ScreenshotEditorModel: ObservableObject {
         mutate(&annotations[index])
     }
 
-    func hitTest(_ point: CGPoint) -> UUID? {
+    /// `includeShapeInteriors: false` is the creation-tap variant: area
+    /// shapes (boxes, ellipses, highlights, censors) only answer near their
+    /// edge, so their inside stays free for placing a new text, sticker or
+    /// counter — the tap that used to create one there must keep doing so.
+    func hitTest(_ point: CGPoint, includeShapeInteriors: Bool = true) -> UUID? {
         let tolerance = 10 * scale
         for annotation in annotations.reversed() {
             switch annotation.tool {
@@ -713,9 +742,22 @@ final class ScreenshotEditorModel: ObservableObject {
                     <= radius + 4 * scale {
                     return annotation.id
                 }
-        case .rect, .ellipse, .highlight, .pixelate, .redact, .text, .sticker:
-            if annotation.rect.insetBy(dx: -tolerance / 2, dy: -tolerance / 2)
-                .contains(point) {
+        case .rect, .ellipse, .highlight, .pixelate, .redact:
+                let outer = annotation.rect.insetBy(dx: -tolerance / 2, dy: -tolerance / 2)
+                guard outer.contains(point) else { continue }
+                if includeShapeInteriors {
+                    return annotation.id
+                }
+                // Edge ring only: a shape too small to have a meaningful
+                // interior stays fully tappable.
+                let inner = annotation.rect.insetBy(dx: tolerance, dy: tolerance)
+                if inner.isEmpty || inner.width <= 0 || inner.height <= 0
+                    || !inner.contains(point) {
+                    return annotation.id
+                }
+            case .text, .sticker:
+                if annotation.rect.insetBy(dx: -tolerance / 2, dy: -tolerance / 2)
+                    .contains(point) {
                     return annotation.id
                 }
             case .select, .crop:
@@ -911,7 +953,12 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
 
     private func installKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self, let window = self.window, event.window === window else { return event }
+            guard let self, let window = self.window,
+                  ScreenshotSupport.editorOwnsKeyEvent(
+                    eventWindowNumber: event.windowNumber,
+                    editorWindowNumber: window.windowNumber,
+                    editorIsKey: window.isKeyWindow)
+            else { return event }
             // While a text field edits, every key belongs to it.
             if window.firstResponder is NSText || self.model.editingTextID != nil {
                 return event
@@ -920,7 +967,11 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         }
         // Control-scroll adjusts canvas zoom.
         scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-            guard let self, let window = self.window, event.window === window,
+            guard let self, let window = self.window,
+                  ScreenshotSupport.editorOwnsKeyEvent(
+                    eventWindowNumber: event.windowNumber,
+                    editorWindowNumber: window.windowNumber,
+                    editorIsKey: window.isKeyWindow),
                   event.modifierFlags.contains(.control)
             else { return event }
             let delta = event.scrollingDeltaY
@@ -1036,7 +1087,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         guard let image = model.exportImage(),
               let data = ScreenshotRenderer.pngData(from: image)
         else { return }
-        let url = ScreenshotService.saveDestination(strings: strings)
+        let (url, consumedNumber) = ScreenshotService.saveDestination(strings: strings)
         do {
             try data.write(to: url, options: .atomic)
             model.markExported()
@@ -1045,6 +1096,9 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
                                               url.deletingLastPathComponent().lastPathComponent))
             window?.close()
         } catch {
+            if let consumedNumber {
+                ScreenshotService.rewindNumberSequence(toReuse: consumedNumber)
+            }
             NSSound.beep()
         }
     }

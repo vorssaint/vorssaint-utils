@@ -879,10 +879,12 @@ extension Strings {
         highlightsTitle: "Bu güncellemedeki yenilikler",
         highlightsCaptionDockPreview: "Dock Preview artık Dock büyütme açıkken de çalışıyor",
         highlightsCaptionScreenshot: "Ekran görüntüsü aracına piksel büyüteci ve QR kod okuma eklendi",
+        highlightsCaptionSnippetLibrary: "Aranabilir parçacık menüsü istediğiniz parçacığı imlece yazar",
         highlightsConfigure: "Ayarla",
         highlightsTry: "Dene",
         highlightsSeeAll: "Tüm değişiklikleri gör",
         switcherCurrentSpaceOnly: "Yalnızca geçerli masaüstünü göster",
-        switcherCurrentSpaceOnlyCaption: "Değiştiricide yalnızca bulunduğunuz masaüstündeki pencereler listelenir. Bir pencere seçmek sizi asla başka bir masaüstüne taşımaz."
+        switcherCurrentSpaceOnlyCaption: "Değiştiricide yalnızca bulunduğunuz masaüstündeki pencereler listelenir. Bir pencere seçmek sizi asla başka bir masaüstüne taşımaz.",
+        shelfFileMissing: "Dosya artık yok"
     )
 }

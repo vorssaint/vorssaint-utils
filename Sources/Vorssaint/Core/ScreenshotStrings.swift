@@ -19,6 +19,13 @@ struct ScreenshotFeatureStrings {
     let freezeCaption: String
     let folderLabel: String
     let folderChoose: String
+    let subfolderLabel: String
+    let subfolderCaption: String
+    let fileNamePatternLabel: String
+    let fileNamePatternCaption: String
+    let fileNumberStartLabel: String
+    let fileNumberResetButton: String
+    let fileNumberNextFormat: String
     let delayLabel: String
     let delayOff: String
     let delaySecondsFormat: String
@@ -61,6 +68,11 @@ struct ScreenshotFeatureStrings {
     let discardConfirm: String
     let copiedHUD: String
     let savedHUDFormat: String
+    let savedAndCopiedHUDFormat: String
+    let defaultActionLabel: String
+    let defaultActionCaption: String
+    let defaultActionNone: String
+    let defaultActionSaveAndCopy: String
     let captureFailed: String
     let pinOpacity: String
     let pinClickThrough: String
@@ -76,7 +88,10 @@ struct ScreenshotFeatureStrings {
     let backdropCustomLabel: String
     let openEditorToggle: String
     let openEditorCaption: String
+    let autoCopyToggle: String
+    let autoCopyCaption: String
     let hintLoupe: String
+    let lastRegionToggle: String
 }
 
 extension FeatureStrings {
@@ -115,6 +130,13 @@ extension ScreenshotFeatureStrings {
         freezeCaption: "The picture stops while you choose the area, so nothing moves away or changes during the selection.",
         folderLabel: "Save to",
         folderChoose: "Choose…",
+        subfolderLabel: "Subfolder pattern",
+        subfolderCaption: "Optional. Creates dated subfolders inside the folder above using %y, %year, %mo, %month, %d, %h, %mi and %s, for example %y-%mo for 24-03.",
+        fileNamePatternLabel: "File name",
+        fileNamePatternCaption: "Optional. Overrides the default name using the same %y, %year, %mo, %month, %d, %h, %mi and %s tokens, plus %# for an auto-incrementing number (%## pads to 2 digits, %### to 3, and so on).",
+        fileNumberStartLabel: "Starts at",
+        fileNumberResetButton: "Reset",
+        fileNumberNextFormat: "Next: %d",
         delayLabel: "Delay",
         delayOff: "Off",
         delaySecondsFormat: "%d s",
@@ -157,6 +179,11 @@ extension ScreenshotFeatureStrings {
         discardConfirm: "Discard",
         copiedHUD: "Screenshot copied",
         savedHUDFormat: "Saved to %@",
+        savedAndCopiedHUDFormat: "Saved to %@ and copied",
+        defaultActionLabel: "Default action",
+        defaultActionCaption: "Runs automatically right after capture. The confirmation still appears, so you can Edit or discard afterward.",
+        defaultActionNone: "Ask each time",
+        defaultActionSaveAndCopy: "Save & Copy",
         captureFailed: "The screen could not be captured",
         pinOpacity: "Opacity",
         pinClickThrough: "Ignore clicks",
@@ -172,7 +199,10 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "Custom",
         openEditorToggle: "Open the editor right after capturing",
         openEditorCaption: "The capture skips the floating preview and opens ready to annotate.",
-        hintLoupe: "Z toggles the loupe"
+        autoCopyToggle: "Copy to the clipboard automatically",
+        autoCopyCaption: "Every capture goes to the clipboard as soon as it is taken, ready to paste. Saving a file stays a separate choice.",
+        hintLoupe: "Z toggles the loupe",
+        lastRegionToggle: "Show the last capture outline"
     )
 
     static let ptBR = ScreenshotFeatureStrings(
@@ -190,6 +220,13 @@ extension ScreenshotFeatureStrings {
         freezeCaption: "A imagem para enquanto você escolhe a área, então nada se move nem muda durante a seleção.",
         folderLabel: "Salvar em",
         folderChoose: "Escolher…",
+        subfolderLabel: "Padrão de subpasta",
+        subfolderCaption: "Opcional. Cria subpastas com data dentro da pasta acima usando %y, %year, %mo, %month, %d, %h, %mi e %s, por exemplo %y-%mo para 24-03.",
+        fileNamePatternLabel: "Nome do arquivo",
+        fileNamePatternCaption: "Opcional. Substitui o nome padrão usando os mesmos tokens %y, %year, %mo, %month, %d, %h, %mi e %s, além de %# para um número que aumenta automaticamente (%## preenche com 2 dígitos, %### com 3, e assim por diante).",
+        fileNumberStartLabel: "Começa em",
+        fileNumberResetButton: "Redefinir",
+        fileNumberNextFormat: "Próximo: %d",
         delayLabel: "Atraso",
         delayOff: "Desativado",
         delaySecondsFormat: "%d s",
@@ -232,6 +269,11 @@ extension ScreenshotFeatureStrings {
         discardConfirm: "Descartar",
         copiedHUD: "Captura copiada",
         savedHUDFormat: "Salva em %@",
+        savedAndCopiedHUDFormat: "Salva em %@ e copiada",
+        defaultActionLabel: "Ação padrão",
+        defaultActionCaption: "É executada automaticamente logo após a captura. A confirmação ainda aparece, então você pode Editar ou descartar depois.",
+        defaultActionNone: "Perguntar sempre",
+        defaultActionSaveAndCopy: "Salvar e Copiar",
         captureFailed: "Não foi possível capturar a tela",
         pinOpacity: "Opacidade",
         pinClickThrough: "Ignorar cliques",
@@ -247,7 +289,10 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "Personalizado",
         openEditorToggle: "Abrir o editor logo após capturar",
         openEditorCaption: "A captura pula a pré-visualização flutuante e já abre pronta para anotar.",
-        hintLoupe: "Z alterna a lupa"
+        autoCopyToggle: "Copiar para a área de transferência automaticamente",
+        autoCopyCaption: "Toda captura vai para a área de transferência assim que é feita, pronta para colar. Salvar um arquivo continua sendo uma escolha à parte.",
+        hintLoupe: "Z alterna a lupa",
+        lastRegionToggle: "Mostrar o contorno da última captura"
     )
 
     static let tr = ScreenshotFeatureStrings(
@@ -265,6 +310,13 @@ extension ScreenshotFeatureStrings {
         freezeCaption: "Alanı seçerken görüntü durur, böylece seçim sırasında hiçbir şey hareket etmez veya değişmez.",
         folderLabel: "Kayıt yeri",
         folderChoose: "Seç…",
+        subfolderLabel: "Alt klasör deseni",
+        subfolderCaption: "İsteğe bağlı. Yukarıdaki klasörün içinde %y, %year, %mo, %month, %d, %h, %mi ve %s kullanarak tarihli alt klasörler oluşturur, örneğin %y-%mo için 24-03.",
+        fileNamePatternLabel: "Dosya adı",
+        fileNamePatternCaption: "İsteğe bağlı. Varsayılan adı %y, %year, %mo, %month, %d, %h, %mi ve %s ile aynı belirteçleri, ayrıca otomatik artan bir sayı için %# kullanarak geçersiz kılar (%## 2 basamağa, %### 3 basamağa tamamlar).",
+        fileNumberStartLabel: "Başlangıç",
+        fileNumberResetButton: "Sıfırla",
+        fileNumberNextFormat: "Sıradaki: %d",
         delayLabel: "Gecikme",
         delayOff: "Kapalı",
         delaySecondsFormat: "%d sn",
@@ -307,6 +359,11 @@ extension ScreenshotFeatureStrings {
         discardConfirm: "Sil",
         copiedHUD: "Ekran görüntüsü kopyalandı",
         savedHUDFormat: "Şuraya kaydedildi: %@",
+        savedAndCopiedHUDFormat: "Şuraya kaydedildi ve kopyalandı: %@",
+        defaultActionLabel: "Varsayılan eylem",
+        defaultActionCaption: "Yakalamadan hemen sonra otomatik olarak çalışır. Onay yine de görünür, böylece sonrasında Düzenle veya sil seçeneklerini kullanabilirsiniz.",
+        defaultActionNone: "Her seferinde sor",
+        defaultActionSaveAndCopy: "Kaydet ve Kopyala",
         captureFailed: "Ekran yakalanamadı",
         pinOpacity: "Opaklık",
         pinClickThrough: "Tıklamaları yoksay",
@@ -322,7 +379,10 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "Özel",
         openEditorToggle: "Yakaladıktan hemen sonra düzenleyiciyi aç",
         openEditorCaption: "Yakalama, yüzen önizlemeyi atlar ve işaretlemeye hazır şekilde açılır.",
-        hintLoupe: "Z büyüteci açar/kapatır"
+        autoCopyToggle: "Otomatik olarak panoya kopyala",
+        autoCopyCaption: "Her yakalama alınır alınmaz panoya gider ve yapıştırmaya hazır olur. Dosya olarak kaydetmek ayrı bir seçim olarak kalır.",
+        hintLoupe: "Z büyüteci açar/kapatır",
+        lastRegionToggle: "Son yakalamanın çerçevesini göster"
     )
 
     static let ru = ScreenshotFeatureStrings(
@@ -340,6 +400,13 @@ extension ScreenshotFeatureStrings {
         freezeCaption: "Изображение останавливается, пока вы выбираете область, поэтому во время выделения ничего не двигается и не меняется.",
         folderLabel: "Сохранять в",
         folderChoose: "Выбрать…",
+        subfolderLabel: "Шаблон подпапки",
+        subfolderCaption: "Необязательно. Создаёт подпапки с датой внутри указанной папки, используя %y, %year, %mo, %month, %d, %h, %mi и %s, например %y-%mo даёт 24-03.",
+        fileNamePatternLabel: "Имя файла",
+        fileNamePatternCaption: "Необязательно. Переопределяет имя по умолчанию с помощью тех же токенов %y, %year, %mo, %month, %d, %h, %mi и %s, а также %# для автоматически увеличивающегося номера (%## дополняет до 2 цифр, %### до 3 и так далее).",
+        fileNumberStartLabel: "Начинается с",
+        fileNumberResetButton: "Сбросить",
+        fileNumberNextFormat: "Следующий: %d",
         delayLabel: "Задержка",
         delayOff: "Выкл.",
         delaySecondsFormat: "%d с",
@@ -382,6 +449,11 @@ extension ScreenshotFeatureStrings {
         discardConfirm: "Удалить",
         copiedHUD: "Снимок скопирован",
         savedHUDFormat: "Сохранено в %@",
+        savedAndCopiedHUDFormat: "Сохранено в %@ и скопировано",
+        defaultActionLabel: "Действие по умолчанию",
+        defaultActionCaption: "Выполняется автоматически сразу после захвата. Подтверждение всё равно появляется, так что потом можно изменить или удалить снимок.",
+        defaultActionNone: "Спрашивать каждый раз",
+        defaultActionSaveAndCopy: "Сохранить и скопировать",
         captureFailed: "Не удалось снять экран",
         pinOpacity: "Непрозрачность",
         pinClickThrough: "Игнорировать нажатия",
@@ -397,7 +469,10 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "Свой",
         openEditorToggle: "Открывать редактор сразу после снимка",
         openEditorCaption: "Снимок пропускает плавающее окно предпросмотра и сразу открывается готовым к пометкам.",
-        hintLoupe: "Z включает лупу"
+        autoCopyToggle: "Автоматически копировать в буфер обмена",
+        autoCopyCaption: "Каждый снимок попадает в буфер обмена сразу после съёмки и готов к вставке. Сохранение файла остаётся отдельным выбором.",
+        hintLoupe: "Z включает лупу",
+        lastRegionToggle: "Показывать контур последней области"
     )
 
     static let es = ScreenshotFeatureStrings(
@@ -415,6 +490,13 @@ extension ScreenshotFeatureStrings {
         freezeCaption: "La imagen se detiene mientras eliges el área, así nada se mueve ni cambia durante la selección.",
         folderLabel: "Guardar en",
         folderChoose: "Elegir…",
+        subfolderLabel: "Patrón de subcarpeta",
+        subfolderCaption: "Opcional. Crea subcarpetas con fecha dentro de la carpeta anterior usando %y, %year, %mo, %month, %d, %h, %mi y %s, por ejemplo %y-%mo para 24-03.",
+        fileNamePatternLabel: "Nombre de archivo",
+        fileNamePatternCaption: "Opcional. Reemplaza el nombre predeterminado usando los mismos tokens %y, %year, %mo, %month, %d, %h, %mi y %s, además de %# para un número que se incrementa automáticamente (%## lo rellena a 2 dígitos, %### a 3, y así sucesivamente).",
+        fileNumberStartLabel: "Empieza en",
+        fileNumberResetButton: "Restablecer",
+        fileNumberNextFormat: "Siguiente: %d",
         delayLabel: "Retraso",
         delayOff: "Desactivado",
         delaySecondsFormat: "%d s",
@@ -457,6 +539,11 @@ extension ScreenshotFeatureStrings {
         discardConfirm: "Descartar",
         copiedHUD: "Captura copiada",
         savedHUDFormat: "Guardada en %@",
+        savedAndCopiedHUDFormat: "Guardada en %@ y copiada",
+        defaultActionLabel: "Acción predeterminada",
+        defaultActionCaption: "Se ejecuta automáticamente justo después de la captura. La confirmación sigue apareciendo, así que puedes Editar o descartar después.",
+        defaultActionNone: "Preguntar cada vez",
+        defaultActionSaveAndCopy: "Guardar y copiar",
         captureFailed: "No se pudo capturar la pantalla",
         pinOpacity: "Opacidad",
         pinClickThrough: "Ignorar clics",
@@ -472,7 +559,10 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "Personalizado",
         openEditorToggle: "Abrir el editor justo después de capturar",
         openEditorCaption: "La captura omite la previsualización flotante y se abre lista para anotar.",
-        hintLoupe: "Z activa la lupa"
+        autoCopyToggle: "Copiar al portapapeles automáticamente",
+        autoCopyCaption: "Cada captura va al portapapeles en cuanto se toma, lista para pegar. Guardar un archivo sigue siendo una elección aparte.",
+        hintLoupe: "Z activa la lupa",
+        lastRegionToggle: "Mostrar sombra de la última captura"
     )
 
     static let de = ScreenshotFeatureStrings(
@@ -490,6 +580,13 @@ extension ScreenshotFeatureStrings {
         freezeCaption: "Das Bild bleibt stehen, während du den Bereich wählst. So bewegt oder ändert sich nichts während der Auswahl.",
         folderLabel: "Sichern unter",
         folderChoose: "Auswählen…",
+        subfolderLabel: "Unterordnermuster",
+        subfolderCaption: "Optional. Erstellt datierte Unterordner im obigen Ordner mit %y, %year, %mo, %month, %d, %h, %mi und %s, zum Beispiel %y-%mo für 24-03.",
+        fileNamePatternLabel: "Dateiname",
+        fileNamePatternCaption: "Optional. Überschreibt den Standardnamen mit denselben Tokens %y, %year, %mo, %month, %d, %h, %mi und %s sowie %# für eine automatisch fortlaufende Nummer (%## füllt auf 2 Stellen auf, %### auf 3 usw.).",
+        fileNumberStartLabel: "Beginnt bei",
+        fileNumberResetButton: "Zurücksetzen",
+        fileNumberNextFormat: "Nächste: %d",
         delayLabel: "Verzögerung",
         delayOff: "Aus",
         delaySecondsFormat: "%d s",
@@ -532,6 +629,11 @@ extension ScreenshotFeatureStrings {
         discardConfirm: "Verwerfen",
         copiedHUD: "Bildschirmfoto kopiert",
         savedHUDFormat: "Gesichert unter %@",
+        savedAndCopiedHUDFormat: "Gesichert unter %@ und kopiert",
+        defaultActionLabel: "Standardaktion",
+        defaultActionCaption: "Wird direkt nach der Aufnahme automatisch ausgeführt. Die Bestätigung erscheint trotzdem, sodass du danach noch bearbeiten oder verwerfen kannst.",
+        defaultActionNone: "Jedes Mal fragen",
+        defaultActionSaveAndCopy: "Sichern & Kopieren",
         captureFailed: "Der Bildschirm konnte nicht aufgenommen werden",
         pinOpacity: "Deckkraft",
         pinClickThrough: "Klicks ignorieren",
@@ -547,7 +649,10 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "Eigene",
         openEditorToggle: "Editor direkt nach der Aufnahme öffnen",
         openEditorCaption: "Die Aufnahme überspringt die schwebende Vorschau und öffnet sich bereit für Anmerkungen.",
-        hintLoupe: "Z schaltet die Lupe um"
+        autoCopyToggle: "Automatisch in die Zwischenablage kopieren",
+        autoCopyCaption: "Jede Aufnahme landet sofort in der Zwischenablage, bereit zum Einfügen. Das Speichern als Datei bleibt eine eigene Entscheidung.",
+        hintLoupe: "Z schaltet die Lupe um",
+        lastRegionToggle: "Umriss der letzten Aufnahme anzeigen"
     )
 
     static let fr = ScreenshotFeatureStrings(
@@ -565,6 +670,13 @@ extension ScreenshotFeatureStrings {
         freezeCaption: "L'image s'arrête pendant que vous choisissez la zone, donc rien ne bouge ni ne change pendant la sélection.",
         folderLabel: "Enregistrer dans",
         folderChoose: "Choisir…",
+        subfolderLabel: "Motif de sous-dossier",
+        subfolderCaption: "Facultatif. Crée des sous-dossiers datés dans le dossier ci-dessus avec %y, %year, %mo, %month, %d, %h, %mi et %s, par exemple %y-%mo pour 24-03.",
+        fileNamePatternLabel: "Nom du fichier",
+        fileNamePatternCaption: "Facultatif. Remplace le nom par défaut avec les mêmes jetons %y, %year, %mo, %month, %d, %h, %mi et %s, plus %# pour un numéro qui s'incrémente automatiquement (%## le remplit sur 2 chiffres, %### sur 3, etc.).",
+        fileNumberStartLabel: "Commence à",
+        fileNumberResetButton: "Réinitialiser",
+        fileNumberNextFormat: "Suivant : %d",
         delayLabel: "Délai",
         delayOff: "Désactivé",
         delaySecondsFormat: "%d s",
@@ -607,6 +719,11 @@ extension ScreenshotFeatureStrings {
         discardConfirm: "Abandonner",
         copiedHUD: "Capture copiée",
         savedHUDFormat: "Enregistrée dans %@",
+        savedAndCopiedHUDFormat: "Enregistrée dans %@ et copiée",
+        defaultActionLabel: "Action par défaut",
+        defaultActionCaption: "S'exécute automatiquement juste après la capture. La confirmation s'affiche quand même, ce qui permet ensuite de modifier ou de supprimer.",
+        defaultActionNone: "Demander à chaque fois",
+        defaultActionSaveAndCopy: "Enregistrer et copier",
         captureFailed: "Impossible de capturer l'écran",
         pinOpacity: "Opacité",
         pinClickThrough: "Ignorer les clics",
@@ -622,7 +739,10 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "Personnalisé",
         openEditorToggle: "Ouvrir l'éditeur juste après la capture",
         openEditorCaption: "La capture ignore l'aperçu flottant et s'ouvre prête à être annotée.",
-        hintLoupe: "Z active la loupe"
+        autoCopyToggle: "Copier automatiquement dans le presse-papiers",
+        autoCopyCaption: "Chaque capture va dans le presse-papiers dès qu'elle est prise, prête à être collée. Enregistrer un fichier reste un choix distinct.",
+        hintLoupe: "Z active la loupe",
+        lastRegionToggle: "Afficher le contour de la dernière capture"
     )
 
     static let it = ScreenshotFeatureStrings(
@@ -640,6 +760,13 @@ extension ScreenshotFeatureStrings {
         freezeCaption: "L'immagine si ferma mentre scegli l'area, quindi niente si muove o cambia durante la selezione.",
         folderLabel: "Salva in",
         folderChoose: "Scegli…",
+        subfolderLabel: "Modello sottocartella",
+        subfolderCaption: "Facoltativo. Crea sottocartelle datate nella cartella sopra usando %y, %year, %mo, %month, %d, %h, %mi e %s, ad esempio %y-%mo per 24-03.",
+        fileNamePatternLabel: "Nome file",
+        fileNamePatternCaption: "Facoltativo. Sostituisce il nome predefinito usando gli stessi token %y, %year, %mo, %month, %d, %h, %mi e %s, più %# per un numero che si incrementa automaticamente (%## lo riempie a 2 cifre, %### a 3, e così via).",
+        fileNumberStartLabel: "Inizia da",
+        fileNumberResetButton: "Reimposta",
+        fileNumberNextFormat: "Prossimo: %d",
         delayLabel: "Ritardo",
         delayOff: "Disattivato",
         delaySecondsFormat: "%d s",
@@ -682,6 +809,11 @@ extension ScreenshotFeatureStrings {
         discardConfirm: "Elimina",
         copiedHUD: "Istantanea copiata",
         savedHUDFormat: "Salvata in %@",
+        savedAndCopiedHUDFormat: "Salvata in %@ e copiata",
+        defaultActionLabel: "Azione predefinita",
+        defaultActionCaption: "Viene eseguita automaticamente subito dopo la cattura. La conferma appare comunque, così puoi Modificare o eliminare in seguito.",
+        defaultActionNone: "Chiedi ogni volta",
+        defaultActionSaveAndCopy: "Salva e copia",
         captureFailed: "Impossibile catturare lo schermo",
         pinOpacity: "Opacità",
         pinClickThrough: "Ignora i clic",
@@ -697,7 +829,10 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "Personalizzato",
         openEditorToggle: "Apri l'editor subito dopo la cattura",
         openEditorCaption: "La cattura salta l'anteprima flottante e si apre pronta per le annotazioni.",
-        hintLoupe: "Z attiva la lente"
+        autoCopyToggle: "Copia automaticamente negli appunti",
+        autoCopyCaption: "Ogni cattura va negli appunti appena viene fatta, pronta da incollare. Salvare un file resta una scelta a parte.",
+        hintLoupe: "Z attiva la lente",
+        lastRegionToggle: "Mostra il contorno dell'ultima cattura"
     )
 
     static let ja = ScreenshotFeatureStrings(
@@ -715,6 +850,13 @@ extension ScreenshotFeatureStrings {
         freezeCaption: "範囲を選んでいる間は画像が止まるため、選択中に何も動いたり変わったりしません。",
         folderLabel: "保存先",
         folderChoose: "選択…",
+        subfolderLabel: "サブフォルダのパターン",
+        subfolderCaption: "省略可。上のフォルダ内に %y、%year、%mo、%month、%d、%h、%mi、%s を使って日付付きのサブフォルダを作成します。例: %y-%mo で 24-03。",
+        fileNamePatternLabel: "ファイル名",
+        fileNamePatternCaption: "省略可。%y、%year、%mo、%month、%d、%h、%mi、%s と同じトークンに加え、自動的に増える番号として %# を使ってデフォルトの名前を上書きします（%## は2桁、%### は3桁に揃えます）。",
+        fileNumberStartLabel: "開始番号",
+        fileNumberResetButton: "リセット",
+        fileNumberNextFormat: "次の番号: %d",
         delayLabel: "タイマー",
         delayOff: "オフ",
         delaySecondsFormat: "%d 秒",
@@ -757,6 +899,11 @@ extension ScreenshotFeatureStrings {
         discardConfirm: "破棄",
         copiedHUD: "スクリーンショットをコピーしました",
         savedHUDFormat: "%@ に保存しました",
+        savedAndCopiedHUDFormat: "%@ に保存してコピーしました",
+        defaultActionLabel: "既定のアクション",
+        defaultActionCaption: "キャプチャ直後に自動的に実行されます。確認表示はそのまま出るので、後から編集または破棄できます。",
+        defaultActionNone: "毎回確認する",
+        defaultActionSaveAndCopy: "保存してコピー",
         captureFailed: "画面を撮影できませんでした",
         pinOpacity: "不透明度",
         pinClickThrough: "クリックを無視",
@@ -772,7 +919,10 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "カスタム",
         openEditorToggle: "撮影後すぐにエディタを開く",
         openEditorCaption: "撮影はフローティングプレビューを飛ばして、すぐに注釈を付けられる状態で開きます。",
-        hintLoupe: "Zでルーペを切り替え"
+        autoCopyToggle: "自動的にクリップボードへコピー",
+        autoCopyCaption: "撮影した瞬間にクリップボードへ入り、すぐに貼り付けられます。ファイルとして保存するかどうかは別の選択のままです。",
+        hintLoupe: "Zでルーペを切り替え",
+        lastRegionToggle: "最後のキャプチャ範囲を表示"
     )
 
     static let ko = ScreenshotFeatureStrings(
@@ -790,6 +940,13 @@ extension ScreenshotFeatureStrings {
         freezeCaption: "영역을 고르는 동안 화면이 멈추므로 선택 중에 아무것도 움직이거나 바뀌지 않습니다.",
         folderLabel: "저장 위치",
         folderChoose: "선택…",
+        subfolderLabel: "하위 폴더 패턴",
+        subfolderCaption: "선택 사항입니다. 위 폴더 안에 %y, %year, %mo, %month, %d, %h, %mi, %s를 사용해 날짜별 하위 폴더를 만듭니다. 예: %y-%mo는 24-03이 됩니다.",
+        fileNamePatternLabel: "파일 이름",
+        fileNamePatternCaption: "선택 사항입니다. %y, %year, %mo, %month, %d, %h, %mi, %s와 같은 토큰과, 자동으로 증가하는 번호를 위한 %#를 사용해 기본 이름을 대체합니다 (%##는 2자리, %###는 3자리로 채웁니다).",
+        fileNumberStartLabel: "시작 번호",
+        fileNumberResetButton: "재설정",
+        fileNumberNextFormat: "다음 번호: %d",
         delayLabel: "타이머",
         delayOff: "끔",
         delaySecondsFormat: "%d초",
@@ -832,6 +989,11 @@ extension ScreenshotFeatureStrings {
         discardConfirm: "버리기",
         copiedHUD: "스크린샷이 복사되었습니다",
         savedHUDFormat: "%@에 저장되었습니다",
+        savedAndCopiedHUDFormat: "%@에 저장하고 복사했습니다",
+        defaultActionLabel: "기본 동작",
+        defaultActionCaption: "캡처 직후 자동으로 실행됩니다. 확인 화면은 그대로 표시되므로 이후에 편집하거나 삭제할 수 있습니다.",
+        defaultActionNone: "매번 물어보기",
+        defaultActionSaveAndCopy: "저장 후 복사",
         captureFailed: "화면을 캡처할 수 없습니다",
         pinOpacity: "불투명도",
         pinClickThrough: "클릭 무시",
@@ -847,7 +1009,10 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "사용자화",
         openEditorToggle: "캡처 후 바로 편집기 열기",
         openEditorCaption: "캡처가 떠 있는 미리보기를 건너뛰고 바로 주석을 남길 수 있는 상태로 열립니다.",
-        hintLoupe: "Z 키로 확대경 전환"
+        autoCopyToggle: "자동으로 클립보드에 복사",
+        autoCopyCaption: "캡처하는 즉시 클립보드에 담겨 바로 붙여넣을 수 있습니다. 파일로 저장하는 것은 여전히 별도의 선택입니다.",
+        hintLoupe: "Z 키로 확대경 전환",
+        lastRegionToggle: "마지막 캡처 영역 표시"
     )
 
     static let zhHans = ScreenshotFeatureStrings(
@@ -865,6 +1030,13 @@ extension ScreenshotFeatureStrings {
         freezeCaption: "选择区域时画面会静止，因此选择过程中不会有任何移动或变化。",
         folderLabel: "存储位置",
         folderChoose: "选择…",
+        subfolderLabel: "子文件夹格式",
+        subfolderCaption: "可选。使用 %y、%year、%mo、%month、%d、%h、%mi 和 %s 在上方文件夹内创建按日期命名的子文件夹，例如 %y-%mo 表示 24-03。",
+        fileNamePatternLabel: "文件名",
+        fileNamePatternCaption: "可选。使用与 %y、%year、%mo、%month、%d、%h、%mi 和 %s 相同的标记来覆盖默认名称，另外可用 %# 表示自动递增的编号（%## 补齐为 2 位，%### 为 3 位，以此类推）。",
+        fileNumberStartLabel: "起始编号",
+        fileNumberResetButton: "重置",
+        fileNumberNextFormat: "下一个：%d",
         delayLabel: "延迟",
         delayOff: "关闭",
         delaySecondsFormat: "%d 秒",
@@ -907,6 +1079,11 @@ extension ScreenshotFeatureStrings {
         discardConfirm: "丢弃",
         copiedHUD: "截屏已拷贝",
         savedHUDFormat: "已存储到 %@",
+        savedAndCopiedHUDFormat: "已存储到 %@ 并已拷贝",
+        defaultActionLabel: "默认操作",
+        defaultActionCaption: "会在截屏后自动执行。确认提示仍会显示，之后仍可编辑或丢弃。",
+        defaultActionNone: "每次都询问",
+        defaultActionSaveAndCopy: "存储并拷贝",
         captureFailed: "无法截取屏幕",
         pinOpacity: "不透明度",
         pinClickThrough: "忽略点按",
@@ -922,7 +1099,10 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "自定义",
         openEditorToggle: "截取后立即打开编辑器",
         openEditorCaption: "截屏会跳过浮动预览，直接打开即可开始标注。",
-        hintLoupe: "按 Z 切换放大镜"
+        autoCopyToggle: "自动复制到剪贴板",
+        autoCopyCaption: "每次截屏后会立即进入剪贴板，随时可以粘贴。是否保存为文件仍是单独的选择。",
+        hintLoupe: "按 Z 切换放大镜",
+        lastRegionToggle: "显示上次截图区域轮廓"
     )
 
     static let zhTW = ScreenshotFeatureStrings(
@@ -940,6 +1120,13 @@ extension ScreenshotFeatureStrings {
         freezeCaption: "選取區域時畫面會靜止，因此選取過程中不會有任何移動或變化。",
         folderLabel: "儲存位置",
         folderChoose: "選擇…",
+        subfolderLabel: "子資料夾格式",
+        subfolderCaption: "選填。使用 %y、%year、%mo、%month、%d、%h、%mi 和 %s 在上方資料夾內建立含日期的子資料夾，例如 %y-%mo 代表 24-03。",
+        fileNamePatternLabel: "檔案名稱",
+        fileNamePatternCaption: "選填。使用與 %y、%year、%mo、%month、%d、%h、%mi 和 %s 相同的標記來覆蓋預設名稱，另外可用 %# 表示自動遞增的編號（%## 補齊為 2 位，%### 為 3 位，以此類推）。",
+        fileNumberStartLabel: "起始編號",
+        fileNumberResetButton: "重設",
+        fileNumberNextFormat: "下一個：%d",
         delayLabel: "延遲",
         delayOff: "關閉",
         delaySecondsFormat: "%d 秒",
@@ -982,6 +1169,11 @@ extension ScreenshotFeatureStrings {
         discardConfirm: "捨棄",
         copiedHUD: "截圖已拷貝",
         savedHUDFormat: "已儲存到 %@",
+        savedAndCopiedHUDFormat: "已儲存到 %@ 並已拷貝",
+        defaultActionLabel: "預設動作",
+        defaultActionCaption: "會在擷取後自動執行。確認提示仍會顯示，之後仍可編輯或捨棄。",
+        defaultActionNone: "每次都詢問",
+        defaultActionSaveAndCopy: "儲存並拷貝",
         captureFailed: "無法擷取螢幕",
         pinOpacity: "不透明度",
         pinClickThrough: "忽略點按",
@@ -997,7 +1189,10 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "自訂",
         openEditorToggle: "擷取後立即開啟編輯器",
         openEditorCaption: "截圖會略過浮動預覽，直接開啟即可開始標註。",
-        hintLoupe: "按 Z 切換放大鏡"
+        autoCopyToggle: "自動拷貝到剪貼板",
+        autoCopyCaption: "每次截圖後會立即進入剪貼板，隨時可以貼上。是否儲存為檔案仍是獨立的選擇。",
+        hintLoupe: "按 Z 切換放大鏡",
+        lastRegionToggle: "顯示上次截圖區域輪廓"
     )
 
     static let zhHK = ScreenshotFeatureStrings(
@@ -1015,6 +1210,13 @@ extension ScreenshotFeatureStrings {
         freezeCaption: "選取範圍時畫面會靜止，因此選取過程中不會有任何移動或變化。",
         folderLabel: "儲存位置",
         folderChoose: "選擇…",
+        subfolderLabel: "子資料夾格式",
+        subfolderCaption: "選填。使用 %y、%year、%mo、%month、%d、%h、%mi 和 %s 喺上面資料夾入面建立帶日期嘅子資料夾，例如 %y-%mo 即係 24-03。",
+        fileNamePatternLabel: "檔案名稱",
+        fileNamePatternCaption: "選填。使用同一組 %y、%year、%mo、%month、%d、%h、%mi 同 %s 標記嚟覆蓋預設名稱，另外可以用 %# 表示自動遞增嘅編號（%## 補齊做 2 位，%### 做 3 位，如此類推）。",
+        fileNumberStartLabel: "起始編號",
+        fileNumberResetButton: "重設",
+        fileNumberNextFormat: "下一個：%d",
         delayLabel: "延遲",
         delayOff: "關閉",
         delaySecondsFormat: "%d 秒",
@@ -1057,6 +1259,11 @@ extension ScreenshotFeatureStrings {
         discardConfirm: "捨棄",
         copiedHUD: "截圖已拷貝",
         savedHUDFormat: "已儲存到 %@",
+        savedAndCopiedHUDFormat: "已儲存到 %@ 並已拷貝",
+        defaultActionLabel: "預設動作",
+        defaultActionCaption: "會喺擷取之後自動執行。確認提示仍然會顯示，之後你仲可以編輯或捨棄。",
+        defaultActionNone: "每次都問",
+        defaultActionSaveAndCopy: "儲存並拷貝",
         captureFailed: "無法擷取螢幕",
         pinOpacity: "不透明度",
         pinClickThrough: "忽略點按",
@@ -1072,6 +1279,9 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "自訂",
         openEditorToggle: "擷取後立即開啟編輯器",
         openEditorCaption: "截圖會略過浮動預覽，直接開啟即可開始標註。",
-        hintLoupe: "按 Z 切換放大鏡"
+        autoCopyToggle: "自動拷貝到剪貼板",
+        autoCopyCaption: "每次截圖後會立即進入剪貼板，隨時可以貼上。是否儲存為檔案仍是獨立的選擇。",
+        hintLoupe: "按 Z 切換放大鏡",
+        lastRegionToggle: "顯示上次截圖區域輪廓"
     )
 }

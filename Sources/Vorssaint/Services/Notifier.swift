@@ -6,6 +6,12 @@ import os.log
 import UserNotifications
 
 enum Notifier {
+    static let whatsAppOrganizerUndoActionIdentifier =
+        "com.vorssaint.notification.whatsapp-organizer.undo"
+    private static let whatsAppOrganizerTransactionKey =
+        "com.vorssaint.notification.whatsapp-organizer.transaction"
+    private static let whatsAppOrganizerCategoryIdentifier =
+        "com.vorssaint.notification.whatsapp-organizer"
     private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
                                     category: "notifications")
 
@@ -23,6 +29,38 @@ enum Notifier {
     }
 
     static func post(title: String, body: String) {
+        post(title: title, body: body, categoryIdentifier: nil, userInfo: [:])
+    }
+
+    static func postWhatsAppOrganization(title: String,
+                                         body: String,
+                                         undoTitle: String,
+                                         transactionID: UUID) {
+        let center = UNUserNotificationCenter.current()
+        let undo = UNNotificationAction(
+            identifier: whatsAppOrganizerUndoActionIdentifier,
+            title: undoTitle,
+            options: [.foreground])
+        center.setNotificationCategories([
+            UNNotificationCategory(identifier: whatsAppOrganizerCategoryIdentifier,
+                                   actions: [undo], intentIdentifiers: [], options: []),
+        ])
+        post(title: title, body: body,
+             categoryIdentifier: whatsAppOrganizerCategoryIdentifier,
+             userInfo: [whatsAppOrganizerTransactionKey: transactionID.uuidString])
+    }
+
+    static func whatsAppOrganizerTransactionID(from response: UNNotificationResponse) -> UUID? {
+        guard response.actionIdentifier == whatsAppOrganizerUndoActionIdentifier,
+              let raw = response.notification.request.content.userInfo[
+                whatsAppOrganizerTransactionKey] as? String else { return nil }
+        return UUID(uuidString: raw)
+    }
+
+    private static func post(title: String,
+                             body: String,
+                             categoryIdentifier: String?,
+                             userInfo: [AnyHashable: Any]) {
         let center = UNUserNotificationCenter.current()
         center.getNotificationSettings { settings in
             guard settings.authorizationStatus == .authorized
@@ -33,6 +71,8 @@ enum Notifier {
             let content = UNMutableNotificationContent()
             content.title = title
             content.body = body
+            if let categoryIdentifier { content.categoryIdentifier = categoryIdentifier }
+            content.userInfo = userInfo
             let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
             center.add(request) { error in
                 if let error {

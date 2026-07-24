@@ -176,7 +176,17 @@ final class AppVolumeMixer: ObservableObject {
             wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
                 forName: NSWorkspace.didWakeNotification,
                 object: nil, queue: .main) { [weak self] _ in
-                self?.refreshApps()
+                guard let self else { return }
+                // A wake can wedge an engine while leaving the HAL snapshot
+                // byte-identical, and apply() skips reconciliation when
+                // nothing changed. Dropping the stored render observations
+                // and reconciling directly arms the note-then-recheck
+                // sequence deterministically, so a frozen engine is caught
+                // even on a quiet wake.
+                self.engineRenderProgress.removeAll()
+                self.refreshApps()
+                self.reconcileEngines(with: self.apps)
+                self.scheduleEngineReconcile(after: 2)
             }
         }
         refreshApps()

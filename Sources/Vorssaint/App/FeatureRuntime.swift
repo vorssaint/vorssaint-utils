@@ -134,7 +134,10 @@ final class FeatureRuntime: ObservableObject {
         .mouseButtonShortcuts: { MouseButtonShortcutService.shared.syncWithPreferences() },
         .middleClick: { MiddleClickService.shared.syncWithPreferences() },
         .keyboardDebounce: { KeyboardDebounceService.shared.syncWithPreferences() },
-        .textSnippets: { TextSnippetService.shared.syncWithPreferences() },
+        .textSnippets: {
+            TextSnippetService.shared.syncWithPreferences()
+            SnippetLibraryService.shared.syncWithPreferences()
+        },
         .clipboardHistory: { ClipboardHistoryService.shared.syncWithPreferences() },
         .pastePlain: { PastePlainService.shared.syncWithPreferences() },
         .finderCutPaste: { FinderCutPaste.shared.syncWithPreferences() },
@@ -160,7 +163,15 @@ final class FeatureRuntime: ObservableObject {
         .cameraPreview: { CameraPreviewService.shared.syncWithPreferences() },
         .radialMenu: { RadialMenuService.shared.syncWithPreferences() },
         .scratchpad: { ScratchpadService.shared.syncWithPreferences() },
-        .cleaner: { CleanerScheduler.shared.syncWithPreferences() },
+        .cleaner: {
+            CleanerScheduler.shared.syncWithPreferences()
+            WhatsAppDownloadScheduler.shared.syncWithPreferences()
+            WhatsAppDownloadOrganizer.shared.syncWithPreferences()
+            if !AppFeature.cleaner.isAvailable {
+                WhatsAppDownloadManager.shared.reset()
+                WhatsAppDownloadOrganizer.shared.stop()
+            }
+        },
         .monitorCPU: { FeatureRuntime.syncMonitor() },
         .monitorGPU: { FeatureRuntime.syncMonitor() },
         .monitorMemory: { FeatureRuntime.syncMonitor() },

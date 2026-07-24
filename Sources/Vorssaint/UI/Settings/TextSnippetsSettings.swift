@@ -9,7 +9,9 @@ import SwiftUI
 struct TextSnippetsSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
+    @ObservedObject private var library = SnippetLibraryService.shared
     @AppStorage(DefaultsKey.textSnippetsEnabled) private var enabled = false
+    @AppStorage(DefaultsKey.snippetLibraryEnabled) private var libraryEnabled = false
     @State private var snippets: [TextSnippet] = TextSnippetSupport.decode(
         UserDefaults.standard.data(forKey: DefaultsKey.textSnippets))
     @State private var editing: TextSnippet?
@@ -35,6 +37,29 @@ struct TextSnippetsSettings: View {
             }
 
             Section {
+                Toggle(text.libraryToggle, isOn: $libraryEnabled)
+                    .onChange(of: libraryEnabled) { _, _ in
+                        SnippetLibraryService.shared.syncWithPreferences()
+                    }
+                Text(text.libraryCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if libraryEnabled {
+                    ShortcutPreferenceRow(role: .snippetLibrary,
+                                          isEnabled: libraryEnabled) {
+                        SnippetLibraryService.shared.syncWithPreferences()
+                    }
+                    if library.shortcutRegistrationFailed {
+                        Text(l10n.s.shortcutUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                }
+            } header: {
+                Text(text.libraryTitle)
+            }
+
+            Section {
                 if snippets.isEmpty {
                     Text(text.emptyList)
                         .font(.caption)
@@ -57,6 +82,7 @@ struct TextSnippetsSettings: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(text.variablesHint)
                     Text(text.variablesCaption)
+                    Text(text.variablesFormatCaption)
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -105,6 +131,7 @@ struct TextSnippetsSettings: View {
         UserDefaults.standard.set(TextSnippetSupport.encode(snippets),
                                   forKey: DefaultsKey.textSnippets)
         TextSnippetService.shared.syncWithPreferences()
+        SnippetLibraryService.shared.syncWithPreferences()
     }
 }
 
@@ -129,6 +156,12 @@ private struct SnippetRow: View {
                                 RoundedRectangle(cornerRadius: 4, style: .continuous)
                                     .fill(Color.primary.opacity(0.07))
                             )
+                        if !snippet.folder.isEmpty {
+                            Label(snippet.folder, systemImage: "folder")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
                     }
                     Text(preview)
                         .font(.caption)
@@ -182,6 +215,10 @@ private struct SnippetEditor: View {
         }
     }
 
+    private var folderSuggestions: [String] {
+        TextSnippetSupport.folderSuggestions(others)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(isNew ? text.newTitle : text.editTitle)
@@ -195,6 +232,21 @@ private struct SnippetEditor: View {
                     Text(text.expansionImmediate).tag(TextSnippet.Expansion.immediate)
                 }
                 Toggle(text.ignoreCaseLabel, isOn: $snippet.ignoresCase)
+                HStack(spacing: 6) {
+                    TextField(text.folderLabel, text: $snippet.folder, prompt: Text(text.folderPlaceholder))
+                    if !folderSuggestions.isEmpty {
+                        Menu {
+                            ForEach(folderSuggestions, id: \.self) { name in
+                                Button(name) { snippet.folder = name }
+                            }
+                        } label: {
+                            Image(systemName: "folder")
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                    }
+                }
+                Toggle(text.showInLibraryLabel, isOn: $snippet.showsInLibrary)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(text.replacementLabel)
                     TextEditor(text: $snippet.replacement)
@@ -205,6 +257,9 @@ private struct SnippetEditor: View {
                                 .strokeBorder(Color.primary.opacity(0.12))
                         )
                     Text(text.variablesHint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(text.variablesFormatCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -235,6 +290,7 @@ private struct SnippetEditor: View {
                     var saved = snippet
                     saved.trigger = sanitizedTrigger
                     saved.name = snippet.name.trimmingCharacters(in: .whitespaces)
+                    saved.folder = TextSnippetSupport.sanitizedFolder(snippet.folder)
                     save(saved)
                     dismiss()
                 }

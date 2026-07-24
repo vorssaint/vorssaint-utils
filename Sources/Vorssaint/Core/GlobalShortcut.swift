@@ -186,6 +186,10 @@ struct GlobalShortcut: Equatable, Hashable {
     // N for notes, on the same free control-option-command layer.
     static let scratchpadDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_N),
                                                   modifiers: [.control, .option, .command])
+    // L for library (S already belongs to the sound output switcher), on the
+    // same free control-option-command layer.
+    static let snippetLibraryDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_L),
+                                                      modifiers: [.control, .option, .command])
 
     static func saved(for key: String, fallback: GlobalShortcut) -> GlobalShortcut {
         if let raw = UserDefaults.standard.string(forKey: key),
@@ -460,6 +464,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case cameraPreview
     case radialMenu
     case scratchpad
+    case snippetLibrary
 
     var id: String { storageKey }
 
@@ -480,6 +485,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .cameraPreview: return DefaultsKey.cameraPreviewShortcut
         case .radialMenu: return DefaultsKey.radialMenuShortcut
         case .scratchpad: return DefaultsKey.scratchpadShortcut
+        case .snippetLibrary: return DefaultsKey.snippetLibraryShortcut
         }
     }
 
@@ -500,6 +506,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .cameraPreview: return .cameraPreviewDefault
         case .radialMenu: return .radialMenuDefault
         case .scratchpad: return .scratchpadDefault
+        case .snippetLibrary: return .snippetLibraryDefault
         }
     }
 
@@ -524,6 +531,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
+        case .snippetLibrary: return FeatureStrings.snippets(L10n.shared.language).libraryTitle
         }
     }
 
@@ -554,6 +562,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .cameraPreview: return [DefaultsKey.cameraPreviewShortcutEnabled]
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         case .scratchpad: return [DefaultsKey.scratchpadShortcutEnabled]
+        case .snippetLibrary: return [DefaultsKey.snippetLibraryEnabled]
         }
     }
 
@@ -576,6 +585,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .cameraPreview: return .cameraPreview
         case .radialMenu: return .radialMenu
         case .scratchpad: return .scratchpad
+        case .snippetLibrary: return .textSnippets
         }
     }
 

@@ -65,8 +65,12 @@ enum MouseButtonShortcutSupport {
         guard defaults.bool(forKey: AppFeature.mouseButtonShortcuts.availabilityKey),
               defaults.bool(forKey: DefaultsKey.mouseButtonShortcutsEnabled),
               !RadialMenuSupport.claimsMouseButton(button) else { return false }
+        // Runs inside a HID tap callback during side-button drags: look up
+        // just this button's entry instead of decoding the whole dictionary.
+        guard canMap(button) else { return false }
         let raw = defaults.dictionary(forKey: DefaultsKey.mouseButtonShortcuts) as? [String: String]
-        return decode(raw)[button] != nil
+        guard let stored = raw?[String(button)] else { return false }
+        return GlobalShortcut(storageValue: stored) != nil
     }
 
     /// The rows in Settings sort by button number so the list never reorders

@@ -85,7 +85,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 
 ### Keyboard and mouse
 
-- **Text snippets.** Type a short trigger anywhere and it becomes your text, expanded instantly or after a space, with date, time and clipboard variables.
+- **Text snippets.** Type a short trigger anywhere and it becomes your text, expanded instantly or after a space, with clipboard variables plus date and time in any format you like. A searchable quick menu, organized into folders, types any snippet right at your cursor.
 - **Smooth scrolling.** Gives a mouse wheel the glide of a trackpad.
 - **Scroll direction.** Invert the wheel without touching the trackpad's natural scrolling.
 - **Side buttons.** The mouse Back and Forward buttons start meaning it, in Finder, browsers and compatible apps.
@@ -106,12 +106,13 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Quick panel.** ⌃⌘V opens a small floating palette with your favorite tools one key away.
 - **Quick toggles.** One-click system actions in their own panel tab: switch light and dark mode, empty the Trash, eject every disk, show hidden files, hide desktop icons, lock the screen and more.
 - **Radial menu.** Hold a shortcut, or a spare side mouse button, and a wheel of your favorite actions opens around the pointer: apps, files, links, key combos, media controls and Vorssaint tools, with submenus for more. Point and release to run one.
-- **Screenshot.** Capture an area, a window or the whole screen on a frozen picture. A quick preview can copy, save, delete or open the editor, which adds stickers, annotations, precise crop, redaction, backgrounds and pinned captures. A QR code in the shot shows its content to copy or open, from the preview and the editor. Optional timer, save folder and 1x export included, plus an option to skip the preview and open the editor right away.
+- **Screenshot.** Capture an area, a window or the whole screen on a frozen picture. A quick preview can copy, save, delete or open the editor, which adds stickers, annotations, precise crop, redaction, backgrounds and pinned captures. A QR code in the shot shows its content to copy or open, from the preview and the editor. Optional timer, save folder and 1x export included. Captures can copy themselves to the clipboard, run your favorite action right after the shot, and save into dated subfolders with a file name pattern of your own.
 - **Camera preview.** A floating mirror to check how you look before joining a call, one click or shortcut away. Pick the camera when several are connected; it closes as soon as you click away.
 - **Scratchpad.** A floating pad for short-lived text: meeting notes, numbers, fragments on their way somewhere else. It saves as you type, floats over your work, and can copy everything, export to a file or clear itself after a quiet period.
 - **Copy text from screen.** Select any area and its text is recognized offline, straight onto the clipboard. When the area holds a QR code, its content is shown so you can copy it or open the link.
 - **Color picker.** Grab any pixel with the system loupe as HEX, RGB, HSL or SwiftUI code.
 - **Cleaner.** Sweeps app leftovers, caches and logs, by hand or on a schedule.
+- **WhatsApp downloads.** The Cleaner can also tidy files WhatsApp saved into Downloads, confirmed by macOS metadata and only ever moved to the Trash, with a review list, retention rules and an optional organizer that files new downloads into a folder of your choice.
 - **Uninstaller.** Drop an app in and take its caches, preferences and logs to the Trash with it.
 - **Media tools.** Compress videos and images, make GIFs and extract text, all locally.
 - **Homebrew manager.** Search, install and remove formulae and casks without opening a terminal.
