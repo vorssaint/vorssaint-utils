@@ -349,7 +349,7 @@ final class ScreenshotService: ObservableObject {
 
     /// Undoes the number-sequence advance from a save that failed or was
     /// deleted, so the number gets reused next time rather than skipped.
-    private static func rewindNumberSequence() {
+    static func rewindNumberSequence() {
         let defaults = UserDefaults.standard
         let next = defaults.integer(forKey: DefaultsKey.screenshotFileNumberNext)
         defaults.set(max(next - 1, 0), forKey: DefaultsKey.screenshotFileNumberNext)

@@ -6715,6 +6715,9 @@ struct MetricsTests {
             expect(ScreenshotSupport.fileNamePatternUsesNumber("Shot-%#")
                     && !ScreenshotSupport.fileNamePatternUsesNumber("Shot-%y"),
                    "only patterns with the number token consume the sequence")
+            expect(ScreenshotSupport.expandFileNamePattern("a/b %h:%mi", date: patternDate, number: 0)
+                   == "a-b 15-04",
+                   "slashes and colons in a file name pattern become dashes")
         } else {
             expect(false, "gregorian calendar produced the fixed pattern date")
         }

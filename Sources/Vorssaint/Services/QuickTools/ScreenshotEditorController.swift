@@ -1036,7 +1036,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         guard let image = model.exportImage(),
               let data = ScreenshotRenderer.pngData(from: image)
         else { return }
-        let url = ScreenshotService.saveDestination(strings: strings).url
+        let (url, usedNumber) = ScreenshotService.saveDestination(strings: strings)
         do {
             try data.write(to: url, options: .atomic)
             model.markExported()
@@ -1045,6 +1045,9 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
                                               url.deletingLastPathComponent().lastPathComponent))
             window?.close()
         } catch {
+            if usedNumber {
+                ScreenshotService.rewindNumberSequence()
+            }
             NSSound.beep()
         }
     }

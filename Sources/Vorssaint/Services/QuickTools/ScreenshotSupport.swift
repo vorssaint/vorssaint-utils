@@ -244,12 +244,15 @@ enum ScreenshotSupport {
     }
     /// Expands a non-empty file name pattern with the same date tokens as
     /// `expandSaveSubfolder`, plus "%#" (and "%##", "%###", …) for an
-    /// auto-incrementing, zero-padded number. Callers are responsible for
-    /// falling back to the default name when the pattern is blank, and for
-    /// appending the file extension.
+    /// auto-incrementing, zero-padded number. Slashes and colons would nest
+    /// folders or fail the write, so they become dashes. Callers are
+    /// responsible for falling back to the default name when the pattern is
+    /// blank, and for appending the file extension.
     static func expandFileNamePattern(_ pattern: String, date: Date, number: Int) -> String {
         let withDate = applyingDateTokens(pattern, date: date)
         return applyingNumberTokens(withDate, number: number)
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
     }
     /// Whether a file name pattern actually uses the number sequence, so
     /// callers know whether to advance and persist it.
