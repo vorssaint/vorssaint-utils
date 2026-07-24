@@ -857,7 +857,21 @@ enum Defaults {
         migrateLegacySwitcherWindowShortcut(in: defaults)
         migrateLegacyKeyboardDebounceWindow(in: defaults)
         migrateUtilityOrderForScreenshot(in: defaults)
+        migrateScreenshotOpenEditorDirectly(in: defaults)
         migrateSilentHeadphonesDisconnectVolume(in: defaults)
+    }
+
+    /// The "open the editor right after capturing" toggle became the Edit
+    /// choice of the after-capture action picker. A setup that jumped
+    /// straight into the editor keeps doing exactly that, unless a newer
+    /// picker choice already exists.
+    static func migrateScreenshotOpenEditorDirectly(in defaults: UserDefaults) {
+        guard defaults.bool(forKey: DefaultsKey.screenshotOpenEditorDirectly) else { return }
+        defaults.set(false, forKey: DefaultsKey.screenshotOpenEditorDirectly)
+        let action = defaults.string(forKey: DefaultsKey.screenshotDefaultAction) ?? ""
+        guard action.isEmpty else { return }
+        defaults.set(ScreenshotDefaultAction.edit.rawValue,
+                     forKey: DefaultsKey.screenshotDefaultAction)
     }
 
     static func migrateLegacySwitcherWindowShortcut(in defaults: UserDefaults) {

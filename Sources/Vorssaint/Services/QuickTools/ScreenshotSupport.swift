@@ -229,13 +229,18 @@ enum ScreenshotSupport {
         return "\(prefix) \(formatter.string(from: date)).png"
     }
 
-    /// Expands a ShareX-style token pattern into a relative subfolder path,
-    /// e.g. "%y-%mo" becomes "24-03" and "%year/%month" becomes "2024/March".
-    /// Slashes in the pattern become nested folders; an empty pattern
-    /// expands to an empty string, meaning no subfolder.
+    /// Expands a date-token pattern into a relative subfolder path, e.g.
+    /// "%y-%mo" becomes "24-03" and "%year/%month" becomes "2024/March".
+    /// Slashes in the pattern become nested folders. The result never
+    /// escapes the base folder: empty, "." and ".." components are dropped.
+    /// An empty pattern expands to an empty string, meaning no subfolder.
     static func expandSaveSubfolder(_ pattern: String, date: Date) -> String {
         guard !pattern.isEmpty else { return "" }
         return applyingDateTokens(pattern, date: date)
+            .split(separator: "/")
+            .map(String.init)
+            .filter { !$0.isEmpty && $0 != "." && $0 != ".." }
+            .joined(separator: "/")
     }
     /// Expands a non-empty file name pattern with the same date tokens as
     /// `expandSaveSubfolder`, plus "%#" (and "%##", "%###", …) for an
@@ -592,10 +597,10 @@ enum ScreenshotSupport {
     /// A stable square of source pixels for the crop loupe. Near an image
     /// edge the sample slides inward instead of shrinking, while the loupe's
     /// crosshair still points at the exact adjusted pixel.
-
     static let captureLoupeBaseSampleSide: CGFloat = 12
     static let captureLoupeMinZoom: CGFloat = 0.5
     static let captureLoupeMaxZoom: CGFloat = 4
+
     static func captureLoupeZoom(_ zoom: CGFloat, adjustedBy scrollDelta: CGFloat) -> CGFloat {
         guard scrollDelta != 0 else {
             return min(max(zoom, captureLoupeMinZoom), captureLoupeMaxZoom)
@@ -603,6 +608,7 @@ enum ScreenshotSupport {
         let factor: CGFloat = scrollDelta > 0 ? 1.15 : 1 / 1.15
         return min(max(zoom * factor, captureLoupeMinZoom), captureLoupeMaxZoom)
     }
+
     static func captureLoupeSampleSide(zoom: CGFloat) -> CGFloat {
         let clamped = min(max(zoom, captureLoupeMinZoom), captureLoupeMaxZoom)
         return captureLoupeBaseSampleSide / clamped
@@ -898,4 +904,10 @@ enum ScreenshotDefaultAction: String, CaseIterable {
     case saveAndCopy
     case copy
     case edit
+
+    /// The persisted choice; an unknown raw value reads as `.none`.
+    static var current: ScreenshotDefaultAction {
+        let raw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotDefaultAction) ?? ""
+        return ScreenshotDefaultAction(rawValue: raw) ?? .none
+    }
 }

@@ -237,9 +237,14 @@ final class ScreenshotService: ObservableObject {
         let (url, usedNumber) = Self.saveDestination(strings: strings)
         do {
             try data.write(to: url, options: .atomic)
-            QuickToolHUD.show(icon: "camera.viewfinder", message: String(format: strings.savedHUDFormat, url.deletingLastPathComponent().lastPathComponent))
+            QuickToolHUD.show(icon: "camera.viewfinder",
+                              message: String(format: strings.savedHUDFormat,
+                                              url.deletingLastPathComponent().lastPathComponent))
             return SaveOutcome(url: url, usedNumber: usedNumber)
         } catch {
+            if usedNumber {
+                Self.rewindNumberSequence()
+            }
             NSSound.beep()
             return nil
         }
@@ -253,12 +258,17 @@ final class ScreenshotService: ObservableObject {
         do {
             try data.write(to: url, options: .atomic)
         } catch {
+            if usedNumber {
+                Self.rewindNumberSequence()
+            }
             NSSound.beep()
             return nil
         }
 
         _ = ScreenshotEditorController.copyImage(image)
-        QuickToolHUD.show(icon: "camera.viewfinder", message: String(format: strings.savedAndCopiedHUDFormat, url.deletingLastPathComponent().lastPathComponent))
+        QuickToolHUD.show(icon: "camera.viewfinder",
+                          message: String(format: strings.savedAndCopiedHUDFormat,
+                                          url.deletingLastPathComponent().lastPathComponent))
         return SaveOutcome(url: url, usedNumber: usedNumber)
     }
 
@@ -337,7 +347,7 @@ final class ScreenshotService: ObservableObject {
         }
     }
 
-    /// Undoes the number-sequence advance from a save that's about to be
+    /// Undoes the number-sequence advance from a save that failed or was
     /// deleted, so the number gets reused next time rather than skipped.
     private static func rewindNumberSequence() {
         let defaults = UserDefaults.standard

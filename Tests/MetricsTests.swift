@@ -1078,6 +1078,24 @@ struct MetricsTests {
             expect(migrationDefaults.string(forKey: DefaultsKey.panelUtilityOrder)
                    == "homebrew,screenshot,cleaner",
                    "utility migration preserves a screenshot position already chosen")
+            migrationDefaults.set(true, forKey: DefaultsKey.screenshotOpenEditorDirectly)
+            Defaults.migrateScreenshotOpenEditorDirectly(in: migrationDefaults)
+            expect(migrationDefaults.string(forKey: DefaultsKey.screenshotDefaultAction)
+                   == ScreenshotDefaultAction.edit.rawValue
+                   && migrationDefaults.bool(forKey: DefaultsKey.screenshotOpenEditorDirectly) == false,
+                   "direct-to-editor migrates into the Edit after-capture action")
+            migrationDefaults.set(true, forKey: DefaultsKey.screenshotOpenEditorDirectly)
+            migrationDefaults.set(ScreenshotDefaultAction.save.rawValue,
+                                  forKey: DefaultsKey.screenshotDefaultAction)
+            Defaults.migrateScreenshotOpenEditorDirectly(in: migrationDefaults)
+            expect(migrationDefaults.string(forKey: DefaultsKey.screenshotDefaultAction)
+                   == ScreenshotDefaultAction.save.rawValue,
+                   "direct-to-editor migration never overrides a newer picker choice")
+            migrationDefaults.removeObject(forKey: DefaultsKey.screenshotOpenEditorDirectly)
+            migrationDefaults.removeObject(forKey: DefaultsKey.screenshotDefaultAction)
+            Defaults.migrateScreenshotOpenEditorDirectly(in: migrationDefaults)
+            expect(migrationDefaults.object(forKey: DefaultsKey.screenshotDefaultAction) == nil,
+                   "a setup that never used direct-to-editor keeps asking after capture")
             migrationDefaults.removePersistentDomain(forName: shortcutSuite)
         } else {
             expect(false, "test suite defaults are available")
@@ -1662,6 +1680,14 @@ struct MetricsTests {
                "brightness adjustment overlay arrives switched off")
         expect(registeredDefaults[DefaultsKey.screenshotOpenEditorDirectly] as? Bool == false,
                "capture keeps showing the preview unless the user opts into the editor")
+        expect(registeredDefaults[DefaultsKey.screenshotDefaultAction] as? String == "",
+               "captures keep asking what to do until an after-capture action is chosen")
+        expect(registeredDefaults[DefaultsKey.screenshotSaveSubfolder] as? String == ""
+                && registeredDefaults[DefaultsKey.screenshotFileNamePattern] as? String == "",
+               "subfolder and file name patterns arrive empty, keeping the stock naming")
+        expect(registeredDefaults[DefaultsKey.screenshotFileNumberStart] as? Int == 1
+                && registeredDefaults[DefaultsKey.screenshotFileNumberNext] as? Int == 1,
+               "the file number sequence starts counting at 1")
         expect(registeredDefaults[DefaultsKey.panelShowUtilities] as? Bool == true,
                "Utilities panel section is shown by default")
         expect(registeredDefaults[DefaultsKey.panelShowControls] as? Bool == true,
@@ -5934,6 +5960,10 @@ struct MetricsTests {
                    "screenshot delay format keeps its specifier (\(language.rawValue))")
             expect(FeatureStrings.screenshot(language).savedHUDFormat.contains("%@"),
                    "screenshot saved format keeps its specifier (\(language.rawValue))")
+            expect(FeatureStrings.screenshot(language).savedAndCopiedHUDFormat.contains("%@"),
+                   "screenshot saved-and-copied format keeps its specifier (\(language.rawValue))")
+            expect(FeatureStrings.screenshot(language).fileNumberNextFormat.contains("%d"),
+                   "screenshot next-number format keeps its specifier (\(language.rawValue))")
             let strings: Strings = {
                 switch language {
                 case .enUS: return .enUS
@@ -6642,6 +6672,51 @@ struct MetricsTests {
         expect(ScreenshotSupport.isClick(from: CGPoint(x: 5, y: 5), to: CGPoint(x: 7, y: 8))
                 && !ScreenshotSupport.isClick(from: .zero, to: CGPoint(x: 12, y: 0)),
                "a tiny drag is a click, a real drag is not")
+
+        var patternParts = DateComponents()
+        patternParts.year = 2026
+        patternParts.month = 7
+        patternParts.day = 24
+        patternParts.hour = 15
+        patternParts.minute = 4
+        patternParts.second = 9
+        if let patternDate = Calendar(identifier: .gregorian).date(from: patternParts) {
+            expect(ScreenshotSupport.expandSaveSubfolder("%y-%mo", date: patternDate) == "26-07",
+                   "short date tokens expand zero padded")
+            expect(ScreenshotSupport.expandSaveSubfolder("%year/%month", date: patternDate)
+                   == "2026/July",
+                   "long date tokens expand before their short prefixes and nest with slashes")
+            expect(ScreenshotSupport.expandSaveSubfolder("", date: patternDate) == "",
+                   "an empty subfolder pattern means no subfolder")
+            expect(ScreenshotSupport.expandSaveSubfolder("../up//./%y", date: patternDate)
+                   == "up/26",
+                   "dot, dot-dot and empty components never escape the base folder")
+            expect(ScreenshotSupport.expandFileNamePattern("Shot %d at %h.%mi.%s",
+                                                           date: patternDate, number: 0)
+                   == "Shot 24 at 15.04.09",
+                   "file name patterns expand the day and time tokens")
+            expect(ScreenshotSupport.expandFileNamePattern("Shot-%#", date: patternDate, number: 7)
+                   == "Shot-7",
+                   "a single number token renders the sequence unpadded")
+            expect(ScreenshotSupport.expandFileNamePattern("%###-%y", date: patternDate, number: 7)
+                   == "007-26",
+                   "a longer number token zero pads to its length")
+            expect(ScreenshotSupport.fileNamePatternUsesNumber("Shot-%#")
+                    && !ScreenshotSupport.fileNamePatternUsesNumber("Shot-%y"),
+                   "only patterns with the number token consume the sequence")
+        } else {
+            expect(false, "gregorian calendar produced the fixed pattern date")
+        }
+
+        let cornerFrame = ScreenshotSupport.quickPreviewCornerFrame(
+            size: CGSize(width: 310, height: 210),
+            visibleFrame: CGRect(x: 0, y: 0, width: 1440, height: 900))
+        expect(cornerFrame == CGRect(x: 1114, y: 16, width: 310, height: 210),
+               "the after-capture confirmation sits inset in the bottom-right corner")
+        expect(ScreenshotDefaultAction(rawValue: "") == ScreenshotDefaultAction.none
+                && ScreenshotDefaultAction(rawValue: "saveAndCopy") == .saveAndCopy
+                && ScreenshotDefaultAction(rawValue: "bogus") == nil,
+               "after-capture actions decode from their stored raw values")
 
         // A gesture that ends with more than one release, like a drag made
         // with three fingers, delivers events after the capture is over.

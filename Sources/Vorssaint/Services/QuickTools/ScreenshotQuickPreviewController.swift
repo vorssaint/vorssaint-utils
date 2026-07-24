@@ -45,7 +45,7 @@ final class ScreenshotQuickPreviewController {
 
     func show() {
         guard panel == nil, !closed else { return }
-        let defaultAction = Self.configuredDefaultAction()
+        let defaultAction = ScreenshotDefaultAction.current
         let content = ScreenshotQuickPreviewView(
             image: Self.thumbnail(for: capture.image),
             strings: strings,
@@ -78,11 +78,11 @@ final class ScreenshotQuickPreviewController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary,
                                     .transient, .ignoresCycle]
 
-        let visibleFrame = NSScreen.screens.first { $0.frame.intersects(capture.anchorRect) }?.visibleFrame ?? NSScreen.withMouse?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
-
-        // A default action means this HUD is just a confirmation, not
-        // something the person needs to act on — keep it out of the way in
-        // the corner instead of popping up next to the selection.
+        let visibleFrame = (NSScreen.screens.first { $0.frame.intersects(capture.anchorRect) }
+            ?? NSScreen.withMouse)?.visibleFrame ?? NSScreen.pointerVisibleFrame
+        // With an after-capture action the preview is just a confirmation,
+        // so it sits quietly in the corner and leaves sooner, instead of
+        // popping up next to the selection and waiting.
         let frame = defaultAction == .none
             ? ScreenshotSupport.quickPreviewFrame(
                 size: size,
@@ -101,34 +101,29 @@ final class ScreenshotQuickPreviewController {
         runDefaultAction(defaultAction)
     }
 
-    private static func configuredDefaultAction() -> ScreenshotDefaultAction {
-        let raw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotDefaultAction) ?? ""
-        return ScreenshotDefaultAction(rawValue: raw) ?? .none
-    }
-
-    /// Buttons whose action the default action already performed, so the
-    /// HUD doesn't invite doing it again.
+    /// Buttons whose work the after-capture action already did, so the
+    /// preview doesn't invite doing it again.
     private static func disabledActions(for defaultAction: ScreenshotDefaultAction) -> Set<Action> {
         switch defaultAction {
-            case .none, .edit: return []
-            case .save: return [.save]
-            case .saveAndCopy: return [.save, .copy]
-            case .copy: return [.copy]
+        case .none, .edit: return []
+        case .save: return [.save]
+        case .saveAndCopy: return [.save, .copy]
+        case .copy: return [.copy]
         }
     }
 
-    /// Runs the Settings-configured default action once, immediately after
-    /// the HUD appears. Unlike `perform(_:)`, this never closes the panel —
-    /// it stays up as confirmation, and the person can still Edit or
-    /// discard from it afterward.
+    /// Runs the Settings-configured action once, right after the preview
+    /// appears. Unlike `perform(_:)` this never closes the panel: it stays
+    /// up as confirmation, and the person can still edit or discard from
+    /// it. Edit never reaches here, the service routes it straight into the
+    /// editor without a preview.
     private func runDefaultAction(_ defaultAction: ScreenshotDefaultAction) {
         let mapped: Action
         switch defaultAction {
-        case .none: return
+        case .none, .edit: return
         case .save: mapped = .save
         case .saveAndCopy: mapped = .saveAndCopy
         case .copy: mapped = .copy
-        case .edit: mapped = .edit
         }
         _ = action(mapped)
     }

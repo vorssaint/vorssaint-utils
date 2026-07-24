@@ -9,8 +9,10 @@ All notable changes to this project are documented here. The format follows
 ### Summary
 Vorssaint 3.2.0 adds a searchable snippet menu with folders and custom date
 formats in snippets, lets the extra buttons on a mouse press keyboard
-shortcuts you choose, and shows windows from other desktops in the App
-Switcher and Dock previews. It also lets you
+shortcuts you choose, and puts screenshots on autopilot: they can copy
+themselves to the clipboard, save into dated subfolders with your own file
+names, and run your favorite action right after each capture. It also shows
+windows from other desktops in the App Switcher and Dock previews, lets you
 hide apps from the volume mixer, cleans up the sound of boosted apps and
 fixes a batch of volume, window layout, monitor brightness and paste as
 plain text issues.
@@ -22,6 +24,15 @@ plain text issues.
 - Mouse button shortcuts. Give any extra mouse button a key combination and
   it presses those keys for you. Set it up in Settings under Mouse, with a
   quick toggle in the menu panel.
+- Screenshots that copy themselves. An option in Settings under Screenshot
+  puts every capture on the clipboard the moment it is taken, ready to
+  paste. Thanks to @kingstyles.
+- An after-capture action for screenshots. Pick Save, Copy, Save and copy or
+  Edit in Settings under Screenshot and it runs by itself on every capture;
+  the confirmation moves quietly to the corner. Thanks to @403Denied.
+- Dated subfolders and custom file names for screenshots. Patterns like
+  %y-%mo sort saves into monthly folders, and the file name can follow your
+  own pattern with an auto-counting number. Thanks to @403Denied.
 - Hide apps from the volume mixer. Right click an app in the list, or
   uncheck it in the new chooser at the bottom of the mixer; hidden apps play
   normally and the same menu brings them back.
@@ -37,6 +48,9 @@ plain text issues.
 - Recording a shortcut now keeps the keys to itself. A combination that used
   to trigger the app or the system while you typed it lands in the field
   instead.
+- The screenshot option to open the editor right after capturing became the
+  Edit choice of the new after-capture action. A setup that used it keeps
+  working unchanged.
 
 ### Fixed
 - The App Switcher and the Dock previews only showed windows from the
