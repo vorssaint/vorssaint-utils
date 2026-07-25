@@ -530,7 +530,10 @@ extension Strings {
         mixerInputFallback: "Utilise le micro par défaut jusqu’au retour de celui-ci.",
         mixerInputTooltip: "Choisir le micro",
         mixerInputErrorFormat: "Impossible de changer : %@",
-        mixerShowFinder: "Afficher Finder",
+        mixerVisibleApps: "Apps dans la liste",
+        mixerAllShown: "Toutes",
+        mixerHiddenCountLabel: "Masquées",
+        mixerHideFromList: "Masquer de la liste",
 
         updatesSection: "Mises à jour",
         autoCheckToggle: "Rechercher les mises à jour automatiquement",
@@ -807,6 +810,10 @@ extension Strings {
         shortcutNone: "Aucun",
         shortcutClear: "Supprimer le raccourci",
         shortcutInvalid: "Utilisez au moins Control, Option ou Command avec une touche.",
+        shortcutPressKeys: "Appuyez",
+        shortcutEscapeHint: "Esc annule.",
+        shortcutDeleteHint: "Delete efface.",
+        shortcutNotCaptured: "Rien n'a été capturé. macOS ou une autre app utilise déjà cette combinaison. Essayez-en une autre.",
         shortcutConflictFormat: "Ce raccourci est déjà utilisé par %@.",
         shortcutUnavailable: "macOS a refusé ce raccourci. Choisissez-en un autre.",
         shelfShortcutToggle: "Raccourci Shelf",
@@ -872,8 +879,12 @@ extension Strings {
         highlightsTitle: "Nouveautés de cette mise à jour",
         highlightsCaptionDockPreview: "Dock Preview fonctionne désormais avec l'agrandissement du Dock activé",
         highlightsCaptionScreenshot: "L'outil de capture d'écran gagne une loupe de pixels et la lecture des codes QR",
+        highlightsCaptionSnippetLibrary: "Un menu d'extraits avec recherche tape n'importe quel extrait au curseur",
         highlightsConfigure: "Configurer",
         highlightsTry: "Essayer",
-        highlightsSeeAll: "Voir tous les changements"
+        highlightsSeeAll: "Voir tous les changements",
+        switcherCurrentSpaceOnly: "Afficher uniquement le bureau actuel",
+        switcherCurrentSpaceOnlyCaption: "N'affiche dans le sélecteur que les fenêtres du bureau où vous êtes. Choisir une fenêtre ne vous emmène jamais sur un autre bureau.",
+        shelfFileMissing: "Le fichier n'existe plus"
     )
 }

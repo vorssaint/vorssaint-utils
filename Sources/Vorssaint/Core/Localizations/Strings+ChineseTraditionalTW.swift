@@ -531,7 +531,10 @@ extension Strings {
         mixerInputFallback: "此麥克風重新可用前，使用預設輸入。",
         mixerInputTooltip: "選擇麥克風",
         mixerInputErrorFormat: "無法切換：%@",
-        mixerShowFinder: "顯示 Finder",
+        mixerVisibleApps: "列表中的 App",
+        mixerAllShown: "全部",
+        mixerHiddenCountLabel: "已隱藏",
+        mixerHideFromList: "從列表中隱藏",
 
         updatesSection: "更新",
         autoCheckToggle: "自動檢查更新",
@@ -808,6 +811,10 @@ extension Strings {
         shortcutNone: "無",
         shortcutClear: "移除快速鍵",
         shortcutInvalid: "請至少搭配 Control、Option 或 Command 與一個按鍵。",
+        shortcutPressKeys: "按下按鍵",
+        shortcutEscapeHint: "Esc 取消。",
+        shortcutDeleteHint: "Delete 移除。",
+        shortcutNotCaptured: "沒有擷取到任何按鍵。macOS 或其他應用程式已在使用這個組合，請換一個。",
         shortcutConflictFormat: "此快速鍵已被 %@ 使用。",
         shortcutUnavailable: "macOS 拒絕使用此快速鍵。請改用另一個。",
         shelfShortcutToggle: "暫存架快速鍵",
@@ -873,8 +880,12 @@ extension Strings {
         highlightsTitle: "此更新的新功能",
         highlightsCaptionDockPreview: "Dock Preview 現在可以在開啟 Dock 放大時使用",
         highlightsCaptionScreenshot: "截圖工具新增了像素放大鏡和 QR 碼讀取",
+        highlightsCaptionSnippetLibrary: "可搜尋的片段選單把任何片段直接輸入到游標處",
         highlightsConfigure: "設定",
         highlightsTry: "試試看",
-        highlightsSeeAll: "查看所有變更"
+        highlightsSeeAll: "查看所有變更",
+        switcherCurrentSpaceOnly: "僅顯示目前的桌面",
+        switcherCurrentSpaceOnlyCaption: "切換器中只顯示你所在桌面的視窗。選擇視窗不會把你帶到其他桌面。",
+        shelfFileMissing: "檔案已不存在"
     )
 }

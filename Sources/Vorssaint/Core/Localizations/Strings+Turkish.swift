@@ -530,7 +530,10 @@ extension Strings {
         mixerInputFallback: "Bu mikrofon geri dönene kadar varsayılan kullanılıyor.",
         mixerInputTooltip: "Mikrofon seç",
         mixerInputErrorFormat: "Geçiş yapılamadı: %@",
-        mixerShowFinder: "Finder'ı göster",
+        mixerVisibleApps: "Listedeki uygulamalar",
+        mixerAllShown: "Tümü",
+        mixerHiddenCountLabel: "Gizli",
+        mixerHideFromList: "Listeden gizle",
 
         updatesSection: "Güncellemeler",
         autoCheckToggle: "Güncellemeleri otomatik denetle",
@@ -807,6 +810,10 @@ extension Strings {
         shortcutNone: "Yok",
         shortcutClear: "Kısayolu kaldır",
         shortcutInvalid: "Bir tuşla birlikte en az Control, Option veya Command kullan.",
+        shortcutPressKeys: "Tuşlara bas",
+        shortcutEscapeHint: "Esc iptal eder.",
+        shortcutDeleteHint: "Delete kaldırır.",
+        shortcutNotCaptured: "Hiçbir şey yakalanmadı. Bu kombinasyonu macOS ya da başka bir uygulama zaten kullanıyor. Başka bir tane dene.",
         shortcutConflictFormat: "Bu kısayol zaten %@ tarafından kullanılıyor.",
         shortcutUnavailable: "macOS bu kısayolu reddetti. Başka birini seç.",
         shelfShortcutToggle: "Raf kısayolu",
@@ -872,8 +879,12 @@ extension Strings {
         highlightsTitle: "Bu güncellemedeki yenilikler",
         highlightsCaptionDockPreview: "Dock Preview artık Dock büyütme açıkken de çalışıyor",
         highlightsCaptionScreenshot: "Ekran görüntüsü aracına piksel büyüteci ve QR kod okuma eklendi",
+        highlightsCaptionSnippetLibrary: "Aranabilir parçacık menüsü istediğiniz parçacığı imlece yazar",
         highlightsConfigure: "Ayarla",
         highlightsTry: "Dene",
-        highlightsSeeAll: "Tüm değişiklikleri gör"
+        highlightsSeeAll: "Tüm değişiklikleri gör",
+        switcherCurrentSpaceOnly: "Yalnızca geçerli masaüstünü göster",
+        switcherCurrentSpaceOnlyCaption: "Değiştiricide yalnızca bulunduğunuz masaüstündeki pencereler listelenir. Bir pencere seçmek sizi asla başka bir masaüstüne taşımaz.",
+        shelfFileMissing: "Dosya artık yok"
     )
 }

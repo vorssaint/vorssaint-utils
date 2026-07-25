@@ -21,6 +21,34 @@ struct TextSnippet: Codable, Identifiable, Equatable {
     var replacement = ""
     var expansion = Expansion.afterDelimiter
     var enabled = true
+    var ignoresCase = false
+    /// Plain folder name for the library; empty means no folder. Folders are
+    /// derived from the snippets themselves, so there is no folder entity to
+    /// migrate or orphan.
+    var folder = ""
+    var showsInLibrary = true
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, trigger, replacement, expansion, enabled, ignoresCase, folder, showsInLibrary
+    }
+}
+
+extension TextSnippet {
+    /// Snippets stored before an option existed have no key for it; each one
+    /// falls back to the behavior of its day (exact matching, no folder,
+    /// visible in the library).
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        trigger = try container.decode(String.self, forKey: .trigger)
+        replacement = try container.decode(String.self, forKey: .replacement)
+        expansion = try container.decode(Expansion.self, forKey: .expansion)
+        enabled = try container.decode(Bool.self, forKey: .enabled)
+        ignoresCase = try container.decodeIfPresent(Bool.self, forKey: .ignoresCase) ?? false
+        folder = try container.decodeIfPresent(String.self, forKey: .folder) ?? ""
+        showsInLibrary = try container.decodeIfPresent(Bool.self, forKey: .showsInLibrary) ?? true
+    }
 }
 
 /// The pure half of the snippets engine: buffer bookkeeping, trigger
@@ -58,11 +86,21 @@ enum TextSnippetSupport {
         for snippet in snippets where snippet.enabled
             && snippet.expansion == expansion
             && !snippet.trigger.isEmpty
-            && buffer.hasSuffix(snippet.trigger) {
+            && completes(buffer, trigger: snippet.trigger, ignoresCase: snippet.ignoresCase) {
             if let current = best, current.trigger.count >= snippet.trigger.count { continue }
             best = snippet
         }
         return best
+    }
+
+    /// Whether the buffer just finished typing the trigger. The insensitive
+    /// path compares exactly `trigger.count` characters, so the deletes the
+    /// expansion posts always erase precisely what the user typed.
+    static func completes(_ buffer: String, trigger: String, ignoresCase: Bool) -> Bool {
+        guard ignoresCase else { return buffer.hasSuffix(trigger) }
+        guard buffer.count >= trigger.count else { return false }
+        return String(buffer.suffix(trigger.count))
+            .compare(trigger, options: .caseInsensitive) == .orderedSame
     }
 
     /// Replaces the dynamic variables. Unknown {{tags}} pass through
@@ -82,11 +120,111 @@ enum TextSnippetSupport {
         timeFormatter.timeStyle = .short
         let dateText = dateFormatter.string(from: date)
         let timeText = timeFormatter.string(from: date)
-        return replacement
+        let expanded = replacement
             .replacingOccurrences(of: "{{date}}", with: dateText)
             .replacingOccurrences(of: "{{time}}", with: timeText)
             .replacingOccurrences(of: "{{datetime}}", with: "\(dateText) \(timeText)")
+        // The clipboard goes in last so pasted text is never re-expanded.
+        return expandingFormattedDates(expanded, date: date, locale: locale)
             .replacingOccurrences(of: "{{clipboard}}", with: clipboard ?? "")
+    }
+
+    /// The date variables also take an explicit pattern after a colon, in the
+    /// system's own date-format language: {{date:yyyy-MM-dd}}, and the same
+    /// for time and datetime so every spelling works. The pattern keeps the
+    /// user's locale, so month and weekday names come out in their language.
+    private static let formattedDatePrefixes = ["{{date:", "{{time:", "{{datetime:"]
+
+    private static func expandingFormattedDates(_ text: String,
+                                                date: Date,
+                                                locale: Locale) -> String {
+        guard formattedDatePrefixes.contains(where: text.contains) else { return text }
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        var result = ""
+        var rest = Substring(text)
+        while let start = rest.range(of: "{{") {
+            result += rest[..<start.lowerBound]
+            let tail = rest[start.lowerBound...]
+            guard let close = tail.range(of: "}}"),
+                  let pattern = formattedPattern(in: tail[..<close.lowerBound]) else {
+                result += "{{"
+                rest = rest[start.upperBound...]
+                continue
+            }
+            formatter.dateFormat = pattern
+            result += formatter.string(from: date)
+            rest = rest[close.upperBound...]
+        }
+        return result + rest
+    }
+
+    /// The pattern inside one "{{name:pattern" chunk, nil when the tag is not
+    /// a date variable or the pattern is empty (both stay visible, like any
+    /// unknown tag).
+    private static func formattedPattern(in tag: Substring) -> String? {
+        for prefix in formattedDatePrefixes where tag.hasPrefix(prefix) {
+            let pattern = String(tag.dropFirst(prefix.count))
+            return pattern.isEmpty ? nil : pattern
+        }
+        return nil
+    }
+
+    // MARK: - Library
+
+    /// One folder worth of library rows. An empty name is the loose group,
+    /// rendered without a header.
+    struct LibrarySection: Equatable {
+        let folder: String
+        let snippets: [TextSnippet]
+    }
+
+    /// The library's content for a search text: enabled snippets marked to
+    /// show, matched against name, trigger, text and folder (case and
+    /// diacritic insensitive), grouped by folder. Folders come first in
+    /// alphabetical order; snippets without one close the list, both keeping
+    /// the stored order inside. An empty search shows everything.
+    static func librarySections(_ snippets: [TextSnippet], query: String) -> [LibrarySection] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let visible = snippets.filter { snippet in
+            guard snippet.enabled, snippet.showsInLibrary else { return false }
+            guard !trimmed.isEmpty else { return true }
+            return snippet.name.localizedStandardContains(trimmed)
+                || snippet.trigger.localizedStandardContains(trimmed)
+                || snippet.replacement.localizedStandardContains(trimmed)
+                || snippet.folder.localizedStandardContains(trimmed)
+        }
+        var byFolder: [String: [TextSnippet]] = [:]
+        for snippet in visible {
+            byFolder[snippet.folder, default: []].append(snippet)
+        }
+        var sections = byFolder
+            .filter { !$0.key.isEmpty }
+            .sorted { $0.key.localizedStandardCompare($1.key) == .orderedAscending }
+            .map { LibrarySection(folder: $0.key, snippets: $0.value) }
+        if let loose = byFolder[""], !loose.isEmpty {
+            sections.append(LibrarySection(folder: "", snippets: loose))
+        }
+        return sections
+    }
+
+    /// The same content as one flat list, in reading order, for the keyboard
+    /// selection to walk.
+    static func libraryRows(_ sections: [LibrarySection]) -> [TextSnippet] {
+        sections.flatMap(\.snippets)
+    }
+
+    /// Existing folder names for the editor's suggestions, distinct and
+    /// alphabetical.
+    static func folderSuggestions(_ snippets: [TextSnippet]) -> [String] {
+        Set(snippets.map(\.folder).filter { !$0.isEmpty })
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
+    /// Folder names travel inside each snippet; a rename is a plain rewrite
+    /// of every member. Whitespace-only names mean no folder.
+    static func sanitizedFolder(_ raw: String) -> String {
+        raw.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: - Persistence

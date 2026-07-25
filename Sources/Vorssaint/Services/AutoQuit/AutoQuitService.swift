@@ -622,9 +622,15 @@ final class AutoQuitService: ObservableObject {
 
     private func elementAt(point: CGPoint) -> AXUIElement? {
         let system = AXUIElementCreateSystemWide()
+        // This runs while a click is being handled, and the app being asked is
+        // the one that was just told to close, which is exactly when an app
+        // stops answering. A short limit here means a slow answer is dropped
+        // rather than holding this app, and every tap it runs, still.
+        AXUIElementSetMessagingTimeout(system, 0.15)
         var element: AXUIElement?
         guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &element) == .success
         else { return nil }
+        if let element { AXUIElementSetMessagingTimeout(element, 0.15) }
         return element
     }
 

@@ -370,6 +370,8 @@ final class MiddleClickService: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             guard let self, self.tap != nil else { return }
             let position = CGEvent(source: nil)?.location ?? .zero
+            // Nothing is synthesized over an app on the exception list.
+            guard !MouseAppExceptions.shared.excludesPointerTarget(.middleClick, at: position) else { return }
             let source = CGEventSource(stateID: .hidSystemState)
             guard let down = CGEvent(mouseEventSource: source,
                                      mouseType: .otherMouseDown,
@@ -410,6 +412,11 @@ final class MiddleClickService: ObservableObject {
                     // already being relayed: a bounce, drop it.
                     return nil
                 }
+            }
+            // An app on the exception list keeps the plain left click, so a
+            // three-finger click means to it what it always meant (issue #358).
+            if MouseAppExceptions.shared.excludesPointerTarget(.middleClick, at: event.location) {
+                return Unmanaged.passUnretained(event)
             }
             stateLock.lock()
             let count = fingerCount

@@ -22,6 +22,7 @@ struct QuickToolsSettings: View {
     @AppStorage(DefaultsKey.cameraPreviewShortcutEnabled) private var cameraShortcutEnabled = false
     @AppStorage(DefaultsKey.scratchpadShortcutEnabled) private var scratchpadShortcutEnabled = false
     @AppStorage(DefaultsKey.scratchpadRetention) private var scratchpadRetention = ScratchpadRetention.never.rawValue
+    @AppStorage(DefaultsKey.scratchpadCloseOnClickOutside) private var scratchpadCloseOnClickOutside = true
     @AppStorage(DefaultsKey.colorPickerFormat) private var colorFormat = "hex"
     @AppStorage(DefaultsKey.colorPickerBareHex) private var colorBareHex = false
     @AppStorage(DefaultsKey.micMuteMenuBarIndicator) private var micMenuBarIndicator = false
@@ -244,6 +245,8 @@ struct QuickToolsSettings: View {
                     Text(FeatureStrings.scratchpad(l10n.language).retentionCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    Toggle(FeatureStrings.scratchpad(l10n.language).closeOnClickOutside,
+                           isOn: $scratchpadCloseOnClickOutside)
                     Toggle(l10n.s.quickToolShortcutToggle, isOn: $scratchpadShortcutEnabled)
                         .onChange(of: scratchpadShortcutEnabled) { _, _ in
                             ScratchpadService.shared.syncWithPreferences()

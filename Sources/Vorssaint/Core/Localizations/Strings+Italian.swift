@@ -530,7 +530,10 @@ extension Strings {
         mixerInputFallback: "Uso il predefinito finché questo microfono non torna.",
         mixerInputTooltip: "Scegli microfono",
         mixerInputErrorFormat: "Impossibile cambiare: %@",
-        mixerShowFinder: "Mostra Finder",
+        mixerVisibleApps: "App nell'elenco",
+        mixerAllShown: "Tutte",
+        mixerHiddenCountLabel: "Nascoste",
+        mixerHideFromList: "Nascondi dall'elenco",
 
         updatesSection: "Aggiornamenti",
         autoCheckToggle: "Cerca aggiornamenti automaticamente",
@@ -807,6 +810,10 @@ extension Strings {
         shortcutNone: "Nessuna",
         shortcutClear: "Rimuovi scorciatoia",
         shortcutInvalid: "Usa almeno Control, Option o Command insieme a un tasto.",
+        shortcutPressKeys: "Premi i tasti",
+        shortcutEscapeHint: "Esc annulla.",
+        shortcutDeleteHint: "Delete rimuove.",
+        shortcutNotCaptured: "Non è stato catturato nulla. macOS o un'altra app usa già questa combinazione. Provane un'altra.",
         shortcutConflictFormat: "Questa scorciatoia è già usata da %@.",
         shortcutUnavailable: "macOS ha rifiutato questa scorciatoia. Scegline un'altra.",
         shelfShortcutToggle: "Scorciatoia Shelf",
@@ -872,8 +879,12 @@ extension Strings {
         highlightsTitle: "Novità di questo aggiornamento",
         highlightsCaptionDockPreview: "Dock Preview ora funziona con l'ingrandimento del Dock attivo",
         highlightsCaptionScreenshot: "Lo screenshot ha guadagnato una lente dei pixel e la lettura dei codici QR",
+        highlightsCaptionSnippetLibrary: "Un menu di snippet con ricerca digita qualsiasi snippet al cursore",
         highlightsConfigure: "Configura",
         highlightsTry: "Prova",
-        highlightsSeeAll: "Vedi tutte le modifiche"
+        highlightsSeeAll: "Vedi tutte le modifiche",
+        switcherCurrentSpaceOnly: "Mostra solo la scrivania attuale",
+        switcherCurrentSpaceOnlyCaption: "Mostra nel commutatore solo le finestre della scrivania in cui ti trovi. Scegliere una finestra non ti porta mai su un'altra scrivania.",
+        shelfFileMissing: "Il file non esiste più"
     )
 }

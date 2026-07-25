@@ -74,7 +74,8 @@ final class WindowPreviewProvider {
                                  pid: item.windowOwnerPID,
                                  title: item.title,
                                  appName: item.appName,
-                                 frame: item.frame)
+                                 frame: item.frame,
+                                 isMinimized: item.isMinimized)
         }
 
         captureTask?.cancel()
@@ -117,6 +118,20 @@ final class WindowPreviewProvider {
                     }
                     continue
                 }
+                if !target.isMinimized,
+                   !SwitcherSupport.captureCoversWindow(imageWidth: image.width,
+                                                        imageHeight: image.height,
+                                                        windowSize: target.frame.size) {
+                    // Only a slice of the window came back: the window server
+                    // clips a capture to the part of the window that is inside
+                    // a display, so a window hanging over a screen edge would
+                    // show as a thin band. The fallback below returns the whole
+                    // window wherever it sits. Minimized windows are exempt:
+                    // their listed size can be a placeholder, and their capture
+                    // is the last full one the window server kept.
+                    pending.append(target)
+                    continue
+                }
                 let scaled = Self.bitmapCopy(image, maxPixelSize: maxPixelSize)
                 await MainActor.run {
                     guard !Task.isCancelled else { return }
@@ -136,10 +151,17 @@ final class WindowPreviewProvider {
                 guard let scWindow = scWindows[target.id]
                     ?? Self.bestWindowMatch(for: target, in: content.windows) else { continue }
 
+                // Size the buffer from the window that was matched, not from the
+                // listed entry: a stale or placeholder size with a different
+                // shape would leave the window scaled into a corner of the
+                // buffer with padding around it, which reads as a thin card.
+                let source = scWindow.frame.width > 1 && scWindow.frame.height > 1
+                    ? scWindow.frame
+                    : target.frame
                 let configuration = SCStreamConfiguration()
-                let scale = min(1, maxPixelSize / max(target.frame.width, target.frame.height, 1))
-                configuration.width = max(1, Int(target.frame.width * scale))
-                configuration.height = max(1, Int(target.frame.height * scale))
+                let scale = min(1, maxPixelSize / max(source.width, source.height, 1))
+                configuration.width = max(1, Int((source.width * scale).rounded()))
+                configuration.height = max(1, Int((source.height * scale).rounded()))
                 configuration.showsCursor = false
 
                 let filter = SCContentFilter(desktopIndependentWindow: scWindow)
@@ -409,6 +431,15 @@ final class WindowPreviewProvider {
                         }
                         continue
                     }
+                    // Same clipped-capture guard as the refresh path, without a
+                    // fallback: warming only ever adds good thumbnails, so a
+                    // sliced one is dropped rather than cached.
+                    if !item.isMinimized,
+                       !SwitcherSupport.captureCoversWindow(imageWidth: image.width,
+                                                            imageHeight: image.height,
+                                                            windowSize: item.frame.size) {
+                        continue
+                    }
                     let scaled = Self.bitmapCopy(image, maxPixelSize: Self.defaultMaxPixelSize)
                     await MainActor.run { self.store(scaled, for: id) }
                 }
@@ -423,6 +454,7 @@ final class WindowPreviewProvider {
         let title: String
         let appName: String
         let frame: CGRect
+        let isMinimized: Bool
     }
 
     private static func bestWindowMatch(for target: PreviewTarget, in windows: [SCWindow]) -> SCWindow? {

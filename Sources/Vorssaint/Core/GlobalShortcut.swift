@@ -105,11 +105,14 @@ struct GlobalShortcut: Equatable, Hashable {
         guard isValid else { return nil }
     }
 
-    init?(event: NSEvent) {
-        let shortcut = GlobalShortcut(keyCode: Int64(event.keyCode),
-                                      modifiers: GlobalShortcutModifiers(eventFlags: event.modifierFlags))
-        guard shortcut.isValid else { return nil }
-        self = shortcut
+    /// Delete on its own means "take the shortcut off" while a shortcut field
+    /// is listening, which is how every shortcut field on this system behaves.
+    /// Held together with Control, Option or Command it is an ordinary key and
+    /// records like any other.
+    static func clearsShortcut(keyCode: Int64, modifiers: GlobalShortcutModifiers) -> Bool {
+        guard keyCode == Int64(kVK_Delete) || keyCode == Int64(kVK_ForwardDelete)
+        else { return false }
+        return !modifiers.hasPrimaryModifier
     }
 
     static let keepAwakeDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_K),
@@ -183,6 +186,10 @@ struct GlobalShortcut: Equatable, Hashable {
     // N for notes, on the same free control-option-command layer.
     static let scratchpadDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_N),
                                                   modifiers: [.control, .option, .command])
+    // L for library (S already belongs to the sound output switcher), on the
+    // same free control-option-command layer.
+    static let snippetLibraryDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_L),
+                                                      modifiers: [.control, .option, .command])
 
     static func saved(for key: String, fallback: GlobalShortcut) -> GlobalShortcut {
         if let raw = UserDefaults.standard.string(forKey: key),
@@ -196,8 +203,16 @@ struct GlobalShortcut: Equatable, Hashable {
         "\(modifiers.storageTokens.joined(separator: "+")):\(keyCode)"
     }
 
+    /// The range a virtual key code can occupy. A stored shortcut is just
+    /// text, and it can arrive edited by hand or through an imported settings
+    /// file, so the number is checked before anything converts it into the
+    /// narrower types the system APIs take.
+    static let keyCodeRange: ClosedRange<Int64> = 0...0xFFFF
+
+    var hasUsableKeyCode: Bool { Self.keyCodeRange.contains(keyCode) }
+
     var isValid: Bool {
-        modifiers.hasPrimaryModifier && keyLabel != nil
+        hasUsableKeyCode && modifiers.hasPrimaryModifier && keyLabel != nil
     }
 
     var displayString: String {
@@ -212,7 +227,7 @@ struct GlobalShortcut: Equatable, Hashable {
     }
 
     var carbonKeyCode: UInt32 {
-        UInt32(keyCode)
+        UInt32(exactly: keyCode) ?? 0
     }
 
     var carbonModifiers: UInt32 {
@@ -339,6 +354,17 @@ struct GlobalShortcut: Equatable, Hashable {
         case kVK_RightArrow: return "→"
         case kVK_UpArrow: return "↑"
         case kVK_DownArrow: return "↓"
+        // Editing and navigation keys. They print as the caps the keyboard
+        // itself carries, the same way the arrows above do: spelling them out
+        // ("Page Down") would overflow the shortcut field on a full keyboard
+        // combination, and these caps are what every menu on this system shows.
+        case kVK_Delete: return "⌫"
+        case kVK_ForwardDelete: return "⌦"
+        case kVK_Home: return "↖"
+        case kVK_End: return "↘"
+        case kVK_PageUp: return "⇞"
+        case kVK_PageDown: return "⇟"
+        case kVK_ANSI_KeypadEnter: return "⌤"
         case kVK_ANSI_Minus: return "-"
         case kVK_ANSI_Equal: return "="
         case kVK_ANSI_LeftBracket: return "["
@@ -362,6 +388,16 @@ struct GlobalShortcut: Equatable, Hashable {
         case kVK_F10: return "F10"
         case kVK_F11: return "F11"
         case kVK_F12: return "F12"
+        // The upper function keys exist on full and external keyboards and are
+        // rarely claimed by anything else, which makes them good shortcuts.
+        case kVK_F13: return "F13"
+        case kVK_F14: return "F14"
+        case kVK_F15: return "F15"
+        case kVK_F16: return "F16"
+        case kVK_F17: return "F17"
+        case kVK_F18: return "F18"
+        case kVK_F19: return "F19"
+        case kVK_F20: return "F20"
         // The extra ISO key beside/above Tab (§ on British, ^ on German
         // keyboards) has no ANSI constant; without a label it could not be
         // recorded as a shortcut at all on ISO keyboards (issue #187).
@@ -374,7 +410,8 @@ struct GlobalShortcut: Equatable, Hashable {
     /// so keys the static table does not know (ISO and JIS extras) still get a
     /// real cap. Returns nil for anything unprintable, keeping those invalid.
     private static func layoutKeyLabel(for keyCode: Int64) -> String? {
-        guard let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
+        guard let code = UInt16(exactly: keyCode),
+              let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
               let layoutData = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData)
         else { return nil }
         let data = Unmanaged<CFData>.fromOpaque(layoutData).takeUnretainedValue() as Data
@@ -384,7 +421,7 @@ struct GlobalShortcut: Equatable, Hashable {
         let status = data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) -> OSStatus in
             guard let layout = bytes.bindMemory(to: UCKeyboardLayout.self).baseAddress
             else { return OSStatus(paramErr) }
-            return UCKeyTranslate(layout, UInt16(keyCode), UInt16(kUCKeyActionDisplay), 0,
+            return UCKeyTranslate(layout, code, UInt16(kUCKeyActionDisplay), 0,
                                   UInt32(LMGetKbdType()), OptionBits(kUCKeyTranslateNoDeadKeysBit),
                                   &deadKeyState, chars.count, &length, &chars)
         }
@@ -396,6 +433,18 @@ struct GlobalShortcut: Equatable, Hashable {
               !CharacterSet.controlCharacters.contains(scalar)
         else { return nil }
         return label.uppercased()
+    }
+}
+
+/// The sentence under a listening shortcut field. Built in one place so every
+/// shortcut surface says the same thing, and so it only promises that Delete
+/// clears where Delete can actually take the shortcut off.
+enum ShortcutRecordingCaption {
+    static func text(_ strings: Strings, canClear: Bool) -> String {
+        let parts = canClear
+            ? [strings.shortcutRecording, strings.shortcutEscapeHint, strings.shortcutDeleteHint]
+            : [strings.shortcutRecording, strings.shortcutEscapeHint]
+        return parts.joined(separator: " ")
     }
 }
 
@@ -415,6 +464,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case cameraPreview
     case radialMenu
     case scratchpad
+    case snippetLibrary
 
     var id: String { storageKey }
 
@@ -435,6 +485,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .cameraPreview: return DefaultsKey.cameraPreviewShortcut
         case .radialMenu: return DefaultsKey.radialMenuShortcut
         case .scratchpad: return DefaultsKey.scratchpadShortcut
+        case .snippetLibrary: return DefaultsKey.snippetLibraryShortcut
         }
     }
 
@@ -455,6 +506,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .cameraPreview: return .cameraPreviewDefault
         case .radialMenu: return .radialMenuDefault
         case .scratchpad: return .scratchpadDefault
+        case .snippetLibrary: return .snippetLibraryDefault
         }
     }
 
@@ -479,6 +531,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
+        case .snippetLibrary: return FeatureStrings.snippets(L10n.shared.language).libraryTitle
         }
     }
 
@@ -509,6 +562,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .cameraPreview: return [DefaultsKey.cameraPreviewShortcutEnabled]
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         case .scratchpad: return [DefaultsKey.scratchpadShortcutEnabled]
+        case .snippetLibrary: return [DefaultsKey.snippetLibraryEnabled]
         }
     }
 
@@ -531,7 +585,22 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .cameraPreview: return .cameraPreview
         case .radialMenu: return .radialMenu
         case .scratchpad: return .scratchpad
+        case .snippetLibrary: return .textSnippets
         }
+    }
+
+    /// The features whose own shortcuts have to go quiet while the user is
+    /// recording a new one, or the combination being typed fires the feature
+    /// instead of landing in the field. Derived from the roles, so a shortcut
+    /// added later is covered the day its role is added. Re-registering is a
+    /// plain `FeatureRuntime.sync` of this same list.
+    static var featuresToSilenceWhileRecording: [AppFeature] {
+        var seen: Set<AppFeature> = []
+        var features = allCases.compactMap { seen.insert($0.feature).inserted ? $0.feature : nil }
+        // Window layout keeps one shortcut per action instead of a role, so it
+        // is the one holder of global keys the list above cannot reach.
+        if seen.insert(.windowLayout).inserted { features.append(.windowLayout) }
+        return features
     }
 
     /// Roles whose shortcut is live given a defaults reader, for the keyboard

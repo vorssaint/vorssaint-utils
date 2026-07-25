@@ -52,8 +52,7 @@ final class QRResultController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary,
                                     .transient, .ignoresCycle]
 
-        let screen = NSScreen.withMouse
-        let visible = screen.visibleFrame
+        let visible = NSScreen.pointerVisibleFrame
         let pointer = NSEvent.mouseLocation
         // Sit just below the pointer, clamped fully on screen.
         var origin = CGPoint(x: pointer.x - size.width / 2, y: pointer.y - size.height - 18)

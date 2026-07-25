@@ -206,6 +206,7 @@ private struct WindowLayoutActionRow: View {
     let shortcutEnabled: Bool
     @AppStorage private var rawValue: String
     @State private var errorText: String?
+    @State private var isRecording = false
 
     init(action: WindowLayoutAction,
          title: String,
@@ -238,16 +239,20 @@ private struct WindowLayoutActionRow: View {
                                            ?? action.defaultShortcut
                                            ?? .windowLayoutLeftDefault,
                                        isEnabled: shortcutEnabled,
-                                       recordingTitle: l10n.s.shortcutRecording,
+                                       waitingTitle: l10n.s.shortcutPressKeys,
                                        emptyTitle: shortcut == nil ? l10n.s.shortcutNone : nil,
+                                       clearAction: clear,
+                                       notCapturedAction: { errorText = l10n.s.shortcutNotCaptured },
+                                       recordingChanged: { recording in
+                                           isRecording = recording
+                                           if recording { errorText = nil }
+                                       },
                                        invalidAction: { errorText = l10n.s.shortcutInvalid },
                                        captureAction: save)
-                    .frame(width: 108, height: 28)
+                    .frame(width: 108)
                     .disabled(!shortcutEnabled)
                 Button {
-                    rawValue = WindowLayoutAction.clearedShortcutStorageValue
-                    errorText = nil
-                    WindowLayoutService.shared.syncWithPreferences()
+                    clear()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .symbolRenderingMode(.hierarchical)
@@ -269,6 +274,10 @@ private struct WindowLayoutActionRow: View {
                 Text(errorText)
                     .font(.caption)
                     .foregroundStyle(.orange)
+            } else if isRecording {
+                Text(ShortcutRecordingCaption.text(l10n.s, canClear: true))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -276,6 +285,12 @@ private struct WindowLayoutActionRow: View {
     private var shortcut: GlobalShortcut? {
         WindowLayoutAction.resolvedShortcut(storedValue: rawValue,
                                             defaultShortcut: action.defaultShortcut)
+    }
+
+    private func clear() {
+        rawValue = WindowLayoutAction.clearedShortcutStorageValue
+        errorText = nil
+        WindowLayoutService.shared.syncWithPreferences()
     }
 
     private func save(_ shortcut: GlobalShortcut) {

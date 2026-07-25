@@ -530,7 +530,10 @@ extension Strings {
         mixerInputFallback: "Standard wird verwendet, bis dieses Mikrofon zurück ist.",
         mixerInputTooltip: "Mikrofon wählen",
         mixerInputErrorFormat: "Wechsel fehlgeschlagen: %@",
-        mixerShowFinder: "Finder anzeigen",
+        mixerVisibleApps: "Apps in der Liste",
+        mixerAllShown: "Alle",
+        mixerHiddenCountLabel: "Ausgeblendet",
+        mixerHideFromList: "Aus der Liste ausblenden",
 
         updatesSection: "Updates",
         autoCheckToggle: "Automatisch nach Updates suchen",
@@ -807,6 +810,10 @@ extension Strings {
         shortcutNone: "Keiner",
         shortcutClear: "Kurzbefehl entfernen",
         shortcutInvalid: "Verwende mindestens Control, Option oder Command mit einer Taste.",
+        shortcutPressKeys: "Drücken",
+        shortcutEscapeHint: "Esc bricht ab.",
+        shortcutDeleteHint: "Delete entfernt.",
+        shortcutNotCaptured: "Es wurde nichts erfasst. macOS oder eine andere App belegt diese Kombination bereits. Wähle eine andere.",
         shortcutConflictFormat: "Dieser Kurzbefehl wird bereits von %@ verwendet.",
         shortcutUnavailable: "macOS hat diesen Kurzbefehl abgelehnt. Wähle einen anderen.",
         shelfShortcutToggle: "Shelf-Kurzbefehl",
@@ -872,8 +879,12 @@ extension Strings {
         highlightsTitle: "Neu in diesem Update",
         highlightsCaptionDockPreview: "Dock Preview funktioniert jetzt auch mit eingeschalteter Dock-Vergrößerung",
         highlightsCaptionScreenshot: "Das Bildschirmfoto-Werkzeug hat eine Pixel-Lupe und QR-Code-Erkennung erhalten",
+        highlightsCaptionSnippetLibrary: "Ein durchsuchbares Schnipsel-Menü tippt jeden Schnipsel direkt am Cursor",
         highlightsConfigure: "Einrichten",
         highlightsTry: "Ausprobieren",
-        highlightsSeeAll: "Alle Änderungen ansehen"
+        highlightsSeeAll: "Alle Änderungen ansehen",
+        switcherCurrentSpaceOnly: "Nur den aktuellen Schreibtisch anzeigen",
+        switcherCurrentSpaceOnlyCaption: "Zeigt im Umschalter nur Fenster des Schreibtischs, auf dem du gerade bist. Die Auswahl eines Fensters wechselt nie zu einem anderen Schreibtisch.",
+        shelfFileMissing: "Die Datei existiert nicht mehr"
     )
 }

@@ -57,6 +57,13 @@ final class QuickToolHotkey {
         Self.instances.removeValue(forKey: hotKeyID)
     }
 
+    /// Releases every quick tool key at once, for the moment a shortcut field
+    /// is listening and the combination being typed must reach it instead of
+    /// firing a tool. Each owner registers again on its next `sync`.
+    static func unregisterAll() {
+        for instance in instances.values { instance.unregister() }
+    }
+
     private static func installSharedHandlerIfNeeded() {
         guard sharedHandler == nil else { return }
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),

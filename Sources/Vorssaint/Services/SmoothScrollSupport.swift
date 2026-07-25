@@ -37,6 +37,55 @@ enum SmoothScrollSupport {
         fixedPoint != 0 ? fixedPoint : line
     }
 
+    /// The pixel distance a continuous wheel event asks for. The whole-point
+    /// field is already in points and is what apps themselves read, so it is
+    /// the one to trust; the fixed-point field counts lines and only comes in
+    /// when the driver left the point field empty, which is the case for a
+    /// movement smaller than one point. Reading points first also means the
+    /// distance never depends on how many points a line happens to be worth,
+    /// a scale any process can change underneath us. The step then scales the
+    /// result, which is what makes the speed setting work on mice whose driver
+    /// reports the wheel this way, and the default step travels exactly what
+    /// the system would have.
+    static func continuousDistance(fixedPointDelta: Double,
+                                   pointDelta: Double,
+                                   step: Double) -> Double {
+        guard fixedPointDelta.isFinite, pointDelta.isFinite, step.isFinite else { return 0 }
+        let pixels = pointDelta != 0
+            ? pointDelta
+            : fixedPointDelta * ScrollWheelSupport.pointsPerLine
+        return pixels * (step / Double(defaultStep))
+    }
+
+    /// Splits a frame's distance into whole pixels to post and the fraction
+    /// to carry into the next one. Rounding each frame on its own would drop
+    /// up to half a pixel every time, which a fine-grained wheel feels as
+    /// distance that never arrives.
+    static func wholePixels(_ distance: Double, carry: Double) -> (pixels: Double, carry: Double) {
+        let total = distance + carry
+        guard total.isFinite else { return (0, 0) }
+        let whole = total.rounded(.towardZero)
+        return (whole, total - whole)
+    }
+
+    /// The last frame of a glide rounds its leftover out instead of carrying
+    /// it forward, because there is no next frame to spend it in. Without
+    /// this the glide lands up to a pixel short of what the wheel asked for,
+    /// every single time.
+    static func finalPixels(_ distance: Double, carry: Double) -> Double {
+        let total = distance + carry
+        guard total.isFinite else { return 0 }
+        return total.rounded(.toNearestOrAwayFromZero)
+    }
+
+    /// Leftover fractions only help while the glide keeps its direction; a
+    /// reversal drops them so the first pixel of the new direction is not
+    /// eaten by what the old one left behind.
+    static func carry(_ current: Double, continuing distance: Double) -> Double {
+        guard distance != 0, current != 0, (distance < 0) != (current < 0) else { return current }
+        return 0
+    }
+
     /// The remaining distance after new wheel ticks arrive. Scrolling the
     /// opposite way abandons what was left instead of fighting it, so a
     /// direction change reacts instantly.
@@ -49,17 +98,18 @@ enum SmoothScrollSupport {
         return current + added
     }
 
-    /// The system normally treats Shift plus a vertical wheel tick as
-    /// horizontal scrolling. Once the original tick is swallowed, the glide
-    /// must perform that axis change itself. Pixel events use the opposite
-    /// sign for this redirected axis, so the tick is flipped to keep the
-    /// system's normal Shift direction. A wheel that already reports a
-    /// horizontal axis is left alone so its native direction is preserved.
+    /// A vertical wheel tick with Shift held scrolls sideways instead. That
+    /// redirect happens above the event tap, so once the original tick is
+    /// swallowed the glide has to perform it. Measured against a scroll view:
+    /// a tick of one line with Shift moves the content the same way a
+    /// horizontal delta of the same sign does, so the tick keeps its sign. A
+    /// wheel that already reports a horizontal axis is left alone so its
+    /// native direction is preserved.
     static func axes(vertical: Double, horizontal: Double, shiftPressed: Bool) -> Axes {
         guard shiftPressed, vertical != 0, horizontal == 0 else {
             return Axes(vertical: vertical, horizontal: horizontal)
         }
-        return Axes(vertical: 0, horizontal: -vertical)
+        return Axes(vertical: 0, horizontal: vertical)
     }
 
     /// The distance one frame should emit for this remaining budget: a
@@ -78,13 +128,5 @@ enum SmoothScrollSupport {
     static func sanitizedStep(_ value: Int) -> Int {
         guard value != 0 else { return defaultStep }
         return min(max(value, stepRange.lowerBound), stepRange.upperBound)
-    }
-
-    /// The system applies the natural scroll direction to continuous pixel
-    /// events but not to discrete wheel ticks (verified by posting both), so
-    /// with natural scrolling on, the glide must pre-flip its deltas for the
-    /// replay to keep the wheel's direction.
-    static func postedDelta(_ frameDelta: Double, naturalScrolling: Bool) -> Double {
-        naturalScrolling ? -frameDelta : frameDelta
     }
 }

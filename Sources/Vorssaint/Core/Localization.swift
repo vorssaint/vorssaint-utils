@@ -655,7 +655,10 @@ struct Strings {
     let mixerInputFallback: String
     let mixerInputTooltip: String
     let mixerInputErrorFormat: String
-    let mixerShowFinder: String
+    let mixerVisibleApps: String
+    let mixerAllShown: String
+    let mixerHiddenCountLabel: String
+    let mixerHideFromList: String
 
     // MARK: Settings — updates
     let updatesSection: String
@@ -947,6 +950,10 @@ struct Strings {
     let shortcutNone: String
     let shortcutClear: String
     let shortcutInvalid: String
+    let shortcutPressKeys: String
+    let shortcutEscapeHint: String
+    let shortcutDeleteHint: String
+    let shortcutNotCaptured: String
     let shortcutConflictFormat: String
     let shortcutUnavailable: String
     let shelfShortcutToggle: String
@@ -1016,9 +1023,13 @@ struct Strings {
     let highlightsTitle: String
     let highlightsCaptionDockPreview: String
     let highlightsCaptionScreenshot: String
+    let highlightsCaptionSnippetLibrary: String
     let highlightsConfigure: String
     let highlightsTry: String
     let highlightsSeeAll: String
+    let switcherCurrentSpaceOnly: String
+    let switcherCurrentSpaceOnlyCaption: String
+    let shelfFileMissing: String
 
     var monitorSysFanSpeeds: String = "Fan speeds"
     var monitorSysDetailedTemps: String = "Detailed temperatures"
@@ -1569,7 +1580,10 @@ extension Strings {
         mixerInputFallback: "Usando o padrão até esse microfone voltar.",
         mixerInputTooltip: "Escolher microfone",
         mixerInputErrorFormat: "Não foi possível trocar: %@",
-        mixerShowFinder: "Mostrar Finder",
+        mixerVisibleApps: "Apps na lista",
+        mixerAllShown: "Todos",
+        mixerHiddenCountLabel: "Escondidos",
+        mixerHideFromList: "Esconder da lista",
 
         updatesSection: "Atualizações",
         autoCheckToggle: "Procurar atualizações automaticamente",
@@ -1846,6 +1860,10 @@ extension Strings {
         shortcutNone: "Nenhum",
         shortcutClear: "Remover atalho",
         shortcutInvalid: "Use pelo menos Control, Option ou Command junto com uma tecla.",
+        shortcutPressKeys: "Pressione",
+        shortcutEscapeHint: "Esc cancela.",
+        shortcutDeleteHint: "Delete remove.",
+        shortcutNotCaptured: "Nada foi capturado. O macOS ou outro app já usa essa combinação. Tente outra.",
         shortcutConflictFormat: "Este atalho já está em uso por %@.",
         shortcutUnavailable: "O macOS recusou este atalho. Escolha outro.",
         shelfShortcutToggle: "Atalho da área temporária",
@@ -1911,9 +1929,13 @@ extension Strings {
         highlightsTitle: "Novidades desta versão",
         highlightsCaptionDockPreview: "O Dock Preview agora funciona com a ampliação do Dock ligada",
         highlightsCaptionScreenshot: "A captura de tela ganhou uma lupa de pixels e leitura de QR codes",
+        highlightsCaptionSnippetLibrary: "Um menu de snippets com busca digita qualquer snippet direto no cursor",
         highlightsConfigure: "Configurar",
         highlightsTry: "Experimentar",
         highlightsSeeAll: "Ver todas as mudanças",
+        switcherCurrentSpaceOnly: "Mostrar só a Mesa atual",
+        switcherCurrentSpaceOnlyCaption: "Mostra no alternador apenas as janelas da Mesa em que você está. Escolher uma janela nunca leva você para outra Mesa.",
+        shelfFileMissing: "O arquivo não existe mais",
         monitorSysFanSpeeds: "Velocidade das ventoinhas",
         monitorSysDetailedTemps: "Temperaturas detalhadas",
         monitorOff: "Desligado",
@@ -2462,7 +2484,10 @@ extension Strings {
         mixerInputFallback: "Using default until this microphone returns.",
         mixerInputTooltip: "Choose microphone",
         mixerInputErrorFormat: "Could not switch: %@",
-        mixerShowFinder: "Show Finder",
+        mixerVisibleApps: "Apps in the list",
+        mixerAllShown: "All",
+        mixerHiddenCountLabel: "Hidden",
+        mixerHideFromList: "Hide from the list",
 
         updatesSection: "Updates",
         autoCheckToggle: "Check for updates automatically",
@@ -2739,6 +2764,10 @@ extension Strings {
         shortcutNone: "None",
         shortcutClear: "Remove shortcut",
         shortcutInvalid: "Use at least Control, Option or Command with a key.",
+        shortcutPressKeys: "Press keys",
+        shortcutEscapeHint: "Escape cancels.",
+        shortcutDeleteHint: "Delete clears.",
+        shortcutNotCaptured: "Nothing was captured. macOS or another app already uses that combination. Try another one.",
         shortcutConflictFormat: "This shortcut is already used by %@.",
         shortcutUnavailable: "macOS rejected this shortcut. Choose another one.",
         shelfShortcutToggle: "Shelf shortcut",
@@ -2804,9 +2833,13 @@ extension Strings {
         highlightsTitle: "New in this update",
         highlightsCaptionDockPreview: "Dock Preview now works with Dock magnification turned on",
         highlightsCaptionScreenshot: "The screenshot tool gained a pixel loupe and QR code reading",
+        highlightsCaptionSnippetLibrary: "A searchable snippet menu types any snippet right at your cursor",
         highlightsConfigure: "Set up",
         highlightsTry: "Try it",
         highlightsSeeAll: "See all changes",
+        switcherCurrentSpaceOnly: "Show only the current desktop",
+        switcherCurrentSpaceOnlyCaption: "Lists only windows from the desktop you are on. Picking a window never moves you to another desktop.",
+        shelfFileMissing: "The file no longer exists",
         monitorSysFanSpeeds: "Fan speeds",
         monitorSysDetailedTemps: "Detailed temperatures",
         monitorOff: "Off",

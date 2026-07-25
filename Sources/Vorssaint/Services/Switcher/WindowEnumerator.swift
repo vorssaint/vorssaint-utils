@@ -27,20 +27,28 @@ enum WindowEnumerator {
         listWindows(filterPID: nil,
                     maximumCount: maximumCount,
                     includeWindowlessFinder: UserDefaults.standard.bool(forKey: DefaultsKey.switcherShowWindowlessFinder),
-                    groupByApp: UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs))
+                    groupByApp: UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs),
+                    currentSpaceOnly: UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly))
     }
 
     static func listWindows(for pid: pid_t, maximumCount: Int = 12) -> [SwitcherItem] {
+        // The Dock previews honor the same current-desktop choice as the
+        // switcher: the Settings caption promises that picking a window
+        // never hops desktops while the option is on, and a preview click
+        // is a pick like any other.
         listWindows(filterPID: pid,
                     maximumCount: maximumCount,
                     includeWindowlessFinder: false,
-                    groupByApp: false)
+                    groupByApp: false,
+                    currentSpaceOnly: UserDefaults.standard.bool(
+                        forKey: DefaultsKey.switcherCurrentSpaceOnly))
     }
 
     private static func listWindows(filterPID: pid_t?,
                                     maximumCount: Int,
                                     includeWindowlessFinder: Bool,
-                                    groupByApp: Bool) -> [SwitcherItem] {
+                                    groupByApp: Bool,
+                                    currentSpaceOnly: Bool) -> [SwitcherItem] {
         let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
 
         let ownPid = ProcessInfo.processInfo.processIdentifier
@@ -97,6 +105,28 @@ enum WindowEnumerator {
         var seen = Set<CGWindowID>()
         var windows: [SwitcherItem] = []
 
+        // Accessibility cannot describe windows parked on a Space that is not
+        // visible, so the ghost veto below would silently hide real windows
+        // (issue #339). The window server tells them apart: a real parked
+        // window belongs to a Space, a stale leftover surface belongs to none.
+        // Resolved lazily and cached, so fully Accessibility-confirmed lists
+        // pay nothing.
+        var visibleSpaces: Set<UInt64>?
+        var hiddenSpaceVerdicts: [CGWindowID: Bool] = [:]
+        func isOnHiddenSpace(_ windowID: CGWindowID) -> Bool {
+            if let verdict = hiddenSpaceVerdicts[windowID] { return verdict }
+            if visibleSpaces == nil {
+                visibleSpaces = SpaceWindowBridge.topology()?.visibleSpaces ?? []
+            }
+            guard let visible = visibleSpaces, !visible.isEmpty else { return false }
+            let verdict = SpaceHopSupport.isParkedOnHiddenSpace(
+                windowSpaces: SpaceWindowBridge.spaces(of: windowID),
+                visibleSpaces: visible
+            )
+            hiddenSpaceVerdicts[windowID] = verdict
+            return verdict
+        }
+
         // No cap during enumeration: the raw window-server order is not
         // "visible first" (windows parked on other Spaces can come before the
         // frontmost app), so truncating here silently drops whole apps on
@@ -115,8 +145,15 @@ enum WindowEnumerator {
                 : embeddedHostPIDs[windowOwnerPID]
             guard let appPID else { continue }
             if let filterPID, appPID != filterPID { continue }
+            // Current-Space mode (issue #337): windows living on another
+            // desktop are left out entirely, including minimized ones that
+            // kept their desktop of origin, so picking an entry never moves
+            // the user somewhere else. Windows the server cannot place on any
+            // Space are not "elsewhere", so they keep the regular treatment.
+            if currentSpaceOnly, isOnHiddenSpace(CGWindowID(windowID)) { continue }
             let axWindow = accessibilityWindows[windowOwnerPID]?.byID[CGWindowID(windowID)]
-            if accessibilityWindows[windowOwnerPID] != nil, axWindow == nil {
+            if accessibilityWindows[windowOwnerPID] != nil, axWindow == nil,
+               !isOnHiddenSpace(CGWindowID(windowID)) {
                 continue
             }
             let cgFrame = CGRect(x: (boundsDict["X"] as? NSNumber)?.doubleValue ?? 0,
@@ -155,7 +192,10 @@ enum WindowEnumerator {
             // fullscreen windows on another Space can be reported off-screen
             // and untitled by WindowServer; if Accessibility confirms the same
             // window id, keep it switchable and fall back to the app name.
-            if !isOnScreen && displayTitle.isEmpty && axWindow == nil { continue }
+            // Windows the window server places on a hidden Space are equally
+            // real even when untitled (their titles need Screen Recording).
+            if !isOnScreen && displayTitle.isEmpty && axWindow == nil
+                && !isOnHiddenSpace(windowID) { continue }
 
             seen.insert(windowID)
             windows.append(.window(id: windowID,
@@ -173,7 +213,8 @@ enum WindowEnumerator {
                                        regularApps: regularApps,
                                        embeddedHostPIDs: embeddedHostPIDs,
                                        seen: &seen,
-                                       filterPID: filterPID)
+                                       filterPID: filterPID,
+                                       excludeWindow: { currentSpaceOnly && isOnHiddenSpace($0) })
         if includeWindowlessFinder {
             appendWindowlessFinder(to: &windows, regularApps: regularApps)
         }
@@ -288,7 +329,8 @@ enum WindowEnumerator {
                                                        regularApps: [pid_t: String],
                                                        embeddedHostPIDs: [pid_t: pid_t],
                                                        seen: inout Set<CGWindowID>,
-                                                       filterPID: pid_t?) {
+                                                       filterPID: pid_t?,
+                                                       excludeWindow: (CGWindowID) -> Bool = { _ in false }) {
         let tracker = AppActivationTracker.shared
         let pids = snapshots.keys
             .filter { windowOwnerPID in
@@ -311,6 +353,7 @@ enum WindowEnumerator {
                   let list = snapshots[windowOwnerPID] else { continue }
             for entry in list.ordered {
                 guard !seen.contains(entry.id),
+                      !excludeWindow(entry.id),
                       let frame = switchableFrame(entry.snapshot.frame,
                                                   fallback: nil,
                                                   isMinimized: entry.snapshot.isMinimized) else { continue }

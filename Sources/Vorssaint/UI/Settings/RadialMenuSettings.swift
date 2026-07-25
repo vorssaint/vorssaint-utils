@@ -5,9 +5,9 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Settings > Radial menu: the switch, the shortcut, where the wheel opens
-/// and the list of actions, with drill-down into submenus and an editor sheet
-/// per action.
+/// Settings > Radial menu: the switch, shortcut, opening behavior, placement
+/// and list of actions, with drill-down into submenus and an editor sheet per
+/// action.
 struct RadialMenuSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
@@ -15,6 +15,8 @@ struct RadialMenuSettings: View {
     @AppStorage(DefaultsKey.radialMenuEnabled) private var enabled = false
     @AppStorage(DefaultsKey.radialMenuAtPointer) private var atPointer = true
     @AppStorage(DefaultsKey.radialMenuMouseButton) private var mouseTriggerRaw = RadialMenuMouseTrigger.off.rawValue
+    @AppStorage(DefaultsKey.radialMenuActivationMode) private var activationModeRaw =
+        RadialMenuActivationMode.pressOrHold.rawValue
 
     @State private var items = RadialMenuSupport.decode(
         UserDefaults.standard.data(forKey: DefaultsKey.radialMenuItems))
@@ -42,7 +44,7 @@ struct RadialMenuSettings: View {
         Form {
             Section {
                 Toggle(text.enableLabel, isOn: $enabled)
-                Text(text.enableCaption)
+                Text(text.hubDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 ShortcutPreferenceRow(role: .radialMenu, isEnabled: enabled) {
@@ -53,6 +55,18 @@ struct RadialMenuSettings: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
+                Picker(text.activationModeLabel, selection: $activationModeRaw) {
+                    Text(text.activationModePressOrHold)
+                        .tag(RadialMenuActivationMode.pressOrHold.rawValue)
+                    Text(text.activationModePress)
+                        .tag(RadialMenuActivationMode.press.rawValue)
+                    Text(text.activationModeHold)
+                        .tag(RadialMenuActivationMode.hold.rawValue)
+                }
+                .disabled(!enabled)
+                Text(text.activationModeCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Picker(text.mouseTriggerLabel, selection: $mouseTriggerRaw) {
                     Text(text.mouseTriggerOff).tag(RadialMenuMouseTrigger.off.rawValue)
                     Text(text.mouseTriggerBack).tag(RadialMenuMouseTrigger.back.rawValue)
@@ -69,6 +83,11 @@ struct RadialMenuSettings: View {
                     Text(text.mouseTriggerWarning)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    // A button the mouse's own software has turned into
+                    // something else never reaches any app, and from the
+                    // outside that looks exactly like a wrong setting. This
+                    // tells the two apart without asking anyone to guess.
+                    buttonTestRow
                 }
                 Picker(text.positionLabel, selection: $atPointer) {
                     Text(text.positionPointer).tag(true)
@@ -87,7 +106,9 @@ struct RadialMenuSettings: View {
                !permissions.accessibility {
                 Section {
                     PermissionRow(kind: .accessibility)
-                    Text(text.permissionCaption)
+                    Text(RadialMenuSupport.usesWindowLayout(items)
+                         ? FeatureStrings.windowLayout(l10n.language).missingPermission
+                         : text.permissionCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -203,6 +224,38 @@ struct RadialMenuSettings: View {
         guard on, RadialMenuSupport.needsAccessibility(items), !permissions.accessibility else { return }
         permissions.requestAccessibility()
     }
+
+    private var buttonTestRow: some View {
+        let seen = service.lastMouseButtonSeen
+        let expected = RadialMenuMouseTrigger.sanitized(mouseTriggerRaw).buttonNumber
+        let state: (icon: String, tint: Color, message: String) = {
+            if !service.isWatchingMouseButton {
+                return ("exclamationmark.circle.fill", .orange, text.buttonTestBlind)
+            }
+            guard let seen else {
+                return ("circle.dashed", .secondary, text.buttonTestWaiting)
+            }
+            if let expected, Int64(seen) == expected {
+                return ("checkmark.circle.fill", .green, text.buttonTestSeen)
+            }
+            return ("exclamationmark.circle.fill", .orange, text.buttonTestOther)
+        }()
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: state.icon)
+                    .foregroundStyle(state.tint)
+                Text(text.buttonTestLabel)
+                Spacer()
+                Text(state.message)
+                    .foregroundStyle(.secondary)
+            }
+            Text(text.buttonTestHint)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .onAppear { RadialMenuService.shared.setReportingMouseButtons(true) }
+        .onDisappear { RadialMenuService.shared.setReportingMouseButtons(false) }
+    }
 }
 
 // MARK: - Row
@@ -223,6 +276,7 @@ private struct RadialItemRow: View {
         case .url: return text.kindURL
         case .shortcut: return text.kindShortcut
         case .tool: return text.kindTool
+        case .windowLayout: return FeatureStrings.windowLayout(L10n.shared.language).title
         case .media: return text.kindMedia
         case .submenu: return text.kindSubmenu
         }
@@ -341,9 +395,28 @@ private struct RadialItemEditor: View {
 
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.dismiss) private var dismiss
+    @State private var shortcutMessage: ShortcutMessage?
+
+    /// What the line under the form is saying about the shortcut field: the
+    /// calm hint while it listens, or the reason a press did not stick.
+    enum ShortcutMessage {
+        case hint(String)
+        case problem(String)
+
+        var text: String {
+            switch self {
+            case .hint(let text), .problem(let text): return text
+            }
+        }
+
+        var isProblem: Bool {
+            if case .problem = self { return true }
+            return false
+        }
+    }
 
     private var availableTools: [RadialMenuTool] {
-        RadialMenuTool.allCases.filter { $0.feature.isAvailable }
+        RadialMenuTool.allCases.filter { $0.isRunnable() }
     }
 
     private var urlIsInvalid: Bool {
@@ -370,6 +443,10 @@ private struct RadialItemEditor: View {
                     if !availableTools.isEmpty {
                         Text(text.kindTool).tag(RadialMenuItem.Kind.tool)
                     }
+                    if AppFeature.windowLayout.isAvailable {
+                        Text(FeatureStrings.windowLayout(l10n.language).title)
+                            .tag(RadialMenuItem.Kind.windowLayout)
+                    }
                     Text(text.kindMedia).tag(RadialMenuItem.Kind.media)
                     if allowsSubmenu {
                         Text(text.kindSubmenu).tag(RadialMenuItem.Kind.submenu)
@@ -388,6 +465,13 @@ private struct RadialItemEditor: View {
                 Text(text.urlInvalid)
                     .font(.caption)
                     .foregroundStyle(.orange)
+            }
+            if item.kind == .shortcut, let shortcutMessage {
+                Text(shortcutMessage.text)
+                    .font(.caption)
+                    .foregroundStyle(shortcutMessage.isProblem ? AnyShapeStyle(.orange)
+                                                               : AnyShapeStyle(.secondary))
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if item.kind == .submenu {
                 Text(text.submenuCaption)
@@ -426,8 +510,10 @@ private struct RadialItemEditor: View {
         Binding(get: { item.kind }, set: { kind in
             guard kind != item.kind else { return }
             item.kind = kind
+            shortcutMessage = nil
             switch kind {
             case .tool: item.payload = availableTools.first?.rawValue ?? ""
+            case .windowLayout: item.payload = WindowLayoutAction.leftHalf.rawValue
             case .media: item.payload = RadialMenuMediaKey.playPause.rawValue
             default: item.payload = ""
             }
@@ -452,17 +538,42 @@ private struct RadialItemEditor: View {
             LabeledContent(text.kindShortcut) {
                 ShortcutRecorderButton(shortcut: GlobalShortcut(storageValue: item.payload) ?? .radialMenuDefault,
                                        isEnabled: true,
-                                       recordingTitle: l10n.s.shortcutRecording,
+                                       waitingTitle: l10n.s.shortcutPressKeys,
                                        emptyTitle: item.payload.isEmpty ? l10n.s.shortcutNone : nil,
-                                       invalidAction: {},
-                                       captureAction: { item.payload = $0.storageValue })
-                    .frame(width: 108, height: 28)
+                                       clearAction: {
+                                           item.payload = ""
+                                           shortcutMessage = nil
+                                       },
+                                       notCapturedAction: {
+                                           shortcutMessage = .problem(l10n.s.shortcutNotCaptured)
+                                       },
+                                       recordingChanged: { recording in
+                                           shortcutMessage = recording
+                                               ? .hint(ShortcutRecordingCaption.text(l10n.s, canClear: true))
+                                               : nil
+                                       },
+                                       invalidAction: {
+                                           shortcutMessage = .problem(l10n.s.shortcutInvalid)
+                                       },
+                                       captureAction: {
+                                           item.payload = $0.storageValue
+                                           shortcutMessage = nil
+                                       })
+                    .frame(width: 108)
             }
         case .tool:
             Picker(text.toolLabel, selection: $item.payload) {
                 ForEach(availableTools) { tool in
                     Text(tool.feature.hubTitle(l10n.s, hub: FeatureStrings.hub(l10n.language)))
                         .tag(tool.rawValue)
+                }
+            }
+        case .windowLayout:
+            let windowText = FeatureStrings.windowLayout(l10n.language)
+            Picker(windowText.title, selection: $item.payload) {
+                ForEach(WindowLayoutAction.allCases) { action in
+                    Label(action.title(windowText), systemImage: action.symbolName)
+                        .tag(action.rawValue)
                 }
             }
         case .media:
@@ -562,4 +673,5 @@ private struct RadialSymbolPicker: View {
         .buttonStyle(.plain)
         .help(symbol ?? text.automaticLabel)
     }
+
 }
