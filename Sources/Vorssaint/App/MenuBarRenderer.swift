@@ -802,11 +802,11 @@ enum MenuBarRenderer {
     }
 
     /// macOS 26 lays out button titles dominated by tall attachments about
-    /// 1.2pt higher than macOS 27, where every block offset below was
+    /// 0.25pt higher than macOS 27, where every block offset below was
     /// calibrated; older systems get a downward nudge so the blocks center
     /// on the menu bar like the system's own icons.
     private static let legacyBlockAttachmentNudge: CGFloat = {
-        if #unavailable(macOS 27) { return -1.2 }
+        if #unavailable(macOS 27) { return -0.25 }
         return 0
     }()
 
