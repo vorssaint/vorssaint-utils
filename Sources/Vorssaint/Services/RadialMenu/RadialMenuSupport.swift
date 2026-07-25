@@ -5,11 +5,11 @@ import CoreGraphics
 import Foundation
 
 /// One action on the wheel. `payload` carries the target: an app or file path,
-/// a link, a tool or media identifier, or a shortcut storage value. Submenus
-/// keep their actions in `children`.
+/// a link, tool, media or window-layout identifier, or a shortcut storage
+/// value. Submenus keep their actions in `children`.
 struct RadialMenuItem: Codable, Identifiable, Equatable {
     enum Kind: String, Codable, CaseIterable {
-        case app, file, url, shortcut, tool, media, submenu
+        case app, file, url, shortcut, tool, windowLayout, media, submenu
     }
 
     var id = UUID()
@@ -27,6 +27,10 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
         kind == .media ? RadialMenuMediaKey(rawValue: payload) : nil
     }
 
+    var windowLayoutAction: WindowLayoutAction? {
+        kind == .windowLayout ? WindowLayoutAction(rawValue: payload) : nil
+    }
+
     /// The symbol drawn when the user picked none. App and file items prefer
     /// their real file icons in the UI; these are the fallbacks.
     var defaultSymbolName: String {
@@ -36,6 +40,7 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
         case .url: return "link"
         case .shortcut: return "command"
         case .tool: return tool?.symbolName ?? "wrench.and.screwdriver"
+        case .windowLayout: return windowLayoutAction?.symbolName ?? AppFeature.windowLayout.symbolName
         case .media:
             switch mediaKey {
             case .previousTrack: return "backward.fill"
@@ -85,7 +90,7 @@ private struct FailableRadialMenuItem: Decodable {
 /// blob; never rename them.
 enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
     case screenshot, colorPicker, screenOCR, micMute, clipboardHistory, quickLauncher, cameraPreview,
-         scratchpad
+         scratchpad, shelf, cleaningMode, keepAwake
 
     var id: String { rawValue }
 
@@ -99,10 +104,22 @@ enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
         case .quickLauncher: return .quickLauncher
         case .cameraPreview: return .cameraPreview
         case .scratchpad: return .scratchpad
+        case .shelf: return .shelf
+        case .cleaningMode: return .cleaningMode
+        case .keepAwake: return .keepAwake
         }
     }
 
     var symbolName: String { feature.symbolName }
+
+    /// Hub availability and a feature's own master switch are separate. A
+    /// saved Shelf slice stays dormant while Shelf is explicitly disabled and
+    /// returns automatically when the user enables it again.
+    func isRunnable(isFeatureAvailable: (AppFeature) -> Bool = { $0.isAvailable },
+                    boolFor: (String) -> Bool = { UserDefaults.standard.bool(forKey: $0) }) -> Bool {
+        guard isFeatureAvailable(feature) else { return false }
+        return self != .shelf || boolFor(DefaultsKey.shelfEnabled)
+    }
 }
 
 /// The optional second summoner: a spare side mouse button. Raw values are
@@ -124,6 +141,40 @@ enum RadialMenuMouseTrigger: String, CaseIterable, Identifiable {
     static func sanitized(_ raw: String?) -> RadialMenuMouseTrigger {
         RadialMenuMouseTrigger(rawValue: raw ?? "") ?? .off
     }
+}
+
+/// How the summoning shortcut or side button owns a radial-menu session.
+/// Raw values are persisted; never rename them.
+enum RadialMenuActivationMode: String, CaseIterable, Identifiable {
+    /// The existing adaptive gesture: release over a slice to run it, or
+    /// release near the center to leave the wheel open for clicking.
+    case pressOrHold
+    /// A press opens a sticky wheel. Releasing the summoner has no effect.
+    case press
+    /// The wheel exists only while the summoner is down. Release runs the
+    /// highlighted slice, or simply dismisses when nothing is highlighted.
+    case hold
+
+    var id: String { rawValue }
+
+    static func sanitized(_ raw: String?) -> RadialMenuActivationMode {
+        RadialMenuActivationMode(rawValue: raw ?? "") ?? .pressOrHold
+    }
+
+    func startsHeld(requestedHold: Bool, hasHeldButton: Bool,
+                    shortcutHasModifiers: Bool) -> Bool {
+        guard self != .press else { return false }
+        return hasHeldButton || (requestedHold && shortcutHasModifiers)
+    }
+
+    func releaseAction(hasSelection: Bool) -> RadialMenuReleaseAction {
+        if hasSelection { return .select }
+        return self == .hold ? .dismiss : .stayOpen
+    }
+}
+
+enum RadialMenuReleaseAction: Equatable {
+    case stayOpen, dismiss, select
 }
 
 extension RadialMenuSupport {
@@ -170,6 +221,7 @@ enum RadialMenuSupport {
         case .url: return normalizedURL(item.payload) != nil
         case .shortcut: return GlobalShortcut(storageValue: item.payload) != nil
         case .tool: return item.tool != nil
+        case .windowLayout: return item.windowLayoutAction != nil
         case .media: return item.mediaKey != nil
         case .submenu: return true
         }
@@ -260,15 +312,22 @@ enum RadialMenuSupport {
         RadialMenuItem(kind: .media, payload: RadialMenuMediaKey.previousTrack.rawValue),
     ]
 
-    /// True when any item, at any level, posts synthetic key events and so
-    /// needs the Accessibility permission.
+    /// True when any item, at any level, controls keyboard input or windows
+    /// and therefore needs the Accessibility permission.
     static func needsAccessibility(_ items: [RadialMenuItem]) -> Bool {
         items.contains { item in
             switch item.kind {
-            case .shortcut, .media: return true
+            case .shortcut, .windowLayout, .media: return true
             case .submenu: return needsAccessibility(item.children)
             default: return false
             }
+        }
+    }
+
+    static func usesWindowLayout(_ items: [RadialMenuItem]) -> Bool {
+        items.contains { item in
+            item.kind == .windowLayout
+                || (item.kind == .submenu && usesWindowLayout(item.children))
         }
     }
 }

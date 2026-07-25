@@ -531,7 +531,10 @@ extension Strings {
         mixerInputFallback: "Используется значение по умолчанию, пока этот микрофон не вернётся.",
         mixerInputTooltip: "Выбрать микрофон",
         mixerInputErrorFormat: "Не удалось переключить: %@",
-        mixerShowFinder: "Показывать Finder",
+        mixerVisibleApps: "Приложения в списке",
+        mixerAllShown: "Все",
+        mixerHiddenCountLabel: "Скрыто",
+        mixerHideFromList: "Скрыть из списка",
 
         updatesSection: "Обновления",
         autoCheckToggle: "Проверять обновления автоматически",
@@ -877,8 +880,12 @@ extension Strings {
         highlightsTitle: "Новое в этом обновлении",
         highlightsCaptionDockPreview: "Dock Preview теперь работает при включённом увеличении Dock",
         highlightsCaptionScreenshot: "Инструмент снимков экрана получил пиксельную лупу и чтение QR-кодов",
+        highlightsCaptionSnippetLibrary: "Меню сниппетов с поиском печатает любой сниппет прямо у курсора",
         highlightsConfigure: "Настроить",
         highlightsTry: "Попробовать",
-        highlightsSeeAll: "Все изменения"
+        highlightsSeeAll: "Все изменения",
+        switcherCurrentSpaceOnly: "Показывать только текущий рабочий стол",
+        switcherCurrentSpaceOnlyCaption: "В переключателе видны только окна рабочего стола, на котором вы находитесь. Выбор окна никогда не переносит вас на другой рабочий стол.",
+        shelfFileMissing: "Файл больше не существует"
     )
 }

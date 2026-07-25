@@ -530,7 +530,10 @@ extension Strings {
         mixerInputFallback: "Utilise le micro par défaut jusqu’au retour de celui-ci.",
         mixerInputTooltip: "Choisir le micro",
         mixerInputErrorFormat: "Impossible de changer : %@",
-        mixerShowFinder: "Afficher Finder",
+        mixerVisibleApps: "Apps dans la liste",
+        mixerAllShown: "Toutes",
+        mixerHiddenCountLabel: "Masquées",
+        mixerHideFromList: "Masquer de la liste",
 
         updatesSection: "Mises à jour",
         autoCheckToggle: "Rechercher les mises à jour automatiquement",
@@ -876,8 +879,12 @@ extension Strings {
         highlightsTitle: "Nouveautés de cette mise à jour",
         highlightsCaptionDockPreview: "Dock Preview fonctionne désormais avec l'agrandissement du Dock activé",
         highlightsCaptionScreenshot: "L'outil de capture d'écran gagne une loupe de pixels et la lecture des codes QR",
+        highlightsCaptionSnippetLibrary: "Un menu d'extraits avec recherche tape n'importe quel extrait au curseur",
         highlightsConfigure: "Configurer",
         highlightsTry: "Essayer",
-        highlightsSeeAll: "Voir tous les changements"
+        highlightsSeeAll: "Voir tous les changements",
+        switcherCurrentSpaceOnly: "Afficher uniquement le bureau actuel",
+        switcherCurrentSpaceOnlyCaption: "N'affiche dans le sélecteur que les fenêtres du bureau où vous êtes. Choisir une fenêtre ne vous emmène jamais sur un autre bureau.",
+        shelfFileMissing: "Le fichier n'existe plus"
     )
 }

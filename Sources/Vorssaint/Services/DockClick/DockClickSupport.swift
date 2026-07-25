@@ -60,9 +60,65 @@ enum DockClickSupport {
     /// animation to finish so the sweep sees the settled state.
     static let minimizeSweepDelay: TimeInterval = 0.9
 
+    /// How long after a successful Minimize All menu press the per-window
+    /// check runs for apps that report success but leave their windows
+    /// untouched. Short enough to feel immediate, long enough for an honest
+    /// app's batch to have flipped every window's AX state.
+    static let minimizeMenuVerifyDelay: TimeInterval = 0.35
+
     /// Delay before re-asserting a restore on windows whose minimize was still
     /// in flight when the restore clicked in.
     static let restoreSweepDelay: TimeInterval = 0.6
+
+    /// The order a restore should walk a batch of minimized windows: indices
+    /// into `ids`, first restored to last, with duplicate windows dropped.
+    ///
+    /// `frontToBack` is the app's real window order captured from the
+    /// WindowServer while the windows were still up, so the window that was
+    /// frontmost — the one the user was working in — comes LAST. Restoring it
+    /// last lets it animate in over the others and land on top on its own,
+    /// which is the whole point: raising it afterwards to fix the stacking is
+    /// exactly the flick the user sees (issue #357). The AX windows array
+    /// order is deliberately not used to decide this; it does not reliably
+    /// report the focused window first.
+    ///
+    /// `preferredFront` covers batches with no captured order (the app was
+    /// minimized by other means): the caller's best guess at the front window
+    /// is moved to the end and everything else keeps its given order.
+    static func restoreSequence(ids: [CGWindowID?],
+                                frontToBack: [CGWindowID],
+                                preferredFront: CGWindowID? = nil) -> [Int] {
+        var seen = Set<CGWindowID>()
+        var candidates: [Int] = []
+        for (index, id) in ids.enumerated() {
+            if let id {
+                guard !seen.contains(id) else { continue }
+                seen.insert(id)
+            }
+            candidates.append(index)
+        }
+
+        guard !frontToBack.isEmpty else {
+            guard let preferredFront,
+                  let frontSlot = candidates.firstIndex(where: { ids[$0] == preferredFront })
+            else { return candidates }
+            candidates.append(candidates.remove(at: frontSlot))
+            return candidates
+        }
+
+        // Windows missing from the captured order count as rearmost, so the
+        // captured stacking always decides the top of the pile.
+        func depth(_ index: Int) -> Int {
+            guard let id = ids[index], let depth = frontToBack.firstIndex(of: id)
+            else { return frontToBack.count }
+            return depth
+        }
+        return candidates.sorted { first, second in
+            let firstDepth = depth(first), secondDepth = depth(second)
+            if firstDepth != secondDepth { return firstDepth > secondDepth }
+            return first < second
+        }
+    }
 
     static func repeatDecision(lastAction: DockClickAction?,
                                elapsed: TimeInterval?) -> DockClickRepeatDecision {

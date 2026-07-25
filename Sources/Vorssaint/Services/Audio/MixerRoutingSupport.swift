@@ -18,11 +18,11 @@ struct MixerOutputPreferences: Equatable {
 struct MixerRowIdentity: Equatable {
     /// Identifies the row in the list and its engine. Always present.
     let rowID: String
-    /// The key the row's volume and route are stored under, or nil when the
-    /// process has no bundle id. A display name is not an identity (two
-    /// unrelated processes can share one), so a row without a bundle id is
-    /// listed and adjustable for as long as it runs, but never inherits or
-    /// stores a saved volume.
+    /// The key the row's volume and route are stored under: the bundle id
+    /// when the process has one, otherwise its display name (the only handle
+    /// that survives a relaunch — pids recycle, names don't). Nil when the
+    /// process offers neither, in which case the row is listed and adjustable
+    /// for as long as it runs but stores nothing.
     let persistenceID: String?
 }
 
@@ -240,11 +240,17 @@ enum MixerRoutingSupport {
     }
 
     /// Identity of a row: the bundle id when the app has one, otherwise a
-    /// per-process identity that lives only as long as the process does.
-    static func rowIdentity(bundleIdentifier: String?, ownerPid: pid_t) -> MixerRowIdentity {
+    /// per-process row that saves under its display name. Games and tools
+    /// distributed as bare executables have no bundle id, and the name is the
+    /// key their volume has always been saved under, so it also brings back
+    /// what the user saved on older versions. Two same-named processes stay
+    /// separate rows (and engines) but share the saved volume.
+    static func rowIdentity(bundleIdentifier: String?,
+                            ownerPid: pid_t,
+                            displayName: String?) -> MixerRowIdentity {
         guard let bundleID = sanitizedAppID(bundleIdentifier ?? "") else {
             return MixerRowIdentity(rowID: "\(unidentifiedRowPrefix)\(ownerPid)",
-                                    persistenceID: nil)
+                                    persistenceID: sanitizedAppID(displayName ?? ""))
         }
         return MixerRowIdentity(rowID: bundleID, persistenceID: bundleID)
     }
@@ -273,6 +279,56 @@ enum MixerRoutingSupport {
         let elapsed = max(0, now - lastChangeAt)
         guard elapsed < window else { return nil }
         return window - elapsed
+    }
+
+    /// One look at an engine's render counter: how many IO callbacks it had
+    /// completed and when that was seen.
+    struct EngineRenderObservation: Equatable {
+        let cycles: UInt64
+        let at: Double
+    }
+
+    enum EngineRenderVerdict: Equatable {
+        /// Remember this observation. With `recheckAfter` set the picture is
+        /// not conclusive yet (first look at this engine), so another look is
+        /// scheduled instead of waiting for the next audio event.
+        case note(EngineRenderObservation, recheckAfter: Double?)
+        /// The counter has not moved, but not for long enough to be sure;
+        /// keep the previous observation and look again after the remaining
+        /// time.
+        case stalled(recheckAfter: Double)
+        /// The app is playing and the engine rendered nothing for the whole
+        /// window: its audio path is dead and only the mute remains.
+        case wedged
+    }
+
+    /// How long a live engine may go without a single render callback, while
+    /// its app is playing, before it counts as wedged. A healthy aggregate
+    /// runs its IO proc continuously once started (hundreds of callbacks per
+    /// second), so a fraction of this window would already be conclusive.
+    static let engineRenderStallWindow: Double = 1.5
+
+    /// Whether an engine is still rendering. Waking from sleep (or a device
+    /// renegotiating right after) can leave an aggregate whose IO proc never
+    /// runs again while its tap keeps muting the app, and nothing else about
+    /// the engine looks wrong. Only a playing app gives a verdict: with no
+    /// audio there is nothing to mute, and a counter naturally at rest must
+    /// not read as a failure. Nil clears any stored observation.
+    static func engineRenderVerdict(previous: EngineRenderObservation?,
+                                    cycles: UInt64,
+                                    isPlaying: Bool,
+                                    now: Double,
+                                    window: Double = engineRenderStallWindow) -> EngineRenderVerdict? {
+        guard isPlaying else { return nil }
+        guard let previous else {
+            return .note(EngineRenderObservation(cycles: cycles, at: now), recheckAfter: window)
+        }
+        guard cycles == previous.cycles else {
+            return .note(EngineRenderObservation(cycles: cycles, at: now), recheckAfter: nil)
+        }
+        let elapsed = max(0, now - previous.at)
+        guard elapsed >= window else { return .stalled(recheckAfter: window - elapsed) }
+        return .wedged
     }
 
     /// What to put back as the system input device when the app stops steering
@@ -316,8 +372,34 @@ enum MixerRoutingSupport {
         "com.motu.",             // Digital Performer
     ]
 
-    static func isHiddenFromMixer(bundleIdentifier: String?, showFinder: Bool) -> Bool {
-        bundleIdentifier == finderBundleIdentifier && !showFinder
+    /// The hidden-apps map as stored: persistence id to display name, both
+    /// sanitized. The Finder entry never lives here — its visibility has its
+    /// own preference key — so an entry for it (an old backup, a hand-edited
+    /// plist) is dropped instead of shadowing that key.
+    static func sanitizedHiddenApps(_ raw: [String: Any]) -> [String: String] {
+        var sanitized: [String: String] = [:]
+        for (rawID, rawName) in raw {
+            guard let appID = sanitizedAppID(rawID),
+                  appID != finderBundleIdentifier,
+                  let name = sanitizedAppID((rawName as? String) ?? "") else { continue }
+            sanitized[appID] = name
+        }
+        return sanitized
+    }
+
+    /// Every persistence id a refresh must leave out of the list: the apps the
+    /// user hid, plus the Finder while its own toggle says so.
+    static func hiddenRowIDs(hiddenApps: [String: String], showFinder: Bool) -> Set<String> {
+        var ids = Set(hiddenApps.keys)
+        if !showFinder { ids.insert(finderBundleIdentifier) }
+        return ids
+    }
+
+    /// A row without a persistence id cannot be hidden: there is no stable key
+    /// to remember it under, so it is always listed while it runs.
+    static func isHiddenFromMixer(persistenceID: String?, hiddenIDs: Set<String>) -> Bool {
+        guard let persistenceID else { return false }
+        return hiddenIDs.contains(persistenceID)
     }
 
     /// How many parent processes to inspect when the responsible process is

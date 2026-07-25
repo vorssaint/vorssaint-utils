@@ -199,6 +199,11 @@ extension RadialMenuItem {
         case .tool:
             guard let tool else { return text.kindTool }
             return tool.feature.hubTitle(L10n.shared.s, hub: FeatureStrings.hub(L10n.shared.language))
+        case .windowLayout:
+            guard let windowLayoutAction else {
+                return FeatureStrings.windowLayout(L10n.shared.language).title
+            }
+            return windowLayoutAction.title(FeatureStrings.windowLayout(L10n.shared.language))
         case .media:
             switch mediaKey {
             case .playPause: return text.mediaPlayPause

@@ -4,6 +4,55 @@
 import SwiftUI
 import UserNotifications
 
+/// One Settings home for the installable Cleaner module. The system cleaner
+/// and WhatsApp downloads keep separate controls and schedules, while sharing
+/// the module's availability and permission portal entry.
+struct CleanerSettings: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var router = SettingsRouter.shared
+    @State private var tool = Tool.system
+
+    private enum Tool: String {
+        case system, whatsApp
+    }
+
+    /// A panel surface can ask for a specific tool; the hint is one-shot.
+    private func consumeToolHint() {
+        guard let hint = router.cleanerTool else { return }
+        if let wanted = Tool(rawValue: hint) { tool = wanted }
+        router.cleanerTool = nil
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Picker("", selection: $tool) {
+                Label(l10n.s.cleanerName, systemImage: "sparkles")
+                    .tag(Tool.system)
+                Label(FeatureStrings.whatsAppDownloads(l10n.language).title,
+                      systemImage: "arrow.down.doc")
+                    .tag(Tool.whatsApp)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(maxWidth: 440)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 14)
+
+            Divider()
+
+            switch tool {
+            case .system:
+                CleanerView()
+            case .whatsApp:
+                WhatsAppDownloadsSettings()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onAppear(perform: consumeToolHint)
+        .onChange(of: router.cleanerTool) { _, _ in consumeToolHint() }
+    }
+}
+
 /// The junk cleaner, built for one glance: a safe section that is fully
 /// selected and ready for a single click, and an optional section that
 /// starts unchecked and collapsed for whoever wants to dig. Every group has
@@ -22,9 +71,16 @@ struct CleanerView: View {
     @AppStorage(DefaultsKey.cleanerLastAutoFreed) private var lastAutoFreed = 0
     @AppStorage(DefaultsKey.cleanerScheduleNotify) private var scheduleNotify = true
     @ObservedObject private var scheduler = CleanerScheduler.shared
+    @ObservedObject private var whatsAppScheduler = WhatsAppDownloadScheduler.shared
+    @AppStorage(DefaultsKey.whatsAppDownloadsAutomaticEnabled) private var whatsAppAutomatic = false
+    @AppStorage(DefaultsKey.whatsAppDownloadsLastCleanup) private var whatsAppLastCleanup = 0.0
+    @AppStorage(DefaultsKey.whatsAppDownloadsLastCleanupCount) private var whatsAppLastCount = 0
+    @AppStorage(DefaultsKey.whatsAppDownloadsLastCleanupBytes) private var whatsAppLastBytes = 0
+    @AppStorage(DefaultsKey.whatsAppDownloadsLastCleanupFailed) private var whatsAppLastFailed = 0
     @State private var notificationsDenied = false
     /// The panel hosted card starts folded; the Settings page shows it open.
     @State private var scheduleExpanded = false
+    @State private var whatsAppExpanded = false
     /// Tightens paddings for the panel and launcher.
     var compact = false
 
@@ -36,11 +92,31 @@ struct CleanerView: View {
     @ViewBuilder
     private var content: some View {
         switch cleaner.phase {
-        case .idle: idleState
-        case .scanning: busyState(l10n.s.cleanerScanning, detail: scanningDetail)
+        case .idle: settingsScrolling(idleState)
+        case .scanning: settingsScrolling(busyState(l10n.s.cleanerScanning, detail: scanningDetail))
         case .results: resultsState
-        case .cleaning: busyState(l10n.s.cleanerCleaning, detail: nil)
-        case let .done(freed, failed): doneState(freed: freed, failed: failed)
+        case .cleaning: settingsScrolling(busyState(l10n.s.cleanerCleaning, detail: nil))
+        case let .done(freed, failed): settingsScrolling(doneState(freed: freed, failed: failed))
+        }
+    }
+
+    /// On the Settings page every detail must host a scroll container: the
+    /// split view's sidebar loses its title bar safe area otherwise (macOS 27
+    /// beta) and its rows draw under the toolbar or vanish. Every other page
+    /// is a Form and gets this for free; the cleaner's List state scrolls on
+    /// its own, and these centered states scroll here — the minHeight keeps
+    /// them vertically centered exactly as before. The panel keeps the plain
+    /// layout: it never sits inside the split view.
+    @ViewBuilder
+    private func settingsScrolling(_ view: some View) -> some View {
+        if compact {
+            view
+        } else {
+            GeometryReader { proxy in
+                ScrollView {
+                    view.frame(maxWidth: .infinity, minHeight: proxy.size.height)
+                }
+            }
         }
     }
 
@@ -161,11 +237,100 @@ struct CleanerView: View {
                 .controlSize(.large)
                 .buttonStyle(.borderedProminent)
             scheduleCard
+            // The Settings page has its own full tool for these downloads;
+            // the panel gets this one-line home so the feature is findable
+            // without opening Settings.
+            if compact { whatsAppCard }
             if !permissions.fullDiskAccess { fdaNote }
             if !compact { Spacer() }
         }
         .padding(compact ? 14 : 28)
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: WhatsApp downloads (panel surface)
+
+    private var whatsAppStrings: WhatsAppDownloadStrings {
+        FeatureStrings.whatsAppDownloads(l10n.language)
+    }
+
+    /// Collapsed summary: Off until the automation is armed, then the next
+    /// pass, so the row answers "is it working?" without being opened.
+    private var whatsAppSummary: String {
+        guard whatsAppAutomatic else { return l10n.s.cleanerScheduleOff }
+        if let next = whatsAppScheduler.nextFire {
+            return Self.nextRunFormatter.string(from: next)
+        }
+        return whatsAppStrings.automatic
+    }
+
+    /// The cleanup's one-line home in the panel: state at a glance, the last
+    /// and next pass when expanded, and a jump straight into its settings.
+    private var whatsAppCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                var transaction = Transaction(animation: nil)
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    whatsAppExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: whatsAppExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 9)
+                    Image(systemName: "arrow.down.doc").foregroundStyle(.secondary)
+                    Text(whatsAppStrings.title)
+                        .font(.system(size: 12, weight: .medium))
+                    Spacer()
+                    Text(whatsAppSummary)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(11)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if whatsAppExpanded {
+                VStack(alignment: .leading, spacing: 8) {
+                    if whatsAppLastCleanup > 0 {
+                        Text(String(format: whatsAppStrings.lastRunFormat,
+                                    Self.nextRunFormatter.string(
+                                        from: Date(timeIntervalSince1970: whatsAppLastCleanup)),
+                                    whatsAppLastCount,
+                                    Self.byteString(Int64(whatsAppLastBytes)),
+                                    whatsAppLastFailed))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text(whatsAppStrings.neverRun)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    if whatsAppAutomatic, let next = whatsAppScheduler.nextFire {
+                        Text(String(format: whatsAppStrings.nextRunFormat,
+                                    Self.nextRunFormatter.string(from: next)))
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    Button(whatsAppStrings.manageButton) {
+                        SettingsRouter.shared.cleanerTool = "whatsApp"
+                        SettingsRouter.shared.page = .cleaner
+                        appDelegate()?.openSettingsWindow()
+                    }
+                    .controlSize(.small)
+                }
+                .padding(.horizontal, 11)
+                .padding(.top, 5)
+                .padding(.bottom, 11)
+            }
+        }
+        .frame(maxWidth: 380)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(0.05)))
     }
 
     // MARK: Automatic cleanup

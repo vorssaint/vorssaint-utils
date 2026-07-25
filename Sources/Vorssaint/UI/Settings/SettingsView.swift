@@ -11,6 +11,9 @@ import SwiftUI
 final class SettingsRouter: ObservableObject {
     static let shared = SettingsRouter()
     @Published var page: SettingsPage = .general
+    /// One-shot hint for the Cleaner page's tool switcher, so a panel surface
+    /// can land directly on a specific tool. Consumed and cleared on arrival.
+    @Published var cleanerTool: String?
     private init() {}
 }
 
@@ -42,7 +45,9 @@ struct SettingsView: View {
             (categories.essentials, [
                 SidebarItem(page: .general, title: l10n.s.tabGeneral, icon: "gearshape",
                             keywords: [l10n.s.launchAtLogin, l10n.s.languageLabel, l10n.s.showMenuBarIcon,
-                                       l10n.s.musicBlockTitle, l10n.s.musicBlockSection]),
+                                       l10n.s.musicBlockTitle, l10n.s.musicBlockSection,
+                                       FeatureStrings.appearance(l10n.language).label,
+                                       FeatureStrings.appearance(l10n.language).dark]),
                 // Searching any feature name lands here even when the feature
                 // is hidden, so the hub is always the way back.
                 SidebarItem(page: .features, title: FeatureStrings.hub(l10n.language).pageTitle,
@@ -68,7 +73,9 @@ struct SettingsView: View {
             (categories.windowsControls, [
                 SidebarItem(page: .mouse, title: l10n.s.tabMouse, icon: "computermouse",
                             keywords: [l10n.s.invertMouseScroll, l10n.s.middleClickTapPicker,
-                                       l10n.s.smoothScrollName, l10n.s.mouseNavigationEnable]),
+                                       l10n.s.smoothScrollName, l10n.s.mouseNavigationEnable,
+                                       FeatureStrings.mouseButtons(l10n.language).pageTitle,
+                                       FeatureStrings.mouseExceptions(l10n.language).listTitle]),
                 SidebarItem(page: .switcher, title: l10n.s.tabSwitcher, icon: "rectangle.on.rectangle",
                             keywords: [l10n.s.switcherEnable, l10n.s.dockClickMinimize,
                                        l10n.s.dockClickCycleWindows]),
@@ -91,6 +98,11 @@ struct SettingsView: View {
                             keywords: ["PDF", "GIF", l10n.s.mediaStartConvertPDF, l10n.s.ocrName]),
             ]),
             (categories.utilities, [
+                SidebarItem(page: .cleaner, title: l10n.s.cleanerName, icon: "sparkles",
+                            keywords: [l10n.s.cleanerScheduleTitle,
+                                       FeatureStrings.whatsAppDownloads(l10n.language).title,
+                                       FeatureStrings.whatsAppDownloads(l10n.language).automatic,
+                                       FeatureStrings.whatsAppDownloads(l10n.language).fileTypes]),
                 SidebarItem(page: .quickTools, title: l10n.s.quickToolsTab, icon: "wand.and.rays",
                             keywords: [l10n.s.launcherName, l10n.s.colorPickerName,
                                        l10n.s.micMuteName, l10n.s.ocrName,
@@ -111,6 +123,11 @@ struct SettingsView: View {
                 SidebarItem(page: .homebrew, title: l10n.s.homebrewName, icon: "shippingbox"),
                 SidebarItem(page: .uninstaller, title: l10n.s.uninstallerName, icon: "trash"),
                 SidebarItem(page: .keyDebounce, title: l10n.s.keyDebounceName, icon: "keyboard"),
+                SidebarItem(page: .superKey,
+                            title: FeatureStrings.superKey(l10n.language).pageTitle,
+                            icon: "capslock",
+                            keywords: [FeatureStrings.superKey(l10n.language).capsLockKey,
+                                       FeatureStrings.superKey(l10n.language).enableToggle]),
                 SidebarItem(page: .textSnippets, title: FeatureStrings.snippets(l10n.language).pageTitle,
                             icon: "text.append",
                             keywords: [FeatureStrings.snippets(l10n.language).triggerLabel,
@@ -217,10 +234,12 @@ struct SettingsView: View {
         case .mouse: MouseSettings()
         case .switcher: SwitcherSettings()
         case .keyDebounce: KeyboardDebounceSettings()
+        case .superKey: SuperKeySettings()
         case .cutPaste: CutPasteSettings()
         case .autoQuit: AutoQuitSettings()
         case .uninstaller: UninstallerView()
         case .urlCleaner: URLCleanerSettings()
+        case .cleaner: CleanerSettings()
         case .homebrew: HomebrewSettings()
         case .media: MediaSettings()
         case .clipboard: ClipboardSettings()
@@ -241,6 +260,7 @@ struct SettingsView: View {
 
 struct GeneralSettings: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var appearance = AppAppearanceController.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var hotkeys = HotkeyManager.shared
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
@@ -249,6 +269,8 @@ struct GeneralSettings: View {
     @AppStorage(DefaultsKey.showCountdown) private var showCountdown = false
     @AppStorage(DefaultsKey.musicBlockEnabled) private var musicBlockEnabled = false
     @AppStorage(DefaultsKey.musicBlockReplacementPath) private var musicBlockReplacementPath = ""
+
+    private var appearanceStrings: AppearanceStrings { FeatureStrings.appearance(l10n.language) }
 
     var body: some View {
         Form {
@@ -274,6 +296,12 @@ struct GeneralSettings: View {
                         Text(language.displayName).tag(language)
                     }
                 }
+                Picker(appearanceStrings.label, selection: $appearance.appearance) {
+                    ForEach(AppAppearance.allCases) { option in
+                        Text(option.title(appearanceStrings)).tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
             }
             Section(l10n.s.menuBarSection) {
                 if AppFeature.keepAwake.isAvailable {
@@ -680,6 +708,7 @@ struct MouseSettings: View {
     @AppStorage(DefaultsKey.smoothScrollEnabled) private var smoothScrollEnabled = false
     @AppStorage(DefaultsKey.smoothScrollStep) private var smoothScrollStep = SmoothScrollSupport.defaultStep
     @AppStorage(DefaultsKey.mouseNavigationEnabled) private var mouseNavigationEnabled = false
+    @AppStorage(DefaultsKey.mouseButtonShortcutsEnabled) private var mouseButtonShortcutsEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.middleClickTapFingers) private var middleClickTapFingers = 0
 
@@ -706,6 +735,9 @@ struct MouseSettings: View {
                     Text(l10n.s.scrollTrackpadNote)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    if inverterEnabled {
+                        MouseExceptionsList(scope: .scrollDirection)
+                    }
                 }
             }
             if AppFeature.smoothScroll.isAvailable {
@@ -729,6 +761,7 @@ struct MouseSettings: View {
                                 .foregroundStyle(.secondary)
                                 .frame(width: 34, alignment: .trailing)
                         }
+                        MouseExceptionsList(scope: .smoothScroll)
                     }
                 }
             }
@@ -746,7 +779,13 @@ struct MouseSettings: View {
                             .font(.caption)
                             .foregroundStyle(.green)
                     }
+                    if mouseNavigationEnabled {
+                        MouseExceptionsList(scope: .navigation)
+                    }
                 }
+            }
+            if AppFeature.mouseButtonShortcuts.isAvailable {
+                MouseButtonShortcutsSection()
             }
             if AppFeature.middleClick.isAvailable {
                 Section(l10n.s.middleClickSection) {
@@ -775,6 +814,9 @@ struct MouseSettings: View {
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
+                    if middleClickEnabled {
+                        MouseExceptionsList(scope: .middleClick)
+                    }
                 }
             }
             if accessibilityNoteVisible {
@@ -795,6 +837,7 @@ struct MouseSettings: View {
         let anyEngaged = (inverterEnabled && AppFeature.scrollInverter.isAvailable)
             || (smoothScrollEnabled && AppFeature.smoothScroll.isAvailable)
             || (mouseNavigationEnabled && AppFeature.mouseNavigation.isAvailable)
+            || (mouseButtonShortcutsEnabled && AppFeature.mouseButtonShortcuts.isAvailable)
             || (middleClickEnabled && AppFeature.middleClick.isAvailable)
         return anyEngaged && !permissions.accessibility
     }
@@ -819,6 +862,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherSimpleMode) private var switcherSimpleMode = false
     @AppStorage(DefaultsKey.switcherMergeTabs) private var switcherMergeTabs = false
     @AppStorage(DefaultsKey.switcherShowWindowlessFinder) private var switcherShowWindowlessFinder = true
+    @AppStorage(DefaultsKey.switcherCurrentSpaceOnly) private var switcherCurrentSpaceOnly = false
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
@@ -877,6 +921,12 @@ struct SwitcherSettings: View {
                     Toggle(l10n.s.switcherMergeTabs, isOn: $switcherMergeTabs)
                         .disabled(!switcherEnabled)
                     Text(l10n.s.switcherMergeTabsCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Toggle(l10n.s.switcherCurrentSpaceOnly, isOn: $switcherCurrentSpaceOnly)
+                        .disabled(!switcherEnabled)
+                    Text(l10n.s.switcherCurrentSpaceOnlyCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
 

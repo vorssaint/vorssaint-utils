@@ -530,7 +530,10 @@ extension Strings {
         mixerInputFallback: "このマイクが戻るまでデフォルトを使用します。",
         mixerInputTooltip: "マイクを選択",
         mixerInputErrorFormat: "変更できませんでした: %@",
-        mixerShowFinder: "Finder を表示",
+        mixerVisibleApps: "リストに表示するアプリ",
+        mixerAllShown: "すべて",
+        mixerHiddenCountLabel: "非表示",
+        mixerHideFromList: "リストから隠す",
 
         updatesSection: "アップデート",
         autoCheckToggle: "アップデートを自動的に確認",
@@ -876,8 +879,12 @@ extension Strings {
         highlightsTitle: "このアップデートの新機能",
         highlightsCaptionDockPreview: "Dock Preview がDockの拡大がオンのままでも動作するようになりました",
         highlightsCaptionScreenshot: "スクリーンショットにピクセルルーペとQRコードの読み取りが加わりました",
+        highlightsCaptionSnippetLibrary: "検索できるスニペットメニューがカーソル位置にスニペットを入力します",
         highlightsConfigure: "設定する",
         highlightsTry: "試す",
-        highlightsSeeAll: "すべての変更を見る"
+        highlightsSeeAll: "すべての変更を見る",
+        switcherCurrentSpaceOnly: "現在のデスクトップのみ表示",
+        switcherCurrentSpaceOnlyCaption: "今いるデスクトップのウインドウだけをスイッチャーに表示します。ウインドウを選んでも別のデスクトップには移動しません。",
+        shelfFileMissing: "ファイルはもう存在しません"
     )
 }

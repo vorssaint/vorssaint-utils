@@ -8,9 +8,10 @@ import UniformTypeIdentifiers
 
 /// A floating pad for short-lived text: meeting notes, numbers, fragments on
 /// their way somewhere else. Summoned from the panel, the quick panel or a
-/// global shortcut, it saves every edit by itself to one local file and stays
-/// on top while the user works in other apps, so nothing exists at rest and
-/// nothing is ever lost between openings.
+/// global shortcut, it saves every edit by itself to one local file, so
+/// nothing exists at rest and nothing is ever lost between openings. It steps
+/// aside on a click outside, and an option keeps it floating over other apps
+/// instead.
 final class ScratchpadService: ObservableObject {
     static let shared = ScratchpadService()
 
@@ -24,6 +25,8 @@ final class ScratchpadService: ObservableObject {
     private let hotkey = QuickToolHotkey(id: 18)
     private var panel: NSPanel?
     private var keyMonitor: Any?
+    private var localClickMonitor: Any?
+    private var outsideClickMonitor: Any?
     private weak var textView: NSTextView?
     private var pendingSave: DispatchWorkItem?
     private var lastSavedText: String?
@@ -294,9 +297,20 @@ final class ScratchpadService: ObservableObject {
 
     // MARK: - Monitors
 
-    /// Only Esc: the pad is a working surface, so clicks in other apps (to
-    /// copy something into it) and app switches never close it. It leaves by
-    /// Esc, its close button or the shortcut.
+    /// Esc always closes the pad, and so does a click anywhere outside it
+    /// unless the user asked for a pad that stays put while working in other
+    /// apps. The choice is read at click time, so flipping it in Settings
+    /// takes effect on an open pad.
+    private var closesOnClickOutside: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.scratchpadCloseOnClickOutside)
+    }
+
+    /// The export dialog is a click outside the pad by geometry, so saving to
+    /// a file must never be what closes it.
+    private var dismissesOnOutsideClick: Bool {
+        closesOnClickOutside && !Self.exportModalActive
+    }
+
     private func installMonitors(for panel: NSPanel) {
         removeMonitors()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak panel] event in
@@ -311,12 +325,39 @@ final class ScratchpadService: ObservableObject {
             }
             return event
         }
+        let mouseEvents: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
+            guard let self, let panel, panel.isVisible, self.dismissesOnOutsideClick else { return event }
+            if event.window !== panel, !Self.mouseIsInside(panel) {
+                self.hide()
+            }
+            return event
+        }
+        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
+            guard let self, let panel, panel.isVisible, self.dismissesOnOutsideClick else { return }
+            if event.windowNumber != panel.windowNumber, !Self.mouseIsInside(panel) {
+                self.hide()
+            }
+        }
+    }
+
+    /// A click on the pad's own edge (its resize border) still belongs to it.
+    private static func mouseIsInside(_ panel: NSPanel) -> Bool {
+        panel.frame.insetBy(dx: -2, dy: -2).contains(NSEvent.mouseLocation)
     }
 
     private func removeMonitors() {
         if let keyMonitor {
             NSEvent.removeMonitor(keyMonitor)
             self.keyMonitor = nil
+        }
+        if let localClickMonitor {
+            NSEvent.removeMonitor(localClickMonitor)
+            self.localClickMonitor = nil
+        }
+        if let outsideClickMonitor {
+            NSEvent.removeMonitor(outsideClickMonitor)
+            self.outsideClickMonitor = nil
         }
     }
 }

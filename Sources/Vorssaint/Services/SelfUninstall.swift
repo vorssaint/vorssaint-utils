@@ -74,6 +74,7 @@ enum SelfUninstall {
         DockClickService.shared.suspend()
         MiddleClickService.shared.suspend()
         PastePlainService.shared.suspend()
+        SnippetLibraryService.shared.suspend()
         ColorSamplerService.shared.suspend()
         QuickLauncherService.shared.suspend()
         ScreenTextService.shared.suspend()

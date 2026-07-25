@@ -530,7 +530,10 @@ extension Strings {
         mixerInputFallback: "在此麦克风恢复前使用默认输入。",
         mixerInputTooltip: "选择麦克风",
         mixerInputErrorFormat: "无法切换：%@",
-        mixerShowFinder: "显示访达",
+        mixerVisibleApps: "列表中的应用",
+        mixerAllShown: "全部",
+        mixerHiddenCountLabel: "已隐藏",
+        mixerHideFromList: "从列表中隐藏",
 
         updatesSection: "更新",
         autoCheckToggle: "自动检查更新",
@@ -876,8 +879,12 @@ extension Strings {
         highlightsTitle: "此更新的新功能",
         highlightsCaptionDockPreview: "Dock Preview 现在可以在开启 Dock 放大时使用",
         highlightsCaptionScreenshot: "截图工具新增了像素放大镜和二维码读取",
+        highlightsCaptionSnippetLibrary: "可搜索的片段菜单把任意片段直接输入到光标处",
         highlightsConfigure: "设置",
         highlightsTry: "试一试",
-        highlightsSeeAll: "查看全部更改"
+        highlightsSeeAll: "查看全部更改",
+        switcherCurrentSpaceOnly: "仅显示当前桌面",
+        switcherCurrentSpaceOnlyCaption: "切换器中只显示你所在桌面的窗口。选择窗口不会把你带到其他桌面。",
+        shelfFileMissing: "文件已不存在"
     )
 }

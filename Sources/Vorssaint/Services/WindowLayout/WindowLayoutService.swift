@@ -26,6 +26,9 @@ final class WindowLayoutService: ObservableObject {
     static let shared = WindowLayoutService()
 
     @Published private(set) var lastResult: WindowLayoutResult?
+    /// Bumped on every published result, so a late settle failure can tell
+    /// whether it still owns the feedback slot.
+    private var resultGeneration = 0
     @Published private(set) var failedShortcutActions: Set<WindowLayoutAction> = []
     @Published private(set) var isGestureRunning = false
 
@@ -38,6 +41,9 @@ final class WindowLayoutService: ObservableObject {
     private var gestureRunLoopSource: CFRunLoopSource?
     private var activeGesture: WindowPointerGesture?
     private var pendingGesture: PendingWindowGesture?
+    private var assistiveModeSuspensions: [CGWindowID: EnhancedUserInterfaceSuspension] = [:]
+    private var settleTimers: [CGWindowID: Timer] = [:]
+    private var gestureAssistiveMode: EnhancedUserInterfaceSuspension?
     /// Stamped on the press this service gives back to the system so none of
     /// our own taps mistake it for a fresh one.
     private static let syntheticEventMarker: Int64 = 0x564F5253
@@ -74,6 +80,14 @@ final class WindowLayoutService: ObservableObject {
     func suspend() {
         unregisterHotkeys()
         stopGestureTap()
+        for timer in settleTimers.values { timer.invalidate() }
+        settleTimers.removeAll()
+        let suspensions = assistiveModeSuspensions.values
+        assistiveModeSuspensions.removeAll()
+        // With the grant already revoked there is no safe way to touch the
+        // apps again; the flag comes back when the assistive client sets it.
+        guard AXIsProcessTrusted() else { return }
+        for suspension in suspensions { suspension.resume() }
     }
 
     func shortcutConflictTitle(_ shortcut: GlobalShortcut) -> String? {
@@ -100,7 +114,7 @@ final class WindowLayoutService: ObservableObject {
             guard let previous = previousFrames[target.windowID] else {
                 return finish(.failure(.noRestore))
             }
-            return setFrame(previous, on: target.window)
+            return setFrame(previous, on: target.window, windowID: target.windowID)
                 ? finish(.success(restored: true))
                 : finish(.failure(.failed))
         }
@@ -121,7 +135,8 @@ final class WindowLayoutService: ObservableObject {
                         targetRect: rect,
                         screenVisibleFrame: destination.visibleFrame,
                         action: .nextDisplay,
-                        on: target.window) {
+                        on: target.window,
+                        windowID: target.windowID) {
                 lastActions[target.windowID] = .nextDisplay
                 return finish(.success(restored: false))
             }
@@ -141,7 +156,8 @@ final class WindowLayoutService: ObservableObject {
                     targetRect: placement.rect,
                     screenVisibleFrame: screen.visibleFrame,
                     action: effectiveAction,
-                    on: target.window) {
+                    on: target.window,
+                    windowID: target.windowID) {
             lastActions[target.windowID] = effectiveAction
             return finish(.success(restored: false))
         }
@@ -150,6 +166,7 @@ final class WindowLayoutService: ObservableObject {
     }
 
     private func finish(_ result: WindowLayoutResult) -> WindowLayoutResult {
+        resultGeneration += 1
         lastResult = result
         return result
     }
@@ -206,39 +223,118 @@ final class WindowLayoutService: ObservableObject {
         return WindowLayoutPlacement(frame: axFrame(fromAppKit: integral), rect: integral)
     }
 
-    private func setFrame(_ frame: WindowLayoutFrame, on window: AXUIElement) -> Bool {
+    private func setFrame(_ frame: WindowLayoutFrame, on window: AXUIElement, windowID: CGWindowID) -> Bool {
         setFrame(frame,
                  targetRect: appKitFrame(fromAX: frame),
                  screenVisibleFrame: appKitFrame(fromAX: frame),
                  action: .restore,
-                 on: window)
+                 on: window,
+                 windowID: windowID)
     }
 
     private func setFrame(_ frame: WindowLayoutFrame,
                           targetRect: NSRect,
                           screenVisibleFrame: NSRect,
                           action: WindowLayoutAction,
-                          on window: AXUIElement) -> Bool {
+                          on window: AXUIElement,
+                          windowID: CGWindowID) -> Bool {
+        cancelSettle(for: windowID)
+        assistiveModeSuspensions.removeValue(forKey: windowID)?.resume()
+        assistiveModeSuspensions[windowID] = EnhancedUserInterfaceSuspension.suspend(forAppOf: window)
+
         let original = self.frame(of: window)
         if attempt(frame, targetRect: targetRect, action: action, on: window) {
+            assistiveModeSuspensions.removeValue(forKey: windowID)?.resume()
             return true
         }
 
-        if let original, shouldUseMaximizeFallback(for: action) {
+        // Some apps commit Accessibility size changes with a short delay, so
+        // the reads above can still see the old frame. Judging failure now and
+        // restoring the original is what used to leave windows moved but never
+        // resized (issue #334): let the window settle before deciding.
+        scheduleSettle(SettleContext(window: window,
+                                     windowID: windowID,
+                                     frame: frame,
+                                     targetRect: targetRect,
+                                     screenVisibleFrame: screenVisibleFrame,
+                                     action: action,
+                                     original: original,
+                                     resultGeneration: resultGeneration + 1),
+                       attempt: 0)
+        return true
+    }
+
+    private func scheduleSettle(_ context: SettleContext, attempt: Int) {
+        let timer = Timer(timeInterval: 0.15, repeats: false) { [weak self] _ in
+            guard let self else { return }
+            self.settleTimers[context.windowID] = nil
+            self.continueSettle(context, attempt: attempt)
+        }
+        settleTimers[context.windowID] = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func continueSettle(_ context: SettleContext, attempt: Int) {
+        if verified(context) {
+            concludeSettle(context, success: true)
+            return
+        }
+        if self.attempt(context.frame,
+                        targetRect: context.targetRect,
+                        action: context.action,
+                        on: context.window) {
+            concludeSettle(context, success: true)
+            return
+        }
+        if attempt == 0 {
+            scheduleSettle(context, attempt: 1)
+            return
+        }
+        if let original = context.original, shouldUseMaximizeFallback(for: context.action) {
             let currentRect = appKitFrame(fromAX: original)
             let maxFrame = axFrame(fromAppKit: WindowLayoutGeometry.rect(for: .maximize,
                                                                          current: currentRect,
-                                                                         visibleFrame: screenVisibleFrame))
-            applyFrame(maxFrame, on: window)
-            if attempt(frame, targetRect: targetRect, action: action, on: window) {
-                return true
+                                                                         visibleFrame: context.screenVisibleFrame))
+            applyFrame(maxFrame, on: context.window)
+            if self.attempt(context.frame,
+                            targetRect: context.targetRect,
+                            action: context.action,
+                            on: context.window) {
+                concludeSettle(context, success: true)
+                return
             }
         }
+        concludeSettle(context, success: false)
+    }
 
-        if let original {
-            applyFrame(original, on: window)
+    private func verified(_ context: SettleContext) -> Bool {
+        guard let actual = frame(of: context.window) else { return false }
+        return actual.isClose(to: context.frame, tolerance: frameTolerance)
+            || accepted(actual: actual, targetRect: context.targetRect, action: context.action)
+    }
+
+    // The action already reported success while the window was settling, so a
+    // refusal this late restores the window, undoes the bookkeeping and
+    // republishes the result the panel feedback listens to.
+    private func concludeSettle(_ context: SettleContext, success: Bool) {
+        assistiveModeSuspensions.removeValue(forKey: context.windowID)?.resume()
+        guard !success else { return }
+        if let original = context.original {
+            applyFrame(original, on: context.window)
         }
-        return false
+        if context.action != .restore {
+            previousFrames.removeValue(forKey: context.windowID)
+            lastActions.removeValue(forKey: context.windowID)
+        }
+        // A second action already published a fresh result; this stale
+        // failure must not overwrite the feedback the person is reading.
+        if context.resultGeneration == resultGeneration {
+            lastResult = .failure(.failed)
+        }
+    }
+
+    private func cancelSettle(for windowID: CGWindowID) {
+        settleTimers.removeValue(forKey: windowID)?.invalidate()
     }
 
     private func attempt(_ frame: WindowLayoutFrame,
@@ -438,6 +534,7 @@ final class WindowLayoutService: ObservableObject {
         gestureRunLoopSource = nil
         activeGesture = nil
         pendingGesture = nil
+        endGestureAssistiveMode()
         isGestureRunning = false
     }
 
@@ -561,6 +658,7 @@ final class WindowLayoutService: ObservableObject {
                 apply(gesture, pointer: event.location)
             }
             activeGesture = nil
+            endGestureAssistiveMode()
             return nil
 
         case .replayThenPass:
@@ -579,8 +677,18 @@ final class WindowLayoutService: ObservableObject {
         case .dropState:
             activeGesture = nil
             pendingGesture = nil
+            endGestureAssistiveMode()
             return Unmanaged.passUnretained(event)
         }
+    }
+
+    private func endGestureAssistiveMode() {
+        let suspension = gestureAssistiveMode
+        gestureAssistiveMode = nil
+        // With the grant revoked there is no safe way to touch the app again;
+        // the flag comes back when the assistive client sets it.
+        guard AXIsProcessTrusted() else { return }
+        suspension?.resume()
     }
 
     private func gestureChord(type: CGEventType,
@@ -641,6 +749,10 @@ final class WindowLayoutService: ObservableObject {
     /// so a plain modifier click never activates or reorders a window.
     private func promote(_ pending: PendingWindowGesture, pointer: CGPoint) {
         pendingGesture = nil
+        // Suspended for the whole gesture, not per frame write: the writes come
+        // at pointer speed and the flag only needs to move twice.
+        gestureAssistiveMode?.resume()
+        gestureAssistiveMode = EnhancedUserInterfaceSuspension.suspend(forAppOf: pending.window)
         if UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureRaiseWindow) {
             _ = pending.app.activate(options: [])
             AXUIElementPerformAction(pending.window, kAXRaiseAction as CFString)
@@ -896,6 +1008,21 @@ private struct WindowLayoutTarget {
     let window: AXUIElement
     let windowID: CGWindowID
     let frame: WindowLayoutFrame
+}
+
+/// Everything the deferred settle verification needs to finish judging a
+/// discrete layout action after the grace period.
+private struct SettleContext {
+    let window: AXUIElement
+    let windowID: CGWindowID
+    let frame: WindowLayoutFrame
+    let targetRect: NSRect
+    let screenVisibleFrame: NSRect
+    let action: WindowLayoutAction
+    let original: WindowLayoutFrame?
+    /// Which published result this settle belongs to; a late failure only
+    /// speaks when no newer action has published since.
+    let resultGeneration: Int
 }
 
 private struct WindowLayoutPlacement {

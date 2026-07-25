@@ -23,10 +23,9 @@ struct MixerOutputDevice: Identifiable, Equatable {
 struct MixerApp: Identifiable, Equatable {
     /// Identifies the row and its engine while the app runs.
     let id: String
-    /// The key this row's volume and route are saved under, or nil when the
-    /// app has no bundle id. Such a row is still listed and adjustable, but
-    /// nothing about it is written to disk: two unrelated processes can share
-    /// a display name, and one would inherit the other's volume.
+    /// The key this row's volume and route are saved under: bundle id, or
+    /// display name for a process without one. Nil when neither exists; such
+    /// a row is still listed and adjustable, but writes nothing to disk.
     let persistenceID: String?
     let ownerPid: pid_t
     let name: String
@@ -47,6 +46,13 @@ struct MixerApp: Identifiable, Equatable {
     var identity: MixerRowIdentity {
         MixerRowIdentity(rowID: id, persistenceID: persistenceID)
     }
+}
+
+/// An app the user took out of the mixer list, remembered by name so it can
+/// be brought back even while it is not running (issue #300).
+struct MixerHiddenApp: Identifiable, Equatable {
+    let id: String
+    let name: String
 }
 
 /// Per-app volume control, something macOS does not offer natively.
@@ -74,6 +80,9 @@ final class AppVolumeMixer: ObservableObject {
     /// Set when tap creation fails with a permission error, so the panel can
     /// point at the System Audio Recording consent.
     @Published private(set) var needsPermission = false
+    /// Apps kept out of the list (issue #300), including the Finder when its
+    /// own toggle hides it, so the panel can offer to bring any of them back.
+    @Published private(set) var hiddenApps: [MixerHiddenApp] = []
 
     private var engines: [String: any GainEngine] = [:]
     /// Arbitrates the engine builds running off-main: it suppresses duplicate
@@ -87,6 +96,10 @@ final class AppVolumeMixer: ObservableObject {
     /// above: the wait before letting a tap go has to be measured from the
     /// moment the audio disappeared, not from whenever the tap was built.
     private var objectsLostAt: [String: Double] = [:]
+    /// The last render count seen for each row's engine, so reconciliation
+    /// can tell an engine that is rendering from one the HAL quietly stopped
+    /// driving after sleep or a device reconfiguration (issue #341).
+    private var engineRenderProgress: [String: MixerRoutingSupport.EngineRenderObservation] = [:]
     private var engineReconcilePending = false
     /// Volumes and routes of rows without a bundle id: adjustable while the
     /// process runs, never written to disk.
@@ -103,6 +116,10 @@ final class AppVolumeMixer: ObservableObject {
     /// registered with the HAL.
     private var runningListeners = Set<AudioObjectID>()
     private var stopped = false
+    /// Waking is the one moment the render path of a live tap can die with no
+    /// audio notification left to reveal it, so the wake itself asks for a
+    /// refresh and reconciliation verifies every engine is still rendering.
+    private var wakeObserver: NSObjectProtocol?
     private var lastAutomaticLoweredOutputUID: String?
     /// The output volume as it was before the headphone disconnect protection
     /// lowered it, so the speakers can be handed back the way they were found.
@@ -144,6 +161,7 @@ final class AppVolumeMixer: ObservableObject {
     /// matching app produces sound — no panel interaction needed.
     func start() {
         stopped = false
+        publishHiddenApps()
         guard !listenerInstalled else {
             refreshApps()
             return
@@ -153,6 +171,23 @@ final class AppVolumeMixer: ObservableObject {
         installListener(selector: kAudioHardwarePropertyDefaultOutputDevice)
         if Self.isSupported {
             installListener(selector: kAudioHardwarePropertyProcessObjectList)
+        }
+        if wakeObserver == nil {
+            wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.didWakeNotification,
+                object: nil, queue: .main) { [weak self] _ in
+                guard let self else { return }
+                // A wake can wedge an engine while leaving the HAL snapshot
+                // byte-identical, and apply() skips reconciliation when
+                // nothing changed. Dropping the stored render observations
+                // and reconciling directly arms the note-then-recheck
+                // sequence deterministically, so a frozen engine is caught
+                // even on a quiet wake.
+                self.engineRenderProgress.removeAll()
+                self.refreshApps()
+                self.reconcileEngines(with: self.apps)
+                self.scheduleEngineReconcile(after: 2)
+            }
         }
         refreshApps()
     }
@@ -166,6 +201,7 @@ final class AppVolumeMixer: ObservableObject {
         engines.removeAll()
         engineChangeAt.removeAll()
         objectsLostAt.removeAll()
+        engineRenderProgress.removeAll()
         restoreLoweredOutputVolume()
     }
 
@@ -180,7 +216,12 @@ final class AppVolumeMixer: ObservableObject {
         refresh.discardInFlight()
         pruneRunningListeners(keeping: [])
         removeGlobalListeners()
+        if let wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+            self.wakeObserver = nil
+        }
         if !apps.isEmpty { apps = [] }
+        if !hiddenApps.isEmpty { hiddenApps = [] }
         if !outputDevices.isEmpty { outputDevices = [] }
         if currentOutputDeviceUID != nil { currentOutputDeviceUID = nil }
         if outputSwitchError != nil { outputSwitchError = nil }
@@ -511,6 +552,8 @@ final class AppVolumeMixer: ObservableObject {
         engine.gain = Float(latestApp.volume)
         let previous = engines.updateValue(engine, forKey: id)
         engineChangeAt[id] = CFAbsoluteTimeGetCurrent()
+        // The fresh engine starts its render count over.
+        engineRenderProgress.removeValue(forKey: id)
         previous?.stop()
     }
 
@@ -520,6 +563,7 @@ final class AppVolumeMixer: ObservableObject {
         engines.removeValue(forKey: id)?.stop()
         engineChangeAt.removeValue(forKey: id)
         objectsLostAt.removeValue(forKey: id)
+        engineRenderProgress.removeValue(forKey: id)
     }
 
     private func rowMayBeTapped(_ app: MixerApp) -> Bool {
@@ -567,6 +611,9 @@ final class AppVolumeMixer: ObservableObject {
         let sessionVolumes: [String: Double]
         let sessionRoutes: [String: String]
         let showFinder: Bool
+        /// Persistence ids the list must leave out: the apps the user hid,
+        /// plus the Finder while its toggle is off (issue #300).
+        let hiddenRowIDs: Set<String>
         let ownPid: pid_t
     }
 
@@ -606,6 +653,9 @@ final class AppVolumeMixer: ObservableObject {
             sessionVolumes: sessionVolumes,
             sessionRoutes: sessionRoutes,
             showFinder: UserDefaults.standard.bool(forKey: DefaultsKey.mixerShowFinder),
+            hiddenRowIDs: MixerRoutingSupport.hiddenRowIDs(
+                hiddenApps: savedHiddenApps(),
+                showFinder: UserDefaults.standard.bool(forKey: DefaultsKey.mixerShowFinder)),
             ownPid: ProcessInfo.processInfo.processIdentifier)
 
         halQueue.async { [weak self] in
@@ -719,10 +769,7 @@ final class AppVolumeMixer: ObservableObject {
             // Show every regular app that holds an audio connection, not only
             // the ones making sound this instant, so apps are adjustable before
             // they play and stay put between sounds.
-            guard let app = ResponsibleProcess.regularAppOwner(of: pid),
-                  !MixerRoutingSupport.isHiddenFromMixer(bundleIdentifier: app.bundleIdentifier,
-                                                         showFinder: showFinder)
-            else { continue }
+            guard let app = ResponsibleProcess.regularAppOwner(of: pid) else { continue }
             let owner = app.processIdentifier
             let name = ResponsibleProcess.displayName(pid: owner, fallback: app.localizedName ?? "pid \(owner)")
             // Bypassed apps (Zoom, DAWs) still get a row — hiding them read
@@ -751,9 +798,17 @@ final class AppVolumeMixer: ObservableObject {
 
         var next: [MixerApp] = []
         for (owner, objects) in groups {
-            let name = ResponsibleProcess.displayName(pid: owner, fallback: "pid \(owner)")
+            let fallbackName = "pid \(owner)"
+            let name = ResponsibleProcess.displayName(pid: owner, fallback: fallbackName)
+            // The pid fallback is not a name to save under: pids recycle.
             let identity = MixerRoutingSupport.rowIdentity(bundleIdentifier: bundleHints[owner],
-                                                           ownerPid: owner)
+                                                           ownerPid: owner,
+                                                           displayName: name == fallbackName ? nil : name)
+            // Hidden means no row, and with no row the engine reconciliation
+            // below tears its tap down too: an app taken off the list always
+            // plays untouched, never silently attenuated (issue #300).
+            if MixerRoutingSupport.isHiddenFromMixer(persistenceID: identity.persistenceID,
+                                                     hiddenIDs: request.hiddenRowIDs) { continue }
             let isBypassed = bypassed.contains(owner)
             let route = isBypassed ? nil : storedRoute(for: identity,
                                                        saved: savedOutputs,
@@ -970,6 +1025,35 @@ final class AppVolumeMixer: ObservableObject {
             // starts its own wait rather than inheriting this one.
             objectsLostAt.removeValue(forKey: id)
 
+            // Waking from sleep, or a device renegotiating right after, can
+            // leave the aggregate wedged: its IO proc never runs again while
+            // the tap keeps muting the app, and nothing else about the engine
+            // looks wrong, so it used to be kept forever and the app stayed
+            // silent until quit (issue #341). A render count that stops
+            // moving while the app is playing is conclusive: the engine goes
+            // away at once, which unmutes the app even if the rebuild below
+            // cannot land yet, and a fresh tap takes its place.
+            switch MixerRoutingSupport.engineRenderVerdict(previous: engineRenderProgress[id],
+                                                           cycles: engine.renderCycles,
+                                                           isPlaying: app.isPlaying,
+                                                           now: now) {
+            case .note(let observation, let recheckAfter):
+                engineRenderProgress[id] = observation
+                if let recheckAfter {
+                    nextPassDelay = min(nextPassDelay ?? recheckAfter, recheckAfter)
+                }
+            case .stalled(let recheckAfter):
+                nextPassDelay = min(nextPassDelay ?? recheckAfter, recheckAfter)
+            case .wedged:
+                engines.removeValue(forKey: id)?.stop()
+                engineRenderProgress.removeValue(forKey: id)
+                engineChangeAt[id] = now
+                applyRouting(for: app)
+                continue
+            case nil:
+                engineRenderProgress.removeValue(forKey: id)
+            }
+
             guard engine.tappedObjects != app.audioObjects
                 || engine.outputDeviceUID != app.effectiveOutputDeviceUID
                 || !appNeedsEngine(app) else { continue }
@@ -985,6 +1069,7 @@ final class AppVolumeMixer: ObservableObject {
             // other rebuild keeps its tap until the replacement is running.
             if !outputDevices.contains(where: { $0.uid == engine.outputDeviceUID }) {
                 engines.removeValue(forKey: id)?.stop()
+                engineRenderProgress.removeValue(forKey: id)
             }
             applyRouting(for: app)
         }
@@ -1047,9 +1132,72 @@ final class AppVolumeMixer: ObservableObject {
         return Defaults.sanitizedAppOutputDevices(raw)
     }
 
-    /// The volume of a row: from disk when the app has a bundle id, otherwise
-    /// from this session only. Static so a refresh pass can resolve rows off
-    /// the main thread from copies of the session maps.
+    // MARK: - List visibility (issue #300)
+
+    /// Takes a row out of the list. Its saved volume and route are kept for
+    /// the day it comes back; while hidden the app is never tapped, so it
+    /// always plays untouched. The Finder keeps its own preference key, from
+    /// the days when it was the only row that could be hidden.
+    func hideFromList(_ app: MixerApp) {
+        guard let id = app.persistenceID else { return }
+        if id == MixerRoutingSupport.finderBundleIdentifier {
+            UserDefaults.standard.set(false, forKey: DefaultsKey.mixerShowFinder)
+        } else {
+            var hidden = savedHiddenApps()
+            hidden[id] = app.name
+            persistHiddenApps(hidden)
+        }
+        publishHiddenApps()
+        refreshApps()
+    }
+
+    /// Puts a hidden app back on the list; its saved volume and route apply
+    /// again on the next refresh.
+    func showInList(id: String) {
+        if id == MixerRoutingSupport.finderBundleIdentifier {
+            UserDefaults.standard.set(true, forKey: DefaultsKey.mixerShowFinder)
+        } else {
+            var hidden = savedHiddenApps()
+            hidden.removeValue(forKey: id)
+            persistHiddenApps(hidden)
+        }
+        publishHiddenApps()
+        refreshApps()
+    }
+
+    private func savedHiddenApps() -> [String: String] {
+        MixerRoutingSupport.sanitizedHiddenApps(
+            UserDefaults.standard.dictionary(forKey: DefaultsKey.mixerHiddenApps) ?? [:])
+    }
+
+    private func persistHiddenApps(_ hidden: [String: String]) {
+        if hidden.isEmpty {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.mixerHiddenApps)
+        } else {
+            UserDefaults.standard.set(hidden, forKey: DefaultsKey.mixerHiddenApps)
+        }
+    }
+
+    /// Rebuilds the published hidden list: the stored map, plus the Finder
+    /// while its toggle keeps it out, sorted the same way as the visible rows.
+    private func publishHiddenApps() {
+        var entries = savedHiddenApps().map { MixerHiddenApp(id: $0.key, name: $0.value) }
+        if !UserDefaults.standard.bool(forKey: DefaultsKey.mixerShowFinder) {
+            let finderID = MixerRoutingSupport.finderBundleIdentifier
+            let name = NSRunningApplication.runningApplications(withBundleIdentifier: finderID)
+                .first?.localizedName ?? "Finder"
+            entries.append(MixerHiddenApp(id: finderID, name: name))
+        }
+        entries.sort {
+            MixerRoutingSupport.displayOrderedBefore(name: $0.name, id: $0.id,
+                                                     otherName: $1.name, otherID: $1.id)
+        }
+        if hiddenApps != entries { hiddenApps = entries }
+    }
+
+    /// The volume of a row: from disk when the row has a key to save under,
+    /// otherwise from this session only. Static so a refresh pass can resolve
+    /// rows off the main thread from copies of the session maps.
     private static func storedVolume(for identity: MixerRowIdentity,
                                      saved: [String: Double],
                                      session: [String: Double]) -> Double? {
@@ -1074,9 +1222,8 @@ final class AppVolumeMixer: ObservableObject {
 
     private func persistVolume(_ volume: Double, for app: MixerApp) {
         guard let id = app.persistenceID else {
-            // No bundle id, no identity worth writing down: a display name is
-            // shared by unrelated processes, and one would come back wearing
-            // the other's volume. The slider still works while the app runs.
+            // Neither a bundle id nor a display name: nothing stable to write
+            // down. The slider still works while the app runs.
             if isUnity(volume) {
                 sessionVolumes.removeValue(forKey: app.id)
             } else {
@@ -1358,6 +1505,10 @@ private protocol GainEngine: AnyObject {
     var gain: Float { get set }
     var tappedObjects: [AudioObjectID] { get }
     var outputDeviceUID: String { get }
+    /// How many IO callbacks the engine has completed. A count that stops
+    /// moving while the tapped app is playing means the aggregate is no
+    /// longer rendering, so the tap can only mute (issue #341).
+    var renderCycles: UInt64 { get }
     func stop()
 }
 
@@ -1377,7 +1528,24 @@ private final class TapGainEngine: GainEngine {
     /// torn float write is harmless here (one transient sample scale).
     private final class GainBox { var value: Float = 1 }
 
+    /// Written on the realtime audio thread, read from the main thread; the
+    /// reader only asks whether the value moved at all, so being one
+    /// callback behind is harmless.
+    private final class CycleBox { var value: UInt64 = 0 }
+
+    /// One limiter per output buffer, preallocated so the realtime thread
+    /// never allocates. Touched only by the IO proc once rendering starts.
+    private final class LimiterBox {
+        var limiters: ContiguousArray<BoostLimiter>
+        init(sampleRate: Double, bufferCount: Int) {
+            limiters = ContiguousArray(repeating: BoostLimiter(sampleRate: sampleRate),
+                                       count: bufferCount)
+        }
+    }
+
     private let gainBox = GainBox()
+    private let cycleBox = CycleBox()
+    var renderCycles: UInt64 { cycleBox.value }
     private var tapID = AudioObjectID(0)
     private var aggregateID = AudioObjectID(0)
     private var ioProc: AudioDeviceIOProcID?
@@ -1413,7 +1581,15 @@ private final class TapGainEngine: GainEngine {
         }
 
         let box = gainBox
+        // A boost pushes loud samples past full scale, and clamping the
+        // overshoot flattens every peak into audible crackle (issue #326).
+        // The limiter turns the whole signal down for just the moment a peak
+        // would not fit, so a boosted app gets louder without distorting.
+        let limiterBox = LimiterBox(sampleRate: Self.nominalSampleRate(of: aggregateID),
+                                    bufferCount: 8)
+        let cycles = cycleBox
         guard AudioDeviceCreateIOProcIDWithBlock(&ioProc, aggregateID, nil, { _, input, _, output, _ in
+            cycles.value &+= 1
             let inputBuffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
             let outputBuffers = UnsafeMutableAudioBufferListPointer(output)
             var gain = box.value
@@ -1423,13 +1599,19 @@ private final class TapGainEngine: GainEngine {
                 guard let source = inputBuffer.mData?.assumingMemoryBound(to: Float.self),
                       let destination = outputBuffers[index].mData?.assumingMemoryBound(to: Float.self)
                 else { continue }
-                let frames = min(Int(inputBuffer.mDataByteSize),
-                                 Int(outputBuffers[index].mDataByteSize)) / MemoryLayout<Float>.size
-                vDSP_vsmul(source, 1, &gain, destination, 1, vDSP_Length(frames))
-                // A boost can push samples past [-1, 1]; hard-limit so nothing out
-                // of range reaches the device (a clean clip, never garbage).
-                if boosting {
-                    vDSP_vclip(destination, 1, &low, &high, destination, 1, vDSP_Length(frames))
+                let samples = min(Int(inputBuffer.mDataByteSize),
+                                  Int(outputBuffers[index].mDataByteSize)) / MemoryLayout<Float>.size
+                vDSP_vsmul(source, 1, &gain, destination, 1, vDSP_Length(samples))
+                guard boosting else { continue }
+                let channels = Int(outputBuffers[index].mNumberChannels)
+                if index < limiterBox.limiters.count, channels > 0, samples % channels == 0 {
+                    limiterBox.limiters[index].process(destination,
+                                                       frames: samples / channels,
+                                                       channels: channels)
+                } else {
+                    // A stream shaped like nothing a tap produces still must
+                    // not hand the device samples out of range.
+                    vDSP_vclip(destination, 1, &low, &high, destination, 1, vDSP_Length(samples))
                 }
             }
         }) == noErr else {
@@ -1442,6 +1624,16 @@ private final class TapGainEngine: GainEngine {
             stop()
             return nil
         }
+    }
+
+    /// The rate the aggregate renders at, for the limiter's release timing.
+    /// A failed read falls back to the common device rate; being off by a
+    /// device's worth of rate only shifts the release by milliseconds.
+    private static func nominalSampleRate(of deviceID: AudioObjectID) -> Double {
+        var sampleRate: Float64 = 0
+        guard AppVolumeMixer.read(deviceID, kAudioDevicePropertyNominalSampleRate, &sampleRate),
+              sampleRate > 0 else { return 48000 }
+        return sampleRate
     }
 
     func stop() {

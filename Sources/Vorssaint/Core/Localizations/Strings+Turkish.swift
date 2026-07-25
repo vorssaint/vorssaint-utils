@@ -530,7 +530,10 @@ extension Strings {
         mixerInputFallback: "Bu mikrofon geri dönene kadar varsayılan kullanılıyor.",
         mixerInputTooltip: "Mikrofon seç",
         mixerInputErrorFormat: "Geçiş yapılamadı: %@",
-        mixerShowFinder: "Finder'ı göster",
+        mixerVisibleApps: "Listedeki uygulamalar",
+        mixerAllShown: "Tümü",
+        mixerHiddenCountLabel: "Gizli",
+        mixerHideFromList: "Listeden gizle",
 
         updatesSection: "Güncellemeler",
         autoCheckToggle: "Güncellemeleri otomatik denetle",
@@ -876,8 +879,12 @@ extension Strings {
         highlightsTitle: "Bu güncellemedeki yenilikler",
         highlightsCaptionDockPreview: "Dock Preview artık Dock büyütme açıkken de çalışıyor",
         highlightsCaptionScreenshot: "Ekran görüntüsü aracına piksel büyüteci ve QR kod okuma eklendi",
+        highlightsCaptionSnippetLibrary: "Aranabilir parçacık menüsü istediğiniz parçacığı imlece yazar",
         highlightsConfigure: "Ayarla",
         highlightsTry: "Dene",
-        highlightsSeeAll: "Tüm değişiklikleri gör"
+        highlightsSeeAll: "Tüm değişiklikleri gör",
+        switcherCurrentSpaceOnly: "Yalnızca geçerli masaüstünü göster",
+        switcherCurrentSpaceOnlyCaption: "Değiştiricide yalnızca bulunduğunuz masaüstündeki pencereler listelenir. Bir pencere seçmek sizi asla başka bir masaüstüne taşımaz.",
+        shelfFileMissing: "Dosya artık yok"
     )
 }
