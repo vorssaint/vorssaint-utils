@@ -25,6 +25,13 @@ enum PanelMetricColor {
         scheme == .light ? Color(red: 0.00, green: 0.43, blue: 0.54) : .cyan
     }
 
+    /// iStats-style primary accent for the neutral gauges (performance cores,
+    /// pressure, memory, app). Brighter systemBlue in dark, deep blue in light.
+    static func blue(for scheme: ColorScheme) -> Color {
+        scheme == .light ? Color(red: 0.00, green: 0.34, blue: 0.82)
+                         : Color(red: 0.24, green: 0.56, blue: 1.00)
+    }
+
     static func mint(for scheme: ColorScheme) -> Color {
         scheme == .light ? Color(red: 0.00, green: 0.44, blue: 0.40) : .mint
     }

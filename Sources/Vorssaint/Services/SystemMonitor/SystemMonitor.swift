@@ -142,7 +142,7 @@ final class SystemMonitor: ObservableObject {
     private var sensorKeysPrepared = false
     private var fanKeysPrepared = false
     private var extraSensorKeys: [SMCClient.Key] = []
-    private var fanKeys: [(ac: SMCClient.Key, max: SMCClient.Key?)] = []
+    private var fanKeys: [(ac: SMCClient.Key, min: SMCClient.Key?, max: SMCClient.Key?)] = []
     private var lastTemperatureSensors: [TemperatureSensor] = []
     private var lastFans: [FanReading] = []
 
@@ -929,7 +929,8 @@ final class SystemMonitor: ObservableObject {
         // list, so discover them for either.
         if (needTemperature || needSensors), !fanKeysPrepared {
             fanKeysPrepared = true
-            // FNum gives the count, F0Ac/F1Ac/... the actual RPM, F0Mx the max.
+            // FNum gives the count, F{i}Ac the actual RPM, F{i}Mn/F{i}Mx the
+            // operating min/max used to scale the headline Fans ring like iStats.
             var count = 0
             if let fnum = client.key(named: "FNum"), let value = client.readValue(fnum),
                value > 0, value < 12 {
@@ -937,7 +938,7 @@ final class SystemMonitor: ObservableObject {
             }
             fanKeys = (0..<count).compactMap { i in
                 guard let ac = client.key(named: "F\(i)Ac") else { return nil }
-                return (ac, client.key(named: "F\(i)Mx"))
+                return (ac, client.key(named: "F\(i)Mn"), client.key(named: "F\(i)Mx"))
             }
         }
         if needSensors, !sensorKeysPrepared {
@@ -964,8 +965,9 @@ final class SystemMonitor: ObservableObject {
         guard let smc else { return [] }
         return fanKeys.enumerated().compactMap { index, pair in
             guard let rpm = smc.readValue(pair.ac), rpm >= 0, rpm < 20000 else { return nil }
+            let minRPM = pair.min.flatMap { smc.readValue($0) }.map { Int($0.rounded()) } ?? 0
             let maxRPM = pair.max.flatMap { smc.readValue($0) }.map { Int($0.rounded()) } ?? 0
-            return FanReading(index: index, rpm: Int(rpm.rounded()), maxRPM: maxRPM)
+            return FanReading(index: index, rpm: Int(rpm.rounded()), minRPM: minRPM, maxRPM: maxRPM)
         }
     }
 

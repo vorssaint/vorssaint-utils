@@ -54,6 +54,11 @@ struct SystemSection: View {
     @AppStorage(DefaultsKey.monitorSysUptime) private var sysUptime = true
     @AppStorage(DefaultsKey.panelSystemOrder) private var systemOrderRaw = ""
     @State private var draggingBlock: Block?
+    // Transient hover reveal for the Sensors list: hovering the temperature
+    // wheels opens it (iStats-style), released after a short grace period so
+    // sliding onto the list doesn't collapse it. ORs with the pinned toggle.
+    @State private var hoverSensors = false
+    @State private var hoverSensorsToken = 0
 
     var body: some View {
         PanelSection(.system, title: l10n.s.systemSection, collapsible: collapsible,
@@ -324,6 +329,8 @@ struct SystemSection: View {
                                   color: gaugeColor(monitor.snapshot.batteryTemperature))
                     }
                 }
+                // Hovering the temperature wheels fluidly reveals the sensor list.
+                .onHover { setSensorHover($0) }
                 metricExpansion(.cpu)
                 metricExpansion(.gpu)
             }
@@ -459,6 +466,25 @@ struct SystemSection: View {
 
     // MARK: Sensors (temperatures, power, fans)
 
+    /// The sensor list is showing if the user pinned it open OR is hovering the
+    /// temperature wheels / the list itself.
+    private var sensorsVisible: Bool { sensorsExpanded || hoverSensors }
+
+    /// Debounced hover so the reveal survives the small gap between the wheels
+    /// and the list. A newer event (in or out) cancels a pending collapse.
+    private func setSensorHover(_ hovering: Bool) {
+        hoverSensorsToken += 1
+        if hovering {
+            withAnimation(.easeInOut(duration: 0.15)) { hoverSensors = true }
+        } else {
+            let token = hoverSensorsToken
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+                guard token == hoverSensorsToken else { return }
+                withAnimation(.easeInOut(duration: 0.15)) { hoverSensors = false }
+            }
+        }
+    }
+
     @ViewBuilder
     private func sensorsRows(editing: Bool) -> some View {
         let strings = FeatureStrings.sensors(l10n.language)
@@ -476,10 +502,10 @@ struct SystemSection: View {
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 8, weight: .semibold))
                                 .foregroundStyle(.secondary)
-                                .rotationEffect(.degrees(sensorsExpanded ? 90 : 0))
+                                .rotationEffect(.degrees(sensorsVisible ? 90 : 0))
                             subsectionLabel(strings.section)
                             Spacer(minLength: 0)
-                            if !sensorsExpanded { sensorsSummary }
+                            if !sensorsVisible { sensorsSummary }
                         }
                         .contentShape(Rectangle())
                     }
@@ -488,10 +514,11 @@ struct SystemSection: View {
                         PanelInlineHideButton(isVisible: $sysSensors)
                     }
                 }
-                if sensorsExpanded {
+                if sensorsVisible {
                     sensorsBody(strings)
                 }
             }
+            .onHover { setSensorHover($0) }
         }
     }
 
@@ -633,7 +660,7 @@ struct SystemSection: View {
         } else {
             let eCount = min(max(0, monitor.snapshot.efficiencyCoreCount), cores.count)
             let ePink = PanelMetricColor.pink(for: colorScheme)
-            let pCyan = PanelMetricColor.cyan(for: colorScheme)
+            let pCyan = PanelMetricColor.blue(for: colorScheme)
             let s = FeatureStrings.sensors(l10n.language)
             // Efficiency cores are the trailing cores (perflevel1); performance
             // cores lead (perflevel0). iStats groups efficiency first, so mirror
@@ -1003,8 +1030,8 @@ struct SystemSection: View {
                     HStack(spacing: 10) {
                         Donut(caption: l10n.s.memoryPressure, percent: pressurePercent,
                               color: pressureColor, onTap: tapMemory)
-                        Donut(caption: l10n.s.memorySection, percent: memoryPercent,
-                              color: PanelMetricColor.mint(for: colorScheme), onTap: tapMemory)
+                        SegmentedDonut(caption: l10n.s.memorySection, percent: memoryPercent,
+                                       segments: memorySegments, onTap: tapMemory)
                     }
                     memoryBreakdown
                     metricExpansion(.memory)
@@ -1042,8 +1069,23 @@ struct SystemSection: View {
         switch monitor.snapshot.memoryPressure {
         case .warning: return PanelMetricColor.yellow(for: colorScheme)
         case .critical: return PanelMetricColor.red(for: colorScheme)
-        default: return PanelMetricColor.cyan(for: colorScheme)
+        default: return PanelMetricColor.blue(for: colorScheme)
         }
+    }
+
+    /// Memory ring segments (app / wired / compressed as fractions of total),
+    /// so the wheel is stacked and multi-colour like iStats instead of one arc.
+    /// Free is left as the faint track.
+    private var memorySegments: [DonutSegment] {
+        guard let app = monitor.snapshot.memoryApp, let wired = monitor.snapshot.memoryWired,
+              let comp = monitor.snapshot.memoryCompressed, let total = monitor.snapshot.memoryTotal,
+              total > 0 else { return [] }
+        let t = Double(total)
+        return [
+            DonutSegment(fraction: Double(app) / t, color: PanelMetricColor.blue(for: colorScheme)),
+            DonutSegment(fraction: Double(wired) / t, color: PanelMetricColor.pink(for: colorScheme)),
+            DonutSegment(fraction: Double(comp) / t, color: PanelMetricColor.yellow(for: colorScheme)),
+        ]
     }
 
     private func batteryDonutColor(_ charge: Int) -> Color {
@@ -1058,7 +1100,7 @@ struct SystemSection: View {
            let comp = monitor.snapshot.memoryCompressed, let free = monitor.snapshot.memoryFree {
             let s = FeatureStrings.sensors(l10n.language)
             VStack(alignment: .leading, spacing: 5) {
-                memoryLegend(PanelMetricColor.cyan(for: colorScheme), s.memApp, app)
+                memoryLegend(PanelMetricColor.blue(for: colorScheme), s.memApp, app)
                 memoryLegend(PanelMetricColor.pink(for: colorScheme), s.memWired, wired)
                 memoryLegend(PanelMetricColor.yellow(for: colorScheme), s.memCompressed, comp)
                 memoryLegend(.secondary, s.memFree, free)
@@ -1249,6 +1291,68 @@ private struct Donut: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
+        }
+    }
+}
+
+/// One arc of a `SegmentedDonut`.
+struct DonutSegment: Identifiable {
+    let id = UUID()
+    let fraction: Double
+    let color: Color
+}
+
+/// Like `Donut`, but the ring is split into stacked coloured arcs (memory:
+/// app / wired / compressed) over a faint free track, matching iStats' multi-
+/// colour memory wheel. The centre shows the combined used percentage.
+private struct SegmentedDonut: View {
+    let caption: String
+    let percent: Int
+    let segments: [DonutSegment]
+    var onTap: (() -> Void)? = nil
+
+    var body: some View {
+        content
+            .frame(width: 92, height: 92)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .onTapGesture { onTap?() }
+    }
+
+    private var content: some View {
+        ZStack {
+            Circle().stroke(Color.primary.opacity(0.09), lineWidth: 7)
+            // Stack the arcs end-to-end starting at 12 o'clock. A tiny gap
+            // between segments keeps the colour boundaries legible.
+            ForEach(Array(runningSegments.enumerated()), id: \.offset) { _, run in
+                Circle()
+                    .trim(from: run.start, to: run.end)
+                    .stroke(run.color, style: StrokeStyle(lineWidth: 7, lineCap: .butt))
+                    .rotationEffect(.degrees(-90))
+            }
+            VStack(spacing: 1) {
+                HStack(alignment: .firstTextBaseline, spacing: 1) {
+                    Text("\(percent)").font(.system(size: 24, weight: .semibold)).monospacedDigit()
+                    Text("%").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+                }
+                Text(caption.uppercased()).font(.system(size: 8.5, weight: .semibold))
+                    .kerning(0.4).foregroundStyle(.secondary).lineLimit(1)
+            }
+        }
+    }
+
+    private struct Run: Identifiable { let id: UUID; let start: Double; let end: Double; let color: Color }
+
+    private var runningSegments: [Run] {
+        var cursor = 0.0
+        let gap = 0.006
+        return segments.compactMap { seg in
+            let f = min(1, max(0, seg.fraction))
+            guard f > 0.001 else { return nil }
+            let start = min(1, cursor)
+            let end = min(1, cursor + f)
+            cursor = end
+            return Run(id: seg.id, start: min(start + gap, end), end: end, color: seg.color)
         }
     }
 }

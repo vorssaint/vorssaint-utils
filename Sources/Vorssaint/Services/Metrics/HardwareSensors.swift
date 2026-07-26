@@ -26,10 +26,18 @@ struct TemperatureSensor: Identifiable, Equatable {
 struct FanReading: Identifiable, Equatable {
     let index: Int
     let rpm: Int
+    let minRPM: Int
     let maxRPM: Int
     var id: Int { index }
-    /// Speed as a fraction of this fan's maximum, for the headline Fans ring.
-    var fraction: Double { maxRPM > 0 ? min(1, max(0, Double(rpm) / Double(maxRPM))) : 0 }
+    /// Speed within this fan's own operating range, matching how iStats Menus
+    /// reports fan %: a fan idling at its minimum reads ~0%, not (min/max). The
+    /// SMC minimum for Apple-silicon fans is well above zero (~2300 RPM), so
+    /// dividing by the max alone made an idle fan look ~30% busy.
+    var fraction: Double {
+        let span = Double(maxRPM - minRPM)
+        guard span > 0 else { return 0 }
+        return min(1, max(0, Double(rpm - minRPM) / span))
+    }
 }
 
 /// Turns raw SMC temperature readings into a curated, labeled list.
