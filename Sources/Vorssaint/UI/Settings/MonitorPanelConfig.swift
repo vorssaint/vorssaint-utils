@@ -19,6 +19,10 @@ struct MonitorPanelConfig: View {
     @AppStorage(DefaultsKey.monitorSysGPU) private var sysGPU = true
     @AppStorage(DefaultsKey.monitorSysBattery) private var sysBattery = true
     @AppStorage(DefaultsKey.monitorSysMemory) private var sysMemory = true
+    // Combined view folds Disk and Network into the System panel, so they get
+    // their own show/hide toggles inside the System group here too.
+    @AppStorage(DefaultsKey.monitorSysDisk) private var sysDisk = true
+    @AppStorage(DefaultsKey.monitorSysNetwork) private var sysNetwork = true
     @AppStorage(DefaultsKey.monitorSysUptime) private var sysUptime = true
 
     @AppStorage(DefaultsKey.monitorShowNetwork) private var showNetwork = true
@@ -62,6 +66,12 @@ struct MonitorPanelConfig: View {
                 }
                 if AppFeature.monitorMemory.isAvailable {
                     Toggle(l10n.s.memorySection, isOn: $sysMemory)
+                }
+                if AppFeature.monitorDisk.isAvailable {
+                    Toggle(l10n.s.diskSection, isOn: $sysDisk)
+                }
+                if AppFeature.monitorNetwork.isAvailable {
+                    Toggle(l10n.s.networkSection, isOn: $sysNetwork)
                 }
                 Toggle(l10n.s.monitorItemUptime, isOn: $sysUptime)
             }
