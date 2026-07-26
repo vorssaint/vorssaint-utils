@@ -26,10 +26,11 @@ enum PanelMetricColor {
     }
 
     /// iStats-style primary accent for the neutral gauges (performance cores,
-    /// pressure, memory, app). Brighter systemBlue in dark, deep blue in light.
+    /// pressure, memory, app). A vivid, saturated azure like iStats — not the
+    /// washed-out periwinkle a higher red channel produced.
     static func blue(for scheme: ColorScheme) -> Color {
-        scheme == .light ? Color(red: 0.00, green: 0.34, blue: 0.82)
-                         : Color(red: 0.24, green: 0.56, blue: 1.00)
+        scheme == .light ? Color(red: 0.00, green: 0.40, blue: 0.95)
+                         : Color(red: 0.00, green: 0.52, blue: 1.00)
     }
 
     static func mint(for scheme: ColorScheme) -> Color {
@@ -48,8 +49,10 @@ enum PanelMetricColor {
         scheme == .light ? Color(red: 0.68, green: 0.30, blue: 0.00) : .orange
     }
 
+    /// iStats' softer, less-saturated rose — not SwiftUI's hot systemPink.
     static func pink(for scheme: ColorScheme) -> Color {
-        scheme == .light ? Color(red: 0.68, green: 0.06, blue: 0.34) : .pink
+        scheme == .light ? Color(red: 0.72, green: 0.20, blue: 0.42)
+                         : Color(red: 1.00, green: 0.45, blue: 0.58)
     }
 }
 

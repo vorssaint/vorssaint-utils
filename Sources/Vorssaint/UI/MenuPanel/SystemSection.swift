@@ -357,32 +357,31 @@ struct SystemSection: View {
     /// `onTap` is set the whole gauge is tappable (drill-down).
     private func ringGauge(label: String, text: String, fraction: Double, color: Color,
                            subtitle: String? = nil, onTap: (() -> Void)? = nil) -> some View {
-        VStack(spacing: 6) {
-            ZStack {
-                Circle().stroke(Color.primary.opacity(0.1), lineWidth: 4)
-                Circle()
-                    .trim(from: 0, to: min(1, max(0, fraction)))
-                    .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                VStack(spacing: 1) {
-                    Text(text)
-                        .font(.system(size: 18, weight: .medium))
+        ZStack {
+            Circle().stroke(Color.primary.opacity(0.1), lineWidth: 4)
+            Circle()
+                .trim(from: 0, to: min(1, max(0, fraction)))
+                .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            // iStats stacks the caption INSIDE the ring, above the value.
+            VStack(spacing: 1) {
+                Text(label)
+                    .font(.system(size: 8.5, weight: .semibold))
+                    .textCase(.uppercase)
+                    .kerning(0.4)
+                    .foregroundStyle(.secondary)
+                Text(text)
+                    .font(.system(size: 17, weight: .semibold))
+                    .monospacedDigit()
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 7.5, weight: .medium))
+                        .foregroundStyle(.secondary)
                         .monospacedDigit()
-                    if let subtitle {
-                        Text(subtitle)
-                            .font(.system(size: 8, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
                 }
             }
-            .frame(width: 58, height: 58)
-            Text(label)
-                .font(.system(size: 9.5, weight: .semibold))
-                .textCase(.uppercase)
-                .kerning(0.3)
-                .foregroundStyle(.secondary)
         }
+        .frame(width: 62, height: 62)
         .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
         .onTapGesture { onTap?() }
@@ -1277,14 +1276,7 @@ private struct Donut: View {
                 .stroke(color, style: StrokeStyle(lineWidth: 7, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             VStack(spacing: 1) {
-                HStack(alignment: .firstTextBaseline, spacing: 1) {
-                    Text("\(percent)")
-                        .font(.system(size: 24, weight: .semibold))
-                        .monospacedDigit()
-                    Text("%")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
+                percentText(percent)
                 Text(caption.uppercased())
                     .font(.system(size: 8.5, weight: .semibold))
                     .kerning(0.4)
@@ -1292,6 +1284,21 @@ private struct Donut: View {
                     .lineLimit(1)
             }
         }
+    }
+}
+
+/// The centred donut value: a big number with a smaller, raised "%" superscript
+/// — the way iStats renders it, rather than a baseline-aligned percent sign.
+@ViewBuilder
+func percentText(_ percent: Int) -> some View {
+    HStack(alignment: .firstTextBaseline, spacing: 1) {
+        Text("\(percent)")
+            .font(.system(size: 24, weight: .semibold))
+            .monospacedDigit()
+        Text("%")
+            .font(.system(size: 11, weight: .semibold))
+            .baselineOffset(7)
+            .foregroundStyle(.secondary)
     }
 }
 
@@ -1331,10 +1338,7 @@ private struct SegmentedDonut: View {
                     .rotationEffect(.degrees(-90))
             }
             VStack(spacing: 1) {
-                HStack(alignment: .firstTextBaseline, spacing: 1) {
-                    Text("\(percent)").font(.system(size: 24, weight: .semibold)).monospacedDigit()
-                    Text("%").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
-                }
+                percentText(percent)
                 Text(caption.uppercased()).font(.system(size: 8.5, weight: .semibold))
                     .kerning(0.4).foregroundStyle(.secondary).lineLimit(1)
             }
