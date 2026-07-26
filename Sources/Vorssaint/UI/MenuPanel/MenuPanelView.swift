@@ -84,7 +84,9 @@ struct MenuPanelView: View {
     @State private var navigableContentHeight: CGFloat = 0
     @State private var metricContentHeight: CGFloat = 0
     @State private var updateBannerHeight: CGFloat = 0
-    @State private var selectedSection: PanelSectionID = .keepAwake
+    // Open on the System monitor by default; `activeSection` falls back to the
+    // first visible section if System is turned off.
+    @State private var selectedSection: PanelSectionID = .system
     @State private var selectedMetric: MetricDetailKind?
 
     /// Cap the panel to the usable screen height so it never overflows the menu

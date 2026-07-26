@@ -608,7 +608,7 @@ enum Defaults {
         // Every per-item block shows by default; users hide what they don't want.
         DefaultsKey.monitorSysTemps: true,
         DefaultsKey.monitorSysSensors: true,
-        DefaultsKey.monitorSysSensorsExpanded: true,
+        DefaultsKey.monitorSysSensorsExpanded: false,
         DefaultsKey.monitorSysCPU: true,
         DefaultsKey.monitorSysGPU: true,
         DefaultsKey.monitorSysBattery: true,

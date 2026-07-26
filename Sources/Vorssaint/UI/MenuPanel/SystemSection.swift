@@ -54,11 +54,6 @@ struct SystemSection: View {
     @AppStorage(DefaultsKey.monitorSysUptime) private var sysUptime = true
     @AppStorage(DefaultsKey.panelSystemOrder) private var systemOrderRaw = ""
     @State private var draggingBlock: Block?
-    // Transient hover reveal for the Sensors list: hovering the temperature
-    // wheels opens it (iStats-style), released after a short grace period so
-    // sliding onto the list doesn't collapse it. ORs with the pinned toggle.
-    @State private var hoverSensors = false
-    @State private var hoverSensorsToken = 0
 
     var body: some View {
         PanelSection(.system, title: l10n.s.systemSection, collapsible: collapsible,
@@ -189,8 +184,16 @@ struct SystemSection: View {
         case .disk: return sysDisk
         case .network: return sysNetwork
         case .alerts: return sysAlerts
-        case .uptime: return sysUptime
+        // Uptime rides on the storage line when both are shown, so the
+        // standalone block hides itself (except while editing the layout).
+        case .uptime: return sysUptime && !uptimeInlineWithDisk
         }
+    }
+
+    /// When both storage and uptime are visible, uptime shares the storage line
+    /// (right-aligned) to save a row, instead of getting its own block.
+    private var uptimeInlineWithDisk: Bool {
+        sysUptime && sysDisk && diskAvailable && primaryDisk != nil
     }
 
     private func resetPanelDefaults() {
@@ -329,8 +332,6 @@ struct SystemSection: View {
                                   color: gaugeColor(monitor.snapshot.batteryTemperature))
                     }
                 }
-                // Hovering the temperature wheels fluidly reveals the sensor list.
-                .onHover { setSensorHover($0) }
                 metricExpansion(.cpu)
                 metricExpansion(.gpu)
             }
@@ -465,25 +466,6 @@ struct SystemSection: View {
 
     // MARK: Sensors (temperatures, power, fans)
 
-    /// The sensor list is showing if the user pinned it open OR is hovering the
-    /// temperature wheels / the list itself.
-    private var sensorsVisible: Bool { sensorsExpanded || hoverSensors }
-
-    /// Debounced hover so the reveal survives the small gap between the wheels
-    /// and the list. A newer event (in or out) cancels a pending collapse.
-    private func setSensorHover(_ hovering: Bool) {
-        hoverSensorsToken += 1
-        if hovering {
-            withAnimation(.easeInOut(duration: 0.15)) { hoverSensors = true }
-        } else {
-            let token = hoverSensorsToken
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
-                guard token == hoverSensorsToken else { return }
-                withAnimation(.easeInOut(duration: 0.15)) { hoverSensors = false }
-            }
-        }
-    }
-
     @ViewBuilder
     private func sensorsRows(editing: Bool) -> some View {
         let strings = FeatureStrings.sensors(l10n.language)
@@ -501,10 +483,10 @@ struct SystemSection: View {
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 8, weight: .semibold))
                                 .foregroundStyle(.secondary)
-                                .rotationEffect(.degrees(sensorsVisible ? 90 : 0))
+                                .rotationEffect(.degrees(sensorsExpanded ? 90 : 0))
                             subsectionLabel(strings.section)
                             Spacer(minLength: 0)
-                            if !sensorsVisible { sensorsSummary }
+                            if !sensorsExpanded { sensorsSummary }
                         }
                         .contentShape(Rectangle())
                     }
@@ -513,11 +495,10 @@ struct SystemSection: View {
                         PanelInlineHideButton(isVisible: $sysSensors)
                     }
                 }
-                if sensorsVisible {
+                if sensorsExpanded {
                     sensorsBody(strings)
                 }
             }
-            .onHover { setSensorHover($0) }
         }
     }
 
@@ -934,25 +915,42 @@ struct SystemSection: View {
         } else if let device = primaryDisk {
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 8) {
-                    if let temp = device.smart?.temperatureCelsius {
-                        Text("\(Int(temp.rounded()))")
-                            .font(.system(size: 9, weight: .bold)).monospacedDigit()
-                            .frame(width: 22, height: 22)
-                            .overlay(Circle().stroke(Self.ringColor(temp, scheme: colorScheme), lineWidth: 1.5))
-                    } else {
-                        Image(systemName: "internaldrive")
-                            .font(.system(size: 12)).foregroundStyle(.secondary).frame(width: 22)
+                    HStack(spacing: 8) {
+                        if let temp = device.smart?.temperatureCelsius {
+                            Text("\(Int(temp.rounded()))")
+                                .font(.system(size: 9, weight: .bold)).monospacedDigit()
+                                .frame(width: 22, height: 22)
+                                .overlay(Circle().stroke(Self.ringColor(temp, scheme: colorScheme), lineWidth: 1.5))
+                        } else {
+                            Image(systemName: "internaldrive")
+                                .font(.system(size: 12)).foregroundStyle(.secondary).frame(width: 22)
+                        }
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(device.name).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                            Text("\(MetricFormat.diskBytes(device.freeBytes)) \(l10n.s.diskFree)")
+                                .font(.system(size: 10)).foregroundStyle(.secondary)
+                        }
                     }
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(device.name).font(.system(size: 11, weight: .medium)).lineLimit(1)
-                        Text("\(MetricFormat.diskBytes(device.freeBytes)) \(l10n.s.diskFree)")
-                            .font(.system(size: 10)).foregroundStyle(.secondary)
-                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture { if !editing { diskExpanded.toggle() } }
                     Spacer(minLength: 8)
+                    // Uptime shares this line (right-aligned) to save a row.
+                    if uptimeInlineWithDisk, !editing {
+                        Button { uptimeExpanded.toggle() } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "clock")
+                                    .font(.system(size: 9)).foregroundStyle(.secondary)
+                                Text(Self.uptimeString())
+                                    .font(.system(size: 10.5, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
                     if editing { PanelInlineHideButton(isVisible: $sysDisk) }
                 }
-                .contentShape(Rectangle())
-                .onTapGesture { if !editing { diskExpanded.toggle() } }
                 if diskExpanded, !editing {
                     VStack(alignment: .leading, spacing: 3) {
                         sensorRow(label: l10n.s.diskRead,
@@ -966,6 +964,14 @@ struct SystemSection: View {
                         if let health = device.smart?.healthPercent {
                             sensorRow(label: l10n.s.diskHealth, value: "\(health)%")
                         }
+                    }
+                }
+                if uptimeInlineWithDisk, uptimeExpanded, !editing, let detail = Self.uptimeDetail() {
+                    let s = FeatureStrings.sensors(l10n.language)
+                    VStack(alignment: .leading, spacing: 3) {
+                        sensorRow(label: s.poweredOn, value: detail.poweredOn)
+                        sensorRow(label: s.awake, value: MetricFormat.uptime(detail.awake))
+                        sensorRow(label: s.sleeping, value: MetricFormat.uptime(detail.sleeping))
                     }
                 }
             }
