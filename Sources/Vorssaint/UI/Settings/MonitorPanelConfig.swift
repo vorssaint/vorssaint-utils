@@ -15,6 +15,11 @@ struct MonitorPanelConfig: View {
     @AppStorage(DefaultsKey.monitorShowSystem) private var showSystem = true
     @AppStorage(DefaultsKey.monitorSysTemps) private var sysTemps = true
     @AppStorage(DefaultsKey.monitorSysSensors) private var sysSensors = true
+    @AppStorage(DefaultsKey.monitorSensorTemps) private var sensorTemps = true
+    @AppStorage(DefaultsKey.monitorSensorPower) private var sensorPower = true
+    @AppStorage(DefaultsKey.monitorSensorFans) private var sensorFans = true
+    @AppStorage(DefaultsKey.monitorSensorGraphics) private var sensorGraphics = true
+    @AppStorage(DefaultsKey.monitorSensorFrequency) private var sensorFrequency = true
     @AppStorage(DefaultsKey.monitorSysCPU) private var sysCPU = true
     @AppStorage(DefaultsKey.monitorSysGPU) private var sysGPU = true
     @AppStorage(DefaultsKey.monitorSysBattery) private var sysBattery = true
@@ -53,7 +58,19 @@ struct MonitorPanelConfig: View {
                 if AppFeature.monitorCPU.isAvailable || AppFeature.monitorGPU.isAvailable
                     || AppFeature.monitorPower.isAvailable {
                     Toggle(l10n.s.temperatures, isOn: $sysTemps)
-                    Toggle(FeatureStrings.sensors(l10n.language).section, isOn: $sysSensors)
+                    let s = FeatureStrings.sensors(l10n.language)
+                    Toggle(s.section, isOn: $sysSensors)
+                    // Per-reading toggles inside the Sensors block (disabled while
+                    // the whole block is hidden).
+                    Group {
+                        Toggle(s.temperature, isOn: $sensorTemps)
+                        Toggle(s.power, isOn: $sensorPower)
+                        Toggle(s.fans, isOn: $sensorFans)
+                        Toggle(s.graphics, isOn: $sensorGraphics)
+                        Toggle(s.frequency, isOn: $sensorFrequency)
+                    }
+                    .padding(.leading, 16)
+                    .disabled(!sysSensors)
                 }
                 if AppFeature.monitorCPU.isAvailable {
                     Toggle(l10n.s.cpuLabel, isOn: $sysCPU)

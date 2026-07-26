@@ -241,6 +241,12 @@ enum DefaultsKey {
     static let monitorSysTemps = "monitorSysTemps"
     static let monitorSysSensors = "monitorSysSensors"
     static let monitorSysSensorsExpanded = "monitorSysSensorsExpanded"
+    // Per-reading toggles inside the Sensors block.
+    static let monitorSensorTemps = "monitorSensorTemps"
+    static let monitorSensorPower = "monitorSensorPower"
+    static let monitorSensorFans = "monitorSensorFans"
+    static let monitorSensorGraphics = "monitorSensorGraphics"
+    static let monitorSensorFrequency = "monitorSensorFrequency"
     static let monitorSysCPU = "monitorSysCPU"
     static let monitorSysGPU = "monitorSysGPU"
     static let monitorSysBattery = "monitorSysBattery"
@@ -801,6 +807,11 @@ enum Defaults {
         DefaultsKey.monitorSysTemps: true,
         DefaultsKey.monitorSysSensors: true,
         DefaultsKey.monitorSysSensorsExpanded: false,
+        DefaultsKey.monitorSensorTemps: true,
+        DefaultsKey.monitorSensorPower: true,
+        DefaultsKey.monitorSensorFans: true,
+        DefaultsKey.monitorSensorGraphics: true,
+        DefaultsKey.monitorSensorFrequency: true,
         DefaultsKey.monitorSysCPU: true,
         DefaultsKey.monitorSysGPU: true,
         DefaultsKey.monitorSysBattery: true,

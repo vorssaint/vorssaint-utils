@@ -44,6 +44,11 @@ struct SystemSection: View {
     @AppStorage(DefaultsKey.monitorSysTemps) private var sysTemps = true
     @AppStorage(DefaultsKey.monitorSysSensors) private var sysSensors = true
     @AppStorage(DefaultsKey.monitorSysSensorsExpanded) private var sensorsExpanded = true
+    @AppStorage(DefaultsKey.monitorSensorTemps) private var sensorTemps = true
+    @AppStorage(DefaultsKey.monitorSensorPower) private var sensorPower = true
+    @AppStorage(DefaultsKey.monitorSensorFans) private var sensorFans = true
+    @AppStorage(DefaultsKey.monitorSensorGraphics) private var sensorGraphics = true
+    @AppStorage(DefaultsKey.monitorSensorFrequency) private var sensorFrequency = true
     @AppStorage(DefaultsKey.monitorSysCPU) private var sysCPU = true
     @AppStorage(DefaultsKey.monitorSysGPU) private var sysGPU = true
     @AppStorage(DefaultsKey.monitorSysBattery) private var sysBattery = true
@@ -521,7 +526,7 @@ struct SystemSection: View {
         let temps = monitor.snapshot.temperatureSensors
         let fans = monitor.snapshot.fans
         let watts = powerAvailable ? monitor.snapshot.power?.systemWatts : nil
-        if !temps.isEmpty {
+        if !temps.isEmpty, sensorTemps {
             sensorSubsection(strings.temperature) {
                 ForEach(temps) { sensor in
                     HStack(spacing: 8) {
@@ -539,12 +544,12 @@ struct SystemSection: View {
                 }
             }
         }
-        if let watts {
+        if let watts, sensorPower {
             sensorSubsection(strings.power) {
                 sensorRow(label: strings.totalPower, value: MetricFormat.watts(watts))
             }
         }
-        if !fans.isEmpty {
+        if !fans.isEmpty, sensorFans {
             sensorSubsection(strings.fans) {
                 ForEach(fans) { fan in
                     sensorRow(label: fanLabel(fan.index, count: fans.count, strings: strings),
@@ -554,7 +559,7 @@ struct SystemSection: View {
         }
         let gpuUsage = monitor.snapshot.gpuUsage
         let gpuMem = monitor.snapshot.gpuMemoryFraction
-        if gpuUsage != nil || gpuMem != nil {
+        if (gpuUsage != nil || gpuMem != nil), sensorGraphics {
             sensorSubsection(strings.graphics) {
                 if let gpuUsage {
                     sensorRow(label: l10n.s.usageSection, value: MetricFormat.percent(gpuUsage))
@@ -567,7 +572,7 @@ struct SystemSection: View {
                 }
             }
         }
-        if let freq = monitor.snapshot.frequencies, !freq.isEmpty {
+        if let freq = monitor.snapshot.frequencies, !freq.isEmpty, sensorFrequency {
             sensorSubsection(strings.frequency) {
                 if let e = freq.eCoreGHz { sensorRow(label: strings.cpuEfficiency, value: String(format: "%.2f GHz", e)) }
                 if let p = freq.pCoreGHz { sensorRow(label: strings.cpuPerformance, value: String(format: "%.2f GHz", p)) }
