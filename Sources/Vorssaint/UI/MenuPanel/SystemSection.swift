@@ -357,13 +357,13 @@ struct SystemSection: View {
                     .trim(from: 0, to: min(1, max(0, fraction)))
                     .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                VStack(spacing: 0) {
+                VStack(spacing: 1) {
                     Text(text)
-                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .font(.system(size: 18, weight: .medium))
                         .monospacedDigit()
                     if let subtitle {
                         Text(subtitle)
-                            .font(.system(size: 8))
+                            .font(.system(size: 8, weight: .medium))
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
                     }
@@ -371,7 +371,9 @@ struct SystemSection: View {
             }
             .frame(width: 58, height: 58)
             Text(label)
-                .font(.system(size: 10))
+                .font(.system(size: 9.5, weight: .semibold))
+                .textCase(.uppercase)
+                .kerning(0.3)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
@@ -633,17 +635,21 @@ struct SystemSection: View {
             let ePink = PanelMetricColor.pink(for: colorScheme)
             let pCyan = PanelMetricColor.cyan(for: colorScheme)
             let s = FeatureStrings.sensors(l10n.language)
+            // Efficiency cores are the trailing cores (perflevel1); performance
+            // cores lead (perflevel0). iStats groups efficiency first, so mirror
+            // that: pink cluster, a small gap, then the cyan cluster.
+            let eCores = Array(cores.suffix(eCount))
+            let pCores = Array(cores.prefix(max(0, cores.count - eCount)))
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 4) {
-                    ForEach(Array(cores.enumerated()), id: \.offset) { index, usage in
-                        // Efficiency cores are the trailing cores (perflevel1);
-                        // performance cores lead (perflevel0).
-                        let isEfficiency = index >= cores.count - eCount
-                        Circle()
-                            .stroke(usage > 0.04 ? (isEfficiency ? ePink : pCyan)
-                                                 : Color.primary.opacity(0.18),
-                                    lineWidth: 2)
-                            .frame(width: 11, height: 11)
+                    ForEach(Array(eCores.enumerated()), id: \.offset) { _, usage in
+                        CoreGauge(fraction: usage, color: ePink)
+                    }
+                    if !eCores.isEmpty && !pCores.isEmpty {
+                        Spacer().frame(width: 5)
+                    }
+                    ForEach(Array(pCores.enumerated()), id: \.offset) { _, usage in
+                        CoreGauge(fraction: usage, color: pCyan)
                     }
                     Spacer(minLength: 0)
                 }
@@ -904,7 +910,7 @@ struct SystemSection: View {
                 HStack(spacing: 8) {
                     if let temp = device.smart?.temperatureCelsius {
                         Text("\(Int(temp.rounded()))")
-                            .font(.system(size: 9, weight: .bold, design: .rounded)).monospacedDigit()
+                            .font(.system(size: 9, weight: .bold)).monospacedDigit()
                             .frame(width: 22, height: 22)
                             .overlay(Circle().stroke(Self.ringColor(temp, scheme: colorScheme), lineWidth: 1.5))
                     } else {
@@ -1009,7 +1015,8 @@ struct SystemSection: View {
                         Donut(caption: l10n.s.batteryLabel, percent: charge,
                               color: batteryDonutColor(charge), onTap: tapEnergy)
                         if let health = monitor.snapshot.power?.healthPercent {
-                            Donut(caption: l10n.s.powerHealth, percent: Int(health.rounded()),
+                            // Short "Health" caption — "Battery health" clips inside the donut.
+                            Donut(caption: l10n.s.diskHealth, percent: Int(health.rounded()),
                                   color: PanelMetricColor.pink(for: colorScheme), onTap: tapEnergy)
                         }
                     }
@@ -1165,6 +1172,26 @@ private struct UsageBar: View {
 
 /// Small iStat-style ring gauge: a track circle with a colored arc filled in
 /// proportion to the temperature, warming from cyan through yellow to red.
+/// A single CPU core rendered as a tiny speedometer: a faint background ring
+/// with a coloured arc trimmed to that core's live usage (0–100%). Replaces the
+/// old on/off "activity light" so partial load reads as a partial fill.
+private struct CoreGauge: View {
+    let fraction: Double
+    let color: Color
+
+    var body: some View {
+        let f = min(1, max(0, fraction))
+        ZStack {
+            Circle().stroke(Color.primary.opacity(0.16), lineWidth: 2)
+            Circle()
+                .trim(from: 0, to: f)
+                .stroke(color, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+        }
+        .frame(width: 12, height: 12)
+    }
+}
+
 private struct SensorRing: View {
     @Environment(\.colorScheme) private var colorScheme
     let celsius: Double
@@ -1207,10 +1234,15 @@ private struct Donut: View {
                 .trim(from: 0, to: min(1, max(0, Double(percent) / 100)))
                 .stroke(color, style: StrokeStyle(lineWidth: 7, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-            VStack(spacing: 0) {
-                Text("\(percent)%")
-                    .font(.system(size: 22, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
+            VStack(spacing: 1) {
+                HStack(alignment: .firstTextBaseline, spacing: 1) {
+                    Text("\(percent)")
+                        .font(.system(size: 24, weight: .semibold))
+                        .monospacedDigit()
+                    Text("%")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
                 Text(caption.uppercased())
                     .font(.system(size: 8.5, weight: .semibold))
                     .kerning(0.4)

@@ -32,6 +32,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
+        // Honour the user's forced light/dark override (independent of macOS)
+        // before any window or the popover is built.
+        AppAppearance.applyStored()
+
         // Finish the on-disk rename for installs carried over from a pre-2.5
         // build, or retire a leftover old-named bundle. Returns true when we are
         // quitting to relaunch under the new name, so skip the rest of startup.
@@ -1438,5 +1442,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private func markUpdateShowcaseIntroSeen() {
         UserDefaults.standard.set(UpdateShowcaseInfo.releaseVersion,
                                   forKey: DefaultsKey.updateShowcaseIntroVersion)
+    }
+}
+
+/// App-wide light/dark override. Setting `NSApp.appearance` forces every window
+/// the app owns — the menu-bar popover and the Settings window — into the chosen
+/// look regardless of the macOS setting, matching iStats Menus' own appearance
+/// control. `system` clears the override so the app follows macOS again.
+enum AppAppearance {
+    static func apply(_ raw: String) {
+        let value = Defaults.sanitizedAppAppearance(raw)
+        let appearance: NSAppearance?
+        switch value {
+        case "light": appearance = NSAppearance(named: .aqua)
+        case "dark": appearance = NSAppearance(named: .darkAqua)
+        default: appearance = nil // follow the system
+        }
+        NSApp.appearance = appearance
+    }
+
+    static func applyStored() {
+        apply(UserDefaults.standard.string(forKey: DefaultsKey.appAppearance) ?? "system")
     }
 }

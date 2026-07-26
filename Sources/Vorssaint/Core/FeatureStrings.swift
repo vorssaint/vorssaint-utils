@@ -2029,3 +2029,59 @@ struct SensorsFeatureStrings {
         voltage: "電壓", amperage: "電流", cycles: "循環次數", condition: "狀況", conditionNormal: "正常", capacity: "容量", poweredOn: "開機", awake: "喚醒", sleeping: "睡眠"
     )
 }
+
+// MARK: - App appearance (System / Light / Dark)
+
+/// Labels for the app-wide light/dark override picker. Self-contained (its own
+/// language switch) so it needs no edits across the 13 `Strings` files.
+struct AppearanceStrings {
+    let title: String
+    let system: String
+    let light: String
+    let dark: String
+    let caption: String
+
+    static func of(_ language: AppLanguage) -> AppearanceStrings {
+        switch language {
+        case .enUS:
+            return .init(title: "Appearance", system: "System", light: "Light", dark: "Dark",
+                         caption: "Force Vorssaint's own light or dark look, independent of macOS.")
+        case .ptBR:
+            return .init(title: "Aparência", system: "Sistema", light: "Claro", dark: "Escuro",
+                         caption: "Força a aparência clara ou escura do Vorssaint, independente do macOS.")
+        case .tr:
+            return .init(title: "Görünüm", system: "Sistem", light: "Açık", dark: "Koyu",
+                         caption: "Vorssaint'in açık veya koyu görünümünü macOS'tan bağımsız olarak zorlar.")
+        case .ru:
+            return .init(title: "Оформление", system: "Системное", light: "Светлое", dark: "Тёмное",
+                         caption: "Принудительно светлый или тёмный вид Vorssaint, независимо от macOS.")
+        case .es:
+            return .init(title: "Apariencia", system: "Sistema", light: "Claro", dark: "Oscuro",
+                         caption: "Fuerza el aspecto claro u oscuro de Vorssaint, independiente de macOS.")
+        case .de:
+            return .init(title: "Erscheinungsbild", system: "System", light: "Hell", dark: "Dunkel",
+                         caption: "Erzwingt Vorssaints helles oder dunkles Aussehen, unabhängig von macOS.")
+        case .fr:
+            return .init(title: "Apparence", system: "Système", light: "Clair", dark: "Sombre",
+                         caption: "Force l'apparence claire ou sombre de Vorssaint, indépendamment de macOS.")
+        case .it:
+            return .init(title: "Aspetto", system: "Sistema", light: "Chiaro", dark: "Scuro",
+                         caption: "Forza l'aspetto chiaro o scuro di Vorssaint, indipendente da macOS.")
+        case .ja:
+            return .init(title: "外観", system: "システム", light: "ライト", dark: "ダーク",
+                         caption: "macOS とは独立して、Vorssaint 独自のライト/ダーク表示を固定します。")
+        case .ko:
+            return .init(title: "화면 모드", system: "시스템", light: "라이트", dark: "다크",
+                         caption: "macOS와 별개로 Vorssaint의 라이트/다크 모드를 고정합니다.")
+        case .zhHans:
+            return .init(title: "外观", system: "系统", light: "浅色", dark: "深色",
+                         caption: "独立于 macOS，强制 Vorssaint 使用浅色或深色外观。")
+        case .zhTW:
+            return .init(title: "外觀", system: "系統", light: "淺色", dark: "深色",
+                         caption: "獨立於 macOS，強制 Vorssaint 使用淺色或深色外觀。")
+        case .zhHK:
+            return .init(title: "外觀", system: "系統", light: "淺色", dark: "深色",
+                         caption: "獨立於 macOS，強制 Vorssaint 使用淺色或深色外觀。")
+        }
+    }
+}

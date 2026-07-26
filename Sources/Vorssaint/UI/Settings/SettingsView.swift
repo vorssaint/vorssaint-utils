@@ -202,6 +202,7 @@ struct GeneralSettings: View {
     @AppStorage(DefaultsKey.showCountdown) private var showCountdown = false
     @AppStorage(DefaultsKey.musicBlockEnabled) private var musicBlockEnabled = false
     @AppStorage(DefaultsKey.musicBlockReplacementPath) private var musicBlockReplacementPath = ""
+    @AppStorage(DefaultsKey.appAppearance) private var appAppearance = "system"
 
     var body: some View {
         Form {
@@ -230,6 +231,16 @@ struct GeneralSettings: View {
                         Text(language.displayName).tag(language)
                     }
                 }
+                let appearanceStrings = AppearanceStrings.of(l10n.language)
+                Picker(appearanceStrings.title, selection: $appAppearance) {
+                    Text(appearanceStrings.system).tag("system")
+                    Text(appearanceStrings.light).tag("light")
+                    Text(appearanceStrings.dark).tag("dark")
+                }
+                .onChange(of: appAppearance) { _, value in
+                    AppAppearance.apply(value)
+                }
+                SettingsCaptionText(appearanceStrings.caption)
             }
             Section(l10n.s.menuBarSection) {
                 if AppFeature.keepAwake.isAvailable {

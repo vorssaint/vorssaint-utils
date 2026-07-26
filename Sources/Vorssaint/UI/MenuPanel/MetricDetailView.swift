@@ -158,7 +158,7 @@ struct MetricDetailView: View {
                     .frame(width: 18)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(primaryValue)
-                        .font(.system(size: 28, weight: .semibold, design: .rounded))
+                        .font(.system(size: 28, weight: .semibold))
                         .monospacedDigit()
                     Text(secondaryValue)
                         .font(.system(size: 10.5, weight: .medium))
