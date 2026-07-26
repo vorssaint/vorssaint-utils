@@ -9,6 +9,9 @@ struct WindowLayoutSettings: View {
     @ObservedObject private var service = WindowLayoutService.shared
     @AppStorage(DefaultsKey.panelUtilityWindowLayout) private var showInPanel = true
     @AppStorage(DefaultsKey.windowLayoutShortcutsEnabled) private var shortcutsEnabled = true
+    @AppStorage(DefaultsKey.windowGestureEnabled) private var gestureEnabled = false
+    @AppStorage(DefaultsKey.windowGestureModifiers) private var gestureModifiers = WindowGestureSupport.defaultModifierStorageValue
+    @AppStorage(DefaultsKey.windowGestureRaiseWindow) private var gestureRaiseWindow = false
     // Same preference the Switcher page exposes next to Dock Preview; it is
     // mirrored here because it is a window-juggling behavior people look for
     // on this page too.
@@ -33,6 +36,30 @@ struct WindowLayoutSettings: View {
             if !permissions.accessibility {
                 Section(l10n.s.permissionRequired) {
                     PermissionRow(kind: .accessibility)
+                }
+            }
+
+            Section(text.gestureSection) {
+                Toggle(text.gestureEnable, isOn: $gestureEnabled)
+                    .onChange(of: gestureEnabled) { _, _ in
+                        WindowLayoutService.shared.syncWithPreferences()
+                    }
+                Text(text.gestureCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if gestureEnabled {
+                    WindowGestureModifierPicker(storageValue: $gestureModifiers,
+                                                title: text.gestureModifiers)
+                        .onChange(of: gestureModifiers) { _, _ in
+                            WindowLayoutService.shared.syncWithPreferences()
+                        }
+                    WindowGestureHints(modifierStorage: gestureModifiers,
+                                       moveText: text.gestureMove,
+                                       resizeText: text.gestureResize)
+                    Text(text.gestureResizeHint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(text.gestureRaiseWindow, isOn: $gestureRaiseWindow)
                 }
             }
 
@@ -179,6 +206,7 @@ private struct WindowLayoutActionRow: View {
     let shortcutEnabled: Bool
     @AppStorage private var rawValue: String
     @State private var errorText: String?
+    @State private var isRecording = false
 
     init(action: WindowLayoutAction,
          title: String,
@@ -211,16 +239,20 @@ private struct WindowLayoutActionRow: View {
                                            ?? action.defaultShortcut
                                            ?? .windowLayoutLeftDefault,
                                        isEnabled: shortcutEnabled,
-                                       recordingTitle: l10n.s.shortcutRecording,
+                                       waitingTitle: l10n.s.shortcutPressKeys,
                                        emptyTitle: shortcut == nil ? l10n.s.shortcutNone : nil,
+                                       clearAction: clear,
+                                       notCapturedAction: { errorText = l10n.s.shortcutNotCaptured },
+                                       recordingChanged: { recording in
+                                           isRecording = recording
+                                           if recording { errorText = nil }
+                                       },
                                        invalidAction: { errorText = l10n.s.shortcutInvalid },
                                        captureAction: save)
-                    .frame(width: 108, height: 28)
+                    .frame(width: 108)
                     .disabled(!shortcutEnabled)
                 Button {
-                    rawValue = WindowLayoutAction.clearedShortcutStorageValue
-                    errorText = nil
-                    WindowLayoutService.shared.syncWithPreferences()
+                    clear()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .symbolRenderingMode(.hierarchical)
@@ -242,6 +274,10 @@ private struct WindowLayoutActionRow: View {
                 Text(errorText)
                     .font(.caption)
                     .foregroundStyle(.orange)
+            } else if isRecording {
+                Text(ShortcutRecordingCaption.text(l10n.s, canClear: true))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -249,6 +285,12 @@ private struct WindowLayoutActionRow: View {
     private var shortcut: GlobalShortcut? {
         WindowLayoutAction.resolvedShortcut(storedValue: rawValue,
                                             defaultShortcut: action.defaultShortcut)
+    }
+
+    private func clear() {
+        rawValue = WindowLayoutAction.clearedShortcutStorageValue
+        errorText = nil
+        WindowLayoutService.shared.syncWithPreferences()
     }
 
     private func save(_ shortcut: GlobalShortcut) {

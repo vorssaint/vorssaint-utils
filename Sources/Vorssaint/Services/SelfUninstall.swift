@@ -65,6 +65,7 @@ enum SelfUninstall {
         SmoothScrollService.shared.suspend()
         MouseNavigationService.shared.suspend()
         WindowMaximizer.shared.stop()
+        WindowLayoutService.shared.suspend()
         AppSwitcher.shared.suspend()
         DockPreviewService.shared.stop()
         AutoQuitService.shared.suspend()
@@ -73,9 +74,13 @@ enum SelfUninstall {
         DockClickService.shared.suspend()
         MiddleClickService.shared.suspend()
         PastePlainService.shared.suspend()
+        SnippetLibraryService.shared.suspend()
         ColorSamplerService.shared.suspend()
         QuickLauncherService.shared.suspend()
         ScreenTextService.shared.suspend()
+        CameraPreviewService.shared.suspend()
+        RadialMenuService.shared.suspend()
+        ScratchpadService.shared.suspend()
         // Leaving the mic cut after the app is gone would strand the user
         // with a silent input and no indicator anywhere.
         MicMuteService.shared.setMuted(false)
@@ -88,12 +93,15 @@ enum SelfUninstall {
         if UserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag) {
             _ = Sudoers.pmsetDisableSleep(false)
         }
-        // Unregister the login item (scoped to our bundle id).
+        // Unregister the login item (scoped to our bundle id). The stored
+        // intent goes with it, or the startup repair would quietly register
+        // the item again after the user asked for a clean detach.
+        UserDefaults.standard.set(false, forKey: DefaultsKey.launchAtLoginWanted)
         try? SMAppService.mainApp.unregister()
     }
 
     private static func removeSudoersRuleIfPresent(then: @escaping () -> Void) {
-        guard Sudoers.isConfigured() else { then(); return }
+        guard Sudoers.ruleFilesPresent || Sudoers.isConfigured() else { then(); return }
         Sudoers.remove { _ in then() }            // shows the admin password prompt
     }
 

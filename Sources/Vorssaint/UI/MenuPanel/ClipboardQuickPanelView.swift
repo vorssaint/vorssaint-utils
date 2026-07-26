@@ -84,10 +84,14 @@ struct ClipboardQuickPanelView: View {
         } else {
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 10) {
+                    // Lazy: a large history would otherwise build every row,
+                    // and decode every image thumbnail, each time the panel
+                    // opens.
+                    LazyVStack(alignment: .leading, spacing: 7) {
                         if history.quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             section(title: text.pinned, entries: history.pinnedEntries)
-                            section(title: text.recent, entries: history.recentEntries)
+                            section(title: text.recent, entries: history.recentEntries,
+                                    followsSection: !history.pinnedEntries.isEmpty)
                         } else {
                             section(title: text.newestFirst, entries: filtered)
                         }
@@ -107,22 +111,26 @@ struct ClipboardQuickPanelView: View {
         }
     }
 
-    private func section(title: String, entries: [ClipboardHistoryEntry]) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            if !entries.isEmpty {
-                Text(title.uppercased())
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .tracking(0.6)
-                ForEach(Array(entries.enumerated()), id: \.element.id) { _, entry in
-                    entryRow(entry,
-                             shortcutIndex: shortcutIndex(for: entry),
-                             isSelected: history.quickSelectionIsVisible
-                                && history.selectedQuickEntryID == entry.id,
-                             isBatchSelected: history.isQuickBatchSelected(entry),
-                             isHovered: hoveredEntryID == entry.id)
-                        .id(entry.id)
-                }
+    /// Emits the header and the rows straight into the enclosing lazy stack:
+    /// wrapped in their own container the whole section would become one lazy
+    /// unit and build every row at once.
+    @ViewBuilder
+    private func section(title: String, entries: [ClipboardHistoryEntry],
+                         followsSection: Bool = false) -> some View {
+        if !entries.isEmpty {
+            Text(title.uppercased())
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.secondary)
+                .tracking(0.6)
+                .padding(.top, followsSection ? 3 : 0)
+            ForEach(entries) { entry in
+                entryRow(entry,
+                         shortcutIndex: shortcutIndex(for: entry),
+                         isSelected: history.quickSelectionIsVisible
+                            && history.selectedQuickEntryID == entry.id,
+                         isBatchSelected: history.isQuickBatchSelected(entry),
+                         isHovered: hoveredEntryID == entry.id)
+                    .id(entry.id)
             }
         }
     }

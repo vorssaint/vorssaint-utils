@@ -12,6 +12,22 @@ enum ShelfInteractionSupport {
         return !excludedBundleIdentifiers.contains(sourceBundleIdentifier)
     }
 
+    /// Whether the gesture in flight drags real content, as opposed to moving
+    /// or resizing a window. The drag pasteboard retains the previous drag's
+    /// items indefinitely, so retained content alone proves nothing: only a
+    /// change-count bump during the current gesture makes it current. Dock
+    /// stacks are the one source that can publish the contents before the
+    /// mouse-down, hence the Dock escape. Either way the pasteboard must hold
+    /// something the Shelf can keep; the check stays lazy because most dragged
+    /// events resolve on the cheap change count alone.
+    static func isContentDrag(baselineChangeCount: Int,
+                              changeCount: Int,
+                              beganInDock: Bool,
+                              hasDroppableContent: () -> Bool) -> Bool {
+        guard changeCount != baselineChangeCount || beganInDock else { return false }
+        return hasDroppableContent()
+    }
+
     /// A successful drag that really left the Shelf can dismiss it. Cancelled
     /// drags and internal merges never do, and pinning always wins.
     static func shouldCloseAfterDrag(dropAccepted: Bool,
@@ -45,6 +61,10 @@ struct ShelfPersistedItem: Codable, Equatable {
     var text: String?
     var url: String?
     var path: String?
+    /// Lets a file item find its payload again after a move or rename. The
+    /// field is optional on purpose: stores written before it decode fine,
+    /// and older app versions simply ignore it.
+    var bookmark: Data?
     var children: [ShelfPersistedItem]?
 
     init(id: UUID,
@@ -53,6 +73,7 @@ struct ShelfPersistedItem: Codable, Equatable {
          text: String? = nil,
          url: String? = nil,
          path: String? = nil,
+         bookmark: Data? = nil,
          children: [ShelfPersistedItem]? = nil) {
         self.id = id
         self.kind = kind
@@ -60,6 +81,7 @@ struct ShelfPersistedItem: Codable, Equatable {
         self.text = text
         self.url = url
         self.path = path
+        self.bookmark = bookmark
         self.children = children
     }
 }
@@ -81,10 +103,16 @@ enum ShelfPersistenceSupport {
     /// unmountedVolumeRoot): the app can launch at login before an external
     /// or network drive appears, and dropping those items would lose them
     /// permanently the moment the pruned list is saved back.
+    ///
+    /// `resolveBookmark` gives a dead path one chance to heal: a file moved
+    /// or renamed behind the app's back is found again through its bookmark,
+    /// and the entry keeps living under its new path and name.
     static func sanitized(_ items: [ShelfPersistedItem],
-                          fileExists: (String) -> Bool) -> [ShelfPersistedItem] {
+                          fileExists: (String) -> Bool,
+                          resolveBookmark: (Data) -> String? = { _ in nil }) -> [ShelfPersistedItem] {
         var remainingLeaves = maxLeaves
-        return sanitized(items, depth: 0, remainingLeaves: &remainingLeaves, fileExists: fileExists)
+        return sanitized(items, depth: 0, remainingLeaves: &remainingLeaves,
+                         fileExists: fileExists, resolveBookmark: resolveBookmark)
     }
 
     /// For a path under /Volumes, the volume root directory that must exist
@@ -100,16 +128,27 @@ enum ShelfPersistenceSupport {
     private static func sanitized(_ items: [ShelfPersistedItem],
                                   depth: Int,
                                   remainingLeaves: inout Int,
-                                  fileExists: (String) -> Bool) -> [ShelfPersistedItem] {
+                                  fileExists: (String) -> Bool,
+                                  resolveBookmark: (Data) -> String?) -> [ShelfPersistedItem] {
         guard depth < maxDepth else { return [] }
         var result: [ShelfPersistedItem] = []
         for item in items {
             guard remainingLeaves > 0 else { break }
             switch item.kind {
             case .file:
-                guard let path = item.path, !path.isEmpty, fileExists(path) else { continue }
+                guard let path = item.path, !path.isEmpty else { continue }
+                var keptPath = path
+                var keptTitle = item.title
+                if !fileExists(path) {
+                    guard let bookmark = item.bookmark,
+                          let healed = resolveBookmark(bookmark),
+                          fileExists(healed) else { continue }
+                    keptPath = healed
+                    keptTitle = (healed as NSString).lastPathComponent
+                }
                 remainingLeaves -= 1
-                result.append(ShelfPersistedItem(id: item.id, kind: .file, title: item.title, path: path))
+                result.append(ShelfPersistedItem(id: item.id, kind: .file, title: keptTitle,
+                                                 path: keptPath, bookmark: item.bookmark))
             case .text:
                 guard let text = item.text,
                       !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
@@ -123,7 +162,8 @@ enum ShelfPersistenceSupport {
                 result.append(ShelfPersistedItem(id: item.id, kind: .link, title: item.title, url: raw))
             case .batch:
                 let children = sanitized(item.children ?? [], depth: depth + 1,
-                                         remainingLeaves: &remainingLeaves, fileExists: fileExists)
+                                         remainingLeaves: &remainingLeaves,
+                                         fileExists: fileExists, resolveBookmark: resolveBookmark)
                 if children.isEmpty { continue }
                 if children.count == 1 {
                     result.append(children[0])

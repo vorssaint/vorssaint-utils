@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import ServiceManagement
 import SwiftUI
 
 /// First-run experience, also reachable later through Settings › About.
@@ -492,7 +491,8 @@ private struct PanelSetupStep: View {
 
 private struct OptionalFeaturesStep: View {
     @ObservedObject private var l10n = L10n.shared
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var launchAtLogin = LaunchAtLogin.isEnabled
+    @State private var loginError: String?
     @AppStorage(DefaultsKey.scrollInverterEnabled) private var inverterEnabled = false
     @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
     @AppStorage(DefaultsKey.finderCutPasteEnabled) private var cutPasteEnabled = false
@@ -506,18 +506,23 @@ private struct OptionalFeaturesStep: View {
                        subtitle: l10n.s.obStepOptionalBody)
 
             VStack(alignment: .leading, spacing: 14) {
-                Toggle(l10n.s.launchAtLogin, isOn: $launchAtLogin)
-                    .onChange(of: launchAtLogin) { _, enabled in
-                        do {
-                            if enabled {
-                                try SMAppService.mainApp.register()
-                            } else {
-                                try SMAppService.mainApp.unregister()
+                VStack(alignment: .leading, spacing: 3) {
+                    Toggle(l10n.s.launchAtLogin, isOn: $launchAtLogin)
+                        .onChange(of: launchAtLogin) { _, enabled in
+                            do {
+                                try LaunchAtLogin.setEnabled(enabled)
+                                loginError = nil
+                            } catch {
+                                loginError = error.localizedDescription
+                                launchAtLogin = LaunchAtLogin.isEnabled
                             }
-                        } catch {
-                            launchAtLogin = SMAppService.mainApp.status == .enabled
                         }
+                    if let loginError {
+                        Text(loginError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
                     }
+                }
 
                 Divider()
 

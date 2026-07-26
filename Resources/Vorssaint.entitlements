@@ -4,10 +4,13 @@
 <dict>
 	<!-- Hardened runtime is required for notarization. The app is NOT sandboxed
 	     (its features need system-wide access gated by TCC at runtime, not by
-	     entitlements). The one capability hardened runtime would otherwise block
-	     is sending Apple Events, which cut & paste and the uninstaller use to
-	     drive the Finder; this entitlement restores that. -->
+	     entitlements). Hardened runtime blocks two capabilities the app uses:
+	     sending Apple Events (cut & paste and the uninstaller drive the Finder)
+	     and the camera (the preview mirror); these entitlements restore them.
+	     The user still grants each one through the normal TCC prompts. -->
 	<key>com.apple.security.automation.apple-events</key>
+	<true/>
+	<key>com.apple.security.device.camera</key>
 	<true/>
 </dict>
 </plist>

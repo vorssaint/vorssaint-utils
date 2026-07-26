@@ -31,6 +31,25 @@ enum ResponsibleProcess {
         return owner > 0 ? owner : pid
     }
 
+    /// The regular app to bill the process to, following the parent chain
+    /// when the responsibility API dead-ends on a helper that answers for
+    /// itself (browser audio helpers, issue #256). Nil when no ancestor is
+    /// a regular app — daemons and login items stay unlisted.
+    static func regularAppOwner(of pid: pid_t) -> NSRunningApplication? {
+        MixerRoutingSupport.owningRegularAppPid(
+            responsiblePid: owner(of: pid),
+            isRegularApp: { NSRunningApplication(processIdentifier: $0)?.activationPolicy == .regular },
+            parentPid: parent(of:)
+        ).flatMap(NSRunningApplication.init(processIdentifier:))
+    }
+
+    private static func parent(of pid: pid_t) -> pid_t {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return 0 }
+        return pid_t(info.pbi_ppid)
+    }
+
     /// Prefers the app's localized name; system processes fall back to their
     /// kernel-reported name (e.g. "WindowServer"), then to the caller's hint.
     static func displayName(pid: pid_t, fallback: String) -> String {

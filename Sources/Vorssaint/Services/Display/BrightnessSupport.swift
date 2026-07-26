@@ -24,6 +24,26 @@ enum BrightnessSupport {
     static let retryAttempts = 4
     static let replyLength = 11
 
+    /// The DDC/CI standard also spaces whole commands apart: a host waits at
+    /// least 50ms after one command before starting the next. The pauses
+    /// above pace the steps inside a command; without this one, a slider
+    /// drag or a held brightness key chains commands at the write pause,
+    /// five times faster than monitors are promised, and some react to the
+    /// stream by dropping their signal until they are power cycled
+    /// (issue #301).
+    static let commandIntervalMicroseconds: UInt64 = 50_000
+
+    /// How long the next command must still wait, given when the previous
+    /// one to the same display finished. A first command, or a clock that
+    /// moved backwards, waits nothing.
+    static func ddcCommandDelay(nowMicroseconds: UInt64,
+                                lastCommandEndMicroseconds: UInt64?) -> UInt32 {
+        guard let last = lastCommandEndMicroseconds, last <= nowMicroseconds else { return 0 }
+        let elapsed = nowMicroseconds - last
+        guard elapsed < commandIntervalMicroseconds else { return 0 }
+        return UInt32(commandIntervalMicroseconds - elapsed)
+    }
+
     /// Wraps a DDC payload: length-tagged header, payload, XOR checksum. The
     /// checksum seed covers the destination address, and the sub-address only
     /// participates for multi-byte payloads (single-byte requests omit it).
@@ -112,6 +132,18 @@ enum BrightnessSupport {
         return table.map { $0 * factor }
     }
 
+    /// The dim level put back on a display that just returned from a
+    /// connection gap. The saved level is honoured, but never so dark that
+    /// the screen reads as dead: replugging the cable is the one gesture
+    /// left to someone facing a black picture, and it has to land on
+    /// something visible (issue #301). Live control is untouched and still
+    /// reaches true black.
+    static let reconnectionDimFloor = 0.25
+
+    static func reconnectedDimLevel(_ saved: Double) -> Double {
+        max(min(saved, 1), reconnectionDimFloor)
+    }
+
     // MARK: - Brightness keys
 
     /// The keyboard brightness keys arrive as system-defined events, not key
@@ -141,8 +173,92 @@ enum BrightnessSupport {
         return BrightnessKeyEvent(delta: delta, isKeyDown: state == 10, isRepeat: (raw & 0x1) != 0)
     }
 
+    /// Keyboards other than the built-in one do not send brightness as a
+    /// media key at all. They send an ordinary key press: either one of the
+    /// two dedicated brightness codes, or F14 and F15, which the system
+    /// offers as brightness keys in its own keyboard shortcuts whenever an
+    /// external keyboard is attached. Measured against the display server:
+    /// all four move brightness by the same sixteenth of the range as the
+    /// built-in keys (issue #287).
+    enum BrightnessKeyCode {
+        static let increase = 144
+        static let decrease = 145
+        static let functionIncrease = 113
+        static let functionDecrease = 107
+    }
+
+    /// Cheap enough for the hot path: every keystroke in the session passes
+    /// through the tap, and only these four may cost anything more.
+    static func isBrightnessKeyCode(_ keyCode: Int) -> Bool {
+        keyCode == BrightnessKeyCode.increase || keyCode == BrightnessKeyCode.decrease
+            || keyCode == BrightnessKeyCode.functionIncrease
+            || keyCode == BrightnessKeyCode.functionDecrease
+    }
+
+    static func brightnessFunctionKeyEvent(keyCode: Int,
+                                           isKeyDown: Bool,
+                                           isRepeat: Bool,
+                                           hasModifiers: Bool,
+                                           functionKeysAdjustBrightness: Bool) -> BrightnessKeyEvent? {
+        // A modified press means something else: the system opens its own
+        // display settings, and finer steps are its business too.
+        guard !hasModifiers else { return nil }
+        let delta: Double
+        switch keyCode {
+        case BrightnessKeyCode.increase: delta = brightnessKeyStep
+        case BrightnessKeyCode.decrease: delta = -brightnessKeyStep
+        case BrightnessKeyCode.functionIncrease where functionKeysAdjustBrightness:
+            delta = brightnessKeyStep
+        case BrightnessKeyCode.functionDecrease where functionKeysAdjustBrightness:
+            delta = -brightnessKeyStep
+        default: return nil
+        }
+        return BrightnessKeyEvent(delta: delta, isKeyDown: isKeyDown, isRepeat: isRepeat)
+    }
+
+    /// Whether F14 and F15 still mean brightness. The system ships them
+    /// switched on, so an absent entry means yes; a user who turned them off
+    /// in the system's keyboard shortcuts gets them left alone.
+    static func functionKeysAdjustBrightness(symbolicHotKeys: [String: Any]?) -> Bool {
+        guard let symbolicHotKeys else { return true }
+        for identifier in ["53", "54"] {
+            guard let entry = symbolicHotKeys[identifier] as? [String: Any] else { continue }
+            if let enabled = entry["enabled"] as? Bool, !enabled { return false }
+            if let enabled = entry["enabled"] as? NSNumber, !enabled.boolValue { return false }
+        }
+        return true
+    }
+
     static func steppedBrightness(_ current: Double, delta: Double) -> Double {
         min(max(current + delta, 0), 1)
+    }
+
+    /// Whether a brightness key press aimed at a system-routed display is
+    /// stepped by the app instead of left to the system (issue #268). The
+    /// system's own key handling only ever moves its native target, so a
+    /// press the pointer routes to any other display (an Apple pipeline
+    /// external monitor, or any display in clamshell mode) has to be stepped
+    /// here or it lands on the wrong screen. The built-in panel keeps the
+    /// native handling and its animation unless the overlay replaces it.
+    static func stepsSystemRoutedDisplay(followsPointer: Bool,
+                                         displayIsBuiltIn: Bool,
+                                         overlayReplacesNative: Bool) -> Bool {
+        if followsPointer, !displayIsBuiltIn { return true }
+        return overlayReplacesNative
+    }
+
+    /// Sixteen segments match the system brightness steps. A non-zero value
+    /// keeps at least one segment visible while exact zero stays empty.
+    static func filledBrightnessSegments(_ brightness: Double) -> Int {
+        let clamped = min(max(brightness, 0), 1)
+        guard clamped > 0 else { return 0 }
+        return min(Int((clamped * 16).rounded(.up)), 16)
+    }
+
+    /// Whole percentage used by the brightness overlay.
+    static func wholePercent(_ brightness: Double) -> Int {
+        guard brightness.isFinite else { return 0 }
+        return Int((min(max(brightness, 0), 1) * 100).rounded())
     }
 
     /// DDC value to the 0...1 slider scale.

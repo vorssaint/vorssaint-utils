@@ -71,6 +71,12 @@ final class CleaningModeManager: ObservableObject {
         // middle-click emulation must not fire from them.
         MiddleClickService.shared.suspend()
         MouseNavigationService.shared.suspend()
+        // A stray side-button press while wiping the mouse must not type a
+        // key combination into the frontmost app (the synthesized keys are
+        // posted below this lock's keyboard tap) nor open the wheel over
+        // the cleaning overlay.
+        MouseButtonShortcutService.shared.suspend()
+        RadialMenuService.shared.suspend()
         unlock.reset()
         unlockProgress = 0
         isActive = true
@@ -100,6 +106,8 @@ final class CleaningModeManager: ObservableObject {
         KeyboardDebounceService.shared.syncWithPreferences()
         MiddleClickService.shared.syncWithPreferences()
         MouseNavigationService.shared.syncWithPreferences()
+        MouseButtonShortcutService.shared.syncWithPreferences()
+        RadialMenuService.shared.syncWithPreferences()
     }
 
     // MARK: - Event tap

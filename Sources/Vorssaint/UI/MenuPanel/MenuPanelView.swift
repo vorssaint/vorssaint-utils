@@ -90,9 +90,12 @@ struct MenuPanelView: View {
     @State private var selectedMetric: MetricDetailKind?
 
     /// Cap the panel to the usable screen height so it never overflows the menu
-    /// bar; taller content scrolls inside.
+    /// bar; taller content scrolls inside. Measured against the display the
+    /// menu bar icon is on, which is not always the one holding the key window.
     private var maxHeight: CGFloat {
-        max(360, (NSScreen.main?.visibleFrame.height ?? 760) - 24)
+        let anchored = PanelInteractionState.shared.anchorScreen
+            .flatMap { anchor in anchor.isStillAttached ? anchor : nil }
+        return max(360, ((anchored ?? NSScreen.withMenuBar)?.visibleFrame.height ?? 760) - 24)
     }
 
     var body: some View {
@@ -470,11 +473,10 @@ private struct MenuPanelHeader: View {
 
 private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // Case order IS the default panel order (PanelLayout.itemOrder falls back
-    // to allCases): the quick panel leads because it is the fastest way into
-    // every other tool, and the cleaner comes right below it (owner's call).
-    // Saved orders are untouched.
-    case quickLauncher, cleaner, homebrew, media, clipboard, windowLayout, uninstaller, cleanURL,
-         cleaning, screenOCR, colorPicker, micMute
+    // to allCases). Screenshot leads in 3.1.13; existing orders that predate it
+    // are migrated once without disturbing the rest of the user's layout.
+    case screenshot, quickLauncher, cleaner, homebrew, media, clipboard, windowLayout, uninstaller,
+         cleanURL, cleaning, screenOCR, colorPicker, micMute, cameraPreview, scratchpad
 
     var id: String { rawValue }
 
@@ -494,6 +496,9 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .screenOCR: return .screenOCR
         case .colorPicker: return .colorPicker
         case .micMute: return .micMute
+        case .screenshot: return .screenshot
+        case .cameraPreview: return .cameraPreview
+        case .scratchpad: return .scratchpad
         }
     }
 }
@@ -519,9 +524,12 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityClipboard) private var showClipboard = true
     @AppStorage(DefaultsKey.panelUtilityWindowLayout) private var showWindowLayout = true
     @AppStorage(DefaultsKey.panelUtilityScreenOCR) private var showScreenOCR = true
+    @AppStorage(DefaultsKey.panelUtilityScreenshot) private var showScreenshot = true
     @AppStorage(DefaultsKey.panelUtilityQuickLauncher) private var showQuickLauncher = true
     @AppStorage(DefaultsKey.panelUtilityColorPicker) private var showColorPicker = true
     @AppStorage(DefaultsKey.panelUtilityMicMute) private var showMicMute = true
+    @AppStorage(DefaultsKey.panelUtilityCameraPreview) private var showCameraPreview = true
+    @AppStorage(DefaultsKey.panelUtilityScratchpad) private var showScratchpad = true
     @ObservedObject private var micMute = MicMuteService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
@@ -666,7 +674,10 @@ struct UtilitiesSection: View {
         case .screenOCR: return showScreenOCR
         case .colorPicker: return showColorPicker
         case .micMute: return showMicMute
+        case .cameraPreview: return showCameraPreview
+        case .scratchpad: return showScratchpad
         case .quickLauncher: return showQuickLauncher
+        case .screenshot: return showScreenshot
         }
     }
 
@@ -782,6 +793,23 @@ struct UtilitiesSection: View {
                                         ScreenTextService.shared.capture()
                                     }
                                 })
+        case .screenshot:
+            UtilityActionButton(title: FeatureStrings.screenshot(l10n.language).pageTitle,
+                                caption: screenshotCaption,
+                                systemImage: "camera.viewfinder",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showScreenshot,
+                                needsAttention: !permissions.screenRecording,
+                                permissionButtonTitle: l10n.s.permissionRequest,
+                                permissionAction: permissions.screenRecording ? nil : grantScreenRecordingPermission,
+                                shortcutHint: shortcutHint(.screenshot),
+                                action: {
+                                    appDelegate()?.closePopover()
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                        ScreenshotService.shared.capture()
+                                    }
+                                })
         case .colorPicker:
             UtilityActionButton(title: l10n.s.colorPickerName,
                                 caption: l10n.s.colorPickerCaption,
@@ -806,6 +834,39 @@ struct UtilitiesSection: View {
                                 shortcutHint: shortcutHint(.micMute),
                                 action: {
                                     MicMuteService.shared.toggle()
+                                })
+        case .cameraPreview:
+            UtilityActionButton(title: FeatureStrings.cameraPreview(l10n.language).pageTitle,
+                                caption: cameraPreviewCaption,
+                                systemImage: "web.camera",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showCameraPreview,
+                                needsAttention: permissions.camera == .denied,
+                                permissionButtonTitle: l10n.s.permissionOpenSettings,
+                                permissionAction: permissions.camera == .denied
+                                    ? { Permissions.shared.openCameraSettings() }
+                                    : nil,
+                                shortcutHint: shortcutHint(.cameraPreview),
+                                action: {
+                                    appDelegate()?.closePopover()
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                        CameraPreviewService.shared.show()
+                                    }
+                                })
+        case .scratchpad:
+            UtilityActionButton(title: FeatureStrings.scratchpad(l10n.language).pageTitle,
+                                caption: FeatureStrings.scratchpad(l10n.language).panelCaption,
+                                systemImage: "note.text",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showScratchpad,
+                                shortcutHint: shortcutHint(.scratchpad),
+                                action: {
+                                    appDelegate()?.closePopover()
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                        ScratchpadService.shared.show()
+                                    }
                                 })
         case .quickLauncher:
             UtilityActionButton(title: l10n.s.launcherName,
@@ -840,6 +901,18 @@ struct UtilitiesSection: View {
             : "\(l10n.s.permissionRequired): \(l10n.s.permissionScreenRecording)"
     }
 
+    private var screenshotCaption: String {
+        permissions.screenRecording
+            ? FeatureStrings.screenshot(l10n.language).panelCaption
+            : "\(l10n.s.permissionRequired): \(l10n.s.permissionScreenRecording)"
+    }
+
+    private var cameraPreviewCaption: String {
+        permissions.camera == .denied
+            ? "\(l10n.s.permissionRequired): \(FeatureStrings.cameraPreview(l10n.language).permName)"
+            : FeatureStrings.cameraPreview(l10n.language).panelCaption
+    }
+
     private func grantScreenRecordingPermission() {
         Permissions.shared.requestScreenRecording()
     }
@@ -856,8 +929,11 @@ struct UtilitiesSection: View {
         showCleanURL = true
         showCleaning = true
         showScreenOCR = true
+        showScreenshot = true
         showColorPicker = true
         showMicMute = true
+        showCameraPreview = true
+        showScratchpad = true
         showQuickLauncher = true
     }
 
@@ -869,7 +945,7 @@ struct UtilitiesSection: View {
 
 private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
     case mouseScroll, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
-         dockClick, dockClickCycle, middleClick, textSnippets
+         dockClick, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts, superKey
 
     var id: String { rawValue }
 
@@ -889,6 +965,9 @@ private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
         case .dockClick, .dockClickCycle: return .dockClick
         case .middleClick: return .middleClick
         case .textSnippets: return .textSnippets
+        case .radialMenu: return .radialMenu
+        case .mouseButtonShortcuts: return .mouseButtonShortcuts
+        case .superKey: return .superKey
         }
     }
 }
@@ -904,7 +983,8 @@ private enum ControlCategory: String, CaseIterable, Identifiable {
         switch item {
         case .switcher, .dockPreview, .dockClick, .dockClickCycle, .windowMaximize, .autoQuit:
             return .windows
-        case .mouseScroll, .mouseNavigation, .middleClick, .keyDebounce, .textSnippets:
+        case .mouseScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
+             .textSnippets, .radialMenu, .superKey:
             return .inputDevices
         case .cutPaste, .shelf:
             return .files
@@ -941,6 +1021,9 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.textSnippetsEnabled) private var textSnippetsEnabled = false
+    @AppStorage(DefaultsKey.radialMenuEnabled) private var radialMenuEnabled = false
+    @AppStorage(DefaultsKey.mouseButtonShortcutsEnabled) private var mouseButtonShortcutsEnabled = false
+    @AppStorage(DefaultsKey.superKeyEnabled) private var superKeyEnabled = false
     @AppStorage(DefaultsKey.panelControlMouseScroll) private var showScroll = true
     @AppStorage(DefaultsKey.panelControlMouseNavigation) private var showMouseNavigation = true
     @AppStorage(DefaultsKey.panelControlSwitcher) private var showSwitcher = true
@@ -954,6 +1037,9 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.panelControlDockClickCycle) private var showDockClickCycle = true
     @AppStorage(DefaultsKey.panelControlMiddleClick) private var showMiddleClick = true
     @AppStorage(DefaultsKey.panelControlTextSnippets) private var showTextSnippets = true
+    @AppStorage(DefaultsKey.panelControlRadialMenu) private var showRadialMenu = true
+    @AppStorage(DefaultsKey.panelControlMouseButtonShortcuts) private var showMouseButtonShortcuts = true
+    @AppStorage(DefaultsKey.panelControlSuperKey) private var showSuperKey = true
     @AppStorage(DefaultsKey.panelControlWindowsExpanded) private var windowsExpanded = false
     @AppStorage(DefaultsKey.panelControlInputExpanded) private var inputExpanded = false
     @AppStorage(DefaultsKey.panelControlFilesExpanded) private var filesExpanded = false
@@ -1066,6 +1152,9 @@ struct QuickControlsSection: View {
         case .dockClickCycle: return dockClickCycleEnabled
         case .middleClick: return middleClickEnabled
         case .textSnippets: return textSnippetsEnabled
+        case .radialMenu: return radialMenuEnabled
+        case .mouseButtonShortcuts: return mouseButtonShortcutsEnabled
+        case .superKey: return superKeyEnabled
         }
     }
 
@@ -1092,7 +1181,6 @@ struct QuickControlsSection: View {
         if !permissions.accessibility { return missingPermission(l10n.s.permissionAccessibility) }
         if !permissions.screenRecording { return missingPermission(l10n.s.permissionScreenRecording) }
         switch dockPreview.blockedReason {
-        case .magnification: return l10n.s.dockPreviewMagnificationBlocked
         case .dockUnavailable: return l10n.s.dockPreviewDockUnavailable
         default:
             return l10n.s.dockPreviewEnableCaption
@@ -1137,6 +1225,9 @@ struct QuickControlsSection: View {
         case .dockClickCycle: return showDockClickCycle
         case .middleClick: return showMiddleClick
         case .textSnippets: return showTextSnippets
+        case .radialMenu: return showRadialMenu
+        case .mouseButtonShortcuts: return showMouseButtonShortcuts
+        case .superKey: return showSuperKey
         }
     }
 
@@ -1369,6 +1460,84 @@ struct QuickControlsSection: View {
                     TextSnippetService.shared.syncWithPreferences()
                     requestAccessibilityIfNeeded(enabled)
                 }
+        case .radialMenu:
+            let radialStrings = FeatureStrings.radialMenu(l10n.language)
+            // Only wheels that press keys for the user (shortcut or media
+            // slices) or watch a side button involve Accessibility.
+            let needsAccessibility = RadialMenuSupport.needsAccessibility(
+                RadialMenuSupport.decode(UserDefaults.standard.data(forKey: DefaultsKey.radialMenuItems)))
+                || RadialMenuMouseTrigger.sanitized(
+                    UserDefaults.standard.string(forKey: DefaultsKey.radialMenuMouseButton)) != .off
+            PanelToggleRow(title: radialStrings.pageTitle,
+                           caption: radialMenuEnabled && needsAccessibility && !permissions.accessibility
+                               ? missingPermission(l10n.s.permissionAccessibility)
+                               : radialStrings.panelCaption,
+                           systemImage: "circle.grid.cross",
+                           isOn: $radialMenuEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showRadialMenu,
+                           needsAttention: radialMenuEnabled && needsAccessibility
+                               && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: needsAccessibility
+                               ? accessibilityPermissionAction(radialMenuEnabled)
+                               : nil,
+                           accessoryTitle: radialMenuEnabled ? radialStrings.manageButton : nil,
+                           accessoryAction: {
+                               SettingsRouter.shared.page = .radialMenu
+                               appDelegate()?.openSettingsWindow()
+                           })
+                .onChange(of: radialMenuEnabled) { _, enabled in
+                    RadialMenuService.shared.syncWithPreferences()
+                    if needsAccessibility {
+                        requestAccessibilityIfNeeded(enabled)
+                    }
+                }
+        case .mouseButtonShortcuts:
+            let buttonStrings = FeatureStrings.mouseButtons(l10n.language)
+            PanelToggleRow(title: buttonStrings.pageTitle,
+                           caption: caption(buttonStrings.panelCaption,
+                                            needsAccessibility: mouseButtonShortcutsEnabled),
+                           systemImage: "button.programmable",
+                           isOn: $mouseButtonShortcutsEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showMouseButtonShortcuts,
+                           needsAttention: mouseButtonShortcutsEnabled && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: accessibilityPermissionAction(mouseButtonShortcutsEnabled),
+                           accessoryTitle: mouseButtonShortcutsEnabled ? buttonStrings.manageButton : nil,
+                           accessoryAction: {
+                               SettingsRouter.shared.page = .mouse
+                               appDelegate()?.openSettingsWindow()
+                           })
+                .onChange(of: mouseButtonShortcutsEnabled) { _, enabled in
+                    MouseButtonShortcutService.shared.syncWithPreferences()
+                    requestAccessibilityIfNeeded(enabled)
+                }
+        case .superKey:
+            let superKeyStrings = FeatureStrings.superKey(l10n.language)
+            PanelToggleRow(title: superKeyStrings.pageTitle,
+                           caption: caption(superKeyStrings.panelCaption,
+                                            needsAccessibility: superKeyEnabled),
+                           systemImage: "capslock",
+                           isOn: $superKeyEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showSuperKey,
+                           needsAttention: superKeyEnabled && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: accessibilityPermissionAction(superKeyEnabled),
+                           accessoryTitle: superKeyEnabled ? superKeyStrings.manageButton : nil,
+                           accessoryAction: {
+                               SettingsRouter.shared.page = .superKey
+                               appDelegate()?.openSettingsWindow()
+                           })
+                .onChange(of: superKeyEnabled) { _, enabled in
+                    SuperKeyService.shared.syncWithPreferences()
+                    requestAccessibilityIfNeeded(enabled)
+                }
         }
     }
 
@@ -1394,6 +1563,10 @@ struct QuickControlsSection: View {
         showDockClick = true
         showDockClickCycle = true
         showMiddleClick = true
+        showTextSnippets = true
+        showRadialMenu = true
+        showMouseButtonShortcuts = true
+        showSuperKey = true
         windowsExpanded = false
         inputExpanded = false
         filesExpanded = false

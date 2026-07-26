@@ -22,6 +22,7 @@ enum WindowActivator {
                          sourceWindowID: CGWindowID? = nil,
                          sourceWindowOwnerPID: pid_t? = nil) {
         cancelPendingMinimizeRestore()
+        SpaceHop.cancelPending()
 
         if item.pid == ProcessInfo.processInfo.processIdentifier {
             activateOwnWindow(item)
@@ -36,7 +37,26 @@ enum WindowActivator {
             targetsSpecificWindow: item.windowID != nil
         )
         guard let windowID = item.windowID else {
+            let retryState = retry && sourceWasFullscreen
+                ? SwitcherAppActivationRetryState(targetPID: item.pid)
+                : nil
             activateApp(app, allWindows: activationPlan.activateAllWindows)
+            if let retryState {
+                scheduleAppActivationRetries(targetPID: item.pid,
+                                             sourcePID: sourcePID,
+                                             allWindows: activationPlan.activateAllWindows,
+                                             state: retryState,
+                                             delays: Self.fullscreenFocusRetryDelays)
+            }
+            return
+        }
+        // A window parked on a Space that is not visible cannot be reached by
+        // the Accessibility passes below; the hop travels there first and then
+        // runs the same focus pass on arrival (issue #339).
+        if SpaceHop.beginIfNeeded(windowID: windowID,
+                                  appPID: item.pid,
+                                  windowOwnerPID: windowOwnerPID,
+                                  app: app) {
             return
         }
         watchTargetMinimizeIfNeeded(windowID: windowID,
@@ -257,6 +277,42 @@ enum WindowActivator {
         }
     }
 
+    private static func scheduleAppActivationRetries(targetPID: pid_t,
+                                                     sourcePID: pid_t?,
+                                                     allWindows: Bool,
+                                                     state: SwitcherAppActivationRetryState,
+                                                     delays: [TimeInterval]) {
+        guard !delays.isEmpty else {
+            state.invalidate()
+            return
+        }
+        for (index, delay) in delays.enumerated() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                guard state.isActive else { return }
+                let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+                state.observe(frontmostPID: frontmostPID)
+                guard SwitcherSupport.shouldContinueAppActivationRetry(
+                    targetPID: targetPID,
+                    sourcePID: sourcePID,
+                    frontmostPID: frontmostPID,
+                    targetWasObservedFrontmost: state.targetWasObservedFrontmost
+                ) else {
+                    state.invalidate()
+                    return
+                }
+                guard let app = NSRunningApplication(processIdentifier: targetPID),
+                      !app.isTerminated else {
+                    state.invalidate()
+                    return
+                }
+                activateApp(app, allWindows: allWindows)
+                if index == delays.count - 1 {
+                    state.invalidate()
+                }
+            }
+        }
+    }
+
     private static func shouldContinueFocusRetry(windowID: CGWindowID,
                                                  targetPID: pid_t,
                                                  targetWindowOwnerPID: pid_t,
@@ -463,6 +519,25 @@ enum WindowActivator {
         return true
     }
 
+    /// Whether Accessibility can currently resolve this window at all. Windows
+    /// on a hidden Space cannot be resolved; minimized windows can, wherever
+    /// they came from (see SpaceHop.beginIfNeeded).
+    static func canResolveAXWindow(windowID: CGWindowID, pid: pid_t) -> Bool {
+        guard Permissions.shared.accessibility else { return false }
+        let axApp = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(axApp, 0.35)
+        return axElement(windowID: windowID, in: axApp) != nil
+    }
+
+    /// Focus pass run by SpaceHop once the target window's Space became
+    /// visible and Accessibility can finally describe the window.
+    static func focusAfterSpaceHop(windowID: CGWindowID, appPID: pid_t, windowOwnerPID: pid_t) {
+        guard let app = NSRunningApplication(processIdentifier: appPID), !app.isTerminated else { return }
+        prepareWindowForActivation(windowID: windowID, pid: windowOwnerPID)
+        activateApp(app, allWindows: false)
+        focusWindow(windowID: windowID, pid: windowOwnerPID)
+    }
+
     private static func axElement(windowID: CGWindowID, in axApp: AXUIElement) -> AXUIElement? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &value) == .success,
@@ -507,6 +582,46 @@ enum WindowActivator {
             return CFBooleanGetValue((minimized as! CFBoolean))
         }
         return minimized as? Bool
+    }
+}
+
+private final class SwitcherAppActivationRetryState {
+    private let targetPID: pid_t
+    private var workspaceObserver: Any?
+    private(set) var targetWasObservedFrontmost: Bool
+    private(set) var isActive = true
+
+    init(targetPID: pid_t) {
+        self.targetPID = targetPID
+        targetWasObservedFrontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier == targetPID
+        workspaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
+                    as? NSRunningApplication else { return }
+            self?.observe(frontmostPID: app.processIdentifier)
+        }
+    }
+
+    func observe(frontmostPID: pid_t?) {
+        if frontmostPID == targetPID {
+            targetWasObservedFrontmost = true
+        }
+    }
+
+    func invalidate() {
+        guard isActive else { return }
+        isActive = false
+        if let workspaceObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(workspaceObserver)
+        }
+        workspaceObserver = nil
+    }
+
+    deinit {
+        invalidate()
     }
 }
 

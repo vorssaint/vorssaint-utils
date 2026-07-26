@@ -25,6 +25,10 @@ struct MonitorAlertsControls: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 7 : 8) {
+            Text(text.caption)
+                .font(compact ? .system(size: 9.5) : .caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             if AppFeature.monitorCPU.isAvailable {
                 Toggle(text.cpu, isOn: $alertCPU)
                 if alertCPU {
@@ -62,18 +66,16 @@ struct MonitorAlertsControls: View {
                             step: 5)
                 }
             }
-            Picker(text.cooldown, selection: $alertCooldown) {
-                Text(text.cooldown2).tag(2)
-                Text(text.cooldown5).tag(5)
-                Text(text.cooldown15).tag(15)
-                Text(text.cooldown30).tag(30)
-                Text(text.cooldown60).tag(60)
+            if anyAlertEnabled {
+                Picker(text.cooldown, selection: $alertCooldown) {
+                    Text(text.cooldown2).tag(2)
+                    Text(text.cooldown5).tag(5)
+                    Text(text.cooldown15).tag(15)
+                    Text(text.cooldown30).tag(30)
+                    Text(text.cooldown60).tag(60)
+                }
+                .pickerStyle(.menu)
             }
-            .pickerStyle(.menu)
-            Text(text.caption)
-                .font(compact ? .system(size: 9.5) : .caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
             // Alerts silently cannot fire when macOS notifications are denied
             // for the app; without this line that state is invisible (the
             // user just never hears anything).

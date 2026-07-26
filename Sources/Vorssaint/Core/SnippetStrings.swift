@@ -31,6 +31,18 @@ struct SnippetFeatureStrings {
     let deleteButton: String
     let saveButton: String
     let manageButton: String
+    let ignoreCaseLabel: String
+    let libraryTitle: String
+    let libraryToggle: String
+    let libraryCaption: String
+    let librarySearchPlaceholder: String
+    let libraryNoResults: String
+    let libraryEmpty: String
+    let libraryFooterHint: String
+    let folderLabel: String
+    let folderPlaceholder: String
+    let showInLibraryLabel: String
+    let variablesFormatCaption: String
 }
 
 extension FeatureStrings {
@@ -78,7 +90,19 @@ extension SnippetFeatureStrings {
         triggerTooShort: "트리거는 2자 이상이어야 합니다.",
         deleteButton: "삭제",
         saveButton: "저장",
-        manageButton: "스니펫 관리"
+        manageButton: "스니펫 관리",
+        ignoreCaseLabel: "대소문자 구분 안 함",
+        libraryTitle: "빠른 스니펫 메뉴",
+        libraryToggle: "메뉴에서 스니펫 열기",
+        libraryCaption: "단축키를 누르면 검색 가능한 메뉴가 열립니다. 선택한 스니펫은 커서 위치에 바로 입력됩니다.",
+        librarySearchPlaceholder: "스니펫 검색",
+        libraryNoResults: "검색과 일치하는 스니펫이 없습니다.",
+        libraryEmpty: "아직 표시할 스니펫이 없습니다. 스니펫을 추가하거나 자주 쓰는 스니펫에서 '빠른 메뉴에 표시'를 켜세요.",
+        libraryFooterHint: "↩ 입력 · esc 닫기",
+        folderLabel: "폴더",
+        folderPlaceholder: "업무",
+        showInLibraryLabel: "빠른 메뉴에 표시",
+        variablesFormatCaption: "콜론 뒤에 형식을 적으면 원하는 모양이 됩니다. 예: {{date:yyyy-MM-dd}}"
     )
 }
 
@@ -107,7 +131,19 @@ extension SnippetFeatureStrings {
         triggerTooShort: "The trigger needs at least 2 characters.",
         deleteButton: "Delete",
         saveButton: "Save",
-        manageButton: "Manage snippets"
+        manageButton: "Manage snippets",
+        ignoreCaseLabel: "Ignore capitalization",
+        libraryTitle: "Quick snippet menu",
+        libraryToggle: "Open snippets from a menu",
+        libraryCaption: "The shortcut opens a searchable menu. Picking a snippet types it right where your cursor is.",
+        librarySearchPlaceholder: "Search snippets",
+        libraryNoResults: "No snippet matches the search.",
+        libraryEmpty: "Nothing to show yet. Add snippets, or turn on 'Show in the quick menu' for the ones you use most.",
+        libraryFooterHint: "↩ inserts · esc closes",
+        folderLabel: "Folder",
+        folderPlaceholder: "Work",
+        showInLibraryLabel: "Show in the quick menu",
+        variablesFormatCaption: "A format after a colon picks how they look, like {{date:yyyy-MM-dd}}."
     )
 
     static let ptBR = SnippetFeatureStrings(
@@ -134,7 +170,19 @@ extension SnippetFeatureStrings {
         triggerTooShort: "O gatilho precisa de pelo menos 2 caracteres.",
         deleteButton: "Apagar",
         saveButton: "Salvar",
-        manageButton: "Gerenciar snippets"
+        manageButton: "Gerenciar snippets",
+        ignoreCaseLabel: "Ignorar maiúsculas e minúsculas",
+        libraryTitle: "Menu rápido de snippets",
+        libraryToggle: "Abrir snippets por um menu",
+        libraryCaption: "O atalho abre um menu com busca. Escolher um snippet digita o texto onde o cursor está.",
+        librarySearchPlaceholder: "Buscar snippets",
+        libraryNoResults: "Nenhum snippet corresponde à busca.",
+        libraryEmpty: "Nada para mostrar ainda. Adicione snippets ou ative 'Mostrar no menu rápido' nos que você mais usa.",
+        libraryFooterHint: "↩ insere · esc fecha",
+        folderLabel: "Pasta",
+        folderPlaceholder: "Trabalho",
+        showInLibraryLabel: "Mostrar no menu rápido",
+        variablesFormatCaption: "Um formato depois de dois pontos escolhe a aparência, como {{date:yyyy-MM-dd}}."
     )
 
     static let tr = SnippetFeatureStrings(
@@ -161,7 +209,19 @@ extension SnippetFeatureStrings {
         triggerTooShort: "Tetikleyici en az 2 karakter olmalı.",
         deleteButton: "Sil",
         saveButton: "Kaydet",
-        manageButton: "Parçacıkları yönet"
+        manageButton: "Parçacıkları yönet",
+        ignoreCaseLabel: "Büyük küçük harf farkını yok say",
+        libraryTitle: "Hızlı parçacık menüsü",
+        libraryToggle: "Parçacıkları menüden aç",
+        libraryCaption: "Kısayol aranabilir bir menü açar. Seçilen parçacık imlecin olduğu yere yazılır.",
+        librarySearchPlaceholder: "Parçacık ara",
+        libraryNoResults: "Aramayla eşleşen parçacık yok.",
+        libraryEmpty: "Henüz gösterilecek bir şey yok. Parçacık ekleyin veya en çok kullandıklarınızda 'Hızlı menüde göster'i açın.",
+        libraryFooterHint: "↩ yazar · esc kapatır",
+        folderLabel: "Klasör",
+        folderPlaceholder: "İş",
+        showInLibraryLabel: "Hızlı menüde göster",
+        variablesFormatCaption: "İki noktadan sonra yazılan biçim görünümü belirler, örneğin {{date:yyyy-MM-dd}}."
     )
 
     static let ru = SnippetFeatureStrings(
@@ -188,7 +248,19 @@ extension SnippetFeatureStrings {
         triggerTooShort: "Триггеру нужно не меньше 2 символов.",
         deleteButton: "Удалить",
         saveButton: "Сохранить",
-        manageButton: "Управление сниппетами"
+        manageButton: "Управление сниппетами",
+        ignoreCaseLabel: "Не учитывать регистр",
+        libraryTitle: "Быстрое меню сниппетов",
+        libraryToggle: "Открывать сниппеты из меню",
+        libraryCaption: "Сочетание клавиш открывает меню с поиском. Выбранный сниппет печатается там, где стоит курсор.",
+        librarySearchPlaceholder: "Поиск сниппетов",
+        libraryNoResults: "Ни один сниппет не подходит под запрос.",
+        libraryEmpty: "Пока нечего показывать. Добавьте сниппеты или включите 'Показывать в быстром меню' для самых нужных.",
+        libraryFooterHint: "↩ вставить · esc закрыть",
+        folderLabel: "Папка",
+        folderPlaceholder: "Работа",
+        showInLibraryLabel: "Показывать в быстром меню",
+        variablesFormatCaption: "Формат после двоеточия задаёт вид, например {{date:yyyy-MM-dd}}."
     )
 
     static let es = SnippetFeatureStrings(
@@ -215,7 +287,19 @@ extension SnippetFeatureStrings {
         triggerTooShort: "El disparador necesita al menos 2 caracteres.",
         deleteButton: "Eliminar",
         saveButton: "Guardar",
-        manageButton: "Gestionar fragmentos"
+        manageButton: "Gestionar fragmentos",
+        ignoreCaseLabel: "Ignorar mayúsculas y minúsculas",
+        libraryTitle: "Menú rápido de fragmentos",
+        libraryToggle: "Abrir fragmentos desde un menú",
+        libraryCaption: "El atajo abre un menú con búsqueda. Elegir un fragmento lo escribe justo donde está el cursor.",
+        librarySearchPlaceholder: "Buscar fragmentos",
+        libraryNoResults: "Ningún fragmento coincide con la búsqueda.",
+        libraryEmpty: "Nada que mostrar todavía. Añade fragmentos o activa 'Mostrar en el menú rápido' en los que más usas.",
+        libraryFooterHint: "↩ inserta · esc cierra",
+        folderLabel: "Carpeta",
+        folderPlaceholder: "Trabajo",
+        showInLibraryLabel: "Mostrar en el menú rápido",
+        variablesFormatCaption: "Un formato después de dos puntos elige la apariencia, como {{date:yyyy-MM-dd}}."
     )
 
     static let de = SnippetFeatureStrings(
@@ -242,7 +326,19 @@ extension SnippetFeatureStrings {
         triggerTooShort: "Das Kürzel braucht mindestens 2 Zeichen.",
         deleteButton: "Löschen",
         saveButton: "Sichern",
-        manageButton: "Textbausteine verwalten"
+        manageButton: "Textbausteine verwalten",
+        ignoreCaseLabel: "Groß- und Kleinschreibung ignorieren",
+        libraryTitle: "Schnellmenü für Schnipsel",
+        libraryToggle: "Schnipsel über ein Menü öffnen",
+        libraryCaption: "Das Tastenkürzel öffnet ein durchsuchbares Menü. Ein gewählter Schnipsel wird direkt an der Cursorposition getippt.",
+        librarySearchPlaceholder: "Schnipsel suchen",
+        libraryNoResults: "Kein Schnipsel passt zur Suche.",
+        libraryEmpty: "Noch nichts anzuzeigen. Füge Schnipsel hinzu oder aktiviere 'Im Schnellmenü zeigen' bei deinen wichtigsten.",
+        libraryFooterHint: "↩ einfügen · esc schließen",
+        folderLabel: "Ordner",
+        folderPlaceholder: "Arbeit",
+        showInLibraryLabel: "Im Schnellmenü zeigen",
+        variablesFormatCaption: "Ein Format nach einem Doppelpunkt bestimmt das Aussehen, etwa {{date:yyyy-MM-dd}}."
     )
 
     static let fr = SnippetFeatureStrings(
@@ -269,7 +365,19 @@ extension SnippetFeatureStrings {
         triggerTooShort: "Le déclencheur doit faire au moins 2 caractères.",
         deleteButton: "Supprimer",
         saveButton: "Enregistrer",
-        manageButton: "Gérer les extraits"
+        manageButton: "Gérer les extraits",
+        ignoreCaseLabel: "Ignorer les majuscules et minuscules",
+        libraryTitle: "Menu rapide des extraits",
+        libraryToggle: "Ouvrir les extraits depuis un menu",
+        libraryCaption: "Le raccourci ouvre un menu avec recherche. Choisir un extrait le tape là où se trouve le curseur.",
+        librarySearchPlaceholder: "Rechercher un extrait",
+        libraryNoResults: "Aucun extrait ne correspond à la recherche.",
+        libraryEmpty: "Rien à afficher pour l'instant. Ajoutez des extraits ou activez 'Afficher dans le menu rapide' pour vos favoris.",
+        libraryFooterHint: "↩ insère · esc ferme",
+        folderLabel: "Dossier",
+        folderPlaceholder: "Travail",
+        showInLibraryLabel: "Afficher dans le menu rapide",
+        variablesFormatCaption: "Un format après deux-points choisit l'apparence, par exemple {{date:yyyy-MM-dd}}."
     )
 
     static let it = SnippetFeatureStrings(
@@ -296,7 +404,19 @@ extension SnippetFeatureStrings {
         triggerTooShort: "Il trigger richiede almeno 2 caratteri.",
         deleteButton: "Elimina",
         saveButton: "Salva",
-        manageButton: "Gestisci frammenti"
+        manageButton: "Gestisci frammenti",
+        ignoreCaseLabel: "Ignora maiuscole e minuscole",
+        libraryTitle: "Menu rapido degli snippet",
+        libraryToggle: "Aprire gli snippet da un menu",
+        libraryCaption: "La scorciatoia apre un menu con ricerca. Scegliere uno snippet lo digita dove si trova il cursore.",
+        librarySearchPlaceholder: "Cerca snippet",
+        libraryNoResults: "Nessuno snippet corrisponde alla ricerca.",
+        libraryEmpty: "Ancora niente da mostrare. Aggiungi snippet o attiva 'Mostra nel menu rapido' per quelli che usi di più.",
+        libraryFooterHint: "↩ inserisce · esc chiude",
+        folderLabel: "Cartella",
+        folderPlaceholder: "Lavoro",
+        showInLibraryLabel: "Mostra nel menu rapido",
+        variablesFormatCaption: "Un formato dopo i due punti sceglie l'aspetto, ad esempio {{date:yyyy-MM-dd}}."
     )
 
     static let ja = SnippetFeatureStrings(
@@ -323,7 +443,19 @@ extension SnippetFeatureStrings {
         triggerTooShort: "トリガーは2文字以上必要です。",
         deleteButton: "削除",
         saveButton: "保存",
-        manageButton: "スニペットを管理"
+        manageButton: "スニペットを管理",
+        ignoreCaseLabel: "大文字と小文字を区別しない",
+        libraryTitle: "スニペットのクイックメニュー",
+        libraryToggle: "メニューからスニペットを開く",
+        libraryCaption: "ショートカットで検索できるメニューが開きます。選んだスニペットはカーソル位置にそのまま入力されます。",
+        librarySearchPlaceholder: "スニペットを検索",
+        libraryNoResults: "検索に一致するスニペットがありません。",
+        libraryEmpty: "まだ表示するものがありません。スニペットを追加するか、よく使うものの'クイックメニューに表示'をオンにしてください。",
+        libraryFooterHint: "↩ 入力 · esc 閉じる",
+        folderLabel: "フォルダ",
+        folderPlaceholder: "仕事",
+        showInLibraryLabel: "クイックメニューに表示",
+        variablesFormatCaption: "コロンの後に形式を書くと表示を選べます。例: {{date:yyyy-MM-dd}}"
     )
 
     static let zhHans = SnippetFeatureStrings(
@@ -350,7 +482,19 @@ extension SnippetFeatureStrings {
         triggerTooShort: "触发词至少需要 2 个字符。",
         deleteButton: "删除",
         saveButton: "存储",
-        manageButton: "管理文本片段"
+        manageButton: "管理文本片段",
+        ignoreCaseLabel: "忽略大小写",
+        libraryTitle: "片段快捷菜单",
+        libraryToggle: "从菜单打开片段",
+        libraryCaption: "按下快捷键会打开一个可搜索的菜单。选中的片段会直接输入到光标所在位置。",
+        librarySearchPlaceholder: "搜索片段",
+        libraryNoResults: "没有匹配搜索的片段。",
+        libraryEmpty: "暂时没有可显示的内容。添加片段，或为常用片段开启'在快捷菜单中显示'。",
+        libraryFooterHint: "↩ 输入 · esc 关闭",
+        folderLabel: "文件夹",
+        folderPlaceholder: "工作",
+        showInLibraryLabel: "在快捷菜单中显示",
+        variablesFormatCaption: "冒号后加上格式就能自定样式,例如 {{date:yyyy-MM-dd}}。"
     )
 
     static let zhTW = SnippetFeatureStrings(
@@ -377,7 +521,19 @@ extension SnippetFeatureStrings {
         triggerTooShort: "觸發詞至少需要 2 個字元。",
         deleteButton: "刪除",
         saveButton: "儲存",
-        manageButton: "管理文字片段"
+        manageButton: "管理文字片段",
+        ignoreCaseLabel: "忽略大小寫",
+        libraryTitle: "程式片段快捷選單",
+        libraryToggle: "從選單開啟片段",
+        libraryCaption: "按下快速鍵會開啟可搜尋的選單。選取的片段會直接輸入到游標所在位置。",
+        librarySearchPlaceholder: "搜尋片段",
+        libraryNoResults: "沒有符合搜尋的片段。",
+        libraryEmpty: "目前沒有可顯示的內容。加入片段，或為常用片段開啟「在快捷選單中顯示」。",
+        libraryFooterHint: "↩ 輸入 · esc 關閉",
+        folderLabel: "檔案夾",
+        folderPlaceholder: "工作",
+        showInLibraryLabel: "在快捷選單中顯示",
+        variablesFormatCaption: "冒號後加上格式就能自訂樣式,例如 {{date:yyyy-MM-dd}}。"
     )
 
     static let zhHK = SnippetFeatureStrings(
@@ -404,6 +560,18 @@ extension SnippetFeatureStrings {
         triggerTooShort: "觸發詞至少需要 2 個字元。",
         deleteButton: "刪除",
         saveButton: "儲存",
-        manageButton: "管理文字片段"
+        manageButton: "管理文字片段",
+        ignoreCaseLabel: "忽略大小寫",
+        libraryTitle: "程式片段快捷選單",
+        libraryToggle: "從選單開啟片段",
+        libraryCaption: "按下快速鍵會開啟可搜尋的選單。選取的片段會直接輸入到游標所在位置。",
+        librarySearchPlaceholder: "搜尋片段",
+        libraryNoResults: "沒有符合搜尋的片段。",
+        libraryEmpty: "目前沒有可顯示的內容。加入片段，或為常用片段開啟「在快捷選單中顯示」。",
+        libraryFooterHint: "↩ 輸入 · esc 關閉",
+        folderLabel: "檔案夾",
+        folderPlaceholder: "工作",
+        showInLibraryLabel: "在快捷選單中顯示",
+        variablesFormatCaption: "喺冒號後加上格式就可以自訂樣式,例如 {{date:yyyy-MM-dd}}。"
     )
 }

@@ -21,6 +21,8 @@ struct BrightnessFeatureStrings {
     let switchFailed: String
     let keysToggle: String
     let keysCaption: String
+    let osdToggle: String
+    let osdCaption: String
 }
 
 extension FeatureStrings {
@@ -58,7 +60,9 @@ extension BrightnessFeatureStrings {
         switchUnavailable: "Display switching is unavailable on this Mac.",
         switchFailed: "Could not change this display.",
         keysToggle: "Brightness keys follow the pointer",
-        keysCaption: "The keyboard brightness keys change the display under the pointer."
+        keysCaption: "The keyboard brightness keys change the display under the pointer.",
+        osdToggle: "Show brightness when adjusting",
+        osdCaption: "Shows the brightness percentage when you use the brightness keys or sliders.",
     )
 
     static let ptBR = BrightnessFeatureStrings(
@@ -75,7 +79,9 @@ extension BrightnessFeatureStrings {
         switchUnavailable: "Não é possível ligar ou desligar telas neste Mac.",
         switchFailed: "Não foi possível alterar esta tela.",
         keysToggle: "Teclas de brilho seguem o ponteiro",
-        keysCaption: "As teclas de brilho do teclado mudam a tela onde o ponteiro está."
+        keysCaption: "As teclas de brilho do teclado mudam a tela onde o ponteiro está.",
+        osdToggle: "Mostrar brilho ao ajustar",
+        osdCaption: "Mostra a porcentagem de brilho ao usar as teclas ou os controles de brilho.",
     )
 
     static let tr = BrightnessFeatureStrings(
@@ -92,7 +98,9 @@ extension BrightnessFeatureStrings {
         switchUnavailable: "Bu Mac'te ekran açma ve kapatma kullanılamıyor.",
         switchFailed: "Bu ekran değiştirilemedi.",
         keysToggle: "Parlaklık tuşları imleci izler",
-        keysCaption: "Klavyedeki parlaklık tuşları imlecin bulunduğu ekranı değiştirir."
+        keysCaption: "Klavyedeki parlaklık tuşları imlecin bulunduğu ekranı değiştirir.",
+        osdToggle: "Parlaklık ayarlanırken göster",
+        osdCaption: "Parlaklık tuşlarını veya kaydırıcıları kullandığınızda parlaklık yüzdesini gösterir.",
     )
 
     static let ru = BrightnessFeatureStrings(
@@ -109,7 +117,9 @@ extension BrightnessFeatureStrings {
         switchUnavailable: "Управление включением экранов недоступно на этом Mac.",
         switchFailed: "Не удалось изменить состояние экрана.",
         keysToggle: "Клавиши яркости следуют за указателем",
-        keysCaption: "Клавиши яркости на клавиатуре меняют экран, на котором находится указатель."
+        keysCaption: "Клавиши яркости на клавиатуре меняют экран, на котором находится указатель.",
+        osdToggle: "Показывать яркость при регулировке",
+        osdCaption: "Показывает яркость в процентах при использовании клавиш или ползунков яркости.",
     )
 
     static let es = BrightnessFeatureStrings(
@@ -126,7 +136,9 @@ extension BrightnessFeatureStrings {
         switchUnavailable: "El encendido de pantallas no está disponible en este Mac.",
         switchFailed: "No se pudo cambiar esta pantalla.",
         keysToggle: "Las teclas de brillo siguen al puntero",
-        keysCaption: "Las teclas de brillo del teclado cambian la pantalla donde está el puntero."
+        keysCaption: "Las teclas de brillo del teclado cambian la pantalla donde está el puntero.",
+        osdToggle: "Mostrar el brillo al ajustarlo",
+        osdCaption: "Muestra el porcentaje de brillo al usar las teclas o los controles de brillo.",
     )
 
     static let de = BrightnessFeatureStrings(
@@ -143,7 +155,9 @@ extension BrightnessFeatureStrings {
         switchUnavailable: "Die Displaysteuerung ist auf diesem Mac nicht verfügbar.",
         switchFailed: "Dieses Display konnte nicht geändert werden.",
         keysToggle: "Helligkeitstasten folgen dem Zeiger",
-        keysCaption: "Die Helligkeitstasten der Tastatur ändern das Display, auf dem der Zeiger steht."
+        keysCaption: "Die Helligkeitstasten der Tastatur ändern das Display, auf dem der Zeiger steht.",
+        osdToggle: "Helligkeit beim Anpassen anzeigen",
+        osdCaption: "Zeigt den Helligkeitswert in Prozent bei Verwendung der Helligkeitstasten oder Regler.",
     )
 
     static let fr = BrightnessFeatureStrings(
@@ -160,7 +174,9 @@ extension BrightnessFeatureStrings {
         switchUnavailable: "Le contrôle d'alimentation des écrans n'est pas disponible sur ce Mac.",
         switchFailed: "Impossible de modifier cet écran.",
         keysToggle: "Les touches de luminosité suivent le pointeur",
-        keysCaption: "Les touches de luminosité du clavier règlent l'écran où se trouve le pointeur."
+        keysCaption: "Les touches de luminosité du clavier règlent l'écran où se trouve le pointeur.",
+        osdToggle: "Afficher la luminosité pendant le réglage",
+        osdCaption: "Affiche le pourcentage de luminosité avec les touches ou les curseurs de luminosité.",
     )
 
     static let it = BrightnessFeatureStrings(
@@ -177,7 +193,9 @@ extension BrightnessFeatureStrings {
         switchUnavailable: "Il controllo di accensione degli schermi non è disponibile su questo Mac.",
         switchFailed: "Non è stato possibile modificare questo schermo.",
         keysToggle: "I tasti di luminosità seguono il puntatore",
-        keysCaption: "I tasti di luminosità della tastiera regolano lo schermo dove si trova il puntatore."
+        keysCaption: "I tasti di luminosità della tastiera regolano lo schermo dove si trova il puntatore.",
+        osdToggle: "Mostra la luminosità durante la regolazione",
+        osdCaption: "Mostra la percentuale di luminosità quando usi i tasti o i cursori della luminosità.",
     )
 
     static let ja = BrightnessFeatureStrings(
@@ -194,7 +212,9 @@ extension BrightnessFeatureStrings {
         switchUnavailable: "このMacではディスプレイの切り替えを利用できません。",
         switchFailed: "このディスプレイを切り替えられませんでした。",
         keysToggle: "輝度キーはポインタに従う",
-        keysCaption: "キーボードの輝度キーが、ポインタのあるディスプレイを調整します。"
+        keysCaption: "キーボードの輝度キーが、ポインタのあるディスプレイを調整します。",
+        osdToggle: "明るさの調整時に表示",
+        osdCaption: "輝度キーまたはスライダを使うと、明るさをパーセントで表示します。",
     )
 
     static let ko = BrightnessFeatureStrings(
@@ -211,7 +231,9 @@ extension BrightnessFeatureStrings {
         switchUnavailable: "이 Mac에서는 디스플레이 전원 제어를 사용할 수 없습니다.",
         switchFailed: "이 디스플레이를 변경할 수 없습니다.",
         keysToggle: "밝기 키가 포인터를 따라감",
-        keysCaption: "키보드의 밝기 키로 포인터가 있는 디스플레이를 조절합니다."
+        keysCaption: "키보드의 밝기 키로 포인터가 있는 디스플레이를 조절합니다.",
+        osdToggle: "밝기 조절 시 표시",
+        osdCaption: "밝기 키나 슬라이더를 사용할 때 밝기를 백분율로 표시합니다.",
     )
 
     static let zhHans = BrightnessFeatureStrings(
@@ -228,7 +250,9 @@ extension BrightnessFeatureStrings {
         switchUnavailable: "此 Mac 不支持显示器开关。",
         switchFailed: "无法更改这台显示器。",
         keysToggle: "亮度键跟随指针",
-        keysCaption: "键盘上的亮度键调节指针所在的显示器。"
+        keysCaption: "键盘上的亮度键调节指针所在的显示器。",
+        osdToggle: "调节亮度时显示",
+        osdCaption: "使用亮度键或滑块时显示亮度百分比。",
     )
 
     static let zhTW = BrightnessFeatureStrings(
@@ -245,7 +269,9 @@ extension BrightnessFeatureStrings {
         switchUnavailable: "此 Mac 不支援顯示器開關。",
         switchFailed: "無法更改這台顯示器。",
         keysToggle: "亮度鍵跟隨指標",
-        keysCaption: "鍵盤上的亮度鍵調整指標所在的顯示器。"
+        keysCaption: "鍵盤上的亮度鍵調整指標所在的顯示器。",
+        osdToggle: "調整亮度時顯示",
+        osdCaption: "使用亮度鍵或滑桿時顯示亮度百分比。",
     )
 
     static let zhHK = BrightnessFeatureStrings(
@@ -262,6 +288,8 @@ extension BrightnessFeatureStrings {
         switchUnavailable: "此 Mac 不支援顯示器開關。",
         switchFailed: "無法更改這部顯示器。",
         keysToggle: "亮度鍵跟隨指標",
-        keysCaption: "鍵盤上的亮度鍵調整指標所在的顯示器。"
+        keysCaption: "鍵盤上的亮度鍵調整指標所在的顯示器。",
+        osdToggle: "調整亮度時顯示",
+        osdCaption: "使用亮度鍵或滑桿時顯示亮度百分比。",
     )
 }

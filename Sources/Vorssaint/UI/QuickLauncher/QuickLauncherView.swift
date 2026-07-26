@@ -449,6 +449,9 @@ struct QuickLauncherView: View {
         case .urlCleaner: return l10n.s.urlCleanerName
         case .uninstaller: return l10n.s.uninstallerName
         case .cleaner: return l10n.s.cleanerName
+        case .screenshot: return FeatureStrings.screenshot(l10n.language).pageTitle
+        case .cameraPreview: return FeatureStrings.cameraPreview(l10n.language).pageTitle
+        case .scratchpad: return FeatureStrings.scratchpad(l10n.language).pageTitle
         }
     }
 
@@ -467,6 +470,9 @@ struct QuickLauncherView: View {
         case .urlCleaner: return "link"
         case .uninstaller: return "trash"
         case .cleaner: return "sparkle"
+        case .screenshot: return "camera.viewfinder"
+        case .cameraPreview: return "web.camera"
+        case .scratchpad: return "note.text"
         }
     }
 

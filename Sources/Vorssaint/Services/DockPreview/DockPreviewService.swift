@@ -16,7 +16,6 @@ final class DockPreviewService: ObservableObject {
     /// that this still-beta feature is rougher in that mode (the native Dock
     /// slides away mid-interaction and no public API can hold it open).
     @Published private(set) var dockAutohide = false
-    @Published private(set) var dockMagnification = false
     @Published private(set) var windows: [SwitcherItem] = []
     @Published private(set) var previews: [CGWindowID: CGImage] = [:]
     @Published private(set) var selectedWindowID: CGWindowID?
@@ -71,7 +70,6 @@ final class DockPreviewService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewEnabled)
         cachedPreferences = readDockPreferences()
         dockAutohide = cachedPreferences?.autohide ?? false
-        dockMagnification = cachedPreferences?.magnification ?? false
 
         if enabled {
             startSettingsTimer()
@@ -477,7 +475,7 @@ final class DockPreviewService: ObservableObject {
         guard let preferences = cachedPreferences else { return true }
         let screen = NSScreen.screens.first { $0.frame.contains(point) } ?? NSScreen.main
         guard let frame = screen?.frame else { return true }
-        let band = DockPreviewSupport.dockProximityBand(tileSize: preferences.tileSize)
+        let band = DockPreviewSupport.dockProximityBand(tileSize: preferences.hoverTileSize)
         switch preferences.orientation {
         case .bottom: return point.y <= frame.minY + band
         case .left: return point.x <= frame.minX + band
@@ -877,12 +875,12 @@ final class DockPreviewService: ObservableObject {
 
     private func showPanel(for hit: DockHit, itemCount: Int) {
         let panel = ensurePanel()
-        let screen = screen(containing: hit.iconFrame)
-        let size = DockPreviewSupport.panelSize(itemCount: itemCount, screenVisibleFrame: screen.visibleFrame)
+        let screenVisibleFrame = visibleFrameForScreen(containing: hit.iconFrame)
+        let size = DockPreviewSupport.panelSize(itemCount: itemCount, screenVisibleFrame: screenVisibleFrame)
         let gap = hit.preferences.autohide ? DockPreviewSupport.autohidePanelGap : DockPreviewSupport.panelGap
         let frame = DockPreviewSupport.panelFrame(anchor: hit.iconFrame,
                                                   panelSize: size,
-                                                  screenVisibleFrame: screen.visibleFrame,
+                                                  screenVisibleFrame: screenVisibleFrame,
                                                   orientation: hit.preferences.orientation,
                                                   gap: gap)
         activePanelFrame = frame
@@ -906,12 +904,12 @@ final class DockPreviewService: ObservableObject {
               let preferences = activeDockPreferences
         else { return }
 
-        let screen = screen(containing: iconFrame)
-        let size = DockPreviewSupport.panelSize(itemCount: windows.count, screenVisibleFrame: screen.visibleFrame)
+        let screenVisibleFrame = visibleFrameForScreen(containing: iconFrame)
+        let size = DockPreviewSupport.panelSize(itemCount: windows.count, screenVisibleFrame: screenVisibleFrame)
         let gap = preferences.autohide ? DockPreviewSupport.autohidePanelGap : DockPreviewSupport.panelGap
         let frame = DockPreviewSupport.panelFrame(anchor: iconFrame,
                                                   panelSize: size,
-                                                  screenVisibleFrame: screen.visibleFrame,
+                                                  screenVisibleFrame: screenVisibleFrame,
                                                   orientation: preferences.orientation,
                                                   gap: gap)
         activePanelFrame = frame
@@ -925,7 +923,7 @@ final class DockPreviewService: ObservableObject {
     }
 
     private func clampedPanelFrame(_ frame: CGRect) -> CGRect {
-        let visibleFrame = screen(containing: frame).visibleFrame
+        let visibleFrame = visibleFrameForScreen(containing: frame)
         let padding = DockPreviewSupport.edgePadding
         let minX = visibleFrame.minX + padding
         let maxX = visibleFrame.maxX - frame.width - padding
@@ -1018,17 +1016,16 @@ final class DockPreviewService: ObservableObject {
         }
     }
 
-    private func screen(containing rect: CGRect) -> NSScreen {
+    private func visibleFrameForScreen(containing rect: CGRect) -> CGRect {
         let point = rect.center
-        return NSScreen.screens.first { $0.frame.contains(point) }
-            ?? NSScreen.withMouse
+        return (NSScreen.screens.first { $0.frame.contains(point) } ?? NSScreen.withMouse)?.visibleFrame
+            ?? NSScreen.pointerVisibleFrame
     }
 
     // MARK: - Dock hit testing
 
     private func dockHit(at axPoint: CGPoint) -> DockHit? {
         guard let preferences = cachedPreferences ?? readDockPreferences(),
-              !preferences.magnification,
               let dockPID = dockProcessID()
         else { return nil }
 
@@ -1148,7 +1145,8 @@ final class DockPreviewService: ObservableObject {
             orientation: domain["orientation"] as? String,
             autohide: boolValue(domain["autohide"]),
             tileSize: doubleValue(domain["tilesize"]),
-            magnification: boolValue(domain["magnification"])
+            magnification: boolValue(domain["magnification"]),
+            magnifiedTileSize: doubleValue(domain["largesize"])
         )
     }
 
@@ -1565,7 +1563,7 @@ final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
     private func resizePanel() {
         guard let panel else { return }
         let size = DockPreviewSupport.panelSize(itemCount: windows.count,
-                                                screenVisibleFrame: screen(containing: panel.frame).visibleFrame)
+                                                screenVisibleFrame: visibleFrameForScreen(containing: panel.frame))
         var frame = panel.frame
         frame.size = size
         panel.setFrame(clampedPanelFrame(frame), display: true, animate: true)
@@ -1573,7 +1571,7 @@ final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
     }
 
     private func clampedPanelFrame(_ frame: CGRect) -> CGRect {
-        let visibleFrame = screen(containing: frame).visibleFrame
+        let visibleFrame = visibleFrameForScreen(containing: frame)
         let padding = DockPreviewSupport.edgePadding
         let minX = visibleFrame.minX + padding
         let maxX = visibleFrame.maxX - frame.width - padding
@@ -1590,9 +1588,9 @@ final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
                       height: frame.height)
     }
 
-    private func screen(containing rect: CGRect) -> NSScreen {
+    private func visibleFrameForScreen(containing rect: CGRect) -> CGRect {
         let point = rect.center
-        return NSScreen.screens.first { $0.frame.contains(point) }
-            ?? NSScreen.withMouse
+        return (NSScreen.screens.first { $0.frame.contains(point) } ?? NSScreen.withMouse)?.visibleFrame
+            ?? NSScreen.pointerVisibleFrame
     }
 }

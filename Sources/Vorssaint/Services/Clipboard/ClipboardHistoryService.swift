@@ -21,7 +21,9 @@ enum ClipboardHistoryMoveDirection {
 final class ClipboardHistoryService: ObservableObject {
     static let shared = ClipboardHistoryService()
 
-    @Published private(set) var entries: [ClipboardHistoryEntry] = []
+    @Published private(set) var entries: [ClipboardHistoryEntry] = [] {
+        didSet { entriesStamp &+= 1 }
+    }
     @Published private(set) var isRunning = false
     @Published private(set) var shortcutRegistrationFailed = false
     @Published private(set) var quickBatchEntryIDs: Set<UUID> = []
@@ -37,13 +39,12 @@ final class ClipboardHistoryService: ObservableObject {
     @Published private(set) var quickWindowPresentationID = UUID()
 
     private var timer: Timer?
-    private var lastChangeCount = NSPasteboard.general.changeCount
+    private var lastChangeCount = 0
     /// The poll reads the pasteboard off the main thread: while a password
     /// prompt is up the pasteboard server can take seconds to answer, and a
     /// blocked main thread stalls every event tap with it, so typing freezes
-    /// system wide (issue #189).
-    private let captureQueue = DispatchQueue(label: "Vorssaint.ClipboardHistory.capture",
-                                             qos: .utility)
+    /// system wide (issue #189). The shared access lane also keeps the URL
+    /// cleaner from touching AppKit's mutable pasteboard cache concurrently.
     private var captureInFlight = false
     /// Each capture attempt carries a token so a read that wedged behind a
     /// password prompt can be abandoned without a stale completion (or a stuck
@@ -59,6 +60,16 @@ final class ClipboardHistoryService: ObservableObject {
     private var registeredShortcut: GlobalShortcut?
     private var pasteTargetApp: NSRunningApplication?
     private let maxCharacters = 20_000
+    /// Writes coalesce per mutation cycle; the JSON encode and the disk write
+    /// stay off the main thread (a full history of long texts is real work),
+    /// serialized so blobs land in mutation order.
+    private static let persistQueue = DispatchQueue(label: "com.vorssaint.utils.clipboard-persist",
+                                                    qos: .utility)
+    private var persistScheduled = false
+    /// True while the history still lives in the legacy UserDefaults blob;
+    /// only a store-file write that really landed retires that blob, so a
+    /// crash mid-migration never loses entries.
+    private var migrateLegacyBlob = false
 
     private init() {
         load()
@@ -101,61 +112,63 @@ final class ClipboardHistoryService: ObservableObject {
     /// must abort with the user's current clipboard intact, not after a
     /// clearContents() already destroyed it.
     private func writeToPasteboard(_ list: [ClipboardHistoryEntry]) -> Bool {
-        let pasteboard = NSPasteboard.general
+        GeneralPasteboardAccess.shared.sync {
+            let pasteboard = NSPasteboard.general
 
-        if list.count == 1, let entry = list.first {
-            switch entry.kind {
-            case .text:
-                pasteboard.clearContents()
-                pasteboard.setString(entry.text, forType: .string)
-            case .image:
-                guard let name = entry.imageFile,
-                      let data = ClipboardImageStore.imageData(named: name) else { return false }
-                pasteboard.clearContents()
-                pasteboard.setData(data, forType: .png)
-                // TIFF alongside PNG: some paste targets only take TIFF.
-                if let tiff = NSBitmapImageRep(data: data)?.tiffRepresentation {
-                    pasteboard.setData(tiff, forType: .tiff)
+            if list.count == 1, let entry = list.first {
+                switch entry.kind {
+                case .text:
+                    pasteboard.clearContents()
+                    pasteboard.setString(entry.text, forType: .string)
+                case .image:
+                    guard let name = entry.imageFile,
+                          let data = ClipboardImageStore.imageData(named: name) else { return false }
+                    pasteboard.clearContents()
+                    pasteboard.setData(data, forType: .png)
+                    // TIFF alongside PNG: some paste targets only take TIFF.
+                    if let tiff = NSBitmapImageRep(data: data)?.tiffRepresentation {
+                        pasteboard.setData(tiff, forType: .tiff)
+                    }
+                case .files:
+                    let urls = entry.filePaths
+                        .map { URL(fileURLWithPath: $0) }
+                        .filter { FileManager.default.fileExists(atPath: $0.path) }
+                    guard !urls.isEmpty else { return false }
+                    pasteboard.clearContents()
+                    pasteboard.writeObjects(urls as [NSURL])
                 }
-            case .files:
-                let urls = entry.filePaths
-                    .map { URL(fileURLWithPath: $0) }
+                lastChangeCount = pasteboard.changeCount
+                return true
+            }
+
+            // Batches: an all-files selection pastes as the files themselves; a
+            // selection with images pastes as rich text with the images embedded;
+            // anything else combines as text (files contribute paths).
+            switch ClipboardHistoryBatch.pasteMode(for: list) {
+            case let .files(paths):
+                let urls = paths.map { URL(fileURLWithPath: $0) }
                     .filter { FileManager.default.fileExists(atPath: $0.path) }
                 guard !urls.isEmpty else { return false }
                 pasteboard.clearContents()
                 pasteboard.writeObjects(urls as [NSURL])
+            case let .text(combined):
+                pasteboard.clearContents()
+                pasteboard.setString(combined, forType: .string)
+            case let .rich(parts):
+                guard let rich = Self.richBatchAttributedString(parts) else { return false }
+                pasteboard.clearContents()
+                pasteboard.writeObjects([rich])
+                let plain = ClipboardHistoryBatch.richPlainText(parts)
+                if !plain.isEmpty {
+                    pasteboard.setString(plain, forType: .string)
+                }
+            case nil:
+                guard let first = list.first else { return false }
+                return writeToPasteboard([first])
             }
             lastChangeCount = pasteboard.changeCount
             return true
         }
-
-        // Batches: an all-files selection pastes as the files themselves; a
-        // selection with images pastes as rich text with the images embedded;
-        // anything else combines as text (files contribute paths).
-        switch ClipboardHistoryBatch.pasteMode(for: list) {
-        case let .files(paths):
-            let urls = paths.map { URL(fileURLWithPath: $0) }
-                .filter { FileManager.default.fileExists(atPath: $0.path) }
-            guard !urls.isEmpty else { return false }
-            pasteboard.clearContents()
-            pasteboard.writeObjects(urls as [NSURL])
-        case let .text(combined):
-            pasteboard.clearContents()
-            pasteboard.setString(combined, forType: .string)
-        case let .rich(parts):
-            guard let rich = Self.richBatchAttributedString(parts) else { return false }
-            pasteboard.clearContents()
-            pasteboard.writeObjects([rich])
-            let plain = ClipboardHistoryBatch.richPlainText(parts)
-            if !plain.isEmpty {
-                pasteboard.setString(plain, forType: .string)
-            }
-        case nil:
-            guard let first = list.first else { return false }
-            return writeToPasteboard([first])
-        }
-        lastChangeCount = pasteboard.changeCount
-        return true
     }
 
     /// Text and images interleaved in list order, as one attributed string:
@@ -315,15 +328,31 @@ final class ClipboardHistoryService: ObservableObject {
         quickBatchEntryIDs = []
     }
 
+    /// Bumped by the `entries` didSet; lets the search cache below notice any
+    /// mutation without every mutating site having to remember it.
+    private var entriesStamp = 0
+    private var filterCache: (query: String, stamp: Int, imageLabel: String,
+                              result: [ClipboardHistoryEntry])?
+
     func filteredEntries(matching query: String) -> [ClipboardHistoryEntry] {
+        // One ranking pass over a large history of long texts costs real
+        // time, and SwiftUI asks for the filtered list many times per
+        // render. The last result is reused until the query, the language
+        // or the history itself changes.
         let imageLabel = FeatureStrings.clipboard(L10n.shared.language).imageEntryLabel
+        if let cache = filterCache, cache.query == query,
+           cache.stamp == entriesStamp, cache.imageLabel == imageLabel {
+            return cache.result
+        }
         let candidates = entries.enumerated().map { index, entry in
             ClipboardHistorySearchCandidate(index: index,
                                             text: entry.searchableText(imageLabel: imageLabel),
                                             isPinned: entry.isPinned)
         }
-        return ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query)
+        let result = ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query)
             .map { entries[$0] }
+        filterCache = (query, entriesStamp, imageLabel, result)
+        return result
     }
 
     func copyQuickEntry(at index: Int) {
@@ -416,7 +445,6 @@ final class ClipboardHistoryService: ObservableObject {
             isRunning = true
             return
         }
-        lastChangeCount = NSPasteboard.general.changeCount
         let timer = Timer(timeInterval: 0.8, repeats: true) { [weak self] _ in
             self?.captureIfChanged()
         }
@@ -424,13 +452,15 @@ final class ClipboardHistoryService: ObservableObject {
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
         isRunning = true
-        captureIfChanged()
+        baselinePasteboard()
     }
 
     private func stop() {
         timer?.invalidate()
         timer = nil
         isRunning = false
+        captureGeneration &+= 1
+        captureInFlight = false
     }
 
     /// What the background pasteboard read hands back to the main thread.
@@ -438,6 +468,33 @@ final class ClipboardHistoryService: ObservableObject {
         case files([String])
         case image((data: Data, width: Int, height: Int))
         case text(String)
+    }
+
+    /// Establishes the starting change count on the same background lane used
+    /// by later reads. Existing clipboard content is not added just because
+    /// history was enabled, matching the previous synchronous baseline.
+    private func baselinePasteboard() {
+        guard !captureInFlight else { return }
+        captureInFlight = true
+        captureGeneration &+= 1
+        let generation = captureGeneration
+        scheduleCaptureTimeout(generation: generation)
+        GeneralPasteboardAccess.shared.async { [weak self] in
+            let changeCount = NSPasteboard.general.changeCount
+            DispatchQueue.main.async {
+                guard let self, self.captureGeneration == generation else { return }
+                self.captureInFlight = false
+                guard self.isRunning else { return }
+                self.lastChangeCount = max(self.lastChangeCount, changeCount)
+            }
+        }
+    }
+
+    private func scheduleCaptureTimeout(generation: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            guard let self, self.captureGeneration == generation, self.captureInFlight else { return }
+            self.captureInFlight = false
+        }
     }
 
     private func captureIfChanged() {
@@ -454,11 +511,8 @@ final class ClipboardHistoryService: ObservableObject {
         // If the read wedges (a pasteboard server stuck behind a lingering
         // password prompt), free the flag so later copies are still recorded;
         // the abandoned read is ignored by its stale generation when it ends.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
-            guard let self, self.captureGeneration == generation, self.captureInFlight else { return }
-            self.captureInFlight = false
-        }
-        captureQueue.async { [weak self] in
+        scheduleCaptureTimeout(generation: generation)
+        GeneralPasteboardAccess.shared.async { [weak self] in
             let changeCount = NSPasteboard.general.changeCount
             let content: CapturedContent? = changeCount != sinceChangeCount
                 ? Self.readPasteboard(includeImagesFiles: includeImagesFiles)
@@ -480,8 +534,8 @@ final class ClipboardHistoryService: ObservableObject {
         }
     }
 
-    /// Runs on the capture queue: everything in here may block behind the
-    /// pasteboard server, which is exactly why it stays off the main thread.
+    /// Runs on the shared pasteboard lane: everything in here may block behind
+    /// the pasteboard server, which is exactly why it stays off the main thread.
     private static func readPasteboard(includeImagesFiles: Bool) -> CapturedContent? {
         let pasteboard = NSPasteboard.general
         // Files first: a Finder copy also carries name strings, and a browser
@@ -675,21 +729,107 @@ final class ClipboardHistoryService: ObservableObject {
         ClipboardHistorySensitiveText.looksSensitive(text)
     }
 
+    /// The history file. Entries used to live as one blob inside UserDefaults,
+    /// but the preferences plist is rewritten whole on every copy and macOS
+    /// pushes back past a few megabytes, which a large history of long texts
+    /// can reach. Without a resolvable home the blob stays in UserDefaults.
+    private static var storeURL: URL? {
+        guard let base = FileManager.default.urls(for: .applicationSupportDirectory,
+                                                  in: .userDomainMask).first,
+              let bundleID = Bundle.main.bundleIdentifier
+        else { return nil }
+        return base
+            .appendingPathComponent(bundleID, isDirectory: true)
+            .appendingPathComponent("ClipboardHistory.json")
+    }
+
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: DefaultsKey.clipboardHistoryEntries),
+        let fileData = Self.storeURL.flatMap { try? Data(contentsOf: $0) }
+        var data = fileData
+        if data == nil,
+           let legacy = UserDefaults.standard.data(forKey: DefaultsKey.clipboardHistoryEntries) {
+            data = legacy
+            migrateLegacyBlob = Self.storeURL != nil
+        }
+        guard let data,
               let decoded = try? JSONDecoder().decode([ClipboardHistoryEntry].self, from: data)
         else { return }
+        if fileData != nil,
+           UserDefaults.standard.object(forKey: DefaultsKey.clipboardHistoryEntries) != nil {
+            // The file decoded and is the durable source. A legacy blob still
+            // around (a kill inside the migration window, or a downgrade
+            // round trip) would sit in the preferences plist forever.
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.clipboardHistoryEntries)
+        }
         entries = decoded
         normalizeEntryOrder()
         trimToLimit()
         // Sweep image files that lost their entry (crash between write and save).
         ClipboardImageStore.cleanup(keeping: Set(entries.compactMap(\.imageFile)))
+        // A history read from the legacy blob migrates right away instead of
+        // waiting for the next copy: launching once is enough to leave
+        // UserDefaults behind.
+        if migrateLegacyBlob {
+            save()
+        }
     }
 
+    /// Coalesces the saves of one mutation cycle into a single persist.
     private func save() {
-        guard let data = try? JSONEncoder().encode(entries) else { return }
-        UserDefaults.standard.set(data, forKey: DefaultsKey.clipboardHistoryEntries)
-        ClipboardImageStore.cleanup(keeping: Set(entries.compactMap(\.imageFile)))
+        guard !persistScheduled else { return }
+        persistScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.persistScheduled = false
+            self.persist()
+        }
+    }
+
+    private func persist() {
+        let snapshot = entries
+        let retireLegacyBlob = migrateLegacyBlob
+        Self.persistQueue.async { [weak self] in
+            guard let data = try? JSONEncoder().encode(snapshot) else { return }
+            // The PNG sweep waits for the JSON to land and runs back on the
+            // main thread against the list as it is then. Sweeping first
+            // could strand an entry whose PNG died if the process fell in
+            // between; the reverse at worst leaves an orphaned PNG that the
+            // launch sweep heals. The main thread also keeps it from racing
+            // a just-stored PNG whose entry has not landed in the list yet.
+            func sweepAfterPersist() {
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    ClipboardImageStore.cleanup(keeping: Set(self.entries.compactMap(\.imageFile)))
+                }
+            }
+            guard let url = Self.storeURL else {
+                UserDefaults.standard.set(data, forKey: DefaultsKey.clipboardHistoryEntries)
+                sweepAfterPersist()
+                return
+            }
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                     withIntermediateDirectories: true)
+            // Only a write that really landed retires the legacy blob, so a
+            // failed save leaves the history readable from somewhere.
+            guard (try? data.write(to: url, options: .atomic)) != nil else { return }
+            sweepAfterPersist()
+            if retireLegacyBlob {
+                UserDefaults.standard.removeObject(forKey: DefaultsKey.clipboardHistoryEntries)
+                DispatchQueue.main.async { self?.migrateLegacyBlob = false }
+            }
+        }
+    }
+
+    /// Runs any deferred persist right now and waits for the write to land.
+    /// Quit must not race the async pipeline: the last mutation of a session
+    /// (often a privacy minded Clear) has to be durable before the process
+    /// dies.
+    func flushBeforeTermination() {
+        if persistScheduled {
+            persistScheduled = false
+            persist()
+        }
+        Self.persistQueue.sync {}
     }
 
     // MARK: - Shortcut
@@ -738,6 +878,11 @@ final class ClipboardHistoryService: ObservableObject {
             shortcutRegistrationFailed = true
         }
     }
+
+    /// Lets go of the global key while a shortcut field is listening, so the
+    /// user can record the very combination this feature uses. The next
+    /// `syncWithPreferences` takes it back.
+    func suspendShortcut() { unregisterHotkey() }
 
     private func unregisterHotkey() {
         if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
@@ -841,7 +986,7 @@ final class ClipboardHistoryService: ObservableObject {
     private func position(_ panel: NSPanel) {
         panel.contentViewController?.view.layoutSubtreeIfNeeded()
         let size = panel.contentViewController?.view.fittingSize ?? NSSize(width: 520, height: 560)
-        let screen = NSScreen.withMouse.visibleFrame
+        let screen = NSScreen.pointerVisibleFrame
         let x = screen.midX - size.width / 2
         let y = min(screen.maxY - size.height - 54, screen.midY - size.height / 2)
         panel.setFrame(NSRect(x: max(screen.minX + 16, min(x, screen.maxX - size.width - 16)),

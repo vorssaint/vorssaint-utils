@@ -121,6 +121,13 @@ final class TextSnippetService {
             buffer = ""
             return Unmanaged.passUnretained(event)
         }
+        // Typing in the library's own search field must never expand a
+        // trigger: the deletes would land in the search box. Tap and panel
+        // both live on the main run loop, so the check is safe here.
+        guard !SnippetLibraryService.shared.isVisible else {
+            buffer = ""
+            return Unmanaged.passUnretained(event)
+        }
         // Shortcuts are commands, not text.
         if !event.flags.intersection([.maskCommand, .maskControl]).isEmpty {
             buffer = ""
@@ -195,10 +202,12 @@ final class TextSnippetService {
         }
     }
 
-    private static func postExpansion(deleteCount: Int,
-                                      text: String,
-                                      trailingKeyCode: CGKeyCode?,
-                                      trailingFlags: CGEventFlags) {
+    /// Also the snippet library's insertion path (deleteCount 0): one typing
+    /// routine, one synthetic marker, one set of quirks.
+    static func postExpansion(deleteCount: Int,
+                              text: String,
+                              trailingKeyCode: CGKeyCode?,
+                              trailingFlags: CGEventFlags) {
         let source = CGEventSource(stateID: .hidSystemState)
         source?.userData = syntheticMarker
 
@@ -222,13 +231,19 @@ final class TextSnippetService {
         let units = Array(text.utf16)
         var index = 0
         while index < units.count {
-            let chunk = Array(units[index..<min(index + 20, units.count)])
+            var end = min(index + 20, units.count)
+            // Never split a surrogate pair across chunks: two lone halves in
+            // separate events render as replacement characters in some apps.
+            if end < units.count, UTF16.isLeadSurrogate(units[end - 1]) {
+                end -= 1
+            }
+            let chunk = Array(units[index..<end])
             for down in [true, false] {
                 guard let event = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: down) else { continue }
                 event.keyboardSetUnicodeString(stringLength: chunk.count, unicodeString: chunk)
                 post(event)
             }
-            index += 20
+            index = end
         }
 
         if let trailingKeyCode {

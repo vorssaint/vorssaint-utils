@@ -9,6 +9,8 @@ import SwiftUI
 struct BrightnessSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = BrightnessService.shared
+    @ObservedObject private var permissions = Permissions.shared
+    @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
     var collapsible = true
 
     private var strings: BrightnessFeatureStrings { FeatureStrings.brightness(l10n.language) }
@@ -29,6 +31,18 @@ struct BrightnessSection: View {
                     Text(displayControlFailureText(failure, strings: strings))
                         .font(.system(size: 10.5))
                         .foregroundStyle(.red)
+                }
+                if service.brightnessOSDSupported {
+                    Divider()
+                    Toggle(strings.osdToggle, isOn: $brightnessOSDEnabled)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                        .help(strings.osdCaption)
+                        .onChange(of: brightnessOSDEnabled) { _, isOn in
+                            if isOn { permissions.requestAccessibility() }
+                            service.syncWithPreferences()
+                        }
                 }
             }
             .panelCard()
@@ -70,7 +84,8 @@ struct BrightnessSection: View {
 
     private func brightnessBinding(_ display: BrightnessDisplay) -> Binding<Double> {
         Binding(get: { display.brightness },
-                set: { service.setBrightness($0, for: display.id) })
+                set: { service.setBrightness($0, for: display.id,
+                                             showOSD: brightnessOSDEnabled) })
     }
 }
 

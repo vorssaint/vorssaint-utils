@@ -23,17 +23,30 @@ struct DockPreviewPreferences: Equatable {
     let autohide: Bool
     let tileSize: CGFloat
     let magnification: Bool
+    let magnifiedTileSize: CGFloat
+
+    /// The tallest an icon under the cursor can get: the magnified size while
+    /// magnification is on, the resting tile size otherwise. Geometry that must
+    /// cover a hovered icon (like the proximity band) sizes against this.
+    var hoverTileSize: CGFloat {
+        magnification ? max(tileSize, magnifiedTileSize) : tileSize
+    }
 
     static func sanitized(orientation rawOrientation: String?,
                           autohide: Bool?,
                           tileSize rawTileSize: Double?,
-                          magnification: Bool?) -> DockPreviewPreferences {
+                          magnification: Bool?,
+                          magnifiedTileSize rawMagnifiedTileSize: Double?) -> DockPreviewPreferences {
         let size = rawTileSize ?? 64
+        // System Settings never writes largesize until the slider moves, so a
+        // missing key defaults to the slider's maximum rather than undershooting.
+        let magnifiedSize = rawMagnifiedTileSize ?? 128
         return DockPreviewPreferences(
             orientation: DockPreviewOrientation.sanitized(rawOrientation),
             autohide: autohide ?? false,
             tileSize: CGFloat(min(max(size, 16), 256)),
-            magnification: magnification ?? false
+            magnification: magnification ?? false,
+            magnifiedTileSize: CGFloat(min(max(magnifiedSize, 16), 256))
         )
     }
 }
@@ -41,7 +54,6 @@ struct DockPreviewPreferences: Equatable {
 enum DockPreviewBlockedReason: String, Equatable {
     case missingAccessibility
     case missingScreenRecording
-    case magnification
     case dockUnavailable
 }
 
@@ -108,6 +120,7 @@ enum DockPreviewSupport {
     /// is a synchronous AX round-trip, and firing it on every move anywhere
     /// saturates the main thread and the process's AX access (which, among other
     /// things, starves other AX-driven features like quit-on-last-window-close).
+    /// Size against `hoverTileSize` so magnified icons stay inside the band.
     static func dockProximityBand(tileSize: CGFloat) -> CGFloat {
         max(160, tileSize * 1.5 + 60)
     }
@@ -125,11 +138,8 @@ enum DockPreviewSupport {
         guard hasScreenRecording else {
             return DockPreviewAvailability(canRun: false, blockedReason: .missingScreenRecording)
         }
-        guard let preferences else {
+        guard preferences != nil else {
             return DockPreviewAvailability(canRun: false, blockedReason: .dockUnavailable)
-        }
-        guard !preferences.magnification else {
-            return DockPreviewAvailability(canRun: false, blockedReason: .magnification)
         }
         return DockPreviewAvailability(canRun: true, blockedReason: nil)
     }

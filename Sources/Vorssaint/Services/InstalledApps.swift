@@ -34,6 +34,16 @@ enum InstalledApps {
         return NSWorkspace.shared.icon(for: .applicationBundle)
     }
 
+    /// Apps that belong to the system wherever their bundle really sits. An
+    /// app inside these is never offered for uninstalling, and only shows up
+    /// in the pickers that ask for system apps too.
+    private static let systemPathPrefixes = ["/System/", "/Library/Apple/"]
+
+    /// Apps the user knows well but that no application folder holds. The file
+    /// manager cannot reach them by walking, so they are resolved by identity
+    /// instead of by a hardcoded path.
+    private static let systemBundleIDsOutsideFolders = ["com.apple.finder"]
+
     static func installedApplications(includeSystemApplications: Bool = false) -> [InstalledApp] {
         let fm = FileManager.default
         var roots = [
@@ -48,28 +58,49 @@ enum InstalledApps {
         var apps: [InstalledApp] = []
 
         for root in roots where fm.fileExists(atPath: root.path) {
+            // Hidden entries are deliberately NOT skipped: the browser that
+            // ships with macOS lives on the system volume and is exposed in
+            // /Applications as a hidden symlink, so skipping them left it out
+            // of every picker. Only bundles ending in .app are taken anyway.
             guard let enumerator = fm.enumerator(at: root,
                                                 includingPropertiesForKeys: keys,
-                                                options: [.skipsHiddenFiles, .skipsPackageDescendants]) else {
+                                                options: [.skipsPackageDescendants]) else {
                 continue
             }
             for case let url as URL in enumerator {
                 guard url.pathExtension == "app" else { continue }
-                let path = url.standardizedFileURL.path
-                guard seen.insert(path).inserted else { continue }
-                let bundle = Bundle(url: url)
-                var name = fm.displayName(atPath: url.path)
-                if name.hasSuffix(".app") { name.removeLast(4) }
-                apps.append(InstalledApp(id: path,
-                                         name: name,
-                                         bundleID: bundle?.bundleIdentifier,
-                                         url: url))
+                // A link's target decides whether the app is the system's:
+                // the path inside the application folder says nothing.
+                let resolved = url.resolvingSymlinksInPath()
+                let isSystemApp = systemPathPrefixes.contains { resolved.path.hasPrefix($0) }
+                guard includeSystemApplications || !isSystemApp else { continue }
+                guard seen.insert(resolved.standardizedFileURL.path).inserted else { continue }
+                apps.append(app(at: url, fileManager: fm))
+            }
+        }
+
+        if includeSystemApplications {
+            for bundleID in systemBundleIDsOutsideFolders {
+                guard let url = url(for: bundleID),
+                      seen.insert(url.resolvingSymlinksInPath().standardizedFileURL.path).inserted else {
+                    continue
+                }
+                apps.append(app(at: url, fileManager: fm))
             }
         }
 
         return apps.sorted {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
+    }
+
+    private static func app(at url: URL, fileManager fm: FileManager) -> InstalledApp {
+        var name = fm.displayName(atPath: url.path)
+        if name.hasSuffix(".app") { name.removeLast(4) }
+        return InstalledApp(id: url.standardizedFileURL.path,
+                            name: name,
+                            bundleID: Bundle(url: url)?.bundleIdentifier,
+                            url: url)
     }
 
     static func installedBundleApplications(excluding excludedBundleIDs: Set<String>) -> [InstalledApp] {

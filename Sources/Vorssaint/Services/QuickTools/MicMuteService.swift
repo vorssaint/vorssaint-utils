@@ -18,10 +18,28 @@ final class MicMuteService: ObservableObject {
     @Published private(set) var shortcutRegistrationFailed = false
 
     private let hotkey = QuickToolHotkey(id: 12)
-    private var defaultDeviceListener: AudioObjectPropertyListenerBlock?
+    private var defaultDeviceListenerInstalled = false
 
     private init() {
         hotkey.onPress = { [weak self] in self?.toggle() }
+    }
+
+    /// The smallest possible answer to a change: the system decides which
+    /// thread this arrives on, so it only asks the main thread to re-assert
+    /// the mute and returns. Handing a closure back to be removed never
+    /// matches the one that was registered, so the plain callback is what
+    /// makes stopping work.
+    private static let listenerCallback: AudioObjectPropertyListenerProc = { _, _, _, client in
+        guard let client else { return noErr }
+        let service = Unmanaged<MicMuteService>.fromOpaque(client).takeUnretainedValue()
+        DispatchQueue.main.async { service.reapplyIfNeeded() }
+        return noErr
+    }
+
+    /// Unretained is safe here and only here: this is a single instance that
+    /// lives as long as the app.
+    private var listenerClient: UnsafeMutableRawPointer {
+        Unmanaged.passUnretained(self).toOpaque()
     }
 
     func syncWithPreferences() {
@@ -168,31 +186,30 @@ final class MicMuteService: ObservableObject {
     }
 
     private func installDefaultDeviceListenerIfNeeded() {
-        guard defaultDeviceListener == nil else { return }
+        guard !defaultDeviceListenerInstalled else { return }
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultInputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain
         )
-        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-            DispatchQueue.main.async { self?.reapplyIfNeeded() }
-        }
-        let status = AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject),
-                                                         &address, DispatchQueue.main, listener)
+        let status = AudioObjectAddPropertyListener(AudioObjectID(kAudioObjectSystemObject),
+                                                    &address, Self.listenerCallback,
+                                                    listenerClient)
         if status == noErr {
-            defaultDeviceListener = listener
+            defaultDeviceListenerInstalled = true
         }
     }
 
     private func removeDefaultDeviceListener() {
-        guard let listener = defaultDeviceListener else { return }
+        guard defaultDeviceListenerInstalled else { return }
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultInputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain
         )
-        AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject),
-                                               &address, DispatchQueue.main, listener)
-        defaultDeviceListener = nil
+        AudioObjectRemovePropertyListener(AudioObjectID(kAudioObjectSystemObject),
+                                          &address, Self.listenerCallback,
+                                          listenerClient)
+        defaultDeviceListenerInstalled = false
     }
 }

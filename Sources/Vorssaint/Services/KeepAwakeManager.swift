@@ -64,15 +64,24 @@ final class KeepAwakeManager: ObservableObject {
     /// installed, re-preparing would bounce here forever (and flicker the
     /// caption). One automatic re-acquire per user attempt, then we give up.
     private var clamshellSetupRetried = false
+    /// A reply to a settings change already waiting for the next run loop turn.
+    private var preferenceSyncScheduled = false
 
     private init() {
         clamshellPreferred = UserDefaults.standard.bool(forKey: DefaultsKey.clamshellPreferred)
         refreshPasswordlessStatus()
+        // Every settings write announces itself, including the ones made from
+        // inside this class, so a burst folds into a single reply on the next
+        // turn of the run loop rather than one full pass per write.
         defaultsObserver = NotificationCenter.default
             .publisher(for: UserDefaults.didChangeNotification)
             .sink { [weak self] _ in
-                DispatchQueue.main.async {
-                    self?.syncWithPreferences()
+                guard let self, !self.preferenceSyncScheduled else { return }
+                self.preferenceSyncScheduled = true
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.preferenceSyncScheduled = false
+                    self.syncWithPreferences()
                 }
             }
     }
@@ -232,7 +241,7 @@ final class KeepAwakeManager: ObservableObject {
                 DispatchQueue.main.async {
                     manager.scheduleAutomationEvaluation(after: 0.1)
                 }
-            }, context).takeRetainedValue()
+            }, context)?.takeRetainedValue()
             if let powerSourceRunLoopSource {
                 CFRunLoopAddSource(CFRunLoopGetMain(), powerSourceRunLoopSource, .defaultMode)
             }
@@ -467,20 +476,17 @@ final class KeepAwakeManager: ObservableObject {
     private func enableClamshell() {
         guard !clamshellActive else { return }
         DispatchQueue.global(qos: .userInitiated).async {
-            let usedPasswordless = Sudoers.pmsetDisableSleep(true)
-            let ok = usedPasswordless
-                || AdminShell.runSync("pmset disablesleep 1", prompt: L10n.shared.s.adminPromptClamshellOn)
+            let ok = Sudoers.pmsetDisableSleep(true)
             DispatchQueue.main.async {
-                if !usedPasswordless {
-                    self.passwordlessClamshell = false
-                }
                 guard ok else {
+                    // The rule was reported as working but the real call failed.
+                    // Never fall back to a password prompt here: prompting per
+                    // toggle is exactly the grind of issue #269. Repair the rule
+                    // once through the regular setup; if that does not restore
+                    // the passwordless path, stop and report the failure.
+                    self.passwordlessClamshell = false
                     guard self.clamshellPreferred else { return }
                     if self.clamshellSetupRetried {
-                        // Already re-acquired the rule once and pmset still won't
-                        // disable sleep: the rule lists as installed but the command
-                        // fails on this Mac. Re-preparing again only loops (and
-                        // flickers the caption), so stop and report the failure.
                         self.markClamshellSetupFailed()
                     } else {
                         self.clamshellSetupRetried = true
@@ -488,12 +494,13 @@ final class KeepAwakeManager: ObservableObject {
                     }
                     return
                 }
+                self.passwordlessClamshell = true
                 UserDefaults.standard.set(true, forKey: DefaultsKey.sleepDisabledFlag)
                 if self.isActive, self.clamshellPreferred {
                     self.clamshellActive = true
                 } else {
                     // The session ended (or the preference flipped) while the
-                    // password prompt was up — restore normal sleep.
+                    // setup was still running — restore normal sleep.
                     self.disableClamshell(synchronous: false)
                 }
             }
@@ -502,10 +509,16 @@ final class KeepAwakeManager: ObservableObject {
 
     private func disableClamshell(synchronous: Bool) {
         clamshellActive = false
-        let revert = {
+        let revert = { [synchronous] in
             let usedPasswordless = Sudoers.pmsetDisableSleep(false)
+            // Quitting is the one moment where asking for a password is not
+            // an option: the dialog would hold the app open until somebody
+            // answers it, and nobody is watching an app that is closing. The
+            // next start repairs a revert that was missed.
             let ok = usedPasswordless
-                || AdminShell.runSync("pmset disablesleep 0", prompt: L10n.shared.s.adminPromptClamshellOff)
+                || (!synchronous
+                    && AdminShell.runSync("pmset disablesleep 0",
+                                          prompt: L10n.shared.s.adminPromptClamshellOff))
             if ok {
                 DispatchQueue.main.async {
                     if !usedPasswordless {
@@ -531,7 +544,7 @@ final class KeepAwakeManager: ObservableObject {
         }
         DispatchQueue.global(qos: .utility).async {
             let out = Shell.run("/usr/bin/pmset", ["-g"]).output
-            let stillDisabled = out.range(of: #"SleepDisabled\s+1"#, options: .regularExpression) != nil
+            let stillDisabled = SudoersSupport.sleepDisabled(inPmsetOutput: out)
             if stillDisabled, Sudoers.pmsetDisableSleep(false) {
                 // Silent recovery through the password-free path.
                 DispatchQueue.main.async {

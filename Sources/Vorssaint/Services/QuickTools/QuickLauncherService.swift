@@ -12,7 +12,7 @@ enum QuickLauncherItem: String, PanelOrderItem, Identifiable {
     // after Keep awake, by the owner's decision. Saved orders are untouched
     // (a case added later joins a saved order at the end).
     case keepAwake, cleaner, toggles, micMute, screenOCR, colorPicker, clipboard, windowLayout,
-         cleaning, homebrew, media, urlCleaner, uninstaller
+         cleaning, homebrew, media, urlCleaner, uninstaller, screenshot, cameraPreview, scratchpad
 
     var id: String { rawValue }
 
@@ -33,6 +33,9 @@ enum QuickLauncherItem: String, PanelOrderItem, Identifiable {
         case .media: return .mediaTools
         case .urlCleaner: return .urlCleaner
         case .uninstaller: return .uninstaller
+        case .screenshot: return .screenshot
+        case .cameraPreview: return .cameraPreview
+        case .scratchpad: return .scratchpad
         }
     }
 }
@@ -198,7 +201,7 @@ final class QuickLauncherService: ObservableObject {
             guard let self, let panel = self.panel, panel.isVisible else { return }
             panel.contentViewController?.view.layoutSubtreeIfNeeded()
             let size = panel.contentViewController?.view.fittingSize ?? panel.frame.size
-            let screen = NSScreen.withMouse.visibleFrame
+            let screen = NSScreen.pointerVisibleFrame
             var frame = panel.frame
             frame.origin.x = frame.midX - size.width / 2
             frame.origin.y = frame.maxY - size.height
@@ -246,10 +249,25 @@ final class QuickLauncherService: ObservableObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                 ScreenTextService.shared.capture()
             }
+        case .screenshot:
+            hide()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                ScreenshotService.shared.capture()
+            }
         case .colorPicker:
             hide()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                 ColorSamplerService.shared.pick()
+            }
+        case .cameraPreview:
+            hide()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                CameraPreviewService.shared.show()
+            }
+        case .scratchpad:
+            hide()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                ScratchpadService.shared.show()
             }
         case .clipboard:
             hide()
@@ -312,7 +330,7 @@ final class QuickLauncherService: ObservableObject {
     private func position(_ panel: NSPanel) {
         panel.contentViewController?.view.layoutSubtreeIfNeeded()
         let size = panel.contentViewController?.view.fittingSize ?? NSSize(width: 420, height: 380)
-        let screen = NSScreen.withMouse.visibleFrame
+        let screen = NSScreen.pointerVisibleFrame
         let x = screen.midX - size.width / 2
         let y = screen.minY + (screen.height - size.height) * 0.62
         panel.setFrame(NSRect(x: max(screen.minX + 16, min(x, screen.maxX - size.width - 16)),

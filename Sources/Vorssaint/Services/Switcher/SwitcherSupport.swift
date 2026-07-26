@@ -139,6 +139,55 @@ enum SwitcherSupport {
         dockPreviewEnabled || (switcherEnabled && capturesPreviews(simpleMode: simpleMode))
     }
 
+    /// Resolves the foreground surface a session is measured against: the
+    /// window the user is looking at right now. It can legitimately not exist
+    /// (the app in front was left with no windows, or all of them are
+    /// minimized or parked on another Space), and nil says exactly that
+    /// instead of mistaking an older off-screen window for the source. The
+    /// session opens either way; `initialSelectionPosition` handles the
+    /// sourceless case.
+    static func sessionSourceItem(frontmostPID: pid_t?,
+                                  focusedWindowID: CGWindowID?,
+                                  items: [SwitcherItem]) -> SwitcherItem? {
+        guard let frontmostPID else { return nil }
+        let appPID = appPID(forFrontmost: frontmostPID, items: items)
+        let candidates = items.filter { $0.pid == appPID }
+        if let focusedWindowID,
+           let focused = candidates.first(where: { $0.windowID == focusedWindowID }) {
+            return focused
+        }
+        return candidates.first(where: { $0.isOnScreen && !$0.isMinimized })
+            ?? candidates.first(where: { $0.windowID == nil })
+    }
+
+    /// The regular app behind the process holding the keyboard. Multi-process
+    /// apps render their windows in an embedded helper, so the front process
+    /// is not always the one the entries are filed under.
+    static func appPID(forFrontmost frontmostPID: pid_t, items: [SwitcherItem]) -> pid_t {
+        items.first(where: { $0.windowOwnerPID == frontmostPID })?.pid ?? frontmostPID
+    }
+
+    /// Whether a process looks like a compatibility layer hosting a program
+    /// built for another platform. Those processes own real on-screen windows
+    /// but run from a bare loader executable with no bundle identity: either
+    /// the loader's own name, or a per-app "winetemp-" copy that bottle
+    /// managers create so the process carries the hosted program's name and
+    /// icon. They need special handling in the switcher because their windows
+    /// expose no standard Accessibility subrole (issue #274).
+    static func isCompatibilityLayerApp(bundleIdentifier: String?,
+                                        executablePath: String?,
+                                        localizedName: String?) -> Bool {
+        guard bundleIdentifier == nil else { return false }
+        if let executablePath, !executablePath.isEmpty {
+            let components = executablePath.split(separator: "/")
+            guard let leaf = components.last else { return false }
+            return leaf.hasPrefix("wine")
+                || components.contains { $0.hasPrefix("winetemp-") }
+        }
+        guard let localizedName else { return false }
+        return localizedName.hasPrefix("wine")
+    }
+
     /// Finds the regular app that contains an accessory helper bundle.
     static func embeddedHostPID(helperBundlePath: String,
                                 regularBundlePaths: [pid_t: String]) -> pid_t? {
@@ -191,6 +240,33 @@ enum SwitcherSupport {
         ]
         let transparent = probes.filter { alphaGrid[$0.0 * gridSize + $0.1] < 0.05 }.count
         return transparent >= 2
+    }
+
+    /// How far the two axes of a capture may disagree before it counts as a
+    /// slice of a window instead of the whole window.
+    static let captureCoverageTolerance = 0.08
+
+    /// Whether a capture holds the whole window or only the part of it that
+    /// was inside a display. The window server clips a window capture to the
+    /// visible region, so a window hanging over a screen edge comes back as a
+    /// thin band of real content while still reporting its full size. Measured
+    /// with a 620 by 452 point window: fully visible it captures 2.00 by 2.00
+    /// pixels per point, hanging over the bottom edge 2.00 by 0.32, hanging
+    /// past the side edge 0.19 by 2.00. Comparing the two axes catches that
+    /// without caring about the display scale, so a plain screen and a Retina
+    /// screen both score the same. A window with nothing to measure passes,
+    /// because there is no evidence either way.
+    static func captureCoversWindow(imageWidth: Int,
+                                    imageHeight: Int,
+                                    windowSize: CGSize,
+                                    tolerance: Double = captureCoverageTolerance) -> Bool {
+        guard windowSize.width.isFinite, windowSize.height.isFinite,
+              windowSize.width > 1, windowSize.height > 1
+        else { return true }
+        let horizontal = Double(imageWidth) / Double(windowSize.width)
+        let vertical = Double(imageHeight) / Double(windowSize.height)
+        guard horizontal > 0, vertical > 0 else { return true }
+        return max(horizontal, vertical) / min(horizontal, vertical) <= 1 + tolerance
     }
 
     /// Corners of the opaque quadrilateral in a capture, in top-left-origin
@@ -347,6 +423,48 @@ enum SwitcherSupport {
         return groups
     }
 
+    /// Where a session starts. `pids` is the list in display order, one entry
+    /// per position the shortcut steps through: one per window in the grid,
+    /// one per app in the icon row.
+    ///
+    /// The foreground window always sits first, so the selection starts one
+    /// step past it and a single press already switches. When there is no
+    /// foreground window the list holds nothing the user is looking at, except
+    /// windows the front app left minimized or on another Space; those are
+    /// skipped for the same reason, so one press still lands somewhere else.
+    static func initialSelectionPosition(pids: [pid_t],
+                                         hasForegroundEntry: Bool,
+                                         frontmostPID: pid_t?,
+                                         reversed: Bool) -> Int {
+        guard !pids.isEmpty else { return 0 }
+        if reversed { return pids.count - 1 }
+        guard hasForegroundEntry else {
+            return pids.firstIndex { $0 != frontmostPID } ?? 0
+        }
+        return pids.count > 1 ? 1 : 0
+    }
+
+    /// Moves between rows without wrapping. When the row below is shorter,
+    /// Down lands on that row's last item instead of leaving the selection in
+    /// place because the same column is missing.
+    static func gridSelectionIndex(after selectedIndex: Int,
+                                   itemCount: Int,
+                                   columns: Int,
+                                   movingDown: Bool) -> Int {
+        guard itemCount > 0 else { return 0 }
+        let current = min(max(0, selectedIndex), itemCount - 1)
+        let safeColumns = max(1, columns)
+
+        guard movingDown else {
+            let target = current - safeColumns
+            return target >= 0 ? target : current
+        }
+
+        let nextRowStart = (current / safeColumns + 1) * safeColumns
+        guard nextRowStart < itemCount else { return current }
+        return min(current + safeColumns, itemCount - 1)
+    }
+
     /// With wrapping off (key held on autorepeat, like the system switcher)
     /// the selection stops at either end instead of cycling around.
     static func nextAppSelectionIndex(items: [SwitcherItem],
@@ -455,6 +573,17 @@ enum SwitcherSupport {
         guard let sourcePID,
               let frontmostPID else { return true }
         return frontmostPID == targetPID || frontmostPID == sourcePID || frontmostPID == ownPID
+    }
+
+    static func shouldContinueAppActivationRetry(targetPID: pid_t,
+                                                 sourcePID: pid_t?,
+                                                 frontmostPID: pid_t?,
+                                                 targetWasObservedFrontmost: Bool,
+                                                 ownPID: pid_t = ProcessInfo.processInfo.processIdentifier) -> Bool {
+        if frontmostPID == targetPID { return true }
+        guard !targetWasObservedFrontmost else { return false }
+        guard let frontmostPID else { return true }
+        return frontmostPID == sourcePID || frontmostPID == ownPID
     }
 
     static func shouldKeepMinimizeRestoreObserver(targetPID: pid_t,

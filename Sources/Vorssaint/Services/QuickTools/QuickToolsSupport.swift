@@ -145,4 +145,62 @@ enum QuickToolsSupport {
             .map(\.text)
             .joined(separator: "\n")
     }
+
+    // MARK: - QR codes
+
+    /// One decoded 2D code with its normalized position (bottom-left origin,
+    /// as Vision reports it) so several codes join in reading order.
+    struct DecodedBarcode {
+        let payload: String
+        let x: Double
+        let y: Double
+    }
+
+    /// Joins decoded codes in natural reading order (top to bottom, left to
+    /// right), dropping empty payloads. Several codes are newline separated.
+    static func joinedBarcodePayloads(_ codes: [DecodedBarcode]) -> String {
+        codes
+            .filter { !$0.payload.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .sorted {
+                let rowA = (1 - $0.y) * 50
+                let rowB = (1 - $1.y) * 50
+                if abs(rowA - rowB) >= 0.5 { return rowA < rowB }
+                return $0.x < $1.x
+            }
+            .map(\.payload)
+            .joined(separator: "\n")
+    }
+
+    // MARK: - Paste as plain text
+
+    /// Whether a menu item is an app's own matching-style paste, judged by its
+    /// key equivalent instead of its localized title. The universal
+    /// convention is ⌥⇧⌘V; in the AX menu attributes that is command
+    /// character "V" with the shift (1) and option (2) bits set and nothing
+    /// else (0 alone means a plain ⌘ equivalent). ⇧⌘V and ⌃ variants are
+    /// deliberately out: in several apps those are different edit commands,
+    /// and pressing one would touch the document (issue #349).
+    static func isMatchStyleEquivalent(commandCharacter: String?,
+                                       modifierMask: UInt32?,
+                                       isEnabled: Bool) -> Bool {
+        let shiftAndOption: UInt32 = 1 | 2
+        return commandCharacter?.uppercased() == "V"
+            && modifierMask == shiftAndOption
+            && isEnabled
+    }
+
+    /// The payload as a web link for the optional open action. Limited to
+    /// http and https on purpose: a scanned code must never be able to launch
+    /// an arbitrary URL scheme (mailto, tel, custom app schemes and so on).
+    static func openableURL(from payload: String) -> URL? {
+        let trimmed = payload.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              !trimmed.contains(where: { $0.isWhitespace }),
+              let url = URL(string: trimmed),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              let host = url.host, !host.isEmpty
+        else { return nil }
+        return url
+    }
 }

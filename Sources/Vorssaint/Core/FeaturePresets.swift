@@ -62,6 +62,8 @@ enum FeatureEnergyProfile: String {
     case idle
     /// A mouse event tap (scrolls, clicks or pointer moves).
     case mouse
+    /// A pointer gesture that works with either a trackpad or mouse.
+    case pointer
     /// A keyboard event tap.
     case keyboard
     /// Both input taps.
@@ -74,19 +76,28 @@ extension AppFeature {
     var energyProfile: FeatureEnergyProfile {
         switch self {
         case .scrollInverter, .smoothScroll, .windowMaximizer, .middleClick,
-             .mouseNavigation, .dockPreview, .dockClick, .shelf:
+             .mouseNavigation, .mouseButtonShortcuts, .dockPreview, .dockClick, .shelf:
             return .mouse
-        case .switcher, .keyboardDebounce, .finderCutPaste:
+        case .switcher, .keyboardDebounce, .finderCutPaste, .superKey:
             return .keyboard
         case .textSnippets, .autoQuit:
             return .inputs
+        case .windowLayout:
+            return UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureEnabled) ? .pointer : .idle
+        case .radialMenu:
+            // With a side button configured the trigger is a mouse tap;
+            // shortcut-only costs nothing at rest.
+            return RadialMenuMouseTrigger.sanitized(
+                UserDefaults.standard.string(forKey: DefaultsKey.radialMenuMouseButton)) == .off
+                ? .idle : .mouse
         case .clipboardHistory, .urlCleaner, .extraBrightness,
              .monitorCPU, .monitorGPU, .monitorMemory,
              .monitorNetwork, .monitorDisk, .monitorPower:
             return .periodic
-        case .windowLayout, .pastePlain, .mixer, .soundOutputSwitcher, .micMute,
+        case .pastePlain, .mixer, .soundOutputSwitcher, .micMute,
              .musicBlock, .keepAwake, .brightness, .quickLauncher, .quickToggles, .colorPicker,
-             .screenOCR, .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew:
+             .screenOCR, .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew, .screenshot,
+             .cameraPreview, .scratchpad:
             return .idle
         }
     }

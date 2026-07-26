@@ -31,13 +31,18 @@ final class ShelfService: ObservableObject {
         let title: String
         let icon: NSImage
         let isImage: Bool
+        /// Finds a file payload again after a move or rename; nil for
+        /// non-file payloads and for files whose bookmark could not be made.
+        let bookmark: Data?
 
-        init(id: UUID = UUID(), payload: Payload, title: String, icon: NSImage, isImage: Bool) {
+        init(id: UUID = UUID(), payload: Payload, title: String, icon: NSImage,
+             isImage: Bool, bookmark: Data? = nil) {
             self.id = id
             self.payload = payload
             self.title = title
             self.icon = icon
             self.isImage = isImage
+            self.bookmark = bookmark
         }
 
         static func == (lhs: Item, rhs: Item) -> Bool { lhs.id == rhs.id }
@@ -124,20 +129,23 @@ final class ShelfService: ObservableObject {
     @Published private(set) var dropTargeted = false
     @Published private(set) var hotkeyRegistrationFailed = false
     private var interactionDepth = 0
-    /// Drag-pasteboard state captured at mouse-down. Finder bumps the change
-    /// count after this point; Dock stacks can publish the drag contents first.
-    private var dragPasteboardBaseline = DragPasteboardSnapshot.empty
+    /// Drag-pasteboard change count captured when the current gesture started.
+    /// Finder bumps the count after this point; Dock stacks can publish the
+    /// drag contents first. The drag pasteboard retains the previous drag's
+    /// items indefinitely, so only a bump during the current gesture may read
+    /// as content being dragged.
+    private var dragBaselineChangeCount = 0
+    /// Whether the current gesture's start was observed. macOS 27 moves
+    /// windows in the window server, and the title-bar mouse-down (sometimes
+    /// the mouse-up too) never reaches global monitors while the dragged
+    /// events still do. A gesture with an unseen start re-baselines on its
+    /// first dragged event, so a stale baseline cannot misread a window move
+    /// as a content drag (issue #240).
+    private var sawGestureStart = false
     private var dragBeganInDock = false
     private var dragSourceBundleIdentifier: String?
     private var activeInternalDragIDs: [UUID] = []
     private var internalDragWasMerged = false
-
-    private struct DragPasteboardSnapshot {
-        let changeCount: Int
-        let hasDroppableContent: Bool
-
-        static let empty = DragPasteboardSnapshot(changeCount: 0, hasDroppableContent: false)
-    }
 
     private let tempDir: URL = {
         let id = Bundle.main.bundleIdentifier ?? "com.vorssaint.utils"
@@ -300,6 +308,11 @@ final class ShelfService: ObservableObject {
         }
     }
 
+    /// Lets go of the global key while a shortcut field is listening, so the
+    /// user can record the very combination this feature uses. The next
+    /// `syncWithPreferences` takes it back.
+    func suspendShortcut() { unregisterHotkey() }
+
     private func unregisterHotkey() {
         if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
         hotKeyRef = nil
@@ -309,22 +322,21 @@ final class ShelfService: ObservableObject {
 
     private func startDragMonitor() {
         guard mouseMonitor == nil else { return }
-        dragPasteboardBaseline = dragPasteboardSnapshot()
+        closeDragGesture()
         dragBeganInDock = false
         mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]) { [weak self] event in
             guard let self else { return }
             switch event.type {
             case .leftMouseDown:
-                // Capture the drag pasteboard before any drag starts. Finder
-                // changes it after this; Dock stacks can publish the drag
-                // contents first.
-                self.dragPasteboardBaseline = self.dragPasteboardSnapshot()
-                self.dragBeganInDock = self.eventBelongsToDock(event)
-                self.dragSourceBundleIdentifier = self.sourceBundleIdentifier(for: event)
+                self.beginDragGesture(with: event)
                 self.shakeSamples.removeAll()
             case .leftMouseUp:
+                self.closeDragGesture()
                 self.endDockedDrag()
             default:
+                if !self.sawGestureStart {
+                    self.beginDragGesture(with: event)
+                }
                 self.dragBeganInDock = self.dragBeganInDock || self.eventBelongsToDock(event)
                 let defaults = UserDefaults.standard
                 if defaults.bool(forKey: DefaultsKey.shelfShakeToOpen) {
@@ -333,6 +345,12 @@ final class ShelfService: ObservableObject {
                 if defaults.bool(forKey: DefaultsKey.shelfDropZoneEnabled) {
                     self.handleDragForDock()
                 }
+                // Every open gesture gets the button watchdog, not just one
+                // that engaged the drop zone: a mouse-up swallowed by the
+                // drag machinery or one of our own windows would otherwise
+                // leave the gesture open with a stale baseline, and the next
+                // orphan window-move drag would read as fresh content.
+                self.startDockedWatchdog()
             }
         }
     }
@@ -382,17 +400,30 @@ final class ShelfService: ObservableObject {
     }
 
     private func isContentDragActive() -> Bool {
-        let snapshot = dragPasteboardSnapshot()
-        if snapshot.changeCount != dragPasteboardBaseline.changeCount { return true }
-        return dragBeganInDock && snapshot.hasDroppableContent
+        let pasteboard = NSPasteboard(name: .drag)
+        return ShelfInteractionSupport.isContentDrag(
+            baselineChangeCount: dragBaselineChangeCount,
+            changeCount: pasteboard.changeCount,
+            beganInDock: dragBeganInDock,
+            hasDroppableContent: { pasteboardHasDroppableContent(pasteboard) })
     }
 
-    private func dragPasteboardSnapshot() -> DragPasteboardSnapshot {
-        let pasteboard = NSPasteboard(name: .drag)
-        return DragPasteboardSnapshot(
-            changeCount: pasteboard.changeCount,
-            hasDroppableContent: pasteboardHasDroppableContent(pasteboard)
-        )
+    /// Opens a gesture at its first observed event: the mouse-down when it
+    /// reaches the global monitor, or the first dragged event when the window
+    /// server consumed the down (window moves on macOS 27).
+    private func beginDragGesture(with event: NSEvent) {
+        sawGestureStart = true
+        dragBaselineChangeCount = NSPasteboard(name: .drag).changeCount
+        dragBeganInDock = eventBelongsToDock(event)
+        dragSourceBundleIdentifier = sourceBundleIdentifier(for: event)
+    }
+
+    /// Closes the gesture and absorbs whatever a finished drag left retained
+    /// on the drag pasteboard, so a later gesture with an unseen start cannot
+    /// mistake it for fresh content.
+    private func closeDragGesture() {
+        sawGestureStart = false
+        dragBaselineChangeCount = NSPasteboard(name: .drag).changeCount
     }
 
     private func pasteboardHasDroppableContent(_ pasteboard: NSPasteboard) -> Bool {
@@ -535,12 +566,13 @@ final class ShelfService: ObservableObject {
         guard dockedWatchdog == nil else { return }
         dockedWatchdog = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             guard let self else { return }
-            guard self.dockedDragActive else {
+            guard self.dockedDragActive || self.sawGestureStart else {
                 self.dockedWatchdog?.invalidate()
                 self.dockedWatchdog = nil
                 return
             }
             if NSEvent.pressedMouseButtons & 1 == 0 {
+                self.closeDragGesture()
                 self.endDockedDrag()
             }
         }
@@ -556,7 +588,8 @@ final class ShelfService: ObservableObject {
         if dockedProximate, let frame = dockedPanel?.frame {
             return frame.insetBy(dx: -72, dy: -72).contains(mouse)
         }
-        let screen = NSScreen.screens.first { $0.frame.intersects(anchor) } ?? NSScreen.withMouse
+        guard let screen = NSScreen.screens.first(where: { $0.frame.intersects(anchor) }) ?? NSScreen.withMouse
+        else { return false }
         let band = NSRect(x: anchor.midX - 150,
                           y: screen.frame.maxY - 200,
                           width: 300, height: 200)
@@ -641,10 +674,9 @@ final class ShelfService: ObservableObject {
         view.layoutSubtreeIfNeeded()
         let size = view.fittingSize
         let anchor = statusItemFrameProvider?()
-        let screen = anchor.flatMap { rect in
+        let visible = (anchor.flatMap { rect in
             NSScreen.screens.first { $0.frame.intersects(rect) }
-        } ?? NSScreen.withMouse
-        let visible = screen.visibleFrame
+        } ?? NSScreen.withMouse)?.visibleFrame ?? NSScreen.pointerVisibleFrame
         var x = anchor.map { $0.midX - size.width / 2 } ?? (visible.maxX - size.width - 12)
         x = min(max(visible.minX + 8, x), visible.maxX - size.width - 8)
         let top = visible.maxY - 4
@@ -811,12 +843,100 @@ final class ShelfService: ObservableObject {
         return result
     }
 
+    /// Drag leaves whose payload can actually land somewhere: text and links
+    /// always qualify, and a file whose path died gets one chance to heal
+    /// through its bookmark (the file may only have been moved or renamed).
+    /// A healed tile is updated in place; what stays dead never joins a
+    /// session, because every destination would refuse the dead URL.
+    func livingDragItems(in items: [Item]) -> [Item] {
+        items.compactMap { item in
+            guard case let .file(url) = item.payload else { return item }
+            if FileManager.default.fileExists(atPath: url.path) { return item }
+            guard let healed = rebookedItem(item) else { return nil }
+            // The tile swap rebuilds the tiles view; deferring it keeps the
+            // rebuild away from the drag session or context menu that is
+            // being constructed around the old tile right now.
+            DispatchQueue.main.async { [weak self] in self?.replaceItem(healed) }
+            return healed
+        }
+    }
+
+    /// Resolves a shelf bookmark without ever mounting drives or showing UI;
+    /// nil when the file is truly gone.
+    private static func resolvedBookmarkPath(_ bookmark: Data) -> String? {
+        var stale = false
+        guard let url = try? URL(resolvingBookmarkData: bookmark,
+                                 options: [.withoutUI, .withoutMounting],
+                                 relativeTo: nil,
+                                 bookmarkDataIsStale: &stale) else { return nil }
+        return url.path
+    }
+
+    /// A fresh Item for a file found again through its bookmark, new name
+    /// included; nil when there is no bookmark or the file is really gone.
+    private func rebookedItem(_ item: Item) -> Item? {
+        guard case .file = item.payload, let bookmark = item.bookmark,
+              let path = Self.resolvedBookmarkPath(bookmark),
+              FileManager.default.fileExists(atPath: path) else { return nil }
+        let resolved = URL(fileURLWithPath: path)
+        return Item(id: item.id, payload: .file(resolved),
+                    title: resolved.lastPathComponent,
+                    icon: item.icon, isImage: item.isImage,
+                    bookmark: (try? resolved.bookmarkData()) ?? bookmark)
+    }
+
+    /// Swaps an item in place wherever it lives, top level or inside a
+    /// batch, keeping order, selection and expansion untouched.
+    private func replaceItem(_ replacement: Item) {
+        func replace(in items: inout [Item]) -> Bool {
+            for index in items.indices {
+                if items[index].id == replacement.id {
+                    items[index] = replacement
+                    return true
+                }
+                if case let .batch(children) = items[index].payload {
+                    var mutable = children
+                    if replace(in: &mutable) {
+                        items[index] = Item(id: items[index].id, payload: .batch(mutable),
+                                            title: items[index].title,
+                                            icon: items[index].icon,
+                                            isImage: items[index].isImage)
+                        return true
+                    }
+                }
+            }
+            return false
+        }
+        var current = items
+        if replace(in: &current) { items = current }
+    }
+
+    /// Every grabbed payload is gone. Ghost-dragging dead URLs reads as "the
+    /// drag is broken", so the grab says why and retires the corpses the same
+    /// way a relaunch would. Files on unmounted volumes come back with their
+    /// drive, so they only sit the drag out and are kept.
+    func handleDeadDrag(_ items: [Item]) {
+        QuickToolHUD.show(icon: "tray.full", message: L10n.shared.s.shelfFileMissing)
+        let goneForever = items.filter { item in
+            guard case let .file(url) = item.payload else { return false }
+            let path = url.standardizedFileURL.path
+            guard let volumeRoot = ShelfPersistenceSupport.unmountedVolumeRoot(of: path) else {
+                return true
+            }
+            return FileManager.default.fileExists(atPath: volumeRoot)
+        }
+        guard !goneForever.isEmpty else { return }
+        removeItems(goneForever.map(\.id))
+    }
+
     /// File actions use the current multi-selection when the clicked tile is
     /// part of it; otherwise they stay scoped to that tile. Batches flatten to
     /// their leaves just like an external drag.
     func fileURLsForActions(startingAt item: Item) -> [URL] {
         let candidates = selection.contains(item.id) ? selectedItems() : [item]
-        return dragItems(for: candidates).compactMap { entry in
+        // Actions heal moved files the same way a drag does: Open or Reveal
+        // on a renamed file should find it, not shrug.
+        return livingDragItems(in: dragItems(for: candidates)).compactMap { entry in
             guard case let .file(url) = entry.payload else { return nil }
             return url
         }
@@ -950,15 +1070,19 @@ final class ShelfService: ObservableObject {
         append(linkItem(for: url))
     }
 
-    private func fileItem(for url: URL, id: UUID = UUID(), title: String? = nil) -> Item {
+    private func fileItem(for url: URL, id: UUID = UUID(), title: String? = nil,
+                          bookmark: Data? = nil) -> Item {
         let imageExtensions: Set<String> = ["png", "jpg", "jpeg", "gif", "heic", "heif", "tiff", "bmp", "webp"]
         let isImage = imageExtensions.contains(url.pathExtension.lowercased())
         let fallbackIcon = NSWorkspace.shared.icon(forFile: url.path)
         let icon = (isImage ? ImageThumbnailer.thumbnail(for: url) : nil)
             ?? ImageThumbnailer.thumbnail(for: fallbackIcon)
             ?? fallbackIcon
+        // Made once when the item is shelved (or upgrading a legacy entry),
+        // so a later move or rename of the file cannot orphan the tile.
         return Item(id: id, payload: .file(url), title: title ?? url.lastPathComponent,
-                    icon: icon, isImage: isImage)
+                    icon: icon, isImage: isImage,
+                    bookmark: bookmark ?? (try? url.bookmarkData()))
     }
 
     private func imageItem(for image: NSImage) -> Item? {
@@ -1371,10 +1495,15 @@ final class ShelfService: ObservableObject {
         let data = UserDefaults.standard.data(forKey: DefaultsKey.shelfItems)
         DispatchQueue.global(qos: .utility).async { [weak self] in
             guard let self else { return }
-            var restored: [Item] = []
+            // The disk work (decode, existence checks, unmounted-volume
+            // handling) belongs off the main thread. Turning each entry into an
+            // Item does not: it builds the icon with AppKit drawing,
+            // NSWorkspace and SF Symbols, which are only safe on the main
+            // thread, so that step waits for the hop below.
+            var sanitized: [ShelfPersistedItem] = []
             if let data,
                let decoded = try? JSONDecoder().decode([ShelfPersistedItem].self, from: data) {
-                let sanitized = ShelfPersistenceSupport.sanitized(decoded) { path in
+                sanitized = ShelfPersistenceSupport.sanitized(decoded, fileExists: { path in
                     if FileManager.default.fileExists(atPath: path) { return true }
                     // A file on an unmounted volume is not gone: the app can
                     // launch at login before an external or network drive
@@ -1384,10 +1513,10 @@ final class ShelfService: ObservableObject {
                         return !FileManager.default.fileExists(atPath: volumeRoot)
                     }
                     return false
-                }
-                restored = sanitized.compactMap { self.restoredItem(from: $0) }
+                }, resolveBookmark: Self.resolvedBookmarkPath)
             }
             DispatchQueue.main.async {
+                let restored = sanitized.compactMap { self.restoredItem(from: $0) }
                 self.restoreCompleted = true
                 if restored.isEmpty {
                     self.schedulePersist()
@@ -1407,7 +1536,8 @@ final class ShelfService: ObservableObject {
     private static func persistedItem(from item: Item) -> ShelfPersistedItem {
         switch item.payload {
         case let .file(url):
-            return ShelfPersistedItem(id: item.id, kind: .file, title: item.title, path: url.path)
+            return ShelfPersistedItem(id: item.id, kind: .file, title: item.title,
+                                      path: url.path, bookmark: item.bookmark)
         case let .text(text):
             return ShelfPersistedItem(id: item.id, kind: .text, title: item.title, text: text)
         case let .link(url):
@@ -1424,7 +1554,8 @@ final class ShelfService: ObservableObject {
         case .file:
             guard let path = persisted.path else { return nil }
             return fileItem(for: URL(fileURLWithPath: path), id: persisted.id,
-                            title: persisted.title.isEmpty ? nil : persisted.title)
+                            title: persisted.title.isEmpty ? nil : persisted.title,
+                            bookmark: persisted.bookmark)
         case .text:
             guard let text = persisted.text else { return nil }
             let firstLine = text.split(whereSeparator: \.isNewline).first.map(String.init) ?? text
@@ -1487,6 +1618,8 @@ final class ShelfService: ObservableObject {
     /// docked option on; the docked shelf just steps aside while this panel is
     /// up and comes back when it closes.
     func summon() {
+        guard AppFeature.shelf.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) else { return }
         let panel = ensurePanel()
         cancelAutoHide()
         position(panel)
@@ -1661,7 +1794,7 @@ final class ShelfService: ObservableObject {
         view.layoutSubtreeIfNeeded()
         let size = view.fittingSize
         let mouse = NSEvent.mouseLocation
-        let screen = NSScreen.withMouse.visibleFrame
+        let screen = NSScreen.pointerVisibleFrame
         var x = mouse.x - size.width / 2
         var y = mouse.y - size.height - 16
         x = min(max(screen.minX + 8, x), screen.maxX - size.width - 8)

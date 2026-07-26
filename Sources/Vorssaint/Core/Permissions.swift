@@ -3,6 +3,7 @@
 
 import AppKit
 import ApplicationServices
+import AVFoundation
 import Combine
 import CoreGraphics
 import UserNotifications
@@ -22,8 +23,15 @@ final class Permissions: ObservableObject {
     /// Refreshed inside refresh() only (launch and activation); notifications
     /// have no cheap poll and the portal calls refresh() when it appears.
     @Published private(set) var notifications: NotificationPermissionState = .unknown
+    /// Camera access for the preview mirror. The status read is free, so it
+    /// rides the same refresh() moments as the rest.
+    @Published private(set) var camera: CameraPermissionState = .unknown
 
     enum NotificationPermissionState {
+        case granted, denied, undetermined, unknown
+    }
+
+    enum CameraPermissionState {
         case granted, denied, undetermined, unknown
     }
 
@@ -88,15 +96,44 @@ final class Permissions: ObservableObject {
 
     /// Full refresh including Full Disk Access. Runs at launch and on activation.
     func refresh() {
-        let fda = Self.probeFullDiskAccess()
         refreshActivePermissions()
         refreshNotificationPermission()
+        refreshCameraPermission()
+        // Checking Full Disk Access means asking the system about protected
+        // folders, and every refused answer costs time. Doing that where the
+        // app is starting up holds back the menu bar icon, so it moves off
+        // and reports back.
+        DispatchQueue.global(qos: .utility).async {
+            let granted = Self.probeFullDiskAccess()
+            DispatchQueue.main.async {
+                if self.fullDiskAccess != granted { self.fullDiskAccess = granted }
+            }
+        }
+    }
+
+    private func refreshCameraPermission() {
+        let state: CameraPermissionState
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized: state = .granted
+        case .denied, .restricted: state = .denied
+        case .notDetermined: state = .undetermined
+        @unknown default: state = .unknown
+        }
         DispatchQueue.main.async {
-            if self.fullDiskAccess != fda { self.fullDiskAccess = fda }
+            if self.camera != state { self.camera = state }
         }
     }
 
     private func refreshNotificationPermission() {
+        // Asking the system for the notification centre ends the process
+        // outright when it cannot resolve this app, which is what happens
+        // when the bundle is replaced or moved out from under a running copy.
+        // An update does exactly that, so reporting nothing beats dying.
+        guard Bundle.main.bundleIdentifier != nil,
+              FileManager.default.fileExists(atPath: Bundle.main.bundlePath) else {
+            if notifications != .unknown { notifications = .unknown }
+            return
+        }
         UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
             let state: NotificationPermissionState
             switch settings.authorizationStatus {
@@ -187,6 +224,10 @@ final class Permissions: ObservableObject {
         open(pane: "Privacy_AllFiles")
     }
 
+    func openFilesAndFoldersSettings() {
+        open(pane: "Privacy_FilesAndFolders")
+    }
+
     /// Full Disk Access has no prompt API, and an app only shows up (toggled
     /// off) in its System Settings list once it has attempted to read a
     /// protected location. Touch likely protected paths to register the app,
@@ -223,6 +264,18 @@ final class Permissions: ObservableObject {
                 self.openFullDiskAccessSettings()
             }
         }
+    }
+
+    /// Shows the system camera prompt on first use; afterwards the state can
+    /// only change in System Settings.
+    func requestCamera() {
+        AVCaptureDevice.requestAccess(for: .video) { [weak self] _ in
+            DispatchQueue.main.async { self?.refresh() }
+        }
+    }
+
+    func openCameraSettings() {
+        open(pane: "Privacy_Camera")
     }
 
     func openNotificationSettings() {
