@@ -22,6 +22,22 @@ enum MemoryPressure {
     }
 }
 
+struct FanReading: Identifiable, Equatable {
+    let id: Int
+    var name: String
+    var rpm: Double?
+    var minRPM: Double?
+    var maxRPM: Double?
+
+    var percent: Int? {
+        guard let rpm, let minRPM, let maxRPM, maxRPM > minRPM else { return nil }
+        let value = (rpm - minRPM) / (maxRPM - minRPM) * 100.0
+        return min(max(Int(value.rounded()), 0), 100)
+    }
+}
+
+
+
 /// One refresh tick of the system monitor. Optionals stay nil when a reading
 /// is unavailable on the current hardware, and the UI hides those rows.
 struct SystemSnapshot {
@@ -33,6 +49,9 @@ struct SystemSnapshot {
     var memoryUsed: UInt64?
     var memoryTotal: UInt64?
     var memoryPressure: MemoryPressure = .unknown
+    var fans: [FanReading] = []
+    var detailedTemperatures: [TemperatureReading] = []
+    var hasFans: Bool = false
 
     // Network
     var netDownBytesPerSec: Double?
@@ -109,6 +128,11 @@ final class SystemMonitor: ObservableObject {
     private var smc: SMCClient?
     private var smcTried = false
     private var cpuKeys: [SMCClient.Key] = []
+    private var allDiscoveredTempKeys: [SMCClient.Key] = []
+    private var fanKeysPrepared = false
+    private var fanKeys: [Int: (ac: SMCClient.Key, mn: SMCClient.Key?, mx: SMCClient.Key?, idKey: SMCClient.Key?)] = [:]
+    private var fanCount = 0
+    private var hasFans = false
     /// The platform's known CPU core sensors (what the displayed value is
     /// actually computed from) and everything else, split once at discovery:
     /// each SMC read is a kernel call, so the per-tick read sticks to the
@@ -144,6 +168,12 @@ final class SystemMonitor: ObservableObject {
     private var cpuTemperatureCache: CachedSensorReading?
     private var gpuTemperatureCache: CachedSensorReading?
     private var batteryTemperatureCache: CachedSensorReading?
+    private var fanReadingsCache: [FanReading]?
+    private var lastFanReadingsTime: TimeInterval = 0
+    private var missedFanSamples = 0
+    private var detailedTempsCache: [TemperatureReading]?
+    private var lastDetailedTempsTime: TimeInterval = 0
+    private var missedDetailedTempsSamples = 0
     private var lastDiskReading: DiskReading?
     private var lastPowerReading: PowerReading?
     private var lastPeripheralBatteries: [PeripheralBatteryDevice] = []
@@ -381,16 +411,18 @@ final class SystemMonitor: ObservableObject {
         var needCPUTemperature = false
         var needGPUTemperature = false
         var needBatteryTemperature = false
+        var needFanSpeeds = false
+        var needDetailedTemperatures = false
 
-        var needSMC: Bool { needPower || needTemperature }
+        var needSMC: Bool { needPower || needTemperature || needFanSpeeds }
 
         var needTemperature: Bool {
-            needCPUTemperature || needGPUTemperature || needBatteryTemperature
+            needCPUTemperature || needGPUTemperature || needBatteryTemperature || needDetailedTemperatures
         }
 
         var any: Bool {
             needCPU || needMemory || needNetwork || needDisk || needPower ||
-                needPeripheralBattery || needGPUUsage || needTemperature
+                needPeripheralBattery || needGPUUsage || needTemperature || needFanSpeeds
         }
     }
 
@@ -420,6 +452,8 @@ final class SystemMonitor: ObservableObject {
         let panelMemory = (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysMemory)) || menuPanelNeeds.memory
         let panelBattery = (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysBattery)) || menuPanelNeeds.battery
         let panelTemps = panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysTemps)
+        let panelFans = panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysFanSpeeds)
+        let panelDetailedTemps = panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysTemps) && defaults.bool(forKey: DefaultsKey.monitorSysDetailedTemps)
         let alertCPU = defaults.bool(forKey: DefaultsKey.monitorAlertCPU)
         let alertCPUTemperature = defaults.bool(forKey: DefaultsKey.monitorAlertCPUTemperature)
         let alertMemory = defaults.bool(forKey: DefaultsKey.monitorAlertMemory)
@@ -447,6 +481,8 @@ final class SystemMonitor: ObservableObject {
             defaults.bool(forKey: DefaultsKey.menuBarGPUTemperature)
         plan.needBatteryTemperature = panelTemps || menuPanelNeeds.batteryTemperature ||
             defaults.bool(forKey: DefaultsKey.menuBarBatteryTemperature)
+        plan.needFanSpeeds = panelFans || defaults.bool(forKey: DefaultsKey.menuBarFanSpeed)
+        plan.needDetailedTemperatures = panelDetailedTemps
 
         // The hub gates whole metric families: an unavailable metric never
         // samples, no matter what is pinned, shown or alerting.
@@ -513,6 +549,7 @@ final class SystemMonitor: ObservableObject {
         if plan.needPeripheralBattery { kinds.append(.peripheralBattery) }
         if plan.needGPUUsage { kinds.append(.gpuUsage) }
         if plan.needTemperature { kinds.append(.temperature) }
+        if plan.needFanSpeeds { kinds.append(.fanSpeeds) }
         return kinds
     }
 
@@ -560,9 +597,10 @@ final class SystemMonitor: ObservableObject {
         // through the captured value.
         let tick = tickCount
         tickCount &+= scheduledWakeTicks
+        let strings = L10n.shared.s
         queue.async { [weak self] in
             guard let self else { return }
-            self.prepareIfNeeded(needSMC: plan.needSMC, needTemperature: plan.needTemperature)
+            self.prepareIfNeeded(needSMC: plan.needSMC, needTemperature: plan.needTemperature, needFans: plan.needFanSpeeds)
             let now = ProcessInfo.processInfo.systemUptime
 
             var next = SystemSnapshot()
@@ -716,6 +754,67 @@ final class SystemMonitor: ObservableObject {
                 }
             }
 
+            if plan.needFanSpeeds {
+                if take(.fanSpeeds) {
+                    let rawFans = self.readFans(strings: strings)
+                    if !rawFans.isEmpty {
+                        self.fanReadingsCache = rawFans
+                        self.lastFanReadingsTime = now
+                        self.missedFanSamples = 0
+                    } else if self.missedFanSamples < 4 && now - self.lastFanReadingsTime <= temperatureBridge {
+                        self.missedFanSamples += 1
+                    } else {
+                        self.fanReadingsCache = nil
+                    }
+                }
+                next.fans = self.fanReadingsCache ?? []
+            }
+
+            if plan.needDetailedTemperatures {
+                if take(.temperature) {
+                    var dict: [TemperatureLabelType: TemperatureReading] = [:]
+                    for key in self.allDiscoveredTempKeys {
+                        guard let v = self.smc?.readValue(key) else { continue }
+                        if let reading = TemperatureSensorClassifier.classify(key: key.name, value: v, platform: self.cpuTemperaturePlatform) {
+                            if let existing = dict[reading.labelType] {
+                                if reading.valueCelsius > existing.valueCelsius {
+                                    dict[reading.labelType] = reading
+                                }
+                            } else {
+                                dict[reading.labelType] = reading
+                            }
+                        }
+                    }
+                    let order: [TemperatureLabelType] = [
+                        .cpuPerformanceCores,
+                        .cpuEfficiencyCores,
+                        .cpu,
+                        .graphics,
+                        .battery,
+                        .ssd,
+                        .palmRest,
+                        .airflow,
+                        .airport
+                    ]
+                    let sorted = dict.values.sorted { lhs, rhs in
+                        let idxL = order.firstIndex(of: lhs.labelType) ?? order.count
+                        let idxR = order.firstIndex(of: rhs.labelType) ?? order.count
+                        if idxL != idxR {
+                            return idxL < idxR
+                        }
+                        return lhs.labelType.rawValue < rhs.labelType.rawValue
+                    }
+                    self.detailedTempsCache = sorted
+                    self.lastDetailedTempsTime = now
+                    self.missedDetailedTempsSamples = 0
+                } else if self.missedDetailedTempsSamples < 4 && now - self.lastDetailedTempsTime <= temperatureBridge {
+                    self.missedDetailedTempsSamples += 1
+                } else {
+                    self.detailedTempsCache = nil
+                }
+                next.detailedTemperatures = self.detailedTempsCache ?? []
+            }
+
             next.cpuHistory = plan.needCPU ? self.cpuHistory.values : []
             next.gpuHistory = plan.needGPUUsage ? self.gpuHistory.values : []
             next.memoryHistory = plan.needMemory ? self.memoryHistory.values : []
@@ -725,6 +824,7 @@ final class SystemMonitor: ObservableObject {
             next.diskWriteHistory = plan.needDisk ? self.diskWriteHistory.values : []
             next.systemPowerHistory = plan.needPower ? self.powerHistory.values : []
             next.batteryHistory = plan.needPower ? self.batteryHistory.values : []
+            next.hasFans = self.hasFans
 
             DispatchQueue.main.async {
                 // Skip pure carry-over publishes (nothing sampled, same plan,
@@ -806,29 +906,98 @@ final class SystemMonitor: ObservableObject {
     /// Opens the SMC lazily. Temperature key discovery is heavier (it enumerates
     /// every SMC key) so it waits until the panel or a pinned temperature metric
     /// actually needs it.
-    private func prepareIfNeeded(needSMC: Bool, needTemperature: Bool) {
+    private func prepareIfNeeded(needSMC: Bool, needTemperature: Bool, needFans: Bool) {
         if needSMC, !smcTried {
             smcTried = true
             smc = SMCClient()
             cpuTemperaturePlatform = TemperatureSensorSelector.currentPlatform()
             powerSampler = PowerSampler(smc: smc)
+            if let client = smc {
+                var count = 0
+                if let fNumKey = client.key(named: "FNum"),
+                   let fNum = client.readValue(fNumKey) {
+                    count = Int(fNum)
+                } else {
+                    // Fallback scan up to 10 fans in case FNum is missing or unreadable
+                    for i in 0..<10 {
+                        if client.key(named: "F\(i)Ac") != nil {
+                            count = i + 1
+                        } else {
+                            break
+                        }
+                    }
+                }
+                fanCount = count
+                hasFans = fanCount > 0
+            }
         }
-        guard needTemperature, !tempKeysPrepared else { return }
-        tempKeysPrepared = true
-        guard let client = smc else { return }
+        if needTemperature, !tempKeysPrepared {
+            tempKeysPrepared = true
+            if let client = smc {
+                let all = client.keys { name in
+                    name.hasPrefix("Tp") || name.hasPrefix("Te") || name.hasPrefix("Tf") || name.hasPrefix("Tg")
+                        || name.range(of: "^TB[0-9]T$", options: .regularExpression) != nil
+                        || name.hasPrefix("Ts") || name.hasPrefix("Th") || name.hasPrefix("Ta")
+                        || name.hasPrefix("Tw") || name.hasPrefix("TW")
+                }
+                cpuKeys = all.filter { $0.name.hasPrefix("Tp") || $0.name.hasPrefix("Te") || $0.name.hasPrefix("Tf") }
+                preferredCPUKeys = cpuKeys.filter {
+                    TemperatureSensorSelector.isCPUCoreKey($0.name, platform: cpuTemperaturePlatform)
+                }
+                let preferredNames = Set(preferredCPUKeys.map(\.name))
+                fallbackCPUKeys = cpuKeys.filter { !preferredNames.contains($0.name) }
+                gpuKeys = all.filter { $0.name.hasPrefix("Tg") }
+                batteryKeys = all.filter { $0.name.hasPrefix("TB") }
+                allDiscoveredTempKeys = all
+            }
+        }
+        if needFans, !fanKeysPrepared {
+            fanKeysPrepared = true
+            if let client = smc {
+                for i in 0..<fanCount {
+                    let acKey = client.key(named: "F\(i)Ac")
+                    let mnKey = client.key(named: "F\(i)Mn")
+                    let mxKey = client.key(named: "F\(i)Mx")
+                    let idKey = client.key(named: "F\(i)ID")
+                    if let ac = acKey {
+                        fanKeys[i] = (ac: ac, mn: mnKey, mx: mxKey, idKey: idKey)
+                    }
+                }
+            }
+        }
+    }
 
-        let all = client.keys { name in
-            name.hasPrefix("Tp") || name.hasPrefix("Te") || name.hasPrefix("Tg")
-                || name.range(of: "^TB[0-9]T$", options: .regularExpression) != nil
+    private func readFans(strings: Strings) -> [FanReading] {
+        guard let client = smc, fanKeysPrepared else { return [] }
+        var readings: [FanReading] = []
+        for i in 0..<fanCount {
+            guard let keys = fanKeys[i] else { continue }
+            let rpm = client.readValue(keys.ac)
+            let minRPM = keys.mn.flatMap { client.readValue($0) }
+            let maxRPM = keys.mx.flatMap { client.readValue($0) }
+
+            var name = ""
+            if let idK = keys.idKey, let label = client.readStringValue(idK) {
+                name = label
+            } else {
+                if fanCount == 1 {
+                    name = strings.fanFallbackName
+                } else if fanCount == 2 {
+                    name = i == 0 ? strings.fanLeftFallbackName : strings.fanRightFallbackName
+                } else {
+                    name = String(format: strings.fanNumberedFallbackNamePattern, i + 1)
+                }
+            }
+
+            readings.append(FanReading(
+                id: i,
+                name: name,
+                rpm: rpm,
+                minRPM: minRPM,
+                maxRPM: maxRPM
+            ))
         }
-        cpuKeys = all.filter { $0.name.hasPrefix("Tp") || $0.name.hasPrefix("Te") }
-        preferredCPUKeys = cpuKeys.filter {
-            TemperatureSensorSelector.isCPUCoreKey($0.name, platform: cpuTemperaturePlatform)
-        }
-        let preferredNames = Set(preferredCPUKeys.map(\.name))
-        fallbackCPUKeys = cpuKeys.filter { !preferredNames.contains($0.name) }
-        gpuKeys = all.filter { $0.name.hasPrefix("Tg") }
-        batteryKeys = all.filter { $0.name.hasPrefix("TB") }
+        return readings
     }
 
     private func cpuTemperature() -> Double? {

@@ -4,6 +4,43 @@
 import Darwin
 import Foundation
 
+public enum TemperatureLabelType: String, CaseIterable, Codable, Equatable {
+    case cpuPerformanceCores
+    case cpuEfficiencyCores
+    case cpu
+    case graphics
+    case battery
+    case ssd
+    case palmRest
+    case airflow
+    case airport
+}
+
+public struct TemperatureReading: Identifiable, Equatable {
+    public var id: String { key }
+    public let key: String
+    public let labelType: TemperatureLabelType
+    public var valueCelsius: Double
+    public var group: TemperatureGroup
+
+    public init(key: String, labelType: TemperatureLabelType, valueCelsius: Double, group: TemperatureGroup) {
+        self.key = key
+        self.labelType = labelType
+        self.valueCelsius = valueCelsius
+        self.group = group
+    }
+}
+
+public enum TemperatureGroup: String, Equatable {
+    case cpu
+    case gpu
+    case battery
+    case storage
+    case enclosure
+    case wireless
+    case other
+}
+
 enum CPUTemperaturePlatform: Equatable {
     case appleM1Family
     case appleM2Family
@@ -120,5 +157,58 @@ enum TemperatureSensorSelector {
 
     private static func isPlausibleTemperature(_ value: Double) -> Bool {
         value > 1 && value < 125
+    }
+}
+
+enum TemperatureSensorClassifier {
+    static func classify(key: String, value: Double, platform: CPUTemperaturePlatform) -> TemperatureReading? {
+        guard value > 1 && value < 125 else { return nil }
+
+        let group: TemperatureGroup
+        let labelType: TemperatureLabelType
+
+        if TemperatureSensorSelector.isCPUCoreKey(key, platform: platform) {
+            group = .cpu
+            let isEfficiency: Bool
+            if key.hasPrefix("Te") {
+                isEfficiency = true
+            } else if platform == .appleM1Family && (key == "Tp09" || key == "Tp0T") {
+                isEfficiency = true
+            } else if platform == .appleM2Family && (key == "Tp1h" || key == "Tp1t" || key == "Tp1p" || key == "Tp1l") {
+                isEfficiency = true
+            } else {
+                isEfficiency = false
+            }
+            labelType = isEfficiency ? .cpuEfficiencyCores : .cpuPerformanceCores
+        } else if key.hasPrefix("Tp") || key.hasPrefix("Te") || key.hasPrefix("Tf") {
+            group = .cpu
+            labelType = .cpu
+        } else if key.hasPrefix("Tg") {
+            group = .gpu
+            labelType = .graphics
+        } else if key.hasPrefix("TB") || key.hasPrefix("Tb") {
+            group = .battery
+            labelType = .battery
+        } else if key.hasPrefix("Ts") {
+            group = .storage
+            labelType = .ssd
+        } else if key.hasPrefix("Th") {
+            group = .enclosure
+            if key.lowercased() == "th0f" {
+                labelType = .palmRest
+            } else {
+                labelType = .airflow
+            }
+        } else if key.hasPrefix("TW") || key.hasPrefix("Tw") {
+            group = .wireless
+            labelType = .airport
+        } else if key.hasPrefix("Ta") {
+            group = .enclosure
+            labelType = .airflow
+        } else {
+            return nil
+        }
+
+        return TemperatureReading(key: key, labelType: labelType, valueCelsius: value, group: group)
     }
 }

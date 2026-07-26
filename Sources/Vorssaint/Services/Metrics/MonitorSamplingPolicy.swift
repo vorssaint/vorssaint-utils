@@ -12,6 +12,7 @@ enum MonitorSamplingKind: String {
     case peripheralBattery
     case gpuUsage
     case temperature
+    case fanSpeeds
 }
 
 enum MonitorSamplingPolicy {
@@ -72,7 +73,7 @@ enum MonitorSamplingPolicy {
             switch kind {
             case .peripheralBattery:
                 return 15
-            case .cpu, .memory, .network, .disk, .power, .gpuUsage, .temperature:
+            case .cpu, .memory, .network, .disk, .power, .gpuUsage, .temperature, .fanSpeeds:
                 return 1
             }
         }
@@ -82,7 +83,7 @@ enum MonitorSamplingPolicy {
             return 1
         case .gpuUsage:
             return 10
-        case .power, .temperature:
+        case .power, .temperature, .fanSpeeds:
             return 15
         case .disk:
             // Must stay comfortably under DiskSampler.maxGap (15 s) even

@@ -29,7 +29,7 @@ enum AppFeature: String, CaseIterable {
          cleaner, uninstaller, homebrew, screenshot, cameraPreview, radialMenu, scratchpad
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
-    case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower
+    case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorUSB, monitorPower
 }
 
 /// Hub sections, in display order.
@@ -60,7 +60,7 @@ extension AppFeature {
         case .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .screenshot, .cameraPreview, .radialMenu, .scratchpad:
             return .tools
-        case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
+        case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorUSB, .monitorPower:
             return .monitor
         }
     }
@@ -111,6 +111,7 @@ extension AppFeature {
         case .monitorMemory: return "memorychip"
         case .monitorNetwork: return "network"
         case .monitorDisk: return "internaldrive"
+        case .monitorUSB: return "cable.connector"
         case .monitorPower: return "bolt.fill"
         }
     }
@@ -155,7 +156,7 @@ extension AppFeature {
         case .windowLayout, .mixer, .micMute, .keepAwake,
              .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .screenshot, .cameraPreview, .scratchpad,
-             .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
+             .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorUSB, .monitorPower:
             return []
         }
     }
@@ -189,7 +190,7 @@ extension AppFeature {
         case .clipboardHistory, .shelf, .urlCleaner,
              .soundOutputSwitcher, .musicBlock,
              .extraBrightness, .quickLauncher, .colorPicker, .micMute, .mediaTools,
-             .scratchpad, .monitorGPU, .monitorNetwork:
+             .scratchpad, .monitorGPU, .monitorNetwork, .monitorUSB:
             return []
         }
     }

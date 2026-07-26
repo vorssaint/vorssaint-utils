@@ -69,6 +69,7 @@ struct MenuPanelView: View {
     @AppStorage(DefaultsKey.monitorShowSystem) private var showSystem = true
     @AppStorage(DefaultsKey.monitorShowNetwork) private var showNetwork = true
     @AppStorage(DefaultsKey.monitorShowDisk) private var showDisk = true
+    @AppStorage(DefaultsKey.monitorShowUSB) private var showUSB = true
     @AppStorage(DefaultsKey.monitorShowPower) private var showPower = true
     @AppStorage(DefaultsKey.monitorShowFanControlBeta) private var showFanControlBeta = false
     @AppStorage(DefaultsKey.panelShowKeepAwake) private var showKeepAwake = true
@@ -255,6 +256,7 @@ struct MenuPanelView: View {
         case .system: return 460
         case .network: return 190
         case .disk: return 360
+        case .usb: return 220
         case .power: return 170
         case .fanControl: return 92
         case .utilities: return 500
@@ -285,6 +287,7 @@ struct MenuPanelView: View {
         case .system: if showSystem { SystemSection(collapsible: collapsible) }
         case .network: if showNetwork { NetworkSection(collapsible: collapsible) }
         case .disk: if showDisk { DiskSection(collapsible: collapsible) }
+        case .usb: if showUSB { USBSection(collapsible: collapsible) }
         case .power: if showPower { PowerSection(collapsible: collapsible) }
         case .fanControl: if showFanControlBeta { FanControlSection(collapsible: collapsible) }
         case .utilities: UtilitiesSection(collapsible: collapsible, startCleaning: startCleaning)
@@ -304,6 +307,7 @@ struct MenuPanelView: View {
         case .system: return showSystem
         case .network: return showNetwork
         case .disk: return showDisk
+        case .usb: return showUSB
         case .power: return showPower
         case .fanControl: return showFanControlBeta
         case .utilities: return showUtilities
