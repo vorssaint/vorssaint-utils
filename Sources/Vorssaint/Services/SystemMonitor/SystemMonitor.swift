@@ -37,6 +37,8 @@ struct SystemSnapshot {
     var frequencies: ClusterFrequencies?
     var cpuUsage: Double?          // 0...1
     var gpuUsage: Double?          // 0...1
+    var gpuMemoryFraction: Double? // 0...1, in-use / allocated GPU system memory
+    var gpuMemoryInUseBytes: UInt64?
     // Per-logical-core usage (0...1) for the activity dots; efficiency cores
     // occupy the first `efficiencyCoreCount` entries, performance cores the rest.
     var coreUsages: [Double] = []
@@ -176,6 +178,8 @@ final class SystemMonitor: ObservableObject {
     private var lastCPUUsage: Double?
     private var missedCPUUsageSamples = 0
     private var lastGPUUsage: Double?
+    private var lastGPUMemoryFraction: Double?
+    private var lastGPUMemoryInUse: UInt64?
     private var missedGPUUsageSamples = 0
     private var memoryCache: CachedMemoryReading?
     private var cpuTemperatureCache: CachedSensorReading?
@@ -733,18 +737,24 @@ final class SystemMonitor: ObservableObject {
                 let suppressGPUForUI = suppressImmediateGPU || now < suppressGPUReadsUntil
                 let shouldSampleGPU = !suppressGPUForUI && take(.gpuUsage)
                 if shouldSampleGPU {
-                    if let rawGPU = Self.readGPUUsage() {
+                    if let stats = Self.readGPUStats() {
                         self.lastGPUUsage = MetricFormat.stabilizedGPUUsage(previous: self.lastGPUUsage,
-                                                                            current: rawGPU)
+                                                                            current: stats.utilization)
+                        self.lastGPUMemoryFraction = stats.memoryFraction
+                        self.lastGPUMemoryInUse = stats.memoryInUseBytes
                         self.missedGPUUsageSamples = 0
                         if let gpu = self.lastGPUUsage { self.gpuHistory.push(gpu) }
                     } else if self.missedGPUUsageSamples < 3 {
                         self.missedGPUUsageSamples += 1
                     } else {
                         self.lastGPUUsage = nil
+                        self.lastGPUMemoryFraction = nil
+                        self.lastGPUMemoryInUse = nil
                     }
                 }
                 next.gpuUsage = self.lastGPUUsage
+                next.gpuMemoryFraction = self.lastGPUMemoryFraction
+                next.gpuMemoryInUseBytes = self.lastGPUMemoryInUse
             }
             // The anti-glitch bridge must span a couple of sampling gaps or it
             // is useless on the slow background cadence (15 s): one bad SMC
@@ -1092,9 +1102,15 @@ final class SystemMonitor: ObservableObject {
 
     // MARK: - GPU usage
 
-    /// "Device Utilization %" published by the graphics accelerator
-    /// (AGXAccelerator on Apple Silicon).
-    private static func readGPUUsage() -> Double? {
+    struct GPUStats {
+        var utilization: Double        // 0...1, "Device Utilization %"
+        var memoryFraction: Double?    // 0...1, "In use system memory" / "Alloc system memory"
+        var memoryInUseBytes: UInt64?
+    }
+
+    /// GPU utilization and in-use memory published by the graphics accelerator
+    /// (AGXAccelerator on Apple Silicon), from its PerformanceStatistics dict.
+    private static func readGPUStats() -> GPUStats? {
         var iterator = io_iterator_t()
         guard IOServiceGetMatchingServices(kIOMainPortDefault,
                                            IOServiceMatching("IOAccelerator"),
@@ -1115,7 +1131,15 @@ final class SystemMonitor: ObservableObject {
                   let stats = ref.takeRetainedValue() as? [String: Any],
                   let utilization = stats["Device Utilization %"] as? Int
             else { continue }
-            return Double(utilization) / 100.0
+            // Unified-memory GPUs report used vs allocated system memory here; the
+            // ratio is what iStats shows as GPU "MEM %".
+            let inUse = (stats["In use system memory"] as? Int).map { UInt64(max(0, $0)) }
+            let alloc = (stats["Alloc system memory"] as? Int).flatMap { $0 > 0 ? Double($0) : nil }
+            let memFraction = (inUse != nil && alloc != nil)
+                ? min(1, max(0, Double(inUse!) / alloc!)) : nil
+            return GPUStats(utilization: Double(utilization) / 100.0,
+                            memoryFraction: memFraction,
+                            memoryInUseBytes: inUse)
         }
         return nil
     }

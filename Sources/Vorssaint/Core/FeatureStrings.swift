@@ -2085,3 +2085,23 @@ struct AppearanceStrings {
         }
     }
 }
+
+// MARK: - Storage "Purgeable" label (self-contained, no 13-file Strings edits)
+
+func diskPurgeableLabel(_ language: AppLanguage) -> String {
+    switch language {
+    case .enUS: return "Purgeable"
+    case .ptBR: return "Liberável"
+    case .tr: return "Temizlenebilir"
+    case .ru: return "Очищаемое"
+    case .es: return "Liberable"
+    case .de: return "Bereinigbar"
+    case .fr: return "Récupérable"
+    case .it: return "Liberabile"
+    case .ja: return "解放可能"
+    case .ko: return "제거 가능"
+    case .zhHans: return "可清除"
+    case .zhTW: return "可清除"
+    case .zhHK: return "可清除"
+    }
+}

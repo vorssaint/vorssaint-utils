@@ -32,6 +32,10 @@ struct DiskDeviceReading: Identifiable, Equatable {
     var totalBytes: UInt64
     var freeBytes: UInt64
     var usedBytes: UInt64
+    /// Space macOS can reclaim on demand (caches, snapshots) — the gap between
+    /// "available for important usage" and the truly-free bytes. iStats shows
+    /// this as the pink "Purgeable" arc. nil when the source can't report it.
+    var purgeableBytes: UInt64? = nil
     var isInternal: Bool
     var isRemovable: Bool
     var isEjectable: Bool

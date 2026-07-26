@@ -405,7 +405,28 @@ struct SystemSection: View {
                         .frame(height: 26)
                 }
                 if kind == .energy { batteryDetail }
+                if kind == .gpu { gpuDetail }
                 breakdownList(for: kind)
+            }
+        }
+    }
+
+    /// GPU usage and (unified-memory) VRAM percentage, shown under the GPU ring.
+    @ViewBuilder
+    private var gpuDetail: some View {
+        let usage = monitor.snapshot.gpuUsage
+        let mem = monitor.snapshot.gpuMemoryFraction
+        if usage != nil || mem != nil {
+            VStack(alignment: .leading, spacing: 3) {
+                if let usage {
+                    sensorRow(label: l10n.s.usageSection, value: MetricFormat.percent(usage))
+                }
+                if let mem {
+                    let value = monitor.snapshot.gpuMemoryInUseBytes
+                        .map { "\(MetricFormat.percent(mem)) · \(formatMemory($0))" }
+                        ?? MetricFormat.percent(mem)
+                    sensorRow(label: l10n.s.memorySection, value: value)
+                }
             }
         }
     }
@@ -953,6 +974,15 @@ struct SystemSection: View {
                 }
                 if diskExpanded, !editing {
                     VStack(alignment: .leading, spacing: 3) {
+                        // Capacity breakdown (Used / Purgeable / Free), like iStats.
+                        diskCapacityRow(PanelMetricColor.blue(for: colorScheme),
+                                        l10n.s.diskUsed.capitalized, device.usedBytes)
+                        if let purge = device.purgeableBytes, purge > 0 {
+                            diskCapacityRow(PanelMetricColor.pink(for: colorScheme),
+                                            diskPurgeableLabel(l10n.language), purge)
+                        }
+                        diskCapacityRow(.secondary, l10n.s.diskFree.capitalized,
+                                        device.freeBytes - min(device.freeBytes, device.purgeableBytes ?? 0))
                         sensorRow(label: l10n.s.diskRead,
                                   value: MetricFormat.bytesPerSec(device.readBytesPerSec ?? 0))
                         sensorRow(label: l10n.s.diskWrite,
@@ -1119,6 +1149,16 @@ struct SystemSection: View {
             Text(name).font(.system(size: 11)).foregroundStyle(.secondary)
             Spacer(minLength: 8)
             Text(formatMemory(bytes)).font(.system(size: 11, weight: .medium)).monospacedDigit()
+        }
+    }
+
+    /// Storage capacity legend row (Used / Purgeable / Free), formatted in GB.
+    private func diskCapacityRow(_ dot: Color, _ name: String, _ bytes: UInt64) -> some View {
+        HStack(spacing: 7) {
+            Circle().fill(dot).frame(width: 7, height: 7)
+            Text(name).font(.system(size: 11)).foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            Text(MetricFormat.diskBytes(bytes)).font(.system(size: 11, weight: .medium)).monospacedDigit()
         }
     }
 

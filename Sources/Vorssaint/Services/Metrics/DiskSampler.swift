@@ -56,6 +56,7 @@ final class DiskSampler {
                                      totalBytes: capacity.total,
                                      freeBytes: capacity.free,
                                      usedBytes: capacity.used,
+                                     purgeableBytes: capacity.purgeable,
                                      isInternal: isInternal,
                                      isRemovable: isRemovable,
                                      isEjectable: isEjectable,
@@ -79,7 +80,7 @@ final class DiskSampler {
     }
 
     private static func bestCapacity(volume: MountedVolume, metadata: DiskMetadata)
-        -> (total: UInt64, free: UInt64, used: UInt64) {
+        -> (total: UInt64, free: UInt64, used: UInt64, purgeable: UInt64?) {
         let total = volume.totalBytes > 0 ? volume.totalBytes : (metadata.totalBytes ?? 0)
         let free: UInt64
         if volume.freeBytes > 0 {
@@ -90,10 +91,10 @@ final class DiskSampler {
             free = 0
         }
         if let metadataUsed = metadata.usedBytes, volume.freeBytes == 0 {
-            return (total, min(free, total), min(metadataUsed, total))
+            return (total, min(free, total), min(metadataUsed, total), volume.purgeableBytes)
         }
         let clampedFree = min(free, total)
-        return (total, clampedFree, total - clampedFree)
+        return (total, clampedFree, total - clampedFree, volume.purgeableBytes)
     }
 
     private func ratesAndTotals(for diskID: String, counters: DiskIOCounters, now: TimeInterval)
@@ -153,6 +154,7 @@ final class DiskSampler {
         var totalBytes: UInt64
         var freeBytes: UInt64
         var usedBytes: UInt64
+        var purgeableBytes: UInt64?
         var isInternal: Bool
         var isRemovable: Bool
         var isEjectable: Bool
@@ -186,12 +188,18 @@ final class DiskSampler {
                 ?? positiveUInt(values.volumeAvailableCapacityForImportantUsage)
                 ?? positiveUInt(values.volumeAvailableCapacity)
                 ?? 0
+            // `free` above is "available for important usage" (includes purgeable).
+            // The plain available capacity is the truly-free bytes; the gap is the
+            // reclaimable/purgeable space Finder and iStats report separately.
+            let trulyFree = positiveUInt(values.volumeAvailableCapacity)
+            let purgeable = trulyFree.map { UInt64(max(0, Int64(min(free, total)) - Int64($0))) }
             let name = values.volumeLocalizedName ?? values.volumeName ?? url.lastPathComponent
             return MountedVolume(name: name.isEmpty ? url.path : name,
                                  mountPath: url.path,
                                  totalBytes: total,
                                  freeBytes: min(free, total),
                                  usedBytes: total - min(free, total),
+                                 purgeableBytes: purgeable,
                                  isInternal: values.volumeIsInternal ?? false,
                                  isRemovable: values.volumeIsRemovable ?? false,
                                  isEjectable: values.volumeIsEjectable ?? false,
