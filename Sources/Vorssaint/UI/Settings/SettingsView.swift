@@ -237,8 +237,8 @@ struct GeneralSettings: View {
                     Text(appearanceStrings.light).tag("light")
                     Text(appearanceStrings.dark).tag("dark")
                 }
-                .onChange(of: appAppearance) { _, value in
-                    AppAppearance.apply(value)
+                .onChange(of: appAppearance) { _, _ in
+                    appDelegate()?.applyStoredAppearance()
                 }
                 SettingsCaptionText(appearanceStrings.caption)
             }

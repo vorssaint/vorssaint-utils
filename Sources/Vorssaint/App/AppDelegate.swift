@@ -34,7 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
         // Honour the user's forced light/dark override (independent of macOS)
         // before any window or the popover is built.
-        AppAppearance.applyStored()
+        applyStoredAppearance()
 
         // Finish the on-disk rename for installs carried over from a pre-2.5
         // build, or retire a leftover old-named bundle. Returns true when we are
@@ -222,8 +222,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         let host = NSHostingController(rootView: MenuPanelView())
         host.sizingOptions = .preferredContentSize
         popover.contentViewController = host
+        // The popover has its own backing window that does NOT inherit
+        // NSApp.appearance, so force the override onto the popover directly.
+        popover.appearance = AppAppearance.storedNSAppearance
         NotificationCenter.default.addObserver(self, selector: #selector(appResignedActive),
                                                name: NSApplication.didResignActiveNotification, object: nil)
+    }
+
+    /// Apply the stored light/dark override everywhere it doesn't propagate
+    /// automatically: the app itself (Settings window), the popover, and the
+    /// popover's live backing window if it is currently open.
+    func applyStoredAppearance() {
+        let appearance = AppAppearance.storedNSAppearance
+        NSApp.appearance = appearance
+        popover.appearance = appearance
+        popover.contentViewController?.view.window?.appearance = appearance
     }
 
     private func togglePopover(anchor button: NSStatusBarButton? = nil) {
@@ -430,6 +443,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         if let window = popover.contentViewController?.view.window {
+            // The popover window is minted fresh on each show; force the stored
+            // light/dark override onto it so the dropdown matches the setting.
+            window.appearance = AppAppearance.storedNSAppearance
             // Keep the panel alive next to fullscreen apps and on any Space —
             // without this it blinks shut when another display is fullscreen.
             window.collectionBehavior.insert([.fullScreenAuxiliary, .canJoinAllSpaces])
@@ -1450,18 +1466,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 /// look regardless of the macOS setting, matching iStats Menus' own appearance
 /// control. `system` clears the override so the app follows macOS again.
 enum AppAppearance {
-    static func apply(_ raw: String) {
-        let value = Defaults.sanitizedAppAppearance(raw)
-        let appearance: NSAppearance?
-        switch value {
-        case "light": appearance = NSAppearance(named: .aqua)
-        case "dark": appearance = NSAppearance(named: .darkAqua)
-        default: appearance = nil // follow the system
+    /// The AppKit appearance for a stored raw value, or nil to follow macOS.
+    static func nsAppearance(for raw: String) -> NSAppearance? {
+        switch Defaults.sanitizedAppAppearance(raw) {
+        case "light": return NSAppearance(named: .aqua)
+        case "dark": return NSAppearance(named: .darkAqua)
+        default: return nil // follow the system
         }
-        NSApp.appearance = appearance
     }
 
-    static func applyStored() {
-        apply(UserDefaults.standard.string(forKey: DefaultsKey.appAppearance) ?? "system")
+    static var storedNSAppearance: NSAppearance? {
+        nsAppearance(for: UserDefaults.standard.string(forKey: DefaultsKey.appAppearance) ?? "system")
     }
 }
