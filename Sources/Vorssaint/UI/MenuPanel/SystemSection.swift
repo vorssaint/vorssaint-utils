@@ -405,28 +405,7 @@ struct SystemSection: View {
                         .frame(height: 26)
                 }
                 if kind == .energy { batteryDetail }
-                if kind == .gpu { gpuDetail }
                 breakdownList(for: kind)
-            }
-        }
-    }
-
-    /// GPU usage and (unified-memory) VRAM percentage, shown under the GPU ring.
-    @ViewBuilder
-    private var gpuDetail: some View {
-        let usage = monitor.snapshot.gpuUsage
-        let mem = monitor.snapshot.gpuMemoryFraction
-        if usage != nil || mem != nil {
-            VStack(alignment: .leading, spacing: 3) {
-                if let usage {
-                    sensorRow(label: l10n.s.usageSection, value: MetricFormat.percent(usage))
-                }
-                if let mem {
-                    let value = monitor.snapshot.gpuMemoryInUseBytes
-                        .map { "\(MetricFormat.percent(mem)) · \(formatMemory($0))" }
-                        ?? MetricFormat.percent(mem)
-                    sensorRow(label: l10n.s.memorySection, value: value)
-                }
             }
         }
     }
@@ -570,6 +549,21 @@ struct SystemSection: View {
                 ForEach(fans) { fan in
                     sensorRow(label: fanLabel(fan.index, count: fans.count, strings: strings),
                               value: fan.rpm == 0 ? strings.fanOff : "\(fan.rpm) RPM")
+                }
+            }
+        }
+        let gpuUsage = monitor.snapshot.gpuUsage
+        let gpuMem = monitor.snapshot.gpuMemoryFraction
+        if gpuUsage != nil || gpuMem != nil {
+            sensorSubsection(strings.graphics) {
+                if let gpuUsage {
+                    sensorRow(label: l10n.s.usageSection, value: MetricFormat.percent(gpuUsage))
+                }
+                if let gpuMem {
+                    let value = monitor.snapshot.gpuMemoryInUseBytes
+                        .map { "\(MetricFormat.percent(gpuMem)) · \(formatMemory($0))" }
+                        ?? MetricFormat.percent(gpuMem)
+                    sensorRow(label: l10n.s.memorySection, value: value)
                 }
             }
         }
