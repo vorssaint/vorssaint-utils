@@ -161,6 +161,10 @@ final class BrightnessService: ObservableObject {
     /// is in here its live curve is ours, not its own, so it is never read
     /// back as a baseline. Touched only on the work queue.
     private var dimmedDisplays = Set<CGDirectDisplayID>()
+    /// Per-display image adjustments from the display-management settings.
+    /// These share the software-dimming gamma pipeline so calibration,
+    /// dimming and image tuning are composed from one remembered baseline.
+    private var imageAdjustments: [CGDirectDisplayID: DisplayImageAdjustment] = [:]
 
     private struct GammaTable {
         var red: [CGGammaValue]
@@ -457,6 +461,25 @@ final class BrightnessService: ObservableObject {
         }
         gammaBaselines = [:]
         dimmedDisplays = []
+        imageAdjustments = [:]
+    }
+
+    func setImageAdjustment(_ adjustment: DisplayImageAdjustment?, for id: CGDirectDisplayID) {
+        workQueue.async { [weak self] in
+            guard let self else { return }
+            self.stateLock.lock()
+            let route = self.routes[id]
+            let softwareLevel = route?.method == .software ? self.rememberedLevel(for: id) ?? 1 : 1
+            self.stateLock.unlock()
+
+            if let adjustment, !adjustment.isNeutral {
+                self.imageAdjustments[id] = adjustment
+            } else {
+                self.imageAdjustments.removeValue(forKey: id)
+            }
+            self.captureGammaBaselineIfNeeded(id)
+            _ = self.applyGammaPipeline(id, softwareBrightness: softwareLevel)
+        }
     }
 
     // MARK: - Displays switched off by this app
@@ -1174,7 +1197,9 @@ final class BrightnessService: ObservableObject {
                 id: id, name: built[index].name, isBuiltIn: false,
                 method: .software, isActive: true, brightness: value, readable: true)
             newRoutes[id] = Route(method: .software, service: nil, maximum: 100)
-            if value < 0.999 { _ = applySoftwareDim(id, value: value) }
+            if value < 0.999 || imageAdjustments[id] != nil {
+                _ = applySoftwareDim(id, value: value)
+            }
         }
         var resolved: [BrightnessDisplay] = []
         var supportsBrightnessOSD = false
@@ -1323,21 +1348,62 @@ final class BrightnessService: ObservableObject {
 
     @discardableResult
     private func applySoftwareDim(_ id: CGDirectDisplayID, value: Double) -> Bool {
+        applyGammaPipeline(id, softwareBrightness: value)
+    }
+
+    @discardableResult
+    private func applyGammaPipeline(_ id: CGDirectDisplayID, softwareBrightness value: Double) -> Bool {
         guard let baseline = gammaBaselines[id],
               baseline.fingerprint == Self.displayFingerprint(id) else { return false }
-        if value >= 0.999 {
+        let adjustment = imageAdjustments[id]
+        if value >= 0.999, adjustment == nil {
             let restored = CGSetDisplayTransferByTable(id, baseline.count, baseline.red,
                                                        baseline.green, baseline.blue) == .success
             if restored { dimmedDisplays.remove(id) }
             return restored
         }
         let factor = BrightnessSupport.softwareDimFactor(for: value)
-        let red = BrightnessSupport.scaledGammaTable(baseline.red, factor: factor)
-        let green = BrightnessSupport.scaledGammaTable(baseline.green, factor: factor)
-        let blue = BrightnessSupport.scaledGammaTable(baseline.blue, factor: factor)
+        let red = adjustedGammaTable(baseline.red, channel: .red, factor: factor, adjustment: adjustment)
+        let green = adjustedGammaTable(baseline.green, channel: .green, factor: factor, adjustment: adjustment)
+        let blue = adjustedGammaTable(baseline.blue, channel: .blue, factor: factor, adjustment: adjustment)
         let applied = CGSetDisplayTransferByTable(id, baseline.count, red, green, blue) == .success
         if applied { dimmedDisplays.insert(id) }
         return applied
+    }
+
+    private enum GammaChannel {
+        case red, green, blue
+    }
+
+    private func adjustedGammaTable(_ table: [CGGammaValue],
+                                    channel: GammaChannel,
+                                    factor: Float,
+                                    adjustment: DisplayImageAdjustment?) -> [CGGammaValue] {
+        let dimmed = BrightnessSupport.scaledGammaTable(table, factor: factor)
+        guard let adjustment else { return dimmed }
+
+        let contrast = Float(adjustment.contrast / 100)
+        let exponent = Float(pow(2, -adjustment.gamma / 100))
+        let gain = Float(max(0, min(2, 1 + adjustment.gain / 100)))
+        let warmth = Float(adjustment.warmth / 100)
+        let channelWarmth: Float
+        switch channel {
+        case .red:
+            channelWarmth = 1 + max(warmth, 0) * 0.18
+        case .green:
+            channelWarmth = 1
+        case .blue:
+            channelWarmth = 1 + min(warmth, 0) * -0.18 - max(warmth, 0) * 0.22
+        }
+
+        return dimmed.map { sample in
+            var value = max(0, min(1, sample))
+            value = (value - 0.5) * (1 + contrast) + 0.5
+            value = pow(max(0, min(1, value)), exponent)
+            value *= gain * channelWarmth
+            value = max(0, min(1, value))
+            return adjustment.inverted ? 1 - value : value
+        }
     }
 
     // MARK: - DDC transactions (work queue)

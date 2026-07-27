@@ -9,11 +9,15 @@ import SwiftUI
 struct BrightnessSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = BrightnessService.shared
+    @ObservedObject private var displayManagement = DisplayManagementService.shared
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
     var collapsible = true
 
     private var strings: BrightnessFeatureStrings { FeatureStrings.brightness(l10n.language) }
+    private var displayStrings: DisplayManagementStrings {
+        FeatureStrings.displayManagement(l10n.language)
+    }
 
     var body: some View {
         PanelSection(.brightness, title: strings.pageTitle, collapsible: collapsible) {
@@ -46,7 +50,10 @@ struct BrightnessSection: View {
                 }
             }
             .panelCard()
-            .onAppear { service.refresh() }
+            .onAppear {
+                service.refresh()
+                displayManagement.refresh()
+            }
         }
     }
 
@@ -78,7 +85,41 @@ struct BrightnessSection: View {
                     .controlSize(.small)
                     .disabled(service.isDisplayPending(display.id))
                     .accessibilityLabel(display.name)
+                if let managed = displayManagement.displays.first(where: { $0.id == display.id }) {
+                    displayManagementControls(managed)
+                }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func displayManagementControls(_ display: ManagedDisplay) -> some View {
+        HStack(spacing: 6) {
+            Button(displayStrings.native) {
+                displayManagement.setScale(.native, for: display)
+            }
+            .font(.system(size: 10.5, weight: .medium))
+            .disabled(display.nativeMode == nil)
+            .help(displayStrings.native)
+
+            Button("HiDPI") {
+                displayManagement.setScale(.hiDPI, for: display)
+            }
+            .font(.system(size: 10.5, weight: .medium))
+            .disabled(display.bestHiDPIMode == nil)
+            .help("HiDPI")
+
+            if display.hdrSupported {
+                Toggle("HDR", isOn: Binding(
+                    get: { display.hdrEnabled },
+                    set: { displayManagement.setHDR($0, for: display) }))
+                    .font(.system(size: 10.5, weight: .medium))
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .disabled(!display.hdrMutable)
+                    .help(display.hdrMutable ? "HDR" : displayStrings.hdrUnavailable)
+            }
+            Spacer(minLength: 0)
         }
     }
 
