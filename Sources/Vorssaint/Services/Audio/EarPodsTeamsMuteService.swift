@@ -20,7 +20,9 @@ final class EarPodsTeamsMuteService: ObservableObject {
     private init() {}
     
     func syncWithPreferences() {
-        if AppFeature.musicBlock.isAvailable, UserDefaults.standard.bool(forKey: DefaultsKey.musicBlockTeamsMute) {
+        let musicBlockEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.musicBlockEnabled)
+        let teamsMuteEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.musicBlockTeamsMute)
+        if AppFeature.musicBlock.isAvailable, musicBlockEnabled, teamsMuteEnabled {
             start()
         } else {
             stop()
