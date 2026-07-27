@@ -72,16 +72,49 @@ final class SMCClient {
         guard let out = call(&input), out.result == 0 else { return nil }
 
         let bytes = withUnsafeBytes(of: out.bytes) { Array($0.prefix(Int(key.dataSize))) }
-        switch key.dataType {
-        case "flt " where bytes.count == 4:
+        let dataType = key.dataType.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch dataType {
+        case "flt" where bytes.count == 4:
             return Double(bytes.withUnsafeBytes { $0.load(as: Float32.self) })
         case "sp78" where bytes.count == 2:
             return Double(Int16(bitPattern: UInt16(bytes[0]) << 8 | UInt16(bytes[1]))) / 256.0
         case "ioft" where bytes.count == 8:
             return Double(bytes.withUnsafeBytes { $0.load(as: UInt64.self) }) / 65536.0
+        case "fpe2" where bytes.count == 2:
+            return Double(UInt16(bytes[0]) << 8 | UInt16(bytes[1])) / 4.0
+        case "ui8" where bytes.count == 1:
+            return Double(bytes[0])
+        case "ui16" where bytes.count == 2:
+            return Double(UInt16(bytes[0]) << 8 | UInt16(bytes[1]))
+        case "hex" where bytes.count == 1:
+            return Double(bytes[0])
         default:
             return nil
         }
+    }
+
+    /// Reads a string value from SMC, e.g. for fan labels (F0ID).
+    func readStringValue(_ key: Key) -> String? {
+        var input = SMCParamStruct()
+        input.key = key.code
+        input.keyInfo.dataSize = key.dataSize
+        input.data8 = Self.cmdReadKey
+        guard let out = call(&input), out.result == 0 else { return nil }
+
+        let bytes = withUnsafeBytes(of: out.bytes) { Array($0.prefix(Int(key.dataSize))) }
+        guard bytes.count > 2 else {
+            let printable = bytes.filter { $0 >= 32 && $0 <= 126 }
+            return String(bytes: printable, encoding: .ascii)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let stringBytes = bytes[2...]
+        let printable = stringBytes.prefix(while: { $0 >= 32 && $0 <= 126 })
+        if let decoded = String(bytes: printable, encoding: .ascii) {
+            let trimmed = decoded.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        return nil
     }
 
     /// Looks up a single key by its 4-character code, returning its size and type
