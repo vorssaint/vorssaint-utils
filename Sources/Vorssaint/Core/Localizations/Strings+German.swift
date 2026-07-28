@@ -214,8 +214,6 @@ extension Strings {
         dockPreviewEnableCaption: "Zeige auf eine geöffnete App im Dock, um ihre Fenster zu sehen und kurz einzublenden.",
         dockPreviewMediaControls: "Show media controls for music apps",
         dockPreviewMediaControlsCaption: "When hovering Spotify or Music, show artwork, track details, progress, and playback controls instead of a window thumbnail.",
-        dockPreviewBackgroundOpacity: "Preview background opacity",
-        dockPreviewBackgroundOpacityCaption: "Lower values make the preview panel background more transparent while keeping thumbnails and controls readable.",
         dockClickMinimize: "Klick aufs Dock-Symbol minimiert",
         dockClickMinimizeCaption: "Die Fenster der aktiven App werden beim Klick auf ihr Dock-Symbol im Dock abgelegt. Ein weiterer Klick holt sie zurück.",
         dockClickCycleWindows: "Klick aufs Dock-Symbol wechselt Fenster",
