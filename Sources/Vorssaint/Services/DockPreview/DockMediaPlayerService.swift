@@ -77,6 +77,8 @@ final class DockMediaPlayerService {
     static let shared = DockMediaPlayerService()
 
     private let queue = DispatchQueue(label: "com.vorssaint.dock-media-player", qos: .userInitiated)
+    private var artworkCache: [URL: NSImage] = [:]
+    private var artworkCacheOrder: [URL] = []
 
     private init() {}
 
@@ -113,7 +115,7 @@ final class DockMediaPlayerService {
         let artist = clean(fields[2])
         let album = clean(fields[3])
         let position = seconds(from: fields[4])
-        let duration = normalizedDuration(from: fields[5])
+        let duration = normalizedDuration(from: fields[5], bundleID: source.bundleID)
         let artworkURL = clean(fields[6]).flatMap(URL.init(string:))
         let artwork = artworkURL.flatMap(loadArtwork)
 
@@ -142,17 +144,29 @@ final class DockMediaPlayerService {
         return double
     }
 
-    private func normalizedDuration(from value: String) -> TimeInterval? {
+    private func normalizedDuration(from value: String, bundleID: String) -> TimeInterval? {
         guard let duration = seconds(from: value), duration > 0 else { return nil }
-        return duration > 10_000 ? duration / 1_000 : duration
+        return bundleID == "com.spotify.client" ? duration / 1_000 : duration
     }
 
     private func loadArtwork(from url: URL) -> NSImage? {
+        if let cached = artworkCache[url] {
+            return cached
+        }
         guard let data = try? Data(contentsOf: url, options: [.mappedIfSafe]) else { return nil }
-        return NSImage(data: data)
+        guard let image = NSImage(data: data) else { return nil }
+        artworkCache[url] = image
+        artworkCacheOrder.removeAll { $0 == url }
+        artworkCacheOrder.append(url)
+        while artworkCacheOrder.count > Self.maximumArtworkCacheCount {
+            let stale = artworkCacheOrder.removeFirst()
+            artworkCache.removeValue(forKey: stale)
+        }
+        return image
     }
 
     private static let fieldSeparator = String(UnicodeScalar(30)!)
+    private static let maximumArtworkCacheCount = 16
 
     private static func snapshotScript(bundleID: String) -> String {
         switch bundleID {
