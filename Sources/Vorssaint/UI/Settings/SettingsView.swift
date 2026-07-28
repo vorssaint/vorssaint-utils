@@ -877,6 +877,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherCurrentSpaceOnly) private var switcherCurrentSpaceOnly = false
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
     @AppStorage(DefaultsKey.dockPreviewMediaControls) private var dockPreviewMediaControls = true
+    @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var dockPreviewBackgroundOpacity = 1.0
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
     @AppStorage(DefaultsKey.previewSize) private var previewSize = "normal"
@@ -967,6 +968,17 @@ struct SwitcherSettings: View {
                                 DockPreviewService.shared.syncWithPreferences()
                             }
                         Text(l10n.s.dockPreviewMediaControlsCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Slider(value: $dockPreviewBackgroundOpacity, in: 0...1, step: 0.05) {
+                            Text(l10n.s.dockPreviewBackgroundOpacity)
+                        } minimumValueLabel: {
+                            Text("0%")
+                        } maximumValueLabel: {
+                            Text("100%")
+                        }
+                        .disabled(!dockPreviewEnabled)
+                        Text(l10n.s.dockPreviewBackgroundOpacityCaption)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
