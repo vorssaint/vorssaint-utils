@@ -113,6 +113,8 @@ enum DockPreviewSupport {
     static let cardSpacing: CGFloat = 8
     static let panelPadding: CGFloat = 12
     static let panelHeaderHeight: CGFloat = 28
+    static var mediaPanelWidth: CGFloat { 330 * PreviewSizing.scale }
+    static var mediaPanelHeight: CGFloat { 174 * PreviewSizing.scale }
 
     /// How far in from the Dock's screen edge the cursor can be and still sit over
     /// a Dock item. Used to gate the per-mouse-move Accessibility hit-test to the
@@ -199,6 +201,11 @@ enum DockPreviewSupport {
         let visibleCards = min(count, availableCards)
         let width = CGFloat(visibleCards) * cardWidth + CGFloat(max(0, visibleCards - 1)) * spacing + padding * 2
         return CGSize(width: min(width, maxWidth), height: cardHeight + padding * 2 + panelHeaderHeight)
+    }
+
+    static func mediaPanelSize(screenVisibleFrame: CGRect) -> CGSize {
+        CGSize(width: min(mediaPanelWidth, max(1, screenVisibleFrame.width - edgePadding * 2)),
+               height: min(mediaPanelHeight, max(1, screenVisibleFrame.height - edgePadding * 2)))
     }
 
     static func windowPositionText(selectedWindowID: CGWindowID?, windowIDs: [CGWindowID]) -> String? {

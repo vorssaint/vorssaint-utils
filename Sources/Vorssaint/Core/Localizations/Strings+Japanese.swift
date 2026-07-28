@@ -212,6 +212,8 @@ extension Strings {
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Dock でウインドウをプレビュー",
         dockPreviewEnableCaption: "Dock の開いているアプリにポインタを重ねると、ウインドウを確認して一時表示できます。",
+        dockPreviewMediaControls: "Show media controls for music apps",
+        dockPreviewMediaControlsCaption: "When hovering Spotify or Music, show artwork, track details, progress, and playback controls instead of a window thumbnail.",
         dockClickMinimize: "Dock クリックでしまう",
         dockClickMinimizeCaption: "手前のアプリの Dock アイコンをクリックするとウインドウをしまいます。もう一度クリックすると戻ります。",
         dockClickCycleWindows: "Dock クリックでウインドウを切り替え",

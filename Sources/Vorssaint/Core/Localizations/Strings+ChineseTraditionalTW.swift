@@ -213,6 +213,8 @@ extension Strings {
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "在 Dock 中預覽視窗",
         dockPreviewEnableCaption: "將游標停留在 Dock 中已開啟的 App 上，即可查看並暫時顯示它的視窗。",
+        dockPreviewMediaControls: "Show media controls for music apps",
+        dockPreviewMediaControlsCaption: "When hovering Spotify or Music, show artwork, track details, progress, and playback controls instead of a window thumbnail.",
         dockClickMinimize: "點按 Dock 圖示最小化",
         dockClickMinimizeCaption: "點按最前方 App 的 Dock 圖示可將其視窗最小化。再點按一次即可還原。",
         dockClickCycleWindows: "點按 Dock 圖示切換視窗",

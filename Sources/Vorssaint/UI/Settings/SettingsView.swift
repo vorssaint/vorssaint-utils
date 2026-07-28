@@ -876,6 +876,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherShowWindowlessFinder) private var switcherShowWindowlessFinder = true
     @AppStorage(DefaultsKey.switcherCurrentSpaceOnly) private var switcherCurrentSpaceOnly = false
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
+    @AppStorage(DefaultsKey.dockPreviewMediaControls) private var dockPreviewMediaControls = true
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
     @AppStorage(DefaultsKey.previewSize) private var previewSize = "normal"
@@ -960,6 +961,14 @@ struct SwitcherSettings: View {
                         Text(dockPreviewCaption)
                             .font(.caption)
                             .foregroundStyle(dockPreviewWarning ? .orange : .secondary)
+                        Toggle(l10n.s.dockPreviewMediaControls, isOn: $dockPreviewMediaControls)
+                            .disabled(!dockPreviewEnabled)
+                            .onChange(of: dockPreviewMediaControls) { _, _ in
+                                DockPreviewService.shared.syncWithPreferences()
+                            }
+                        Text(l10n.s.dockPreviewMediaControlsCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     if AppFeature.dockClick.isAvailable {
                         Toggle(l10n.s.dockClickMinimize, isOn: $dockClickMinimize)

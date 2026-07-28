@@ -212,6 +212,8 @@ extension Strings {
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Dock'tan pencereleri önizle",
         dockPreviewEnableCaption: "Pencerelerini önizlemek ve göz atmak için Dock'ta açık bir uygulamanın üzerine gel.",
+        dockPreviewMediaControls: "Show media controls for music apps",
+        dockPreviewMediaControlsCaption: "When hovering Spotify or Music, show artwork, track details, progress, and playback controls instead of a window thumbnail.",
         dockClickMinimize: "Dock simgesine tıklayınca küçült",
         dockClickMinimizeCaption: "Etkin uygulamanın pencereleri Dock simgesine tıklandığında küçülür. Geri getirmek için yeniden tıklayın.",
         dockClickCycleWindows: "Dock simgesine tıklayınca pencere değiştir",
