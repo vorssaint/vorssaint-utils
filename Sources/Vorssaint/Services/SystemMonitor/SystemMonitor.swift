@@ -28,11 +28,29 @@ struct SystemSnapshot {
     var cpuTemperature: Double?
     var gpuTemperature: Double?
     var batteryTemperature: Double?
+
+    // Expanded hardware sensors (Sensors block): the curated per-component
+    // temperature list and per-fan speeds. Empty when the block is hidden or
+    // the hardware exposes none.
+    var temperatureSensors: [TemperatureSensor] = []
+    var fans: [FanReading] = []
+    var frequencies: ClusterFrequencies?
     var cpuUsage: Double?          // 0...1
     var gpuUsage: Double?          // 0...1
+    var gpuMemoryFraction: Double? // 0...1, in-use / allocated GPU system memory
+    var gpuMemoryInUseBytes: UInt64?
+    // Per-logical-core usage (0...1) for the activity dots; efficiency cores
+    // occupy the first `efficiencyCoreCount` entries, performance cores the rest.
+    var coreUsages: [Double] = []
+    var efficiencyCoreCount: Int = 0
     var memoryUsed: UInt64?
     var memoryTotal: UInt64?
     var memoryPressure: MemoryPressure = .unknown
+    // Memory breakdown (bytes); app + wired + compressed + free == total.
+    var memoryApp: UInt64?
+    var memoryWired: UInt64?
+    var memoryCompressed: UInt64?
+    var memoryFree: UInt64?
 
     // Network
     var netDownBytesPerSec: Double?
@@ -120,6 +138,27 @@ final class SystemMonitor: ObservableObject {
     private var tempKeysPrepared = false
     private var cpuTemperaturePlatform: CPUTemperaturePlatform = .generic
 
+    // Expanded sensors: extra enclosure temperature keys (Wi-Fi, SSD, airflow)
+    // and the fan tachometers, discovered once when the Sensors block first
+    // needs them, plus a carry-over of the last list for stride-skipped ticks.
+    private var sensorKeysPrepared = false
+    private var fanKeysPrepared = false
+    private var extraSensorKeys: [SMCClient.Key] = []
+    private var fanKeys: [(ac: SMCClient.Key, min: SMCClient.Key?, max: SMCClient.Key?)] = []
+    private var lastTemperatureSensors: [TemperatureSensor] = []
+    private var lastFans: [FanReading] = []
+
+    // Per-core CPU usage (dashboard dots): previous per-core busy/total ticks and
+    // the efficiency-core count (efficiency cores are the low-numbered logical CPUs).
+    private var previousCoreTicks: [(busy: UInt64, total: UInt64)] = []
+    private var efficiencyCoreCount = -1
+    private var lastCoreUsages: [Double] = []
+
+    // CPU/GPU clock frequency via IOReport (created lazily; nil if unavailable).
+    private var frequencySampler: FrequencySampler?
+    private var frequencyTried = false
+    private var lastFrequencies: ClusterFrequencies?
+
     // Samplers
     private let networkSampler = NetworkSampler()
     private let diskSampler = DiskSampler()
@@ -139,6 +178,8 @@ final class SystemMonitor: ObservableObject {
     private var lastCPUUsage: Double?
     private var missedCPUUsageSamples = 0
     private var lastGPUUsage: Double?
+    private var lastGPUMemoryFraction: Double?
+    private var lastGPUMemoryInUse: UInt64?
     private var missedGPUUsageSamples = 0
     private var memoryCache: CachedMemoryReading?
     private var cpuTemperatureCache: CachedSensorReading?
@@ -151,7 +192,10 @@ final class SystemMonitor: ObservableObject {
     private var lastPublishedForeground: Bool?
 
     // History
-    private let historyCapacity = 120
+    // Longer buffer so the drill-down graphs show more history. Sampling still
+    // pauses when nothing needs it (zero idle), so this only fills while a metric
+    // is actively watched — a true 1-hour window would need continuous sampling.
+    private let historyCapacity = 600
     private var cpuHistory: MetricHistory
     private var gpuHistory: MetricHistory
     private var memoryHistory: MetricHistory
@@ -381,8 +425,10 @@ final class SystemMonitor: ObservableObject {
         var needCPUTemperature = false
         var needGPUTemperature = false
         var needBatteryTemperature = false
+        var needSensors = false
+        var needFrequency = false
 
-        var needSMC: Bool { needPower || needTemperature }
+        var needSMC: Bool { needPower || needTemperature || needSensors }
 
         var needTemperature: Bool {
             needCPUTemperature || needGPUTemperature || needBatteryTemperature
@@ -390,7 +436,7 @@ final class SystemMonitor: ObservableObject {
 
         var any: Bool {
             needCPU || needMemory || needNetwork || needDisk || needPower ||
-                needPeripheralBattery || needGPUUsage || needTemperature
+                needPeripheralBattery || needGPUUsage || needTemperature || needSensors || needFrequency
         }
     }
 
@@ -420,6 +466,11 @@ final class SystemMonitor: ObservableObject {
         let panelMemory = (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysMemory)) || menuPanelNeeds.memory
         let panelBattery = (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysBattery)) || menuPanelNeeds.battery
         let panelTemps = panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysTemps)
+        // Only sample the Sensors block when it is both shown and expanded —
+        // a collapsed block reads nothing.
+        let panelSensors = panelNeedsSystem
+            && defaults.bool(forKey: DefaultsKey.monitorSysSensors)
+            && defaults.bool(forKey: DefaultsKey.monitorSysSensorsExpanded)
         let alertCPU = defaults.bool(forKey: DefaultsKey.monitorAlertCPU)
         let alertCPUTemperature = defaults.bool(forKey: DefaultsKey.monitorAlertCPUTemperature)
         let alertMemory = defaults.bool(forKey: DefaultsKey.monitorAlertMemory)
@@ -428,12 +479,16 @@ final class SystemMonitor: ObservableObject {
 
         plan.needCPU = panelCPU || defaults.bool(forKey: DefaultsKey.menuBarCPU) || alertCPU
         plan.needMemory = panelMemory || defaults.bool(forKey: DefaultsKey.menuBarMemory) || alertMemory
-        plan.needNetwork = panelNeedsNetwork || defaults.bool(forKey: DefaultsKey.menuBarNetwork)
+        plan.needNetwork = panelNeedsNetwork
+            || (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysNetwork))
+            || defaults.bool(forKey: DefaultsKey.menuBarNetwork)
         plan.needDisk = panelNeedsDisk
+            || (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysDisk))
             || defaults.bool(forKey: DefaultsKey.menuBarDiskUsage)
             || defaults.bool(forKey: DefaultsKey.menuBarDiskActivity)
             || alertDisk
-        plan.needPower = panelNeedsPower || panelBattery
+        // The Sensors block shows Total Power, so it needs the power sampler too.
+        plan.needPower = panelNeedsPower || panelBattery || panelSensors
             || defaults.bool(forKey: DefaultsKey.menuBarPower)
             || defaults.bool(forKey: DefaultsKey.menuBarBattery)
             || defaults.bool(forKey: DefaultsKey.menuBarBatteryTime)
@@ -447,6 +502,9 @@ final class SystemMonitor: ObservableObject {
             defaults.bool(forKey: DefaultsKey.menuBarGPUTemperature)
         plan.needBatteryTemperature = panelTemps || menuPanelNeeds.batteryTemperature ||
             defaults.bool(forKey: DefaultsKey.menuBarBatteryTemperature)
+        plan.needSensors = panelSensors
+        // Frequency (GHz under the CPU/GPU rings and in the Sensors list).
+        plan.needFrequency = panelTemps || panelSensors
 
         // The hub gates whole metric families: an unavailable metric never
         // samples, no matter what is pinned, shown or alerting.
@@ -512,7 +570,10 @@ final class SystemMonitor: ObservableObject {
         if plan.needPower { kinds.append(.power) }
         if plan.needPeripheralBattery { kinds.append(.peripheralBattery) }
         if plan.needGPUUsage { kinds.append(.gpuUsage) }
-        if plan.needTemperature { kinds.append(.temperature) }
+        // The Sensors block reads its SMC temperatures/fans on the temperature
+        // stride, so it counts as a temperature consumer for cadence purposes.
+        if plan.needTemperature || plan.needSensors { kinds.append(.temperature) }
+        if plan.needFrequency { kinds.append(.frequency) }
         return kinds
     }
 
@@ -562,7 +623,9 @@ final class SystemMonitor: ObservableObject {
         tickCount &+= scheduledWakeTicks
         queue.async { [weak self] in
             guard let self else { return }
-            self.prepareIfNeeded(needSMC: plan.needSMC, needTemperature: plan.needTemperature)
+            self.prepareIfNeeded(needSMC: plan.needSMC,
+                                 needTemperature: plan.needTemperature,
+                                 needSensors: plan.needSensors)
             let now = ProcessInfo.processInfo.systemUptime
 
             var next = SystemSnapshot()
@@ -582,17 +645,21 @@ final class SystemMonitor: ObservableObject {
             }
 
             if plan.needCPU {
-                if take(.cpu),
-                   let cpu = self.readCPUUsage() {
-                    self.lastCPUUsage = cpu
-                    self.missedCPUUsageSamples = 0
-                    self.cpuHistory.push(cpu)
-                } else if self.missedCPUUsageSamples < 3 {
-                    self.missedCPUUsageSamples += 1
-                } else {
-                    self.lastCPUUsage = nil
+                if take(.cpu) {
+                    if let cpu = self.readCPUUsage() {
+                        self.lastCPUUsage = cpu
+                        self.missedCPUUsageSamples = 0
+                        self.cpuHistory.push(cpu)
+                    } else if self.missedCPUUsageSamples < 3 {
+                        self.missedCPUUsageSamples += 1
+                    } else {
+                        self.lastCPUUsage = nil
+                    }
+                    self.lastCoreUsages = self.readPerCoreUsage()
                 }
                 next.cpuUsage = self.lastCPUUsage
+                next.coreUsages = self.lastCoreUsages
+                next.efficiencyCoreCount = self.resolveEfficiencyCoreCount()
             }
 
             if plan.needMemory {
@@ -601,6 +668,12 @@ final class SystemMonitor: ObservableObject {
                     next.memoryUsed = memory.used
                     next.memoryTotal = memory.total
                     next.memoryPressure = memory.pressure
+                    if let detail = SystemInfo.memoryDetail() {
+                        next.memoryApp = detail.app
+                        next.memoryWired = detail.wired
+                        next.memoryCompressed = detail.compressed
+                        next.memoryFree = detail.free
+                    }
                     if memory.isFresh, memory.total > 0 {
                         self.memoryHistory.push(Double(memory.used) / Double(memory.total))
                     }
@@ -664,18 +737,24 @@ final class SystemMonitor: ObservableObject {
                 let suppressGPUForUI = suppressImmediateGPU || now < suppressGPUReadsUntil
                 let shouldSampleGPU = !suppressGPUForUI && take(.gpuUsage)
                 if shouldSampleGPU {
-                    if let rawGPU = Self.readGPUUsage() {
+                    if let stats = Self.readGPUStats() {
                         self.lastGPUUsage = MetricFormat.stabilizedGPUUsage(previous: self.lastGPUUsage,
-                                                                            current: rawGPU)
+                                                                            current: stats.utilization)
+                        self.lastGPUMemoryFraction = stats.memoryFraction
+                        self.lastGPUMemoryInUse = stats.memoryInUseBytes
                         self.missedGPUUsageSamples = 0
                         if let gpu = self.lastGPUUsage { self.gpuHistory.push(gpu) }
                     } else if self.missedGPUUsageSamples < 3 {
                         self.missedGPUUsageSamples += 1
                     } else {
                         self.lastGPUUsage = nil
+                        self.lastGPUMemoryFraction = nil
+                        self.lastGPUMemoryInUse = nil
                     }
                 }
                 next.gpuUsage = self.lastGPUUsage
+                next.gpuMemoryFraction = self.lastGPUMemoryFraction
+                next.gpuMemoryInUseBytes = self.lastGPUMemoryInUse
             }
             // The anti-glitch bridge must span a couple of sampling gaps or it
             // is useless on the slow background cadence (15 s): one bad SMC
@@ -714,6 +793,29 @@ final class SystemMonitor: ObservableObject {
                 } else {
                     next.batteryTemperature = self.batteryTemperatureCache?.value
                 }
+            }
+
+            // Fans (headline ring + sensor list) and the expanded sensor list ride
+            // the temperature stride. On a skipped tick the last values carry over.
+            let needFans = plan.needTemperature || plan.needSensors
+            if take(.temperature) {
+                if needFans { self.lastFans = self.readFans() }
+                if plan.needSensors { self.lastTemperatureSensors = self.readSensorTemperatures() }
+            }
+            if needFans { next.fans = self.lastFans }
+            if plan.needSensors { next.temperatureSensors = self.lastTemperatureSensors }
+
+            if plan.needFrequency {
+                if take(.frequency) {
+                    if !self.frequencyTried {
+                        self.frequencyTried = true
+                        self.frequencySampler = FrequencySampler()
+                    }
+                    if let freq = self.frequencySampler?.sample(), !freq.isEmpty {
+                        self.lastFrequencies = freq
+                    }
+                }
+                next.frequencies = self.lastFrequencies
             }
 
             next.cpuHistory = plan.needCPU ? self.cpuHistory.values : []
@@ -806,29 +908,77 @@ final class SystemMonitor: ObservableObject {
     /// Opens the SMC lazily. Temperature key discovery is heavier (it enumerates
     /// every SMC key) so it waits until the panel or a pinned temperature metric
     /// actually needs it.
-    private func prepareIfNeeded(needSMC: Bool, needTemperature: Bool) {
+    private func prepareIfNeeded(needSMC: Bool, needTemperature: Bool, needSensors: Bool) {
         if needSMC, !smcTried {
             smcTried = true
             smc = SMCClient()
             cpuTemperaturePlatform = TemperatureSensorSelector.currentPlatform()
             powerSampler = PowerSampler(smc: smc)
         }
-        guard needTemperature, !tempKeysPrepared else { return }
-        tempKeysPrepared = true
         guard let client = smc else { return }
 
-        let all = client.keys { name in
-            name.hasPrefix("Tp") || name.hasPrefix("Te") || name.hasPrefix("Tg")
-                || name.range(of: "^TB[0-9]T$", options: .regularExpression) != nil
+        // The Sensors block also needs the CPU/GPU/battery die keys (for its
+        // per-component rows), so discovery runs for it too.
+        if (needTemperature || needSensors), !tempKeysPrepared {
+            tempKeysPrepared = true
+            let all = client.keys { name in
+                name.hasPrefix("Tp") || name.hasPrefix("Te") || name.hasPrefix("Tg")
+                    || name.range(of: "^TB[0-9]T$", options: .regularExpression) != nil
+            }
+            cpuKeys = all.filter { $0.name.hasPrefix("Tp") || $0.name.hasPrefix("Te") }
+            preferredCPUKeys = cpuKeys.filter {
+                TemperatureSensorSelector.isCPUCoreKey($0.name, platform: cpuTemperaturePlatform)
+            }
+            let preferredNames = Set(preferredCPUKeys.map(\.name))
+            fallbackCPUKeys = cpuKeys.filter { !preferredNames.contains($0.name) }
+            gpuKeys = all.filter { $0.name.hasPrefix("Tg") }
+            batteryKeys = all.filter { $0.name.hasPrefix("TB") }
         }
-        cpuKeys = all.filter { $0.name.hasPrefix("Tp") || $0.name.hasPrefix("Te") }
-        preferredCPUKeys = cpuKeys.filter {
-            TemperatureSensorSelector.isCPUCoreKey($0.name, platform: cpuTemperaturePlatform)
+
+        // Fans feed both the headline Fans ring (temps block) and the sensor
+        // list, so discover them for either.
+        if (needTemperature || needSensors), !fanKeysPrepared {
+            fanKeysPrepared = true
+            // FNum gives the count, F{i}Ac the actual RPM, F{i}Mn/F{i}Mx the
+            // operating min/max used to scale the headline Fans ring like iStats.
+            var count = 0
+            if let fnum = client.key(named: "FNum"), let value = client.readValue(fnum),
+               value > 0, value < 12 {
+                count = Int(value)
+            }
+            fanKeys = (0..<count).compactMap { i in
+                guard let ac = client.key(named: "F\(i)Ac") else { return nil }
+                return (ac, client.key(named: "F\(i)Mn"), client.key(named: "F\(i)Mx"))
+            }
         }
-        let preferredNames = Set(preferredCPUKeys.map(\.name))
-        fallbackCPUKeys = cpuKeys.filter { !preferredNames.contains($0.name) }
-        gpuKeys = all.filter { $0.name.hasPrefix("Tg") }
-        batteryKeys = all.filter { $0.name.hasPrefix("TB") }
+        if needSensors, !sensorKeysPrepared {
+            sensorKeysPrepared = true
+            // Enclosure sensors beyond the die keys: Wi-Fi (TW), SSD/NAND (TH),
+            // airflow (Ta). Only keys we can label survive into the list.
+            extraSensorKeys = client.keys { name in
+                name.hasPrefix("TW") || name.hasPrefix("TH") || name.hasPrefix("Ta")
+            }
+        }
+    }
+
+    /// The Sensors block's curated temperature list. Reads the CPU core set
+    /// (split into performance/efficiency), the GPU, battery and enclosure keys,
+    /// then lets `SensorLabels` group and label them.
+    private func readSensorTemperatures() -> [TemperatureSensor] {
+        guard smc != nil else { return [] }
+        let cpuReadKeys = preferredCPUKeys.isEmpty ? cpuKeys : preferredCPUKeys
+        let keys = cpuReadKeys + gpuKeys + batteryKeys + extraSensorKeys
+        return SensorLabels.list(readings: temperatureReadings(of: keys))
+    }
+
+    private func readFans() -> [FanReading] {
+        guard let smc else { return [] }
+        return fanKeys.enumerated().compactMap { index, pair in
+            guard let rpm = smc.readValue(pair.ac), rpm >= 0, rpm < 20000 else { return nil }
+            let minRPM = pair.min.flatMap { smc.readValue($0) }.map { Int($0.rounded()) } ?? 0
+            let maxRPM = pair.max.flatMap { smc.readValue($0) }.map { Int($0.rounded()) } ?? 0
+            return FanReading(index: index, rpm: Int(rpm.rounded()), minRPM: minRPM, maxRPM: maxRPM)
+        }
     }
 
     private func cpuTemperature() -> Double? {
@@ -895,11 +1045,72 @@ final class SystemMonitor: ObservableObject {
         return Double(busy - previous.busy) / Double(total - previous.total)
     }
 
+    /// Busy fraction of each logical core since the previous sample, for the
+    /// activity dots. Uses host_processor_info(PROCESSOR_CPU_LOAD_INFO).
+    private func readPerCoreUsage() -> [Double] {
+        var cpuCount = natural_t(0)
+        var infoArray: processor_info_array_t?
+        var infoCount = mach_msg_type_number_t(0)
+        let host = mach_host_self()
+        defer { mach_port_deallocate(mach_task_self_, host) }
+        guard host_processor_info(host, PROCESSOR_CPU_LOAD_INFO, &cpuCount,
+                                  &infoArray, &infoCount) == KERN_SUCCESS,
+              let infoArray else { return lastCoreUsages }
+        defer {
+            vm_deallocate(mach_task_self_, vm_address_t(UInt(bitPattern: infoArray)),
+                          vm_size_t(Int(infoCount) * MemoryLayout<integer_t>.stride))
+        }
+        let cpus = Int(cpuCount)
+        var usages: [Double] = []
+        var newTicks: [(busy: UInt64, total: UInt64)] = []
+        usages.reserveCapacity(cpus)
+        infoArray.withMemoryRebound(to: processor_cpu_load_info.self, capacity: cpus) { load in
+            for i in 0..<cpus {
+                let t = load[i].cpu_ticks
+                let busy = UInt64(t.0) + UInt64(t.1) + UInt64(t.3) // user + system + nice
+                let total = busy + UInt64(t.2)                     // + idle
+                newTicks.append((busy, total))
+                if i < previousCoreTicks.count, total > previousCoreTicks[i].total {
+                    let dBusy = Double(busy - previousCoreTicks[i].busy)
+                    let dTotal = Double(total - previousCoreTicks[i].total)
+                    usages.append(dTotal > 0 ? min(1, dBusy / dTotal) : 0)
+                } else {
+                    usages.append(0)
+                }
+            }
+        }
+        previousCoreTicks = newTicks
+        lastCoreUsages = usages
+        return usages
+    }
+
+    /// Number of efficiency (low-numbered) logical cores; read once from the
+    /// perflevel that macOS names "Efficiency".
+    private func resolveEfficiencyCoreCount() -> Int {
+        if efficiencyCoreCount >= 0 { return efficiencyCoreCount }
+        // perflevel0 is Performance and perflevel1 Efficiency on Apple Silicon;
+        // fall back to 0 (all one cluster) on unknown hardware.
+        var value = 0
+        var size = MemoryLayout<Int>.size
+        if sysctlbyname("hw.perflevel1.logicalcpu", &value, &size, nil, 0) == 0, value > 0 {
+            efficiencyCoreCount = value
+        } else {
+            efficiencyCoreCount = 0
+        }
+        return efficiencyCoreCount
+    }
+
     // MARK: - GPU usage
 
-    /// "Device Utilization %" published by the graphics accelerator
-    /// (AGXAccelerator on Apple Silicon).
-    private static func readGPUUsage() -> Double? {
+    struct GPUStats {
+        var utilization: Double        // 0...1, "Device Utilization %"
+        var memoryFraction: Double?    // 0...1, "In use system memory" / "Alloc system memory"
+        var memoryInUseBytes: UInt64?
+    }
+
+    /// GPU utilization and in-use memory published by the graphics accelerator
+    /// (AGXAccelerator on Apple Silicon), from its PerformanceStatistics dict.
+    private static func readGPUStats() -> GPUStats? {
         var iterator = io_iterator_t()
         guard IOServiceGetMatchingServices(kIOMainPortDefault,
                                            IOServiceMatching("IOAccelerator"),
@@ -920,7 +1131,15 @@ final class SystemMonitor: ObservableObject {
                   let stats = ref.takeRetainedValue() as? [String: Any],
                   let utilization = stats["Device Utilization %"] as? Int
             else { continue }
-            return Double(utilization) / 100.0
+            // Unified-memory GPUs report used vs allocated system memory here; the
+            // ratio is what iStats shows as GPU "MEM %".
+            let inUse = (stats["In use system memory"] as? Int).map { UInt64(max(0, $0)) }
+            let alloc = (stats["Alloc system memory"] as? Int).flatMap { $0 > 0 ? Double($0) : nil }
+            let memFraction = (inUse != nil && alloc != nil)
+                ? min(1, max(0, Double(inUse!) / alloc!)) : nil
+            return GPUStats(utilization: Double(utilization) / 100.0,
+                            memoryFraction: memFraction,
+                            memoryInUseBytes: inUse)
         }
         return nil
     }

@@ -12,6 +12,7 @@ enum MonitorSamplingKind: String {
     case peripheralBattery
     case gpuUsage
     case temperature
+    case frequency
 }
 
 enum MonitorSamplingPolicy {
@@ -72,7 +73,7 @@ enum MonitorSamplingPolicy {
             switch kind {
             case .peripheralBattery:
                 return 15
-            case .cpu, .memory, .network, .disk, .power, .gpuUsage, .temperature:
+            case .cpu, .memory, .network, .disk, .power, .gpuUsage, .temperature, .frequency:
                 return 1
             }
         }
@@ -80,7 +81,7 @@ enum MonitorSamplingPolicy {
         switch kind {
         case .cpu, .memory, .network:
             return 1
-        case .gpuUsage:
+        case .gpuUsage, .frequency:
             return 10
         case .power, .temperature:
             return 15

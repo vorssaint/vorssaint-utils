@@ -47,6 +47,40 @@ enum SystemInfo {
                            isOnBattery: state == "Battery Power")
     }
 
+    struct MemoryDetail {
+        let app: UInt64
+        let wired: UInt64
+        let compressed: UInt64
+        let free: UInt64
+        let total: UInt64
+        var used: UInt64 { app + wired + compressed }
+    }
+
+    /// Activity-Monitor-style breakdown whose four buckets sum to physical RAM
+    /// (free absorbs cached files), so a donut can render app/wired/compressed/free.
+    static func memoryDetail() -> MemoryDetail? {
+        var stats = vm_statistics64()
+        var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.stride / MemoryLayout<integer_t>.stride)
+        let host = mach_host_self()
+        defer { mach_port_deallocate(mach_task_self_, host) }
+        let kr = withUnsafeMutablePointer(to: &stats) { ptr in
+            ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                host_statistics64(host, HOST_VM_INFO64, $0, &count)
+            }
+        }
+        guard kr == KERN_SUCCESS else { return nil }
+        let page = UInt64(vm_kernel_page_size)
+        let total = ProcessInfo.processInfo.physicalMemory
+        let wired = UInt64(stats.wire_count) * page
+        let compressed = UInt64(stats.compressor_page_count) * page
+        let purgeable = UInt64(stats.purgeable_count) * page
+        let internalMem = UInt64(stats.internal_page_count) * page
+        let app = internalMem > purgeable ? internalMem - purgeable : internalMem
+        let occupied = app + wired + compressed
+        let free = total > occupied ? total - occupied : 0
+        return MemoryDetail(app: app, wired: wired, compressed: compressed, free: free, total: total)
+    }
+
     static func memoryUsage() -> (used: UInt64, total: UInt64)? {
         var stats = vm_statistics64()
         var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.stride / MemoryLayout<integer_t>.stride)

@@ -79,6 +79,10 @@ final class SMCClient {
             return Double(Int16(bitPattern: UInt16(bytes[0]) << 8 | UInt16(bytes[1]))) / 256.0
         case "ioft" where bytes.count == 8:
             return Double(bytes.withUnsafeBytes { $0.load(as: UInt64.self) }) / 65536.0
+        case "ui8 " where bytes.count == 1:
+            return Double(bytes[0])
+        case "ui16" where bytes.count == 2:
+            return Double(UInt16(bytes[0]) << 8 | UInt16(bytes[1]))
         default:
             return nil
         }

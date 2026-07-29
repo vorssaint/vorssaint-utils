@@ -244,11 +244,24 @@ enum DefaultsKey {
     static let monitorGraphBattery = "monitorGraphBattery"
     // System monitor — per-item visibility inside each panel section.
     static let monitorSysTemps = "monitorSysTemps"
+    static let monitorSysSensors = "monitorSysSensors"
+    static let monitorSysSensorsExpanded = "monitorSysSensorsExpanded"
+    // Per-reading toggles inside the Sensors block.
+    static let monitorSensorTemps = "monitorSensorTemps"
+    static let monitorSensorPower = "monitorSensorPower"
+    static let monitorSensorFans = "monitorSensorFans"
+    static let monitorSensorGraphics = "monitorSensorGraphics"
+    static let monitorSensorFrequency = "monitorSensorFrequency"
     static let monitorSysCPU = "monitorSysCPU"
     static let monitorSysGPU = "monitorSysGPU"
     static let monitorSysBattery = "monitorSysBattery"
     static let monitorSysMemory = "monitorSysMemory"
+    static let monitorSysDisk = "monitorSysDisk"
+    static let monitorSysNetwork = "monitorSysNetwork"
     static let monitorSysAlerts = "monitorSysAlerts"
+    // When on, System is a single combined dashboard and the separate
+    // Network/Disk/Power tabs are hidden (their content lives in System).
+    static let monitorCombinedView = "monitorCombinedView"
     static let monitorSysUptime = "monitorSysUptime"
     static let monitorNetSpeed = "monitorNetSpeed"
     static let monitorNetApps = "monitorNetApps"
@@ -817,10 +830,20 @@ enum Defaults {
         DefaultsKey.monitorGraphBattery: true,
         // Every per-item block shows by default; users hide what they don't want.
         DefaultsKey.monitorSysTemps: true,
+        DefaultsKey.monitorSysSensors: true,
+        DefaultsKey.monitorSysSensorsExpanded: false,
+        DefaultsKey.monitorSensorTemps: true,
+        DefaultsKey.monitorSensorPower: true,
+        DefaultsKey.monitorSensorFans: true,
+        DefaultsKey.monitorSensorGraphics: true,
+        DefaultsKey.monitorSensorFrequency: true,
         DefaultsKey.monitorSysCPU: true,
         DefaultsKey.monitorSysGPU: true,
         DefaultsKey.monitorSysBattery: true,
         DefaultsKey.monitorSysMemory: true,
+        DefaultsKey.monitorSysDisk: true,
+        DefaultsKey.monitorSysNetwork: true,
+        DefaultsKey.monitorCombinedView: true,
         DefaultsKey.monitorSysAlerts: true,
         DefaultsKey.monitorSysUptime: true,
         DefaultsKey.monitorNetSpeed: true,

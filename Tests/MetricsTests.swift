@@ -8825,6 +8825,34 @@ struct MetricsTests {
 
         // MARK: Result
 
+        // MARK: Hardware sensor grouping
+
+        let sensorReadings: [(key: String, value: Double)] = [
+            ("Tp01", 40), ("Tp0Y", 55.5), ("Tp1j", 2.2), ("Tp99", 300), // perf: hottest plausible = 55.5
+            ("Te05", 48), ("Te0S", 51),                                 // efficiency: 51
+            ("Tg0S", 53.9), ("Tg04", 47),                               // graphics: 53.9
+            ("TB0T", 34), ("TB2T", 33.5),                               // battery: 34
+            ("TH0x", 36.4),                                             // ssd
+            ("TW0P", 42.1),                                             // wi-fi
+            ("TaLP", 41.7), ("TaRT", 33.5),                            // airflow: 41.7
+            ("TX99", 60), ("ZZ01", 40),                                // unlabeled → dropped
+        ]
+        let sensors = SensorLabels.list(readings: sensorReadings)
+        expectEqual("\(sensors.count)", "7", "sensor list yields the seven known groups")
+        expectEqual(sensors.map { $0.id.rawValue }.joined(separator: ","),
+                    "cpuPerformance,cpuEfficiency,graphics,battery,ssd,wifi,airflow",
+                    "sensor list keeps display order")
+        expectClose(sensors.first { $0.id == .cpuPerformance }?.celsius ?? -1, 55.5,
+                    "cpuPerformance takes the hottest plausible core")
+        expectClose(sensors.first { $0.id == .airflow }?.celsius ?? -1, 41.7,
+                    "airflow takes the hottest Ta sensor")
+        expect(!sensors.contains { $0.celsius > 115 }, "implausible highs are filtered out")
+        expect(SensorLabels.list(readings: [("TX99", 50), ("ZZ01", 40)]).isEmpty,
+               "unlabeled keys yield no sensors")
+        expect(!SensorLabels.isPlausible(2.2) && SensorLabels.isPlausible(45)
+               && !SensorLabels.isPlausible(200),
+               "plausible band excludes low-voltage and impossible values")
+
         if failures.isEmpty {
             print("TESTS OK (\(checks) checks)")
             exit(0)
