@@ -117,6 +117,13 @@ enum CommandBarLinks {
         return words.dropFirst(nameWords).joined(separator: " ")
     }
 
+    /// What a link's row is scored against. Its own name works until the
+    /// person types something after it — from there the row has to be scored
+    /// against everything typed, or the extra words sink it out of the list.
+    static func rankingTitle(name: String, query: String) -> String {
+        trailingArgument(query: query, name: name) != nil ? query : name
+    }
+
     /// The URL a link opens, or nil when what was saved cannot be opened. A
     /// destination without a scheme is treated as a site, which is what people
     /// mean when they paste one in.

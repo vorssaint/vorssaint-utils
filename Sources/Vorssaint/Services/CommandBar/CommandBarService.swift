@@ -953,9 +953,15 @@ final class CommandBarService: ObservableObject {
             // that is the whole point of giving it.
             let aliasBoost = names[entry.stableKey]
                 .flatMap { CommandBarPreferences.aliasHit($0, query: effectiveQuery)?.rawValue } ?? 0
+            // A saved search is cached under its own name, but once an
+            // argument follows that name the row has to be scored against
+            // the whole query or the argument words sink it from the list.
+            let normalizedTitle = sources[index] == .links
+                ? CommandBarSearch.normalized(
+                    CommandBarLinks.rankingTitle(name: entry.title, query: effectiveQuery))
+                : folded?.title ?? CommandBarSearch.normalized(entry.matchTitle ?? entry.title)
             return CommandBarCandidate(index: index,
-                                normalizedTitle: folded?.title
-                                    ?? CommandBarSearch.normalized(entry.matchTitle ?? entry.title),
+                                normalizedTitle: normalizedTitle,
                                 normalizedKeywords: folded?.keywords
                                     ?? CommandBarSearch.normalized(entry.keywords),
                                 // A running app is likelier to be the one
