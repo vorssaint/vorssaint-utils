@@ -981,7 +981,7 @@ struct ScreenshotEditorView: View {
     @State private var backdropButtonHovered = false
 
     private func fillPreview(for style: ScreenshotSupport.BackdropStyle) -> LinearGradient {
-        let colors = ScreenshotBackdropPopover.previewColors(for: style)
+        let colors = BackdropPickerAssets.previewColors(for: style)
         return LinearGradient(colors: colors,
                               startPoint: .topLeading, endPoint: .bottomTrailing)
     }

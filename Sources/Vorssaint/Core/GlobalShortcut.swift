@@ -190,6 +190,16 @@ struct GlobalShortcut: Equatable, Hashable {
     // same free control-option-command layer.
     static let snippetLibraryDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_L),
                                                       modifiers: [.control, .option, .command])
+    // Option-Space, the combination mature launchers settled on: one thumb
+    // and one finger, mirroring the system search's Command-Space without
+    // fighting it for the key. Registered as a hotkey it never types the
+    // narrow space some layouts put on that combination.
+    static let commandBarDefault = GlobalShortcut(keyCode: Int64(kVK_Space),
+                                                  modifiers: [.option])
+    // Next to the screenshot's 4, on the same free control-option-command
+    // layer, matching how the system numbers its own capture keys.
+    static let screenRecorderDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_5),
+                                                      modifiers: [.control, .option, .command])
 
     static func saved(for key: String, fallback: GlobalShortcut) -> GlobalShortcut {
         if let raw = UserDefaults.standard.string(forKey: key),
@@ -233,6 +243,39 @@ struct GlobalShortcut: Equatable, Hashable {
     var carbonModifiers: UInt32 {
         modifiers.carbonFlags
     }
+
+    /// Every flag a real press of this combination carries, for the places
+    /// that have to synthesize one. The modifiers alone are not enough: the
+    /// arrows, the F keys and the navigation block reach the system with the
+    /// function flag on, the arrows and the keypad with the numeric pad flag
+    /// on, and a synthesized press missing them matches no system-wide
+    /// shortcut at all, even though the app in front still receives the key
+    /// (issue #401, measured here: a shortcut on Control-Command-Right never
+    /// fires without the function flag and always fires with it).
+    var syntheticEventFlags: CGEventFlags {
+        var flags = modifiers.cgFlags
+        if Self.functionKeys.contains(keyCode) { flags.insert(.maskSecondaryFn) }
+        if Self.numericPadKeys.contains(keyCode) { flags.insert(.maskNumericPad) }
+        return flags
+    }
+
+    /// The function key group as this system defines it: the F row, the
+    /// navigation block and the arrows.
+    private static let functionKeys: Set<Int64> = Set(([
+        kVK_F1, kVK_F2, kVK_F3, kVK_F4, kVK_F5, kVK_F6, kVK_F7, kVK_F8, kVK_F9, kVK_F10,
+        kVK_F11, kVK_F12, kVK_F13, kVK_F14, kVK_F15, kVK_F16, kVK_F17, kVK_F18, kVK_F19, kVK_F20,
+        kVK_Help, kVK_Home, kVK_End, kVK_PageUp, kVK_PageDown, kVK_ForwardDelete,
+        kVK_LeftArrow, kVK_RightArrow, kVK_UpArrow, kVK_DownArrow,
+    ] as [Int]).map(Int64.init))
+
+    /// The keypad, plus the arrows, which this system counts as part of it.
+    private static let numericPadKeys: Set<Int64> = Set(([
+        kVK_ANSI_Keypad0, kVK_ANSI_Keypad1, kVK_ANSI_Keypad2, kVK_ANSI_Keypad3, kVK_ANSI_Keypad4,
+        kVK_ANSI_Keypad5, kVK_ANSI_Keypad6, kVK_ANSI_Keypad7, kVK_ANSI_Keypad8, kVK_ANSI_Keypad9,
+        kVK_ANSI_KeypadClear, kVK_ANSI_KeypadDecimal, kVK_ANSI_KeypadDivide, kVK_ANSI_KeypadEnter,
+        kVK_ANSI_KeypadEquals, kVK_ANSI_KeypadMinus, kVK_ANSI_KeypadMultiply, kVK_ANSI_KeypadPlus,
+        kVK_LeftArrow, kVK_RightArrow, kVK_UpArrow, kVK_DownArrow,
+    ] as [Int]).map(Int64.init))
 
     /// Paste as plain text ultimately posts the standard paste command. When
     /// that same command is its configured global shortcut, the registration
@@ -465,6 +508,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case radialMenu
     case scratchpad
     case snippetLibrary
+    case commandBar
+    case screenRecorder
 
     var id: String { storageKey }
 
@@ -486,6 +531,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .radialMenu: return DefaultsKey.radialMenuShortcut
         case .scratchpad: return DefaultsKey.scratchpadShortcut
         case .snippetLibrary: return DefaultsKey.snippetLibraryShortcut
+        case .commandBar: return DefaultsKey.commandBarShortcut
+        case .screenRecorder: return DefaultsKey.recorderShortcut
         }
     }
 
@@ -507,6 +554,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .radialMenu: return .radialMenuDefault
         case .scratchpad: return .scratchpadDefault
         case .snippetLibrary: return .snippetLibraryDefault
+        case .commandBar: return .commandBarDefault
+        case .screenRecorder: return .screenRecorderDefault
         }
     }
 
@@ -532,6 +581,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
         case .snippetLibrary: return FeatureStrings.snippets(L10n.shared.language).libraryTitle
+        case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).pageTitle
+        case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).pageTitle
         }
     }
 
@@ -563,6 +614,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         case .scratchpad: return [DefaultsKey.scratchpadShortcutEnabled]
         case .snippetLibrary: return [DefaultsKey.snippetLibraryEnabled]
+        case .commandBar: return [DefaultsKey.commandBarShortcutEnabled]
+        case .screenRecorder: return [DefaultsKey.recorderShortcutEnabled]
         }
     }
 
@@ -586,6 +639,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .radialMenu: return .radialMenu
         case .scratchpad: return .scratchpad
         case .snippetLibrary: return .textSnippets
+        case .commandBar: return .commandBar
+        case .screenRecorder: return .screenRecorder
         }
     }
 

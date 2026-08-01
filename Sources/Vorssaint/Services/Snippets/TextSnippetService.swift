@@ -121,10 +121,12 @@ final class TextSnippetService {
             buffer = ""
             return Unmanaged.passUnretained(event)
         }
-        // Typing in the library's own search field must never expand a
-        // trigger: the deletes would land in the search box. Tap and panel
-        // both live on the main run loop, so the check is safe here.
-        guard !SnippetLibraryService.shared.isVisible else {
+        // Typing in the library's or the command bar's own search field must
+        // never expand a trigger: the deletes would land in the search box.
+        // Taps and panels all live on the main run loop, so the check is
+        // safe here.
+        guard !SnippetLibraryService.shared.isVisible,
+              !CommandBarService.shared.isVisible else {
             buffer = ""
             return Unmanaged.passUnretained(event)
         }

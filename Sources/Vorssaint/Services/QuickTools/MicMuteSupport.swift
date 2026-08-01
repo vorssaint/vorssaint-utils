@@ -37,11 +37,14 @@ enum MicMuteSupport {
 
     /// Which devices an unmute has to touch. Normally only the ones this app
     /// muted, so a microphone the user silenced in System Settings stays
-    /// silenced. With nothing recorded (settings restored onto another Mac, or
+    /// silenced. With no record at all (settings restored onto another Mac, or
     /// a state from before this was tracked) every present device is restored:
-    /// leaving someone muted with no way back is the worse failure.
-    static func restoreTargets(recorded: [String], present: [String]) -> [String] {
-        guard !recorded.isEmpty else { return present }
+    /// leaving someone muted with no way back is the worse failure. An empty
+    /// record is different from a missing one: it means the sweep ran and
+    /// every device was already silent by the user's own hand, so there is
+    /// nothing this app is allowed to open.
+    static func restoreTargets(recorded: [String]?, present: [String]) -> [String] {
+        guard let recorded else { return present }
         let wanted = Set(recorded)
         return present.filter { wanted.contains($0) }
     }

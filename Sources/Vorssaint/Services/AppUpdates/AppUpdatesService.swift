@@ -152,7 +152,12 @@ final class AppUpdatesService: ObservableObject {
             isChecking = false
             return
         }
-        let fresh = newItems.filter { !knownIDs.contains($0.id) }
+        // What was already announced survives relaunches, unlike knownIDs:
+        // otherwise the first background check of every launch would speak up
+        // about the same pending update again. Findings that are gone drop out,
+        // so an app updating again later is announced again.
+        var announced = Self.announcedIDs().intersection(newItems.map(\.id))
+        let fresh = newItems.filter { !announced.contains($0.id) }
         selection = AppUpdatesSupport.reconciledSelection(previous: selection,
                                                           knownIDs: knownIDs,
                                                           items: newItems)
@@ -166,22 +171,34 @@ final class AppUpdatesService: ObservableObject {
         UserDefaults.standard.set(now.timeIntervalSince1970, forKey: DefaultsKey.appUpdatesLastCheck)
         UserDefaults.standard.set(newItems.count, forKey: DefaultsKey.appUpdatesLastCount)
         if automatic {
-            notifyIfWanted(freshCount: fresh.count, total: newItems.count)
+            if notifyIfWanted(freshCount: fresh.count, total: newItems.count) {
+                announced = Set(newItems.map(\.id))
+            }
             scheduleNext()
         }
+        Self.saveAnnouncedIDs(announced)
     }
 
     /// Only the background pass speaks up, and only about apps the person has
     /// not been told about yet, so a Mac with one stubborn pending update
-    /// stays quiet after the first notice.
-    private func notifyIfWanted(freshCount: Int, total: Int) {
+    /// stays quiet after the first notice. True when a notice went out.
+    private func notifyIfWanted(freshCount: Int, total: Int) -> Bool {
         guard freshCount > 0,
-              UserDefaults.standard.bool(forKey: DefaultsKey.appUpdatesNotify) else { return }
+              UserDefaults.standard.bool(forKey: DefaultsKey.appUpdatesNotify) else { return false }
         let strings = FeatureStrings.appUpdates(L10n.shared.language)
         let body = total == 1
             ? strings.notificationBodyOne
             : String(format: strings.notificationBodyFormat, "\(total)")
         Notifier.post(title: strings.pageTitle, body: body)
+        return true
+    }
+
+    private static func announcedIDs() -> Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: DefaultsKey.appUpdatesNotifiedIDs) ?? [])
+    }
+
+    private static func saveAnnouncedIDs(_ ids: Set<String>) {
+        UserDefaults.standard.set(ids.sorted(), forKey: DefaultsKey.appUpdatesNotifiedIDs)
     }
 
     // MARK: - Package manager source

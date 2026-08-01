@@ -26,7 +26,8 @@ enum AppFeature: String, CaseIterable {
     case keepAwake, brightness, extraBrightness
     // Tools
     case quickLauncher, quickToggles, colorPicker, screenOCR, cleaningMode, mediaTools,
-         cleaner, uninstaller, homebrew, appUpdates, screenshot, cameraPreview, radialMenu, scratchpad
+         cleaner, uninstaller, homebrew, appUpdates, screenshot, cameraPreview, radialMenu, scratchpad,
+         commandBar, screenRecorder
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
     case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower
@@ -59,7 +60,7 @@ extension AppFeature {
             return .energyDisplay
         case .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
-             .scratchpad:
+             .scratchpad, .commandBar, .screenRecorder:
             return .tools
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
             return .monitor
@@ -105,9 +106,11 @@ extension AppFeature {
         case .homebrew: return "shippingbox"
         case .appUpdates: return "arrow.down.app"
         case .screenshot: return "camera.viewfinder"
+        case .screenRecorder: return "record.circle"
         case .cameraPreview: return "web.camera"
         case .radialMenu: return "circle.grid.cross"
         case .scratchpad: return "note.text"
+        case .commandBar: return "command"
         case .monitorCPU: return "cpu"
         case .monitorGPU: return "rectangle.connected.to.line.below"
         case .monitorMemory: return "memorychip"
@@ -157,6 +160,7 @@ extension AppFeature {
         case .windowLayout, .mixer, .micMute, .keepAwake,
              .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
+             .commandBar, .screenRecorder,
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
             return []
         }
@@ -170,7 +174,10 @@ extension AppFeature {
         switch self {
         case .scrollInverter, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .dockClick, .windowMaximizer, .windowLayout,
-             .autoQuit, .cleaningMode, .pastePlain, .radialMenu, .musicBlock:
+             .autoQuit, .cleaningMode, .pastePlain, .radialMenu, .musicBlock,
+             // The bar reads other apps' menus and windows and types at the
+             // caret, all of it through Accessibility.
+             .commandBar:
             return [.accessibility]
         case .finderCutPaste: return [.accessibility, .automationFinder]
         // Only emptying the Trash asks the Finder; every other quick toggle
@@ -180,6 +187,9 @@ extension AppFeature {
         case .dockPreview: return [.accessibility, .screenRecording]
         case .screenOCR: return [.screenRecording]
         case .screenshot: return [.screenRecording]
+        // The sound of the Mac rides the same grant the pixels do; nothing
+        // here uses the audio tap the mixer needs.
+        case .screenRecorder: return [.screenRecording]
         case .cameraPreview: return [.camera]
         case .keepAwake: return [.accessibility]
         case .brightness: return [.accessibility]

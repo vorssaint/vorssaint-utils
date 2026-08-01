@@ -9,10 +9,13 @@ enum AppInfo {
     static let copyright = "© 2026 Vorssaint"
     static let websiteURL = URL(string: "https://vorssaint.com")!
     static let repositoryURL = URL(string: "https://github.com/vorssaint/vorssaint-utils")!
-    /// Buy Me a Coffee page. The project stays free; donations and stars are how
+    /// The sponsors page. The project stays free; sponsorships and stars are how
     /// the community keeps it alive. Confirm the handle is exactly right before
     /// shipping to main.
-    static let donateURL = URL(string: "https://buymeacoffee.com/vorssaint")!
+    static let donateURL = URL(string: "https://github.com/sponsors/vorssaint")!
+    /// The other way to give, kept as a quiet second option for the people who
+    /// already give that way.
+    static let coffeeURL = URL(string: "https://buymeacoffee.com/vorssaint")!
     /// Where previews of upcoming features are posted between weekly releases.
     /// Handle taken from the owner's GitHub profile (twitter_username).
     static let communityHandle = "@vorssaint"

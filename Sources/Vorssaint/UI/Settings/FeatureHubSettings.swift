@@ -550,9 +550,11 @@ extension AppFeature {
         case .colorPicker: return s.colorPickerName
         case .screenOCR: return s.ocrName
         case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).pageTitle
+        case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).pageTitle
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
+        case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).pageTitle
         case .cleaningMode: return s.cleaningMenuItem
         case .mediaTools: return s.mediaName
         case .cleaner: return s.cleanerName
@@ -601,9 +603,11 @@ extension AppFeature {
         case .colorPicker: return hub.descColorPicker
         case .screenOCR: return hub.descScreenOCR
         case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).hubDescription
+        case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).hubDescription
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).hubDescription
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).hubDescription
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).hubDescription
+        case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).hubDescription
         case .cleaningMode: return hub.descCleaningMode
         case .mediaTools: return hub.descMediaTools
         case .cleaner:

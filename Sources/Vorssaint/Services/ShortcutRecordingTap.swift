@@ -79,12 +79,21 @@ enum ShortcutRecordingTap {
         guard tap != nil else { return }
         if let heldKeyCode {
             drainingKeyCode = heldKeyCode
-            let watchdog = DispatchWorkItem { tearDown() }
-            drainWatchdog = watchdog
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: watchdog)
+            armDrainWatchdog()
         } else {
             tearDown()
         }
+    }
+
+    /// The drain must outlive the key, not the clock: each swallowed
+    /// autorepeat pushes the deadline back, so the tap dies after a second of
+    /// silence instead of mid-hold, where the key's remaining repeats would
+    /// reach the frontmost app as fresh presses of the recorded combination.
+    private static func armDrainWatchdog() {
+        drainWatchdog?.cancel()
+        let watchdog = DispatchWorkItem { tearDown() }
+        drainWatchdog = watchdog
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: watchdog)
     }
 
     private static func tearDown() {
@@ -142,7 +151,11 @@ enum ShortcutRecordingTap {
             return nil
         }
         if let drainingKeyCode, keyCode == drainingKeyCode {
-            if type == .keyUp { tearDown() }
+            if type == .keyUp {
+                tearDown()
+            } else {
+                armDrainWatchdog()
+            }
             return nil
         }
         return Unmanaged.passUnretained(event)

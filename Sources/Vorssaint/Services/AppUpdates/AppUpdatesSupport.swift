@@ -101,13 +101,7 @@ enum AppUpdatesSupport {
         let leftDigits = lhs.allSatisfy(\.isNumber) && !lhs.isEmpty
         let rightDigits = rhs.allSatisfy(\.isNumber) && !rhs.isEmpty
         if leftDigits && rightDigits {
-            // Compared as text after dropping leading zeros, so versions with
-            // more digits than an integer can hold still sort correctly.
-            let a = stripLeadingZeros(lhs)
-            let b = stripLeadingZeros(rhs)
-            if a.count != b.count { return a.count < b.count ? .orderedAscending : .orderedDescending }
-            if a == b { return .orderedSame }
-            return a < b ? .orderedAscending : .orderedDescending
+            return compareDigits(lhs, rhs)
         }
         // A missing part counts as zero, so "1.2" equals "1.2.0" but loses
         // to "1.2.1"; a missing part against a word loses (1.2 < 1.2beta is
@@ -115,7 +109,35 @@ enum AppUpdatesSupport {
         if lhs.isEmpty { return rightDigits && stripLeadingZeros(rhs).isEmpty ? .orderedSame : .orderedAscending }
         if rhs.isEmpty { return leftDigits && stripLeadingZeros(lhs).isEmpty ? .orderedSame : .orderedDescending }
         if lhs == rhs { return .orderedSame }
+        // "9a" against "10" must never fall to plain text, where "9…" would
+        // outrank "10": the number in front decides first. With the numbers
+        // tied, the bare part is the release and the suffixed one is what
+        // came before it, so "5" beats "5beta".
+        let leftNumber = String(lhs.prefix(while: \.isNumber))
+        let rightNumber = String(rhs.prefix(while: \.isNumber))
+        if leftNumber.isEmpty != rightNumber.isEmpty {
+            return leftNumber.isEmpty ? .orderedAscending : .orderedDescending
+        }
+        if !leftNumber.isEmpty {
+            let numbers = compareDigits(leftNumber, rightNumber)
+            if numbers != .orderedSame { return numbers }
+            let leftBare = leftNumber.count == lhs.count
+            let rightBare = rightNumber.count == rhs.count
+            if leftBare != rightBare {
+                return leftBare ? .orderedDescending : .orderedAscending
+            }
+        }
         return lhs.lowercased() < rhs.lowercased() ? .orderedAscending : .orderedDescending
+    }
+
+    /// Compared as text after dropping leading zeros, so versions with more
+    /// digits than an integer can hold still sort correctly.
+    private static func compareDigits(_ lhs: String, _ rhs: String) -> ComparisonResult {
+        let a = stripLeadingZeros(lhs)
+        let b = stripLeadingZeros(rhs)
+        if a.count != b.count { return a.count < b.count ? .orderedAscending : .orderedDescending }
+        if a == b { return .orderedSame }
+        return a < b ? .orderedAscending : .orderedDescending
     }
 
     private static func stripLeadingZeros(_ value: String) -> String {

@@ -46,6 +46,22 @@ final class SuperKeyService: ObservableObject {
     /// is repaired once and not on every keystroke.
     private var lastMappingAt: TimeInterval = 0
     private let mappingRepairInterval: TimeInterval = 3
+    /// Lets go of a press whose release never arrived. Without it the four
+    /// modifiers would ride every keystroke from then on, with no way back but
+    /// pressing the key again, and typing would be dead in the meantime.
+    private var heldKeyWatchdog: DispatchWorkItem?
+    /// How long the press may go without a repeat before it is let go. A key
+    /// really held repeats, so this is pushed out again and again and never
+    /// runs; it only decides how long a press whose release was lost can hold
+    /// the modifiers down. Taken from the keyboard's own first-repeat delay, so
+    /// a slow setting is never fought, and bounded at both ends: never so short
+    /// that a hold is cut off, never so long that the keyboard stays unusable
+    /// when repeat is switched off and no repeat is ever coming.
+    private var heldKeyTimeout: TimeInterval {
+        let firstRepeat = NSEvent.keyRepeatDelay
+        guard firstRepeat.isFinite, firstRepeat > 0 else { return 3 }
+        return min(30, max(3, firstRepeat * 2))
+    }
 
     private init() {}
 
@@ -79,8 +95,11 @@ final class SuperKeyService: ObservableObject {
             return
         }
         // Without Accessibility the tap cannot add the modifiers, and a
-        // mapping alone would turn Caps Lock into a dead key.
+        // mapping alone would turn Caps Lock into a dead key. One left by a
+        // run that was killed comes out here too: with the feature still
+        // enabled, the launch-time stop() that normally clears it never runs.
         guard AXIsProcessTrusted() else {
+            clearLeftoverMapping()
             isRunning = false
             return
         }
@@ -99,6 +118,7 @@ final class SuperKeyService: ObservableObject {
             },
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
+            clearLeftoverMapping()
             isRunning = false
             return
         }
@@ -107,7 +127,7 @@ final class SuperKeyService: ObservableObject {
         runLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
-        state.reset()
+        forgetHeldKey()
         applyMapping(true)
         // Caps Lock left on would have no way back once the key stops locking.
         setCapsLock(false)
@@ -126,19 +146,24 @@ final class SuperKeyService: ObservableObject {
         }
         tap = nil
         runLoopSource = nil
-        state.reset()
+        forgetHeldKey()
         Self.isEngaged = false
         if let wakeObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
             self.wakeObserver = nil
         }
-        // The mapping is cleared even when this service never applied it: an
-        // app that was killed while the feature was on leaves one behind, and
-        // this is where the next launch takes it out.
+        clearLeftoverMapping(synchronously: synchronously)
+        isRunning = false
+    }
+
+    /// The mapping is cleared even when this service never applied it: an
+    /// app that was killed while the feature was on leaves one behind, and
+    /// every path that ends without a live tap takes it out, so Caps Lock is
+    /// never left as a key that does nothing.
+    private func clearLeftoverMapping(synchronously: Bool = false) {
         if UserDefaults.standard.bool(forKey: DefaultsKey.superKeyMappingApplied) {
             applyMapping(false, synchronously: synchronously)
         }
-        isRunning = false
     }
 
     /// Sleep can bring the keyboard back without the mapping, and so can
@@ -191,12 +216,27 @@ final class SuperKeyService: ObservableObject {
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
-            state.reset()
+            forgetHeldKey()
             return Unmanaged.passUnretained(event)
         }
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         let event0 = SuperKeyService.classify(type: type, keyCode: keyCode, event: event)
-        switch state.decide(event0) {
+        let decision = state.decide(event0)
+        // Only the key's own events say it is still down: the first press and
+        // the repeats the system sends while it is held. Keys pressed meanwhile
+        // must NOT push the deadline out. Someone whose keyboard is stuck under
+        // a press that never lifted is typing, and letting that typing hold the
+        // deadline open would keep it stuck for exactly as long as they kept
+        // trying to get out of it.
+        switch event0 {
+        case .triggerDown:
+            armHeldKeyWatchdog()
+        case .triggerUp:
+            cancelHeldKeyWatchdog()
+        case .otherKey, .otherModifier, .capsLock:
+            break
+        }
+        switch decision {
         case .pass:
             return Unmanaged.passUnretained(event)
         case .swallow:
@@ -211,6 +251,26 @@ final class SuperKeyService: ObservableObject {
             repairMappingIfStale()
             return Unmanaged.passUnretained(event)
         }
+    }
+
+    // MARK: - A press whose release never came
+
+    private func armHeldKeyWatchdog() {
+        heldKeyWatchdog?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.forgetHeldKey() }
+        heldKeyWatchdog = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + heldKeyTimeout, execute: work)
+    }
+
+    private func cancelHeldKeyWatchdog() {
+        heldKeyWatchdog?.cancel()
+        heldKeyWatchdog = nil
+    }
+
+    /// Back to the key being up. Runs on the main thread, like the tap.
+    private func forgetHeldKey() {
+        cancelHeldKeyWatchdog()
+        state.reset()
     }
 
     private static func classify(type: CGEventType, keyCode: Int64, event: CGEvent) -> SuperKeySupport.Event {

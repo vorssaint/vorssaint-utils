@@ -23,6 +23,48 @@ struct SwitcherSearchRecord: Equatable {
     let appName: String
 }
 
+/// What a letter typed with the panel open does. Anything else goes to search.
+enum SwitcherLetterAction: Equatable {
+    case closeWindow
+    case quitApp
+}
+
+/// Which running apps earn an entry of their own when they have no window the
+/// switcher can show. The switcher lists windows, so an app that closed all of
+/// them disappears from it while the system switcher still offers it.
+enum SwitcherWindowlessApps: String, CaseIterable, Equatable {
+    /// Windows only.
+    case off
+    /// The desktop app alone, which is always running and often has no window.
+    case finder
+    /// Every running app, the way the system switcher lists them.
+    case all
+
+    static let fallback = SwitcherWindowlessApps.finder
+
+    /// Preferences are stored as plain strings, so an unknown or missing value
+    /// resolves to the behavior the app shipped with instead of nothing.
+    static func mode(storedValue: String?) -> SwitcherWindowlessApps {
+        guard let storedValue, let mode = SwitcherWindowlessApps(rawValue: storedValue) else {
+            return fallback
+        }
+        return mode
+    }
+
+    /// The value that carries the old on/off preference over unchanged: the
+    /// desktop app kept its entry, anything else stayed windows only.
+    static func migrated(showsWindowlessFinder: Bool) -> SwitcherWindowlessApps {
+        showsWindowlessFinder ? .finder : .off
+    }
+}
+
+/// A running app considered for an entry of its own, with the identity the
+/// choice above is decided on.
+struct SwitcherAppCandidate: Equatable {
+    let pid: pid_t
+    let bundleIdentifier: String?
+}
+
 struct SwitcherAppGroup: Identifiable, Equatable {
     let pid: pid_t
     let appName: String
@@ -201,6 +243,36 @@ enum SwitcherSupport {
             .key
     }
 
+    /// Picks the running apps that earn an entry of their own because the
+    /// window list has nothing for them.
+    ///
+    /// Only a total absence counts. An app whose windows exist but were left
+    /// out on purpose keeps its absence: showing the app anyway would undo the
+    /// choice the user just made, which is what the current-desktop option
+    /// (issue #337) would suffer from otherwise. Order follows the candidate
+    /// list, so the caller keeps ranking these entries the same way it ranks
+    /// windows.
+    static func windowlessAppPIDs(mode: SwitcherWindowlessApps,
+                                  candidates: [SwitcherAppCandidate],
+                                  pidsWithWindows: Set<pid_t>,
+                                  pidsWithWithheldWindows: Set<pid_t>,
+                                  desktopAppBundleIdentifier: String) -> [pid_t] {
+        guard mode != .off else { return [] }
+        return candidates.compactMap { candidate in
+            guard !pidsWithWindows.contains(candidate.pid),
+                  !pidsWithWithheldWindows.contains(candidate.pid)
+            else { return nil }
+            switch mode {
+            case .off:
+                return nil
+            case .finder:
+                return candidate.bundleIdentifier == desktopAppBundleIdentifier ? candidate.pid : nil
+            case .all:
+                return candidate.pid
+            }
+        }
+    }
+
     /// Downsamples a capture into a small alpha grid for classification.
     static func alphaGrid(of image: CGImage, gridSize: Int = captureAlphaGridSize) -> [Double]? {
         guard gridSize > 0 else { return nil }
@@ -354,23 +426,6 @@ enum SwitcherSupport {
                                                    wasShiftHeld: Bool,
                                                    isShiftHeld: Bool) -> Bool {
         shiftIsNavigationModifier && isShiftHeld && !wasShiftHeld
-    }
-
-    static func updatedMRU(afterActivating activatedID: String,
-                           previousID: String?,
-                           existing: [String],
-                           limit: Int = 64) -> [String] {
-        var list = existing
-        list.removeAll { $0 == activatedID }
-        list.insert(activatedID, at: 0)
-        if let previousID, previousID != activatedID {
-            list.removeAll { $0 == previousID }
-            list.insert(previousID, at: 1)
-        }
-        if list.count > limit {
-            list.removeLast(list.count - limit)
-        }
-        return list
     }
 
     static func selectedPreviewPlacement(appCount rawAppCount: Int,
@@ -628,6 +683,76 @@ enum SwitcherSupport {
                                   selectedIndex: clampedSelection(nextIndex, count: remaining.count),
                                   didRemove: true,
                                   shouldEndSession: false)
+    }
+
+    /// Which entry a release should raise while windows are already closing:
+    /// the highlight lands where the grid settles once they are gone, so
+    /// letting go right after closing one never raises it again. With nothing
+    /// left to raise, the release only dismisses the panel.
+    static func commitTargetID(itemIDs: [String],
+                               selectedIndex: Int,
+                               closingItemIDs: Set<String>) -> String? {
+        guard itemIDs.indices.contains(selectedIndex) else { return nil }
+        let selected = itemIDs[selectedIndex]
+        guard closingItemIDs.contains(selected) else { return selected }
+        let remaining = itemIDs.filter { !closingItemIDs.contains($0) }
+        guard !remaining.isEmpty else { return nil }
+        let position = itemIDs[..<selectedIndex].filter { !closingItemIDs.contains($0) }.count
+        return remaining[clampedSelection(position, count: remaining.count)]
+    }
+
+    /// Whether a click ends the session. The panel floats above everything and
+    /// never takes the keyboard from the app in front, so clicking another
+    /// window is what most people try when they want it gone, and a session
+    /// opened with no key held down has no release coming to close it either
+    /// (issue #384). Anything on the panel still belongs to the panel.
+    static func shouldDismissForClick(panelIsVisible: Bool,
+                                      panelFrame: CGRect,
+                                      location: CGPoint) -> Bool {
+        panelIsVisible && !panelFrame.contains(location)
+    }
+
+    /// The two letters the panel acts on: W closes the highlighted window and
+    /// Q quits its app. A keyboard answers by the letter it types, so both keys
+    /// stay where they are printed even on layouts that move them (measured:
+    /// French and Italian put W elsewhere, Turkish moves both). Layouts that
+    /// type no Latin letter at all, like Cyrillic and Greek, go by the key's
+    /// position instead, which is exactly where macOS resolves their command
+    /// shortcuts (measured: with Command held both translate that key to "w").
+    static func letterAction(typedCharacter: String?, keyCode: Int64) -> SwitcherLetterAction? {
+        guard let letter = latinLetter(in: typedCharacter) else {
+            switch keyCode {
+            case USKeyPosition.w: return .closeWindow
+            case USKeyPosition.q: return .quitApp
+            default: return nil
+            }
+        }
+        switch letter {
+        case "w": return .closeWindow
+        case "q": return .quitApp
+        default: return nil
+        }
+    }
+
+    /// Key positions on the US keyboard, the fallback for layouts with no
+    /// Latin letters of their own.
+    private enum USKeyPosition {
+        static let q: Int64 = 12
+        static let w: Int64 = 13
+    }
+
+    /// The plain letter a keystroke typed, when it typed one. Accents fold
+    /// away, so a letter of a Latin alphabet is never mistaken for one of the
+    /// keys above.
+    private static func latinLetter(in text: String?) -> Character? {
+        guard let folded = text?.folding(options: [.diacriticInsensitive, .caseInsensitive],
+                                         locale: .current),
+              folded.count == 1,
+              let letter = folded.first,
+              letter.isASCII,
+              letter.isLetter
+        else { return nil }
+        return letter
     }
 
     static func filteredSearchIDs(records: [SwitcherSearchRecord], query: String) -> [String] {

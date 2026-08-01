@@ -26,140 +26,9 @@ struct SettingsView: View {
     @ObservedObject private var features = FeatureRuntime.shared
     @State private var searchQuery = ""
 
-    private var categories: SettingsCategoryStrings {
-        FeatureStrings.settingsCategories(l10n.language)
-    }
-
-    private struct SidebarItem: Identifiable {
-        let page: SettingsPage
-        let title: String
-        let icon: String
-        /// Labels of options living inside the page, so the search finds a
-        /// page by what it contains, in the user's language.
-        var keywords: [String] = []
-        var id: SettingsPage { page }
-    }
-
-    private var sidebarSections: [(title: String, items: [SidebarItem])] {
-        [
-            (categories.essentials, [
-                SidebarItem(page: .general, title: l10n.s.tabGeneral, icon: "gearshape",
-                            keywords: [l10n.s.launchAtLogin, l10n.s.languageLabel, l10n.s.showMenuBarIcon,
-                                       l10n.s.musicBlockTitle, l10n.s.musicBlockSection,
-                                       FeatureStrings.appearance(l10n.language).label,
-                                       FeatureStrings.appearance(l10n.language).dark]),
-                // Searching any feature name lands here even when the feature
-                // is hidden, so the hub is always the way back.
-                SidebarItem(page: .features, title: FeatureStrings.hub(l10n.language).pageTitle,
-                            icon: "square.grid.2x2",
-                            keywords: AppFeature.allCases.map {
-                                $0.hubTitle(l10n.s, hub: FeatureStrings.hub(l10n.language))
-                            }),
-                SidebarItem(page: .energy, title: l10n.s.tabEnergy, icon: "bolt.fill",
-                            keywords: [l10n.s.keepAwakeTitle, l10n.s.clamshellTitle,
-                                       l10n.s.defaultDurationLabel, l10n.s.extraBrightnessName,
-                                       l10n.s.keepAwakeActiveIconLabel,
-                                       l10n.s.keepAwakeActiveIconCoffee,
-                                       l10n.s.keepAwakeActiveIconEye,
-                                       FeatureStrings.brightness(l10n.language).pageTitle,
-                                       FeatureStrings.brightness(l10n.language).osdToggle,
-                                       FeatureStrings.keepAwakeAutomation(l10n.language)
-                                           .externalDisplayToggle,
-                                       FeatureStrings.keepAwakeAutomation(l10n.language).powerToggle]),
-                SidebarItem(page: .monitor, title: l10n.s.tabMonitor, icon: "chart.line.uptrend.xyaxis",
-                            keywords: [l10n.s.menuBarSpacingLabel, l10n.s.menuBarHideIconToggle,
-                                       l10n.s.monitorMemoryPressureDot]),
-            ]),
-            (categories.windowsControls, [
-                SidebarItem(page: .mouse, title: l10n.s.tabMouse, icon: "computermouse",
-                            keywords: [l10n.s.invertMouseScroll, l10n.s.middleClickTapPicker,
-                                       l10n.s.smoothScrollName, l10n.s.mouseNavigationEnable,
-                                       FeatureStrings.mouseButtons(l10n.language).pageTitle,
-                                       FeatureStrings.mouseExceptions(l10n.language).listTitle]),
-                SidebarItem(page: .switcher, title: l10n.s.tabSwitcher, icon: "rectangle.on.rectangle",
-                            keywords: [l10n.s.switcherEnable, l10n.s.dockClickMinimize,
-                                       l10n.s.dockClickCycleWindows]),
-                SidebarItem(page: .windowLayout, title: FeatureStrings.windowLayout(l10n.language).title, icon: "rectangle.3.group",
-                            keywords: [l10n.s.dockClickCycleWindows,
-                                       FeatureStrings.windowLayout(l10n.language).gestureEnable,
-                                       FeatureStrings.windowLayout(l10n.language).gestureResize]),
-                SidebarItem(page: .autoQuit, title: l10n.s.autoQuitName, icon: "xmark.rectangle",
-                            keywords: [l10n.s.autoQuitEnable]),
-            ]),
-            (categories.files, [
-                SidebarItem(page: .clipboard, title: FeatureStrings.clipboard(l10n.language).title, icon: "doc.on.clipboard",
-                            keywords: [FeatureStrings.clipboard(l10n.language).limit,
-                                       FeatureStrings.clipboard(l10n.language).skipSensitive]),
-                SidebarItem(page: .cutPaste, title: l10n.s.cutPasteName, icon: "scissors",
-                            keywords: [l10n.s.cutPasteEnable]),
-                SidebarItem(page: .shelf, title: l10n.s.shelfName, icon: "tray.full",
-                            keywords: [l10n.s.shelfEnable, l10n.s.shelfDropZoneToggle]),
-                SidebarItem(page: .media, title: l10n.s.mediaName, icon: "photo.on.rectangle.angled",
-                            keywords: ["PDF", "GIF", l10n.s.mediaStartConvertPDF, l10n.s.ocrName]),
-            ]),
-            // Everything about the apps installed on the Mac lives together:
-            // what is out of date, what is junk and what should go.
-            (categories.appManagement, [
-                SidebarItem(page: .appUpdates,
-                            title: FeatureStrings.appUpdates(l10n.language).pageTitle,
-                            icon: "arrow.down.app",
-                            keywords: [FeatureStrings.appUpdates(l10n.language).checkNow,
-                                       FeatureStrings.appUpdates(l10n.language).frequencyLabel,
-                                       FeatureStrings.appUpdates(l10n.language).appStoreBadge,
-                                       l10n.s.homebrewName]),
-                SidebarItem(page: .cleaner, title: l10n.s.cleanerName, icon: "sparkles",
-                            keywords: [l10n.s.cleanerScheduleTitle,
-                                       FeatureStrings.whatsAppDownloads(l10n.language).title,
-                                       FeatureStrings.whatsAppDownloads(l10n.language).automatic,
-                                       FeatureStrings.whatsAppDownloads(l10n.language).fileTypes]),
-                SidebarItem(page: .homebrew, title: l10n.s.homebrewName, icon: "shippingbox"),
-                SidebarItem(page: .uninstaller, title: l10n.s.uninstallerName, icon: "trash"),
-            ]),
-            (categories.utilities, [
-                SidebarItem(page: .quickTools, title: l10n.s.quickToolsTab, icon: "wand.and.rays",
-                            keywords: [l10n.s.launcherName, l10n.s.colorPickerName,
-                                       l10n.s.micMuteName, l10n.s.ocrName,
-                                       l10n.s.colorPickerBareHexToggle, l10n.s.micMuteMenuBarToggle,
-                                       FeatureStrings.quickToggles(l10n.language).pageTitle,
-                                       FeatureStrings.quickToggles(l10n.language).darkModeToDark,
-                                       FeatureStrings.quickToggles(l10n.language).emptyTrashTitle,
-                                       FeatureStrings.cameraPreview(l10n.language).pageTitle,
-                                       FeatureStrings.scratchpad(l10n.language).pageTitle]),
-                SidebarItem(page: .screenshot,
-                            title: FeatureStrings.screenshot(l10n.language).pageTitle,
-                            icon: "camera.viewfinder",
-                            keywords: [FeatureStrings.screenshot(l10n.language).freezeToggle,
-                                       FeatureStrings.screenshot(l10n.language).pinButton,
-                                       FeatureStrings.screenshot(l10n.language).toolPixelate,
-                                       FeatureStrings.screenshot(l10n.language).toolArrow]),
-                SidebarItem(page: .urlCleaner, title: l10n.s.urlCleanerName, icon: "link"),
-                SidebarItem(page: .keyDebounce, title: l10n.s.keyDebounceName, icon: "keyboard"),
-                SidebarItem(page: .superKey,
-                            title: FeatureStrings.superKey(l10n.language).pageTitle,
-                            icon: "capslock",
-                            keywords: [FeatureStrings.superKey(l10n.language).capsLockKey,
-                                       FeatureStrings.superKey(l10n.language).enableToggle]),
-                SidebarItem(page: .textSnippets, title: FeatureStrings.snippets(l10n.language).pageTitle,
-                            icon: "text.append",
-                            keywords: [FeatureStrings.snippets(l10n.language).triggerLabel,
-                                       FeatureStrings.snippets(l10n.language).addButton]),
-                SidebarItem(page: .radialMenu, title: FeatureStrings.radialMenu(l10n.language).pageTitle,
-                            icon: "circle.grid.cross",
-                            keywords: [FeatureStrings.radialMenu(l10n.language).addButton,
-                                       FeatureStrings.radialMenu(l10n.language).kindApp,
-                                       FeatureStrings.radialMenu(l10n.language).kindMedia,
-                                       FeatureStrings.radialMenu(l10n.language).kindSubmenu]),
-            ]),
-            (categories.app, [
-                SidebarItem(page: .shortcuts, title: l10n.s.shortcutsPageTitle, icon: "command",
-                            keywords: [l10n.s.hotkeyToggle]),
-                SidebarItem(page: .advanced, title: l10n.s.tabAdvanced, icon: "wrench.and.screwdriver"),
-                SidebarItem(page: .about, title: l10n.s.tabAbout, icon: "info.circle",
-                            keywords: [l10n.s.reviewIntro]),
-                SidebarItem(page: .releaseNotes, title: l10n.s.tabReleaseNotes, icon: "sparkles"),
-                SidebarItem(page: .support, title: l10n.s.tabSupport, icon: "heart.fill"),
-            ]),
-        ]
+    /// The one map of pages, shared with the command bar (SettingsDirectory).
+    private var sidebarSections: [(title: String, items: [SettingsDirectoryItem])] {
+        SettingsDirectory.sections(l10n.s, language: l10n.language)
     }
 
     var body: some View {
@@ -240,6 +109,7 @@ struct SettingsView: View {
         case .features: FeatureHubSettings()
         case .textSnippets: TextSnippetsSettings()
         case .radialMenu: RadialMenuSettings()
+        case .commandBar: CommandBarSettings()
         case .energy: EnergySettings()
         case .monitor: MonitorSettings()
         case .mouse: MouseSettings()
@@ -257,6 +127,7 @@ struct SettingsView: View {
         case .clipboard: ClipboardSettings()
         case .quickTools: QuickToolsSettings()
         case .screenshot: ScreenshotSettings()
+        case .screenRecorder: ScreenRecorderSettings()
         case .windowLayout: WindowLayoutSettings()
         case .shelf: ShelfSettings()
         case .shortcuts: ShortcutsSettings()
@@ -879,9 +750,10 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherIconRowMode) private var switcherIconRowMode = false
     @AppStorage(DefaultsKey.switcherSimpleMode) private var switcherSimpleMode = false
     @AppStorage(DefaultsKey.switcherMergeTabs) private var switcherMergeTabs = false
-    @AppStorage(DefaultsKey.switcherShowWindowlessFinder) private var switcherShowWindowlessFinder = true
+    @AppStorage(DefaultsKey.switcherWindowlessApps) private var switcherWindowlessApps = SwitcherWindowlessApps.fallback.rawValue
     @AppStorage(DefaultsKey.switcherCurrentSpaceOnly) private var switcherCurrentSpaceOnly = false
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
+    @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var dockPreviewBackgroundOpacity = 1.0
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
     @AppStorage(DefaultsKey.previewSize) private var previewSize = "normal"
@@ -948,12 +820,15 @@ struct SwitcherSettings: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    if switcherEnabled {
-                        Toggle(l10n.s.switcherShowFinder, isOn: $switcherShowWindowlessFinder)
-                        Text(l10n.s.switcherShowFinderCaption)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    Picker(l10n.s.switcherWindowlessApps, selection: $switcherWindowlessApps) {
+                        Text(l10n.s.switcherWindowlessAppsOff).tag(SwitcherWindowlessApps.off.rawValue)
+                        Text(l10n.s.switcherWindowlessAppsFinder).tag(SwitcherWindowlessApps.finder.rawValue)
+                        Text(l10n.s.switcherWindowlessAppsAll).tag(SwitcherWindowlessApps.all.rawValue)
                     }
+                    .disabled(!switcherEnabled)
+                    Text(l10n.s.switcherWindowlessAppsCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             if AppFeature.dockPreview.isAvailable || AppFeature.dockClick.isAvailable {
@@ -966,6 +841,19 @@ struct SwitcherSettings: View {
                         Text(dockPreviewCaption)
                             .font(.caption)
                             .foregroundStyle(dockPreviewWarning ? .orange : .secondary)
+                        if dockPreviewEnabled {
+                            HStack {
+                                Text(l10n.s.dockPreviewBackgroundOpacity)
+                                Slider(value: dockPreviewBackgroundOpacityBinding,
+                                       in: DockPreviewSupport.backgroundOpacityRange,
+                                       step: 0.05)
+                                Text("\(dockPreviewBackgroundOpacityPercent)%")
+                                    .font(.system(.body, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 52, alignment: .trailing)
+                            }
+                            SettingsCaptionText(l10n.s.dockPreviewBackgroundOpacityCaption)
+                        }
                     }
                     if AppFeature.dockClick.isAvailable {
                         Toggle(l10n.s.dockClickMinimize, isOn: $dockClickMinimize)
@@ -1034,6 +922,17 @@ struct SwitcherSettings: View {
 
     private var dockPreviewWarning: Bool {
         dockPreviewEnabled && dockPreview.blockedReason != nil
+    }
+
+    private var dockPreviewBackgroundOpacityBinding: Binding<Double> {
+        Binding(
+            get: { DockPreviewSupport.sanitizedBackgroundOpacity(dockPreviewBackgroundOpacity) },
+            set: { dockPreviewBackgroundOpacity = DockPreviewSupport.sanitizedBackgroundOpacity($0) }
+        )
+    }
+
+    private var dockPreviewBackgroundOpacityPercent: Int {
+        Int((DockPreviewSupport.sanitizedBackgroundOpacity(dockPreviewBackgroundOpacity) * 100).rounded())
     }
 }
 
@@ -1227,8 +1126,8 @@ struct ReleaseNotesSettings: View {
 // MARK: - Support / donate
 
 /// A calm, visual page inviting people to support the project. Nothing is
-/// nagged or gated: the message and a single Buy Me a Coffee button that opens
-/// the donate page in the browser.
+/// nagged or gated: the message and a single button that opens the sponsors
+/// page in the browser.
 struct SupportSettings: View {
     @ObservedObject private var l10n = L10n.shared
 
@@ -1239,8 +1138,8 @@ struct SupportSettings: View {
                 Circle()
                     .fill(Theme.spaceGradient)
                     .frame(width: 84, height: 84)
-                Image(systemName: "cup.and.saucer.fill")
-                    .font(.system(size: 33))
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 31))
                     .foregroundStyle(.white)
             }
             Text(l10n.s.donateHeading)
@@ -1250,8 +1149,11 @@ struct SupportSettings: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 360)
-            CoffeeButton()
-                .padding(.top, 4)
+            VStack(spacing: 10) {
+                SponsorButton()
+                CoffeeLink()
+            }
+            .padding(.top, 4)
             Text(l10n.s.donateThanks)
                 .font(.caption)
                 .foregroundStyle(.tertiary)
@@ -1261,9 +1163,11 @@ struct SupportSettings: View {
     }
 }
 
-/// The Buy Me a Coffee call to action for the Support page. Opens the donate
-/// page in the default browser.
-struct CoffeeButton: View {
+/// The call to action for the Support page. Opens the sponsors page in the
+/// default browser. The pink heart is the mark the sponsors page itself uses,
+/// so the button looks like where it lands, and white on it holds its contrast
+/// in both themes.
+struct SponsorButton: View {
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.openURL) private var openURL
 
@@ -1272,16 +1176,42 @@ struct CoffeeButton: View {
             openURL(AppInfo.donateURL)
         } label: {
             HStack(spacing: 8) {
-                Text("☕").font(.system(size: 15))
+                Image(systemName: "heart.fill").font(.system(size: 13))
                 Text(l10n.s.donateButton)
                     .font(.system(size: 14, weight: .semibold))
             }
-            .foregroundStyle(.black)
+            .foregroundStyle(.white)
             .padding(.horizontal, 22)
             .padding(.vertical, 11)
-            .background(Capsule().fill(Color(red: 1.0, green: 0.84, blue: 0.0)))
+            .background(Capsule().fill(Color(red: 0.86, green: 0.38, blue: 0.64)))
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// The other way to give, for the people who already give that way. Small and
+/// tertiary on purpose: it sits under the main button as an alternative, never
+/// as a second thing to weigh. The name is the same in every language, so it
+/// carries no string of its own.
+struct CoffeeLink: View {
+    @Environment(\.openURL) private var openURL
+    @State private var isHovering = false
+
+    var body: some View {
+        Button {
+            openURL(AppInfo.coffeeURL)
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "cup.and.saucer")
+                Text("Buy me a coffee")
+                    .underline(isHovering)
+            }
+            .font(.system(size: 11.5))
+            .foregroundStyle(isHovering ? Color.secondary : Color(nsColor: .tertiaryLabelColor))
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: isHovering)
     }
 }
 

@@ -623,8 +623,10 @@ final class RadialMenuService: ObservableObject {
               let keyUp = CGEvent(keyboardEventSource: nil,
                                   virtualKey: CGKeyCode(shortcut.keyCode), keyDown: false)
         else { return }
-        keyDown.flags = shortcut.modifiers.cgFlags
-        keyUp.flags = shortcut.modifiers.cgFlags
+        // The flags a real press carries, so a shortcut on an arrow or an F
+        // key is recognised beyond the app in front as well (issue #401).
+        keyDown.flags = shortcut.syntheticEventFlags
+        keyUp.flags = shortcut.syntheticEventFlags
         keyDown.post(tap: .cghidEventTap)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
             keyUp.post(tap: .cghidEventTap)

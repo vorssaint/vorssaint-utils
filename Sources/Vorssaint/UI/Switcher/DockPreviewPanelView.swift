@@ -67,6 +67,7 @@ private struct DockPreviewPanelContent: View {
     let onSelectNext: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var backgroundOpacity = 1.0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -115,8 +116,11 @@ private struct DockPreviewPanelContent: View {
         }
         .frame(height: DockPreviewSupport.panelSize(itemCount: 1,
                                                     screenVisibleFrame: CGRect(x: 0, y: 0, width: 500, height: 500)).height)
-        .background(HUDBackdrop(cornerRadius: 18))
+        .background(HUDBackdrop(cornerRadius: 18,
+                                opacity: DockPreviewSupport.sanitizedBackgroundOpacity(backgroundOpacity)))
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        // The hairline keeps its full strength as the material fades: it is what
+        // still draws the panel's shape once the frost stops doing it.
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)

@@ -119,6 +119,23 @@ final class WindowLayoutService: ObservableObject {
                 : finish(.failure(.failed))
         }
 
+        if action == .fullScreen {
+            // The native full screen the green button gives, toggled through
+            // the same attribute the button writes. The system owns the frame
+            // from here, so nothing is remembered for restore.
+            var raw: CFTypeRef?
+            AXUIElementCopyAttributeValue(target.window, "AXFullScreen" as CFString, &raw)
+            let isFullScreen = (raw as? NSNumber)?.boolValue ?? false
+            let flipped = (isFullScreen ? kCFBooleanFalse : kCFBooleanTrue) as CFTypeRef
+            let applied = AXUIElementSetAttributeValue(target.window,
+                                                       "AXFullScreen" as CFString,
+                                                       flipped) == .success
+            // Remembered like any other placement, or the "same half twice
+            // means maximize" rule would still be looking at whatever the
+            // window did before it went full screen.
+            if applied { lastActions[target.windowID] = .fullScreen }
+            return applied ? finish(.success(restored: false)) : finish(.failure(.failed))
+        }
         guard let screen = bestScreen(for: target.frame) else {
             return finish(.failure(.failed))
         }
@@ -174,7 +191,7 @@ final class WindowLayoutService: ObservableObject {
     private func focusedTarget() -> WindowLayoutTarget? {
         let ownBundleID = Bundle.main.bundleIdentifier
         let frontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier
-        let pids = ([frontmost].compactMap { $0 } + AppActivationTracker.shared.mru).reduce(into: [pid_t]()) { result, pid in
+        let pids = ([frontmost].compactMap { $0 } + WindowUseTracker.shared.apps).reduce(into: [pid_t]()) { result, pid in
             if !result.contains(pid) { result.append(pid) }
         }
 

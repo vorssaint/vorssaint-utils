@@ -59,8 +59,11 @@ final class MouseButtonShortcutService: ObservableObject {
         isDraining = false
         // A tap the system disabled (Accessibility revoked and regranted)
         // never revives on its own; rebuild it instead of keeping the corpse.
+        // Torn down directly, not through stop(): a dead tap can no longer
+        // deliver the pending Up of a held button, so draining for it would
+        // only keep the corpse and leave every mapped button silent.
         if let tap, !CGEvent.tapIsEnabled(tap: tap) {
-            stop()
+            tearDownTap()
         }
         start()
     }
@@ -210,10 +213,17 @@ final class MouseButtonShortcutService: ObservableObject {
         return nil
     }
 
-    /// The shortcut goes out as a virtual key plus modifier flags, nothing
-    /// more. No keyboardSetUnicodeString: a forced character string on a
-    /// shortcut event breaks menu key equivalent dispatch in the target app,
-    /// so the combination would arrive and still do nothing.
+    /// The shortcut goes out as a virtual key plus the flags a real press of
+    /// it carries, nothing more. No keyboardSetUnicodeString: a forced
+    /// character string on a shortcut event breaks menu key equivalent
+    /// dispatch in the target app, so the combination would arrive and still
+    /// do nothing.
+    ///
+    /// It enters where the keyboard's own presses enter, so every listener on
+    /// the way sees the same press a finger would have made. Sent further
+    /// along, it would still reach the app in front but stay invisible to
+    /// anything watching the keyboard, which is why a shortcut belonging to
+    /// the system or to another app did nothing at all (issue #401).
     private func post(_ shortcut: GlobalShortcut) {
         guard shortcut.hasUsableKeyCode else { return }
         let source = CGEventSource(stateID: .hidSystemState)
@@ -223,9 +233,10 @@ final class MouseButtonShortcutService: ObservableObject {
               let up = CGEvent(keyboardEventSource: source,
                                virtualKey: CGKeyCode(shortcut.keyCode),
                                keyDown: false) else { return }
-        down.flags = shortcut.modifiers.cgFlags
-        up.flags = shortcut.modifiers.cgFlags
-        down.post(tap: .cgSessionEventTap)
-        up.post(tap: .cgSessionEventTap)
+        let flags = shortcut.syntheticEventFlags
+        down.flags = flags
+        up.flags = flags
+        down.post(tap: .cghidEventTap)
+        up.post(tap: .cghidEventTap)
     }
 }

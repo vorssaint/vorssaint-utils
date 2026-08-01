@@ -114,6 +114,18 @@ enum DockPreviewSupport {
     static let panelPadding: CGFloat = 12
     static let panelHeaderHeight: CGFloat = 28
 
+    /// How solid the panel's frosted background is drawn, as a fraction. The
+    /// floor is not zero on purpose: the panel's title sits straight on the
+    /// material, so past a certain point it is reading against the desktop and
+    /// the panel stops looking like a panel. Anything the slider can reach has
+    /// to still look finished.
+    static let backgroundOpacityRange: ClosedRange<Double> = 0.4...1
+
+    static func sanitizedBackgroundOpacity(_ value: Double) -> Double {
+        guard value.isFinite else { return backgroundOpacityRange.upperBound }
+        return min(max(value, backgroundOpacityRange.lowerBound), backgroundOpacityRange.upperBound)
+    }
+
     /// How far in from the Dock's screen edge the cursor can be and still sit over
     /// a Dock item. Used to gate the per-mouse-move Accessibility hit-test to the
     /// Dock's strip instead of running it across the whole screen — that hit-test

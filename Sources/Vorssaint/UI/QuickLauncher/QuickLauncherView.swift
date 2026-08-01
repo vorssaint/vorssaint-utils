@@ -46,7 +46,7 @@ struct QuickLauncherView: View {
         }
         .padding(16)
         .frame(width: 420)
-        .background(HUDBackdrop(cornerRadius: 22))
+        .background(HUDBackdrop(cornerRadius: 22, contrast: .high))
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .onChange(of: launcher.presentationID) { _, _ in
             hoveredItem = nil

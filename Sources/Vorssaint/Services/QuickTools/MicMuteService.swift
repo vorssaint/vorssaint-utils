@@ -110,7 +110,9 @@ final class MicMuteService: ObservableObject {
         let defaults = UserDefaults.standard
         guard defaults.bool(forKey: DefaultsKey.micMuteActive) else { return }
         let savedVolumes = defaults.dictionary(forKey: DefaultsKey.micMuteSavedVolumes) as? [String: Double] ?? [:]
-        let mutedDevices = defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices) ?? []
+        // Missing means never tracked; an empty list means tracked and owning
+        // nothing, and the sweep must keep those two apart.
+        let mutedDevices = defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices)
         let legacyVolume = defaults.double(forKey: DefaultsKey.micMuteSavedVolume)
 
         // Any sweep still in flight loses its right to publish, and this one
@@ -143,7 +145,7 @@ final class MicMuteService: ObservableObject {
     private func apply(muted: Bool, announce: Bool) {
         let defaults = UserDefaults.standard
         let savedVolumes = defaults.dictionary(forKey: DefaultsKey.micMuteSavedVolumes) as? [String: Double] ?? [:]
-        let mutedDevices = defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices) ?? []
+        let mutedDevices = defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices)
         let legacyVolume = defaults.double(forKey: DefaultsKey.micMuteSavedVolume)
 
         applyGeneration += 1
@@ -192,7 +194,7 @@ final class MicMuteService: ObservableObject {
     /// Runs on `halQueue`. Every CoreAudio call of a sweep happens here.
     private static func applyToDevices(muted: Bool,
                                        savedVolumes: [String: Double],
-                                       mutedDevices: [String],
+                                       mutedDevices: [String]?,
                                        legacyVolume: Double) -> MuteOutcome {
         let devices = inputDevices()
         guard !devices.isEmpty else {
@@ -206,9 +208,9 @@ final class MicMuteService: ObservableObject {
 
     private static func mute(_ devices: [InputDevice],
                              savedVolumes: [String: Double],
-                             mutedDevices: [String]) -> MuteOutcome {
+                             mutedDevices: [String]?) -> MuteOutcome {
         var outcome = MuteOutcome(applied: false, savedVolumes: savedVolumes, mutedDevices: [])
-        let owned = Set(mutedDevices)
+        let owned = Set(mutedDevices ?? [])
         for device in devices {
             // Already silent: a microphone the user muted themselves is left
             // alone, so unmuting later never opens something this app did not
@@ -244,25 +246,47 @@ final class MicMuteService: ObservableObject {
 
     private static func unmute(_ devices: [InputDevice],
                                savedVolumes: [String: Double],
-                               mutedDevices: [String],
+                               mutedDevices: [String]?,
                                legacyVolume: Double) -> MuteOutcome {
         var outcome = MuteOutcome(applied: false, savedVolumes: savedVolumes, mutedDevices: [])
         let targets = Set(MicMuteSupport.restoreTargets(recorded: mutedDevices,
                                                         present: devices.map(\.uid)))
         var attempted = false
         for device in devices where targets.contains(device.uid) {
-            defer { outcome.savedVolumes.removeValue(forKey: device.uid) }
+            // A saved level only leaves once the device really opened: a
+            // restore that failed keeps the claim and the level, so the next
+            // attempt still knows the device is this app's to release.
             if muteSwitchValue(of: device.id) == 1 {
                 attempted = true
-                if setMuteSwitch(false, of: device.id) { outcome.applied = true }
+                if setMuteSwitch(false, of: device.id) {
+                    outcome.applied = true
+                    outcome.savedVolumes.removeValue(forKey: device.uid)
+                } else {
+                    outcome.mutedDevices.append(device.uid)
+                }
                 continue
             }
-            guard let volume = inputVolume(of: device.id), volume <= 0.01 else { continue }
+            guard let volume = inputVolume(of: device.id) else {
+                // Unreadable right now (a headset mid reconnection): nothing
+                // was restored, so the claim and the level survive.
+                outcome.mutedDevices.append(device.uid)
+                continue
+            }
+            guard volume <= 0.01 else {
+                // Already audible: the level has nothing left to restore.
+                outcome.savedVolumes.removeValue(forKey: device.uid)
+                continue
+            }
             attempted = true
             let restore = MicMuteSupport.volumeToRestore(uid: device.uid,
                                                          saved: savedVolumes,
                                                          legacy: legacyVolume)
-            if setInputVolume(restore, of: device.id) { outcome.applied = true }
+            if setInputVolume(restore, of: device.id) {
+                outcome.applied = true
+                outcome.savedVolumes.removeValue(forKey: device.uid)
+            } else {
+                outcome.mutedDevices.append(device.uid)
+            }
         }
         // Nothing left silenced is a finished unmute; the user must never be
         // left holding a mute the app refuses to release.
