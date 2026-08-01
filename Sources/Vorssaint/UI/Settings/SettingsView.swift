@@ -231,6 +231,7 @@ struct GeneralSettings: View {
                     Toggle(l10n.s.musicBlockTitle, isOn: $musicBlockEnabled)
                         .onChange(of: musicBlockEnabled) { _, _ in
                             MusicLaunchBlocker.shared.syncWithPreferences()
+                            EarPodsTeamsMuteService.shared.syncWithPreferences()
                         }
                     if musicBlockEnabled {
                         HStack {

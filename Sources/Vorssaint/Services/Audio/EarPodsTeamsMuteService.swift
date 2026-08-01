@@ -73,10 +73,10 @@ final class EarPodsTeamsMuteService: ObservableObject {
     
     private func handleEvent(event: CGEvent, type: CGEventType) -> Unmanaged<CGEvent>? {
         let systemDefinedEventTypeRawValue: UInt32 = 14
-        guard type.rawValue == systemDefinedEventTypeRawValue else { return Unmanaged.passRetained(event) }
+        guard type.rawValue == systemDefinedEventTypeRawValue else { return Unmanaged.passUnretained(event) }
         
         guard let nsEvent = NSEvent(cgEvent: event), nsEvent.subtype == .screenChanged else {
-            return Unmanaged.passRetained(event)
+            return Unmanaged.passUnretained(event)
         }
         
         let data1 = nsEvent.data1
@@ -92,7 +92,7 @@ final class EarPodsTeamsMuteService: ObservableObject {
             return nil
         }
         
-        return Unmanaged.passRetained(event)
+        return Unmanaged.passUnretained(event)
     }
     
     private func postTeamsMuteShortcut() {
