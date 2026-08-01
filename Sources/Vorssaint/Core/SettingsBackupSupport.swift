@@ -31,6 +31,8 @@ enum SettingsBackupSupport {
         DefaultsKey.finderCutPasteEnabled,
         DefaultsKey.textSnippets,
         DefaultsKey.radialMenuItems,
+        DefaultsKey.commandBarLinks,
+        DefaultsKey.commandBarRowShortcuts,
         DefaultsKey.language,
         DefaultsKey.appVolumes,
         DefaultsKey.appOutputDevices,
@@ -57,7 +59,6 @@ enum SettingsBackupSupport {
         // feature intros the user has already been through.
         DefaultsKey.hasOnboarded,
         DefaultsKey.onboardingStep,
-        DefaultsKey.dockPreviewIntroVersion,
         DefaultsKey.featuresOnboardingVersion,
         DefaultsKey.lastUpdateIntroVersion,
         DefaultsKey.supportUpdateIntroVersion,
@@ -79,6 +80,7 @@ enum SettingsBackupSupport {
         // When the last check ran and what it found belong to one Mac.
         DefaultsKey.appUpdatesLastCheck,
         DefaultsKey.appUpdatesLastCount,
+        DefaultsKey.appUpdatesNotifiedIDs,
         DefaultsKey.cleanerLastAutoFreed,
         DefaultsKey.whatsAppDownloadsAutomaticStartDate,
         DefaultsKey.whatsAppDownloadsLastAutoRun,
@@ -96,6 +98,8 @@ enum SettingsBackupSupport {
         DefaultsKey.whatsAppOrganizerLastMoved,
         DefaultsKey.whatsAppOrganizerLastDuplicates,
         DefaultsKey.whatsAppOrganizerLastFailed,
+        // What one person runs most is habit, not configuration.
+        DefaultsKey.commandBarUsage,
         DefaultsKey.simulateUpdate,
         DefaultsKey.updateShowcaseIntroVersion,
         DefaultsKey.updateShowcaseMediaOverride,

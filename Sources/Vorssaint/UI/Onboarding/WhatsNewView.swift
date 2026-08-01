@@ -245,7 +245,7 @@ struct UpdateShowcaseIntroView: View {
                 Button {
                     openURL(AppInfo.donateURL)
                 } label: {
-                    Label(l10n.s.supportIntroCoffeeButton, systemImage: "cup.and.saucer.fill")
+                    Label(l10n.s.supportIntroSponsorButton, systemImage: "heart.fill")
                 }
                 .buttonStyle(.bordered)
             }
@@ -500,7 +500,7 @@ struct UpdateSupportIntroView: View {
                 Button {
                     openURL(AppInfo.donateURL)
                 } label: {
-                    Label(l10n.s.supportIntroCoffeeButton, systemImage: "cup.and.saucer.fill")
+                    Label(l10n.s.supportIntroSponsorButton, systemImage: "heart.fill")
                 }
                 .buttonStyle(.bordered)
             }

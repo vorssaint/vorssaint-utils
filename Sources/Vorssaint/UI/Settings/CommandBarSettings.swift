@@ -1,0 +1,459 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+import AppKit
+import SwiftUI
+
+struct CommandBarSettings: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var service = CommandBarService.shared
+    @AppStorage(DefaultsKey.commandBarShortcutEnabled) private var shortcutEnabled = false
+    @AppStorage(DefaultsKey.commandBarDisabledSources) private var disabledSources = ""
+    @AppStorage(DefaultsKey.commandBarAliases) private var aliasesRaw = ""
+    @AppStorage(DefaultsKey.commandBarPins) private var pinsRaw = ""
+    @AppStorage(DefaultsKey.commandBarHidden) private var hiddenRaw = ""
+    @AppStorage(DefaultsKey.commandBarLinks) private var linksData = Data()
+    @AppStorage(DefaultsKey.commandBarRowShortcuts) private var rowShortcutsRaw = ""
+    @State private var editing: CommandBarLink?
+
+    private var text: CommandBarFeatureStrings { FeatureStrings.commandBar(l10n.language) }
+    /// The snippet library already says "add", "save", "delete" and "name" in
+    /// every language; saying them twice would only mean two things to keep.
+    private var common: SnippetFeatureStrings { FeatureStrings.snippets(l10n.language) }
+    private var editLabel: String { FeatureStrings.screenshot(l10n.language).editButton }
+
+    /// The examples do double duty: they say what the bar can do, which no
+    /// list of toggles ever manages to.
+    private let examples = ["100 km to mi", "2+2*3", "brightness 40", "fire", "battery"]
+
+    var body: some View {
+        Form {
+            Section {
+                Button {
+                    CommandBarService.shared.show()
+                } label: {
+                    Label(text.openButton, systemImage: "command")
+                }
+                Text(text.settingsCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Label(text.privacyNote, systemImage: "lock.laptopcomputer")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Text(text.tryTheseLabel)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                    ForEach(examples, id: \.self) { example in
+                        Text(example)
+                            .font(.system(size: 10.5, design: .rounded))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color.primary.opacity(0.06)))
+                    }
+                }
+                Toggle(l10n.s.quickToolShortcutToggle, isOn: $shortcutEnabled)
+                    .onChange(of: shortcutEnabled) { _, _ in
+                        CommandBarService.shared.syncWithPreferences()
+                    }
+                ShortcutPreferenceRow(role: .commandBar, isEnabled: shortcutEnabled) {
+                    CommandBarService.shared.syncWithPreferences()
+                }
+                if shortcutEnabled, service.shortcutRegistrationFailed {
+                    Text(l10n.s.shortcutUnavailable)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            } header: {
+                Text(text.pageTitle)
+            }
+
+            Section {
+                ForEach(CommandBarSource.allCases) { source in
+                    Toggle(isOn: binding(for: source)) {
+                        Label(title(for: source), systemImage: source.symbolName)
+                    }
+                    .disabled(source.isAlwaysOn)
+                }
+            } header: {
+                Text(text.sourcesTitle)
+            } footer: {
+                Text(text.sourcesCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                if links.isEmpty {
+                    Text(text.linksEmpty)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(links) { link in
+                    HStack(spacing: 8) {
+                        Image(systemName: link.kind.symbolName)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.accentColor)
+                            .frame(width: 16)
+                        Text(link.name)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        Text(link.destination)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer()
+                        Button(editLabel) { editing = link }
+                            .buttonStyle(.bordered)
+                            .controlSize(.mini)
+                        Button(text.removeButton) { removeLink(link) }
+                            .buttonStyle(.bordered)
+                            .controlSize(.mini)
+                    }
+                }
+                Button {
+                    editing = CommandBarLink()
+                } label: {
+                    Label(common.addButton, systemImage: "plus")
+                }
+            } header: {
+                Text(text.linksTitle)
+            }
+
+            Section {
+                if boundRows.isEmpty {
+                    Text(text.rowShortcutsEmpty)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(boundRows, id: \.key) { entry in
+                    HStack {
+                        Text(entry.alias)
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Color.accentColor)
+                        Text(entry.title)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        Spacer()
+                        // A combination another app already holds never fires,
+                        // and a row showing a dead key is worse than no key.
+                        if service.refusedRowShortcutKeys.contains(entry.key) {
+                            Text(l10n.s.shortcutUnavailable)
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                        Button(text.removeButton) { removeRowShortcut(entry.key) }
+                            .buttonStyle(.bordered)
+                            .controlSize(.mini)
+                    }
+                }
+            } header: {
+                Text(text.rowShortcutsTitle)
+            }
+
+            Section {
+                if named.isEmpty {
+                    Text(text.namedEmpty)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(named, id: \.key) { entry in
+                    HStack {
+                        Text(entry.alias)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Color.accentColor)
+                        Text(entry.title)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        Spacer()
+                        Button(text.removeButton) { removeAlias(entry.key) }
+                            .buttonStyle(.bordered)
+                            .controlSize(.mini)
+                    }
+                }
+            } header: {
+                Text(text.namedTitle)
+            }
+
+            Section {
+                if pinned.isEmpty {
+                    Text(text.pinnedEmpty)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(pinned, id: \.key) { entry in
+                    HStack {
+                        Text(entry.title)
+                            .font(.system(size: 12))
+                            .lineLimit(1)
+                        Spacer()
+                        Button(text.removeButton) { removePin(entry.key) }
+                            .buttonStyle(.bordered)
+                            .controlSize(.mini)
+                    }
+                }
+            } header: {
+                Text(text.pinnedTitle)
+            }
+
+            Section {
+                if hidden.isEmpty {
+                    Text(text.hiddenEmpty)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(hidden, id: \.key) { entry in
+                    HStack {
+                        Text(entry.title)
+                            .font(.system(size: 12))
+                            .lineLimit(1)
+                        Spacer()
+                        Button(text.removeButton) { unhide(entry.key) }
+                            .buttonStyle(.bordered)
+                            .controlSize(.mini)
+                    }
+                }
+                Button(text.forgetAllButton) {
+                    UserDefaults.standard.removeObject(forKey: DefaultsKey.commandBarUsage)
+                }
+            } header: {
+                Text(text.hiddenTitle)
+            }
+        }
+        .formStyle(.grouped)
+        .sheet(item: $editing) { link in
+            CommandBarLinkEditor(draft: link, text: text, common: common) { saved in
+                save(saved)
+                editing = nil
+            } cancel: {
+                editing = nil
+            }
+        }
+    }
+
+    // MARK: - The places the person saved
+
+    private var links: [CommandBarLink] { CommandBarLinks.decode(linksData) }
+
+    private var boundRows: [NamedRow] {
+        CommandBarRowShortcuts.decode(rowShortcutsRaw)
+            .map { NamedRow(key: $0.key, title: title(forKey: $0.key), alias: $0.value.displayString) }
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+
+    private func removeRowShortcut(_ key: String) {
+        var next = CommandBarRowShortcuts.decode(rowShortcutsRaw)
+        next.removeValue(forKey: key)
+        rowShortcutsRaw = CommandBarRowShortcuts.encode(next) ?? ""
+        CommandBarService.shared.syncWithPreferences()
+    }
+
+    private func save(_ link: CommandBarLink) {
+        var next = links
+        if let index = next.firstIndex(where: { $0.id == link.id }) {
+            next[index] = link
+        } else {
+            next.append(link)
+        }
+        linksData = CommandBarLinks.encode(next) ?? Data()
+    }
+
+    private func removeLink(_ link: CommandBarLink) {
+        linksData = CommandBarLinks.encode(links.filter { $0.id != link.id }) ?? Data()
+    }
+
+    // MARK: - The lists, resolved to something readable
+
+    private struct NamedRow {
+        let key: String
+        let title: String
+        let alias: String
+    }
+
+    /// A key whose row is not in the catalog right now (an app that was
+    /// removed, a feature switched off in the hub) still shows, by its key, so
+    /// nothing the person set can become invisible and unremovable.
+    private func title(forKey key: String) -> String {
+        service.entryTitle(forStableKey: key) ?? key
+    }
+
+    private var named: [NamedRow] {
+        CommandBarPreferences.decodeAliases(aliasesRaw)
+            .map { NamedRow(key: $0.key, title: title(forKey: $0.key), alias: $0.value) }
+            .sorted { $0.alias.localizedStandardCompare($1.alias) == .orderedAscending }
+    }
+
+    private var pinned: [NamedRow] {
+        CommandBarPreferences.decodePins(pinsRaw)
+            .map { NamedRow(key: $0, title: title(forKey: $0), alias: "") }
+    }
+
+    private var hidden: [NamedRow] {
+        CommandBarPreferences.decodeHidden(hiddenRaw)
+            .sorted()
+            .map { NamedRow(key: $0, title: title(forKey: $0), alias: "") }
+    }
+
+    private func binding(for source: CommandBarSource) -> Binding<Bool> {
+        Binding {
+            CommandBarPreferences.isEnabled(source, disabledRaw: disabledSources)
+        } set: { isOn in
+            var current = CommandBarPreferences.disabledSources(from: disabledSources)
+            if isOn { current.remove(source) } else { current.insert(source) }
+            disabledSources = CommandBarPreferences.storageValue(for: current)
+        }
+    }
+
+    private func title(for source: CommandBarSource) -> String {
+        switch source {
+        case .actions: return text.sourceActions
+        case .apps: return text.sourceApps
+        case .menus: return text.sourceMenus
+        case .windows: return text.sourceWindows
+        case .quitApps: return text.sourceQuitApps
+        case .settingsPages: return text.sourceSettingsPages
+        case .snippets: return text.sourceSnippets
+        case .clipboard: return text.sourceClipboard
+        case .emoji: return text.sourceEmoji
+        case .folders: return text.sourceFolders
+        case .answers: return text.sourceAnswers
+        case .calculator: return text.sourceCalculator
+        case .selection: return text.sourceSelection
+        case .links: return text.linksTitle
+        }
+    }
+
+    private func removeAlias(_ key: String) {
+        var aliases = CommandBarPreferences.decodeAliases(aliasesRaw)
+        aliases.removeValue(forKey: key)
+        aliasesRaw = CommandBarPreferences.encodeAliases(aliases) ?? ""
+    }
+
+    private func removePin(_ key: String) {
+        pinsRaw = CommandBarPreferences.encodePins(
+            CommandBarPreferences.decodePins(pinsRaw).filter { $0 != key })
+    }
+
+    private func unhide(_ key: String) {
+        var keys = CommandBarPreferences.decodeHidden(hiddenRaw)
+        keys.remove(key)
+        hiddenRaw = CommandBarPreferences.encodeHidden(keys)
+    }
+}
+
+/// Saving a place: a name to call it by, where it goes, and the words that
+/// get filled in when it opens. Deliberately three fields and a picker — the
+/// person has to look at it once and know what to do.
+private struct CommandBarLinkEditor: View {
+    @State var draft: CommandBarLink
+    let text: CommandBarFeatureStrings
+    let common: SnippetFeatureStrings
+    let save: (CommandBarLink) -> Void
+    let cancel: () -> Void
+
+    @ObservedObject private var l10n = L10n.shared
+
+    private var canSave: Bool {
+        !draft.name.trimmingCharacters(in: .whitespaces).isEmpty
+            && !draft.destination.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(text.linksTitle)
+                .font(.system(size: 15, weight: .semibold))
+
+            Picker("", selection: $draft.kind) {
+                Text(text.linkKindLink).tag(CommandBarLink.Kind.link)
+                Text(text.linkKindPlace).tag(CommandBarLink.Kind.place)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(common.nameLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                TextField("", text: $draft.name)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(text.linkDestinationLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    TextField("", text: $draft.destination)
+                        .textFieldStyle(.roundedBorder)
+                    if draft.kind == .place {
+                        // Typing a path by hand is how people get it wrong.
+                        Button(FeatureStrings.radialMenu(l10n.language).chooseButton) { choosePlace() }
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(text.linkPlaceholdersHint)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    ForEach(CommandBarLinkPlaceholder.allCases) { placeholder in
+                        Button {
+                            draft.destination += placeholder.token
+                        } label: {
+                            VStack(spacing: 1) {
+                                Text(placeholder.token)
+                                    .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                                Text(meaning(of: placeholder))
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(Color.primary.opacity(0.06)))
+                        }
+                        .buttonStyle(.plain)
+                        .help(meaning(of: placeholder))
+                    }
+                }
+            }
+
+            HStack {
+                Spacer()
+                Button(l10n.s.uninstallerCancel, action: cancel)
+                Button(common.saveButton) {
+                    var clean = draft
+                    clean.name = clean.name.trimmingCharacters(in: .whitespaces)
+                    clean.destination = clean.destination.trimmingCharacters(in: .whitespaces)
+                    save(clean)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!canSave)
+            }
+        }
+        .padding(20)
+        .frame(width: 440)
+    }
+
+    private func meaning(of placeholder: CommandBarLinkPlaceholder) -> String {
+        switch placeholder {
+        case .query: return text.placeholderQuery
+        case .clipboard: return text.placeholderClipboard
+        case .selection: return text.placeholderSelection
+        case .date: return text.placeholderDate
+        }
+    }
+
+    private func choosePlace() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        draft.destination = url.path
+        if draft.name.isEmpty { draft.name = url.lastPathComponent }
+    }
+}

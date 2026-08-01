@@ -43,6 +43,12 @@ final class QuickTogglesService: ObservableObject {
         finderFlag(QuickTogglesSupport.showAllFilesKey, default: false)
     }
 
+    /// Current system appearance, read from the same WindowServer switch the
+    /// toggle flips; nil when the symbol is unavailable.
+    var systemAppearanceIsDark: Bool? {
+        Self.appearanceTheme?.get()
+    }
+
     var desktopIconsShown: Bool {
         finderFlag(QuickTogglesSupport.createDesktopKey, default: true)
     }
@@ -83,6 +89,12 @@ final class QuickTogglesService: ObservableObject {
         alert.addButton(withTitle: L10n.shared.s.uninstallerCancel)
         NSApp.activate(ignoringOtherApps: true)
         guard alert.runModal() == .alertFirstButtonReturn else { return }
+        emptyTrashConfirmed()
+    }
+
+    /// The variant for surfaces that already asked in their own words (the
+    /// command bar confirms inline); emptying is still permanent.
+    func emptyTrashConfirmed() {
         runAppleScript(.emptyTrash,
                        target: .finder,
                        source: QuickTogglesSupport.emptyTrashSource)
@@ -122,7 +134,11 @@ final class QuickTogglesService: ObservableObject {
                 do {
                     try NSWorkspace.shared.unmountAndEjectDevice(at: url)
                 } catch {
-                    failures += 1
+                    // A drive that carries more than one volume leaves whole on
+                    // the first eject, so the ones still on the list are gone
+                    // before their turn comes and refuse an eject of their own.
+                    // Only a volume that is still mounted really failed.
+                    if Self.isMounted(url) { failures += 1 }
                 }
             }
             self.finishRun(.ejectDisks, state: failures == 0 ? nil : .failed)
@@ -301,17 +317,34 @@ final class QuickTogglesService: ObservableObject {
         let keys: Set<URLResourceKey> = [
             .volumeIsInternalKey, .volumeIsRemovableKey,
             .volumeIsEjectableKey, .volumeIsLocalKey,
+            .volumeIsRootFileSystemKey,
         ]
         guard let urls = FileManager.default.mountedVolumeURLs(
             includingResourceValuesForKeys: Array(keys),
             options: [.skipHiddenVolumes]) else { return [] }
         return urls.filter { url in
             guard let values = try? url.resourceValues(forKeys: keys) else { return false }
+            // A volume with no bus of its own, a mounted image for one, states
+            // no internal flag at all, so only a stated internal bus counts as
+            // internal. The local flag stays strict: a volume that will not say
+            // it is local is left alone. The volume the Mac started from falls
+            // back to its mount point, so a missing flag cannot expose it.
             return QuickTogglesSupport.shouldOfferEject(isInternal: values.volumeIsInternal ?? false,
                                                         isRemovable: values.volumeIsRemovable ?? false,
                                                         isEjectable: values.volumeIsEjectable ?? false,
-                                                        isLocal: values.volumeIsLocal ?? false)
+                                                        isLocal: values.volumeIsLocal ?? false,
+                                                        isRootFileSystem: values.volumeIsRootFileSystem
+                                                            ?? (url.path == "/"))
         }
+    }
+
+    /// Whether a volume is still on the mount table, asked only after an eject
+    /// reported a problem. A list we cannot read answers yes, so a real failure
+    /// is never swallowed.
+    private static func isMounted(_ url: URL) -> Bool {
+        guard let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: nil,
+                                                               options: []) else { return true }
+        return urls.contains { $0.path == url.path }
     }
 
     /// SACLockScreenImmediate from the login framework, resolved once and

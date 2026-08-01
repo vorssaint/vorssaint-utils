@@ -100,6 +100,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/ScreenshotStrings.swift \
         Sources/Vorssaint/Core/CameraPreviewStrings.swift \
         Sources/Vorssaint/Core/ScratchpadStrings.swift \
+        Sources/Vorssaint/Core/CommandBarStrings.swift \
         Sources/Vorssaint/Core/RadialMenuStrings.swift \
         Sources/Vorssaint/Core/MenuBarAppearanceStrings.swift \
         Sources/Vorssaint/Core/AppAppearance.swift \
@@ -122,6 +123,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/GeneralPasteboardAccess.swift \
         Sources/Vorssaint/Services/Audio/MixerRoutingSupport.swift \
         Sources/Vorssaint/Services/Audio/BoostLimiter.swift \
+        Sources/Vorssaint/Services/Audio/MixerRender.swift \
         Sources/Vorssaint/Services/DockPreview/DockPreviewSupport.swift \
         Sources/Vorssaint/Services/Homebrew/HomebrewSupport.swift \
         Sources/Vorssaint/Services/AppUpdates/AppUpdatesSupport.swift \
@@ -144,6 +146,14 @@ if (( TEST )); then
         Sources/Vorssaint/Core/MouseButtonStrings.swift \
         Sources/Vorssaint/Core/MouseExceptionStrings.swift \
         Sources/Vorssaint/Services/QuickTools/QuickToolsSupport.swift \
+        Sources/Vorssaint/Services/CommandBar/CommandBarSupport.swift \
+        Sources/Vorssaint/Services/CommandBar/CommandBarPreferences.swift \
+        Sources/Vorssaint/Services/CommandBar/CommandBarMath.swift \
+        Sources/Vorssaint/Services/CommandBar/CommandBarUnits.swift \
+        Sources/Vorssaint/Services/CommandBar/CommandBarEmoji.swift \
+        Sources/Vorssaint/Services/CommandBar/CommandBarLinks.swift \
+        Sources/Vorssaint/Services/CommandBar/CommandBarDates.swift \
+        Sources/Vorssaint/Services/CommandBar/CommandBarRowShortcuts.swift \
         Sources/Vorssaint/Services/QuickTools/MicMuteSupport.swift \
         Sources/Vorssaint/Services/QuickTools/QuickTogglesSupport.swift \
         Sources/Vorssaint/Services/QuickTools/ScreenshotSupport.swift \
@@ -155,6 +165,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Switcher/SwitcherModels.swift \
         Sources/Vorssaint/Services/Switcher/SwitcherSupport.swift \
         Sources/Vorssaint/Services/Switcher/SpaceHopSupport.swift \
+        Sources/Vorssaint/Services/Switcher/WindowUseOrder.swift \
         Sources/Vorssaint/Services/Metrics/MetricFormat.swift \
         Sources/Vorssaint/Services/KeepAwakeAutomationSupport.swift \
         Sources/Vorssaint/Services/SudoersSupport.swift \
@@ -165,6 +176,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Metrics/MonitorSamplingPolicy.swift \
         Sources/Vorssaint/Services/Metrics/MaxCapacityProbe.swift \
         Sources/Vorssaint/Services/Metrics/TemperatureSensorSelector.swift \
+        Sources/Vorssaint/Services/Metrics/SustainedAlertGate.swift \
         Sources/Vorssaint/Services/WindowLayout/WindowLayoutSupport.swift \
         Sources/Vorssaint/Services/WindowLayout/WindowGestureSupport.swift \
         Sources/Vorssaint/Services/CleaningMode/CleaningUnlockCounter.swift \
@@ -218,9 +230,9 @@ fi
 printf 'APPL????' > "$STAGE/Contents/PkgInfo"
 cp build/AppIcon.icns "$STAGE/Contents/Resources/AppIcon.icns"
 cp build/MenuBarIcon.png build/MenuBarIcon@2x.png build/BrandMark.png "$STAGE/Contents/Resources/"
-if [[ -f Resources/Gifs/dockPreview.gif ]]; then
+if [[ -d Resources/Gifs ]]; then
     mkdir -p "$STAGE/Contents/Resources/Gifs"
-    cp Resources/Gifs/dockPreview.gif "$STAGE/Contents/Resources/Gifs/"
+    cp Resources/Gifs/*.gif "$STAGE/Contents/Resources/Gifs/"
 fi
 if [[ -d Resources/Images ]]; then
     mkdir -p "$STAGE/Contents/Resources/Images"

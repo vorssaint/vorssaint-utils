@@ -61,9 +61,14 @@ enum SelfUninstall {
     /// `suspend`/`deactivate` is idempotent, so calling it when a service is
     /// already off is a no-op.
     private static func suspendInputInterceptors() {
+        // Deactivating Cleaning Mode re-syncs the services it paused back to
+        // their preferences, so it has to happen before the suspends below,
+        // or it would re-arm the very taps this teardown just stopped.
+        CleaningModeManager.shared.deactivate()
         ScrollInverter.shared.suspend()
         SmoothScrollService.shared.suspend()
         MouseNavigationService.shared.suspend()
+        MouseButtonShortcutService.shared.suspend()
         WindowMaximizer.shared.stop()
         WindowLayoutService.shared.suspend()
         AppSwitcher.shared.suspend()
@@ -71,6 +76,9 @@ enum SelfUninstall {
         AutoQuitService.shared.suspend()
         FinderCutPaste.shared.suspend()
         KeyboardDebounceService.shared.suspend()
+        // Also takes the Caps Lock mapping back out, synchronously, so the
+        // key is never left remapped behind a tap that is about to die.
+        SuperKeyService.shared.suspend()
         DockClickService.shared.suspend()
         MiddleClickService.shared.suspend()
         PastePlainService.shared.suspend()
@@ -81,11 +89,11 @@ enum SelfUninstall {
         CameraPreviewService.shared.suspend()
         RadialMenuService.shared.suspend()
         ScratchpadService.shared.suspend()
+        CommandBarService.shared.suspend()
         // Leaving the mic cut after the app is gone would strand the user
         // with a silent input and no indicator anywhere.
         MicMuteService.shared.unmuteForTeardown()
         MicMuteService.shared.suspend()
-        CleaningModeManager.shared.deactivate()
     }
 
     private static func detachFromSystem() {

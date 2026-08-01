@@ -48,9 +48,13 @@ final class AutoQuitService: ObservableObject {
     private var hadWindows: [pid_t: Bool] = [:]
     private var launchToken: NSObjectProtocol?
     private var terminateToken: NSObjectProtocol?
+    private var activateToken: NSObjectProtocol?
     private var closeRequestTap: CFMachPort?
     private var closeRequestRunLoopSource: CFRunLoopSource?
     private var recentCloseButtonRequests: [pid_t: Date] = [:]
+    private var lastScheduledChecks: [pid_t: Date] = [:]
+    /// Apps whose attach is waiting on a retry, so a second round never starts.
+    private var retryingApps = Set<pid_t>()
     private var minimizedWindows: [pid_t: Set<CGWindowID>] = [:]
     private var appsWithUnresolvedMinimizedWindows = Set<pid_t>()
 
@@ -89,6 +93,16 @@ final class AutoQuitService: ObservableObject {
             guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
             self?.detach(pid: app.processIdentifier)
         }
+        // Some apps start as background helpers and only take a Dock icon later,
+        // when they finally show a window. They are not "regular" at launch, so
+        // the notification above skips them for good and closing their window
+        // does nothing. Coming to the front is the moment they are certainly a
+        // normal app, and attaching again costs a dictionary lookup.
+        activateToken = center.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
+                                           object: nil, queue: .main) { [weak self] note in
+            guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
+            self?.attach(app)
+        }
 
         for app in NSWorkspace.shared.runningApplications {
             attach(app)
@@ -107,14 +121,18 @@ final class AutoQuitService: ObservableObject {
         let center = NSWorkspace.shared.notificationCenter
         if let launchToken { center.removeObserver(launchToken) }
         if let terminateToken { center.removeObserver(terminateToken) }
+        if let activateToken { center.removeObserver(activateToken) }
         launchToken = nil
         terminateToken = nil
+        activateToken = nil
         stopCloseRequestMonitor()
         // Snapshot the keys — detach(pid:) mutates the dictionary.
         for pid in Array(observers.keys) { detach(pid: pid) }
         observers.removeAll()
         hadWindows.removeAll()
         recentCloseButtonRequests.removeAll()
+        lastScheduledChecks.removeAll()
+        retryingApps.removeAll()
         minimizedWindows.removeAll()
         appsWithUnresolvedMinimizedWindows.removeAll()
     }
@@ -129,6 +147,10 @@ final class AutoQuitService: ObservableObject {
         guard running, app.activationPolicy == .regular else { return }
         let pid = app.processIdentifier
         guard pid != getpid(), observers[pid] == nil else { return }
+        // An app that never answers is retried on a growing delay below. Since
+        // switching to an app also brings us here, a fresh round would start
+        // every time the user came back to it; one round at a time is enough.
+        if attempt == 0, retryingApps.contains(pid) { return }
 
         let appElement = AXUIElementCreateApplication(pid)
         // A launching app that is busy (say, blocked on a Keychain prompt)
@@ -139,7 +161,8 @@ final class AutoQuitService: ObservableObject {
         AXUIElementSetMessagingTimeout(appElement, 0.35)
         var role: CFTypeRef?
         if AXUIElementCopyAttributeValue(appElement, kAXRoleAttribute as CFString, &role) == .cannotComplete {
-            guard attempt < 6 else { return }
+            guard attempt < 6 else { retryingApps.remove(pid); return }
+            retryingApps.insert(pid)
             let delay = 5.0 * pow(2.0, Double(attempt))
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 guard let self, self.running, !app.isTerminated else { return }
@@ -147,6 +170,7 @@ final class AutoQuitService: ObservableObject {
             }
             return
         }
+        retryingApps.remove(pid)
 
         var observerRef: AXObserver?
         guard AXObserverCreate(pid, autoQuitAXCallback, &observerRef) == .success,
@@ -170,6 +194,8 @@ final class AutoQuitService: ObservableObject {
         observers[pid] = nil
         hadWindows[pid] = nil
         recentCloseButtonRequests[pid] = nil
+        lastScheduledChecks[pid] = nil
+        retryingApps.remove(pid)
         minimizedWindows[pid] = nil
         appsWithUnresolvedMinimizedWindows.remove(pid)
     }
@@ -200,7 +226,7 @@ final class AutoQuitService: ObservableObject {
         let event = Self.autoQuitEvent(for: notification)
         if AutoQuitSupport.shouldScheduleWindowCheck(for: event,
                                                      hasRecentCloseRequest: hasRecentCloseButtonRequest(pid: pid)) {
-            scheduleWindowCheck(pid: pid)
+            scheduleWindowChecks(pid: pid)
         }
     }
 
@@ -232,9 +258,25 @@ final class AutoQuitService: ObservableObject {
         return .other
     }
 
-    private func scheduleWindowCheck(pid: pid_t) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-            self?.checkWindows(pid: pid)
+    /// When to look at an app after something closed. A window that just went
+    /// away is still on screen while it fades out (measured on macOS 27: about
+    /// a quarter of a second), and a look that finds a window simply stops
+    /// there. A single look was a coin flip against that fade, and losing it
+    /// meant the app was never asked to quit at all. Two more looks settle it,
+    /// with room for slower machines.
+    private static let closeCheckDelays: [TimeInterval] = [0.35, 1.0, 2.2]
+
+    private func scheduleWindowChecks(pid: pid_t) {
+        // Closing several windows at once (or a click plus the window going
+        // away right after it) would otherwise pile up a round of checks per
+        // window. One round covers them all.
+        let now = Date()
+        if let last = lastScheduledChecks[pid], now.timeIntervalSince(last) < 0.25 { return }
+        lastScheduledChecks[pid] = now
+        for delay in Self.closeCheckDelays {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.checkWindows(pid: pid)
+            }
         }
     }
 
@@ -242,8 +284,7 @@ final class AutoQuitService: ObservableObject {
         guard running, hadWindows[pid] == true,
               let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else { return }
         let appIsExcepted = app.bundleIdentifier.map { exceptions.contains($0) } ?? false
-        let recentClose = hasRecentCloseButtonRequest(pid: pid)
-        let hiddenByCloseRequest = app.isHidden && recentClose
+        let hiddenByCloseRequest = app.isHidden && hasRecentCloseButtonRequest(pid: pid)
 
         // Cheap early-outs before any synchronous AX IPC: excepted apps and
         // hidden apps without close intent can never quit below.
@@ -255,14 +296,7 @@ final class AutoQuitService: ObservableObject {
         // (and with it every event tap) for the 6 second default timeout.
         AXUIElementSetMessagingTimeout(appElement, 0.35)
         let hasMinimizedWindow = hasKnownMinimizedWindow(pid: pid, appElement: appElement)
-        // After an explicit close-button click, ignore off-screen titled windows
-        // for ALL apps, not just hidden ones. Chromium/Electron apps especially
-        // keep a titled helper/background window parked off-screen (or on another
-        // Space) after the visible window closes; counting it kept the app alive
-        // forever. Clicking the close button is the clear "I'm done here" signal.
-        let hasVisibleWindow = hasUserFacingWindow(pid: pid,
-                                                   appElement: appElement,
-                                                   includeOffscreenTitled: !recentClose)
+        let hasVisibleWindow = hasUserFacingWindow(pid: pid, appElement: appElement)
         guard AutoQuitSupport.shouldQuitAfterWindowCheck(hadWindows: true,
                                                          appIsTerminated: false,
                                                          appIsExcepted: appIsExcepted,
@@ -283,12 +317,9 @@ final class AutoQuitService: ObservableObject {
             return
         }
 
-        let stillRecentClose = hasRecentCloseButtonRequest(pid: pid)
-        let stillHiddenByCloseRequest = app.isHidden && stillRecentClose
+        let stillHiddenByCloseRequest = app.isHidden && hasRecentCloseButtonRequest(pid: pid)
         let stillHasKnownMinimizedWindow = hasKnownMinimizedWindow(pid: pid, appElement: appElement)
-        let stillHasUserFacingWindow = hasUserFacingWindow(pid: pid,
-                                                           appElement: appElement,
-                                                           includeOffscreenTitled: !stillRecentClose)
+        let stillHasUserFacingWindow = hasUserFacingWindow(pid: pid, appElement: appElement)
         guard AutoQuitSupport.shouldQuitAfterWindowCheck(hadWindows: true,
                                                          appIsTerminated: app.isTerminated,
                                                          appIsExcepted: appIsExcepted,
@@ -392,26 +423,29 @@ final class AutoQuitService: ObservableObject {
         return CFBooleanGetValue((value as! CFBoolean))
     }
 
-    private func hasUserFacingWindow(pid: pid_t,
-                                     appElement: AXUIElement,
-                                     includeOffscreenTitled: Bool = true) -> Bool {
+    private func hasUserFacingWindow(pid: pid_t, appElement: AXUIElement) -> Bool {
         let axWindows = standardWindows(of: appElement)
         if axWindows.contains(where: { Self.boolAttribute($0, kAXMinimizedAttribute as String) }) {
             return true
         }
-        if let hasWindowServerWindow = hasWindowServerUserWindow(pid: pid,
-                                                                 includeOffscreenTitled: includeOffscreenTitled) {
-            if !includeOffscreenTitled {
-                return hasWindowServerWindow
-            }
+        if let hasWindowServerWindow = hasWindowServerUserWindow(pid: pid) {
             return hasWindowServerWindow
         }
         return !axWindows.isEmpty
     }
 
-    private func hasWindowServerUserWindow(pid: pid_t, includeOffscreenTitled: Bool = true) -> Bool? {
+    /// Whether the window server still knows a window of this app that the user
+    /// has. Apps that keep running with nothing to show are the whole point of
+    /// the feature, and plenty of them do not destroy their window on close:
+    /// they hide it, which leaves the app with no windows for Accessibility but
+    /// a window record here. Those do not count. A window sitting on another
+    /// Space does.
+    private func hasWindowServerUserWindow(pid: pid_t) -> Bool? {
         guard let info = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements],
                                                     kCGNullWindowID) as? [[String: Any]] else { return nil }
+
+        var visibleSpaces: Set<UInt64>?
+        var askedForVisibleSpaces = false
 
         for window in info {
             guard let ownerPID = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
@@ -423,13 +457,25 @@ final class AutoQuitService: ObservableObject {
                   let width = (bounds["Width"] as? NSNumber)?.doubleValue,
                   let height = (bounds["Height"] as? NSNumber)?.doubleValue,
                   width >= 80, height >= 80 else { continue }
-            let title = window[kCGWindowName as String] as? String ?? ""
             let isOnScreen = (window[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue
                 ?? (window[kCGWindowIsOnscreen as String] as? Bool)
                 ?? false
-            if !isOnScreen && title.isEmpty { continue }
-            if !isOnScreen && !includeOffscreenTitled { continue }
-            return true
+            if isOnScreen { return true }
+
+            guard let windowID = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value else { continue }
+            // Asked once per check, and only when there is an off-screen window
+            // to judge: the common case never pays for it.
+            if !askedForVisibleSpaces {
+                visibleSpaces = SpaceWindowBridge.topology()?.visibleSpaces
+                askedForVisibleSpaces = true
+            }
+            let title = window[kCGWindowName as String] as? String ?? ""
+            if AutoQuitSupport.offscreenWindowKeepsAppAlive(
+                windowSpaces: SpaceWindowBridge.spaces(of: CGWindowID(windowID)),
+                visibleSpaces: visibleSpaces,
+                hasTitle: !title.isEmpty) {
+                return true
+            }
         }
         return false
     }
@@ -523,10 +569,10 @@ final class AutoQuitService: ObservableObject {
               observers[pid] != nil else { return }
         // Cmd+W may close only a tab, so it is a weak signal: re-check windows
         // shortly (a genuinely closed last window fails the check and quits),
-        // but never unlock the hidden-app quit path or the off-screen-window
-        // filter — otherwise closing a tab and hiding the app would terminate
-        // an app whose window (with all its tabs) still exists.
-        scheduleCloseRequestChecks(pid: pid)
+        // but never unlock the hidden-app quit path — otherwise closing a tab
+        // and hiding the app would terminate an app whose window (with all its
+        // tabs) still exists.
+        scheduleWindowChecks(pid: pid)
     }
 
     private static func typedCharacter(of event: CGEvent) -> String? {
@@ -541,7 +587,12 @@ final class AutoQuitService: ObservableObject {
 
     private func markCloseButtonRequest(pid: pid_t) {
         recentCloseButtonRequests[pid] = Date()
-        scheduleCloseRequestChecks(pid: pid)
+        // The click landed on the close button of a real window of this app,
+        // which is exactly the proof of "this app had a window" the quit path
+        // asks for. Without it an app whose window we never heard about
+        // through Accessibility could never be quit.
+        hadWindows[pid] = true
+        scheduleWindowChecks(pid: pid)
     }
 
     func recordProgrammaticCloseRequest(pid: pid_t) {
@@ -590,14 +641,6 @@ final class AutoQuitService: ObservableObject {
         let windows = standardWindows(of: appElement)
         recordMinimizedWindows(pid: pid, windows: windows)
         return minimizedWindows[pid]?.isEmpty == false || appsWithUnresolvedMinimizedWindows.contains(pid)
-    }
-
-    private func scheduleCloseRequestChecks(pid: pid_t) {
-        for delay in [0.35, 1.0] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                self?.checkWindows(pid: pid)
-            }
-        }
     }
 
     private func closeButtonPID(at point: CGPoint, candidate: TrafficLightCandidate) -> pid_t? {

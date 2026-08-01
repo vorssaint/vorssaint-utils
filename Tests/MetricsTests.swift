@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import CoreAudio
 import CoreGraphics
 import Carbon.HIToolbox
 import Darwin
@@ -912,6 +913,47 @@ struct MetricsTests {
         )
         expectClose(genericCPU ?? -1, 51.6, "generic CPU sensor selection preserves previous hottest behavior")
 
+        // MARK: Hot CPU alert
+
+        var spikeGate = SustainedAlertGate()
+        expect(!spikeGate.shouldAlert(reading: 99, threshold: 90, readAt: 100),
+               "a single hot reading is not a hot CPU yet")
+        expect(!spikeGate.shouldAlert(reading: 99, threshold: 90, readAt: 108),
+               "a second hot reading inside the window still waits")
+        expect(spikeGate.shouldAlert(reading: 99, threshold: 90, readAt: 112),
+               "a temperature that holds past the window alerts")
+
+        var carriedGate = SustainedAlertGate()
+        expect(!carriedGate.shouldAlert(reading: 101, threshold: 90, readAt: 200),
+               "the reading behind a spike starts the window")
+        var carriedAlerts = 0
+        for _ in 0..<60 {
+            if carriedGate.shouldAlert(reading: 101, threshold: 90, readAt: 200) {
+                carriedAlerts += 1
+            }
+        }
+        expect(carriedAlerts == 0,
+               "the same reading served again never ages into an alert on its own")
+
+        var coolingGate = SustainedAlertGate()
+        _ = coolingGate.shouldAlert(reading: 99, threshold: 90, readAt: 300)
+        expect(!coolingGate.shouldAlert(reading: 52, threshold: 90, readAt: 315),
+               "a reading back under the limit does not alert")
+        expect(!coolingGate.shouldAlert(reading: 99, threshold: 90, readAt: 330),
+               "cooling down restarts the window instead of resuming the old one")
+        expect(coolingGate.shouldAlert(reading: 99, threshold: 90, readAt: 345),
+               "the restarted window alerts on its own merits")
+
+        var quietGate = SustainedAlertGate()
+        expect(!quietGate.shouldAlert(reading: 89, threshold: 90, readAt: 400),
+               "a reading under the limit is not hot")
+        expect(!quietGate.shouldAlert(reading: 89, threshold: 90, readAt: 500),
+               "staying under the limit never alerts")
+        expect(!quietGate.shouldAlert(reading: nil, threshold: 90, readAt: 600),
+               "a missing temperature does not alert")
+        expect(!quietGate.shouldAlert(reading: 99, threshold: 90, readAt: nil),
+               "a temperature with no reading time does not alert")
+
         // MARK: Uptime formatting
 
         expectEqual(MetricFormat.uptime(0), "0min", "uptime zero")
@@ -1105,6 +1147,24 @@ struct MetricsTests {
             Defaults.migrateScreenshotOpenEditorDirectly(in: migrationDefaults)
             expect(migrationDefaults.object(forKey: DefaultsKey.screenshotDefaultAction) == nil,
                    "a setup that never used direct-to-editor keeps asking after capture")
+            migrationDefaults.set(false, forKey: DefaultsKey.switcherShowWindowlessFinder)
+            Defaults.migrateSwitcherWindowlessFinder(in: migrationDefaults)
+            expect(migrationDefaults.string(forKey: DefaultsKey.switcherWindowlessApps)
+                   == SwitcherWindowlessApps.off.rawValue
+                   && migrationDefaults.bool(forKey: DefaultsKey.switcherShowWindowlessFinder),
+                   "hiding the windowless desktop app migrates into showing no windowless app at all")
+            migrationDefaults.set(SwitcherWindowlessApps.all.rawValue,
+                                  forKey: DefaultsKey.switcherWindowlessApps)
+            Defaults.migrateSwitcherWindowlessFinder(in: migrationDefaults)
+            expect(migrationDefaults.string(forKey: DefaultsKey.switcherWindowlessApps)
+                   == SwitcherWindowlessApps.all.rawValue,
+                   "the windowless apps migration runs once and never fights a later choice")
+            migrationDefaults.removeObject(forKey: DefaultsKey.switcherShowWindowlessFinder)
+            migrationDefaults.removeObject(forKey: DefaultsKey.switcherWindowlessApps)
+            migrationDefaults.set(true, forKey: DefaultsKey.switcherShowWindowlessFinder)
+            Defaults.migrateSwitcherWindowlessFinder(in: migrationDefaults)
+            expect(migrationDefaults.object(forKey: DefaultsKey.switcherWindowlessApps) == nil,
+                   "a setup that kept the windowless desktop app is left exactly as it was")
             migrationDefaults.removePersistentDomain(forName: shortcutSuite)
         } else {
             expect(false, "test suite defaults are available")
@@ -1308,11 +1368,88 @@ struct MetricsTests {
                                                  items: [embeddedWindow]) == nil,
                "App Switcher leaves the system shortcut alone without a foreground app")
         expect(registeredDefaults[DefaultsKey.switcherShowWindowlessFinder] as? Bool == true,
-               "Finder without windows stays visible in the switcher by default")
+               "the retired windowless Finder toggle keeps its shipped value so the migration can read it")
+        expect(registeredDefaults[DefaultsKey.switcherWindowlessApps] as? String
+               == SwitcherWindowlessApps.finder.rawValue,
+               "the switcher offers the desktop app without windows, and nothing else, by default")
         expect(registeredDefaults[DefaultsKey.switcherCurrentSpaceOnly] as? Bool == false,
                "the switcher keeps showing every desktop unless the user opts out (issue #337)")
+
+        // MARK: Switcher entries for apps with no window (issue #351)
+        expect(SwitcherWindowlessApps.mode(storedValue: nil) == .finder
+               && SwitcherWindowlessApps.mode(storedValue: "") == .finder
+               && SwitcherWindowlessApps.mode(storedValue: "bogus") == .finder,
+               "an unset or unreadable windowless apps choice falls back to what the app shipped with")
+        expect(SwitcherWindowlessApps.mode(storedValue: "off") == .off
+               && SwitcherWindowlessApps.mode(storedValue: "finder") == .finder
+               && SwitcherWindowlessApps.mode(storedValue: "all") == .all,
+               "every windowless apps choice survives a round trip through preferences")
+        expect(SwitcherWindowlessApps.migrated(showsWindowlessFinder: true) == .finder
+               && SwitcherWindowlessApps.migrated(showsWindowlessFinder: false) == .off,
+               "the old windowless Finder toggle maps onto the choice that keeps its behavior")
+
+        let desktopApp = SwitcherAppCandidate(pid: 501, bundleIdentifier: Defaults.finderBundleIdentifier)
+        let plainApp = SwitcherAppCandidate(pid: 502, bundleIdentifier: "com.example.editor")
+        let otherApp = SwitcherAppCandidate(pid: 503, bundleIdentifier: "com.example.notes")
+        let windowlessCandidates = [desktopApp, plainApp, otherApp]
+        expect(SwitcherSupport.windowlessAppPIDs(mode: .off,
+                                                 candidates: windowlessCandidates,
+                                                 pidsWithWindows: [],
+                                                 pidsWithWithheldWindows: [],
+                                                 desktopAppBundleIdentifier: Defaults.finderBundleIdentifier).isEmpty,
+               "asking for no windowless apps adds none of them")
+        expect(SwitcherSupport.windowlessAppPIDs(mode: .finder,
+                                                 candidates: windowlessCandidates,
+                                                 pidsWithWindows: [],
+                                                 pidsWithWithheldWindows: [],
+                                                 desktopAppBundleIdentifier: Defaults.finderBundleIdentifier) == [501],
+               "asking for the desktop app alone leaves every other windowless app out")
+        expect(SwitcherSupport.windowlessAppPIDs(mode: .all,
+                                                 candidates: windowlessCandidates,
+                                                 pidsWithWindows: [],
+                                                 pidsWithWithheldWindows: [],
+                                                 desktopAppBundleIdentifier: Defaults.finderBundleIdentifier) == [501, 502, 503],
+               "asking for every windowless app keeps them in the order the window server gave")
+        expect(SwitcherSupport.windowlessAppPIDs(mode: .all,
+                                                 candidates: windowlessCandidates,
+                                                 pidsWithWindows: [502],
+                                                 pidsWithWithheldWindows: [],
+                                                 desktopAppBundleIdentifier: Defaults.finderBundleIdentifier) == [501, 503],
+               "an app that already has a window in the list never gets a second entry for itself")
+        expect(SwitcherSupport.windowlessAppPIDs(mode: .all,
+                                                 candidates: windowlessCandidates,
+                                                 pidsWithWindows: [],
+                                                 pidsWithWithheldWindows: [503],
+                                                 desktopAppBundleIdentifier: Defaults.finderBundleIdentifier) == [501, 502],
+               "an app whose windows were held back for being on another desktop stays out (issue #337)")
+        expect(SwitcherSupport.windowlessAppPIDs(mode: .finder,
+                                                 candidates: windowlessCandidates,
+                                                 pidsWithWindows: [501],
+                                                 pidsWithWithheldWindows: [],
+                                                 desktopAppBundleIdentifier: Defaults.finderBundleIdentifier).isEmpty,
+               "the desktop app with a window of its own does not also get an entry for itself")
+
+        expect(WindowUseOrder.promoting(target: 7, previous: 3, in: [3, 5, 7]) == [7, 3, 5],
+               "committing to a window puts it first and the one left behind second")
+        expect(WindowUseOrder.promoting(target: nil, previous: 3, in: [5, 3, 9]) == [3, 5, 9],
+               "committing to an app with no window leaves the window behind as the most recent one")
+        expect(WindowUseOrder.promoting(target: nil, previous: nil, in: [5, 3]) == [5, 3],
+               "committing to an app with no window and coming from none changes no history")
         expect(registeredDefaults[DefaultsKey.dockPreviewEnabled] as? Bool == false,
                "Dock Preview is opt-in for clean installs")
+        expect(registeredDefaults[DefaultsKey.dockPreviewBackgroundOpacity] as? Double == 1.0,
+               "the Dock Preview panel starts fully solid")
+        expect(DockPreviewSupport.sanitizedBackgroundOpacity(0.7) == 0.7,
+               "a Dock Preview background opacity inside the range is kept")
+        expect(DockPreviewSupport.sanitizedBackgroundOpacity(0)
+               == DockPreviewSupport.backgroundOpacityRange.lowerBound
+               && DockPreviewSupport.sanitizedBackgroundOpacity(-3)
+               == DockPreviewSupport.backgroundOpacityRange.lowerBound,
+               "the Dock Preview panel never fades past the floor that keeps it looking like a panel")
+        expect(DockPreviewSupport.sanitizedBackgroundOpacity(4) == 1.0
+               && DockPreviewSupport.sanitizedBackgroundOpacity(.nan) == 1.0
+               && DockPreviewSupport.sanitizedBackgroundOpacity(.infinity) == 1.0,
+               "a broken stored Dock Preview opacity falls back to solid")
         expect(registeredDefaults[DefaultsKey.autoCheckUpdates] as? Bool == true,
                "update checks are on for clean installs")
         expect(registeredDefaults[DefaultsKey.updateShowcaseIntroVersion] as? String == "",
@@ -1345,7 +1482,7 @@ struct MetricsTests {
         // per-release decision: this check fails on every version bump so the
         // decision above is made consciously, never by omission.
         let plistVersion = (NSDictionary(contentsOfFile: "Resources/Info.plist")?["CFBundleShortVersionString"] as? String) ?? ""
-        expect(plistVersion == "3.2.0",
+        expect(plistVersion == "3.2.1",
                "bumping the app version requires re-deciding the support prompt pin above")
         // 3.2.0 is a feature release, so the tour pin moves to it and the
         // pages are re-curated: mouse button shortcuts is the headline. Later
@@ -1810,9 +1947,37 @@ struct MetricsTests {
             .compactMap { registeredDefaults[$0.storageKey] as? String }
         expect(Set(assignedLayoutShortcutValues).intersection(globalShortcutValues).isEmpty,
                "window layout shortcuts do not conflict with other global shortcuts by default")
+        // Two features shipping the same combination means one of them is dead
+        // on arrival: the second registration is simply refused by the system,
+        // and which one loses depends on the order they happen to sync in.
+        expect(Set(globalShortcutValues).count == globalShortcutValues.count,
+               "no two features ship the same default combination")
+        expect(globalShortcutValues.count == GlobalShortcutRole.allCases.count,
+               "every role ships with a default combination registered")
         expect(GlobalShortcut(keyCode: Int64(kVK_ISO_Section),
                               modifiers: [.control, .option, .command]).isValid,
                "the extra ISO key (paragraph/caret above Tab) is recordable as a shortcut")
+
+        // The native full screen action, wired like the sixths: real strings,
+        // a stable id, and no system-wide key claimed until someone asks.
+        expect(WindowLayoutAction.allCases.contains(.fullScreen)
+                && WindowLayoutAction.fullScreen.shortcutID == 53
+                && WindowLayoutAction(shortcutID: 53) == .fullScreen,
+               "full screen exists and answers to its own shortcut id")
+        expect(WindowLayoutAction.fullScreen.defaultShortcut == nil
+                && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutFullScreen] as? String
+                    == WindowLayoutAction.clearedShortcutStorageValue,
+               "full screen starts with no combination of its own")
+        expect(Set(WindowLayoutAction.allCases.map(\.shortcutID)).count
+                == WindowLayoutAction.allCases.count,
+               "every layout action keeps a distinct shortcut id")
+        for language in AppLanguage.allCases {
+            expect(!FeatureStrings.windowLayout(language).fullScreen.isEmpty,
+                   "\(language.rawValue) names the full screen action")
+        }
+        expect(WindowLayoutGeometry.accepts(actualRect: .zero, targetRect: .zero,
+                                            action: .fullScreen, anchorTolerance: 10) == false,
+               "full screen never joins the frame-based gesture acceptance")
 
         // MARK: Editing, navigation and upper function keys as shortcuts (#308)
 
@@ -2421,6 +2586,26 @@ struct MetricsTests {
                                                            hasKnownMinimizedWindow: false,
                                                            hasUserFacingWindow: true),
                "AutoQuit keeps apps with user-facing windows running")
+        expect(AutoQuitSupport.offscreenWindowKeepsAppAlive(windowSpaces: [4],
+                                                            visibleSpaces: [3],
+                                                            hasTitle: true),
+               "a window parked on another Space keeps its app running")
+        expect(!AutoQuitSupport.offscreenWindowKeepsAppAlive(windowSpaces: [3],
+                                                             visibleSpaces: [3],
+                                                             hasTitle: true),
+               "a window the app hid on the Space in front does not keep it running")
+        expect(AutoQuitSupport.offscreenWindowKeepsAppAlive(windowSpaces: [],
+                                                            visibleSpaces: [3],
+                                                            hasTitle: true),
+               "a window with no Space answer falls back to the title rule")
+        expect(!AutoQuitSupport.offscreenWindowKeepsAppAlive(windowSpaces: [],
+                                                             visibleSpaces: nil,
+                                                             hasTitle: false),
+               "an untitled off-screen window never keeps an app running")
+        expect(AutoQuitSupport.offscreenWindowKeepsAppAlive(windowSpaces: [3],
+                                                            visibleSpaces: nil,
+                                                            hasTitle: true),
+               "without Spaces to compare, the old cautious rule stands")
         expect(Defaults.sanitizedPanelItemOrder("uninstaller,homebrew,homebrew,bad",
                                                 defaultOrder: ["homebrew", "media", "uninstaller", "cleanURL", "cleaning"])
                == ["uninstaller", "homebrew", "media", "cleanURL", "cleaning"],
@@ -3483,22 +3668,24 @@ struct MetricsTests {
             return samples
         }
         func limited(_ samples: [Float], channels: Int = 1,
+                     release: Float = BoostLimiter.release(sampleRate: 48000),
                      with limiter: inout BoostLimiter) -> [Float] {
             var output = samples
             output.withUnsafeMutableBufferPointer { buffer in
                 limiter.process(buffer.baseAddress!,
                                 frames: samples.count / channels,
-                                channels: channels)
+                                channels: channels,
+                                release: release)
             }
             return output
         }
 
-        var quietLimiter = BoostLimiter(sampleRate: 48000)
+        var quietLimiter = BoostLimiter()
         let quiet = sine(amplitude: 0.6, frames: 4800)
         expect(limited(quiet, with: &quietLimiter) == quiet,
                "audio inside the ceiling passes through bit-identical")
 
-        var loudLimiter = BoostLimiter(sampleRate: 48000)
+        var loudLimiter = BoostLimiter()
         let loud = limited(sine(amplitude: 1.5, frames: 9600), with: &loudLimiter)
         expect(loud.allSatisfy { abs($0) <= BoostLimiter.ceiling + 0.0001 },
                "boosted peaks never leave the ceiling")
@@ -3507,7 +3694,7 @@ struct MetricsTests {
         expect(pinned < steady.count / 5,
                "the limiter rides the level instead of flattening the wave into clipping")
 
-        var recoveryLimiter = BoostLimiter(sampleRate: 48000)
+        var recoveryLimiter = BoostLimiter()
         _ = limited(sine(amplitude: 1.5, frames: 4800), with: &recoveryLimiter)
         let afterLoud = limited(sine(amplitude: 0.5, frames: 48000), with: &recoveryLimiter)
         expect(afterLoud.prefix(480).max()! < 0.45,
@@ -3515,8 +3702,8 @@ struct MetricsTests {
         expect(afterLoud.suffix(4800).max()! > 0.499,
                "the gain recovers to unity once the audio gets quiet")
 
-        var wholeLimiter = BoostLimiter(sampleRate: 48000)
-        var chunkedLimiter = BoostLimiter(sampleRate: 48000)
+        var wholeLimiter = BoostLimiter()
+        var chunkedLimiter = BoostLimiter()
         let long = sine(amplitude: 1.5, frames: 2048)
         let whole = limited(long, with: &wholeLimiter)
         let chunked = limited(Array(long[0..<1024]), with: &chunkedLimiter)
@@ -3524,7 +3711,7 @@ struct MetricsTests {
         expect(whole == chunked,
                "splitting the stream into buffers does not change the result")
 
-        var stereoLimiter = BoostLimiter(sampleRate: 48000)
+        var stereoLimiter = BoostLimiter()
         var stereo = [Float](repeating: 0, count: 9600 * 2)
         for frame in 0..<9600 {
             let value = Float(sin(2 * Double.pi * 440 * Double(frame) / 48000))
@@ -3540,10 +3727,226 @@ struct MetricsTests {
         expect(stereoLinked,
                "both channels of a frame share one gain so the stereo image stays put")
 
-        var fallbackLimiter = BoostLimiter(sampleRate: 0)
-        let fallbackLimited = limited(sine(amplitude: 1.5, frames: 480), with: &fallbackLimiter)
+        var fallbackLimiter = BoostLimiter()
+        let fallbackLimited = limited(sine(amplitude: 1.5, frames: 480),
+                                      release: BoostLimiter.release(sampleRate: 0),
+                                      with: &fallbackLimiter)
         expect(fallbackLimited.allSatisfy { abs($0) <= BoostLimiter.ceiling + 0.0001 },
                "an unreadable sample rate still limits at the common device rate")
+
+        // A headset that takes the microphone for a call changes the rate the
+        // device runs at while the audio path stays up. The recovery has to
+        // stay the same length of time, not the same number of samples.
+
+        /// How many seconds the gain takes to come back after a loud stretch.
+        func recoverySeconds(rate: Double, release: Float) -> Double {
+            var limiter = BoostLimiter()
+            let step = max(Int(rate / 1000), 1)
+            func tone(_ amplitude: Float, seconds: Double) -> [Float] {
+                let frames = Int(rate * seconds)
+                var samples = [Float](repeating: 0, count: frames)
+                for frame in 0..<frames {
+                    samples[frame] = amplitude * Float(sin(2 * Double.pi * 440 * Double(frame) / rate))
+                }
+                return samples
+            }
+            _ = limited(tone(1.5, seconds: 0.1), release: release, with: &limiter)
+            let quiet = limited(tone(0.5, seconds: 1.0), release: release, with: &limiter)
+            let peaks = stride(from: 0, to: quiet.count, by: step).map { start in
+                quiet[start..<min(start + step, quiet.count)].map { abs($0) }.max() ?? 0
+            }
+            guard let recovered = peaks.firstIndex(where: { $0 > 0.499 }) else { return .infinity }
+            return Double(recovered) / 1000
+        }
+
+        let releaseAt48k = BoostLimiter.release(sampleRate: 48000)
+        let releaseAt16k = BoostLimiter.release(sampleRate: 16000)
+        expect(releaseAt16k < releaseAt48k,
+               "a slower rate keeps less of the previous level in each sample")
+
+        let recoveryAt48k = recoverySeconds(rate: 48000, release: releaseAt48k)
+        let recoveryAt16k = recoverySeconds(rate: 16000, release: releaseAt16k)
+        expect(abs(recoveryAt16k - recoveryAt48k) < 0.02,
+               "the gain takes the same time to come back whatever rate the device runs at")
+
+        // The defect this replaced: the figure was worked out once when the
+        // engine was built, so a device that changed rate afterwards recovered
+        // at the wrong speed for as long as it kept playing.
+        let staleRecovery = recoverySeconds(rate: 16000, release: releaseAt48k)
+        expect(staleRecovery > recoveryAt16k * 2,
+               "keeping the old rate's figure after a change drags the recovery out")
+
+        // MARK: Mixer render (issue #397)
+
+        // The tap always hands over two interleaved channels; the device on
+        // the other side does not have to match. Pouring stereo into a
+        // headset's single channel used to copy every sample straight across,
+        // which plays the audio an octave low and half as long.
+
+        /// Runs `render` over freshly allocated buffers and hands back what
+        /// each output buffer received, plus the frame count it reported.
+        var renderedFrames = 0
+        func rendered(source: [Float], sourceChannels: UInt32,
+                      outputs: [(channels: UInt32, frames: Int)],
+                      gain: Float = 1) -> [[Float]] {
+            let sourceStorage = UnsafeMutablePointer<Float>.allocate(capacity: max(source.count, 1))
+            sourceStorage.update(from: source, count: source.count)
+            var storages: [UnsafeMutablePointer<Float>] = []
+            let list = AudioBufferList.allocate(maximumBuffers: max(outputs.count, 1))
+            for (index, output) in outputs.enumerated() {
+                let count = max(output.frames * Int(output.channels), 1)
+                let storage = UnsafeMutablePointer<Float>.allocate(capacity: count)
+                storage.update(repeating: -99, count: count)
+                storages.append(storage)
+                list[index] = AudioBuffer(
+                    mNumberChannels: output.channels,
+                    mDataByteSize: UInt32(output.frames * Int(output.channels) * MemoryLayout<Float>.size),
+                    mData: UnsafeMutableRawPointer(storage))
+            }
+            let buffer = AudioBuffer(
+                mNumberChannels: sourceChannels,
+                mDataByteSize: UInt32(source.count * MemoryLayout<Float>.size),
+                mData: UnsafeMutableRawPointer(sourceStorage))
+            renderedFrames = MixerRender.render(source: buffer, into: list, gain: gain)
+            var results: [[Float]] = []
+            for (index, output) in outputs.enumerated() {
+                let count = output.frames * Int(output.channels)
+                results.append(Array(UnsafeBufferPointer(start: storages[index], count: count)))
+            }
+            storages.forEach { $0.deallocate() }
+            sourceStorage.deallocate()
+            free(list.unsafeMutablePointer)
+            return results
+        }
+
+        /// Positive-going zero crossings, the cheap way to hear speed change.
+        func crossings(_ samples: [Float], channels: Int) -> Int {
+            var count = 0
+            var previous: Float = 0
+            for frame in 0..<(samples.count / channels) {
+                let value = samples[frame * channels]
+                if previous <= 0, value > 0 { count += 1 }
+                previous = value
+            }
+            return count
+        }
+
+        expect(MixerRender.frames(bytes: 4096, channels: 2) == 512,
+               "a stereo buffer of 4096 bytes carries 512 frames")
+        expect(MixerRender.frames(bytes: 2048, channels: 1) == 512,
+               "a mono buffer of 2048 bytes carries the same 512 frames")
+        expect(MixerRender.frames(bytes: 4096, channels: 0) == 0,
+               "a buffer with no channels carries nothing")
+
+        let toneFrames = 4800
+        var toneStereo = [Float](repeating: 0, count: toneFrames * 2)
+        for frame in 0..<toneFrames {
+            let value = Float(sin(2 * Double.pi * 440 * Double(frame) / 48000))
+            toneStereo[frame * 2] = value
+            toneStereo[frame * 2 + 1] = value
+        }
+        let toneCrossings = crossings(toneStereo, channels: 2)
+
+        let toMono = rendered(source: toneStereo, sourceChannels: 2,
+                              outputs: [(channels: 1, frames: toneFrames)])[0]
+        expect(crossings(toMono, channels: 1) == toneCrossings,
+               "a device with one channel plays the tapped audio at its own speed")
+        var monoMatches = true
+        for frame in 0..<toneFrames
+        where abs(toMono[frame] - (toneStereo[frame * 2] + toneStereo[frame * 2 + 1]) / 2) > 0.0001 {
+            monoMatches = false
+            break
+        }
+        expect(monoMatches, "one channel gets both sides of the stereo, averaged")
+
+        let quieterMono = rendered(source: toneStereo, sourceChannels: 2,
+                                   outputs: [(channels: 1, frames: toneFrames)], gain: 0.4)[0]
+        var quieterMatches = true
+        for frame in 0..<toneFrames where abs(quieterMono[frame] - toMono[frame] * 0.4) > 0.0001 {
+            quieterMatches = false
+            break
+        }
+        expect(quieterMatches && quieterMono.map({ abs($0) }).max()! > 0.39,
+               "the chosen volume still applies when the audio is folded to one channel")
+        expect(renderedFrames == toneFrames,
+               "the fold reports every frame it wrote, which is what bounds the limiter")
+
+        let toStereo = rendered(source: toneStereo, sourceChannels: 2,
+                                outputs: [(channels: 2, frames: toneFrames)], gain: 0.5)[0]
+        var stereoMatches = true
+        for index in 0..<(toneFrames * 2) where abs(toStereo[index] - toneStereo[index] * 0.5) > 0.0001 {
+            stereoMatches = false
+            break
+        }
+        expect(stereoMatches, "a stereo device still gets a plain scaled copy")
+
+        let toSurround = rendered(source: [1, 2, 3, 4], sourceChannels: 2,
+                                  outputs: [(channels: 4, frames: 2)])[0]
+        expect(toSurround == [1, 2, 0, 0, 3, 4, 0, 0],
+               "a device with more channels than the tap fills the first pair and silences the rest")
+
+        let split = rendered(source: [1, 2, 3, 4], sourceChannels: 2,
+                             outputs: [(channels: 1, frames: 2), (channels: 1, frames: 2)])
+        expect(split == [[1, 3], [2, 4]],
+               "a device that keeps its channels in separate buffers gets one channel each")
+
+        let quieterSplit = rendered(source: [1, 2, 3, 4], sourceChannels: 2,
+                                    outputs: [(channels: 1, frames: 2), (channels: 1, frames: 2)],
+                                    gain: 0.5)
+        expect(quieterSplit == [[0.5, 1.5], [1, 2]],
+               "the chosen volume applies to every channel a spread-out device carries")
+
+        let quieterSurround = rendered(source: [1, 2, 3, 4], sourceChannels: 2,
+                                       outputs: [(channels: 4, frames: 2)], gain: 0.5)[0]
+        expect(quieterSurround == [0.5, 1, 0, 0, 1.5, 2, 0, 0],
+               "the chosen volume applies when the tap is spread over more channels")
+
+        let fromMono = rendered(source: [1, 2], sourceChannels: 1,
+                                outputs: [(channels: 2, frames: 2)])[0]
+        expect(fromMono == [1, 1, 2, 2],
+               "a single-channel source is heard on both sides, not only the left")
+
+        let shortOutput = rendered(source: [1, 2, 3, 4, 5, 6], sourceChannels: 2,
+                                   outputs: [(channels: 2, frames: 2)])[0]
+        expect(shortOutput == [1, 2, 3, 4] && renderedFrames == 2,
+               "an output buffer smaller than the tap's is filled without running past its end")
+
+        let tapOnly = AudioBufferList.allocate(maximumBuffers: 2)
+        let deviceInput = UnsafeMutablePointer<Float>.allocate(capacity: 1)
+        let tapSamples = UnsafeMutablePointer<Float>.allocate(capacity: 2)
+        defer {
+            deviceInput.deallocate()
+            tapSamples.deallocate()
+        }
+        tapOnly[0] = AudioBuffer(mNumberChannels: 1, mDataByteSize: 4,
+                                 mData: UnsafeMutableRawPointer(deviceInput))
+        tapOnly[1] = AudioBuffer(mNumberChannels: 2, mDataByteSize: 8,
+                                 mData: UnsafeMutableRawPointer(tapSamples))
+        expect(MixerRender.tapBufferIndex(in: tapOnly, tapChannels: 2) == 1,
+               "on an output device that also records, the tap is not the first buffer")
+        expect(MixerRender.tapBufferIndex(in: tapOnly, tapChannels: 1) == 0,
+               "the tap is picked by the shape it announced, not by its position")
+        expect(MixerRender.tapBufferIndex(in: tapOnly, tapChannels: 7) == nil,
+               "with nothing matching the tap, the microphone is never played out of the speakers")
+        tapOnly[1] = AudioBuffer(mNumberChannels: 2, mDataByteSize: 8, mData: nil)
+        expect(MixerRender.tapBufferIndex(in: tapOnly, tapChannels: 2) == nil,
+               "a buffer with no samples is never mistaken for the tap")
+        free(tapOnly.unsafeMutablePointer)
+
+        let lonely = AudioBufferList.allocate(maximumBuffers: 1)
+        lonely[0] = AudioBuffer(mNumberChannels: 2, mDataByteSize: 8,
+                                mData: UnsafeMutableRawPointer(tapSamples))
+        expect(MixerRender.tapBufferIndex(in: lonely, tapChannels: 7) == 0,
+               "an output device with nothing of its own leaves only the tap to render")
+        free(lonely.unsafeMutablePointer)
+
+        expect(MixerRender.sourceChannel(for: 0, sourceChannels: 2) == 0
+            && MixerRender.sourceChannel(for: 1, sourceChannels: 2) == 1,
+               "stereo feeds the first two channels in order")
+        expect(MixerRender.sourceChannel(for: 2, sourceChannels: 2) == nil,
+               "channels the tap cannot fill stay silent")
+        expect(MixerRender.sourceChannel(for: 1, sourceChannels: 1) == 0,
+               "a single channel is copied to the right as well as the left")
 
         // MARK: Shelf persistence
 
@@ -4666,16 +5069,74 @@ struct MetricsTests {
                                                                  selectedIndex: 2,
                                                                  delta: 1) == 2,
                "App Switcher icon-row window navigation stays put when the app has one window")
-        let afterFirstSwitch = SwitcherSupport.updatedMRU(afterActivating: "window-b",
-                                                          previousID: "window-a",
-                                                          existing: [])
-        expect(afterFirstSwitch == ["window-b", "window-a"],
-               "App Switcher MRU records the previous window immediately after a switch")
-        let afterSecondSwitch = SwitcherSupport.updatedMRU(afterActivating: "window-a",
-                                                           previousID: "window-b",
-                                                           existing: afterFirstSwitch)
-        expect(afterSecondSwitch == ["window-a", "window-b"],
-               "App Switcher MRU toggles back after two consecutive switcher uses")
+        let afterFirstSwitch = WindowUseOrder.promoting(2, previous: 1, in: [])
+        expect(afterFirstSwitch == [2, 1],
+               "App Switcher use history records the previous window immediately after a switch")
+        let afterSecondSwitch = WindowUseOrder.promoting(1, previous: 2, in: afterFirstSwitch)
+        expect(afterSecondSwitch == [1, 2],
+               "App Switcher use history toggles back after two consecutive switcher uses")
+
+        // Issue #388: the switcher put the app the user had just used far down
+        // the list. The order used to come from a history that only the
+        // switcher's own commits ever wrote to, so windows picked with the
+        // mouse were invisible to it and windows picked once through the
+        // switcher stayed ahead of them forever.
+        let mouseEntries = [WindowUseOrder.Entry(windowID: 10, pid: 1),   // used through the switcher, long ago
+                            WindowUseOrder.Entry(windowID: 11, pid: 2),   // used through the switcher, long ago
+                            WindowUseOrder.Entry(windowID: 12, pid: 3),   // clicked a moment ago
+                            WindowUseOrder.Entry(windowID: 13, pid: 4)]   // clicked just now, in front
+        let mouseOrder = WindowUseOrder.ordered(mouseEntries,
+                                                windowHistory: [13, 12, 11, 10],
+                                                appHistory: [4, 3, 2, 1],
+                                                frontToBack: [13, 12, 11, 10])
+        expect(mouseOrder.map(\.windowID) == [13, 12, 11, 10],
+               "App Switcher orders by real window use, so windows picked with the mouse keep their place")
+
+        // Two windows of the same app: the system posts no activation for a
+        // switch between them, so only the focus history can order them.
+        let sameAppEntries = [WindowUseOrder.Entry(windowID: 20, pid: 1),
+                              WindowUseOrder.Entry(windowID: 21, pid: 1),
+                              WindowUseOrder.Entry(windowID: 22, pid: 2)]
+        let sameAppOrder = WindowUseOrder.ordered(sameAppEntries,
+                                                  windowHistory: [21, 22, 20],
+                                                  appHistory: [1, 2],
+                                                  frontToBack: [21, 22, 20])
+        expect(sameAppOrder.map(\.windowID) == [21, 22, 20],
+               "App Switcher toggles back to the last window used even when it belongs to the current app")
+
+        // A window that was never focused cannot be ranked by use: it follows
+        // everything that was, ordered by its app and then by how deep it sits.
+        let unseenEntries = [WindowUseOrder.Entry(windowID: 30, pid: 1),
+                             WindowUseOrder.Entry(windowID: 31, pid: 2),
+                             WindowUseOrder.Entry(windowID: 32, pid: 3),
+                             WindowUseOrder.Entry(windowID: nil, pid: 3)]
+        let unseenOrder = WindowUseOrder.ordered(unseenEntries,
+                                                 windowHistory: [30],
+                                                 appHistory: [1, 2, 3],
+                                                 frontToBack: [30, 31, 32])
+        expect(unseenOrder.map(\.windowID) == [30, 31, 32, nil],
+               "App Switcher places never-focused windows after used ones, by app and then by depth")
+
+        // Cold start: nothing has been used yet, so front-to-back order is the
+        // only account of what came last, and it has to be used as one.
+        expect(WindowUseOrder.reconciled([], existing: [40, 41, 42], frontToBack: [42, 40, 41])
+               == [42, 40, 41],
+               "App Switcher seeds its use history from the window server instead of starting arbitrary")
+        expect(WindowUseOrder.reconciled([50, 51], existing: [51, 52], frontToBack: [52, 51])
+               == [51, 52],
+               "App Switcher use history drops closed windows and files new ones behind what was used")
+        expect(WindowUseOrder.reconciled([60, 61, 62], existing: [60, 61, 62], frontToBack: [62])
+               == [60, 61, 62],
+               "App Switcher use history is not reshuffled by the window server once it knows better")
+        expect(WindowUseOrder.reconciled([70, 71, 72], existing: [70, 71, 72], frontToBack: [], limit: 2)
+               == [70, 71],
+               "App Switcher use history stays bounded")
+        expect(WindowUseOrder.reconciled([], running: [80, 81, 82], frontToBack: [81, 82, 80])
+               == [81, 82, 80],
+               "App Switcher seeds its application history from the window server too")
+        expect(WindowUseOrder.reconciled([90, 91], running: [91, 92], frontToBack: [92, 91])
+               == [91, 92],
+               "App Switcher application history drops closed apps and files new ones behind")
         let groupedIconLayout = SwitcherIconRowLayout.compute(appCount: appGroups.count,
                                                               selectedWindowCount: appGroups[0].windowCount,
                                                               screenVisibleFrame: screen)
@@ -5128,6 +5589,69 @@ struct MetricsTests {
                && switcherCloseMissing.remainingItemIDs == ["a", "b"]
                && switcherCloseMissing.selectedIndex == 1,
                "App Switcher close leaves selection intact when the item is not present")
+        expect(SwitcherSupport.commitTargetID(itemIDs: ["a", "b", "c"],
+                                              selectedIndex: 1,
+                                              closingItemIDs: []) == "b",
+               "App Switcher release activates the highlighted window")
+        expect(SwitcherSupport.commitTargetID(itemIDs: ["a", "b", "c"],
+                                              selectedIndex: 1,
+                                              closingItemIDs: ["b"]) == "c",
+               "App Switcher release skips the window that is closing")
+        expect(SwitcherSupport.commitTargetID(itemIDs: ["a", "b", "c"],
+                                              selectedIndex: 2,
+                                              closingItemIDs: ["b", "c"]) == "a",
+               "App Switcher release falls back to the last window left when several are closing")
+        expect(SwitcherSupport.commitTargetID(itemIDs: ["a", "b"],
+                                              selectedIndex: 1,
+                                              closingItemIDs: ["a", "b"]) == nil,
+               "App Switcher release activates nothing when every window is closing")
+        expect(SwitcherSupport.commitTargetID(itemIDs: [],
+                                              selectedIndex: 0,
+                                              closingItemIDs: []) == nil,
+               "App Switcher release activates nothing with an empty list")
+        expect(SwitcherSupport.letterAction(typedCharacter: "w", keyCode: 13) == .closeWindow
+               && SwitcherSupport.letterAction(typedCharacter: "q", keyCode: 12) == .quitApp,
+               "App Switcher panel closes a window with W and quits an app with Q")
+        expect(SwitcherSupport.letterAction(typedCharacter: "W", keyCode: 13) == .closeWindow,
+               "App Switcher panel treats the letter the same in either case")
+        expect(SwitcherSupport.letterAction(typedCharacter: "e", keyCode: 14) == nil
+               && SwitcherSupport.letterAction(typedCharacter: "1", keyCode: 18) == nil,
+               "App Switcher panel leaves every other key to the search field")
+        // A French keyboard types z where the US one types w, and its own w
+        // sits on another key: both answer by the letter, not the position.
+        expect(SwitcherSupport.letterAction(typedCharacter: "z", keyCode: 13) == nil
+               && SwitcherSupport.letterAction(typedCharacter: "w", keyCode: 6) == .closeWindow,
+               "App Switcher panel follows the letters printed on the keyboard")
+        expect(SwitcherSupport.letterAction(typedCharacter: "a", keyCode: 12) == nil
+               && SwitcherSupport.letterAction(typedCharacter: "q", keyCode: 0) == .quitApp,
+               "App Switcher panel quits from the Q key wherever the layout puts it")
+        // Cyrillic and Greek type no Latin letter at all, so the key position
+        // stands in, the same place macOS puts their command shortcuts.
+        expect(SwitcherSupport.letterAction(typedCharacter: "ц", keyCode: 13) == .closeWindow
+               && SwitcherSupport.letterAction(typedCharacter: "й", keyCode: 12) == .quitApp,
+               "App Switcher panel falls back to the key position on non-Latin layouts")
+        expect(SwitcherSupport.letterAction(typedCharacter: nil, keyCode: 13) == .closeWindow
+               && SwitcherSupport.letterAction(typedCharacter: "", keyCode: 12) == .quitApp,
+               "App Switcher panel falls back to the key position when a key types nothing")
+        expect(SwitcherSupport.letterAction(typedCharacter: "ç", keyCode: 13) == nil,
+               "App Switcher panel counts an accented letter as a letter of its own")
+        let switcherPanelFrame = CGRect(x: 400, y: 300, width: 600, height: 400)
+        expect(SwitcherSupport.shouldDismissForClick(panelIsVisible: true,
+                                                     panelFrame: switcherPanelFrame,
+                                                     location: CGPoint(x: 200, y: 200)),
+               "App Switcher panel closes on a click outside it")
+        expect(!SwitcherSupport.shouldDismissForClick(panelIsVisible: true,
+                                                      panelFrame: switcherPanelFrame,
+                                                      location: CGPoint(x: 700, y: 500)),
+               "App Switcher panel stays for a click on one of its windows")
+        expect(!SwitcherSupport.shouldDismissForClick(panelIsVisible: true,
+                                                      panelFrame: switcherPanelFrame,
+                                                      location: CGPoint(x: 401, y: 301)),
+               "App Switcher panel counts its own edge as part of it")
+        expect(!SwitcherSupport.shouldDismissForClick(panelIsVisible: false,
+                                                      panelFrame: switcherPanelFrame,
+                                                      location: CGPoint(x: 200, y: 200)),
+               "App Switcher ignores clicks while a quick switch shows no panel")
         let searchRecords = [
             SwitcherSearchRecord(id: "alpha", title: "Inbox", appName: "Alpha"),
             SwitcherSearchRecord(id: "beta", title: "Vorssaint Roadmap", appName: "Beta"),
@@ -5528,6 +6052,28 @@ struct MetricsTests {
             expect(!strings.switcherCurrentSpaceOnlyCaption.isEmpty
                    && !strings.switcherCurrentSpaceOnlyCaption.contains("—"),
                    "\(prefix) App Switcher current-desktop caption is present without em dash")
+            expect(!strings.switcherWindowlessApps.isEmpty
+                   && !strings.switcherWindowlessApps.contains("—"),
+                   "\(prefix) App Switcher windowless apps title is present without em dash")
+            expect(!strings.switcherWindowlessAppsCaption.isEmpty
+                   && !strings.switcherWindowlessAppsCaption.contains("—"),
+                   "\(prefix) App Switcher windowless apps caption is present without em dash")
+            expect(!strings.switcherWindowlessAppsOff.isEmpty
+                   && !strings.switcherWindowlessAppsFinder.isEmpty
+                   && !strings.switcherWindowlessAppsAll.isEmpty
+                   && !strings.switcherWindowlessAppsOff.contains("—")
+                   && !strings.switcherWindowlessAppsFinder.contains("—")
+                   && !strings.switcherWindowlessAppsAll.contains("—"),
+                   "\(prefix) App Switcher windowless apps choices are all present without em dash")
+            expect(!strings.switcherNoOpenWindow.isEmpty
+                   && !strings.switcherNoOpenWindow.contains("—"),
+                   "\(prefix) App Switcher no-open-window tile label is present without em dash")
+            expect(!strings.dockPreviewBackgroundOpacity.isEmpty
+                   && !strings.dockPreviewBackgroundOpacity.contains("—"),
+                   "\(prefix) Dock Preview background title is present without em dash")
+            expect(!strings.dockPreviewBackgroundOpacityCaption.isEmpty
+                   && !strings.dockPreviewBackgroundOpacityCaption.contains("—"),
+                   "\(prefix) Dock Preview background caption is present without em dash")
             expect(!strings.switcherShortcutHintApps.isEmpty, "\(prefix) App Switcher app shortcut hint is present")
             expect(!strings.switcherShortcutHintWindows.isEmpty, "\(prefix) App Switcher window shortcut hint is present")
             expect(!strings.networkApps.isEmpty, "\(prefix) network app usage title is present")
@@ -5558,7 +6104,6 @@ struct MetricsTests {
             let highlightsStrings = [strings.highlightsTitle, strings.highlightsCaptionDockPreview,
                                      strings.highlightsCaptionScreenshot,
                                      strings.highlightsCaptionSnippetLibrary,
-                                     strings.highlightsCaptionMicMute,
                                      strings.highlightsConfigure,
                                      strings.highlightsTry, strings.highlightsSeeAll]
             expect(highlightsStrings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
@@ -5912,7 +6457,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 46, "feature catalog has 46 features")
+        expect(AppFeature.allCases.count == 47, "feature catalog has 47 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -5924,7 +6469,7 @@ struct MetricsTests {
             "keepAwake", "brightness", "extraBrightness",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad",
+            "radialMenu", "scratchpad", "commandBar",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
         ], "feature ids are stable (they persist inside availability keys)")
         expect(AppFeature.switcher.availabilityKey == "featureAvailable.switcher",
@@ -5948,7 +6493,7 @@ struct MetricsTests {
                                           stringFor: { strings[$0] }))
         }
 
-        expect(activeSet(.accessibility) == [.windowLayout, .cleaningMode],
+        expect(activeSet(.accessibility) == [.windowLayout, .cleaningMode, .commandBar],
                "with nothing enabled only on-demand features use accessibility")
         expect(activeSet(.accessibility, on: [DefaultsKey.scrollInverterEnabled]).contains(.scrollInverter),
                "an enabled feature counts as using its permission")
@@ -6910,19 +7455,32 @@ struct MetricsTests {
                 && QuickTogglesSupport.finderFlag("maybe", default: true),
                "absent or unreadable values fall back to the given default")
         expect(QuickTogglesSupport.shouldOfferEject(isInternal: false, isRemovable: true,
-                                                    isEjectable: false, isLocal: true)
+                                                    isEjectable: false, isLocal: true,
+                                                    isRootFileSystem: false)
                 && QuickTogglesSupport.shouldOfferEject(isInternal: false, isRemovable: false,
-                                                        isEjectable: true, isLocal: true),
+                                                        isEjectable: true, isLocal: true,
+                                                        isRootFileSystem: false),
                "external removable or ejectable local volumes are offered")
-        expect(!QuickTogglesSupport.shouldOfferEject(isInternal: true, isRemovable: true,
-                                                     isEjectable: true, isLocal: true),
-               "internal volumes are never ejected")
+        expect(QuickTogglesSupport.shouldOfferEject(isInternal: false, isRemovable: false,
+                                                    isEjectable: false, isLocal: true,
+                                                    isRootFileSystem: false),
+               "an external drive with fixed media is offered, the common desk drive")
+        expect(QuickTogglesSupport.shouldOfferEject(isInternal: true, isRemovable: true,
+                                                    isEjectable: true, isLocal: true,
+                                                    isRootFileSystem: false),
+               "media that comes out of an internal reader is offered")
+        expect(!QuickTogglesSupport.shouldOfferEject(isInternal: true, isRemovable: false,
+                                                     isEjectable: false, isLocal: true,
+                                                     isRootFileSystem: false),
+               "internal fixed drives are never ejected")
         expect(!QuickTogglesSupport.shouldOfferEject(isInternal: false, isRemovable: true,
-                                                     isEjectable: true, isLocal: false),
+                                                     isEjectable: true, isLocal: false,
+                                                     isRootFileSystem: false),
                "network volumes are never ejected")
-        expect(!QuickTogglesSupport.shouldOfferEject(isInternal: false, isRemovable: false,
-                                                     isEjectable: false, isLocal: true),
-               "a fixed external volume without eject support is left alone")
+        expect(!QuickTogglesSupport.shouldOfferEject(isInternal: false, isRemovable: true,
+                                                     isEjectable: true, isLocal: true,
+                                                     isRootFileSystem: true),
+               "the volume the Mac booted from is never ejected, even on an external drive")
 
         // MARK: Screenshot tool
 
@@ -7459,10 +8017,12 @@ struct MetricsTests {
                "each microphone gets its own level back, then the older single level, then a usable one")
         expect(MicMuteSupport.restoreTargets(recorded: ["mic-a", "gone"],
                                              present: ["mic-a", "mic-b"]) == ["mic-a"]
-                && MicMuteSupport.restoreTargets(recorded: [],
+                && MicMuteSupport.restoreTargets(recorded: nil,
                                                  present: ["mic-a", "mic-b"]) == ["mic-a", "mic-b"]
+                && MicMuteSupport.restoreTargets(recorded: [],
+                                                 present: ["mic-a", "mic-b"]).isEmpty
                 && MicMuteSupport.restoreTargets(recorded: ["mic-a"], present: []).isEmpty,
-               "unmuting touches the microphones this app muted, and every one of them when it knows of none")
+               "unmuting touches the microphones this app muted, every one with no record, and none when the record is empty")
 
         expect(Defaults.registeredDefaults[DefaultsKey.radialMenuEnabled] as? Bool == false,
                "the radial menu ships off by default")
@@ -7582,6 +8142,34 @@ struct MetricsTests {
                 && MouseButtonShortcutSupport.buttonName(for: 5, strings: .enUS) == "Button 6",
                "buttons are named by their job or their printed count")
 
+        // A synthesized press has to carry the same flags a finger produces,
+        // or the system matches it against no shortcut of its own (issue #401).
+        expect(GlobalShortcut(keyCode: Int64(kVK_ANSI_N), modifiers: [.command, .shift])
+                .syntheticEventFlags == [.maskCommand, .maskShift],
+               "an ordinary key goes out with its modifiers and nothing else")
+        expect(GlobalShortcut(keyCode: Int64(kVK_RightArrow), modifiers: [.control, .command])
+                .syntheticEventFlags == [.maskControl, .maskCommand, .maskSecondaryFn, .maskNumericPad],
+               "an arrow goes out as a function key of the numeric pad, the way it arrives")
+        expect(GlobalShortcut(keyCode: Int64(kVK_F13), modifiers: [.control, .option, .command])
+                .syntheticEventFlags
+                == [.maskControl, .maskAlternate, .maskCommand, .maskSecondaryFn],
+               "an F key goes out as a function key")
+        expect(GlobalShortcut(keyCode: Int64(kVK_PageDown), modifiers: [.command])
+                .syntheticEventFlags == [.maskCommand, .maskSecondaryFn]
+                && GlobalShortcut(keyCode: Int64(kVK_ForwardDelete), modifiers: [.command])
+                .syntheticEventFlags == [.maskCommand, .maskSecondaryFn],
+               "the navigation block counts as function keys too")
+        expect(GlobalShortcut(keyCode: Int64(kVK_ANSI_Keypad5), modifiers: [.control])
+                .syntheticEventFlags == [.maskControl, .maskNumericPad],
+               "a keypad key goes out as part of the keypad, without the function flag")
+        expect(GlobalShortcut(keyCode: Int64(kVK_Delete), modifiers: [.command])
+                .syntheticEventFlags == [.maskCommand]
+                && GlobalShortcut(keyCode: Int64(kVK_Escape), modifiers: [.command])
+                .syntheticEventFlags == [.maskCommand]
+                && GlobalShortcut(keyCode: Int64(kVK_Return), modifiers: [.control, .option])
+                .syntheticEventFlags == [.maskControl, .maskAlternate],
+               "the keys beside them are ordinary and stay ordinary")
+
         // MARK: Super key (issue #330)
 
         expect(Defaults.registeredDefaults[DefaultsKey.superKeyEnabled] as? Bool == false,
@@ -7664,6 +8252,19 @@ struct MetricsTests {
                "every key pressed while it is held carries the four modifiers")
         expect(superKeyState.decide(.triggerUp) == .swallow,
                "releasing after a combination does nothing on its own")
+
+        // What the watchdog leans on: a press whose release never arrived is
+        // let go of, and typing goes back to normal without the key being
+        // touched again.
+        var lostReleaseState = SuperKeySupport.State()
+        _ = lostReleaseState.decide(.triggerDown(isRepeat: false))
+        expect(lostReleaseState.decide(.otherKey) == .addModifiers,
+               "a press with no release still carries the modifiers while it stands")
+        lostReleaseState.reset()
+        expect(lostReleaseState.decide(.otherKey) == .pass,
+               "letting go of a press whose release was lost gives typing back")
+        expect(lostReleaseState.decide(.triggerUp) == .swallow,
+               "a release arriving after the press was let go does nothing")
 
         var soloState = SuperKeySupport.State()
         _ = soloState.decide(.triggerDown(isRepeat: false))
@@ -7883,7 +8484,6 @@ struct MetricsTests {
         expect(!backupKeys.contains(DefaultsKey.startupDidNotFinish),
                "the backup never carries a note about a start that did not finish")
         expect(backupKeys.contains(DefaultsKey.hasOnboarded)
-                && backupKeys.contains(DefaultsKey.dockPreviewIntroVersion)
                 && backupKeys.contains(DefaultsKey.featuresOnboardingVersion)
                 && backupKeys.contains(DefaultsKey.lastUpdateIntroVersion),
                "a restored Mac does not replay onboarding or the intros already seen")
@@ -7942,6 +8542,12 @@ struct MetricsTests {
         expect(AppUpdatesSupport.compare("2026.723.1724", "2026.714.1952") == .orderedDescending
                 && AppUpdatesSupport.compare("00123", "123") == .orderedSame,
                "leading zeros never decide a comparison")
+        expect(!AppUpdatesSupport.isNewer("1.9a", than: "1.10")
+                && AppUpdatesSupport.isNewer("1.10", than: "1.9a")
+                && !AppUpdatesSupport.isNewer("3.5beta", than: "3.5")
+                && AppUpdatesSupport.isNewer("3.5", than: "3.5beta")
+                && AppUpdatesSupport.isNewer("1.9b", than: "1.9a"),
+               "a lettered part compares by its number first, and the bare number outranks its own suffixed run")
         expect(AppUpdatesSupport.versionCore("3.5.262,260717dcrpwg7m0") == "3.5.262"
                 && AppUpdatesSupport.versionCore("0.0.402") == "0.0.402",
                "the revision after a comma is not part of the version")
@@ -8180,6 +8786,636 @@ struct MetricsTests {
         expect(BrightnessSupport.steppedBrightness(0.8, delta: 1 / 16.0) > 0.8
                 && BrightnessSupport.steppedBrightness(0.0, delta: 1 / 16.0) > 0,
                "a step still moves in the direction asked for")
+
+        // MARK: Command bar calculator
+
+        func math(_ input: String, decimal: String = ".", grouping: String = ",") -> String? {
+            CommandBarMath.evaluate(input,
+                                    decimalSeparator: decimal,
+                                    groupingSeparator: grouping,
+                                    locale: Locale(identifier: "en_US"))?.formatted
+        }
+        func mathValue(_ input: String, decimal: String = ".", grouping: String = ",") -> Double? {
+            CommandBarMath.evaluate(input,
+                                    decimalSeparator: decimal,
+                                    groupingSeparator: grouping,
+                                    locale: Locale(identifier: "en_US"))?.value
+        }
+
+        expect(math("2+2") == "4", "the calculator answers a sum")
+        expect(math("10 * 4.5") == "45", "spaces and decimals are fine")
+        expect(math("(2+3)*4") == "20", "parentheses come first")
+        expect(math("2+3*4") == "14", "multiplication binds tighter than addition")
+        expect(math("10/4") == "2.5", "division keeps its decimals")
+        expect(math("2^3^2") == "512", "powers group to the right")
+        expect(math("-5+2") == "-3", "a leading minus is a sign, not an error")
+        expect(math("--5+1") == "6", "two minuses cancel")
+        expect(math("1920/2") == "960", "the everyday case works")
+        expect(mathValue("0.1+0.2") == 0.3 && math("0.1+0.2") == "0.3",
+               "floating point noise never reaches the eye")
+        expect(math("1,000+1") == "1,001", "grouped thousands parse and print grouped")
+        expect(math("2 x 3") == "6" && math("10 ÷ 2") == "5" && math("2 × 3") == "6",
+               "the written multiplication and division signs work too")
+        expect(math("2(3+4)") == "14" && math("(1+2)(3+4)") == "21",
+               "a number against a parenthesis multiplies")
+        expect(math("-2^2") == "-4", "a sign applies to the whole power, as on paper")
+        expect(math("2^0.5")?.hasPrefix("1.41421") == true, "a fractional power is fine")
+        expect(math("1/1000000000") == "1e-9", "a billionth reads as a billionth, not as zero")
+        expect(math("2^100")?.contains("e") == true, "a huge answer switches notation instead of vanishing")
+        expect(math("2026-07-27") == nil && math("27/07/2026") == nil && math("10:30") == nil,
+               "a date or a time is never answered as a sum")
+        expect(math("100-50") == "50", "two numbers around a minus are still a subtraction")
+        expect(math("SDL_VIDEODRIVER=") == nil && math("x=5") == nil,
+               "an assignment shape is not an expression")
+        expect(math("7+3=") == "10", "a trailing equals sign is just habit")
+
+        expect(math("480+15%") == "552", "a percentage after plus is relative")
+        expect(math("480-15%") == "408", "and after minus too")
+        expect(math("20% of 480") == "96", "percent of a number reads as it is said")
+        expect(math("20% de 480") == "96", "the same in the other words people type")
+        expect(math("50%") == nil, "a lone percentage is not a question")
+        expect(math("200*10%") == "20", "a percentage multiplies as a fraction")
+
+        expect(math("5") == nil, "a lone number is a search, not an answer")
+        expect(math("hello") == nil, "words are not expressions")
+        expect(math("1password") == nil, "an app name that starts with a digit stays a search")
+        expect(math("volume 20") == nil, "a command with a number is not a sum")
+        expect(math("brilho 40") == nil, "neither is the same command in another language")
+        expect(math("10/0") == nil, "dividing by zero has no answer to show")
+        expect(math("2+") == nil && math("(2+3") == nil && math("2++") == nil,
+               "an unfinished expression stays quiet")
+        expect(math("2 * -3") == "-6", "a sign after an operator is read as a sign")
+        expect(math(String(repeating: "(", count: 60) + "1" + String(repeating: ")", count: 60)) == nil,
+               "a wall of parentheses is refused instead of eating the stack")
+        expect(math("e-mail") == nil, "a hyphenated word is not a subtraction")
+        expect(math("9999999999999999*99")?.contains("e") == true,
+               "a number past plain reading switches notation")
+
+        // The same numbers as the owner's Mac writes them.
+        expect(CommandBarMath.evaluate("1.234,5 + 1",
+                                       decimalSeparator: ",",
+                                       groupingSeparator: ".",
+                                       locale: Locale(identifier: "pt_BR"))?.formatted == "1.235,5",
+               "a comma decimal parses and prints back in the same shape")
+        expect(CommandBarMath.evaluate("1,5*2",
+                                       decimalSeparator: ",",
+                                       groupingSeparator: ".",
+                                       locale: Locale(identifier: "pt_BR"))?.value == 3,
+               "the comma is the decimal point where that is the custom")
+        expect(math("1.500+1", decimal: ",", grouping: ".") == "1,501",
+               "three digits after the grouping separator read as thousands")
+
+        // MARK: Command bar, what the person controls
+
+        expect(CommandBarSource.allCases.map(\.rawValue) == [
+            "actions", "apps", "menus", "windows", "quitApps", "settingsPages",
+            "snippets", "clipboard", "emoji", "folders", "answers", "calculator",
+            "selection", "links",
+        ], "source ids are stable (they persist inside the disabled list)")
+        expect(CommandBarSource.actions.isAlwaysOn
+                && CommandBarSource.allCases.filter(\.isAlwaysOn).count == 1,
+               "only the app's own actions cannot be switched off")
+        expect(CommandBarPreferences.source(ofRowID: "app.x") == .apps
+                && CommandBarPreferences.source(ofRowID: "menu.1.Bold") == .menus
+                && CommandBarPreferences.source(ofRowID: "folder./tmp") == .folders
+                && CommandBarPreferences.source(ofRowID: "action.screenshot") == .actions,
+               "every row knows which source it came from")
+        expect(CommandBarPreferences.isEnabled(.folders, disabledRaw: "folders,emoji") == false
+                && CommandBarPreferences.isEnabled(.apps, disabledRaw: "folders,emoji") == true
+                && CommandBarPreferences.isEnabled(.actions, disabledRaw: "actions") == true,
+               "a switched off source stays off, and actions never can be")
+        expect(CommandBarPreferences.storageValue(for: [.emoji, .folders, .actions])
+                == "emoji,folders",
+               "the disabled list writes the same way every time")
+        expect(CommandBarPreferences.disabledSources(from: "folders, nonsense ,emoji")
+                == Set([.folders, .emoji]),
+               "an unknown source id is dropped instead of corrupting the set")
+
+        var barAliases = CommandBarPreferences.settingAlias("codex", for: "app./Applications/Chat.app",
+                                                            in: [:])
+        expect(barAliases["app./Applications/Chat.app"] == "codex", "a row takes the name it was given")
+        expect(CommandBarPreferences.aliasMatches("codex", query: "codex")
+                && CommandBarPreferences.aliasMatches("codex", query: "cod")
+                && !CommandBarPreferences.aliasMatches("codex", query: "codexx"),
+               "the name matches whole or as it is being typed, never beyond it")
+        expect(CommandBarPreferences.aliasMatches("meu chat codex", query: "codex"),
+               "several words all find the same row")
+        expect(CommandBarPreferences.aliasMatches("Códex", query: "codex"),
+               "accents in a name never break it")
+        barAliases = CommandBarPreferences.settingAlias("  ", for: "app./Applications/Chat.app",
+                                                        in: barAliases)
+        expect(barAliases.isEmpty, "clearing the field removes the name")
+        expect(CommandBarPreferences.decodeAliases(
+                CommandBarPreferences.encodeAliases(["a": "one", "b": "two"])) == ["a": "one", "b": "two"],
+               "names survive the round trip")
+        expect(CommandBarPreferences.decodeAliases("not json").isEmpty,
+               "a corrupt name list decodes as none")
+        expect(CommandBarPreferences.acceptsAlias(rowID: "app.x")
+                && !CommandBarPreferences.acceptsAlias(rowID: "menu.1.Bold")
+                && !CommandBarPreferences.acceptsAlias(rowID: "window.4")
+                && !CommandBarPreferences.acceptsAlias(rowID: "clipboard.abc"),
+               "only rows that are the same thing tomorrow can be named")
+
+        var barPins = CommandBarPreferences.togglingPin("action.screenshot", in: [])
+        barPins = CommandBarPreferences.togglingPin("app.chat", in: barPins)
+        expect(barPins == ["action.screenshot", "app.chat"], "pins keep the order they were made in")
+        expect(CommandBarPreferences.togglingPin("action.screenshot", in: barPins) == ["app.chat"],
+               "the same gesture unpins")
+        expect(CommandBarPreferences.leadingPins(["app.chat", "app.gone"],
+                                                 available: ["app.chat", "action.a"])
+                == ["app.chat"],
+               "the empty bar leads with the pins that still exist")
+        expect(CommandBarPreferences.pinTieBreak < 700,
+               "a pin breaks a tie and never jumps over a better match")
+        expect(CommandBarPreferences.aliasHit("codex", query: "codex") == .exact
+                && CommandBarPreferences.aliasHit("codex", query: "cod") == .prefix
+                && CommandBarPreferences.aliasHit("codex", query: "zzz") == nil,
+               "a finished name outranks one still being typed")
+        expect(CommandBarPreferences.AliasHit.exact.rawValue > 1200
+                && CommandBarPreferences.AliasHit.prefix.rawValue > 900,
+               "the name the person gave beats the app's own title")
+        expect(CommandBarPreferences.rowUsingAlias("codex", in: ["app.a": "codex"], excluding: "app.b")
+                == "app.a",
+               "a name already taken is reported instead of being stolen")
+        expect(CommandBarPreferences.rowUsingAlias("codex", in: ["app.a": "codex"], excluding: "app.a")
+                == nil,
+               "renaming a row never conflicts with itself")
+        var barHidden = CommandBarPreferences.togglingHidden("app.x", in: [])
+        expect(barHidden == ["app.x"], "a row can be told never to show")
+        barHidden = CommandBarPreferences.togglingHidden("app.x", in: barHidden)
+        expect(barHidden.isEmpty, "and told to come back")
+        expect(CommandBarPreferences.decodeHidden(
+                CommandBarPreferences.encodeHidden(["b", "a"])) == ["a", "b"],
+               "hidden rows survive the round trip")
+        expect(CommandBarPreferences.decodePins(CommandBarPreferences.encodePins(["a", "b"])) == ["a", "b"]
+                && CommandBarPreferences.decodePins("a\na\n\nb") == ["a", "b"],
+               "pins survive the round trip and never repeat")
+
+        // MARK: Command bar unit conversion
+
+        func units(_ input: String) -> String? {
+            CommandBarUnits.convert(input,
+                                    decimalSeparator: ".",
+                                    groupingSeparator: ",",
+                                    locale: Locale(identifier: "en_US"))?.formatted
+        }
+        func unitValue(_ input: String) -> Double? {
+            CommandBarUnits.convert(input,
+                                    decimalSeparator: ".",
+                                    groupingSeparator: ",",
+                                    locale: Locale(identifier: "en_US"))?.value
+        }
+
+        expect(unitValue("100 km to mi").map { abs($0 - 62.1371) < 0.001 } == true,
+               "a distance converts")
+        expect(unitValue("20 c to f").map { abs($0 - 68) < 0.001 } == true,
+               "a temperature converts as an absolute reading, not as a step")
+        expect(unitValue("0 c to f").map { abs($0 - 32) < 0.001 } == true,
+               "freezing reads as freezing")
+        expect(unitValue("5 gb to mb").map { abs($0 - 5000) < 0.001 } == true,
+               "storage uses the decimal units it is written with")
+        expect(unitValue("1 gib to mib").map { abs($0 - 1024) < 0.001 } == true,
+               "and the binary ones when those are written instead")
+        expect(unitValue("100km to mi").map { abs($0 - 62.1371) < 0.001 } == true,
+               "the number and the unit do not need a space between them")
+        expect(unitValue("5 in to cm").map { abs($0 - 12.7) < 0.001 } == true,
+               "the word that also means inches is read correctly on both sides")
+        expect(unitValue("2 h to min").map { abs($0 - 120) < 0.001 } == true,
+               "hours become minutes")
+        expect(unitValue("1 kg to lb").map { abs($0 - 2.20462) < 0.001 } == true,
+               "mass converts")
+        expect(unitValue("1.5 l to ml").map { abs($0 - 1500) < 0.001 } == true,
+               "a decimal amount converts")
+        expect(units("100 km to kg") == nil, "two different families never meet")
+        expect(units("100 km") == nil, "without the word there is no conversion")
+        expect(units("to") == nil && units("in") == nil,
+               "the little words alone convert nothing")
+        expect(units("safari to dock") == nil, "plain words are not units")
+        expect(units("5 xyz to cm") == nil, "an unknown unit is refused, never guessed")
+        expect(units("minutes to read the article") == nil,
+               "a sentence that happens to contain a unit word stays a search")
+        expect(CommandBarUnits.convert("1,5 m to cm",
+                                       decimalSeparator: ",",
+                                       groupingSeparator: ".",
+                                       locale: Locale(identifier: "pt_BR"))
+                .map { abs($0.value - 150) < 0.001 } == true,
+               "a comma decimal converts where that is the custom")
+
+        // MARK: Command bar emoji
+
+        expect(CommandBarEmoji.emoji.count > 150, "the curated emoji set is there")
+        expect(CommandBarEmoji.emoji.allSatisfy { !$0.name.isEmpty && !$0.character.isEmpty },
+               "every emoji carries the words that find it")
+        expect(CommandBarEmoji.emoji.contains { $0.character == "🔥" && $0.name.contains("fire") },
+               "the names come from Unicode itself")
+        expect(CommandBarEmoji.emoji.contains { $0.name.contains("heart") },
+               "the ones people look for by feeling are findable")
+        expect(Set(CommandBarEmoji.emoji.map(\.character)).count == CommandBarEmoji.emoji.count,
+               "no emoji is offered twice")
+
+        // MARK: Command bar highlighting
+
+        expect(CommandBarSearch.highlightOffsets(title: "Screen brightness", query: "bright")
+                == Set(7..<13),
+               "the matched word is marked where it really is")
+        expect(CommandBarSearch.highlightOffsets(title: "Brilho da tela", query: "brilho tela")
+                == Set(0..<6).union(Set(10..<14)),
+               "every token gets its own mark")
+        expect(CommandBarSearch.highlightOffsets(title: "Reunião com João", query: "reuniao")
+                == Set(0..<7),
+               "accents do not shift the marks")
+        expect(CommandBarSearch.highlightOffsets(title: "Settings", query: "brlho").isEmpty,
+               "a typo rescue marks nothing rather than guessing")
+        expect(CommandBarSearch.highlightOffsets(title: "Empty the Trash", query: "trash")
+                == Set(10..<15),
+               "the mark lands on the word, not on the first letters that repeat")
+        expect(CommandBarSearch.highlightOffsets(title: "Anything", query: "").isEmpty,
+               "nothing typed, nothing marked")
+
+        // MARK: Command bar wiring
+
+        expect(Defaults.registeredDefaults[DefaultsKey.commandBarShortcutEnabled] as? Bool == false,
+               "the command bar shortcut ships off like every new feature")
+        expect(Defaults.registeredDefaults[DefaultsKey.commandBarShortcut] as? String
+                == "option:49",
+               "the default command bar shortcut is option space, the launcher convention")
+        expect(Defaults.registeredDefaults[DefaultsKey.panelUtilityCommandBar] as? Bool == true,
+               "the command bar panel row ships visible like its siblings")
+        expect(GlobalShortcutRole.commandBar.requiredEnableKeys == [DefaultsKey.commandBarShortcutEnabled]
+                && GlobalShortcutRole.commandBar.feature == .commandBar,
+               "the command bar shortcut role gates on its toggle and feature")
+        expect(AppFeature.commandBar.group == .tools && AppFeature.commandBar.enabledKeys.isEmpty
+                && AppFeature.commandBar.permissions == [.accessibility],
+               "the command bar is an on-demand tool that reads and types through accessibility")
+        expect(AppFeature.commandBar.energyProfile == .idle,
+               "the command bar costs nothing while closed")
+        expect(pageVisible(.commandBar, available: [.commandBar])
+                && !pageVisible(.commandBar, available: []),
+               "the command bar page follows its hub switch")
+        expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarUsage),
+               "what the person runs most never travels in a backup")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarShortcutEnabled)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarShortcut)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarLinks),
+               "the command bar settings travel in backups")
+        // A translated format string whose placeholders drifted from the
+        // English one does not misprint: String(format:) reads the argument
+        // list by the specifiers, so a "%@" where a "%d" belongs walks off the
+        // stack and takes the app with it. This is the one translation mistake
+        // that is a crash rather than a typo, so it is pinned here.
+        func specifiers(of format: String) -> [String] {
+            var found: [String] = []
+            let characters = Array(format)
+            var index = 0
+            while index < characters.count {
+                guard characters[index] == "%" else {
+                    index += 1
+                    continue
+                }
+                var cursor = index + 1
+                // Positional and width flags sit between the % and the letter.
+                while cursor < characters.count,
+                      "0123456789$.-+ #'lhqLzjt".contains(characters[cursor]) {
+                    cursor += 1
+                }
+                guard cursor < characters.count else { break }
+                found.append(String(characters[index...cursor]))
+                index = cursor + 1
+            }
+            return found
+        }
+        var englishFormats: [String: [String]] = [:]
+        for language in AppLanguage.allCases {
+            for child in Mirror(reflecting: FeatureStrings.commandBar(language)).children {
+                guard let label = child.label, let value = child.value as? String else { continue }
+                let found = specifiers(of: value)
+                if language == .enUS {
+                    englishFormats[label] = found
+                } else {
+                    expect(englishFormats[label] == found,
+                           "\(label) takes the same arguments in \(language.rawValue) as in en-US")
+                }
+            }
+        }
+
+        for language in AppLanguage.allCases {
+            let commandBarValues = Mirror(reflecting: FeatureStrings.commandBar(language)).children
+                .compactMap { $0.value as? String }
+            expect(commandBarValues.count == 123 && commandBarValues.allSatisfy { !$0.isEmpty },
+                   "every command bar string is set for \(language.rawValue)")
+            expect(commandBarValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in visible command bar strings (\(language.rawValue))")
+        }
+        expect(Set(GlobalShortcutRole.allCases.map(\.defaultShortcut)).count
+                == GlobalShortcutRole.allCases.count,
+               "no two shortcut roles share a default combination")
+
+        // A heavy, rare verb stays out of the list until it is asked for, in
+        // every language the app speaks.
+        for language in AppLanguage.allCases {
+            let format = FeatureStrings.commandBar(language).quitFormat
+            let verb = format.replacingOccurrences(of: "%@", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            expect(CommandBarSearch.matchesVerb(verb, in: format),
+                   "the quit verb finds its own rows in \(language.rawValue)")
+        }
+        expect(CommandBarSearch.matchesVerb("quit saf", in: "Quit %@")
+                && CommandBarSearch.matchesVerb("encerrar", in: "Encerrar %@")
+                && CommandBarSearch.matchesVerb("終了", in: "%@を終了"),
+               "the verb is recognized with the name typed after it, and without spaces too")
+        expect(!CommandBarSearch.matchesVerb("safari", in: "Quit %@")
+                && !CommandBarSearch.matchesVerb("", in: "Quit %@"),
+               "an app name alone never drags the quit rows in")
+
+        // MARK: Command bar search and ranking
+
+        expect(CommandBarSearch.normalized("  Brilho   da\tTela ") == "brilho da tela",
+               "command bar folds case and collapses whitespace")
+        expect(CommandBarSearch.matches(title: "Reunião com João", query: "reuniao joao"),
+               "command bar search ignores accents and case")
+        expect(CommandBarSearch.matches(title: "Brilho da tela", query: "brilho"),
+               "a plain word finds its command")
+        expect(CommandBarSearch.matches(title: "Brilho da tela", query: "Brilho"),
+               "capitalized queries land in the same place")
+        expect(CommandBarSearch.matches(title: "Brilho da tela", query: "brlho"),
+               "a dropped letter still finds the command")
+        expect(CommandBarSearch.matches(title: "Brilho da tela", query: "birlho"),
+               "two swapped letters still find the command")
+        expect(!CommandBarSearch.matches(title: "Brilho da tela", query: "volume"),
+               "an unrelated word stays out")
+        expect(CommandBarSearch.matches(title: "Capturar tela", keywords: "screenshot print", query: "print"),
+               "keywords match like the title does")
+        expect(CommandBarSearch.matches(title: "Silenciar microfone", query: "silenciar micro"),
+               "tokens match in any order as prefixes")
+        expect(!CommandBarSearch.matches(title: "Silenciar microfone", query: "silenciar tela"),
+               "every token must land somewhere")
+        expect(CommandBarSearch.isSubsequence("brlho", of: "brilho")
+                && !CommandBarSearch.isSubsequence("brilhoo", of: "brilho"),
+               "subsequence needs every letter in order")
+        expect(CommandBarSearch.withinOneEdit("birlho", "brilho")
+                && CommandBarSearch.withinOneEdit("brilo", "brilho")
+                && CommandBarSearch.withinOneEdit("brilyo", "brilho")
+                && !CommandBarSearch.withinOneEdit("brolyo", "brilho"),
+               "one edit means one swap, one gap or one wrong letter")
+
+        let barCandidates = [
+            CommandBarCandidate(index: 0, title: "Capturar tela"),
+            CommandBarCandidate(index: 1, title: "Copiar texto da tela"),
+            CommandBarCandidate(index: 2, title: "Bloquear a tela"),
+            CommandBarCandidate(index: 3, title: "Manter acordado"),
+        ]
+        expect(CommandBarSearch.rankedIndexes(candidates: barCandidates, matching: "tela")
+                == [0, 1, 2],
+               "matching rows keep catalog order on equal scores")
+        expect(CommandBarSearch.rankedIndexes(candidates: barCandidates, matching: "capturar tela")
+                .first == 0,
+               "the full title wins the top row")
+        let boosted = [
+            CommandBarCandidate(index: 0, title: "Capturar tela"),
+            CommandBarCandidate(index: 1, title: "Copiar texto da tela", boost: 300),
+        ]
+        expect(CommandBarSearch.rankedIndexes(candidates: boosted, matching: "tela") == [1, 0],
+               "usage boost reorders equally good matches")
+        expect(CommandBarSearch.rankedIndexes(candidates: boosted, matching: "capturar") == [0],
+               "a boost never resurrects a non-match")
+        expect(CommandBarSearch.rankedIndexes(candidates: barCandidates, matching: " ").isEmpty,
+               "a blank query ranks nothing; suggestions handle it")
+
+        // One widely installed app carries a left-to-right mark in front of
+        // its name, which made it stop being an exact match for the name it
+        // shows and sink under every menu row that merely started with it.
+        expect(CommandBarSearch.normalized("\u{200E}WhatsApp") == "whatsapp"
+                && CommandBarSearch.normalized("Soft\u{00AD}hyphen") == "softhyphen",
+               "characters that take up no space never reach the matching")
+        let invisible = [
+            CommandBarCandidate(index: 0, title: "WhatsApp Business (and 1 more tab)",
+                                keywords: "Menu Safari History Recently Closed"),
+            CommandBarCandidate(index: 1, title: "\u{200E}WhatsApp"),
+        ]
+        expect(CommandBarSearch.rankedIndexes(candidates: invisible, matching: "whatsapp")
+                == [1, 0],
+               "the app named exactly what was typed leads, invisible mark and all")
+        expect(CommandBarPreferences.rankBias(for: .menus) < 0
+                && CommandBarPreferences.rankBias(for: .apps) == 0
+                && CommandBarPreferences.rankBias(for: .actions) == 0,
+               "a borrowed menu row sits under what this Mac owns")
+        let borrowed = [
+            CommandBarCandidate(index: 0, title: "Tela cheia",
+                                boost: CommandBarPreferences.rankBias(for: .menus)),
+            CommandBarCandidate(index: 1, title: "Tela cheia"),
+        ]
+        expect(CommandBarSearch.rankedIndexes(candidates: borrowed, matching: "tela cheia")
+                == [1, 0],
+               "at equal quality the app's own row wins over the menu of the app in front")
+        let sharper = [
+            CommandBarCandidate(index: 0, title: "Fechar aba",
+                                boost: CommandBarPreferences.rankBias(for: .menus)),
+            CommandBarCandidate(index: 1, title: "Fechar todas as abas do navegador"),
+        ]
+        expect(CommandBarSearch.rankedIndexes(candidates: sharper, matching: "fechar aba")
+                .first == 0,
+               "the step down never buries a menu command that is what was typed")
+
+        // Two rows with one id is undefined behaviour in a SwiftUI list, and
+        // the list is stitched from six providers plus whatever was saved.
+        expect(CommandBarSearch.firstOccurrences(of: ["a", "b", "a", "c", "b"]) == [0, 1, 3],
+               "a repeated id keeps the better ranked row and drops the other")
+        expect(CommandBarSearch.firstOccurrences(of: []).isEmpty, "an empty list stays empty")
+        expect(CommandBarSearch.firstOccurrences(of: ["a", "b"]) == [0, 1],
+               "a list with nothing repeated is left alone")
+
+        // A combination tied to one row of the bar.
+        let optionB = GlobalShortcut(keyCode: 11, modifiers: [.option, .command])
+        let optionN = GlobalShortcut(keyCode: 45, modifiers: [.option, .command])
+        var bound = CommandBarRowShortcuts.setting(optionB, for: "app.bundle.a", in: [:])
+        expect(bound["app.bundle.a"] == optionB, "a row answers to the keys it was given")
+        bound = CommandBarRowShortcuts.setting(optionB, for: "app.bundle.b", in: bound)
+        expect(bound["app.bundle.b"] == optionB && bound["app.bundle.a"] == nil,
+               "the same keys move to the last row that asked; two rows never share one")
+        expect(CommandBarRowShortcuts.setting(nil, for: "app.bundle.b", in: bound).isEmpty,
+               "taking the keys off leaves nothing behind")
+        expect(CommandBarRowShortcuts.key(for: optionB, in: bound) == "app.bundle.b"
+                && CommandBarRowShortcuts.key(for: optionN, in: bound) == nil,
+               "a press is routed to the row that owns it")
+        expect(CommandBarRowShortcuts.isUsable(optionB)
+                && !CommandBarRowShortcuts.isUsable(GlobalShortcut(keyCode: 11, modifiers: [])),
+               "a bare letter is never taken from every app on the Mac")
+        expect(CommandBarRowShortcuts.decode(CommandBarRowShortcuts.encode(bound)) == bound,
+               "the bindings survive a round trip through storage")
+        var full: [String: GlobalShortcut] = [:]
+        for index in 0..<CommandBarRowShortcuts.limit {
+            full["row.\(index)"] = GlobalShortcut(keyCode: Int64(index), modifiers: [.control])
+        }
+        expect(!CommandBarRowShortcuts.hasRoom(for: "row.new", in: full)
+                && CommandBarRowShortcuts.hasRoom(for: "row.0", in: full)
+                && CommandBarRowShortcuts.hasRoom(for: "row.new", in: [:]),
+               "a full list says so before the keys are taken, and rebinding is always allowed")
+
+        // Dates and places, answered by the calendar this Mac carries.
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = TimeZone(identifier: "UTC")!
+        let english = Locale(identifier: "en_US")
+        let tuesday = Date(timeIntervalSince1970: 1_785_240_000)   // 2026-07-28
+        func dated(_ input: String, _ locale: Locale = english) -> String? {
+            CommandBarDates.evaluate(input, now: tuesday, calendar: gregorian, locale: locale)?.formatted
+        }
+        expect(dated("in 3 weeks") == "August 18, 2026",
+               "three weeks from now is a date, not a search")
+        expect(dated("daqui 10 dias", Locale(identifier: "pt_BR")) == "7 de agosto de 2026",
+               "the same question in the person's own words, written their way")
+        expect(dated("3 days ago") == "July 25, 2026" && dated("ha 3 dias") == "July 25, 2026",
+               "backwards counts backwards, before or after the number")
+        expect(dated("today + 10 days") == "August 7, 2026"
+                && dated("today - 10 days") == "July 18, 2026",
+               "a plain sign decides the direction")
+        expect(dated("3 days") == nil && dated("2+2") == nil && dated("100 km to mi") == nil,
+               "without a direction it is not a question, and a sum is not a date")
+        expect(CommandBarDates.evaluate("in 3 weeks", now: tuesday, calendar: gregorian,
+                                        locale: english)?.detail == "Tuesday",
+               "the answer says which weekday it lands on")
+        expect(dated("days until 12/25")?.contains("150") == true,
+               "how far away a written date is, counted in whole days")
+        expect(CommandBarDates.evaluate("time in tokyo", now: tuesday, calendar: gregorian,
+                                        locale: english)?.detail.hasPrefix("Tokyo") == true,
+               "the clock somewhere else, from the time zones the Mac already knows")
+        expect(CommandBarDates.evaluate("hora em londres", now: tuesday, calendar: gregorian,
+                                        locale: english)?.detail.hasPrefix("London") == true,
+               "a city named the way the person's language names it")
+        expect(CommandBarDates.evaluate("time", now: tuesday, calendar: gregorian,
+                                        locale: english) == nil,
+               "a time word with nowhere to look is not an answer")
+        // The gate is the whole safety of this: anything a person might be
+        // searching for that happens to carry a number must fall through.
+        for innocent in ["1password", "2 monitors", "3 tags", "notes", "day one",
+                         "5 minutes", "2026-07-28", "the 3 body problem"] {
+            expect(CommandBarDates.evaluate(innocent, now: tuesday, calendar: gregorian,
+                                            locale: english) == nil,
+                   "\"\(innocent)\" is a search, not a date")
+        }
+
+        // The places the person saves themselves.
+        expect(CommandBarLinks.expand("https://x.com/search?q={query}", kind: .link,
+                                      query: "café com leite")
+                == "https://x.com/search?q=caf%C3%A9%20com%20leite",
+               "what goes into a web address is escaped")
+        expect(CommandBarLinks.expand("~/Projects/{query}", kind: .place, query: "my folder")
+                == "~/Projects/my folder",
+               "a path is not a URL and is never escaped")
+        expect(CommandBarLinks.expand("https://x.com/{clipboard}", kind: .link,
+                                      clipboard: "a+b") == "https://x.com/a%2Bb",
+               "a plus sign inside a search is escaped, not read as a space")
+        expect(CommandBarLinks.trailingArgument(query: "gh vorssaint utils", name: "gh")
+                == "vorssaint utils",
+               "what comes after the name is what the saved search opens with")
+        expect(CommandBarLinks.trailingArgument(query: "GH Vorssaint", name: "gh") == "Vorssaint",
+               "the name is matched without case; the argument keeps its own")
+        expect(CommandBarLinks.trailingArgument(query: "ghost writer", name: "gh") == nil
+                && CommandBarLinks.trailingArgument(query: "gh", name: "gh") == nil,
+               "a longer word is not the name, and the name alone is not an argument")
+        expect(CommandBarLink(name: "gh", kind: .link, destination: "https://x/{query}").takesQuery
+                && !CommandBarLink(name: "a", kind: .link, destination: "https://x").takesQuery,
+               "a destination that waits for a query is a search")
+        expect(CommandBarLinks.url(for: CommandBarLink(name: "a", kind: .link, destination: "x.com"),
+                                   expanded: "x.com")?.scheme == "https",
+               "a destination pasted without a scheme is still a site")
+        expect(CommandBarLinks.decode(CommandBarLinks.encode([
+            CommandBarLink(name: "", kind: .link, destination: "x"),
+            CommandBarLink(name: "ok", kind: .link, destination: "x"),
+        ])).count == 1, "a half-written shortcut never survives a round trip")
+        expect(CommandBarLinks.rankingTitle(name: "gh", query: "gh vorssaint utils")
+                == "gh vorssaint utils",
+               "once an argument follows the name, the row is scored against the whole query")
+        expect(CommandBarLinks.rankingTitle(name: "gh", query: "gh") == "gh",
+               "the name alone still scores against its own name")
+        expect(CommandBarLinks.rankingTitle(name: "gh", query: "ghost writer") == "gh",
+               "a word that only starts with the name is not an argument, so scoring is untouched")
+        // The defect itself: scored against its own name, a saved search left
+        // the list on the first word of the argument, which is the moment it
+        // was about to run.
+        expect(CommandBarSearch.score(title: "gh", keywords: "Link",
+                                      query: "gh vorssaint utils") == nil
+                && CommandBarSearch.score(
+                    title: CommandBarLinks.rankingTitle(name: "gh", query: "gh vorssaint utils"),
+                    keywords: "Link", query: "gh vorssaint utils") != nil,
+               "a saved search stays in the list while what to look for is typed")
+
+        expect(CommandBarText.wordCount("uma frase com cinco palavras") == 5
+                && CommandBarText.wordCount("  espaços   demais  ") == 2
+                && CommandBarText.wordCount("") == 0,
+               "words are counted the way a person counts them")
+        expect(CommandBarText.characterCount("café") == 4,
+               "an accented letter is one character, not two")
+        expect(CommandBarText.preview("uma linha\ncom quebra") == "uma linha com quebra",
+               "a preview of a paragraph stays on one line")
+        expect(CommandBarText.preview(String(repeating: "a", count: 60), limit: 10)
+                == String(repeating: "a", count: 10) + "…",
+               "a long selection is cut with an ellipsis")
+        expect(CommandBarText.changesCase("abc", to: { $0.localizedUppercase })
+                && !CommandBarText.changesCase("ABC", to: { $0.localizedUppercase }),
+               "a case row is only offered when the case would change")
+
+        expect(CommandBarSearch.splitTrailingNumber("brilho 40")
+                == CommandBarNumberSplit(text: "brilho", number: 40),
+               "a trailing number splits off the verb")
+        expect(CommandBarSearch.splitTrailingNumber("volume 20%")
+                == CommandBarNumberSplit(text: "volume", number: 20),
+               "a percent sign on the number is fine")
+        expect(CommandBarSearch.splitTrailingNumber("brilho")
+                == CommandBarNumberSplit(text: "brilho", number: nil),
+               "a bare verb carries no number")
+        expect(CommandBarSearch.splitTrailingNumber("40")
+                == CommandBarNumberSplit(text: "40", number: nil),
+               "a number alone is a search, not a command")
+        expect(CommandBarSearch.splitTrailingNumber("manter acordado 30")
+                == CommandBarNumberSplit(text: "manter acordado", number: 30),
+               "multi-word verbs keep their words")
+        expect(CommandBarSearch.argumentValue("40", in: 0...100) == 40
+                && CommandBarSearch.argumentValue("140", in: 0...100) == 100
+                && CommandBarSearch.argumentValue("35%", in: 0...100) == 35
+                && CommandBarSearch.argumentValue("abc", in: 0...100) == nil
+                && CommandBarSearch.argumentValue("", in: 0...100) == nil,
+               "inline arguments accept digits, clamp and reject the rest")
+
+        let barNow: Double = 1_800_000_000
+        var barUsage: [String: CommandBarUse] = [:]
+        barUsage = CommandBarUsage.recording(barUsage, id: "action.screenshot", now: barNow)
+        barUsage = CommandBarUsage.recording(barUsage, id: "action.screenshot", now: barNow + 10)
+        barUsage = CommandBarUsage.recording(barUsage, id: "action.darkMode", now: barNow + 20)
+        expect(barUsage["action.screenshot"]?.count == 2
+                && barUsage["action.screenshot"]?.lastUsed == barNow + 10,
+               "recording a run counts it and stamps the time")
+        let barEncoded = CommandBarUsage.encode(barUsage)
+        expect(CommandBarUsage.decode(barEncoded) == barUsage,
+               "usage survives the round trip")
+        expect(CommandBarUsage.decode("not json").isEmpty && CommandBarUsage.decode(nil).isEmpty,
+               "corrupt usage decodes as a clean slate")
+        var crowded: [String: CommandBarUse] = [:]
+        for index in 0..<(CommandBarUsage.storedIDLimit + 5) {
+            crowded = CommandBarUsage.recording(crowded, id: "app.\(index)", now: barNow + Double(index))
+        }
+        expect(crowded.count == CommandBarUsage.storedIDLimit && crowded["app.0"] == nil
+                && crowded["app.\(CommandBarUsage.storedIDLimit + 4)"] != nil,
+               "the usage store caps by dropping the oldest ids")
+        expect(CommandBarUsage.boost(for: CommandBarUse(count: 3, lastUsed: barNow), now: barNow + 60)
+                > CommandBarUsage.boost(for: CommandBarUse(count: 3, lastUsed: barNow), now: barNow + 30 * 86400),
+               "a habit fades as it ages")
+        expect(CommandBarUsage.boost(for: CommandBarUse(count: 999, lastUsed: barNow), now: barNow) < 700,
+               "no habit outruns a literal text hit")
+        expect(CommandBarUsage.boost(for: nil, now: barNow) == 0,
+               "no usage, no boost")
+
+        let barSuggestions = CommandBarUsage.suggestionIDs(
+            usage: barUsage,
+            available: ["action.screenshot", "action.darkMode", "action.colorPicker", "action.ocr"],
+            curated: ["action.colorPicker", "action.gone", "action.ocr"],
+            limit: 3)
+        expect(barSuggestions == ["action.screenshot", "action.darkMode", "action.colorPicker"],
+               "suggestions lead with the most used and fill with curated ones")
+        expect(CommandBarUsage.suggestionIDs(usage: [:],
+                                             available: ["a", "b"],
+                                             curated: ["c", "b", "a"],
+                                             limit: 5) == ["b", "a"],
+               "curated suggestions skip whatever is unavailable")
 
         // MARK: Result
 

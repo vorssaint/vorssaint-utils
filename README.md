@@ -105,6 +105,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 
 ### Everyday tools
 
+- **Command Bar.** One shortcut opens a field over whatever you are doing. Type a few letters to run any Vorssaint action, open an app, switch to a window, insert a snippet or paste from your clipboard history at the cursor, and it reaches into the app you are using to run any command from its menus, showing that command's own shortcut. It answers sums, conversions, dates and questions about your Mac as you type, and acts on the text you already have selected. Press ⌘K on any row to name it, pin it, hide it or give it a shortcut of its own. It learns what you use most, forgets everything you type, and never leaves your Mac.
 - **Quick panel.** ⌃⌘V opens a small floating palette with your favorite tools one key away.
 - **Quick toggles.** One-click system actions in their own panel tab: switch light and dark mode, empty the Trash, eject every disk, show hidden files, hide desktop icons, lock the screen and more.
 - **Radial menu.** Hold a shortcut, or a spare side mouse button, and a wheel of your favorite actions opens around the pointer: apps, files, links, key combos, media controls and Vorssaint tools, with submenus for more. Point and release to run one.
@@ -115,7 +116,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Color picker.** Grab any pixel with the system loupe as HEX, RGB, HSL or SwiftUI code.
 - **App updates.** One list of the apps on your Mac that have a newer version, from Homebrew and from the App Store. Tick the ones you want and they update together, so you stop opening a different store for each app. It can also check in the background and tell you when something is waiting.
 - **Cleaner.** Sweeps app leftovers, caches and logs, by hand or on a schedule.
-- **WhatsApp downloads.** The Cleaner can also tidy files WhatsApp saved into Downloads, confirmed by macOS metadata and only ever moved to the Trash, with a review list, retention rules and an optional organizer that files new downloads into a folder of your choice.
+- **Messaging downloads.** The Cleaner can also tidy the media a messaging app saves into Downloads, confirmed by macOS metadata and only ever moved to the Trash, with a review list, retention rules and an optional organizer that files new ones into a folder of your choice.
 - **Uninstaller.** Drop an app in and take its caches, preferences and logs to the Trash with it.
 - **Media tools.** Compress videos and images, make GIFs and extract text, all locally.
 - **Homebrew manager.** Search, install and remove formulae and casks without opening a terminal.

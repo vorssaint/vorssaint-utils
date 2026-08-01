@@ -29,20 +29,27 @@ struct BoostLimiter {
     /// music breathe naturally instead of pumping.
     static let releaseMilliseconds: Double = 160
 
-    private var envelope: Float = 0
-    private let releaseCoefficient: Float
-
-    init(sampleRate: Double) {
+    /// How much of the previous level survives one sample, so that the
+    /// recovery lasts the same fraction of a second whatever the rate.
+    ///
+    /// This lives outside the limiter on purpose. A device can change its
+    /// rate while the audio path stays up, which is exactly what a headset
+    /// does when a call takes the microphone, and the engine has to be able
+    /// to hand the limiter a new figure without reaching into the state the
+    /// audio thread is using. An unreadable rate falls back to the common one.
+    static func release(sampleRate: Double) -> Float {
         let rate = sampleRate.isFinite && sampleRate >= 8000 ? sampleRate : 48000
-        releaseCoefficient = Float(exp(-1000.0 / (rate * Self.releaseMilliseconds)))
+        return Float(exp(-1000.0 / (rate * releaseMilliseconds)))
     }
+
+    private var envelope: Float = 0
 
     /// Limits `frames` frames of `channels` interleaved channels in place.
     /// Samples already inside the ceiling pass through bit-identical.
-    mutating func process(_ samples: UnsafeMutablePointer<Float>, frames: Int, channels: Int) {
+    mutating func process(_ samples: UnsafeMutablePointer<Float>, frames: Int, channels: Int,
+                          release: Float) {
         guard frames > 0, channels > 0 else { return }
         var envelope = self.envelope
-        let release = releaseCoefficient
         let ceiling = Self.ceiling
         var base = 0
         for _ in 0..<frames {

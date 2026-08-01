@@ -12,8 +12,8 @@ import CoreGraphics
 /// are minimized or parked on other Spaces are included when WindowServer
 /// exposes them. Fullscreen windows on other Spaces can be missing from that
 /// list, so Accessibility supplies a second pass for real app windows by id.
-/// The result is then ordered by the app activation MRU (see
-/// `AppActivationTracker`), so the switcher matches the system ⌘Tab toggle.
+/// The result is then ordered by how recently each window was used (see
+/// `WindowUseTracker`), so the switcher matches the system ⌘Tab toggle.
 /// Window titles require Screen Recording on modern macOS; Vorssaint's own
 /// titled windows use NSWindow metadata so Settings remains reachable even
 /// though the app is a menu-bar accessory.
@@ -24,35 +24,50 @@ enum WindowEnumerator {
     private static let maximumCount = 24
 
     static func listWindows() -> [SwitcherItem] {
-        listWindows(filterPID: nil,
-                    maximumCount: maximumCount,
-                    includeWindowlessFinder: UserDefaults.standard.bool(forKey: DefaultsKey.switcherShowWindowlessFinder),
-                    groupByApp: UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs),
-                    currentSpaceOnly: UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly))
+        let windowlessApps = SwitcherWindowlessApps.mode(
+            storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherWindowlessApps))
+        return listWindows(filterPID: nil,
+                           maximumCount: maximumCount,
+                           windowlessApps: windowlessApps,
+                           groupByApp: UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs),
+                           currentSpaceOnly: UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly))
     }
 
     static func listWindows(for pid: pid_t, maximumCount: Int = 12) -> [SwitcherItem] {
-        // The Dock previews honor the same current-desktop choice as the
-        // switcher: the Settings caption promises that picking a window
-        // never hops desktops while the option is on, and a preview click
-        // is a pick like any other.
+        // The current-desktop choice belongs to the switcher alone (issue
+        // #337): its caption promises it trims the switcher list, nothing
+        // else. Dock previews keep showing windows from every desktop, the
+        // behavior issue #339 made first-class; honoring the toggle here
+        // would leave an empty preview with no setting anywhere near the
+        // Dock to explain it.
+        // An entry for the app itself belongs to the switcher alone for the
+        // same reason: a Dock preview is opened by pointing at one app's icon,
+        // so a card naming that app says nothing the pointer did not, and
+        // picking it would only repeat the Dock click.
         listWindows(filterPID: pid,
                     maximumCount: maximumCount,
-                    includeWindowlessFinder: false,
+                    windowlessApps: .off,
                     groupByApp: false,
-                    currentSpaceOnly: UserDefaults.standard.bool(
-                        forKey: DefaultsKey.switcherCurrentSpaceOnly))
+                    currentSpaceOnly: false)
     }
 
     private static func listWindows(filterPID: pid_t?,
                                     maximumCount: Int,
-                                    includeWindowlessFinder: Bool,
+                                    windowlessApps: SwitcherWindowlessApps,
                                     groupByApp: Bool,
                                     currentSpaceOnly: Bool) -> [SwitcherItem] {
         let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
 
         let ownPid = ProcessInfo.processInfo.processIdentifier
         let runningApps = NSWorkspace.shared.runningApplications
+        // Bring the use history up to date before ordering by it: windows that
+        // are gone leave, and any window that appeared without ever taking
+        // focus is filed by the window server's front-to-back order.
+        let frontToBack = WindowUseTracker.frontToBack()
+        WindowUseTracker.shared.reconcile(
+            existingWindows: Set(raw.compactMap { $0[kCGWindowNumber as String] as? CGWindowID }),
+            frontToBack: frontToBack,
+            running: Set(runningApps.map(\.processIdentifier)))
         var regularApps: [pid_t: String] = [:]
         var regularBundlePaths: [pid_t: String] = [:]
         for app in runningApps where app.activationPolicy == .regular {
@@ -104,6 +119,11 @@ enum WindowEnumerator {
 
         var seen = Set<CGWindowID>()
         var windows: [SwitcherItem] = []
+        // Apps whose windows exist but were left out on purpose. They must
+        // never look windowless afterwards: handing them an entry of their own
+        // would put back exactly what the user asked to hide, and picking it
+        // would carry them to the desktop they chose to stay away from.
+        var withheldPIDs = Set<pid_t>()
 
         // Accessibility cannot describe windows parked on a Space that is not
         // visible, so the ghost veto below would silently hide real windows
@@ -150,7 +170,10 @@ enum WindowEnumerator {
             // kept their desktop of origin, so picking an entry never moves
             // the user somewhere else. Windows the server cannot place on any
             // Space are not "elsewhere", so they keep the regular treatment.
-            if currentSpaceOnly, isOnHiddenSpace(CGWindowID(windowID)) { continue }
+            if currentSpaceOnly, isOnHiddenSpace(CGWindowID(windowID)) {
+                withheldPIDs.insert(appPID)
+                continue
+            }
             let axWindow = accessibilityWindows[windowOwnerPID]?.byID[CGWindowID(windowID)]
             if accessibilityWindows[windowOwnerPID] != nil, axWindow == nil,
                !isOnHiddenSpace(CGWindowID(windowID)) {
@@ -214,21 +237,31 @@ enum WindowEnumerator {
                                        embeddedHostPIDs: embeddedHostPIDs,
                                        seen: &seen,
                                        filterPID: filterPID,
-                                       excludeWindow: { currentSpaceOnly && isOnHiddenSpace($0) })
-        if includeWindowlessFinder {
-            appendWindowlessFinder(to: &windows, regularApps: regularApps)
-        }
+                                       excludeWindow: { windowID, appPID in
+                                           guard currentSpaceOnly, isOnHiddenSpace(windowID) else { return false }
+                                           withheldPIDs.insert(appPID)
+                                           return true
+                                       })
+        appendWindowlessApps(to: &windows,
+                             mode: windowlessApps,
+                             runningApps: runningApps,
+                             regularApps: regularApps,
+                             accessibilityWindows: accessibilityWindows,
+                             ownPID: pid_t(ownPid),
+                             withheldPIDs: withheldPIDs)
         if groupByApp {
             windows = groupWindowsByApp(windows)
         }
-        let ordered = orderByActivation(windows)
+        let ordered = orderByUse(windows, frontToBack: frontToBack)
         guard ordered.count > maximumCount else { return ordered }
         var trimmed = Array(ordered.prefix(maximumCount))
-        // The windowless Finder tile is an explicit user choice; it must not
-        // vanish just because the list happens to be full.
-        if includeWindowlessFinder,
-           let finderTile = ordered.dropFirst(maximumCount).first(where: { $0.windowID == nil }) {
-            trimmed.append(finderTile)
+        // Asking for the desktop app alone names one entry, so that entry must
+        // not vanish just because the list happens to be full. Asking for every
+        // windowless app is a bulk choice instead, and there the cap keeps
+        // cutting the least recently used tail exactly as it does for windows.
+        if windowlessApps == .finder,
+           let desktopEntry = ordered.dropFirst(maximumCount).first(where: { $0.windowID == nil }) {
+            trimmed.append(desktopEntry)
         }
         return trimmed
     }
@@ -330,8 +363,8 @@ enum WindowEnumerator {
                                                        embeddedHostPIDs: [pid_t: pid_t],
                                                        seen: inout Set<CGWindowID>,
                                                        filterPID: pid_t?,
-                                                       excludeWindow: (CGWindowID) -> Bool = { _ in false }) {
-        let tracker = AppActivationTracker.shared
+                                                       excludeWindow: (CGWindowID, pid_t) -> Bool = { _, _ in false }) {
+        let tracker = WindowUseTracker.shared
         let pids = snapshots.keys
             .filter { windowOwnerPID in
                 guard windowOwnerPID != ProcessInfo.processInfo.processIdentifier else { return false }
@@ -353,7 +386,7 @@ enum WindowEnumerator {
                   let list = snapshots[windowOwnerPID] else { continue }
             for entry in list.ordered {
                 guard !seen.contains(entry.id),
-                      !excludeWindow(entry.id),
+                      !excludeWindow(entry.id, appPID),
                       let frame = switchableFrame(entry.snapshot.frame,
                                                   fallback: nil,
                                                   isMinimized: entry.snapshot.isMinimized) else { continue }
@@ -474,17 +507,47 @@ enum WindowEnumerator {
         return CFBooleanGetValue((value as! CFBoolean))
     }
 
-    private static func appendWindowlessFinder(to windows: inout [SwitcherItem],
-                                               regularApps: [pid_t: String]) {
-        guard let app = NSWorkspace.shared.runningApplications.first(where: {
-            $0.bundleIdentifier == Defaults.finderBundleIdentifier && $0.activationPolicy == .regular
-        }) else { return }
-        let pid = app.processIdentifier
-        guard windows.contains(where: { $0.pid == pid }) == false,
-              regularApps[pid] != nil else { return }
-
-        let name = app.localizedName ?? "Finder"
-        windows.append(.appOnly(appName: name, pid: pid))
+    /// Adds the apps that are running with no window to switch to, so the list
+    /// can offer what the system switcher offers.
+    ///
+    /// Missing from the window list is not proof on its own. Accessibility is
+    /// blind to windows parked on a desktop that is not visible, and an app
+    /// busy enough not to answer reports nothing either; both would be handed
+    /// an entry saying they have no window when they do. Only an app that
+    /// answered and described zero user-facing windows qualifies, which is
+    /// also what keeps menu bar agents, embedded helpers and programs running
+    /// through a compatibility layer out of the list.
+    private static func appendWindowlessApps(to windows: inout [SwitcherItem],
+                                             mode: SwitcherWindowlessApps,
+                                             runningApps: [NSRunningApplication],
+                                             regularApps: [pid_t: String],
+                                             accessibilityWindows: [pid_t: AccessibilityWindowSnapshotList],
+                                             ownPID: pid_t,
+                                             withheldPIDs: Set<pid_t>) {
+        guard mode != .off else { return }
+        // The window server order is stable across calls, so apps that were
+        // never brought to the front keep a settled place instead of shuffling
+        // between one press and the next.
+        let candidates = runningApps.compactMap { app -> SwitcherAppCandidate? in
+            let pid = app.processIdentifier
+            guard app.activationPolicy == .regular,
+                  !app.isTerminated,
+                  pid != ownPID,
+                  regularApps[pid]?.isEmpty == false,
+                  accessibilityWindows[pid]?.ordered.isEmpty == true
+            else { return nil }
+            return SwitcherAppCandidate(pid: pid, bundleIdentifier: app.bundleIdentifier)
+        }
+        let chosen = SwitcherSupport.windowlessAppPIDs(
+            mode: mode,
+            candidates: candidates,
+            pidsWithWindows: Set(windows.map(\.pid)),
+            pidsWithWithheldWindows: withheldPIDs,
+            desktopAppBundleIdentifier: Defaults.finderBundleIdentifier)
+        for pid in chosen {
+            guard let name = regularApps[pid] else { continue }
+            windows.append(.appOnly(appName: name, pid: pid))
+        }
     }
 
     private static func ownWindowTitle(for windowID: CGWindowID) -> String? {
@@ -495,18 +558,18 @@ enum WindowEnumerator {
         return window.title.isEmpty ? AppInfo.name : window.title
     }
 
-    /// Groups windows by app in most-recently-used order while preserving the
-    /// window server's front-to-back order within each app. A stable sort is
-    /// required so the within-app order survives the regrouping. This is what
-    /// puts the window you were just in (including another window of the same
-    /// app) right next to the current one.
-    private static func orderByActivation(_ windows: [SwitcherItem]) -> [SwitcherItem] {
-        let tracker = AppActivationTracker.shared
-        return windows.enumerated().sorted { lhs, rhs in
-            let rankL = tracker.rank(of: lhs.element.pid)
-            let rankR = tracker.rank(of: rhs.element.pid)
-            return rankL != rankR ? rankL < rankR : lhs.offset < rhs.offset
-        }.map(\.element)
+    /// Orders windows by how recently the user used them, so the entry next to
+    /// the current one is the window they came from — another app's window, or
+    /// another window of the same app, whichever was really used last.
+    private static func orderByUse(_ windows: [SwitcherItem],
+                                   frontToBack: WindowUseTracker.FrontToBack) -> [SwitcherItem] {
+        let tracker = WindowUseTracker.shared
+        let entries = windows.map { WindowUseOrder.Entry(windowID: $0.windowID, pid: $0.pid) }
+        return WindowUseOrder.order(entries,
+                                    windowHistory: tracker.windows,
+                                    appHistory: tracker.apps,
+                                    frontToBack: frontToBack.windows)
+            .map { windows[$0] }
     }
 
     /// Collapses every window of an app into a single entry, so an app shows once

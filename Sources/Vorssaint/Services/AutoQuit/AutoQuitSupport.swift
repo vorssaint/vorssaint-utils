@@ -61,4 +61,20 @@ enum AutoQuitSupport {
     static func isCommandW(keyCode: Int64, command: Bool, control: Bool) -> Bool {
         keyCode == commandWKeyCode && command && !control
     }
+
+    /// Whether a window the screen is not showing still counts as a window the
+    /// user has. A window parked on another Space is one swipe away, so it
+    /// keeps the app running; a window the app only hid sits on the Space that
+    /// is showing right now, and an app that hides its window instead of
+    /// destroying it should still quit on close. Accessibility cannot tell the
+    /// two apart (both leave the app with no windows at all), the window server
+    /// can. Without a Space answer the old rule stands: anything with a title
+    /// keeps the app alive.
+    static func offscreenWindowKeepsAppAlive(windowSpaces: [UInt64],
+                                             visibleSpaces: Set<UInt64>?,
+                                             hasTitle: Bool) -> Bool {
+        guard let visibleSpaces, !visibleSpaces.isEmpty, !windowSpaces.isEmpty else { return hasTitle }
+        return SpaceHopSupport.isParkedOnHiddenSpace(windowSpaces: windowSpaces,
+                                                     visibleSpaces: visibleSpaces)
+    }
 }

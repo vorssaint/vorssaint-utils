@@ -17,9 +17,9 @@ private struct SwitcherSourceContext {
 
 /// The window switcher: a global event tap takes over the configured shortcut,
 /// and while its modifiers are held a non-activating panel cycles through real
-/// windows. Releasing commits, Q quits the highlighted app, Esc cancels. The
-/// panel joins every Space and fullscreen app, so the switcher is available
-/// wherever the user is.
+/// windows. Releasing commits, W closes the highlighted window, Q quits its
+/// app, Esc and a click outside cancel. The panel joins every Space and
+/// fullscreen app, so the switcher is available wherever the user is.
 final class AppSwitcher: ObservableObject {
     static let shared = AppSwitcher()
 
@@ -74,22 +74,32 @@ final class AppSwitcher: ObservableObject {
     /// quick ⌘Tab flick switches with no UI at all, which is what makes rapid
     /// toggling feel instant instead of flashing a window.
     private static let appearanceDelay: TimeInterval = 0.1
+    /// Clicks that dismiss the panel when they land anywhere else.
+    private static let dismissingClicks: NSEvent.EventTypeMask = [.leftMouseDown,
+                                                                  .rightMouseDown,
+                                                                  .otherMouseDown]
     private var pendingShow: DispatchWorkItem?
+    /// Click watchers, alive only while the panel is on screen.
+    private var localClickMonitor: Any?
+    private var outsideClickMonitor: Any?
     /// True once the user moved the selection themselves.
     private var userNavigated = false
     /// Mouse position when the panel appeared; hover is inert until it moves.
     private var hoverAnchor: NSPoint?
 
-    /// Most-recently-used order of windows, most recent first. This is what lets
-    /// ⌘Tab toggle to the last window used, even another window of the same app.
-    /// Driven by the switcher's own commits (see `recordUse`).
-    private var itemMRU: [String] = []
     /// The on-screen window when the current session opened — becomes the
     /// second-most-recent window on commit, so a flick toggles straight back.
-    private var sessionStartItemID: String?
+    /// Cleared if that window is closed during the session: a window the user
+    /// just got rid of is not somewhere to send them back to.
+    private var sessionStartWindowID: CGWindowID?
     private var sessionSourceContext: SwitcherSourceContext?
     private var sessionShortcut: GlobalShortcut?
     private var shiftBackNavigationHeld = false
+
+    /// Windows already asked to close, still listed until they are really
+    /// gone. Releasing the shortcut skips them, so they are never raised on
+    /// the way out.
+    private var closingItemIDs: Set<String> = []
 
     // Virtual key codes handled during a session.
     private enum KeyCode {
@@ -97,7 +107,6 @@ final class AppSwitcher: ObservableObject {
         static let delete: Int64 = 51
         static let escape: Int64 = 53
         static let enter: Int64 = 36
-        static let q: Int64 = 12
         static let leftArrow: Int64 = 123
         static let rightArrow: Int64 = 124
         static let downArrow: Int64 = 125
@@ -402,8 +411,6 @@ final class AppSwitcher: ObservableObject {
             moveSelection(by: grid.columns)
         case KeyCode.upArrow:
             moveSelection(by: -grid.columns)
-        case KeyCode.q where searchQuery.isEmpty:
-            quitSelectedApp()
         case KeyCode.delete:
             removeLastSearchCharacter()
         case KeyCode.escape:
@@ -411,7 +418,21 @@ final class AppSwitcher: ObservableObject {
         case KeyCode.enter:
             commitSession()
         default:
-            if let text = printableSearchText(from: event) {
+            let text = printableSearchText(from: event)
+            // The first letter typed is a command: W closes the highlighted
+            // window, Q quits its app. Once a search is under way every key
+            // belongs to the query, so both letters can still be typed.
+            if searchQuery.isEmpty,
+               let action = SwitcherSupport.letterAction(typedCharacter: text, keyCode: keyCode) {
+                // One window per press: holding the key down must never walk
+                // through the list closing or quitting everything on the way.
+                if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
+                    switch action {
+                    case .closeWindow: closeSelectedWindow()
+                    case .quitApp: quitSelectedApp()
+                    }
+                }
+            } else if let text {
                 appendSearchText(text)
             }
             // Swallow stray keys so they never leak into the focused app.
@@ -452,7 +473,7 @@ final class AppSwitcher: ObservableObject {
                                   windowOwnerPID: source.windowOwnerPID,
                                   isFullscreen: source.isFullscreen)
         }
-        sessionStartItemID = source?.id
+        sessionStartWindowID = source?.windowID
         recomputeLayouts(for: list)
         if !capturesPreviews {
             previews = [:]
@@ -501,27 +522,16 @@ final class AppSwitcher: ObservableObject {
         return true
     }
 
-    /// Orders a session's windows so the on-screen window is first and the rest
-    /// follow most-recently-used order, falling back to the app-activation
-    /// order the enumerator already applied. This is what lets ⌘Tab toggle
-    /// between two windows of the same app, not just two apps. With no
-    /// on-screen window to lead the list, plain most-recently-used order is
-    /// already the right answer.
+    /// Puts the window the user is looking at first. The enumerator already
+    /// ordered everything else by how recently it was used, so the entry right
+    /// after the current one is the window they came from — this only has to
+    /// make sure the current one leads, even in the moment right after a
+    /// switch, when the window server has not caught up yet.
     private func orderedForSession(_ items: [SwitcherItem], currentID: String?) -> [SwitcherItem] {
-        return items.enumerated()
-            .sorted { lhs, rhs in
-                sortKey(lhs.element, currentID: currentID, original: lhs.offset)
-                    < sortKey(rhs.element, currentID: currentID, original: rhs.offset)
-            }
-            .map(\.element)
-    }
-
-    /// Sort key: on-screen item first (0), then items seen in the MRU by
-    /// recency (1, rank), then everything else in its incoming order (2).
-    private func sortKey(_ item: SwitcherItem, currentID: String?, original: Int) -> (Int, Int, Int) {
-        if item.id == currentID { return (0, 0, 0) }
-        if let rank = itemMRU.firstIndex(of: item.id) { return (1, rank, 0) }
-        return (2, 0, original)
+        guard let currentID, let index = items.firstIndex(where: { $0.id == currentID }) else { return items }
+        var ordered = items
+        ordered.insert(ordered.remove(at: index), at: 0)
+        return ordered
     }
 
     private func initialSelectionIndex(in items: [SwitcherItem],
@@ -562,14 +572,11 @@ final class AppSwitcher: ObservableObject {
         return AXWindowResolver.windowID(for: window)
     }
 
-    /// Records a switch into the window MRU: the activated window moves to the
-    /// front and the window the user came from becomes second, so the very next
-    /// ⌘Tab toggles straight back — the standard most-recently-used behavior,
-    /// at window granularity (including two windows of the same app).
-    private func recordUse(_ activatedID: String, previousID: String?) {
-        itemMRU = SwitcherSupport.updatedMRU(afterActivating: activatedID,
-                                             previousID: previousID,
-                                             existing: itemMRU)
+    /// Records a switch straight away instead of waiting for the window server
+    /// and Accessibility to report it: a flick of the shortcut is faster than
+    /// either, and it is exactly the moment the toggle has to be right.
+    private func recordUse(_ activated: SwitcherItem, previous: CGWindowID?) {
+        WindowUseTracker.shared.recordSwitch(to: activated.windowID, from: previous)
     }
 
     func select(index: Int) {
@@ -646,12 +653,14 @@ final class AppSwitcher: ObservableObject {
     func closeWindow(_ item: SwitcherItem) {
         guard sessionActive,
               windows.contains(where: { $0.id == item.id }),
+              !closingItemIDs.contains(item.id),
               let windowID = item.windowID,
               WindowActivator.closeWindow(windowID: windowID,
                                            appPID: item.pid,
                                            windowOwnerPID: item.windowOwnerPID)
         else { return }
 
+        closingItemIDs.insert(item.id)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
             self?.finishClosingWindow(itemID: item.id,
                                       windowID: windowID,
@@ -685,6 +694,14 @@ final class AppSwitcher: ObservableObject {
         selectedIndex = SwitcherSupport.nextWindowSelectionIndexWithinApp(items: windows,
                                                                           selectedIndex: selectedIndex,
                                                                           delta: delta)
+    }
+
+    /// Closes the highlighted window (⌘Tab → W) and keeps the session open, so
+    /// the app stays running and the panel moves on to the next window. Same
+    /// path as the card's close button.
+    private func closeSelectedWindow() {
+        guard windows.indices.contains(selectedIndex) else { return }
+        closeWindow(windows[selectedIndex])
     }
 
     /// Quits the app owning the selected window (⌘Tab → Q), removes its windows
@@ -725,7 +742,12 @@ final class AppSwitcher: ObservableObject {
 
         let refreshed = WindowEnumerator.listWindows(for: pid, maximumCount: 64)
         guard !refreshed.contains(where: { $0.windowID == windowID }) else {
-            guard attempt < 2 else { return }
+            // Still there after the retries: the app kept it, so it is a
+            // normal entry again and the release may raise it.
+            guard attempt < 2 else {
+                closingItemIDs.remove(itemID)
+                return
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
                 self?.finishClosingWindow(itemID: itemID,
                                           windowID: windowID,
@@ -750,9 +772,9 @@ final class AppSwitcher: ObservableObject {
         windows = windows.filter { remaining.contains($0.id) }
         let remainingPreviews = Set(windows.compactMap(\.previewWindowID))
         previews = previews.filter { remainingPreviews.contains($0.key) && $0.key != windowID }
-        itemMRU.removeAll { $0 == itemID }
-        if sessionStartItemID == itemID {
-            sessionStartItemID = nil
+        closingItemIDs.remove(itemID)
+        if sessionSourceContext?.itemID == itemID {
+            sessionStartWindowID = nil
         }
 
         guard !state.shouldEndSession else {
@@ -791,12 +813,17 @@ final class AppSwitcher: ObservableObject {
     /// Activates the current selection. Also used by the panel on click.
     func commitSession() {
         guard sessionActive else { return }
-        let selection = windows.indices.contains(selectedIndex) ? windows[selectedIndex] : nil
+        // A window that was just closed is still listed for a moment; letting
+        // go right after must land on what takes its place, never on it.
+        let selection = SwitcherSupport.commitTargetID(itemIDs: windows.map(\.id),
+                                                       selectedIndex: selectedIndex,
+                                                       closingItemIDs: closingItemIDs)
+            .flatMap { id in windows.first { $0.id == id } }
         let source = sessionSourceContext
-        let previousID = sessionStartItemID
+        let previousWindowID = sessionStartWindowID
         endSession()
         if let selection {
-            recordUse(selection.id, previousID: previousID)
+            recordUse(selection, previous: previousWindowID)
             WindowActivator.activate(selection,
                                      sourceWasFullscreen: source?.isFullscreen ?? false,
                                      sourcePID: source?.pid,
@@ -814,6 +841,7 @@ final class AppSwitcher: ObservableObject {
         sessionActive = false
         pendingShow?.cancel()
         pendingShow = nil
+        removeDismissMonitors()
         WindowPreviewProvider.shared.cancel()
         panel?.orderOut(nil)
         sessionItems = []
@@ -826,10 +854,11 @@ final class AppSwitcher: ObservableObject {
         totalWindowCount = 0
         hoverAnchor = nil
         userNavigated = false
-        sessionStartItemID = nil
+        sessionStartWindowID = nil
         sessionSourceContext = nil
         sessionShortcut = nil
         shiftBackNavigationHeld = false
+        closingItemIDs = []
     }
 
     // MARK: - Panel
@@ -853,6 +882,47 @@ final class AppSwitcher: ObservableObject {
         panel.setFrame(centeredFrame(for: currentPanelSize), display: true)
         panel.invalidateShadow()
         panel.orderFrontRegardless()
+        installDismissMonitors()
+    }
+
+    /// Watches for a click anywhere but the panel, which ends the session. The
+    /// panel floats above every app and never takes the keyboard, so letting go
+    /// of the shortcut cannot be the only way out: opened by a tool that sends
+    /// the shortcut without holding a key, there is no release coming at all
+    /// and the panel would sit there swallowing every keystroke until Esc
+    /// (issue #384). The click is only observed, never eaten, so it still does
+    /// what it was aimed at. Both monitors live with the panel and die with the
+    /// session, so a flick that never shows anything costs nothing.
+    private func installDismissMonitors() {
+        removeDismissMonitors()
+        localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: Self.dismissingClicks) { [weak self] event in
+            guard let self, event.window !== self.panel else { return event }
+            self.dismissForClickOutsidePanel()
+            return event
+        }
+        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: Self.dismissingClicks) { [weak self] _ in
+            self?.dismissForClickOutsidePanel()
+        }
+    }
+
+    private func dismissForClickOutsidePanel() {
+        guard sessionActive, let panel else { return }
+        guard SwitcherSupport.shouldDismissForClick(panelIsVisible: panel.isVisible,
+                                                    panelFrame: panel.frame,
+                                                    location: NSEvent.mouseLocation)
+        else { return }
+        cancelSession()
+    }
+
+    private func removeDismissMonitors() {
+        if let localClickMonitor {
+            NSEvent.removeMonitor(localClickMonitor)
+            self.localClickMonitor = nil
+        }
+        if let outsideClickMonitor {
+            NSEvent.removeMonitor(outsideClickMonitor)
+            self.outsideClickMonitor = nil
+        }
     }
 
     /// Re-fits the panel after the grid changed mid-session (e.g. an app quit

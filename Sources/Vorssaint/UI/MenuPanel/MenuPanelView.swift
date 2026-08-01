@@ -457,7 +457,8 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // to allCases). Screenshot leads in 3.1.13; existing orders that predate it
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
-         uninstaller, cleanURL, cleaning, screenOCR, colorPicker, micMute, cameraPreview, scratchpad
+         uninstaller, cleanURL, cleaning, screenOCR, colorPicker, micMute, cameraPreview, scratchpad,
+         commandBar
 
     var id: String { rawValue }
 
@@ -481,6 +482,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .screenshot: return .screenshot
         case .cameraPreview: return .cameraPreview
         case .scratchpad: return .scratchpad
+        case .commandBar: return .commandBar
         }
     }
 }
@@ -513,6 +515,7 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityMicMute) private var showMicMute = true
     @AppStorage(DefaultsKey.panelUtilityCameraPreview) private var showCameraPreview = true
     @AppStorage(DefaultsKey.panelUtilityScratchpad) private var showScratchpad = true
+    @AppStorage(DefaultsKey.panelUtilityCommandBar) private var showCommandBar = true
     @ObservedObject private var micMute = MicMuteService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
@@ -636,6 +639,7 @@ struct UtilitiesSection: View {
         case .micMute: return showMicMute
         case .cameraPreview: return showCameraPreview
         case .scratchpad: return showScratchpad
+        case .commandBar: return showCommandBar
         case .quickLauncher: return showQuickLauncher
         case .screenshot: return showScreenshot
         }
@@ -852,6 +856,20 @@ struct UtilitiesSection: View {
                                         QuickLauncherService.shared.show()
                                     }
                                 })
+        case .commandBar:
+            UtilityActionButton(title: FeatureStrings.commandBar(l10n.language).pageTitle,
+                                caption: FeatureStrings.commandBar(l10n.language).panelCaption,
+                                systemImage: "command",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showCommandBar,
+                                shortcutHint: shortcutHint(.commandBar),
+                                action: {
+                                    appDelegate()?.closePopover()
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                        CommandBarService.shared.show()
+                                    }
+                                })
         }
     }
 
@@ -906,6 +924,7 @@ struct UtilitiesSection: View {
         showCameraPreview = true
         showScratchpad = true
         showQuickLauncher = true
+        showCommandBar = true
     }
 
     private func grantAccessibility() {
@@ -2069,7 +2088,10 @@ struct UpdateBanner: View {
                         Text(l10n.s.updateBannerTitle)
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.white)
-                        Text("\(l10n.s.updateAvailablePrefix) \(version)")
+                        // The title above already says an update is waiting,
+                        // so this line carries the version instead of saying
+                        // the same words a second time.
+                        Text("\(l10n.s.versionPrefix) \(version)")
                             .font(.system(size: 10.5))
                             .foregroundStyle(.white.opacity(0.85))
                     }

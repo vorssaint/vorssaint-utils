@@ -24,7 +24,7 @@ struct SnippetLibraryView: View {
             footer
         }
         .frame(width: 460)
-        .background(HUDBackdrop(cornerRadius: 22))
+        .background(HUDBackdrop(cornerRadius: 22, contrast: .high))
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .onChange(of: library.presentationID) { _, _ in
             searchFocused = true

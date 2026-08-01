@@ -22,7 +22,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var cancellables = Set<AnyCancellable>()
     private var settingsWindow: NSWindow?
     private var onboardingWindow: NSWindow?
-    private var dockPreviewIntroWindow: NSWindow?
     private var supportIntroWindow: NSWindow?
     private var updateHighlightsWindow: NSWindow?
     private var supportIntroCanClose = false
@@ -1362,7 +1361,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         if showUpdateHighlightsIfNeeded() { return }
         if showSupportUpdateIntroIfNeeded() { return }
         if showUpdateShowcaseIntroIfNeeded() { return }
-        showDockPreviewIntroIfNeeded()
     }
 
     private func showUpdateHighlightsIfNeeded() -> Bool {
@@ -1514,60 +1512,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
     }
 
-    /// True on the release that introduced Dock Preview, or any later one.
-    private var isAtLeastDockPreviewRelease: Bool {
-        let current = AppInfo.version
-        let intro = DockPreviewIntroInfo.releaseVersion
-        return current == intro || UpdateService.isNewer(current, than: intro)
-    }
-
-    private func showDockPreviewIntroIfNeeded() {
-        // Show on the Dock Preview release or any later version, so users who
-        // skip versions still get it once, and never re-show it once seen.
-        guard isAtLeastDockPreviewRelease else { return }
-        guard UserDefaults.standard.string(forKey: DefaultsKey.dockPreviewIntroVersion) == nil else { return }
-        showDockPreviewIntro()
-    }
-
-    private func showDockPreviewIntro() {
-        closePopover()
-        if let window = dockPreviewIntroWindow {
-            NSApp.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
-            return
-        }
-        let host = NSHostingController(rootView: DockPreviewIntroView(
-            onDismiss: { [weak self] in
-                self?.markDockPreviewIntroSeen()
-                self?.dockPreviewIntroWindow?.close()
-            },
-            onEnable: { [weak self] in
-                UserDefaults.standard.set(true, forKey: DefaultsKey.dockPreviewEnabled)
-                DockPreviewService.shared.syncWithPreferences()
-                self?.markDockPreviewIntroSeen()
-                self?.dockPreviewIntroWindow?.close()
-            }
-        ))
-        host.sizingOptions = .preferredContentSize
-        let window = NSWindow(contentViewController: host)
-        window.title = L10n.shared.s.dockPreviewName
-        window.styleMask = [.titled, .closable, .fullSizeContentView]
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
-        window.isReleasedWhenClosed = false
-        window.isRestorable = false
-        window.isMovableByWindowBackground = true
-        window.delegate = self
-        centerIntroWindow(window)
-        dockPreviewIntroWindow = window
-        NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
-        DispatchQueue.main.async { [weak self, weak window] in
-            guard let self, let window, window === self.dockPreviewIntroWindow else { return }
-            self.centerIntroWindow(window)
-        }
-    }
-
     /// Centers one of the windows whose content decides its own size (the
     /// onboarding, the tour, the release notes and the two intros). The size
     /// always comes from the view itself: asking for any other size leaves
@@ -1664,11 +1608,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             guard !isTerminating else { return }
             markOnboardingComplete()
         }
-        if window === dockPreviewIntroWindow {
-            dockPreviewIntroWindow = nil
-            guard !isTerminating else { return }
-            markDockPreviewIntroSeen()
-        }
         if window === supportIntroWindow {
             supportIntroWindow = nil
             supportIntroCanClose = false
@@ -1696,23 +1635,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         UserDefaults.standard.set(true, forKey: DefaultsKey.hasOnboarded)
         UserDefaults.standard.set(OnboardingInfo.currentFeatureSet, forKey: DefaultsKey.featuresOnboardingVersion)
         UserDefaults.standard.set(AppInfo.version, forKey: DefaultsKey.lastUpdateIntroVersion)
-        markDockPreviewIntroSeenIfCurrentUpdate()
         markSupportUpdateIntroSeenIfCurrentUpdate()
         markUpdateShowcaseIntroSeenIfCurrentUpdate()
         // A clean install that just saw everything in onboarding should not
         // then get the update tour; only people who updated get it.
         markUpdateHighlightsSeen()
-    }
-
-    private func markDockPreviewIntroSeenIfCurrentUpdate() {
-        // A clean install that just finished onboarding on the Dock Preview
-        // release (or later) should not then be shown the intro popup.
-        guard isAtLeastDockPreviewRelease else { return }
-        markDockPreviewIntroSeen()
-    }
-
-    private func markDockPreviewIntroSeen() {
-        UserDefaults.standard.set(AppInfo.version, forKey: DefaultsKey.dockPreviewIntroVersion)
     }
 
     private func markSupportUpdateIntroSeenIfCurrentUpdate() {
