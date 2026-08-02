@@ -950,6 +950,11 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private var keyMonitor: Any?
     private var scrollMonitor: Any?
+
+    var protectedWindowIDs: Set<CGWindowID> {
+        guard let window, window.isVisible, window.windowNumber > 0 else { return [] }
+        return [CGWindowID(window.windowNumber)]
+    }
     private var strings: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(L10n.shared.language)
     }

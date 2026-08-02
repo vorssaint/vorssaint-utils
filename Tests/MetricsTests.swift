@@ -7899,6 +7899,21 @@ struct MetricsTests {
 
         // MARK: Screenshot tool
 
+        let ownScreenshotWindows: Set<CGWindowID> = [11, 12, 13]
+        let protectedScreenshotWindows: Set<CGWindowID> = [12, 99]
+        expect(ScreenshotCapturePolicy.excludedWindowIDs(
+            hideVorssaintWindows: true,
+            ownWindowIDs: ownScreenshotWindows,
+            protectedWindowIDs: protectedScreenshotWindows
+        ) == ownScreenshotWindows,
+        "screenshot hiding Vorssaint excludes every own window")
+        expect(ScreenshotCapturePolicy.excludedWindowIDs(
+            hideVorssaintWindows: false,
+            ownWindowIDs: ownScreenshotWindows,
+            protectedWindowIDs: protectedScreenshotWindows
+        ) == [12],
+        "screenshot keeps protected windows excluded while Vorssaint is visible")
+
         expect(ScreenshotSupport.sanitizedDelay(5) == 5
                 && ScreenshotSupport.sanitizedDelay(7) == 0
                 && ScreenshotSupport.sanitizedDelay(-3) == 0,
