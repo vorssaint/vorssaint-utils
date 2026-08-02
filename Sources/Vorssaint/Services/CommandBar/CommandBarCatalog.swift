@@ -261,6 +261,18 @@ enum CommandBarCatalog {
                 trouble: Permissions.shared.screenRecording ? nil : .needsPermission,
                 run: { _ in afterBeat { ScreenshotService.shared.capture() } }))
         }
+        if AppFeature.screenRecorder.isAvailable {
+            let recorder = FeatureStrings.recorder(language)
+            let running = ScreenRecorderService.shared.isRecording
+            entries.append(CommandBarEntry(
+                id: "action.screenRecorder",
+                title: running ? recorder.stopButton : recorder.pageTitle,
+                subtitle: area(.screenRecorder, under: recorder.pageTitle),
+                icon: .symbol(running ? "stop.circle" : "record.circle"),
+                shortcut: roleShortcut(.screenRecorder),
+                trouble: Permissions.shared.screenRecording ? nil : .needsPermission,
+                run: { _ in afterBeat { ScreenRecorderService.shared.toggle() } }))
+        }
         if AppFeature.screenOCR.isAvailable {
             entries.append(CommandBarEntry(
                 id: "action.screenOCR",

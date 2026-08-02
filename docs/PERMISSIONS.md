@@ -14,6 +14,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Full Disk Access | Yes | A deeper uninstaller scan |
 | Administrator (one time) | Yes | Password free closed lid toggling |
 | Automation | Yes | Finder cut and paste, moving leftovers to the Trash, emptying the Trash and Homebrew Terminal handoff |
+| App Management | Yes | Replacing or removing apps installed through the package manager |
 
 ## Accessibility
 
@@ -118,6 +119,16 @@ You can review or change every grant in System Settings, under Privacy and Secur
 **If you say no.** Those Finder or Terminal handoff steps will not go through. You can switch Automation back on in System Settings, under Privacy and Security, Automation.
 
 **Optional.** Yes.
+
+## App Management
+
+**Why it comes up.** macOS protects installed app bundles from changes by apps signed by another developer.
+
+**What uses it.** The package manager and App updates, when they replace or remove an installed app.
+
+**If you say no.** Package updates keep working, but operations that change installed apps can be blocked. You can grant access later in System Settings, under Privacy and Security, App Management.
+
+**Optional.** Yes. macOS records the request when an update first tries to change an installed app, so Vorssaint cannot check the status beforehand.
 
 ## Resetting permissions
 

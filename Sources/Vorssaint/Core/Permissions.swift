@@ -291,6 +291,17 @@ final class Permissions: ObservableObject {
         open(pane: "Privacy_AudioCapture")
     }
 
+    func openAppManagementSettings() {
+        let pane = URL(string:
+            "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AppBundles")!
+        if NSWorkspace.shared.open(pane) { return }
+
+        // A general Privacy & Security page is still useful if a future macOS
+        // version stops accepting the pane identifier.
+        let fallback = URL(string: "x-apple.systempreferences:com.apple.preference.security")!
+        NSWorkspace.shared.open(fallback)
+    }
+
     private func open(pane: String) {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)")!
         NSWorkspace.shared.open(url)

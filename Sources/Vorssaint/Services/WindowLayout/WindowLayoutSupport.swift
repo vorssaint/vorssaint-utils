@@ -518,3 +518,70 @@ enum WindowLayoutGeometry {
     }
 
 }
+
+struct WindowLayoutFrame: Equatable {
+    var origin: CGPoint
+    var size: CGSize
+
+    func isClose(to other: WindowLayoutFrame, tolerance: CGFloat) -> Bool {
+        abs(origin.x - other.origin.x) <= tolerance
+            && abs(origin.y - other.origin.y) <= tolerance
+            && abs(size.width - other.size.width) <= tolerance
+            && abs(size.height - other.size.height) <= tolerance
+    }
+}
+
+struct WindowLayoutWindowKey: Hashable {
+    let processID: pid_t
+    let processLaunchTime: TimeInterval
+    let windowID: CGWindowID
+}
+
+/// Recent placements for each window. It stays in memory for this app session
+/// and is bounded so repeated layout shortcuts cannot grow it indefinitely.
+struct WindowLayoutHistory {
+    static let perWindowLimit = 20
+
+    private var framesByWindow: [WindowLayoutWindowKey: [WindowLayoutFrame]] = [:]
+
+    mutating func record(_ frame: WindowLayoutFrame, for window: WindowLayoutWindowKey) {
+        var frames = framesByWindow[window] ?? []
+        frames.append(frame)
+        if frames.count > Self.perWindowLimit {
+            frames.removeFirst(frames.count - Self.perWindowLimit)
+        }
+        framesByWindow[window] = frames
+    }
+
+    mutating func popPrevious(for window: WindowLayoutWindowKey,
+                              current: WindowLayoutFrame) -> WindowLayoutFrame? {
+        guard var frames = framesByWindow[window] else { return nil }
+        defer {
+            if frames.isEmpty {
+                framesByWindow.removeValue(forKey: window)
+            } else {
+                framesByWindow[window] = frames
+            }
+        }
+        while let previous = frames.popLast() {
+            if !previous.isClose(to: current, tolerance: 1) {
+                return previous
+            }
+        }
+        return nil
+    }
+
+    mutating func discardLatest(for window: WindowLayoutWindowKey) {
+        guard var frames = framesByWindow[window] else { return }
+        frames.removeLast()
+        if frames.isEmpty {
+            framesByWindow.removeValue(forKey: window)
+        } else {
+            framesByWindow[window] = frames
+        }
+    }
+
+    mutating func removeStaleWindows(keeping activeWindows: Set<WindowLayoutWindowKey>) {
+        framesByWindow = framesByWindow.filter { activeWindows.contains($0.key) }
+    }
+}

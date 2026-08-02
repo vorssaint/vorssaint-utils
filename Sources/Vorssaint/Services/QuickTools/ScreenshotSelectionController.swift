@@ -23,8 +23,17 @@ final class ScreenshotSelectionController {
         let anchorRect: CGRect
     }
 
+    /// What the caller wants out of the same gesture. The screenshot tool
+    /// wants pixels; the recorder wants to know WHERE, and takes its own
+    /// pixels afterwards, for as long as the person keeps recording.
+    enum Mode {
+        case image
+        case geometry
+    }
+
     enum Outcome {
         case captured(Capture)
+        case region(RecorderSupport.Region)
         case cancelled
         case failed
     }
@@ -35,6 +44,7 @@ final class ScreenshotSelectionController {
     private let freeze: Bool
     private let includePointer: Bool
     private let showLastRegion: Bool
+    private let mode: Mode
     private var finished = false
     /// Read by the overlays so a late event finds a session that is over.
     fileprivate var isOver: Bool { finished }
@@ -59,11 +69,16 @@ final class ScreenshotSelectionController {
     /// person guessing what the area they are about to pick is for.
     private let purpose: String?
 
-    init(freeze: Bool, includePointer: Bool, showLastRegion: Bool, purpose: String? = nil) {
+    init(freeze: Bool,
+         includePointer: Bool,
+         showLastRegion: Bool,
+         purpose: String? = nil,
+         mode: Mode = .image) {
         self.freeze = freeze
         self.includePointer = includePointer
         self.showLastRegion = showLastRegion
         self.purpose = purpose
+        self.mode = mode
     }
 
     func begin(completion: @escaping (Outcome) -> Void) {
@@ -210,10 +225,40 @@ final class ScreenshotSelectionController {
         panels.forEach { $0.overlayView.isCapturePending = true }
     }
 
+    /// The picked area as the recorder needs it: whole even pixels of the
+    /// source display, plus the same area in Cocoa points so a panel can be
+    /// anchored to it. The point rectangle is derived from the SNAPPED pixels,
+    /// so what gets recorded and what the person was shown never disagree.
+    private func region(fromView viewRect: CGRect,
+                        on panel: ScreenshotOverlayPanel,
+                        windowID: CGWindowID?) -> RecorderSupport.Region {
+        let displayPixels = CGRect(origin: .zero, size: panel.pixelSize)
+        let raw = ScreenshotSupport.imagePixelRect(fromView: viewRect,
+                                                   viewSize: panel.screenFrame.size,
+                                                   imageSize: panel.pixelSize)
+        let snapped = RecorderSupport.snappedPixelRect(raw, in: displayPixels)
+        let scale = panel.pixelScale > 0 ? panel.pixelScale : 1
+        let snappedView = CGRect(x: snapped.origin.x / scale,
+                                 y: snapped.origin.y / scale,
+                                 width: snapped.width / scale,
+                                 height: snapped.height / scale)
+        return RecorderSupport.Region(
+            displayID: panel.displayID,
+            windowID: windowID,
+            pixelRect: snapped,
+            anchorRect: ScreenshotSupport.cocoaRect(fromFlippedView: snappedView,
+                                                    screenFrame: panel.screenFrame),
+            scale: scale)
+    }
+
     fileprivate func confirmRegion(_ viewRect: CGRect, on panel: ScreenshotOverlayPanel) {
         guard viewRect.width >= 1, viewRect.height >= 1 else { return }
         markCapturePending()
         Self.lastRegion = (panel.displayID, viewRect)
+        if mode == .geometry {
+            finish(.region(region(fromView: viewRect, on: panel, windowID: nil)))
+            return
+        }
         let pixelRect = ScreenshotSupport.imagePixelRect(
             fromView: viewRect,
             viewSize: panel.screenFrame.size,
@@ -243,6 +288,10 @@ final class ScreenshotSelectionController {
                                    frame: CGRect,
                                    on panel: ScreenshotOverlayPanel) {
         markCapturePending()
+        if mode == .geometry {
+            finish(.region(region(fromView: frame, on: panel, windowID: windowID)))
+            return
+        }
         Task { @MainActor [weak self] in
             guard let self else { return }
             guard let image = await ScreenshotCaptureEngine.captureWindow(
@@ -262,6 +311,11 @@ final class ScreenshotSelectionController {
     private func captureFullDisplayUnderMouse() {
         guard let panel = panelUnderMouse() else { return }
         markCapturePending()
+        if mode == .geometry {
+            let whole = CGRect(origin: .zero, size: panel.screenFrame.size)
+            finish(.region(region(fromView: whole, on: panel, windowID: nil)))
+            return
+        }
         if let frozen = panel.frozenImage {
             finish(.captured(Capture(image: frozen,
                                      scale: panel.pixelScale,

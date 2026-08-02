@@ -3,7 +3,7 @@
 
 import Foundation
 
-enum MouseNavigationDirection: Equatable {
+enum MouseNavigationDirection: Hashable, CaseIterable {
     case back
     case forward
 }
@@ -23,8 +23,56 @@ enum MouseNavigationSupport {
         }
     }
 
+    /// What apps declare the two commands as. Where a keyboard cannot type it,
+    /// macOS moves the shortcut elsewhere and `MouseNavigationKeys` reports
+    /// where it landed.
     static func commandCharacter(for direction: MouseNavigationDirection) -> String {
         direction == .back ? "[" : "]"
+    }
+
+    /// A key equivalent read back from the system is only usable as a single
+    /// visible character: anything else means the answer did not come, and the
+    /// declared bracket is the better guess.
+    static func sanitizedCommandCharacter(_ keyEquivalent: String) -> String? {
+        guard keyEquivalent.count == 1,
+              let scalar = keyEquivalent.unicodeScalars.first,
+              !CharacterSet.whitespacesAndNewlines.contains(scalar),
+              !CharacterSet.controlCharacters.contains(scalar) else { return nil }
+        return keyEquivalent
+    }
+
+    /// Whether a menu item carries the command being looked for.
+    ///
+    /// Menus report their shortcut key in upper case, whatever case the app
+    /// wrote it in, so the comparison cannot be literal: on keyboards where the
+    /// system moves Back onto a letter, the menu says "Ö" for a command written
+    /// as ö. Both sides are measured, not assumed.
+    static func matchesCommand(menuCharacter: String?,
+                               menuModifiers: UInt32?,
+                               character: String,
+                               modifiers: UInt32) -> Bool {
+        guard let menuCharacter, let menuModifiers else { return false }
+        return menuCharacter.uppercased() == character.uppercased() && menuModifiers == modifiers
+    }
+
+    /// The modifier value a menu reports for a shortcut, from the modifiers the
+    /// system put on it. Zero means Command alone; the other bits are Shift,
+    /// Option and Control, and the last one marks a shortcut without Command.
+    /// A shortcut written with an upper case letter carries Shift even when
+    /// nobody asked for it, which is how menus have always spelled it.
+    static func menuModifiers(shift: Bool, option: Bool, control: Bool,
+                              command: Bool, character: String) -> UInt32 {
+        var value: UInt32 = 0
+        if shift || isUpperCaseLetter(character) { value |= 1 }
+        if option { value |= 2 }
+        if control { value |= 4 }
+        if !command { value |= 8 }
+        return value
+    }
+
+    private static func isUpperCaseLetter(_ character: String) -> Bool {
+        guard let first = character.first, first.isLetter else { return false }
+        return first.isUppercase
     }
 
     /// Apps whose side buttons must reach them untouched. These handle Back

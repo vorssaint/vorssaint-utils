@@ -27,7 +27,7 @@ enum AppFeature: String, CaseIterable {
     // Tools
     case quickLauncher, quickToggles, colorPicker, screenOCR, cleaningMode, mediaTools,
          cleaner, uninstaller, homebrew, appUpdates, screenshot, cameraPreview, radialMenu, scratchpad,
-         commandBar
+         commandBar, screenRecorder
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
     case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower
@@ -41,7 +41,7 @@ enum FeatureGroup: String, CaseIterable {
 /// System permissions surfaced by the hub's transparency portal.
 enum AppPermission: String, CaseIterable {
     case accessibility, screenRecording, fullDiskAccess, filesAndFolders, notifications,
-         automationFinder, automationTerminal, audioCapture, camera
+         automationFinder, automationTerminal, audioCapture, camera, appManagement
 }
 
 extension AppFeature {
@@ -60,7 +60,7 @@ extension AppFeature {
             return .energyDisplay
         case .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
-             .scratchpad, .commandBar:
+             .scratchpad, .commandBar, .screenRecorder:
             return .tools
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
             return .monitor
@@ -106,6 +106,7 @@ extension AppFeature {
         case .homebrew: return "shippingbox"
         case .appUpdates: return "arrow.down.app"
         case .screenshot: return "camera.viewfinder"
+        case .screenRecorder: return "record.circle"
         case .cameraPreview: return "web.camera"
         case .radialMenu: return "circle.grid.cross"
         case .scratchpad: return "note.text"
@@ -159,7 +160,7 @@ extension AppFeature {
         case .windowLayout, .mixer, .micMute, .keepAwake,
              .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
-             .commandBar,
+             .commandBar, .screenRecorder,
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
             return []
         }
@@ -186,13 +187,16 @@ extension AppFeature {
         case .dockPreview: return [.accessibility, .screenRecording]
         case .screenOCR: return [.screenRecording]
         case .screenshot: return [.screenRecording]
+        // The sound of the Mac rides the same grant the pixels do; nothing
+        // here uses the audio tap the mixer needs.
+        case .screenRecorder: return [.screenRecording]
         case .cameraPreview: return [.camera]
         case .keepAwake: return [.accessibility]
         case .brightness: return [.accessibility]
         case .cleaner: return [.fullDiskAccess, .filesAndFolders, .notifications]
         case .uninstaller: return [.fullDiskAccess, .automationFinder]
-        case .homebrew: return [.automationTerminal]
-        case .appUpdates: return [.notifications]
+        case .homebrew: return [.automationTerminal, .appManagement]
+        case .appUpdates: return [.notifications, .appManagement]
         case .mixer: return [.audioCapture, .accessibility]
         case .monitorCPU, .monitorMemory, .monitorDisk, .monitorPower: return [.notifications]
         case .clipboardHistory, .shelf, .urlCleaner,
@@ -303,6 +307,7 @@ extension AppPermission {
         case .automationFinder, .automationTerminal: return "gearshape.2"
         case .audioCapture: return "waveform"
         case .camera: return "camera"
+        case .appManagement: return "app.badge"
         }
     }
 }

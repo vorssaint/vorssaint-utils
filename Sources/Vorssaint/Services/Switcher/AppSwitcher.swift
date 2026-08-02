@@ -881,7 +881,10 @@ final class AppSwitcher: ObservableObject {
         hoverAnchor = NSEvent.mouseLocation
         panel.setFrame(centeredFrame(for: currentPanelSize), display: true)
         panel.invalidateShadow()
+        let animationBehavior = panel.animationBehavior
+        panel.animationBehavior = .none
         panel.orderFrontRegardless()
+        panel.animationBehavior = animationBehavior
         installDismissMonitors()
     }
 
@@ -1023,12 +1026,12 @@ struct SwitcherGrid: Equatable {
     let visibleRows: Int
     let panelSize: CGSize
 
-    // Base sizes scaled by the user's preview-size preference (Normal/Large/
-    // Extra), so one setting grows the switcher and the Dock preview together.
+    // Base sizes and breathing room scale together, so making previews smaller
+    // also keeps the panel from spending that saved space on empty gaps.
     static var cardWidth: CGFloat { 288 * PreviewSizing.scale }
     static var cardHeight: CGFloat { 214 * PreviewSizing.scale }
-    static let spacing: CGFloat = 12
-    static let padding: CGFloat = 20
+    static var spacing: CGFloat { 12 * PreviewSizing.scale }
+    static var padding: CGFloat { 20 * PreviewSizing.scale }
 
     static let empty = SwitcherGrid(columns: 1, rows: 1, visibleRows: 1, panelSize: .zero)
 

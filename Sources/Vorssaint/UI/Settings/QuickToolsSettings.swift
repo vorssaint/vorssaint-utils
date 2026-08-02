@@ -247,6 +247,9 @@ struct QuickToolsSettings: View {
                         .foregroundStyle(.secondary)
                     Toggle(FeatureStrings.scratchpad(l10n.language).closeOnClickOutside,
                            isOn: $scratchpadCloseOnClickOutside)
+                        .onChange(of: scratchpadCloseOnClickOutside) { _, _ in
+                            ScratchpadService.shared.outsideClickPreferenceDidChange()
+                        }
                     Toggle(l10n.s.quickToolShortcutToggle, isOn: $scratchpadShortcutEnabled)
                         .onChange(of: scratchpadShortcutEnabled) { _, _ in
                             ScratchpadService.shared.syncWithPreferences()

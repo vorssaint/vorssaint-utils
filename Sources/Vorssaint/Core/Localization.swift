@@ -1035,6 +1035,7 @@ struct Strings {
     let switcherCurrentSpaceOnly: String
     let switcherCurrentSpaceOnlyCaption: String
     let shelfFileMissing: String
+    let previewSizeSmall: String
 }
 
 // MARK: - Português (Brasil)
@@ -1926,7 +1927,8 @@ extension Strings {
         highlightsSeeAll: "Ver todas as mudanças",
         switcherCurrentSpaceOnly: "Mostrar só a Mesa atual",
         switcherCurrentSpaceOnlyCaption: "Mostra no alternador apenas as janelas da Mesa em que você está. Escolher uma janela nunca leva você para outra Mesa.",
-        shelfFileMissing: "O arquivo não existe mais"
+        shelfFileMissing: "O arquivo não existe mais",
+        previewSizeSmall: "Pequeno"
     )
 }
 
@@ -2819,6 +2821,7 @@ extension Strings {
         highlightsSeeAll: "See all changes",
         switcherCurrentSpaceOnly: "Show only the current desktop",
         switcherCurrentSpaceOnlyCaption: "Lists only windows from the desktop you are on. Picking a window never moves you to another desktop.",
-        shelfFileMissing: "The file no longer exists"
+        shelfFileMissing: "The file no longer exists",
+        previewSizeSmall: "Small"
     )
 }

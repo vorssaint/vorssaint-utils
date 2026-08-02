@@ -51,6 +51,7 @@ struct ClipboardSettings: View {
                     Text(text.skipSensitiveCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    ClipboardIgnoredAppsList()
                     Picker(text.limit, selection: $limit) {
                         ForEach(Defaults.allowedClipboardHistoryLimits, id: \.self) { value in
                             Text("\(value)").tag(value)

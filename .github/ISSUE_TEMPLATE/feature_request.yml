@@ -27,14 +27,17 @@ body:
     id: feature_area
     attributes:
       label: Feature Area
+      description: The same groups you see in Settings.
       options:
+        - Windows and Dock
+        - Mouse and keyboard
+        - Clipboard and files
+        - Sound
+        - Energy and display
+        - Tools
+        - System monitor
+        - Menu bar
         - Other
-        - System Monitor
-        - Menu Bar
-        - Volume Mixer
-        - Window Switcher
-        - Keep Awake
-      
     validations:
       required: true
 

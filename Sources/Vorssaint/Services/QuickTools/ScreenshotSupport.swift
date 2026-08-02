@@ -234,11 +234,11 @@ enum ScreenshotSupport {
     // MARK: - File naming
 
     /// Stable local file name with a localizable prefix and colon-free time.
-    static func fileName(prefix: String, date: Date) -> String {
+    static func fileName(prefix: String, date: Date, fileExtension: String = "png") -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
-        return "\(prefix) \(formatter.string(from: date)).png"
+        return "\(prefix) \(formatter.string(from: date)).\(fileExtension)"
     }
 
     /// Expands a date-token pattern into a relative subfolder path, e.g.

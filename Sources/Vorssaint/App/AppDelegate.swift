@@ -123,7 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { _ in
-                FeatureRuntime.shared.sync([.dockPreview])
+                FeatureRuntime.shared.sync([.dockPreview, .screenRecorder])
             }
             .store(in: &cancellables)
 

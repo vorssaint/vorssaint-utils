@@ -115,6 +115,7 @@ struct FeatureHubStrings {
     let energyInputs: String
     let energyPeriodic: String
     let energyHelp: String
+    let explainAppManagement: String
 }
 
 extension FeatureStrings {
@@ -241,7 +242,8 @@ extension FeatureHubStrings {
         energyKeyboard: "키보드 감시",
         energyInputs: "마우스와 키보드 감시",
         energyPeriodic: "일정 간격으로 확인",
-        energyHelp: "기능이 켜져 있을 때 계속 유지하는 작업입니다. 제거한 기능은 전혀 불러오지 않습니다."
+        energyHelp: "기능이 켜져 있을 때 계속 유지하는 작업입니다. 제거한 기능은 전혀 불러오지 않습니다.",
+        explainAppManagement: "업데이트가 패키지 관리자로 설치한 앱을 교체하거나 제거할 수 있게 합니다."
     )
 }
 
@@ -349,7 +351,8 @@ extension FeatureHubStrings {
         energyKeyboard: "Listens to the keyboard",
         energyInputs: "Listens to mouse and keyboard",
         energyPeriodic: "Checks on an interval",
-        energyHelp: "What the feature keeps alive while it is on. Uninstalled features load nothing at all."
+        energyHelp: "What the feature keeps alive while it is on. Uninstalled features load nothing at all.",
+        explainAppManagement: "Lets updates replace or remove apps installed by the package manager."
     )
 
     static let ptBR = FeatureHubStrings(
@@ -455,7 +458,8 @@ extension FeatureHubStrings {
         energyKeyboard: "Escuta o teclado",
         energyInputs: "Escuta mouse e teclado",
         energyPeriodic: "Verifica em intervalos",
-        energyHelp: "O custo enquanto a função está ligada. Desinstalada, ela não carrega nada."
+        energyHelp: "O custo enquanto a função está ligada. Desinstalada, ela não carrega nada.",
+        explainAppManagement: "Permite que as atualizações substituam ou removam apps instalados pelo gerenciador de pacotes."
     )
 
     static let tr = FeatureHubStrings(
@@ -561,7 +565,8 @@ extension FeatureHubStrings {
         energyKeyboard: "Klavyeyi dinler",
         energyInputs: "Fare ve klavyeyi dinler",
         energyPeriodic: "Aralıklarla denetler",
-        energyHelp: "Özellik açıkken tuttuğu maliyet. Kaldırılan özellik hiçbir şey yüklemez."
+        energyHelp: "Özellik açıkken tuttuğu maliyet. Kaldırılan özellik hiçbir şey yüklemez.",
+        explainAppManagement: "Güncellemelerin paket yöneticisiyle yüklenen uygulamaları değiştirmesini veya kaldırmasını sağlar."
     )
 
     static let ru = FeatureHubStrings(
@@ -667,7 +672,8 @@ extension FeatureHubStrings {
         energyKeyboard: "Слушает клавиатуру",
         energyInputs: "Слушает мышь и клавиатуру",
         energyPeriodic: "Проверяет с интервалом",
-        energyHelp: "Стоимость, пока функция включена. Удалённая функция ничего не загружает."
+        energyHelp: "Стоимость, пока функция включена. Удалённая функция ничего не загружает.",
+        explainAppManagement: "Позволяет обновлениям заменять или удалять приложения, установленные через менеджер пакетов."
     )
 
     static let es = FeatureHubStrings(
@@ -773,7 +779,8 @@ extension FeatureHubStrings {
         energyKeyboard: "Escucha el teclado",
         energyInputs: "Escucha ratón y teclado",
         energyPeriodic: "Comprueba a intervalos",
-        energyHelp: "El coste mientras la función está activada. Desinstalada, no carga nada."
+        energyHelp: "El coste mientras la función está activada. Desinstalada, no carga nada.",
+        explainAppManagement: "Permite que las actualizaciones sustituyan o eliminen apps instaladas con el gestor de paquetes."
     )
 
     static let de = FeatureHubStrings(
@@ -879,7 +886,8 @@ extension FeatureHubStrings {
         energyKeyboard: "Hört auf die Tastatur",
         energyInputs: "Hört auf Maus und Tastatur",
         energyPeriodic: "Prüft in Intervallen",
-        energyHelp: "Die Kosten, solange die Funktion an ist. Deinstalliert lädt sie gar nichts."
+        energyHelp: "Die Kosten, solange die Funktion an ist. Deinstalliert lädt sie gar nichts.",
+        explainAppManagement: "Erlaubt App-Updates, vom Paketmanager installierte Apps zu ersetzen oder zu entfernen."
     )
 
     static let fr = FeatureHubStrings(
@@ -985,7 +993,8 @@ extension FeatureHubStrings {
         energyKeyboard: "Écoute le clavier",
         energyInputs: "Écoute souris et clavier",
         energyPeriodic: "Vérifie par intervalles",
-        energyHelp: "Le coût quand la fonction est active. Désinstallée, elle ne charge rien."
+        energyHelp: "Le coût quand la fonction est active. Désinstallée, elle ne charge rien.",
+        explainAppManagement: "Permet aux mises à jour de remplacer ou supprimer les apps installées par le gestionnaire de paquets."
     )
 
     static let it = FeatureHubStrings(
@@ -1091,7 +1100,8 @@ extension FeatureHubStrings {
         energyKeyboard: "Ascolta la tastiera",
         energyInputs: "Ascolta mouse e tastiera",
         energyPeriodic: "Controlla a intervalli",
-        energyHelp: "Il costo mentre la funzione è attiva. Disinstallata non carica nulla."
+        energyHelp: "Il costo mentre la funzione è attiva. Disinstallata non carica nulla.",
+        explainAppManagement: "Consente agli aggiornamenti di sostituire o rimuovere le app installate dal gestore di pacchetti."
     )
 
     static let ja = FeatureHubStrings(
@@ -1197,7 +1207,8 @@ extension FeatureHubStrings {
         energyKeyboard: "キーボードを監視",
         energyInputs: "マウスとキーボードを監視",
         energyPeriodic: "一定間隔で確認",
-        energyHelp: "オンの間のコストです。アンインストールすれば何も読み込みません。"
+        energyHelp: "オンの間のコストです。アンインストールすれば何も読み込みません。",
+        explainAppManagement: "パッケージマネージャでインストールしたAppをアップデートで置き換えたり削除したりできるようにします。"
     )
 
     static let zhHans = FeatureHubStrings(
@@ -1303,7 +1314,8 @@ extension FeatureHubStrings {
         energyKeyboard: "监听键盘",
         energyInputs: "监听鼠标和键盘",
         energyPeriodic: "按间隔检查",
-        energyHelp: "功能开启期间的开销。卸载后完全不加载。"
+        energyHelp: "功能开启期间的开销。卸载后完全不加载。",
+        explainAppManagement: "允许更新替换或移除通过软件包管理器安装的 App。"
     )
 
     static let zhTW = FeatureHubStrings(
@@ -1409,7 +1421,8 @@ extension FeatureHubStrings {
         energyKeyboard: "監聽鍵盤",
         energyInputs: "監聽滑鼠與鍵盤",
         energyPeriodic: "按間隔檢查",
-        energyHelp: "功能開啟期間的負擔。解除安裝後完全不載入。"
+        energyHelp: "功能開啟期間的負擔。解除安裝後完全不載入。",
+        explainAppManagement: "允許更新取代或移除透過套件管理器安裝的 App。"
     )
 
     static let zhHK = FeatureHubStrings(
@@ -1515,6 +1528,7 @@ extension FeatureHubStrings {
         energyKeyboard: "監聽鍵盤",
         energyInputs: "監聽滑鼠與鍵盤",
         energyPeriodic: "按間隔檢查",
-        energyHelp: "功能開啟期間的負擔。解除安裝後完全不載入。"
+        energyHelp: "功能開啟期間的負擔。解除安裝後完全不載入。",
+        explainAppManagement: "允許更新取代或移除透過套件管理器安裝的 App。"
     )
 }

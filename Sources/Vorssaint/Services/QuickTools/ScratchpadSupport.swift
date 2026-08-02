@@ -33,6 +33,10 @@ enum ScratchpadRetention: String, CaseIterable {
 }
 
 enum ScratchpadSupport {
+    static func dismissesOnOutsideClick(isPinned: Bool, exportModalActive: Bool) -> Bool {
+        !isPinned && !exportModalActive
+    }
+
     /// Whether the saved text expired: it only clears when a retention period
     /// is chosen and the last edit is older than that period. No saved text
     /// (or a clock that moved backwards) never clears.

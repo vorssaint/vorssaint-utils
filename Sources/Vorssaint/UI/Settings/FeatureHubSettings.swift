@@ -369,6 +369,10 @@ private struct PermissionsPortalSections: View {
             case .denied, .undetermined: return .missing
             case .unknown: return .unknown
             }
+        case .appManagement:
+            // macOS has no public preflight API for this permission. The
+            // system records the app only after its first protected write.
+            return .unknown
         }
     }
 
@@ -478,7 +482,8 @@ private struct PermissionPortalRow: View {
         case .accessibility, .screenRecording, .fullDiskAccess: return true
         case .notifications: return Permissions.shared.notifications == .undetermined
         case .camera: return Permissions.shared.camera == .undetermined
-        case .filesAndFolders, .automationFinder, .automationTerminal, .audioCapture: return false
+        case .filesAndFolders, .automationFinder, .automationTerminal, .audioCapture,
+             .appManagement: return false
         }
     }
 
@@ -493,7 +498,8 @@ private struct PermissionPortalRow: View {
                 Permissions.shared.refresh()
             }
         case .camera: Permissions.shared.requestCamera()
-        case .filesAndFolders, .automationFinder, .automationTerminal, .audioCapture:
+        case .filesAndFolders, .automationFinder, .automationTerminal, .audioCapture,
+             .appManagement:
             break
         }
     }
@@ -508,6 +514,7 @@ private struct PermissionPortalRow: View {
         case .automationFinder, .automationTerminal: Permissions.shared.openAutomationSettings()
         case .audioCapture: Permissions.shared.openAudioCaptureSettings()
         case .camera: Permissions.shared.openCameraSettings()
+        case .appManagement: Permissions.shared.openAppManagementSettings()
         }
     }
 }
@@ -550,6 +557,7 @@ extension AppFeature {
         case .colorPicker: return s.colorPickerName
         case .screenOCR: return s.ocrName
         case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).pageTitle
+        case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).pageTitle
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
@@ -602,6 +610,7 @@ extension AppFeature {
         case .colorPicker: return hub.descColorPicker
         case .screenOCR: return hub.descScreenOCR
         case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).hubDescription
+        case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).hubDescription
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).hubDescription
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).hubDescription
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).hubDescription
@@ -636,6 +645,7 @@ extension AppPermission {
         case .automationTerminal: return hub.permAutomationTerminal
         case .audioCapture: return hub.permAudioCapture
         case .camera: return FeatureStrings.cameraPreview(L10n.shared.language).permName
+        case .appManagement: return FeatureStrings.settingsCategories(L10n.shared.language).appManagement
         }
     }
 
@@ -650,6 +660,7 @@ extension AppPermission {
         case .automationTerminal: return hub.explainAutomationTerminal
         case .audioCapture: return hub.explainAudioCapture
         case .camera: return FeatureStrings.cameraPreview(L10n.shared.language).permExplain
+        case .appManagement: return hub.explainAppManagement
         }
     }
 }

@@ -14,6 +14,13 @@ enum QuickToolHUD {
     /// newer show() must not order the panel out from its completion handler.
     private static var generation = 0
 
+    /// The confirmation panel, when one is on screen. A recording in progress
+    /// leaves it out of the picture; nothing else needs to know it exists.
+    static var currentWindowNumber: Int? {
+        guard let panel, panel.isVisible else { return nil }
+        return panel.windowNumber
+    }
+
     static func show(icon: String, message: String, swatch: NSColor? = nil) {
         guard Thread.isMainThread else {
             DispatchQueue.main.async { show(icon: icon, message: message, swatch: swatch) }

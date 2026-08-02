@@ -890,6 +890,7 @@ extension Strings {
         highlightsSeeAll: "Alle Änderungen ansehen",
         switcherCurrentSpaceOnly: "Nur den aktuellen Schreibtisch anzeigen",
         switcherCurrentSpaceOnlyCaption: "Zeigt im Umschalter nur Fenster des Schreibtischs, auf dem du gerade bist. Die Auswahl eines Fensters wechselt nie zu einem anderen Schreibtisch.",
-        shelfFileMissing: "Die Datei existiert nicht mehr"
+        shelfFileMissing: "Die Datei existiert nicht mehr",
+        previewSizeSmall: "Klein"
     )
 }

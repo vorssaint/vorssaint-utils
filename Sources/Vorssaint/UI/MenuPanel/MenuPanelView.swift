@@ -458,7 +458,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, micMute, cameraPreview, scratchpad,
-         commandBar
+         commandBar, screenRecorder
 
     var id: String { rawValue }
 
@@ -480,6 +480,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .colorPicker: return .colorPicker
         case .micMute: return .micMute
         case .screenshot: return .screenshot
+        case .screenRecorder: return .screenRecorder
         case .cameraPreview: return .cameraPreview
         case .scratchpad: return .scratchpad
         case .commandBar: return .commandBar
@@ -516,7 +517,9 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityCameraPreview) private var showCameraPreview = true
     @AppStorage(DefaultsKey.panelUtilityScratchpad) private var showScratchpad = true
     @AppStorage(DefaultsKey.panelUtilityCommandBar) private var showCommandBar = true
+    @AppStorage(DefaultsKey.panelUtilityScreenRecorder) private var showScreenRecorder = true
     @ObservedObject private var micMute = MicMuteService.shared
+    @ObservedObject private var recorder = ScreenRecorderService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
     @State private var draggingItem: UtilityPanelItem?
@@ -642,6 +645,7 @@ struct UtilitiesSection: View {
         case .commandBar: return showCommandBar
         case .quickLauncher: return showQuickLauncher
         case .screenshot: return showScreenshot
+        case .screenRecorder: return showScreenRecorder
         }
     }
 
@@ -784,6 +788,23 @@ struct UtilitiesSection: View {
                                         ScreenshotService.shared.capture()
                                     }
                                 })
+        case .screenRecorder:
+            UtilityActionButton(title: screenRecorderTitle,
+                                caption: screenRecorderCaption,
+                                systemImage: recorder.isRecording ? "stop.circle" : "record.circle",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showScreenRecorder,
+                                needsAttention: !permissions.screenRecording,
+                                permissionButtonTitle: l10n.s.permissionRequest,
+                                permissionAction: permissions.screenRecording ? nil : grantScreenRecordingPermission,
+                                shortcutHint: shortcutHint(.screenRecorder),
+                                action: {
+                                    appDelegate()?.closePopover()
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                        ScreenRecorderService.shared.toggle()
+                                    }
+                                })
         case .colorPicker:
             UtilityActionButton(title: l10n.s.colorPickerName,
                                 caption: l10n.s.colorPickerCaption,
@@ -887,6 +908,23 @@ struct UtilitiesSection: View {
         permissions.screenRecording
             ? l10n.s.ocrCaption
             : "\(l10n.s.permissionRequired): \(l10n.s.permissionScreenRecording)"
+    }
+
+    /// While a recording runs the tile becomes the way to end it, so the
+    /// panel never shows an action the person cannot take.
+    private var screenRecorderTitle: String {
+        let strings = FeatureStrings.recorder(l10n.language)
+        return recorder.isRecording ? strings.stopButton : strings.pageTitle
+    }
+
+    private var screenRecorderCaption: String {
+        guard permissions.screenRecording else {
+            return "\(l10n.s.permissionRequired): \(l10n.s.permissionScreenRecording)"
+        }
+        let strings = FeatureStrings.recorder(l10n.language)
+        return recorder.isRecording
+            ? RecorderSupport.elapsedLabel(seconds: recorder.elapsedSeconds)
+            : strings.panelCaption
     }
 
     private var screenshotCaption: String {

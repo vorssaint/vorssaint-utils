@@ -41,6 +41,13 @@ enum WindowActivator {
                 ? SwitcherAppActivationRetryState(targetPID: item.pid)
                 : nil
             activateApp(app, allWindows: activationPlan.activateAllWindows)
+            if let bundleURL = app.bundleURL {
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.activates = false
+                configuration.addsToRecentItems = false
+                configuration.promptsUserIfNeeded = false
+                NSWorkspace.shared.openApplication(at: bundleURL, configuration: configuration)
+            }
             if let retryState {
                 scheduleAppActivationRetries(targetPID: item.pid,
                                              sourcePID: sourcePID,

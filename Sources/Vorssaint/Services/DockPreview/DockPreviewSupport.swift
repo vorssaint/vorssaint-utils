@@ -110,8 +110,8 @@ enum DockPreviewSupport {
     static let corridorMargin: CGFloat = 12
     static var cardWidth: CGFloat { 190 * PreviewSizing.scale }
     static var cardHeight: CGFloat { 142 * PreviewSizing.scale }
-    static let cardSpacing: CGFloat = 8
-    static let panelPadding: CGFloat = 12
+    static var cardSpacing: CGFloat { 8 * PreviewSizing.scale }
+    static var panelPadding: CGFloat { 12 * PreviewSizing.scale }
     static let panelHeaderHeight: CGFloat = 28
 
     /// How solid the panel's frosted background is drawn, as a fraction. The

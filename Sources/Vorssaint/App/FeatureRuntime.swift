@@ -162,6 +162,7 @@ final class FeatureRuntime: ObservableObject {
         .colorPicker: { ColorSamplerService.shared.syncWithPreferences() },
         .screenOCR: { ScreenTextService.shared.syncWithPreferences() },
         .screenshot: { ScreenshotService.shared.syncWithPreferences() },
+        .screenRecorder: { ScreenRecorderService.shared.syncWithPreferences() },
         .cameraPreview: { CameraPreviewService.shared.syncWithPreferences() },
         .radialMenu: { RadialMenuService.shared.syncWithPreferences() },
         .scratchpad: { ScratchpadService.shared.syncWithPreferences() },

@@ -37,6 +37,17 @@ struct ScratchpadView: View {
                 .contentShape(Rectangle())
                 .overlay(ScratchpadDragHandle())
             Button {
+                service.togglePin()
+            } label: {
+                Image(systemName: service.isPinned ? "pin.fill" : "pin")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 22, height: 20)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(service.isPinned ? Color.accentColor : Color.secondary)
+            .help(service.isPinned ? text.closeOnClickOutside : text.keepOpen)
+            .accessibilityLabel(service.isPinned ? text.closeOnClickOutside : text.keepOpen)
+            Button {
                 ScratchpadService.shared.hide()
             } label: {
                 Image(systemName: "xmark.circle.fill")

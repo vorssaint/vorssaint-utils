@@ -72,6 +72,9 @@ final class ScreenTextService: ObservableObject {
             switch outcome {
             case .captured(let capture):
                 self.recognize(capture.image)
+            case .region:
+                // Only the recorder asks for geometry; this session never does.
+                break
             case .cancelled:
                 break
             case .failed:

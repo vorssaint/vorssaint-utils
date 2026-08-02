@@ -16,6 +16,7 @@ final class ScratchpadService: ObservableObject {
     static let shared = ScratchpadService()
 
     @Published private(set) var shortcutRegistrationFailed = false
+    @Published private(set) var isPinned = false
     /// The single buffer. The pad's editor binds straight to it; every change
     /// schedules a save, so there is no save ceremony anywhere.
     @Published var text = "" {
@@ -78,6 +79,7 @@ final class ScratchpadService: ObservableObject {
             focusText()
             return
         }
+        isPinned = !closesOnClickOutside
         loadApplyingRetention()
         let panel = ensurePanel()
         installMonitors(for: panel)
@@ -100,6 +102,7 @@ final class ScratchpadService: ObservableObject {
         flushSave()
         removeMonitors()
         panel?.orderOut(nil)
+        isPinned = false
     }
 
     // MARK: - Buffer
@@ -195,6 +198,16 @@ final class ScratchpadService: ObservableObject {
             text = ""
         }
         flushSave()
+    }
+
+    func togglePin() {
+        guard isVisible else { return }
+        isPinned.toggle()
+    }
+
+    func outsideClickPreferenceDidChange() {
+        guard isVisible else { return }
+        isPinned = !closesOnClickOutside
     }
 
     /// The hosts never activate the app, and a modal dialog in an inactive app
@@ -308,7 +321,8 @@ final class ScratchpadService: ObservableObject {
     /// The export dialog is a click outside the pad by geometry, so saving to
     /// a file must never be what closes it.
     private var dismissesOnOutsideClick: Bool {
-        closesOnClickOutside && !Self.exportModalActive
+        ScratchpadSupport.dismissesOnOutsideClick(isPinned: isPinned,
+                                                  exportModalActive: Self.exportModalActive)
     }
 
     private func installMonitors(for panel: NSPanel) {
