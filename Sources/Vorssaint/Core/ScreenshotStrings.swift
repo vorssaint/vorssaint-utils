@@ -1206,7 +1206,7 @@ extension ScreenshotFeatureStrings {
         saveAsButton: "存储为…",
         pinButton: "钉在屏幕上",
         copyTextButton: "拷贝文本",
-        discardTitle: "要丢弃这张截屏吗?",
+        discardTitle: "要丢弃这张截屏吗？",
         discardMessage: "它还没有被拷贝或存储。",
         discardConfirm: "丢弃",
         copiedHUD: "截屏已拷贝",

@@ -163,12 +163,12 @@ extension BackupFeatureStrings {
 
     static let zhHans = BackupFeatureStrings(
         title: "备份",
-        description: "把你的配置带到另一台 Mac:将所有偏好设置导出为文件并在那里导入。剪贴板历史、暂存架项目和系统权限永远不会离开这台 Mac。",
+        description: "把你的配置带到另一台 Mac：将所有偏好设置导出为文件并在那里导入。剪贴板历史、暂存架项目和系统权限永远不会离开这台 Mac。",
         exportButton: "导出设置…",
         importButton: "导入设置…",
         exported: "备份已保存",
-        importConfirmTitle: "导入这些设置?",
-        importConfirmBody: "当前设置将被文件中的设置替换,应用会重启。这台 Mac 上的其他内容不受影响。",
+        importConfirmTitle: "导入这些设置？",
+        importConfirmBody: "当前设置将被文件中的设置替换，应用会重启。这台 Mac 上的其他内容不受影响。",
         importAction: "导入并重启",
         invalidFile: "该文件不是有效的 Vorssaint 备份。"
     )
