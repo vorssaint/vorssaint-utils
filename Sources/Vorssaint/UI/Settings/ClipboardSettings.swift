@@ -43,6 +43,8 @@ struct ClipboardSettings: View {
                     }
                 }
 
+                clipboardShortcutSection
+
                 Section {
                     Toggle(text.includeImagesFiles, isOn: $includeImagesFiles)
                     Text(text.includeImagesFilesCaption)
@@ -60,6 +62,7 @@ struct ClipboardSettings: View {
                     }
                     Toggle(text.showInPanel, isOn: $showInPanel)
                 }
+                .disabled(!enabled)
             }
 
             if AppFeature.finderCutPaste.isAvailable {
@@ -104,7 +107,7 @@ struct ClipboardSettings: View {
             }
 
             if AppFeature.clipboardHistory.isAvailable {
-                clipboardShortcutAndStatsSections
+                clipboardStatsSection
             }
         }
         .formStyle(.grouped)
@@ -117,33 +120,36 @@ struct ClipboardSettings: View {
     }
 
     @ViewBuilder
-    private var clipboardShortcutAndStatsSections: some View {
-            Section(text.shortcut) {
-                Toggle(text.shortcut, isOn: $shortcutEnabled)
-                    .onChange(of: shortcutEnabled) { _, _ in
-                        ClipboardHistoryService.shared.syncHotkey()
-                    }
-                ShortcutPreferenceRow(role: .clipboard,
-                                      isEnabled: enabled && shortcutEnabled,
-                                      additionalConflict: WindowLayoutService.shared.shortcutConflictTitle) {
+    private var clipboardShortcutSection: some View {
+        Section(text.shortcut) {
+            Toggle(text.shortcut, isOn: $shortcutEnabled)
+                .onChange(of: shortcutEnabled) { _, _ in
                     ClipboardHistoryService.shared.syncHotkey()
                 }
-                if enabled, shortcutEnabled, history.shortcutRegistrationFailed {
-                    Text(l10n.s.shortcutUnavailable)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
-                Text(text.shortcutCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Button {
-                    ClipboardHistoryService.shared.showHistoryWindow()
-                } label: {
-                    Label(text.shortcut, systemImage: "doc.on.clipboard")
-                }
-                .disabled(history.entries.isEmpty)
+            ShortcutPreferenceRow(role: .clipboard,
+                                  isEnabled: enabled && shortcutEnabled,
+                                  additionalConflict: WindowLayoutService.shared.shortcutConflictTitle) {
+                ClipboardHistoryService.shared.syncHotkey()
             }
+            if enabled, shortcutEnabled, history.shortcutRegistrationFailed {
+                Text(l10n.s.shortcutUnavailable)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+            Text(text.shortcutCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Button {
+                ClipboardHistoryService.shared.showHistoryWindow()
+            } label: {
+                Label(text.shortcut, systemImage: "doc.on.clipboard")
+            }
+            .disabled(history.entries.isEmpty)
+        }
+        .disabled(!enabled)
+    }
 
+    private var clipboardStatsSection: some View {
             Section {
                 HStack {
                     Text("\(history.pinnedEntries.count)")
@@ -165,5 +171,6 @@ struct ClipboardSettings: View {
                     .disabled(history.recentEntries.isEmpty)
                 }
             }
+            .disabled(!enabled)
     }
 }
