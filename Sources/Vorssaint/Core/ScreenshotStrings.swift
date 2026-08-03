@@ -1234,7 +1234,7 @@ extension ScreenshotFeatureStrings {
         autoCopyToggle: "自动复制到剪贴板",
         autoCopyCaption: "每次截屏后会立即进入剪贴板，随时可以粘贴。是否保存为文件仍是单独的选择。",
         hintLoupe: "按 Z 切换放大镜",
-        lastRegionToggle: "显示上次截图区域轮廓",
+        lastRegionToggle: "显示上次截屏区域轮廓",
         backdropBlurLabel: "模糊",
         scrollingCaptureButton: "滚动截图",
         scrollingCaptureTitle: "滚动截图",
