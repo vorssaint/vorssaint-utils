@@ -136,6 +136,8 @@ extension Strings {
         defaultDurationLabel: "Standarddauer",
         keepAwakeAutoStart: "Beim Öffnen von Vorssaint wach halten",
         keepAwakeAutoStartCaption: "Startet eine Sitzung mit der Standarddauer.",
+        keepAwakeRightClickToggle: "Menüleistensymbol rechtsklicken, um Wachhalten umzuschalten",
+        keepAwakeRightClickToggleCaption: "Ersetzt das Kontextmenü beim Rechtsklick.",
         batteryProtectionSection: "Batterieschutz",
         batteryDisableBelow: "Deaktivieren bei Batterie unter",
         batteryNever: "Nie",

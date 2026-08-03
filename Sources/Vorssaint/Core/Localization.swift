@@ -249,6 +249,8 @@ struct Strings {
     let defaultDurationLabel: String
     let keepAwakeAutoStart: String
     let keepAwakeAutoStartCaption: String
+    let keepAwakeRightClickToggle: String
+    let keepAwakeRightClickToggleCaption: String
     let batteryProtectionSection: String
     let batteryDisableBelow: String
     let batteryNever: String
@@ -1171,6 +1173,8 @@ extension Strings {
         defaultDurationLabel: "Duração padrão",
         keepAwakeAutoStart: "Manter acordado ao abrir o Vorssaint",
         keepAwakeAutoStartCaption: "Inicia uma sessão com a duração padrão.",
+        keepAwakeRightClickToggle: "Clique com o botão direito no ícone da barra de menus para alternar “Manter acordado”",
+        keepAwakeRightClickToggleCaption: "Substitui o menu de contexto do clique com o botão direito.",
         batteryProtectionSection: "Proteção de bateria",
         batteryDisableBelow: "Desativar com bateria abaixo de",
         batteryNever: "Nunca",
@@ -2064,6 +2068,8 @@ extension Strings {
         defaultDurationLabel: "Default duration",
         keepAwakeAutoStart: "Keep Awake when Vorssaint opens",
         keepAwakeAutoStartCaption: "Starts a session with the default duration.",
+        keepAwakeRightClickToggle: "Right-click the menu bar icon to toggle Keep Awake",
+        keepAwakeRightClickToggleCaption: "Replaces the right-click context menu.",
         batteryProtectionSection: "Battery protection",
         batteryDisableBelow: "Disable when battery drops below",
         batteryNever: "Never",

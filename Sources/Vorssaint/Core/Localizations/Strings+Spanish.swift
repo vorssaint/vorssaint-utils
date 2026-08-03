@@ -136,6 +136,8 @@ extension Strings {
         defaultDurationLabel: "Duración predeterminada",
         keepAwakeAutoStart: "Mantener activo al abrir Vorssaint",
         keepAwakeAutoStartCaption: "Inicia una sesión con la duración predeterminada.",
+        keepAwakeRightClickToggle: "Haz clic derecho en el icono de la barra de menús para activar o desactivar «Mantener activo»",
+        keepAwakeRightClickToggleCaption: "Sustituye el menú contextual del clic derecho.",
         batteryProtectionSection: "Protección de la batería",
         batteryDisableBelow: "Desactivar cuando la batería baje de",
         batteryNever: "Nunca",

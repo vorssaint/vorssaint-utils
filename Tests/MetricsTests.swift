@@ -1086,6 +1086,8 @@ struct MetricsTests {
                "appearance raw values are persisted keys and their order is the picker order")
         expect(registeredDefaults[DefaultsKey.keepAwakeAutoStart] as? Bool == false,
                "Keep Awake launch restore is opt-in")
+        expect(registeredDefaults[DefaultsKey.keepAwakeRightClickToggle] as? Bool == false,
+               "right-click Keep Awake toggle is opt-in")
         expect(registeredDefaults[DefaultsKey.keepAwakeExternalDisplay] as? Bool == false,
                "external-display Keep Awake is opt-in")
         expect(registeredDefaults[DefaultsKey.keepAwakeConnectedToPower] as? Bool == false,

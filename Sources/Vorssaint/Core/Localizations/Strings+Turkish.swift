@@ -136,6 +136,8 @@ extension Strings {
         defaultDurationLabel: "Varsayılan süre",
         keepAwakeAutoStart: "Vorssaint açılınca uyanık tut",
         keepAwakeAutoStartCaption: "Varsayılan süreyle bir oturum başlatır.",
+        keepAwakeRightClickToggle: "Uyanık tutmayı açıp kapatmak için menü çubuğu simgesine sağ tıkla",
+        keepAwakeRightClickToggleCaption: "Sağ tık bağlam menüsünün yerini alır.",
         batteryProtectionSection: "Pil koruması",
         batteryDisableBelow: "Pil şu seviyenin altına düşünce kapat",
         batteryNever: "Asla",

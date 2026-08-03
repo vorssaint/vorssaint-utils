@@ -136,6 +136,8 @@ extension Strings {
         defaultDurationLabel: "預設時間長度",
         keepAwakeAutoStart: "開啟 Vorssaint 時保持喚醒",
         keepAwakeAutoStartCaption: "使用預設時間啟動工作階段。",
+        keepAwakeRightClickToggle: "在選單列圖示按右鍵來切換「保持喚醒」",
+        keepAwakeRightClickToggleCaption: "會取代按右鍵選單。",
         batteryProtectionSection: "電池保護",
         batteryDisableBelow: "電池電量低於以下數值時關閉",
         batteryNever: "從不",

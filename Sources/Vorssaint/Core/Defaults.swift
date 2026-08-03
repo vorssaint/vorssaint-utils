@@ -20,6 +20,7 @@ enum DefaultsKey {
     static let defaultDuration = "defaultDurationMinutes" // 0 = indefinite
     static let batteryLimit = "batteryLimitPercent"       // 0 = never
     static let keepAwakeAutoStart = "keepAwakeAutoStart"  // start Keep Awake when the app launches
+    static let keepAwakeRightClickToggle = "keepAwakeRightClickToggle"
     static let keepAwakeExternalDisplay = "keepAwakeExternalDisplay"
     static let keepAwakeConnectedToPower = "keepAwakeConnectedToPower"
     static let keepAwakeMouseJiggleEnabled = "keepAwakeMouseJiggleEnabled"
@@ -637,6 +638,7 @@ enum Defaults {
         DefaultsKey.defaultDuration: 0,
         DefaultsKey.batteryLimit: 10,
         DefaultsKey.keepAwakeAutoStart: false,
+        DefaultsKey.keepAwakeRightClickToggle: false,
         DefaultsKey.keepAwakeExternalDisplay: false,
         DefaultsKey.keepAwakeConnectedToPower: false,
         DefaultsKey.keepAwakeMouseJiggleEnabled: false,

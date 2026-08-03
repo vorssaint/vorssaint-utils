@@ -136,6 +136,8 @@ extension Strings {
         defaultDurationLabel: "Длительность по умолчанию",
         keepAwakeAutoStart: "Не давать уснуть при запуске Vorssaint",
         keepAwakeAutoStartCaption: "Запускает сеанс с длительностью по умолчанию.",
+        keepAwakeRightClickToggle: "Щёлкните правой кнопкой значок в строке меню, чтобы включить или выключить «Не давать уснуть»",
+        keepAwakeRightClickToggleCaption: "Заменяет контекстное меню правой кнопки мыши.",
         batteryProtectionSection: "Защита батареи",
         batteryDisableBelow: "Отключать, когда заряд упадёт ниже",
         batteryNever: "Никогда",
