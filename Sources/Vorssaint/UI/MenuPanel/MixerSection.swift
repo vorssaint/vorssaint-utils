@@ -13,8 +13,6 @@ struct MixerSection: View {
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var inputManager = AudioInputDeviceManager.shared
     @ObservedObject private var outputSwitcher = SoundOutputSwitcher.shared
-    @AppStorage(DefaultsKey.mixerShowFinder)
-    private var showFinder = true
     @AppStorage(DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect)
     private var lowerOnHeadphonesDisconnect = false
     @AppStorage(DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
@@ -22,6 +20,7 @@ struct MixerSection: View {
     @AppStorage(DefaultsKey.soundOutputSwitcherEnabled)
     private var soundOutputSwitcherEnabled = false
     @State private var soundOutputSwitcherUIDs: [String] = []
+    @State private var showListChooser = false
     @State private var normalSliderTint = Color(nsColor: .controlAccentColor)
     @State private var accentRevision = 0
     @State private var lastResolvedAccent: NSColor?
@@ -30,7 +29,7 @@ struct MixerSection: View {
     var body: some View {
         PanelSection(.mixer, title: l10n.s.mixerSection, collapsible: collapsible) {
             VStack(alignment: .leading, spacing: 8) {
-                universalOutputPicker
+                outputPickers
                 headphoneDisconnectProtectionToggle
                 if AppFeature.soundOutputSwitcher.isAvailable {
                     soundOutputSwitcherControls
@@ -49,9 +48,9 @@ struct MixerSection: View {
                 } else {
                     mixerRows
                 }
-                if AppVolumeMixer.isSupported {
+                if AppVolumeMixer.isSupported, !listChoices.isEmpty {
                     Divider()
-                    finderVisibilityToggle
+                    listVisibilityFooter
                 }
             }
             .panelCard()
@@ -64,6 +63,17 @@ struct MixerSection: View {
         }
         .onAppear {
             soundOutputSwitcherUIDs = SoundOutputSwitcher.shared.selectedDeviceUIDs()
+        }
+    }
+
+    private var outputPickers: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            universalOutputPicker
+            systemSoundOutputPicker
+            if let outputSwitchError = mixer.outputSwitchError {
+                inputMessage(String(format: l10n.s.mixerSystemOutputErrorFormat, outputSwitchError),
+                             systemImage: "exclamationmark.triangle")
+            }
         }
     }
 
@@ -104,11 +114,77 @@ struct MixerSection: View {
                 .help(l10n.s.mixerSystemOutputTooltip)
             }
 
+            if let volume = mixer.systemOutputVolume {
+                HStack(spacing: 8) {
+                    Image(systemName: mixer.systemOutputMuted == true || volume <= 0.001
+                          ? "speaker.slash.fill"
+                          : "speaker.wave.2.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16)
+
+                    MixerVolumeSlider(value: systemOutputVolumeBinding,
+                                      normalTint: normalSliderTint,
+                                      boostTint: normalSliderTint,
+                                      isBoosting: false,
+                                      accentRevision: accentRevision,
+                                      maximum: 1,
+                                      accessibilityLabel: l10n.s.mixerSystemOutputTitle)
+
+                    Text("\(Int((volume * 100).rounded()))%")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 36, alignment: .trailing)
+                }
+            }
+
             if universalOutputDevices.isEmpty {
                 inputMessage(l10n.s.mixerSystemOutputNoDevices, systemImage: "speaker.slash")
-            } else if let outputSwitchError = mixer.outputSwitchError {
-                inputMessage(String(format: l10n.s.mixerSystemOutputErrorFormat, outputSwitchError),
-                             systemImage: "exclamationmark.triangle")
+            }
+        }
+    }
+
+    private var systemSoundOutputPicker: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Label {
+                    Text(l10n.s.mixerSoundEffectsOutputTitle)
+                        .font(.system(size: 11.5, weight: .medium))
+                } icon: {
+                    Image(systemName: "bell.fill")
+                        .font(.system(size: 10.5, weight: .semibold))
+                }
+                .foregroundStyle(.secondary)
+
+                Spacer(minLength: 6)
+
+                Picker(l10n.s.mixerSoundEffectsOutputTooltip,
+                       selection: systemSoundOutputSelectionBinding) {
+                    if mixer.currentSystemSoundOutputDeviceUID == nil {
+                        Text(l10n.s.mixerOutputUnavailable)
+                            .tag(MixerRoutingSupport.systemDefaultSelectionID)
+                    }
+                    ForEach(systemSoundOutputDevices) { device in
+                        Text(systemSoundOutputDeviceTitle(device))
+                            .tag(device.uid)
+                    }
+                    if let selected = mixer.currentSystemSoundOutputDeviceUID,
+                       !systemSoundOutputDevices.contains(where: { $0.uid == selected }) {
+                        Text(l10n.s.mixerOutputUnavailable)
+                            .tag(selected)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .controlSize(.small)
+                .frame(width: 164)
+                .disabled(systemSoundOutputDevices.isEmpty)
+                .help(l10n.s.mixerSoundEffectsOutputTooltip)
+            }
+
+            if systemSoundOutputDevices.isEmpty {
+                inputMessage(l10n.s.mixerSystemOutputNoDevices, systemImage: "bell.slash")
             }
         }
     }
@@ -117,12 +193,36 @@ struct MixerSection: View {
         mixer.outputDevices.filter(\.canBeDefaultOutput)
     }
 
+    private var systemSoundOutputDevices: [MixerOutputDevice] {
+        mixer.outputDevices.filter(\.canBeDefaultSystemOutput)
+    }
+
     private var universalOutputSelectionBinding: Binding<String> {
         Binding(
             get: { mixer.currentOutputDeviceUID ?? MixerRoutingSupport.systemDefaultSelectionID },
             set: { selection in
                 guard selection != MixerRoutingSupport.systemDefaultSelectionID else { return }
                 mixer.setUniversalOutputDeviceUID(selection)
+            }
+        )
+    }
+
+    private var systemOutputVolumeBinding: Binding<Double> {
+        Binding(
+            get: { mixer.systemOutputVolume ?? 0 },
+            set: { mixer.setCurrentOutputVolume($0) }
+        )
+    }
+
+    private var systemSoundOutputSelectionBinding: Binding<String> {
+        Binding(
+            get: {
+                mixer.currentSystemSoundOutputDeviceUID
+                    ?? MixerRoutingSupport.systemDefaultSelectionID
+            },
+            set: { selection in
+                guard selection != MixerRoutingSupport.systemDefaultSelectionID else { return }
+                mixer.setSystemSoundOutputDeviceUID(selection)
             }
         )
     }
@@ -307,21 +407,101 @@ struct MixerSection: View {
         )
     }
 
-    private var finderVisibilityToggle: some View {
-        HStack(spacing: 8) {
-            Text(l10n.s.mixerShowFinder)
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
-            Spacer(minLength: 6)
-            Toggle(l10n.s.mixerShowFinder, isOn: $showFinder)
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .controlSize(.mini)
-                .accessibilityLabel(l10n.s.mixerShowFinder)
+    /// One entry per app the list knows about: visible rows checked, hidden
+    /// apps unchecked, everything in one alphabetical run so the menu reads
+    /// like the list itself.
+    private struct MixerListChoice: Identifiable {
+        let id: String
+        let name: String
+        let isListed: Bool
+        /// A row with nothing stable to remember it by cannot be hidden; it
+        /// still shows here so the menu mirrors the list.
+        let canToggle: Bool
+    }
+
+    private var listChoices: [MixerListChoice] {
+        // The hidden list updates the moment a box is unchecked, while the
+        // visible rows only change when the next HAL refresh lands. Keyed by
+        // persistence id with the hidden entry winning, a just-hidden app
+        // shows up once (unchecked) instead of twice during that gap.
+        var seen = Set<String>()
+        var choices = mixer.hiddenApps.map { hidden -> MixerListChoice in
+            seen.insert(hidden.id)
+            return MixerListChoice(id: hidden.id, name: hidden.name, isListed: false, canToggle: true)
         }
-        .onChange(of: showFinder) { _, _ in
-            mixer.syncWithPreferences()
+        for app in mixer.apps {
+            let id = app.persistenceID ?? app.id
+            guard seen.insert(id).inserted else { continue }
+            choices.append(MixerListChoice(id: id, name: app.name,
+                                           isListed: true, canToggle: app.persistenceID != nil))
         }
+        choices.sort {
+            MixerRoutingSupport.displayOrderedBefore(name: $0.name, id: $0.id,
+                                                     otherName: $1.name, otherID: $1.id)
+        }
+        return choices
+    }
+
+    /// Which apps the list shows (issue #300): the row reads how many are
+    /// hidden and opens a check per app, right in the panel so several can be
+    /// checked or unchecked in one go. Hidden apps stay here even while they
+    /// are not running, so they can always be brought back.
+    private var listVisibilityFooter: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                showListChooser.toggle()
+            } label: {
+                HStack(spacing: 8) {
+                    Text(l10n.s.mixerVisibleApps)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 6)
+                    Text(mixer.hiddenApps.isEmpty
+                         ? l10n.s.mixerAllShown
+                         : "\(l10n.s.mixerHiddenCountLabel): \(mixer.hiddenApps.count)")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(showListChooser ? 90 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(l10n.s.mixerVisibleApps)
+            .accessibilityValue(mixer.hiddenApps.isEmpty
+                                ? l10n.s.mixerAllShown
+                                : "\(l10n.s.mixerHiddenCountLabel): \(mixer.hiddenApps.count)")
+
+            if showListChooser {
+                ForEach(listChoices) { choice in
+                    Toggle(isOn: listedBinding(for: choice)) {
+                        Text(choice.name)
+                            .font(.system(size: 10.5))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .toggleStyle(.checkbox)
+                    .controlSize(.small)
+                    .disabled(!choice.canToggle)
+                }
+            }
+        }
+        .animation(.easeOut(duration: 0.15), value: showListChooser)
+    }
+
+    private func listedBinding(for choice: MixerListChoice) -> Binding<Bool> {
+        Binding(
+            get: { choice.isListed },
+            set: { listed in
+                if listed {
+                    mixer.showInList(id: choice.id)
+                } else if let app = mixer.apps.first(where: { ($0.persistenceID ?? $0.id) == choice.id }) {
+                    mixer.hideFromList(app)
+                }
+            }
+        )
     }
 
     private func inputDeviceTitle(_ device: MixerInputDevice) -> String {
@@ -330,6 +510,12 @@ struct MixerSection: View {
 
     private func outputDeviceTitle(_ device: MixerOutputDevice) -> String {
         device.isDefault ? "\(device.name) (\(l10n.s.mixerOutputCurrent))" : device.name
+    }
+
+    private func systemSoundOutputDeviceTitle(_ device: MixerOutputDevice) -> String {
+        device.uid == mixer.currentSystemSoundOutputDeviceUID
+            ? "\(device.name) (\(l10n.s.mixerOutputCurrent))"
+            : device.name
     }
 
     private func inputMessage(_ text: String, systemImage: String) -> some View {
@@ -464,6 +650,7 @@ private struct MixerRow: View {
                                           boostTint: boostColor,
                                           isBoosting: isBoosting,
                                           accentRevision: accentRevision,
+                                          maximum: AppVolumeMixer.maxVolume,
                                           accessibilityLabel: app.name)
 
                         HStack(spacing: 2) {
@@ -516,6 +703,15 @@ private struct MixerRow: View {
             }
         }
         .padding(.vertical, 2)
+        .contextMenu {
+            // Same action as unchecking the app in the footer menu, one
+            // right-click closer (issue #300).
+            if app.persistenceID != nil {
+                Button(l10n.s.mixerHideFromList) {
+                    mixer.hideFromList(app)
+                }
+            }
+        }
     }
 
     private var volumeBinding: Binding<Double> {
@@ -566,6 +762,7 @@ private struct MixerVolumeSlider: View {
     let boostTint: Color
     let isBoosting: Bool
     let accentRevision: Int
+    let maximum: Double
     let accessibilityLabel: String
 
     private var activeTint: Color { isBoosting ? boostTint : normalTint }
@@ -577,6 +774,7 @@ private struct MixerVolumeSlider: View {
                 LiquidGlassMixerSlider(value: $value,
                                        tint: activeTint,
                                        isBoosting: isBoosting,
+                                       maximum: maximum,
                                        accessibilityLabel: accessibilityLabel)
             } else {
                 nativeSlider
@@ -587,7 +785,7 @@ private struct MixerVolumeSlider: View {
     }
 
     private var nativeSlider: some View {
-        Slider(value: $value, in: 0...AppVolumeMixer.maxVolume)
+        Slider(value: $value, in: 0...maximum)
             .controlSize(.small)
             // Pass an explicit accent (not nil) for the normal state: on the
             // macOS slider, tint(nil) does not reliably clear a previously
@@ -602,6 +800,7 @@ private struct LiquidGlassMixerSlider: View {
     @Binding var value: Double
     let tint: Color
     let isBoosting: Bool
+    let maximum: Double
     let accessibilityLabel: String
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var colorScheme
@@ -611,8 +810,8 @@ private struct LiquidGlassMixerSlider: View {
     private let trackHeight: CGFloat = 5
 
     private var progress: CGFloat {
-        let clamped = min(max(value, 0), AppVolumeMixer.maxVolume)
-        return CGFloat(clamped / AppVolumeMixer.maxVolume)
+        let clamped = min(max(value, 0), maximum)
+        return CGFloat(clamped / maximum)
     }
 
     var body: some View {
@@ -649,7 +848,7 @@ private struct LiquidGlassMixerSlider: View {
         .accessibilityAdjustableAction { direction in
             switch direction {
             case .increment:
-                value = min(AppVolumeMixer.maxVolume, value + 0.05)
+                value = min(maximum, value + 0.05)
             case .decrement:
                 value = max(0, value - 0.05)
             @unknown default:
@@ -696,6 +895,6 @@ private struct LiquidGlassMixerSlider: View {
     private func updateValue(at x: CGFloat, width: CGFloat) {
         let travel = max(width - knobWidth, 1)
         let normalized = min(max((x - knobWidth / 2) / travel, 0), 1)
-        value = Double(normalized) * AppVolumeMixer.maxVolume
+        value = Double(normalized) * maximum
     }
 }

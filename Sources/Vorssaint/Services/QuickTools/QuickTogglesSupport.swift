@@ -41,13 +41,19 @@ enum QuickTogglesSupport {
         }
     }
 
-    /// Which mounted volumes "Eject all disks" offers: local media that is
-    /// external and removable or ejectable, the same shape the disk monitor
-    /// ejects. Network shares and internal volumes never qualify.
+    /// Which mounted volumes "Eject all disks" offers. The system flags
+    /// describe two different things: the bus tells whether the drive is
+    /// external, while removable and ejectable describe media that leaves the
+    /// drive, like a card or a disc. An external drive with fixed media, which
+    /// is what most desk drives are, answers no to both, so asking for
+    /// removable media hid them all. The bus decides, and media that comes out
+    /// of an internal reader still counts. Network shares, the volume the Mac
+    /// booted from and internal fixed drives never qualify.
     static func shouldOfferEject(isInternal: Bool,
                                  isRemovable: Bool,
                                  isEjectable: Bool,
-                                 isLocal: Bool) -> Bool {
-        isLocal && !isInternal && (isRemovable || isEjectable)
+                                 isLocal: Bool,
+                                 isRootFileSystem: Bool) -> Bool {
+        isLocal && !isRootFileSystem && (!isInternal || isRemovable || isEjectable)
     }
 }

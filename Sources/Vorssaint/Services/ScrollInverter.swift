@@ -13,6 +13,12 @@ import CoreGraphics
 /// Wheel detection: discrete events (`isContinuous == 0`) are wheels; events
 /// flagged continuous are wheels only when they carry no gesture phase at all.
 /// Toggling takes effect immediately. Requires Accessibility.
+///
+/// Apps on this feature's own exception list (issue #358) keep the direction
+/// macOS gives them. The list is separate from the smooth scrolling one on
+/// purpose, so excepting an app from the glide never leaves it scrolling
+/// backwards; when both features are on, the flip happens inside the smooth
+/// scrolling tap and honors this same list.
 final class ScrollInverter: ObservableObject {
     static let shared = ScrollInverter()
 
@@ -119,7 +125,8 @@ final class ScrollInverter: ObservableObject {
         }
 
         if ScrollWheelSupport.isMouseWheel(traits,
-                                           secondsSinceLastGesturePhase: secondsSinceGesturePhase) {
+                                           secondsSinceLastGesturePhase: secondsSinceGesturePhase),
+           !MouseAppExceptions.shared.excludesPointerTarget(.scrollDirection, at: event.location) {
             // All three deltas must be captured BEFORE any set: writing the
             // line delta makes the system rederive the point and fixed-point
             // fields from it, so negating a re-read value flips it back to

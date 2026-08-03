@@ -61,6 +61,10 @@ struct ShelfPersistedItem: Codable, Equatable {
     var text: String?
     var url: String?
     var path: String?
+    /// Lets a file item find its payload again after a move or rename. The
+    /// field is optional on purpose: stores written before it decode fine,
+    /// and older app versions simply ignore it.
+    var bookmark: Data?
     var children: [ShelfPersistedItem]?
 
     init(id: UUID,
@@ -69,6 +73,7 @@ struct ShelfPersistedItem: Codable, Equatable {
          text: String? = nil,
          url: String? = nil,
          path: String? = nil,
+         bookmark: Data? = nil,
          children: [ShelfPersistedItem]? = nil) {
         self.id = id
         self.kind = kind
@@ -76,6 +81,7 @@ struct ShelfPersistedItem: Codable, Equatable {
         self.text = text
         self.url = url
         self.path = path
+        self.bookmark = bookmark
         self.children = children
     }
 }
@@ -97,10 +103,16 @@ enum ShelfPersistenceSupport {
     /// unmountedVolumeRoot): the app can launch at login before an external
     /// or network drive appears, and dropping those items would lose them
     /// permanently the moment the pruned list is saved back.
+    ///
+    /// `resolveBookmark` gives a dead path one chance to heal: a file moved
+    /// or renamed behind the app's back is found again through its bookmark,
+    /// and the entry keeps living under its new path and name.
     static func sanitized(_ items: [ShelfPersistedItem],
-                          fileExists: (String) -> Bool) -> [ShelfPersistedItem] {
+                          fileExists: (String) -> Bool,
+                          resolveBookmark: (Data) -> String? = { _ in nil }) -> [ShelfPersistedItem] {
         var remainingLeaves = maxLeaves
-        return sanitized(items, depth: 0, remainingLeaves: &remainingLeaves, fileExists: fileExists)
+        return sanitized(items, depth: 0, remainingLeaves: &remainingLeaves,
+                         fileExists: fileExists, resolveBookmark: resolveBookmark)
     }
 
     /// For a path under /Volumes, the volume root directory that must exist
@@ -116,16 +128,27 @@ enum ShelfPersistenceSupport {
     private static func sanitized(_ items: [ShelfPersistedItem],
                                   depth: Int,
                                   remainingLeaves: inout Int,
-                                  fileExists: (String) -> Bool) -> [ShelfPersistedItem] {
+                                  fileExists: (String) -> Bool,
+                                  resolveBookmark: (Data) -> String?) -> [ShelfPersistedItem] {
         guard depth < maxDepth else { return [] }
         var result: [ShelfPersistedItem] = []
         for item in items {
             guard remainingLeaves > 0 else { break }
             switch item.kind {
             case .file:
-                guard let path = item.path, !path.isEmpty, fileExists(path) else { continue }
+                guard let path = item.path, !path.isEmpty else { continue }
+                var keptPath = path
+                var keptTitle = item.title
+                if !fileExists(path) {
+                    guard let bookmark = item.bookmark,
+                          let healed = resolveBookmark(bookmark),
+                          fileExists(healed) else { continue }
+                    keptPath = healed
+                    keptTitle = (healed as NSString).lastPathComponent
+                }
                 remainingLeaves -= 1
-                result.append(ShelfPersistedItem(id: item.id, kind: .file, title: item.title, path: path))
+                result.append(ShelfPersistedItem(id: item.id, kind: .file, title: keptTitle,
+                                                 path: keptPath, bookmark: item.bookmark))
             case .text:
                 guard let text = item.text,
                       !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
@@ -139,7 +162,8 @@ enum ShelfPersistenceSupport {
                 result.append(ShelfPersistedItem(id: item.id, kind: .link, title: item.title, url: raw))
             case .batch:
                 let children = sanitized(item.children ?? [], depth: depth + 1,
-                                         remainingLeaves: &remainingLeaves, fileExists: fileExists)
+                                         remainingLeaves: &remainingLeaves,
+                                         fileExists: fileExists, resolveBookmark: resolveBookmark)
                 if children.isEmpty { continue }
                 if children.count == 1 {
                     result.append(children[0])

@@ -8,8 +8,10 @@ import Combine
 import CoreGraphics
 
 /// Turns the standard Back and Forward side buttons into the matching app
-/// commands. Finder and browsers expose those commands as Command-[ and
-/// Command-]; other apps keep working when they provide the same menu command.
+/// commands. File managers and browsers expose those commands as Command-[ and
+/// Command-], or wherever the current keyboard puts them (see
+/// `MouseNavigationKeys`); other apps keep working when they provide the same
+/// menu command.
 /// Apps that handle the side buttons themselves (some browsers, virtual
 /// machines, remote screens) receive the untouched events instead. Nothing is installed
 /// while the opt-in feature is off. Requires Accessibility for the modifying
@@ -26,6 +28,8 @@ final class MouseNavigationService: ObservableObject {
     /// leave the target app with an unmatched mouse event. Only touched from
     /// the tap callback, which runs on the main run loop.
     private var passThroughButtons: Set<Int64> = []
+    /// Alive only while the tap is, like every other resource here.
+    private var keyboardObserver: NSObjectProtocol?
 
     private init() {}
 
@@ -70,6 +74,14 @@ final class MouseNavigationService: ObservableObject {
         runLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        // Which keys carry Back and Forward depends on the keyboard in use, so
+        // the answer is asked for now and again on every keyboard change.
+        MouseNavigationKeys.refresh()
+        keyboardObserver = DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String),
+            object: nil,
+            queue: .main
+        ) { _ in MouseNavigationKeys.refresh() }
         isRunning = true
     }
 
@@ -78,6 +90,11 @@ final class MouseNavigationService: ObservableObject {
         if let runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         }
+        if let keyboardObserver {
+            DistributedNotificationCenter.default().removeObserver(keyboardObserver)
+        }
+        keyboardObserver = nil
+        MouseNavigationKeys.reset()
         tap = nil
         runLoopSource = nil
         passThroughButtons.removeAll()
@@ -95,11 +112,17 @@ final class MouseNavigationService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
-        // A side button claimed as the radial menu's summoner belongs to the
-        // wheel. This tap runs at the HID level, before the menu's session
-        // tap, so the whole gesture passes through untouched for the menu to
-        // take downstream; the other side button keeps navigating.
-        if RadialMenuSupport.claimsMouseButton(buttonNumber) {
+        // A side button claimed as the radial menu's summoner, or carrying a
+        // mouse button shortcut, belongs to that feature. This tap runs at
+        // the HID level, before those session taps, so the whole gesture
+        // passes through untouched for the owner to take downstream; the
+        // other side button keeps navigating. While the shortcut capture row
+        // is listening, every press belongs to it, including a button with no
+        // mapping yet, or the capture could never see the button it is asked
+        // to watch for.
+        if RadialMenuSupport.claimsMouseButton(buttonNumber)
+            || MouseButtonShortcutSupport.claimsButton(buttonNumber)
+            || MouseButtonShortcutService.isCaptureActive {
             return Unmanaged.passUnretained(event)
         }
 
@@ -107,10 +130,12 @@ final class MouseNavigationService: ObservableObject {
             // Apps that consume the side buttons themselves keep the raw
             // event; replacing it would drop navigation the user already had,
             // and none of them has a menu command the AX path could press.
-            // Checked only on Down (never per Drag) and resolved from
-            // NSWorkspace's cached state, so the tap callback stays cheap.
+            // The same goes for an app the user put on the exception list.
+            // Checked only on Down (never per Drag), and both answers come
+            // from cached state, so the tap callback stays cheap.
             if MouseNavigationSupport.shouldPassThrough(
-                bundleIdentifier: NSWorkspace.shared.frontmostApplication?.bundleIdentifier) {
+                bundleIdentifier: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
+                || MouseAppExceptions.shared.excludesActionTarget(.navigation, at: event.location) {
                 passThroughButtons.insert(buttonNumber)
                 return Unmanaged.passUnretained(event)
             }
@@ -139,8 +164,7 @@ final class MouseNavigationService: ObservableObject {
     }
 
     private func perform(_ direction: MouseNavigationDirection) {
-        let character = MouseNavigationSupport.commandCharacter(for: direction)
-        switch pressMenuItem(commandCharacter: character) {
+        switch pressMenuItem(shortcut: MouseNavigationKeys.shortcut(for: direction)) {
         case .pressed:
             return
         case .pressFailed:
@@ -155,9 +179,10 @@ final class MouseNavigationService: ObservableObject {
     }
 
     /// Prefer the app's actual enabled menu item. This preserves app-specific
-    /// behavior and remains keyboard-layout independent. The synthetic
-    /// shortcut below is only a fallback when the found item refuses AXPress.
-    private func pressMenuItem(commandCharacter: String) -> MenuPressOutcome {
+    /// behavior, and the shortcut looked for is the one this keyboard carries.
+    /// The synthetic shortcut below is only a fallback when the found item
+    /// refuses AXPress.
+    private func pressMenuItem(shortcut: MouseNavigationKeys.Shortcut) -> MenuPressOutcome {
         guard let app = NSWorkspace.shared.frontmostApplication else { return .noNavigationCommand }
         let application = AXUIElementCreateApplication(app.processIdentifier)
         // A busy target must not hold Vorssaint's main thread for AX's
@@ -169,7 +194,7 @@ final class MouseNavigationService: ObservableObject {
         }
         var visited = 0
         guard let item = findMenuItem(in: menuBar,
-                                      commandCharacter: commandCharacter,
+                                      shortcut: shortcut,
                                       depth: 0,
                                       visited: &visited) else { return .noNavigationCommand }
         return AXUIElementPerformAction(item, kAXPressAction as CFString) == .success
@@ -177,7 +202,7 @@ final class MouseNavigationService: ObservableObject {
     }
 
     private func findMenuItem(in element: AXUIElement,
-                              commandCharacter: String,
+                              shortcut: MouseNavigationKeys.Shortcut,
                               depth: Int,
                               visited: inout Int) -> AXUIElement? {
         // Depth 3 is a direct item of a top level menu (bar, bar item, menu,
@@ -191,9 +216,10 @@ final class MouseNavigationService: ObservableObject {
         let command: String? = attribute(kAXMenuItemCmdCharAttribute, from: element)
         let modifiers: NSNumber? = attribute(kAXMenuItemCmdModifiersAttribute, from: element)
         let enabled: NSNumber? = attribute(kAXEnabledAttribute, from: element)
-        // AX modifier value zero means Command with no additional modifiers.
-        if command == commandCharacter,
-           modifiers?.uint32Value == 0,
+        if MouseNavigationSupport.matchesCommand(menuCharacter: command,
+                                                 menuModifiers: modifiers?.uint32Value,
+                                                 character: shortcut.character,
+                                                 modifiers: shortcut.menuModifiers),
            enabled?.boolValue != false {
             return element
         }
@@ -204,7 +230,7 @@ final class MouseNavigationService: ObservableObject {
         let children: [AXUIElement] = attribute(kAXChildrenAttribute, from: element) ?? []
         for child in children {
             if let match = findMenuItem(in: child,
-                                        commandCharacter: commandCharacter,
+                                        shortcut: shortcut,
                                         depth: depth + 1,
                                         visited: &visited) {
                 return match
@@ -222,20 +248,25 @@ final class MouseNavigationService: ObservableObject {
     }
 
     private func postCommand(_ direction: MouseNavigationDirection) {
-        let keyCode = direction == .back ? kVK_ANSI_LeftBracket : kVK_ANSI_RightBracket
+        // The key that carries the command is the one this keyboard would use,
+        // which is not the bracket key on keyboards that cannot type brackets
+        // without Option.
+        guard let stroke = MouseNavigationKeys.keyStroke(
+            for: MouseNavigationKeys.shortcut(for: direction).character) else { return }
         let source = CGEventSource(stateID: .hidSystemState)
         guard let down = CGEvent(keyboardEventSource: source,
-                                 virtualKey: CGKeyCode(keyCode),
+                                 virtualKey: stroke.keyCode,
                                  keyDown: true),
               let up = CGEvent(keyboardEventSource: source,
-                               virtualKey: CGKeyCode(keyCode),
+                               virtualKey: stroke.keyCode,
                                keyDown: false) else { return }
         // No keyboardSetUnicodeString: a forced character string on a
         // shortcut event breaks menu key equivalent dispatch in the target
         // app, so the command would arrive and still do nothing. The virtual
-        // key plus the Command flag are all a shortcut needs.
-        down.flags = .maskCommand
-        up.flags = .maskCommand
+        // key plus the modifier flags are all a shortcut needs.
+        let flags: CGEventFlags = stroke.needsShift ? [.maskCommand, .maskShift] : .maskCommand
+        down.flags = flags
+        up.flags = flags
         down.post(tap: .cgSessionEventTap)
         up.post(tap: .cgSessionEventTap)
     }

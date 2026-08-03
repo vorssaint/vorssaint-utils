@@ -76,9 +76,9 @@ extension AppFeature {
     var energyProfile: FeatureEnergyProfile {
         switch self {
         case .scrollInverter, .smoothScroll, .windowMaximizer, .middleClick,
-             .mouseNavigation, .dockPreview, .dockClick, .shelf:
+             .mouseNavigation, .mouseButtonShortcuts, .dockPreview, .dockClick, .shelf:
             return .mouse
-        case .switcher, .keyboardDebounce, .finderCutPaste:
+        case .switcher, .keyboardDebounce, .finderCutPaste, .finderRename, .superKey:
             return .keyboard
         case .textSnippets, .autoQuit:
             return .inputs
@@ -97,8 +97,13 @@ extension AppFeature {
         case .pastePlain, .mixer, .soundOutputSwitcher, .micMute,
              .musicBlock, .keepAwake, .brightness, .quickLauncher, .quickToggles, .colorPicker,
              .screenOCR, .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew, .screenshot,
-             .cameraPreview, .scratchpad:
+             .cameraPreview, .scratchpad, .commandBar, .screenRecorder:
             return .idle
+        case .appUpdates:
+            // The list is on demand; only a background schedule keeps a timer.
+            return AppUpdatesSupport.CheckFrequency.sanitized(
+                UserDefaults.standard.string(forKey: DefaultsKey.appUpdatesCheckFrequency)) == .off
+                ? .idle : .periodic
         }
     }
 }

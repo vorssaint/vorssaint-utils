@@ -33,6 +33,19 @@ enum ScratchpadRetention: String, CaseIterable {
 }
 
 enum ScratchpadSupport {
+    /// The fill sits over the existing material: zero preserves the familiar
+    /// frosted pad, while one fully covers what is behind the window.
+    static let backgroundOpacityRange: ClosedRange<Double> = 0...1
+
+    static func sanitizedBackgroundOpacity(_ value: Double) -> Double {
+        guard value.isFinite else { return backgroundOpacityRange.upperBound }
+        return min(max(value, backgroundOpacityRange.lowerBound), backgroundOpacityRange.upperBound)
+    }
+
+    static func dismissesOnOutsideClick(isPinned: Bool, exportModalActive: Bool) -> Bool {
+        !isPinned && !exportModalActive
+    }
+
     /// Whether the saved text expired: it only clears when a retention period
     /// is chosen and the last edit is older than that period. No saved text
     /// (or a clock that moved backwards) never clears.

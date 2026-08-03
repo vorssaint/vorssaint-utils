@@ -4,25 +4,39 @@
 import AppKit
 import Vision
 
-/// Screen OCR: the user selects an area with the system's own crosshair
-/// (the `screencapture` selection UI, Esc cancels), the text in it is
-/// recognized offline with Vision and lands on the clipboard. Needs Screen
-/// Recording so window contents are actually visible in the capture.
+/// Screen OCR: the user picks an area on the app's own capture surface, the
+/// text in it is recognized offline with Vision and lands on the clipboard.
+/// Needs Screen Recording, requested contextually on first use.
+///
+/// The picking and the capture both happen here rather than through the
+/// system's capture command. A separate command is judged by macOS on its own
+/// standing, which on recent versions can be refused even while this app is
+/// allowed, and a refused command writes no file and says nothing: the tool
+/// looked dead with no crosshair, no message and nothing to fix (issue #364).
 final class ScreenTextService: ObservableObject {
     static let shared = ScreenTextService()
 
     @Published private(set) var shortcutRegistrationFailed = false
 
     private let hotkey = QuickToolHotkey(id: 13)
-    private var captureInFlight = false
+    private var session: ScreenshotSelectionController?
+
+    private var captureStrings: ScreenshotFeatureStrings {
+        FeatureStrings.screenshot(L10n.shared.language)
+    }
 
     private init() {
         hotkey.onPress = { [weak self] in self?.capture() }
     }
 
     func syncWithPreferences() {
-        let enabled = AppFeature.screenOCR.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRShortcutEnabled)
+        guard AppFeature.screenOCR.isAvailable else {
+            shortcutRegistrationFailed = false
+            hotkey.unregister()
+            cancelSession()
+            return
+        }
+        let enabled = UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.screenOCRShortcut,
                                             fallback: .screenOCRDefault)
         shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
@@ -30,29 +44,44 @@ final class ScreenTextService: ObservableObject {
 
     func suspend() {
         hotkey.unregister()
+        cancelSession()
+    }
+
+    private func cancelSession() {
+        session?.cancel()
+        session = nil
     }
 
     func capture() {
-        guard !captureInFlight else { return }
-        captureInFlight = true
-
-        let file = FileManager.default.temporaryDirectory
-            .appendingPathComponent("vorssaint-ocr-\(UUID().uuidString).png")
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-        // -i interactive selection, -x no sound, -o no window shadow.
-        process.arguments = ["-i", "-x", "-o", file.path]
-        process.terminationHandler = { [weak self] _ in
-            DispatchQueue.main.async {
-                self?.captureInFlight = false
-                self?.recognize(at: file)
-            }
+        guard session == nil, !ScreenshotSelectionController.isSessionOnScreen else { return }
+        guard Permissions.shared.screenRecording else {
+            Permissions.shared.requestScreenRecording()
+            return
         }
-        do {
-            try process.run()
-        } catch {
-            captureInFlight = false
+        // The screen is always photographed first here: text has to hold
+        // still while it is being framed, and a still also keeps a menu or a
+        // tooltip on screen instead of closing it under the pointer.
+        let controller = ScreenshotSelectionController(freeze: true,
+                                                       includePointer: false,
+                                                       showLastRegion: false,
+                                                       purpose: L10n.shared.s.ocrName)
+        session = controller
+        controller.begin { [weak self] outcome in
+            guard let self else { return }
+            self.session = nil
+            switch outcome {
+            case .captured(let capture):
+                self.recognize(capture.image)
+            case .region:
+                // Only the recorder asks for geometry; this session never does.
+                break
+            case .scrollingRegion:
+                break
+            case .cancelled:
+                break
+            case .failed:
+                QuickToolHUD.show(icon: "text.viewfinder", message: self.captureStrings.captureFailed)
+            }
         }
     }
 
@@ -63,24 +92,10 @@ final class ScreenTextService: ObservableObject {
         case empty
     }
 
-    private func recognize(at file: URL) {
-        // Esc during selection leaves no file; that is a silent cancel.
-        guard FileManager.default.fileExists(atPath: file.path) else { return }
-
+    private func recognize(_ image: CGImage) {
+        let detectQRCodes = UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRDetectQRCodes)
         DispatchQueue.global(qos: .userInitiated).async {
-            defer { try? FileManager.default.removeItem(at: file) }
-            guard let source = CGImageSourceCreateWithURL(file as CFURL, nil),
-                  let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
-            else {
-                DispatchQueue.main.async {
-                    QuickToolHUD.show(icon: "text.viewfinder", message: L10n.shared.s.ocrNoText)
-                }
-                return
-            }
-
-            let outcome = Self.outcome(for: image,
-                                       detectQRCodes: UserDefaults.standard.bool(
-                                        forKey: DefaultsKey.screenOCRDetectQRCodes))
+            let outcome = Self.outcome(for: image, detectQRCodes: detectQRCodes)
             DispatchQueue.main.async {
                 let strings = L10n.shared.s
                 switch outcome {

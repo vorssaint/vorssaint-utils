@@ -6,8 +6,8 @@ import Carbon.HIToolbox
 import SwiftUI
 
 /// The radial menu: a wheel of user-configured actions summoned by a global
-/// shortcut. Holding the shortcut, pointing and releasing runs the pointed
-/// action; a quick press leaves the wheel open for mouse or keyboard picking.
+/// shortcut. Its configurable activation mode can keep the wheel open after
+/// a press, run a pointed action on release, or preserve both gestures.
 /// At rest the feature holds only the Carbon hotkey and a pre-warmed, hidden
 /// panel (so the wheel appears instantly); every event monitor lives only
 /// while a wheel is on screen, and switching the feature off frees it all.
@@ -20,8 +20,8 @@ final class RadialMenuService: ObservableObject {
     /// Names of the submenus that were descended into, for the hub's back hint.
     @Published private(set) var trail: [String] = []
     @Published private(set) var highlightedIndex: Int?
-    /// True from the summoning press until the shortcut's modifiers are
-    /// released; releasing over a slice runs it.
+    /// True while a hold-capable session still owns its shortcut or side
+    /// button; release behavior is determined by `sessionActivationMode`.
     @Published private(set) var holdPhase = false
     /// True when macOS refused the shortcut (taken by another app).
     @Published private(set) var registrationFailed = false
@@ -57,6 +57,9 @@ final class RadialMenuService: ObservableObject {
     private var openPointerLocation: CGPoint = .zero
     private var pointerActivated = false
     private var sessionShortcut: GlobalShortcut?
+    private var sessionActivationMode = RadialMenuActivationMode.pressOrHold
+    private var sessionUsesSuperKey = false
+    private var sessionID = 0
     /// Set while a session was summoned by the side button and it is still
     /// down; releasing it runs the pointed slice, mirroring the chord.
     private var holdButton: Int64?
@@ -99,6 +102,10 @@ final class RadialMenuService: ObservableObject {
 
     func suspend() {
         hotkey.unregister()
+        // The trigger ivar must die with the tap: the settings page's button
+        // test calls syncMouseTap() on appear, and a stale trigger would let
+        // it resurrect the tap — and the wheel — with the feature off.
+        mouseTrigger = .off
         tearDownMouseTap()
         endSession()
         panel = nil
@@ -160,6 +167,12 @@ final class RadialMenuService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
         let pressed = Int(event.getIntegerValueField(.mouseEventButtonNumber))
+        // While the mouse button shortcuts capture row is listening, the
+        // press belongs to it, even this wheel's own summoner: that capture
+        // tap swallows the gesture and tells the user the button is taken.
+        if MouseButtonShortcutService.isCaptureActive {
+            return Unmanaged.passUnretained(event)
+        }
         // While the settings screen is asking, every extra button that
         // arrives is reported, so the user can tell a button this app cannot
         // see from one that is simply set to something else. Nothing new
@@ -220,11 +233,42 @@ final class RadialMenuService: ObservableObject {
 
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.radialMenuShortcut,
                                             fallback: .radialMenuDefault)
-        // A chord session ends when its modifiers lift; a side-button session
-        // ends when the button lifts. Only one summoner holds at a time.
-        sessionShortcut = heldButton == nil ? shortcut : nil
-        holdButton = heldButton
-        holdPhase = heldButton != nil || (hold && !shortcut.modifiers.isEmpty)
+        let activationMode = RadialMenuActivationMode.sanitized(
+            defaults.string(forKey: DefaultsKey.radialMenuActivationMode))
+        let startsHeld = activationMode.startsHeld(
+            requestedHold: hold,
+            hasHeldButton: heldButton != nil,
+            shortcutHasModifiers: !shortcut.modifiers.isEmpty)
+        // Only held sessions need to retain their summoner. Press mode ignores
+        // its release and stays up until selection, a second press or an
+        // outside click.
+        sessionActivationMode = activationMode
+        sessionShortcut = startsHeld && heldButton == nil ? shortcut : nil
+        sessionUsesSuperKey = startsHeld && heldButton == nil
+            && SuperKeyService.isEngaged && SuperKeyService.shared.isHeld
+        holdButton = startsHeld ? heldButton : nil
+        holdPhase = startsHeld
+        sessionID &+= 1
+        let activeSessionID = sessionID
+        if sessionUsesSuperKey {
+            SuperKeyService.shared.onHoldEnded = { [weak self] released in
+                guard let self,
+                      self.sessionUsesSuperKey,
+                      self.sessionID == activeSessionID else { return }
+                // No pointer event may mistake a queued cancellation for a
+                // physical release before the deferred resolution runs.
+                self.sessionShortcut = nil
+                DispatchQueue.main.async {
+                    guard self.sessionUsesSuperKey,
+                          self.sessionID == activeSessionID else { return }
+                    if released {
+                        self.endHoldPhase()
+                    } else {
+                        self.endSession()
+                    }
+                }
+            }
+        }
         stack = [items]
         trail = []
         highlightedIndex = nil
@@ -250,6 +294,7 @@ final class RadialMenuService: ObservableObject {
 
     private func endSession() {
         removeMonitors()
+        stopTrackingSuperKeyHold()
         panel?.orderOut(nil)
         stack = []
         trail = []
@@ -257,6 +302,7 @@ final class RadialMenuService: ObservableObject {
         holdPhase = false
         holdButton = nil
         sessionShortcut = nil
+        sessionActivationMode = .pressOrHold
         // A try-it session can run with the feature off; nothing may stay
         // resident for it once the wheel closes.
         if !AppFeature.radialMenu.isAvailable
@@ -270,7 +316,8 @@ final class RadialMenuService: ObservableObject {
     private func availableItems(_ items: [RadialMenuItem]) -> [RadialMenuItem] {
         items.compactMap { item in
             var item = item
-            if let tool = item.tool, !tool.feature.isAvailable { return nil }
+            if let tool = item.tool, !tool.isRunnable() { return nil }
+            if item.kind == .windowLayout, !AppFeature.windowLayout.isAvailable { return nil }
             if item.kind == .submenu {
                 item.children = availableItems(item.children)
                 if item.children.isEmpty { return nil }
@@ -442,16 +489,26 @@ final class RadialMenuService: ObservableObject {
 
     private func handleFlagsChanged(_ flags: NSEvent.ModifierFlags) {
         guard sessionActive, holdPhase, let shortcut = sessionShortcut else { return }
-        guard !shortcut.requiredModifiersHeld(in: flags) else { return }
+        guard !RadialMenuSupport.shortcutIsStillHeld(
+            modifiersHeld: shortcut.requiredModifiersHeld(in: flags),
+            superKeyHeld: sessionUsesSuperKey && SuperKeyService.isEngaged
+                && SuperKeyService.shared.isHeld
+        ) else { return }
         endHoldPhase()
     }
 
-    /// The summoner was released: run the pointed slice, or stay open for
-    /// mouse and keyboard picking when it points at nothing.
+    /// Resolve the summoner release according to the mode captured when this
+    /// session opened. Reading it once per session prevents a Settings change
+    /// mid-gesture from producing a half-old, half-new interaction.
     private func endHoldPhase() {
         guard sessionActive, holdPhase else { return }
-        enterStickyPhase()
-        if let index = highlightedIndex {
+        switch sessionActivationMode.releaseAction(hasSelection: highlightedIndex != nil) {
+        case .stayOpen:
+            enterStickyPhase()
+        case .dismiss:
+            endSession()
+        case .select:
+            guard let index = highlightedIndex else { return }
             select(index)
         }
     }
@@ -459,6 +516,13 @@ final class RadialMenuService: ObservableObject {
     private func enterStickyPhase() {
         holdPhase = false
         holdButton = nil
+        stopTrackingSuperKeyHold()
+    }
+
+    private func stopTrackingSuperKeyHold() {
+        guard sessionUsesSuperKey else { return }
+        sessionUsesSuperKey = false
+        SuperKeyService.shared.onHoldEnded = nil
     }
 
     private func handleKeyDown(_ event: NSEvent) -> Bool {
@@ -470,14 +534,14 @@ final class RadialMenuService: ObservableObject {
             if let index = highlightedIndex { select(index) }
             return true
         case kVK_LeftArrow, kVK_UpArrow:
-            // Reaching for the keyboard means browsing, not holding: without
-            // this, a stray summoner release later would fire the arrows'
-            // pick as if it were the hold gesture.
-            enterStickyPhase()
+            // In adaptive mode, reaching for the keyboard switches to sticky
+            // browsing. Strict hold deliberately keeps the release-to-run
+            // contract even when arrows move the highlight.
+            if sessionActivationMode != .hold { enterStickyPhase() }
             rotateHighlight(by: -1)
             return true
         case kVK_RightArrow, kVK_DownArrow:
-            enterStickyPhase()
+            if sessionActivationMode != .hold { enterStickyPhase() }
             rotateHighlight(by: 1)
             return true
         default:
@@ -522,13 +586,15 @@ final class RadialMenuService: ObservableObject {
             }
         case .tool:
             if let tool = item.tool { run(tool) }
+        case .windowLayout:
+            if let action = item.windowLayoutAction { run(action) }
         case .submenu:
             break
         }
     }
 
     private func run(_ tool: RadialMenuTool) {
-        guard tool.feature.isAvailable else { return }
+        guard tool.isRunnable() else { return }
         // The same beat the quick panel gives screen-touching tools, so the
         // wheel is really gone before anything captures or presents.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
@@ -541,13 +607,25 @@ final class RadialMenuService: ObservableObject {
             case .quickLauncher: QuickLauncherService.shared.show()
             case .cameraPreview: CameraPreviewService.shared.show()
             case .scratchpad: ScratchpadService.shared.show()
+            case .shelf: ShelfService.shared.summon()
+            case .cleaningMode: CleaningModeManager.shared.activate()
+            case .keepAwake: KeepAwakeManager.shared.toggle()
             }
         }
     }
 
-    // MARK: - Synthetic keys (need Accessibility, asked once and in context)
+    private func run(_ action: WindowLayoutAction) {
+        guard AppFeature.windowLayout.isAvailable, ensureAccessibilityPermission() else { return }
+        // Let the non-activating wheel disappear before resolving the window
+        // that was active behind it, matching the delay used by visual tools.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            if case .failure = WindowLayoutService.shared.apply(action) { NSSound.beep() }
+        }
+    }
 
-    private func ensurePostingTrust() -> Bool {
+    // MARK: - Accessibility-gated actions (asked once and in context)
+
+    private func ensureAccessibilityPermission() -> Bool {
         guard AXIsProcessTrusted() else {
             if promptedForAccessibility {
                 NSSound.beep()
@@ -564,7 +642,7 @@ final class RadialMenuService: ObservableObject {
     /// the synthetic key merges with the still-held modifiers (checked every
     /// 15 ms for up to ~1.5 s, with an extra beat once clean).
     private func postWhenModifiersReleased(attempt: Int, then post: @escaping () -> Void) {
-        guard ensurePostingTrust() else { return }
+        guard ensureAccessibilityPermission() else { return }
         let held = CGEventSource.flagsState(.combinedSessionState)
             .intersection([.maskCommand, .maskAlternate, .maskShift, .maskControl])
         if held.isEmpty || attempt >= 100 {
@@ -582,8 +660,10 @@ final class RadialMenuService: ObservableObject {
               let keyUp = CGEvent(keyboardEventSource: nil,
                                   virtualKey: CGKeyCode(shortcut.keyCode), keyDown: false)
         else { return }
-        keyDown.flags = shortcut.modifiers.cgFlags
-        keyUp.flags = shortcut.modifiers.cgFlags
+        // The flags a real press carries, so a shortcut on an arrow or an F
+        // key is recognised beyond the app in front as well (issue #401).
+        keyDown.flags = shortcut.syntheticEventFlags
+        keyUp.flags = shortcut.syntheticEventFlags
         keyDown.post(tap: .cghidEventTap)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
             keyUp.post(tap: .cghidEventTap)

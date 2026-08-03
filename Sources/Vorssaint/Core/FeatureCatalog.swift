@@ -16,16 +16,18 @@ enum AppFeature: String, CaseIterable {
     // Windows and Dock
     case switcher, dockPreview, dockClick, windowMaximizer, windowLayout, autoQuit
     // Mouse and keyboard
-    case scrollInverter, smoothScroll, mouseNavigation, middleClick, keyboardDebounce, textSnippets
+    case scrollInverter, smoothScroll, mouseNavigation, mouseButtonShortcuts, middleClick,
+         keyboardDebounce, textSnippets, superKey
     // Clipboard and files
-    case clipboardHistory, pastePlain, finderCutPaste, shelf, urlCleaner
+    case clipboardHistory, pastePlain, finderCutPaste, finderRename, shelf, urlCleaner
     // Sound
     case mixer, soundOutputSwitcher, micMute, musicBlock
     // Energy and display
     case keepAwake, brightness, extraBrightness
     // Tools
     case quickLauncher, quickToggles, colorPicker, screenOCR, cleaningMode, mediaTools,
-         cleaner, uninstaller, homebrew, screenshot, cameraPreview, radialMenu, scratchpad
+         cleaner, uninstaller, homebrew, appUpdates, screenshot, cameraPreview, radialMenu, scratchpad,
+         commandBar, screenRecorder
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
     case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower
@@ -38,8 +40,8 @@ enum FeatureGroup: String, CaseIterable {
 
 /// System permissions surfaced by the hub's transparency portal.
 enum AppPermission: String, CaseIterable {
-    case accessibility, screenRecording, fullDiskAccess, notifications,
-         automationFinder, automationTerminal, audioCapture, camera
+    case accessibility, screenRecording, fullDiskAccess, filesAndFolders, notifications,
+         automationFinder, automationTerminal, audioCapture, camera, appManagement
 }
 
 extension AppFeature {
@@ -47,17 +49,18 @@ extension AppFeature {
         switch self {
         case .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit:
             return .windowsDock
-        case .scrollInverter, .smoothScroll, .mouseNavigation, .middleClick, .keyboardDebounce,
-             .textSnippets:
+        case .scrollInverter, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
+             .keyboardDebounce, .textSnippets, .superKey:
             return .mouseKeyboard
-        case .clipboardHistory, .pastePlain, .finderCutPaste, .shelf, .urlCleaner:
+        case .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .shelf, .urlCleaner:
             return .clipboardFiles
         case .mixer, .soundOutputSwitcher, .micMute, .musicBlock:
             return .sound
         case .keepAwake, .brightness, .extraBrightness:
             return .energyDisplay
         case .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
-             .cleaner, .uninstaller, .homebrew, .screenshot, .cameraPreview, .radialMenu, .scratchpad:
+             .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
+             .scratchpad, .commandBar, .screenRecorder:
             return .tools
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
             return .monitor
@@ -75,12 +78,15 @@ extension AppFeature {
         case .scrollInverter: return "arrow.up.arrow.down"
         case .smoothScroll: return "cursorarrow.motionlines"
         case .mouseNavigation: return "arrow.left.arrow.right"
+        case .mouseButtonShortcuts: return "button.programmable"
         case .middleClick: return "computermouse"
         case .keyboardDebounce: return "keyboard"
         case .textSnippets: return "text.append"
+        case .superKey: return "capslock"
         case .clipboardHistory: return "doc.on.clipboard"
         case .pastePlain: return "doc.plaintext"
         case .finderCutPaste: return "scissors"
+        case .finderRename: return "pencil"
         case .shelf: return "tray.full"
         case .urlCleaner: return "link"
         case .mixer: return "slider.horizontal.3"
@@ -99,10 +105,13 @@ extension AppFeature {
         case .cleaner: return "sparkles"
         case .uninstaller: return "trash"
         case .homebrew: return "shippingbox"
+        case .appUpdates: return "arrow.down.app"
         case .screenshot: return "camera.viewfinder"
+        case .screenRecorder: return "record.circle"
         case .cameraPreview: return "web.camera"
         case .radialMenu: return "circle.grid.cross"
         case .scratchpad: return "note.text"
+        case .commandBar: return "command"
         case .monitorCPU: return "cpu"
         case .monitorGPU: return "rectangle.connected.to.line.below"
         case .monitorMemory: return "memorychip"
@@ -134,13 +143,17 @@ extension AppFeature {
         case .scrollInverter: return [DefaultsKey.scrollInverterEnabled]
         case .smoothScroll: return [DefaultsKey.smoothScrollEnabled]
         case .mouseNavigation: return [DefaultsKey.mouseNavigationEnabled]
+        case .mouseButtonShortcuts: return [DefaultsKey.mouseButtonShortcutsEnabled]
         case .middleClick: return [DefaultsKey.middleClickEnabled]
         case .keyboardDebounce: return [DefaultsKey.keyboardDebounceEnabled]
-        case .textSnippets: return [DefaultsKey.textSnippetsEnabled]
+        case .textSnippets: return [DefaultsKey.textSnippetsEnabled, DefaultsKey.snippetLibraryEnabled]
+        case .superKey: return [DefaultsKey.superKeyEnabled]
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         case .clipboardHistory: return [DefaultsKey.clipboardHistoryEnabled]
         case .pastePlain: return [DefaultsKey.pastePlainEnabled]
-        case .finderCutPaste: return [DefaultsKey.finderCutPasteEnabled]
+        case .finderCutPaste: return [DefaultsKey.finderCutPasteEnabled,
+                                      DefaultsKey.finderPasteImageAsFile]
+        case .finderRename: return [DefaultsKey.finderRenameEnabled]
         case .shelf: return [DefaultsKey.shelfEnabled]
         case .urlCleaner: return [DefaultsKey.urlCleanerEnabled]
         case .soundOutputSwitcher: return [DefaultsKey.soundOutputSwitcherEnabled]
@@ -149,7 +162,8 @@ extension AppFeature {
         case .extraBrightness: return [DefaultsKey.extraBrightnessEnabled]
         case .windowLayout, .mixer, .micMute, .keepAwake,
              .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
-             .cleaner, .uninstaller, .homebrew, .screenshot, .cameraPreview, .scratchpad,
+             .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
+             .commandBar, .screenRecorder,
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
             return []
         }
@@ -161,11 +175,15 @@ extension AppFeature {
     /// monitor only notifies when an alert is on, and so on).
     var permissions: [AppPermission] {
         switch self {
-        case .scrollInverter, .smoothScroll, .mouseNavigation, .middleClick, .keyboardDebounce,
-             .textSnippets, .dockClick, .windowMaximizer, .windowLayout, .autoQuit,
-             .cleaningMode, .pastePlain, .radialMenu:
+        case .scrollInverter, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
+             .keyboardDebounce, .textSnippets, .superKey, .dockClick, .windowMaximizer, .windowLayout,
+             .autoQuit, .cleaningMode, .pastePlain, .radialMenu,
+             // The bar reads other apps' menus and windows and types at the
+             // caret, all of it through Accessibility.
+             .commandBar:
             return [.accessibility]
         case .finderCutPaste: return [.accessibility, .automationFinder]
+        case .finderRename: return [.accessibility]
         // Only emptying the Trash asks the Finder; every other quick toggle
         // (dark mode included) works without a permission.
         case .quickToggles: return [.automationFinder]
@@ -173,15 +191,20 @@ extension AppFeature {
         case .dockPreview: return [.accessibility, .screenRecording]
         case .screenOCR: return [.screenRecording]
         case .screenshot: return [.screenRecording]
+        // The sound of the Mac rides the same grant the pixels do. Accessibility
+        // keeps only typing timing while a recording is active.
+        case .screenRecorder: return [.screenRecording, .accessibility]
         case .cameraPreview: return [.camera]
         case .keepAwake: return [.accessibility]
         case .brightness: return [.accessibility]
-        case .cleaner: return [.fullDiskAccess, .notifications]
+        case .cleaner: return [.fullDiskAccess, .filesAndFolders, .notifications]
         case .uninstaller: return [.fullDiskAccess, .automationFinder]
-        case .homebrew: return [.automationTerminal]
+        case .homebrew: return [.automationTerminal, .appManagement]
+        case .appUpdates: return [.notifications, .appManagement]
         case .mixer: return [.audioCapture]
         case .monitorCPU, .monitorMemory, .monitorDisk, .monitorPower: return [.notifications]
-        case .clipboardHistory, .shelf, .urlCleaner, .soundOutputSwitcher, .musicBlock,
+        case .clipboardHistory, .shelf, .urlCleaner,
+             .soundOutputSwitcher, .musicBlock,
              .extraBrightness, .quickLauncher, .colorPicker, .micMute, .mediaTools,
              .scratchpad, .monitorGPU, .monitorNetwork:
             return []
@@ -232,9 +255,17 @@ extension AppFeature {
                 return boolFor(DefaultsKey.monitorAlertDisk)
             case (.monitorPower, .notifications):
                 return boolFor(DefaultsKey.monitorAlertBattery)
+            case (.appUpdates, .notifications):
+                return AppUpdatesSupport.CheckFrequency
+                    .sanitized(stringFor(DefaultsKey.appUpdatesCheckFrequency)) != .off
+                    && boolFor(DefaultsKey.appUpdatesNotify)
             case (.cleaner, .notifications):
-                return (stringFor(DefaultsKey.cleanerScheduleFrequency) ?? "off") != "off"
+                let cleanerNotifies = (stringFor(DefaultsKey.cleanerScheduleFrequency) ?? "off") != "off"
                     && boolFor(DefaultsKey.cleanerScheduleNotify)
+                let whatsAppNotifies = (boolFor(DefaultsKey.whatsAppDownloadsAutomaticEnabled)
+                        || boolFor(DefaultsKey.whatsAppOrganizerEnabled))
+                    && boolFor(DefaultsKey.whatsAppDownloadsNotify)
+                return cleanerNotifies || whatsAppNotifies
             default:
                 return true
             }
@@ -273,10 +304,12 @@ extension AppPermission {
         case .accessibility: return "accessibility"
         case .screenRecording: return "rectangle.dashed.badge.record"
         case .fullDiskAccess: return "externaldrive.badge.person.crop"
+        case .filesAndFolders: return "folder.badge.person.crop"
         case .notifications: return "bell.badge"
         case .automationFinder, .automationTerminal: return "gearshape.2"
         case .audioCapture: return "waveform"
         case .camera: return "camera"
+        case .appManagement: return "app.badge"
         }
     }
 }

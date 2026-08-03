@@ -155,6 +155,10 @@ struct ScreenshotEditorView: View {
         return ZStack {
             if model.showsBackdrop {
                 backdropFillView
+                    .scaleEffect(1 + CGFloat(model.backdropStyle.blur) * 0.08)
+                    .blur(radius: ScreenshotSupport.backdropBlurRadius(
+                        for: contentPixelSize,
+                        factor: CGFloat(model.backdropStyle.blur)) * zoom)
             }
             Canvas { context, size in
                 context.withCGContext { cg in
@@ -981,7 +985,7 @@ struct ScreenshotEditorView: View {
     @State private var backdropButtonHovered = false
 
     private func fillPreview(for style: ScreenshotSupport.BackdropStyle) -> LinearGradient {
-        let colors = ScreenshotBackdropPopover.previewColors(for: style)
+        let colors = BackdropPickerAssets.previewColors(for: style)
         return LinearGradient(colors: colors,
                               startPoint: .topLeading, endPoint: .bottomTrailing)
     }

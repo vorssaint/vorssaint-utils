@@ -157,31 +157,45 @@ struct DiskSection: View {
     }
 
     private func diskSelectorButton(for disk: DiskDeviceReading) -> some View {
-        Button {
-            selectedDiskID = disk.id
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: disk.isInternal ? "internaldrive" : "externaldrive")
-                    .font(.system(size: 10, weight: .semibold))
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(disk.name)
-                        .font(.system(size: 10.5, weight: .semibold))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Text("\(MetricFormat.percent(disk.usedFraction)) \(l10n.s.diskUsed)")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+        HStack(spacing: 0) {
+            Button {
+                selectedDiskID = disk.id
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: disk.isInternal ? "internaldrive" : "externaldrive")
+                        .font(.system(size: 10, weight: .semibold))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(disk.name)
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Text("\(MetricFormat.percent(disk.usedFraction)) \(l10n.s.diskUsed)")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
+                .padding(.leading, 8)
+                .padding(.trailing, disk.canEject ? 2 : 8)
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(selectorBackground(for: disk))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .buttonStyle(.plain)
+            if disk.canEject {
+                DiskSelectorEjectButton(state: protection.state(for: disk),
+                                        idleHelp: l10n.s.diskEject,
+                                        busyHelp: l10n.s.diskEjecting,
+                                        readyHelp: l10n.s.diskReadyToRemove,
+                                        failedHelp: l10n.s.diskEjectFailed) {
+                    protection.eject(disk)
+                }
+                .padding(.trailing, 5)
+            }
         }
-        .buttonStyle(.plain)
+        .background(selectorBackground(for: disk))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func selectorBackground(for disk: DiskDeviceReading) -> some ShapeStyle {
@@ -297,7 +311,7 @@ struct DiskSection: View {
             VStack(alignment: .leading, spacing: 8) {
                 blockHeader(l10n.s.monitorItemDiskSMART, editing: editing, visible: $diskSMART)
                 VStack(alignment: .leading, spacing: 5) {
-                    diskTitleRow(disk)
+                    diskTitleRow(disk, showsTags: !diskUsage)
                     if let smart = disk.smart {
                         smartRows(smart)
                     } else {
@@ -441,7 +455,7 @@ struct DiskSection: View {
         }
     }
 
-    private func diskTitleRow(_ disk: DiskDeviceReading) -> some View {
+    private func diskTitleRow(_ disk: DiskDeviceReading, showsTags: Bool = true) -> some View {
         HStack(spacing: 6) {
             Image(systemName: disk.isInternal ? "internaldrive" : "externaldrive")
                 .font(.system(size: 10, weight: .semibold))
@@ -451,10 +465,12 @@ struct DiskSection: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
             Spacer(minLength: 0)
-            if let fileSystem = disk.fileSystem {
-                titleTag(fileSystem)
+            if showsTags {
+                if let fileSystem = disk.fileSystem {
+                    titleTag(fileSystem)
+                }
+                titleTag(disk.isInternal ? l10n.s.diskInternal : l10n.s.diskExternal)
             }
-            titleTag(disk.isInternal ? l10n.s.diskInternal : l10n.s.diskExternal)
         }
     }
 
@@ -481,6 +497,67 @@ struct DiskSection: View {
 
     private var displayTemperatureUnit: TemperatureUnit {
         TemperatureUnit(rawValue: temperatureUnit) ?? .celsius
+    }
+}
+
+private struct DiskSelectorEjectButton: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let state: DiskEjectState?
+    let idleHelp: String
+    let busyHelp: String
+    let readyHelp: String
+    let failedHelp: String
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            icon
+                .frame(width: 18, height: 18)
+                .background(Circle().fill(Color.primary.opacity(hovering && !busy ? 0.1 : 0)))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(busy)
+        .onHover { hovering = $0 }
+        .help(help)
+        .accessibilityLabel(help)
+        .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+
+    @ViewBuilder
+    private var icon: some View {
+        switch state {
+        case .ejecting:
+            ProgressView()
+                .controlSize(.small)
+                .scaleEffect(0.55)
+        case .ready:
+            Image(systemName: "checkmark")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(PanelMetricColor.green(for: colorScheme))
+        case .failed:
+            Image(systemName: "eject.fill")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(PanelMetricColor.red(for: colorScheme))
+        case .none:
+            Image(systemName: "eject.fill")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(hovering ? .primary : .secondary)
+        }
+    }
+
+    private var busy: Bool {
+        state == .ejecting
+    }
+
+    private var help: String {
+        switch state {
+        case .ejecting: return busyHelp
+        case .ready: return readyHelp
+        case .failed: return failedHelp
+        case .none: return idleHelp
+        }
     }
 }
 

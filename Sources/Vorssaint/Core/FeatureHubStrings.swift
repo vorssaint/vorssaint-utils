@@ -38,6 +38,7 @@ struct FeatureHubStrings {
     let permAccessibility: String
     let permScreenRecording: String
     let permFullDisk: String
+    let permFilesAndFolders: String
     let permNotifications: String
     let permAutomationFinder: String
     let permAutomationTerminal: String
@@ -45,6 +46,7 @@ struct FeatureHubStrings {
     let explainAccessibility: String
     let explainScreenRecording: String
     let explainFullDisk: String
+    let explainFilesAndFolders: String
     let explainNotifications: String
     let explainAutomationFinder: String
     let explainAutomationTerminal: String
@@ -113,6 +115,7 @@ struct FeatureHubStrings {
     let energyInputs: String
     let energyPeriodic: String
     let energyHelp: String
+    let explainAppManagement: String
 }
 
 extension FeatureStrings {
@@ -165,6 +168,7 @@ extension FeatureHubStrings {
         permAccessibility: "손쉬운 사용",
         permScreenRecording: "화면 녹화",
         permFullDisk: "전체 디스크 접근",
+        permFilesAndFolders: "파일 및 폴더",
         permNotifications: "알림",
         permAutomationFinder: "Finder 자동화",
         permAutomationTerminal: "Terminal 자동화",
@@ -172,6 +176,7 @@ extension FeatureHubStrings {
         explainAccessibility: "기능이 클릭과 키 입력에 반응하고 윈도우를 이동할 수 있게 합니다.",
         explainScreenRecording: "기능이 윈도우 썸네일을 표시하고 화면의 텍스트를 읽을 수 있게 합니다.",
         explainFullDisk: "정리기와 앱 제거기가 어디서나 남은 파일을 찾을 수 있게 합니다.",
+        explainFilesAndFolders: "WhatsApp 다운로드 정리 및 실험적 구성 기능이 다운로드 폴더를 확인할 수 있게 합니다.",
         explainNotifications: "켜 둔 경고를 앱에서 알릴 수 있게 합니다.",
         explainAutomationFinder: "앱이 Finder에 파일 이동을 요청할 수 있게 합니다.",
         explainAutomationTerminal: "Homebrew 명령을 Terminal에서 열 수 있게 합니다.",
@@ -237,7 +242,8 @@ extension FeatureHubStrings {
         energyKeyboard: "키보드 감시",
         energyInputs: "마우스와 키보드 감시",
         energyPeriodic: "일정 간격으로 확인",
-        energyHelp: "기능이 켜져 있을 때 계속 유지하는 작업입니다. 제거한 기능은 전혀 불러오지 않습니다."
+        energyHelp: "기능이 켜져 있을 때 계속 유지하는 작업입니다. 제거한 기능은 전혀 불러오지 않습니다.",
+        explainAppManagement: "업데이트가 패키지 관리자로 설치한 앱을 교체하거나 제거할 수 있게 합니다."
     )
 }
 
@@ -271,6 +277,7 @@ extension FeatureHubStrings {
         permAccessibility: "Accessibility",
         permScreenRecording: "Screen Recording",
         permFullDisk: "Full Disk Access",
+        permFilesAndFolders: "Files & Folders",
         permNotifications: "Notifications",
         permAutomationFinder: "Finder automation",
         permAutomationTerminal: "Terminal automation",
@@ -278,6 +285,7 @@ extension FeatureHubStrings {
         explainAccessibility: "Lets features react to clicks and keys, and move windows.",
         explainScreenRecording: "Lets features show window thumbnails and read text on screen.",
         explainFullDisk: "Lets the cleaner and the uninstaller find leftover files everywhere.",
+        explainFilesAndFolders: "Lets WhatsApp downloads cleanup and the experimental organizer inspect your Downloads folder.",
         explainNotifications: "Lets the app notify you about alerts you turned on.",
         explainAutomationFinder: "Lets the app ask Finder to move files for you.",
         explainAutomationTerminal: "Lets Homebrew commands open in Terminal.",
@@ -343,7 +351,8 @@ extension FeatureHubStrings {
         energyKeyboard: "Listens to the keyboard",
         energyInputs: "Listens to mouse and keyboard",
         energyPeriodic: "Checks on an interval",
-        energyHelp: "What the feature keeps alive while it is on. Uninstalled features load nothing at all."
+        energyHelp: "What the feature keeps alive while it is on. Uninstalled features load nothing at all.",
+        explainAppManagement: "Lets updates replace or remove apps installed by the package manager."
     )
 
     static let ptBR = FeatureHubStrings(
@@ -375,6 +384,7 @@ extension FeatureHubStrings {
         permAccessibility: "Acessibilidade",
         permScreenRecording: "Gravação de Tela",
         permFullDisk: "Acesso Total ao Disco",
+        permFilesAndFolders: "Arquivos e Pastas",
         permNotifications: "Notificações",
         permAutomationFinder: "Automação do Finder",
         permAutomationTerminal: "Automação do Terminal",
@@ -382,6 +392,7 @@ extension FeatureHubStrings {
         explainAccessibility: "Deixa os recursos reagirem a cliques e teclas e moverem janelas.",
         explainScreenRecording: "Deixa os recursos mostrarem miniaturas de janelas e lerem texto na tela.",
         explainFullDisk: "Deixa o limpador e o desinstalador acharem restos de arquivos em todo lugar.",
+        explainFilesAndFolders: "Permite que a limpeza e o organizador experimental do WhatsApp verifiquem a pasta Downloads.",
         explainNotifications: "Deixa o app avisar você sobre os alertas que ligou.",
         explainAutomationFinder: "Deixa o app pedir ao Finder para mover arquivos por você.",
         explainAutomationTerminal: "Deixa os comandos do Homebrew abrirem no Terminal.",
@@ -447,7 +458,8 @@ extension FeatureHubStrings {
         energyKeyboard: "Escuta o teclado",
         energyInputs: "Escuta mouse e teclado",
         energyPeriodic: "Verifica em intervalos",
-        energyHelp: "O custo enquanto a função está ligada. Desinstalada, ela não carrega nada."
+        energyHelp: "O custo enquanto a função está ligada. Desinstalada, ela não carrega nada.",
+        explainAppManagement: "Permite que as atualizações substituam ou removam apps instalados pelo gerenciador de pacotes."
     )
 
     static let tr = FeatureHubStrings(
@@ -479,6 +491,7 @@ extension FeatureHubStrings {
         permAccessibility: "Erişilebilirlik",
         permScreenRecording: "Ekran Kaydı",
         permFullDisk: "Tam Disk Erişimi",
+        permFilesAndFolders: "Dosyalar ve Klasörler",
         permNotifications: "Bildirimler",
         permAutomationFinder: "Finder otomasyonu",
         permAutomationTerminal: "Terminal otomasyonu",
@@ -486,6 +499,7 @@ extension FeatureHubStrings {
         explainAccessibility: "Özelliklerin tıklamalara ve tuşlara tepki vermesini ve pencereleri taşımasını sağlar.",
         explainScreenRecording: "Özelliklerin pencere önizlemeleri göstermesini ve ekrandaki metni okumasını sağlar.",
         explainFullDisk: "Temizleyicinin ve kaldırıcının artık dosyaları her yerde bulmasını sağlar.",
+        explainFilesAndFolders: "WhatsApp temizliğinin ve deneysel düzenleyicinin İndirilenler klasörünü denetlemesini sağlar.",
         explainNotifications: "Uygulamanın açtığınız uyarılar için sizi bilgilendirmesini sağlar.",
         explainAutomationFinder: "Uygulamanın Finder'dan sizin için dosya taşımasını istemesini sağlar.",
         explainAutomationTerminal: "Homebrew komutlarının Terminal'de açılmasını sağlar.",
@@ -551,7 +565,8 @@ extension FeatureHubStrings {
         energyKeyboard: "Klavyeyi dinler",
         energyInputs: "Fare ve klavyeyi dinler",
         energyPeriodic: "Aralıklarla denetler",
-        energyHelp: "Özellik açıkken tuttuğu maliyet. Kaldırılan özellik hiçbir şey yüklemez."
+        energyHelp: "Özellik açıkken tuttuğu maliyet. Kaldırılan özellik hiçbir şey yüklemez.",
+        explainAppManagement: "Güncellemelerin paket yöneticisiyle yüklenen uygulamaları değiştirmesini veya kaldırmasını sağlar."
     )
 
     static let ru = FeatureHubStrings(
@@ -583,6 +598,7 @@ extension FeatureHubStrings {
         permAccessibility: "Универсальный доступ",
         permScreenRecording: "Запись экрана",
         permFullDisk: "Полный доступ к диску",
+        permFilesAndFolders: "Файлы и папки",
         permNotifications: "Уведомления",
         permAutomationFinder: "Автоматизация Finder",
         permAutomationTerminal: "Автоматизация Терминала",
@@ -590,6 +606,7 @@ extension FeatureHubStrings {
         explainAccessibility: "Позволяет функциям реагировать на клики и клавиши и перемещать окна.",
         explainScreenRecording: "Позволяет функциям показывать миниатюры окон и читать текст с экрана.",
         explainFullDisk: "Позволяет очистке и деинсталлятору находить остатки файлов повсюду.",
+        explainFilesAndFolders: "Разрешает очистке и экспериментальному органайзеру WhatsApp проверять папку «Загрузки».",
         explainNotifications: "Позволяет приложению сообщать о включённых вами оповещениях.",
         explainAutomationFinder: "Позволяет приложению просить Finder перемещать файлы за вас.",
         explainAutomationTerminal: "Позволяет командам Homebrew открываться в Терминале.",
@@ -655,7 +672,8 @@ extension FeatureHubStrings {
         energyKeyboard: "Слушает клавиатуру",
         energyInputs: "Слушает мышь и клавиатуру",
         energyPeriodic: "Проверяет с интервалом",
-        energyHelp: "Стоимость, пока функция включена. Удалённая функция ничего не загружает."
+        energyHelp: "Стоимость, пока функция включена. Удалённая функция ничего не загружает.",
+        explainAppManagement: "Позволяет обновлениям заменять или удалять приложения, установленные через менеджер пакетов."
     )
 
     static let es = FeatureHubStrings(
@@ -687,6 +705,7 @@ extension FeatureHubStrings {
         permAccessibility: "Accesibilidad",
         permScreenRecording: "Grabación de pantalla",
         permFullDisk: "Acceso total al disco",
+        permFilesAndFolders: "Archivos y carpetas",
         permNotifications: "Notificaciones",
         permAutomationFinder: "Automatización del Finder",
         permAutomationTerminal: "Automatización de Terminal",
@@ -694,6 +713,7 @@ extension FeatureHubStrings {
         explainAccessibility: "Permite que las funciones reaccionen a clics y teclas y muevan ventanas.",
         explainScreenRecording: "Permite mostrar miniaturas de ventanas y leer texto en pantalla.",
         explainFullDisk: "Permite que el limpiador y el desinstalador encuentren restos en todas partes.",
+        explainFilesAndFolders: "Permite que la limpieza y el organizador experimental de WhatsApp examinen la carpeta Descargas.",
         explainNotifications: "Permite que la app te avise de las alertas que activaste.",
         explainAutomationFinder: "Permite que la app pida al Finder mover archivos por ti.",
         explainAutomationTerminal: "Permite que los comandos de Homebrew se abran en Terminal.",
@@ -759,7 +779,8 @@ extension FeatureHubStrings {
         energyKeyboard: "Escucha el teclado",
         energyInputs: "Escucha ratón y teclado",
         energyPeriodic: "Comprueba a intervalos",
-        energyHelp: "El coste mientras la función está activada. Desinstalada, no carga nada."
+        energyHelp: "El coste mientras la función está activada. Desinstalada, no carga nada.",
+        explainAppManagement: "Permite que las actualizaciones sustituyan o eliminen apps instaladas con el gestor de paquetes."
     )
 
     static let de = FeatureHubStrings(
@@ -791,6 +812,7 @@ extension FeatureHubStrings {
         permAccessibility: "Bedienungshilfen",
         permScreenRecording: "Bildschirmaufnahme",
         permFullDisk: "Festplattenvollzugriff",
+        permFilesAndFolders: "Dateien & Ordner",
         permNotifications: "Mitteilungen",
         permAutomationFinder: "Finder-Automation",
         permAutomationTerminal: "Terminal-Automation",
@@ -798,6 +820,7 @@ extension FeatureHubStrings {
         explainAccessibility: "Lässt Funktionen auf Klicks und Tasten reagieren und Fenster bewegen.",
         explainScreenRecording: "Lässt Funktionen Fenstervorschauen zeigen und Text vom Bildschirm lesen.",
         explainFullDisk: "Lässt Reiniger und Deinstallierer überall Dateireste finden.",
+        explainFilesAndFolders: "Erlaubt der WhatsApp-Bereinigung und dem experimentellen Organizer, den Downloads-Ordner zu prüfen.",
         explainNotifications: "Lässt die App dich über aktivierte Warnungen informieren.",
         explainAutomationFinder: "Lässt die App den Finder bitten, Dateien für dich zu bewegen.",
         explainAutomationTerminal: "Lässt Homebrew-Befehle im Terminal öffnen.",
@@ -863,7 +886,8 @@ extension FeatureHubStrings {
         energyKeyboard: "Hört auf die Tastatur",
         energyInputs: "Hört auf Maus und Tastatur",
         energyPeriodic: "Prüft in Intervallen",
-        energyHelp: "Die Kosten, solange die Funktion an ist. Deinstalliert lädt sie gar nichts."
+        energyHelp: "Die Kosten, solange die Funktion an ist. Deinstalliert lädt sie gar nichts.",
+        explainAppManagement: "Erlaubt App-Updates, vom Paketmanager installierte Apps zu ersetzen oder zu entfernen."
     )
 
     static let fr = FeatureHubStrings(
@@ -895,6 +919,7 @@ extension FeatureHubStrings {
         permAccessibility: "Accessibilité",
         permScreenRecording: "Enregistrement de l'écran",
         permFullDisk: "Accès complet au disque",
+        permFilesAndFolders: "Fichiers et dossiers",
         permNotifications: "Notifications",
         permAutomationFinder: "Automatisation du Finder",
         permAutomationTerminal: "Automatisation du Terminal",
@@ -902,6 +927,7 @@ extension FeatureHubStrings {
         explainAccessibility: "Permet aux fonctions de réagir aux clics et touches et de déplacer les fenêtres.",
         explainScreenRecording: "Permet d'afficher des aperçus de fenêtres et de lire le texte à l'écran.",
         explainFullDisk: "Permet au nettoyeur et au désinstalleur de trouver les restes partout.",
+        explainFilesAndFolders: "Autorise le nettoyage et l'organisateur expérimental WhatsApp à examiner le dossier Téléchargements.",
         explainNotifications: "Permet à l'app de vous prévenir des alertes que vous avez activées.",
         explainAutomationFinder: "Permet à l'app de demander au Finder de déplacer des fichiers pour vous.",
         explainAutomationTerminal: "Permet aux commandes Homebrew de s'ouvrir dans le Terminal.",
@@ -967,7 +993,8 @@ extension FeatureHubStrings {
         energyKeyboard: "Écoute le clavier",
         energyInputs: "Écoute souris et clavier",
         energyPeriodic: "Vérifie par intervalles",
-        energyHelp: "Le coût quand la fonction est active. Désinstallée, elle ne charge rien."
+        energyHelp: "Le coût quand la fonction est active. Désinstallée, elle ne charge rien.",
+        explainAppManagement: "Permet aux mises à jour de remplacer ou supprimer les apps installées par le gestionnaire de paquets."
     )
 
     static let it = FeatureHubStrings(
@@ -999,6 +1026,7 @@ extension FeatureHubStrings {
         permAccessibility: "Accessibilità",
         permScreenRecording: "Registrazione schermo",
         permFullDisk: "Accesso completo al disco",
+        permFilesAndFolders: "File e cartelle",
         permNotifications: "Notifiche",
         permAutomationFinder: "Automazione del Finder",
         permAutomationTerminal: "Automazione del Terminale",
@@ -1006,6 +1034,7 @@ extension FeatureHubStrings {
         explainAccessibility: "Permette alle funzioni di reagire a clic e tasti e spostare finestre.",
         explainScreenRecording: "Permette di mostrare anteprime delle finestre e leggere il testo sullo schermo.",
         explainFullDisk: "Permette a pulizia e disinstallazione di trovare residui ovunque.",
+        explainFilesAndFolders: "Consente alla pulizia e all'organizzatore sperimentale di WhatsApp di controllare la cartella Download.",
         explainNotifications: "Permette all'app di avvisarti degli allarmi che hai attivato.",
         explainAutomationFinder: "Permette all'app di chiedere al Finder di spostare file per te.",
         explainAutomationTerminal: "Permette ai comandi Homebrew di aprirsi nel Terminale.",
@@ -1071,7 +1100,8 @@ extension FeatureHubStrings {
         energyKeyboard: "Ascolta la tastiera",
         energyInputs: "Ascolta mouse e tastiera",
         energyPeriodic: "Controlla a intervalli",
-        energyHelp: "Il costo mentre la funzione è attiva. Disinstallata non carica nulla."
+        energyHelp: "Il costo mentre la funzione è attiva. Disinstallata non carica nulla.",
+        explainAppManagement: "Consente agli aggiornamenti di sostituire o rimuovere le app installate dal gestore di pacchetti."
     )
 
     static let ja = FeatureHubStrings(
@@ -1103,6 +1133,7 @@ extension FeatureHubStrings {
         permAccessibility: "アクセシビリティ",
         permScreenRecording: "画面収録",
         permFullDisk: "フルディスクアクセス",
+        permFilesAndFolders: "ファイルとフォルダ",
         permNotifications: "通知",
         permAutomationFinder: "Finderの自動化",
         permAutomationTerminal: "ターミナルの自動化",
@@ -1110,6 +1141,7 @@ extension FeatureHubStrings {
         explainAccessibility: "機能がクリックやキーに反応し、ウインドウを動かせるようにします。",
         explainScreenRecording: "ウインドウのサムネイル表示や画面上の文字の読み取りを可能にします。",
         explainFullDisk: "クリーナーとアンインストーラが残りファイルをどこでも見つけられるようにします。",
+        explainFilesAndFolders: "WhatsAppのダウンロード整理と実験的オーガナイザーがダウンロードフォルダを確認できるようにします。",
         explainNotifications: "オンにした警告をアプリが通知できるようにします。",
         explainAutomationFinder: "アプリがFinderにファイル移動を頼めるようにします。",
         explainAutomationTerminal: "Homebrewのコマンドをターミナルで開けるようにします。",
@@ -1175,7 +1207,8 @@ extension FeatureHubStrings {
         energyKeyboard: "キーボードを監視",
         energyInputs: "マウスとキーボードを監視",
         energyPeriodic: "一定間隔で確認",
-        energyHelp: "オンの間のコストです。アンインストールすれば何も読み込みません。"
+        energyHelp: "オンの間のコストです。アンインストールすれば何も読み込みません。",
+        explainAppManagement: "パッケージマネージャでインストールしたAppをアップデートで置き換えたり削除したりできるようにします。"
     )
 
     static let zhHans = FeatureHubStrings(
@@ -1207,6 +1240,7 @@ extension FeatureHubStrings {
         permAccessibility: "辅助功能",
         permScreenRecording: "屏幕录制",
         permFullDisk: "完全磁盘访问",
+        permFilesAndFolders: "文件与文件夹",
         permNotifications: "通知",
         permAutomationFinder: "访达自动化",
         permAutomationTerminal: "终端自动化",
@@ -1214,6 +1248,7 @@ extension FeatureHubStrings {
         explainAccessibility: "让功能响应点按和按键，并移动窗口。",
         explainScreenRecording: "让功能显示窗口缩略图并读取屏幕上的文字。",
         explainFullDisk: "让清理器和卸载器在任何位置找到残留文件。",
+        explainFilesAndFolders: "允许 WhatsApp 下载清理和实验性整理器检查下载文件夹。",
         explainNotifications: "让应用就你开启的警报发出通知。",
         explainAutomationFinder: "让应用请访达替你移动文件。",
         explainAutomationTerminal: "让 Homebrew 命令在终端中打开。",
@@ -1279,7 +1314,8 @@ extension FeatureHubStrings {
         energyKeyboard: "监听键盘",
         energyInputs: "监听鼠标和键盘",
         energyPeriodic: "按间隔检查",
-        energyHelp: "功能开启期间的开销。卸载后完全不加载。"
+        energyHelp: "功能开启期间的开销。卸载后完全不加载。",
+        explainAppManagement: "允许更新替换或移除通过软件包管理器安装的 App。"
     )
 
     static let zhTW = FeatureHubStrings(
@@ -1311,6 +1347,7 @@ extension FeatureHubStrings {
         permAccessibility: "輔助使用",
         permScreenRecording: "螢幕錄製",
         permFullDisk: "完整磁碟取用權限",
+        permFilesAndFolders: "檔案與資料夾",
         permNotifications: "通知",
         permAutomationFinder: "Finder 自動化",
         permAutomationTerminal: "終端機自動化",
@@ -1318,6 +1355,7 @@ extension FeatureHubStrings {
         explainAccessibility: "讓功能回應點按和按鍵，並移動視窗。",
         explainScreenRecording: "讓功能顯示視窗縮圖並讀取螢幕上的文字。",
         explainFullDisk: "讓清理器和解除安裝器在任何位置找到殘留檔案。",
+        explainFilesAndFolders: "允許 WhatsApp 下載項目清理和實驗性整理器檢查下載項目資料夾。",
         explainNotifications: "讓 App 就你開啟的警示發出通知。",
         explainAutomationFinder: "讓 App 請 Finder 替你移動檔案。",
         explainAutomationTerminal: "讓 Homebrew 指令在終端機中打開。",
@@ -1383,7 +1421,8 @@ extension FeatureHubStrings {
         energyKeyboard: "監聽鍵盤",
         energyInputs: "監聽滑鼠與鍵盤",
         energyPeriodic: "按間隔檢查",
-        energyHelp: "功能開啟期間的負擔。解除安裝後完全不載入。"
+        energyHelp: "功能開啟期間的負擔。解除安裝後完全不載入。",
+        explainAppManagement: "允許更新取代或移除透過套件管理器安裝的 App。"
     )
 
     static let zhHK = FeatureHubStrings(
@@ -1415,6 +1454,7 @@ extension FeatureHubStrings {
         permAccessibility: "輔助使用",
         permScreenRecording: "螢幕錄影",
         permFullDisk: "完整磁碟存取",
+        permFilesAndFolders: "檔案與資料夾",
         permNotifications: "通知",
         permAutomationFinder: "Finder 自動化",
         permAutomationTerminal: "終端機自動化",
@@ -1422,6 +1462,7 @@ extension FeatureHubStrings {
         explainAccessibility: "讓功能回應點按和按鍵，並移動視窗。",
         explainScreenRecording: "讓功能顯示視窗縮圖並讀取螢幕上的文字。",
         explainFullDisk: "讓清理器和移除器在任何位置找到殘留檔案。",
+        explainFilesAndFolders: "允許 WhatsApp 下載項目清理和實驗性整理器檢查下載項目資料夾。",
         explainNotifications: "讓 App 就你開啟的警示發出通知。",
         explainAutomationFinder: "讓 App 請 Finder 代你移動檔案。",
         explainAutomationTerminal: "讓 Homebrew 指令在終端機開啟。",
@@ -1487,6 +1528,7 @@ extension FeatureHubStrings {
         energyKeyboard: "監聽鍵盤",
         energyInputs: "監聽滑鼠與鍵盤",
         energyPeriodic: "按間隔檢查",
-        energyHelp: "功能開啟期間的負擔。解除安裝後完全不載入。"
+        energyHelp: "功能開啟期間的負擔。解除安裝後完全不載入。",
+        explainAppManagement: "允許更新取代或移除透過套件管理器安裝的 App。"
     )
 }

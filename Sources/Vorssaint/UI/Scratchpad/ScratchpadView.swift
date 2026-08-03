@@ -9,6 +9,7 @@ import SwiftUI
 struct ScratchpadView: View {
     @ObservedObject private var service = ScratchpadService.shared
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.scratchpadBackgroundOpacity) private var backgroundOpacity = 0.0
     @State private var copied = false
 
     private var text: ScratchpadFeatureStrings { FeatureStrings.scratchpad(l10n.language) }
@@ -20,7 +21,13 @@ struct ScratchpadView: View {
             editor
             footer
         }
-        .background(HUDBackdrop(cornerRadius: 14))
+        .background {
+            ZStack {
+                HUDBackdrop(cornerRadius: 14)
+                Color(nsColor: .windowBackgroundColor)
+                    .opacity(ScratchpadSupport.sanitizedBackgroundOpacity(backgroundOpacity))
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -36,6 +43,17 @@ struct ScratchpadView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
                 .overlay(ScratchpadDragHandle())
+            Button {
+                service.togglePin()
+            } label: {
+                Image(systemName: service.isPinned ? "pin.fill" : "pin")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 22, height: 20)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(service.isPinned ? Color.accentColor : Color.secondary)
+            .help(service.isPinned ? text.closeOnClickOutside : text.keepOpen)
+            .accessibilityLabel(service.isPinned ? text.closeOnClickOutside : text.keepOpen)
             Button {
                 ScratchpadService.shared.hide()
             } label: {

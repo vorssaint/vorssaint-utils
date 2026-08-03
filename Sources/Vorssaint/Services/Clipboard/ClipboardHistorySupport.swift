@@ -336,11 +336,29 @@ enum ClipboardHistoryPasteboardText {
 }
 
 enum ClipboardHistorySensitiveText {
+    /// The mark an app puts on the pasteboard to say the content is a secret
+    /// and must not be recorded anywhere. It is a shared convention rather
+    /// than a system feature, and the apps that keep passwords write it when
+    /// they hand one over, so honoring it is the only way to leave a password
+    /// out that does not depend on guessing what the text looks like.
+    static let concealedPasteboardType = "org.nspasteboard.ConcealedType"
+
+    /// Whether the pasteboard is carrying that mark. `NSPasteboard.types`
+    /// already gathers the types of every item on it, so one read covers a
+    /// mark written on its own item as well as one written next to the text.
+    static func isConcealed(_ types: [String]) -> Bool {
+        types.contains(concealedPasteboardType)
+    }
+
     static func looksSensitive(_ text: String) -> Bool {
         let lowered = text.lowercased()
         let obviousWords = ["password", "passwd", "secret", "token", "apikey", "api_key", "authorization"]
         if obviousWords.contains(where: lowered.contains) { return true }
         if isWebURL(text) { return false }
+        // An identifier code is nobody's secret, and it fits the shape below
+        // exactly: long, unbroken, letters and digits with dashes between
+        // them. Copying one around is ordinary work, so it stays (issue #423).
+        if isIdentifierCode(text) { return false }
 
         guard text.count >= 20, text.count <= 160, !text.contains(where: { $0.isWhitespace }) else {
             return false
@@ -349,6 +367,19 @@ enum ClipboardHistorySensitiveText {
         let hasDigit = text.contains { $0.isNumber }
         let hasSymbol = text.contains { !$0.isLetter && !$0.isNumber && !$0.isWhitespace }
         return hasLetter && hasDigit && hasSymbol
+    }
+
+    /// The one shape every system uses for a generated identifier: thirty-two
+    /// hex digits in five dashed groups, optionally wrapped in braces. Kept
+    /// strict on purpose, so nothing that merely resembles one gets a pass.
+    private static func isIdentifierCode(_ text: String) -> Bool {
+        var value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.hasPrefix("{"), value.hasSuffix("}") {
+            value = String(value.dropFirst().dropLast())
+        }
+        let groups = value.split(separator: "-", omittingEmptySubsequences: false)
+        guard groups.map(\.count) == [8, 4, 4, 4, 12] else { return false }
+        return groups.allSatisfy { $0.allSatisfy(\.isHexDigit) }
     }
 
     private static func isWebURL(_ text: String) -> Bool {

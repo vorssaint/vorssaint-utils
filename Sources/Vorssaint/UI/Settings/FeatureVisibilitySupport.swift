@@ -7,7 +7,7 @@ import Foundation
 /// below and the unit tests can reason about pages without pulling SwiftUI in.
 enum SettingsPage: Hashable {
     case general, features, energy, monitor
-    case mouse, switcher, keyDebounce, cutPaste, autoQuit, uninstaller, urlCleaner, homebrew, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu
+    case mouse, switcher, keyDebounce, superKey, cutPaste, autoQuit, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, screenRecorder, radialMenu, commandBar
     case shortcuts, advanced, about, releaseNotes, support
 }
 
@@ -24,23 +24,29 @@ enum FeatureVisibilitySupport {
         switch page {
         case .energy: return [.keepAwake, .brightness, .extraBrightness]
         case .monitor: return monitorFeatures
-        case .mouse: return [.scrollInverter, .smoothScroll, .mouseNavigation, .middleClick]
+        case .mouse: return [.scrollInverter, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts,
+                             .middleClick]
         case .switcher: return [.switcher, .dockPreview, .dockClick]
         case .windowLayout: return [.windowLayout]
         case .autoQuit: return [.autoQuit]
-        case .clipboard: return [.clipboardHistory, .pastePlain]
-        case .cutPaste: return [.finderCutPaste]
+        case .clipboard: return [.clipboardHistory, .pastePlain, .finderCutPaste]
+        case .cutPaste: return [.finderCutPaste, .finderRename]
         case .shelf: return [.shelf]
         case .media: return [.mediaTools]
         case .quickTools: return [.quickLauncher, .quickToggles, .colorPicker, .screenOCR, .micMute,
                                   .cameraPreview, .scratchpad]
         case .urlCleaner: return [.urlCleaner]
+        case .cleaner: return [.cleaner]
         case .homebrew: return [.homebrew]
+        case .appUpdates: return [.appUpdates]
         case .uninstaller: return [.uninstaller]
         case .keyDebounce: return [.keyboardDebounce]
+        case .superKey: return [.superKey]
         case .textSnippets: return [.textSnippets]
         case .screenshot: return [.screenshot]
+        case .screenRecorder: return [.screenRecorder]
         case .radialMenu: return [.radialMenu]
+        case .commandBar: return [.commandBar]
         case .general, .features, .shortcuts, .advanced, .about, .releaseNotes, .support:
             return []
         }

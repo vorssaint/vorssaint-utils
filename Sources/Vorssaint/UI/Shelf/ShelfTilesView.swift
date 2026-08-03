@@ -426,9 +426,18 @@ final class ShelfTileView: NSView, NSDraggingSource {
         let candidates = shelf.selection.contains(item.id) ? shelf.selectedItems() : [item]
         let dragged = shelf.dragItems(for: candidates)
         guard !dragged.isEmpty else { return }
-        draggedIDs = dragged.map(\.id)
+        // A payload whose file vanished since it was shelved can never be
+        // dropped: every destination refuses the dead URL and the whole
+        // drag reads as broken. Only living payloads join the session; an
+        // all-dead grab explains itself instead of offering a ghost drag.
+        let living = shelf.livingDragItems(in: dragged)
+        guard !living.isEmpty else {
+            shelf.handleDeadDrag(dragged)
+            return
+        }
+        draggedIDs = living.map(\.id)
 
-        let draggingItems: [NSDraggingItem] = dragged.map { entry in
+        let draggingItems: [NSDraggingItem] = living.map { entry in
             let draggingItem = NSDraggingItem(pasteboardWriter: shelf.pasteboardWriter(for: entry))
             // Overlapping frames make AppKit stack them with a count badge.
             draggingItem.setDraggingFrame(bounds, contents: entry.icon)

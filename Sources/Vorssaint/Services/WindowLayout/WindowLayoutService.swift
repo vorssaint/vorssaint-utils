@@ -26,11 +26,14 @@ final class WindowLayoutService: ObservableObject {
     static let shared = WindowLayoutService()
 
     @Published private(set) var lastResult: WindowLayoutResult?
+    /// Bumped on every published result, so a late settle failure can tell
+    /// whether it still owns the feedback slot.
+    private var resultGeneration = 0
     @Published private(set) var failedShortcutActions: Set<WindowLayoutAction> = []
     @Published private(set) var isGestureRunning = false
 
-    private var previousFrames: [CGWindowID: WindowLayoutFrame] = [:]
-    private var lastActions: [CGWindowID: WindowLayoutAction] = [:]
+    private var frameHistory = WindowLayoutHistory()
+    private var lastActions: [WindowLayoutWindowKey: WindowLayoutAction] = [:]
     private var hotKeyRefs: [WindowLayoutAction: EventHotKeyRef] = [:]
     private var eventHandler: EventHandlerRef?
     private var registeredShortcuts: [WindowLayoutAction: GlobalShortcut] = [:]
@@ -38,6 +41,9 @@ final class WindowLayoutService: ObservableObject {
     private var gestureRunLoopSource: CFRunLoopSource?
     private var activeGesture: WindowPointerGesture?
     private var pendingGesture: PendingWindowGesture?
+    private var assistiveModeSuspensions: [CGWindowID: EnhancedUserInterfaceSuspension] = [:]
+    private var settleTimers: [CGWindowID: Timer] = [:]
+    private var gestureAssistiveMode: EnhancedUserInterfaceSuspension?
     /// Stamped on the press this service gives back to the system so none of
     /// our own taps mistake it for a fresh one.
     private static let syntheticEventMarker: Int64 = 0x564F5253
@@ -74,6 +80,14 @@ final class WindowLayoutService: ObservableObject {
     func suspend() {
         unregisterHotkeys()
         stopGestureTap()
+        for timer in settleTimers.values { timer.invalidate() }
+        settleTimers.removeAll()
+        let suspensions = assistiveModeSuspensions.values
+        assistiveModeSuspensions.removeAll()
+        // With the grant already revoked there is no safe way to touch the
+        // apps again; the flag comes back when the assistive client sets it.
+        guard AXIsProcessTrusted() else { return }
+        for suspension in suspensions { suspension.resume() }
     }
 
     func shortcutConflictTitle(_ shortcut: GlobalShortcut) -> String? {
@@ -81,6 +95,8 @@ final class WindowLayoutService: ObservableObject {
     }
 
     func shortcutConflictTitle(_ shortcut: GlobalShortcut, excluding excluded: WindowLayoutAction?) -> String? {
+        guard AppFeature.windowLayout.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutShortcutsEnabled) else { return nil }
         let text = FeatureStrings.windowLayout(L10n.shared.language)
         return WindowLayoutAction.shortcutActions.first {
             $0 != excluded && $0.savedShortcut == shortcut
@@ -95,16 +111,38 @@ final class WindowLayoutService: ObservableObject {
         guard let target = focusedTarget() else {
             return finish(.failure(.noWindow))
         }
+        pruneWindowState(keeping: target.key)
 
         if action == .restore {
-            guard let previous = previousFrames[target.windowID] else {
+            guard let previous = frameHistory.popPrevious(for: target.key,
+                                                          current: target.frame) else {
                 return finish(.failure(.noRestore))
             }
-            return setFrame(previous, on: target.window)
-                ? finish(.success(restored: true))
-                : finish(.failure(.failed))
+            if setFrame(previous, on: target.window, windowKey: target.key) {
+                lastActions.removeValue(forKey: target.key)
+                return finish(.success(restored: true))
+            }
+            frameHistory.record(previous, for: target.key)
+            return finish(.failure(.failed))
         }
 
+        if action == .fullScreen {
+            // The native full screen the green button gives, toggled through
+            // the same attribute the button writes. The system owns the frame
+            // from here, so nothing is remembered for restore.
+            var raw: CFTypeRef?
+            AXUIElementCopyAttributeValue(target.window, "AXFullScreen" as CFString, &raw)
+            let isFullScreen = (raw as? NSNumber)?.boolValue ?? false
+            let flipped = (isFullScreen ? kCFBooleanFalse : kCFBooleanTrue) as CFTypeRef
+            let applied = AXUIElementSetAttributeValue(target.window,
+                                                       "AXFullScreen" as CFString,
+                                                       flipped) == .success
+            // Remembered like any other placement, or the "same half twice
+            // means maximize" rule would still be looking at whatever the
+            // window did before it went full screen.
+            if applied { lastActions[target.key] = .fullScreen }
+            return applied ? finish(.success(restored: false)) : finish(.failure(.failed))
+        }
         guard let screen = bestScreen(for: target.frame) else {
             return finish(.failure(.failed))
         }
@@ -116,19 +154,20 @@ final class WindowLayoutService: ObservableObject {
             let rect = WindowLayoutGeometry.rectForNextDisplay(current: currentRect,
                                                                sourceVisibleFrame: screen.visibleFrame,
                                                                destinationVisibleFrame: destination.visibleFrame)
-            previousFrames[target.windowID] = target.frame
+            frameHistory.record(target.frame, for: target.key)
             if setFrame(axFrame(fromAppKit: rect),
                         targetRect: rect,
                         screenVisibleFrame: destination.visibleFrame,
                         action: .nextDisplay,
-                        on: target.window) {
-                lastActions[target.windowID] = .nextDisplay
+                        on: target.window,
+                        windowKey: target.key) {
+                lastActions[target.key] = .nextDisplay
                 return finish(.success(restored: false))
             }
-            previousFrames.removeValue(forKey: target.windowID)
+            frameHistory.discardLatest(for: target.key)
             return finish(.failure(.failed))
         }
-        let previousAction = lastActions[target.windowID]
+        let previousAction = lastActions[target.key]
         let effectiveAction = WindowLayoutGeometry.effectiveAction(for: action,
                                                                    current: currentRect,
                                                                    visibleFrame: screen.visibleFrame,
@@ -136,20 +175,26 @@ final class WindowLayoutService: ObservableObject {
         let placement = placement(for: effectiveAction,
                                   current: target.frame,
                                   visibleFrame: screen.visibleFrame)
-        previousFrames[target.windowID] = target.frame
+        if placement.frame == target.frame {
+            lastActions[target.key] = effectiveAction
+            return finish(.success(restored: false))
+        }
+        frameHistory.record(target.frame, for: target.key)
         if setFrame(placement.frame,
                     targetRect: placement.rect,
                     screenVisibleFrame: screen.visibleFrame,
                     action: effectiveAction,
-                    on: target.window) {
-            lastActions[target.windowID] = effectiveAction
+                    on: target.window,
+                    windowKey: target.key) {
+            lastActions[target.key] = effectiveAction
             return finish(.success(restored: false))
         }
-        previousFrames.removeValue(forKey: target.windowID)
+        frameHistory.discardLatest(for: target.key)
         return finish(.failure(.failed))
     }
 
     private func finish(_ result: WindowLayoutResult) -> WindowLayoutResult {
+        resultGeneration += 1
         lastResult = result
         return result
     }
@@ -157,7 +202,7 @@ final class WindowLayoutService: ObservableObject {
     private func focusedTarget() -> WindowLayoutTarget? {
         let ownBundleID = Bundle.main.bundleIdentifier
         let frontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier
-        let pids = ([frontmost].compactMap { $0 } + AppActivationTracker.shared.mru).reduce(into: [pid_t]()) { result, pid in
+        let pids = ([frontmost].compactMap { $0 } + WindowUseTracker.shared.apps).reduce(into: [pid_t]()) { result, pid in
             if !result.contains(pid) { result.append(pid) }
         }
 
@@ -172,19 +217,20 @@ final class WindowLayoutService: ObservableObject {
             AXUIElementSetMessagingTimeout(axApp, 0.35)
             for attribute in [kAXFocusedWindowAttribute, kAXMainWindowAttribute] {
                 if let window = windowAttribute(axApp, attribute as String),
-                   let target = target(from: window) {
+                   let target = target(from: window, app: app) {
                     return target
                 }
             }
             if let windows = windowsAttribute(axApp),
-               let first = windows.compactMap(target(from:)).first {
+               let first = windows.compactMap({ target(from: $0, app: app) }).first {
                 return first
             }
         }
         return nil
     }
 
-    private func target(from window: AXUIElement) -> WindowLayoutTarget? {
+    private func target(from window: AXUIElement,
+                        app: NSRunningApplication) -> WindowLayoutTarget? {
         guard role(of: window) == (kAXWindowRole as String),
               !boolAttribute(window, "AXFullScreen"),
               canSetFrame(on: window),
@@ -193,7 +239,45 @@ final class WindowLayoutService: ObservableObject {
               frame.size.width > 80,
               frame.size.height > 80
         else { return nil }
-        return WindowLayoutTarget(window: window, windowID: windowID, frame: frame)
+        let key = WindowLayoutWindowKey(
+            processID: app.processIdentifier,
+            processLaunchTime: app.launchDate?.timeIntervalSinceReferenceDate ?? 0,
+            windowID: windowID
+        )
+        return WindowLayoutTarget(window: window, key: key, frame: frame)
+    }
+
+    /// Removes histories whose process or window no longer exists. This runs
+    /// only for an explicit layout action, never from a timer or input tap.
+    private func pruneWindowState(keeping current: WindowLayoutWindowKey) {
+        guard var activeWindows = activeWindowKeys() else { return }
+        activeWindows.insert(current)
+        frameHistory.removeStaleWindows(keeping: activeWindows)
+        lastActions = lastActions.filter { activeWindows.contains($0.key) }
+    }
+
+    private func activeWindowKeys() -> Set<WindowLayoutWindowKey>? {
+        guard let windows = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements],
+                                                       kCGNullWindowID) as? [[String: Any]]
+        else { return nil }
+        var launchTimes: [pid_t: TimeInterval] = [:]
+        var keys = Set<WindowLayoutWindowKey>()
+        for window in windows {
+            guard (window[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
+                  let pid = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
+                  let windowID = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value
+            else { continue }
+            if launchTimes[pid] == nil {
+                guard let app = NSRunningApplication(processIdentifier: pid),
+                      app.activationPolicy == .regular else { continue }
+                launchTimes[pid] = app.launchDate?.timeIntervalSinceReferenceDate ?? 0
+            }
+            guard let launchTime = launchTimes[pid] else { continue }
+            keys.insert(WindowLayoutWindowKey(processID: pid,
+                                              processLaunchTime: launchTime,
+                                              windowID: windowID))
+        }
+        return keys.isEmpty ? nil : keys
     }
 
     private func placement(for action: WindowLayoutAction,
@@ -206,39 +290,129 @@ final class WindowLayoutService: ObservableObject {
         return WindowLayoutPlacement(frame: axFrame(fromAppKit: integral), rect: integral)
     }
 
-    private func setFrame(_ frame: WindowLayoutFrame, on window: AXUIElement) -> Bool {
+    private func setFrame(_ frame: WindowLayoutFrame,
+                          on window: AXUIElement,
+                          windowKey: WindowLayoutWindowKey) -> Bool {
         setFrame(frame,
                  targetRect: appKitFrame(fromAX: frame),
                  screenVisibleFrame: appKitFrame(fromAX: frame),
                  action: .restore,
-                 on: window)
+                 on: window,
+                 windowKey: windowKey)
     }
 
     private func setFrame(_ frame: WindowLayoutFrame,
                           targetRect: NSRect,
                           screenVisibleFrame: NSRect,
                           action: WindowLayoutAction,
-                          on window: AXUIElement) -> Bool {
+                          on window: AXUIElement,
+                          windowKey: WindowLayoutWindowKey) -> Bool {
+        let windowID = windowKey.windowID
+        cancelSettle(for: windowID)
+        assistiveModeSuspensions.removeValue(forKey: windowID)?.resume()
+        assistiveModeSuspensions[windowID] = EnhancedUserInterfaceSuspension.suspend(forAppOf: window)
+
         let original = self.frame(of: window)
         if attempt(frame, targetRect: targetRect, action: action, on: window) {
+            assistiveModeSuspensions.removeValue(forKey: windowID)?.resume()
             return true
         }
 
-        if let original, shouldUseMaximizeFallback(for: action) {
+        // Some apps commit Accessibility size changes with a short delay, so
+        // the reads above can still see the old frame. Judging failure now and
+        // restoring the original is what used to leave windows moved but never
+        // resized (issue #334): let the window settle before deciding.
+        scheduleSettle(SettleContext(window: window,
+                                     windowID: windowID,
+                                     frame: frame,
+                                     targetRect: targetRect,
+                                     screenVisibleFrame: screenVisibleFrame,
+                                     action: action,
+                                     original: original,
+                                     previousAction: lastActions[windowKey],
+                                     windowKey: windowKey,
+                                     resultGeneration: resultGeneration + 1),
+                       attempt: 0)
+        return true
+    }
+
+    private func scheduleSettle(_ context: SettleContext, attempt: Int) {
+        let timer = Timer(timeInterval: 0.15, repeats: false) { [weak self] _ in
+            guard let self else { return }
+            self.settleTimers[context.windowID] = nil
+            self.continueSettle(context, attempt: attempt)
+        }
+        settleTimers[context.windowID] = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func continueSettle(_ context: SettleContext, attempt: Int) {
+        if verified(context) {
+            concludeSettle(context, success: true)
+            return
+        }
+        if self.attempt(context.frame,
+                        targetRect: context.targetRect,
+                        action: context.action,
+                        on: context.window) {
+            concludeSettle(context, success: true)
+            return
+        }
+        if attempt == 0 {
+            scheduleSettle(context, attempt: 1)
+            return
+        }
+        if let original = context.original, shouldUseMaximizeFallback(for: context.action) {
             let currentRect = appKitFrame(fromAX: original)
             let maxFrame = axFrame(fromAppKit: WindowLayoutGeometry.rect(for: .maximize,
                                                                          current: currentRect,
-                                                                         visibleFrame: screenVisibleFrame))
-            applyFrame(maxFrame, on: window)
-            if attempt(frame, targetRect: targetRect, action: action, on: window) {
-                return true
+                                                                         visibleFrame: context.screenVisibleFrame))
+            applyFrame(maxFrame, on: context.window)
+            if self.attempt(context.frame,
+                            targetRect: context.targetRect,
+                            action: context.action,
+                            on: context.window) {
+                concludeSettle(context, success: true)
+                return
             }
         }
+        concludeSettle(context, success: false)
+    }
 
-        if let original {
-            applyFrame(original, on: window)
+    private func verified(_ context: SettleContext) -> Bool {
+        guard let actual = frame(of: context.window) else { return false }
+        return actual.isClose(to: context.frame, tolerance: frameTolerance)
+            || accepted(actual: actual, targetRect: context.targetRect, action: context.action)
+    }
+
+    // The action already reported success while the window was settling, so a
+    // refusal this late restores the window, undoes the bookkeeping and
+    // republishes the result the panel feedback listens to.
+    private func concludeSettle(_ context: SettleContext, success: Bool) {
+        assistiveModeSuspensions.removeValue(forKey: context.windowID)?.resume()
+        guard !success else { return }
+        if let original = context.original {
+            applyFrame(original, on: context.window)
         }
-        return false
+        if context.action == .restore {
+            frameHistory.record(context.frame, for: context.windowKey)
+        } else {
+            frameHistory.discardLatest(for: context.windowKey)
+        }
+        if let previousAction = context.previousAction {
+            lastActions[context.windowKey] = previousAction
+        } else {
+            lastActions.removeValue(forKey: context.windowKey)
+        }
+        // A second action already published a fresh result; this stale
+        // failure must not overwrite the feedback the person is reading.
+        if context.resultGeneration == resultGeneration {
+            lastResult = .failure(.failed)
+        }
+    }
+
+    private func cancelSettle(for windowID: CGWindowID) {
+        settleTimers.removeValue(forKey: windowID)?.invalidate()
     }
 
     private func attempt(_ frame: WindowLayoutFrame,
@@ -438,6 +612,7 @@ final class WindowLayoutService: ObservableObject {
         gestureRunLoopSource = nil
         activeGesture = nil
         pendingGesture = nil
+        endGestureAssistiveMode()
         isGestureRunning = false
     }
 
@@ -561,6 +736,7 @@ final class WindowLayoutService: ObservableObject {
                 apply(gesture, pointer: event.location)
             }
             activeGesture = nil
+            endGestureAssistiveMode()
             return nil
 
         case .replayThenPass:
@@ -579,8 +755,18 @@ final class WindowLayoutService: ObservableObject {
         case .dropState:
             activeGesture = nil
             pendingGesture = nil
+            endGestureAssistiveMode()
             return Unmanaged.passUnretained(event)
         }
+    }
+
+    private func endGestureAssistiveMode() {
+        let suspension = gestureAssistiveMode
+        gestureAssistiveMode = nil
+        // With the grant revoked there is no safe way to touch the app again;
+        // the flag comes back when the assistive client sets it.
+        guard AXIsProcessTrusted() else { return }
+        suspension?.resume()
     }
 
     private func gestureChord(type: CGEventType,
@@ -641,6 +827,10 @@ final class WindowLayoutService: ObservableObject {
     /// so a plain modifier click never activates or reorders a window.
     private func promote(_ pending: PendingWindowGesture, pointer: CGPoint) {
         pendingGesture = nil
+        // Suspended for the whole gesture, not per frame write: the writes come
+        // at pointer speed and the flag only needs to move twice.
+        gestureAssistiveMode?.resume()
+        gestureAssistiveMode = EnhancedUserInterfaceSuspension.suspend(forAppOf: pending.window)
         if UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureRaiseWindow) {
             _ = pending.app.activate(options: [])
             AXUIElementPerformAction(pending.window, kAXRaiseAction as CFString)
@@ -894,8 +1084,27 @@ final class WindowLayoutService: ObservableObject {
 
 private struct WindowLayoutTarget {
     let window: AXUIElement
+    let key: WindowLayoutWindowKey
+    let frame: WindowLayoutFrame
+
+    var windowID: CGWindowID { key.windowID }
+}
+
+/// Everything the deferred settle verification needs to finish judging a
+/// discrete layout action after the grace period.
+private struct SettleContext {
+    let window: AXUIElement
     let windowID: CGWindowID
     let frame: WindowLayoutFrame
+    let targetRect: NSRect
+    let screenVisibleFrame: NSRect
+    let action: WindowLayoutAction
+    let original: WindowLayoutFrame?
+    let previousAction: WindowLayoutAction?
+    let windowKey: WindowLayoutWindowKey
+    /// Which published result this settle belongs to; a late failure only
+    /// speaks when no newer action has published since.
+    let resultGeneration: Int
 }
 
 private struct WindowLayoutPlacement {
@@ -939,18 +1148,6 @@ private struct WindowPointerGesture {
     let originalFrame: CGRect
     let pointerStart: CGPoint
     var lastAppliedAt: TimeInterval
-}
-
-private struct WindowLayoutFrame: Equatable {
-    var origin: CGPoint
-    var size: CGSize
-
-    func isClose(to other: WindowLayoutFrame, tolerance: CGFloat) -> Bool {
-        abs(origin.x - other.origin.x) <= tolerance
-            && abs(origin.y - other.origin.y) <= tolerance
-            && abs(size.width - other.size.width) <= tolerance
-            && abs(size.height - other.size.height) <= tolerance
-    }
 }
 
 private extension NSRect {

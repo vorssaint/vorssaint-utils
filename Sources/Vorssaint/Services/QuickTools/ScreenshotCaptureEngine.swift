@@ -29,6 +29,36 @@ enum ScreenshotCaptureEngine {
                                     includePointer: includePointer)
     }
 
+    static func captureDisplayRegion(displayID: CGDirectDisplayID,
+                                     pixelRect: CGRect,
+                                     includePointer: Bool) async -> CGImage? {
+        guard let content = try? await SCShareableContent.excludingDesktopWindows(
+            false, onScreenWindowsOnly: true),
+            let display = content.displays.first(where: { $0.displayID == displayID })
+        else { return nil }
+        let scale = screenScale(for: displayID)
+        let displayPixels = CGRect(x: 0, y: 0,
+                                   width: CGFloat(display.width) * scale,
+                                   height: CGFloat(display.height) * scale)
+        let clamped = ScreenshotSupport.clamp(pixelRect, to: displayPixels).integral
+        guard !clamped.isEmpty else { return nil }
+        let ownWindows = content.windows.filter {
+            $0.owningApplication?.processID == getpid()
+        }
+        let filter = SCContentFilter(display: display, excludingWindows: ownWindows)
+        let configuration = SCStreamConfiguration()
+        configuration.sourceRect = CGRect(x: clamped.minX / scale,
+                                          y: clamped.minY / scale,
+                                          width: clamped.width / scale,
+                                          height: clamped.height / scale)
+        configuration.width = max(1, Int(clamped.width))
+        configuration.height = max(1, Int(clamped.height))
+        configuration.showsCursor = includePointer
+        configuration.colorSpaceName = CGColorSpace.sRGB
+        return try? await SCScreenshotManager.captureImage(contentFilter: filter,
+                                                           configuration: configuration)
+    }
+
     /// Captures every given screen, keyed by display id. Screens that fail
     /// are simply absent; the caller decides how to degrade.
     static func captureAllDisplays(includePointer: Bool) async -> [CGDirectDisplayID: CGImage] {

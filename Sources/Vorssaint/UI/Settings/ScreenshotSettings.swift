@@ -9,15 +9,25 @@ struct ScreenshotSettings: View {
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var service = ScreenshotService.shared
     @AppStorage(DefaultsKey.screenshotShortcutEnabled) private var shortcutEnabled = false
+    @AppStorage(DefaultsKey.screenshotFullScreenShortcutEnabled)
+    private var fullScreenShortcutEnabled = false
+    @AppStorage(DefaultsKey.screenshotLastCaptureShortcutEnabled)
+    private var lastCaptureShortcutEnabled = false
     @AppStorage(DefaultsKey.screenshotFreeze) private var freeze = true
     @AppStorage(DefaultsKey.screenshotSaveFolder) private var saveFolder = ""
+    @AppStorage(DefaultsKey.screenshotSaveSubfolder) private var saveSubfolder = ""
+    @AppStorage(DefaultsKey.screenshotFileNamePattern) private var fileNamePattern = ""
+    @AppStorage(DefaultsKey.screenshotFileNumberStart) private var numberStart = 1
+    @AppStorage(DefaultsKey.screenshotFileNumberNext) private var nextNumber = 1
     @AppStorage(DefaultsKey.screenshotIncludePointer) private var includePointer = false
+    @AppStorage(DefaultsKey.screenshotShowLastRegion) private var showLastRegion = true
     @AppStorage(DefaultsKey.screenshotDownscale) private var downscale = false
     @AppStorage(DefaultsKey.screenshotDelay) private var delay = 0
+    @AppStorage(DefaultsKey.screenshotDefaultAction) private var defaultActionRaw = ""
     @AppStorage(DefaultsKey.screenshotToolOrder) private var toolOrderRaw =
         ScreenshotSupport.Tool.defaultOrderStorage
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
-    @AppStorage(DefaultsKey.screenshotOpenEditorDirectly) private var openEditorDirectly = false
+    @AppStorage(DefaultsKey.screenshotCopyToClipboard) private var copyToClipboard = false
 
     private var strings: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(l10n.language)
@@ -26,11 +36,22 @@ struct ScreenshotSettings: View {
     var body: some View {
         Form {
             Section {
-                Button {
-                    ScreenshotService.shared.capture()
-                } label: {
-                    Label(strings.captureButton, systemImage: "camera.viewfinder")
+                HStack(spacing: 10) {
+                    Button {
+                        ScreenshotService.shared.capture()
+                    } label: {
+                        Label(strings.captureButton, systemImage: "camera.viewfinder")
+                            .frame(maxWidth: .infinity)
+                    }
+                    Button {
+                        ScreenshotService.shared.captureScrolling()
+                    } label: {
+                        Label(strings.scrollingCaptureButton, systemImage: "rectangle.stack")
+                            .frame(maxWidth: .infinity)
+                    }
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
                 Text(strings.panelCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -43,6 +64,33 @@ struct ScreenshotSettings: View {
                     ScreenshotService.shared.syncWithPreferences()
                 }
                 if shortcutEnabled, service.shortcutRegistrationFailed {
+                    Text(l10n.s.shortcutUnavailable)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+                Toggle(strings.fullScreenShortcutTitle, isOn: $fullScreenShortcutEnabled)
+                    .onChange(of: fullScreenShortcutEnabled) { _, _ in
+                        ScreenshotService.shared.syncWithPreferences()
+                    }
+                ShortcutPreferenceRow(role: .screenshotFullScreen,
+                                      isEnabled: fullScreenShortcutEnabled) {
+                    ScreenshotService.shared.syncWithPreferences()
+                }
+                if fullScreenShortcutEnabled, service.fullScreenShortcutRegistrationFailed {
+                    Text(l10n.s.shortcutUnavailable)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+                Toggle(strings.editLastCapture, isOn: $lastCaptureShortcutEnabled)
+                    .onChange(of: lastCaptureShortcutEnabled) { _, _ in
+                        ScreenshotService.shared.syncWithPreferences()
+                    }
+                ShortcutPreferenceRow(role: .screenshotLastCapture,
+                                      isEnabled: lastCaptureShortcutEnabled) {
+                    ScreenshotService.shared.syncWithPreferences()
+                }
+                if lastCaptureShortcutEnabled,
+                   service.lastCaptureShortcutRegistrationFailed {
                     Text(l10n.s.shortcutUnavailable)
                         .font(.caption)
                         .foregroundStyle(.orange)
@@ -70,14 +118,18 @@ struct ScreenshotSettings: View {
                 }
                 .pickerStyle(.segmented)
                 Toggle(strings.pointerToggle, isOn: $includePointer)
-                Toggle(strings.openEditorToggle, isOn: $openEditorDirectly)
-                Text(strings.openEditorCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Toggle(strings.lastRegionToggle, isOn: $showLastRegion)
+                defaultActionRow
             }
 
             Section {
+                Toggle(strings.autoCopyToggle, isOn: $copyToClipboard)
+                Text(strings.autoCopyCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 folderRow
+                subfolderRow
+                fileNameRow
                 Toggle(strings.downscaleToggle, isOn: $downscale)
                 Text(strings.downscaleCaption)
                     .font(.caption)
@@ -93,6 +145,21 @@ struct ScreenshotSettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var defaultActionRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Picker(strings.defaultActionLabel, selection: $defaultActionRaw) {
+                Text(strings.defaultActionNone).tag(ScreenshotDefaultAction.none.rawValue)
+                Text(strings.saveButton).tag(ScreenshotDefaultAction.save.rawValue)
+                Text(strings.defaultActionSaveAndCopy).tag(ScreenshotDefaultAction.saveAndCopy.rawValue)
+                Text(strings.copyButton).tag(ScreenshotDefaultAction.copy.rawValue)
+                Text(strings.editButton).tag(ScreenshotDefaultAction.edit.rawValue)
+            }
+            Text(strings.defaultActionCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 
     private var folderRow: some View {
@@ -117,6 +184,87 @@ struct ScreenshotSettings: View {
                 chooseFolder()
             }
         }
+    }
+
+    private var subfolderRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(strings.subfolderLabel)
+                    .lineLimit(1)
+                TextField("", text: $saveSubfolder)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 150)
+                if !saveSubfolder.isEmpty {
+                    Text(ScreenshotSupport.expandSaveSubfolder(saveSubfolder, date: Date()))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            Text(strings.subfolderCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var fileNameRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(strings.fileNamePatternLabel)
+                    .lineLimit(1)
+                TextField("", text: $fileNamePattern)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 150)
+                Text(fileNamePreview)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            Text(strings.fileNamePatternCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if ScreenshotSupport.fileNamePatternUsesNumber(fileNamePattern) {
+                HStack {
+                    Text(strings.fileNumberStartLabel)
+                        .lineLimit(1)
+                    TextField("", value: $numberStart, formatter: Self.numberFieldFormatter)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 70)
+                    Stepper("", value: $numberStart, in: 0...999_999)
+                        .labelsHidden()
+                    Button(strings.fileNumberResetButton) {
+                        nextNumber = numberStart
+                    }
+                    Spacer()
+                    Text(String(format: strings.fileNumberNextFormat, nextNumber))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .onChange(of: numberStart) { _, newValue in
+                    nextNumber = newValue
+                }
+            }
+        }
+    }
+
+    private static let numberFieldFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .none
+        formatter.minimum = 0
+        formatter.maximum = 999_999
+        formatter.usesGroupingSeparator = false
+        return formatter
+    }()
+
+    private var fileNamePreview: String {
+        let trimmed = fileNamePattern.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
+        }
+        return ScreenshotSupport.expandFileNamePattern(trimmed, date: Date(), number: nextNumber) + ".png"
     }
 
     private var currentFolderName: String {

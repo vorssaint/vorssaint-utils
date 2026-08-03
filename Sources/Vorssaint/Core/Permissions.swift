@@ -224,6 +224,10 @@ final class Permissions: ObservableObject {
         open(pane: "Privacy_AllFiles")
     }
 
+    func openFilesAndFoldersSettings() {
+        open(pane: "Privacy_FilesAndFolders")
+    }
+
     /// Full Disk Access has no prompt API, and an app only shows up (toggled
     /// off) in its System Settings list once it has attempted to read a
     /// protected location. Touch likely protected paths to register the app,
@@ -285,6 +289,17 @@ final class Permissions: ObservableObject {
 
     func openAudioCaptureSettings() {
         open(pane: "Privacy_AudioCapture")
+    }
+
+    func openAppManagementSettings() {
+        let pane = URL(string:
+            "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AppBundles")!
+        if NSWorkspace.shared.open(pane) { return }
+
+        // A general Privacy & Security page is still useful if a future macOS
+        // version stops accepting the pane identifier.
+        let fallback = URL(string: "x-apple.systempreferences:com.apple.preference.security")!
+        NSWorkspace.shared.open(fallback)
     }
 
     private func open(pane: String) {

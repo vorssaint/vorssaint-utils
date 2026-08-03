@@ -5,9 +5,9 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Settings > Radial menu: the switch, the shortcut, where the wheel opens
-/// and the list of actions, with drill-down into submenus and an editor sheet
-/// per action.
+/// Settings > Radial menu: the switch, shortcut, opening behavior, placement
+/// and list of actions, with drill-down into submenus and an editor sheet per
+/// action.
 struct RadialMenuSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
@@ -15,13 +15,14 @@ struct RadialMenuSettings: View {
     @AppStorage(DefaultsKey.radialMenuEnabled) private var enabled = false
     @AppStorage(DefaultsKey.radialMenuAtPointer) private var atPointer = true
     @AppStorage(DefaultsKey.radialMenuMouseButton) private var mouseTriggerRaw = RadialMenuMouseTrigger.off.rawValue
+    @AppStorage(DefaultsKey.radialMenuActivationMode) private var activationModeRaw =
+        RadialMenuActivationMode.pressOrHold.rawValue
 
     @State private var items = RadialMenuSupport.decode(
         UserDefaults.standard.data(forKey: DefaultsKey.radialMenuItems))
     /// The submenu being edited; empty means the root wheel.
     @State private var openSubmenuID: UUID?
     @State private var editing: RadialMenuItem?
-    @State private var editingIsNew = false
     @State private var dragging: RadialMenuItem?
 
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
@@ -42,7 +43,7 @@ struct RadialMenuSettings: View {
         Form {
             Section {
                 Toggle(text.enableLabel, isOn: $enabled)
-                Text(text.enableCaption)
+                Text(text.hubDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 ShortcutPreferenceRow(role: .radialMenu, isEnabled: enabled) {
@@ -53,6 +54,18 @@ struct RadialMenuSettings: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
+                Picker(text.activationModeLabel, selection: $activationModeRaw) {
+                    Text(text.activationModePressOrHold)
+                        .tag(RadialMenuActivationMode.pressOrHold.rawValue)
+                    Text(text.activationModePress)
+                        .tag(RadialMenuActivationMode.press.rawValue)
+                    Text(text.activationModeHold)
+                        .tag(RadialMenuActivationMode.hold.rawValue)
+                }
+                .disabled(!enabled)
+                Text(text.activationModeCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Picker(text.mouseTriggerLabel, selection: $mouseTriggerRaw) {
                     Text(text.mouseTriggerOff).tag(RadialMenuMouseTrigger.off.rawValue)
                     Text(text.mouseTriggerBack).tag(RadialMenuMouseTrigger.back.rawValue)
@@ -92,7 +105,9 @@ struct RadialMenuSettings: View {
                !permissions.accessibility {
                 Section {
                     PermissionRow(kind: .accessibility)
-                    Text(text.permissionCaption)
+                    Text(RadialMenuSupport.usesWindowLayout(items)
+                         ? FeatureStrings.windowLayout(l10n.language).missingPermission
+                         : text.permissionCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -120,7 +135,6 @@ struct RadialMenuSettings: View {
                                   text: text,
                                   dragging: $dragging,
                                   edit: {
-                                      editingIsNew = false
                                       editing = item
                                   },
                                   remove: { remove(id: item.id) },
@@ -133,7 +147,6 @@ struct RadialMenuSettings: View {
                         // to the item id, so state can never leak from one
                         // add into the next (a leaked id made every save
                         // replace the previous action instead of appending).
-                        editingIsNew = true
                         editing = RadialMenuItem(kind: .app)
                     } label: {
                         Label(text.addButton, systemImage: "plus")
@@ -152,12 +165,18 @@ struct RadialMenuSettings: View {
         // never stays stuck at reduced opacity.
         .onDrop(of: [UTType.text], delegate: RadialDragCleanupDelegate(dragging: $dragging))
         .sheet(item: $editing) { item in
+            let isNew = !level.contains { $0.id == item.id }
             RadialItemEditor(text: text,
                              item: item,
-                             isNew: editingIsNew,
+                             isNew: isNew,
                              allowsSubmenu: openSubmenuID == nil,
-                             save: { upsert($0) },
-                             delete: editingIsNew ? nil : { remove(id: item.id) })
+                             save: { saved in
+                                 upsert(saved)
+                                 if isNew, saved.kind == .submenu {
+                                     openSubmenuID = saved.id
+                                 }
+                             },
+                             delete: isNew ? nil : { remove(id: item.id) })
         }
         .onChange(of: enabled) { _, on in
             RadialMenuService.shared.syncWithPreferences()
@@ -260,6 +279,7 @@ private struct RadialItemRow: View {
         case .url: return text.kindURL
         case .shortcut: return text.kindShortcut
         case .tool: return text.kindTool
+        case .windowLayout: return FeatureStrings.windowLayout(L10n.shared.language).title
         case .media: return text.kindMedia
         case .submenu: return text.kindSubmenu
         }
@@ -285,9 +305,10 @@ private struct RadialItemRow: View {
             .buttonStyle(.plain)
             if let openChildren {
                 Button(action: openChildren) {
-                    Label(text.editActionsButton, systemImage: "chevron.forward")
-                        .labelStyle(.iconOnly)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 5) {
+                        Text(text.editActionsButton)
+                        Image(systemName: "chevron.forward")
+                    }
                 }
                 .buttonStyle(.borderless)
                 .help(text.editActionsButton)
@@ -399,7 +420,7 @@ private struct RadialItemEditor: View {
     }
 
     private var availableTools: [RadialMenuTool] {
-        RadialMenuTool.allCases.filter { $0.feature.isAvailable }
+        RadialMenuTool.allCases.filter { $0.isRunnable() }
     }
 
     private var urlIsInvalid: Bool {
@@ -425,6 +446,10 @@ private struct RadialItemEditor: View {
                     Text(text.kindShortcut).tag(RadialMenuItem.Kind.shortcut)
                     if !availableTools.isEmpty {
                         Text(text.kindTool).tag(RadialMenuItem.Kind.tool)
+                    }
+                    if AppFeature.windowLayout.isAvailable {
+                        Text(FeatureStrings.windowLayout(l10n.language).title)
+                            .tag(RadialMenuItem.Kind.windowLayout)
                     }
                     Text(text.kindMedia).tag(RadialMenuItem.Kind.media)
                     if allowsSubmenu {
@@ -492,6 +517,7 @@ private struct RadialItemEditor: View {
             shortcutMessage = nil
             switch kind {
             case .tool: item.payload = availableTools.first?.rawValue ?? ""
+            case .windowLayout: item.payload = WindowLayoutAction.leftHalf.rawValue
             case .media: item.payload = RadialMenuMediaKey.playPause.rawValue
             default: item.payload = ""
             }
@@ -544,6 +570,14 @@ private struct RadialItemEditor: View {
                 ForEach(availableTools) { tool in
                     Text(tool.feature.hubTitle(l10n.s, hub: FeatureStrings.hub(l10n.language)))
                         .tag(tool.rawValue)
+                }
+            }
+        case .windowLayout:
+            let windowText = FeatureStrings.windowLayout(l10n.language)
+            Picker(windowText.title, selection: $item.payload) {
+                ForEach(WindowLayoutAction.allCases) { action in
+                    Label(action.title(windowText), systemImage: action.symbolName)
+                        .tag(action.rawValue)
                 }
             }
         case .media:

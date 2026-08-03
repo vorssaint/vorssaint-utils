@@ -147,11 +147,23 @@ final class SmoothScrollService: ObservableObject {
         guard !event.flags.contains(.maskControl) else {
             return Unmanaged.passUnretained(event)
         }
+        // Apps on this feature's exception list get their wheel raw: the
+        // glide would arrive as a much longer move inside apps that read the
+        // wheel themselves (issue #358).
+        let exceptions = MouseAppExceptions.shared
+        guard !exceptions.excludesPointerTarget(.smoothScroll, at: event.location) else {
+            return Unmanaged.passUnretained(event)
+        }
 
         // The head tap swallows the tick before the inverter's tail tap can
         // reach it, so when inverting is on the wheel's vertical flip is
         // applied here; the glide is marked so the inverter leaves it alone.
-        let invert = ScrollInverter.shared.isRunning ? -1.0 : 1.0
+        // The flip is the inverter's, so it follows the inverter's own
+        // exception list: an app excepted there must keep the system's
+        // direction even while its wheel glides.
+        let invertHere = ScrollInverter.shared.isRunning
+            && !exceptions.excludesPointerTarget(.scrollDirection, at: event.location)
+        let invert = invertHere ? -1.0 : 1.0
         let shiftPressed = event.flags.contains(.maskShift)
         let vertical: Double
         let horizontal: Double

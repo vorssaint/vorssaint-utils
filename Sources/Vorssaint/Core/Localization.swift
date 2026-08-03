@@ -323,11 +323,17 @@ struct Strings {
     let switcherWindowShortcutCaption: String
     let switcherMergeTabs: String
     let switcherMergeTabsCaption: String
-    let switcherShowFinder: String
-    let switcherShowFinderCaption: String
+    let switcherWindowlessApps: String
+    let switcherWindowlessAppsCaption: String
+    let switcherWindowlessAppsOff: String
+    let switcherWindowlessAppsFinder: String
+    let switcherWindowlessAppsAll: String
+    let switcherNoOpenWindow: String
     let dockPreviewName: String
     let dockPreviewEnable: String
     let dockPreviewEnableCaption: String
+    let dockPreviewBackgroundOpacity: String
+    let dockPreviewBackgroundOpacityCaption: String
     let dockClickMinimize: String
     let dockClickMinimizeCaption: String
     let dockClickCycleWindows: String
@@ -345,10 +351,6 @@ struct Strings {
     let dockPreviewClosePanel: String
     let dockPreviewPreviousWindow: String
     let dockPreviewNextWindow: String
-    let dockPreviewIntroPeek: String
-    let dockPreviewIntroSettingsHint: String
-    let dockPreviewIntroLater: String
-    let dockPreviewIntroEnable: String
 
     // MARK: Feature — cut & paste in Finder
     let cutPasteName: String
@@ -655,7 +657,10 @@ struct Strings {
     let mixerInputFallback: String
     let mixerInputTooltip: String
     let mixerInputErrorFormat: String
-    let mixerShowFinder: String
+    let mixerVisibleApps: String
+    let mixerAllShown: String
+    let mixerHiddenCountLabel: String
+    let mixerHideFromList: String
 
     // MARK: Settings — updates
     let updatesSection: String
@@ -922,7 +927,7 @@ struct Strings {
     let supportIntroTitle: String
     let supportIntroMessage: String
     let supportIntroStarButton: String
-    let supportIntroCoffeeButton: String
+    let supportIntroSponsorButton: String
     let supportIntroLaterButton: String
     let supportIntroDoneButton: String
     let communityIntroTitle: String
@@ -1023,9 +1028,16 @@ struct Strings {
     let highlightsTitle: String
     let highlightsCaptionDockPreview: String
     let highlightsCaptionScreenshot: String
+    let highlightsCaptionSnippetLibrary: String
     let highlightsConfigure: String
     let highlightsTry: String
     let highlightsSeeAll: String
+    let switcherCurrentSpaceOnly: String
+    let switcherCurrentSpaceOnlyCaption: String
+    let shelfFileMissing: String
+    let previewSizeSmall: String
+    let mixerSoundEffectsOutputTitle: String
+    let mixerSoundEffectsOutputTooltip: String
 }
 
 // MARK: - Português (Brasil)
@@ -1223,7 +1235,7 @@ extension Strings {
         switcherSection: "Alternador de apps",
         switcherEnable: "Usar o alternador do Vorssaint",
         switcherEnableCaption: "Troque de app ou janela, inclusive janelas minimizadas e várias janelas do mesmo app.",
-        switcherUsageHint: "Segure o atalho para navegar; solte para ativar a janela. Shift ou ← volta; Q fecha o app selecionado; Esc cancela.",
+        switcherUsageHint: "Segure o atalho para navegar; solte para ativar a janela. Shift ou ← volta; W fecha a janela; Q encerra o app; Esc cancela.",
         switcherNoWindows: "Nenhuma janela aberta",
         switcherIconRowMode: "Mostrar ⌘Tab com ícones grandes",
         switcherIconRowModeCaption: "Mostra um ícone por app com os previews das janelas do app acima.",
@@ -1234,11 +1246,17 @@ extension Strings {
         switcherWindowShortcutCaption: "Com o seletor aberto, pula entre as janelas do app selecionado.",
         switcherMergeTabs: "Mostrar uma entrada por app",
         switcherMergeTabsCaption: "Junta todas as janelas de um app em uma só entrada no alternador, em vez de uma por janela.",
-        switcherShowFinder: "Mostrar Finder sem janelas",
-        switcherShowFinderCaption: "Mostra o Finder no alternador mesmo quando nenhuma janela do Finder estiver aberta.",
+        switcherWindowlessApps: "Apps sem janela aberta",
+        switcherWindowlessAppsCaption: "Escolhe quais apps que estão abertos sem nenhuma janela aparecem no alternador.",
+        switcherWindowlessAppsOff: "Não mostrar",
+        switcherWindowlessAppsFinder: "Só o Finder",
+        switcherWindowlessAppsAll: "Todos os apps",
+        switcherNoOpenWindow: "Sem janela aberta",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Pré-visualizar janelas no Dock",
         dockPreviewEnableCaption: "Passe o mouse em um app aberto no Dock para ver e espiar suas janelas.",
+        dockPreviewBackgroundOpacity: "Fundo do painel",
+        dockPreviewBackgroundOpacityCaption: "Diminua para ver mais do que está atrás do painel.",
         dockClickMinimize: "Clicar no Dock minimiza",
         dockClickMinimizeCaption: "As janelas do app ativo são minimizadas ao clicar no ícone dele no Dock. Clique de novo para trazê-las de volta.",
         dockClickCycleWindows: "Clicar no Dock alterna janelas",
@@ -1256,10 +1274,6 @@ extension Strings {
         dockPreviewClosePanel: "Fechar prévia",
         dockPreviewPreviousWindow: "Janela anterior",
         dockPreviewNextWindow: "Próxima janela",
-        dockPreviewIntroPeek: "Passe o mouse em uma miniatura para espiar. Clique para abrir a janela.",
-        dockPreviewIntroSettingsHint: "Você pode mudar isso depois em Ajustes › Switcher.",
-        dockPreviewIntroLater: "Agora não",
-        dockPreviewIntroEnable: "Ativar Dock Preview",
 
         cutPasteName: "Recortar e colar",
         cutPasteEnable: "Recortar e colar arquivos no Finder",
@@ -1557,7 +1571,10 @@ extension Strings {
         mixerInputFallback: "Usando o padrão até esse microfone voltar.",
         mixerInputTooltip: "Escolher microfone",
         mixerInputErrorFormat: "Não foi possível trocar: %@",
-        mixerShowFinder: "Mostrar Finder",
+        mixerVisibleApps: "Apps na lista",
+        mixerAllShown: "Todos",
+        mixerHiddenCountLabel: "Escondidos",
+        mixerHideFromList: "Esconder da lista",
 
         updatesSection: "Atualizações",
         autoCheckToggle: "Procurar atualizações automaticamente",
@@ -1805,13 +1822,13 @@ extension Strings {
         shortcutsPageTitle: "Atalhos de teclado",
         settingsSearchPlaceholder: "Buscar ajustes",
         donateHeading: "Apoie o Vorssaint",
-        donateMessage: "Todos os meus projetos públicos são, e sempre serão, totalmente gratuitos: sem assinatura, sem anúncios. O apoio da comunidade é a única forma de manter tudo vivo. Se o Vorssaint te ajuda, um café faz diferença de verdade.",
-        donateButton: "Buy me a coffee",
+        donateMessage: "Todos os meus projetos públicos são, e sempre serão, totalmente gratuitos: sem assinatura, sem anúncios. O apoio da comunidade é a única forma de manter tudo vivo. Se o Vorssaint te ajuda, virar apoiador no GitHub faz diferença de verdade.",
+        donateButton: "Apoiar no GitHub",
         donateThanks: "Obrigado por estar aqui. 🖤",
         supportIntroTitle: "O Vorssaint é 100% gratuito e sempre será",
-        supportIntroMessage: "Eu sigo cuidando do app no meu tempo livre. Se ele te ajuda, você pode me ajudar de um jeito simples, divulgando, deixando uma estrela no GitHub ou pagando um café. Isso me ajuda muito a continuar trazendo melhorias.",
+        supportIntroMessage: "Eu sigo cuidando do app no meu tempo livre. Se ele te ajuda, você pode me ajudar de um jeito simples, divulgando, deixando uma estrela no GitHub ou virando apoiador por lá. Isso me ajuda muito a continuar trazendo melhorias.",
         supportIntroStarButton: "Dar uma estrela",
-        supportIntroCoffeeButton: "Buy me a coffee",
+        supportIntroSponsorButton: "Apoiar no GitHub",
         supportIntroLaterButton: "Agora não",
         supportIntroDoneButton: "Concluir",
         communityIntroTitle: "Vem ver antes de todo mundo",
@@ -1844,7 +1861,7 @@ extension Strings {
         shortcutConflictFormat: "Este atalho já está em uso por %@.",
         shortcutUnavailable: "O macOS recusou este atalho. Escolha outro.",
         shelfShortcutToggle: "Atalho da área temporária",
-        switcherUsageHintFormat: "Segure %@ para navegar; solte para ativar a janela. Shift ou ← volta; Q fecha o app selecionado; Esc cancela.",
+        switcherUsageHintFormat: "Segure %@ para navegar; solte para ativar a janela. Shift ou ← volta; W fecha a janela; Q encerra o app; Esc cancela.",
         musicBlockSection: "Teclas de mídia",
         musicBlockTitle: "Impedir que o Música abra sozinho",
         musicBlockCaption: "O app Música deixa de abrir ao tocar nas teclas de mídia. Desative para voltar a usar o Música.",
@@ -1906,9 +1923,16 @@ extension Strings {
         highlightsTitle: "Novidades desta versão",
         highlightsCaptionDockPreview: "O Dock Preview agora funciona com a ampliação do Dock ligada",
         highlightsCaptionScreenshot: "A captura de tela ganhou uma lupa de pixels e leitura de QR codes",
+        highlightsCaptionSnippetLibrary: "Um menu de snippets com busca digita qualquer snippet direto no cursor",
         highlightsConfigure: "Configurar",
         highlightsTry: "Experimentar",
-        highlightsSeeAll: "Ver todas as mudanças"
+        highlightsSeeAll: "Ver todas as mudanças",
+        switcherCurrentSpaceOnly: "Mostrar só a Mesa atual",
+        switcherCurrentSpaceOnlyCaption: "Mostra no alternador apenas as janelas da Mesa em que você está. Escolher uma janela nunca leva você para outra Mesa.",
+        shelfFileMissing: "O arquivo não existe mais",
+        previewSizeSmall: "Pequeno",
+        mixerSoundEffectsOutputTitle: "Sons do sistema",
+        mixerSoundEffectsOutputTooltip: "Escolher onde alertas e efeitos sonoros tocam"
     )
 }
 
@@ -2107,7 +2131,7 @@ extension Strings {
         switcherSection: "App switcher",
         switcherEnable: "Use the Vorssaint switcher",
         switcherEnableCaption: "Switch between apps and windows, including minimized windows and multiple windows from the same app.",
-        switcherUsageHint: "Hold the shortcut to navigate; release to activate the window. Shift or ← goes back; Q quits the selected app; Esc cancels.",
+        switcherUsageHint: "Hold the shortcut to navigate; release to activate the window. Shift or ← goes back; W closes the window; Q quits the app; Esc cancels.",
         switcherNoWindows: "No open windows",
         switcherIconRowMode: "Show ⌘Tab with large icons",
         switcherIconRowModeCaption: "Shows one icon per app with that app's window previews above it.",
@@ -2118,11 +2142,17 @@ extension Strings {
         switcherWindowShortcutCaption: "While the switcher is open, jumps between the selected app's windows.",
         switcherMergeTabs: "Show one entry per app",
         switcherMergeTabsCaption: "Collapses all of an app's windows into one entry in the switcher, instead of one entry per window.",
-        switcherShowFinder: "Show Finder without windows",
-        switcherShowFinderCaption: "Shows Finder in the switcher even when no Finder window is open.",
+        switcherWindowlessApps: "Apps with no open window",
+        switcherWindowlessAppsCaption: "Chooses which running apps with no window at all show up in the switcher.",
+        switcherWindowlessAppsOff: "Do not show",
+        switcherWindowlessAppsFinder: "Finder only",
+        switcherWindowlessAppsAll: "All apps",
+        switcherNoOpenWindow: "No open window",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Preview windows from the Dock",
         dockPreviewEnableCaption: "Hover over an open app in the Dock to preview and peek at its windows.",
+        dockPreviewBackgroundOpacity: "Panel background",
+        dockPreviewBackgroundOpacityCaption: "Turn it down to see more of what sits behind the panel.",
         dockClickMinimize: "Click the Dock icon to minimize",
         dockClickMinimizeCaption: "The active app's windows minimize when you click its Dock icon. Click again to bring them back.",
         dockClickCycleWindows: "Click the Dock icon to cycle windows",
@@ -2140,10 +2170,6 @@ extension Strings {
         dockPreviewClosePanel: "Close preview",
         dockPreviewPreviousWindow: "Previous window",
         dockPreviewNextWindow: "Next window",
-        dockPreviewIntroPeek: "Hover over a thumbnail to peek. Click to open the window.",
-        dockPreviewIntroSettingsHint: "You can change this later in Settings › Switcher.",
-        dockPreviewIntroLater: "Not now",
-        dockPreviewIntroEnable: "Enable Dock Preview",
 
         cutPasteName: "Cut & paste",
         cutPasteEnable: "Cut & paste files in Finder",
@@ -2441,7 +2467,10 @@ extension Strings {
         mixerInputFallback: "Using default until this microphone returns.",
         mixerInputTooltip: "Choose microphone",
         mixerInputErrorFormat: "Could not switch: %@",
-        mixerShowFinder: "Show Finder",
+        mixerVisibleApps: "Apps in the list",
+        mixerAllShown: "All",
+        mixerHiddenCountLabel: "Hidden",
+        mixerHideFromList: "Hide from the list",
 
         updatesSection: "Updates",
         autoCheckToggle: "Check for updates automatically",
@@ -2689,13 +2718,13 @@ extension Strings {
         shortcutsPageTitle: "Keyboard shortcuts",
         settingsSearchPlaceholder: "Search settings",
         donateHeading: "Support Vorssaint",
-        donateMessage: "Every one of my public projects is, and always will be, completely free: no subscription, no ads. Community support is the only thing that keeps it alive. If Vorssaint helps you, a coffee genuinely makes a difference.",
-        donateButton: "Buy me a coffee",
+        donateMessage: "Every one of my public projects is, and always will be, completely free: no subscription, no ads. Community support is the only thing that keeps it alive. If Vorssaint helps you, becoming a sponsor on GitHub genuinely makes a difference.",
+        donateButton: "Sponsor on GitHub",
         donateThanks: "Thank you for being here. 🖤",
         supportIntroTitle: "Vorssaint is 100% free and always will be",
-        supportIntroMessage: "I keep taking care of the app in my free time. If it helps you, you can help me in a simple way by sharing it, leaving a star on GitHub or buying me a coffee. It helps me a lot to keep improving it.",
+        supportIntroMessage: "I keep taking care of the app in my free time. If it helps you, you can help me in a simple way by sharing it, leaving a star on GitHub or sponsoring me there. It helps me a lot to keep improving it.",
         supportIntroStarButton: "Leave a star",
-        supportIntroCoffeeButton: "Buy me a coffee",
+        supportIntroSponsorButton: "Sponsor on GitHub",
         supportIntroLaterButton: "Not now",
         supportIntroDoneButton: "Done",
         communityIntroTitle: "See it before everyone else",
@@ -2728,7 +2757,7 @@ extension Strings {
         shortcutConflictFormat: "This shortcut is already used by %@.",
         shortcutUnavailable: "macOS rejected this shortcut. Choose another one.",
         shelfShortcutToggle: "Shelf shortcut",
-        switcherUsageHintFormat: "Hold %@ to navigate; release to activate the window. Shift or ← goes back; Q quits the selected app; Esc cancels.",
+        switcherUsageHintFormat: "Hold %@ to navigate; release to activate the window. Shift or ← goes back; W closes the window; Q quits the app; Esc cancels.",
         musicBlockSection: "Media keys",
         musicBlockTitle: "Stop Music from opening on its own",
         musicBlockCaption: "The Music app no longer opens when you press the media keys. Turn this off to use Music again.",
@@ -2790,8 +2819,15 @@ extension Strings {
         highlightsTitle: "New in this update",
         highlightsCaptionDockPreview: "Dock Preview now works with Dock magnification turned on",
         highlightsCaptionScreenshot: "The screenshot tool gained a pixel loupe and QR code reading",
+        highlightsCaptionSnippetLibrary: "A searchable snippet menu types any snippet right at your cursor",
         highlightsConfigure: "Set up",
         highlightsTry: "Try it",
-        highlightsSeeAll: "See all changes"
+        highlightsSeeAll: "See all changes",
+        switcherCurrentSpaceOnly: "Show only the current desktop",
+        switcherCurrentSpaceOnlyCaption: "Lists only windows from the desktop you are on. Picking a window never moves you to another desktop.",
+        shelfFileMissing: "The file no longer exists",
+        previewSizeSmall: "Small",
+        mixerSoundEffectsOutputTitle: "System sounds",
+        mixerSoundEffectsOutputTooltip: "Choose where alerts and sound effects play"
     )
 }

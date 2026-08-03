@@ -117,26 +117,32 @@ final class FeatureRuntime: ObservableObject {
     /// their surfaces simply follow availability in the UI.
     private static let bindings: [AppFeature: () -> Void] = [
         .switcher: {
-            AppActivationTracker.shared.syncWithFeatures()
+            WindowUseTracker.shared.syncWithFeatures()
             AppSwitcher.shared.syncWithPreferences()
         },
         .dockPreview: { DockPreviewService.shared.syncWithPreferences() },
         .dockClick: { DockClickService.shared.syncWithPreferences() },
         .windowMaximizer: { WindowMaximizer.shared.syncWithPreferences() },
         .windowLayout: {
-            AppActivationTracker.shared.syncWithFeatures()
+            WindowUseTracker.shared.syncWithFeatures()
             WindowLayoutService.shared.syncWithPreferences()
         },
         .autoQuit: { AutoQuitService.shared.syncWithPreferences() },
         .scrollInverter: { ScrollInverter.shared.syncWithPreferences() },
         .smoothScroll: { SmoothScrollService.shared.syncWithPreferences() },
         .mouseNavigation: { MouseNavigationService.shared.syncWithPreferences() },
+        .mouseButtonShortcuts: { MouseButtonShortcutService.shared.syncWithPreferences() },
         .middleClick: { MiddleClickService.shared.syncWithPreferences() },
         .keyboardDebounce: { KeyboardDebounceService.shared.syncWithPreferences() },
-        .textSnippets: { TextSnippetService.shared.syncWithPreferences() },
+        .superKey: { SuperKeyService.shared.syncWithPreferences() },
+        .textSnippets: {
+            TextSnippetService.shared.syncWithPreferences()
+            SnippetLibraryService.shared.syncWithPreferences()
+        },
         .clipboardHistory: { ClipboardHistoryService.shared.syncWithPreferences() },
         .pastePlain: { PastePlainService.shared.syncWithPreferences() },
         .finderCutPaste: { FinderCutPaste.shared.syncWithPreferences() },
+        .finderRename: { FinderRenameService.shared.syncWithPreferences() },
         .shelf: { ShelfService.shared.syncWithPreferences() },
         .urlCleaner: { URLCleanerService.shared.syncWithPreferences() },
         .mixer: {
@@ -156,10 +162,21 @@ final class FeatureRuntime: ObservableObject {
         .colorPicker: { ColorSamplerService.shared.syncWithPreferences() },
         .screenOCR: { ScreenTextService.shared.syncWithPreferences() },
         .screenshot: { ScreenshotService.shared.syncWithPreferences() },
+        .screenRecorder: { ScreenRecorderService.shared.syncWithPreferences() },
         .cameraPreview: { CameraPreviewService.shared.syncWithPreferences() },
         .radialMenu: { RadialMenuService.shared.syncWithPreferences() },
         .scratchpad: { ScratchpadService.shared.syncWithPreferences() },
-        .cleaner: { CleanerScheduler.shared.syncWithPreferences() },
+        .commandBar: { CommandBarService.shared.syncWithPreferences() },
+        .cleaner: {
+            CleanerScheduler.shared.syncWithPreferences()
+            WhatsAppDownloadScheduler.shared.syncWithPreferences()
+            WhatsAppDownloadOrganizer.shared.syncWithPreferences()
+            if !AppFeature.cleaner.isAvailable {
+                WhatsAppDownloadManager.shared.reset()
+                WhatsAppDownloadOrganizer.shared.stop()
+            }
+        },
+        .appUpdates: { AppUpdatesService.shared.syncWithPreferences() },
         .monitorCPU: { FeatureRuntime.syncMonitor() },
         .monitorGPU: { FeatureRuntime.syncMonitor() },
         .monitorMemory: { FeatureRuntime.syncMonitor() },

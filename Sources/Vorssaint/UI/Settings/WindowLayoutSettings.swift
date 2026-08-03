@@ -121,6 +121,7 @@ struct WindowLayoutSettings: View {
 
             Section(text.other) {
                 actionRow(.maximize)
+                actionRow(.fullScreen)
                 actionRow(.center)
                 actionRow(.nextDisplay)
                 actionRow(.restore)
@@ -171,6 +172,7 @@ struct WindowLayoutSettings: View {
         case .bottomLeft: return "arrow.down.left"
         case .bottomRight: return "arrow.down.right"
         case .maximize: return "arrow.up.left.and.arrow.down.right"
+        case .fullScreen: return "rectangle.fill"
         case .center: return "scope"
         case .nextDisplay: return "arrow.right.to.line"
         case .restore: return "arrow.uturn.backward"
@@ -294,7 +296,7 @@ private struct WindowLayoutActionRow: View {
     }
 
     private func save(_ shortcut: GlobalShortcut) {
-        if let conflict = GlobalShortcutRole.allCases.first(where: { $0.savedShortcut == shortcut }) {
+        if let conflict = GlobalShortcutRole.conflict(for: shortcut, excluding: nil) {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict.title(l10n.s))
             return
         }

@@ -29,6 +29,8 @@ Vorssaint opens only a few kinds of connection, and each one belongs to a visibl
 
 3. **Homebrew actions, only when you use the Homebrew manager.** Search, install and uninstall actions run the local `brew` command, which may contact Homebrew, GitHub and package vendor hosts to search metadata or download files. Popularity badges use Homebrew's public aggregate analytics JSON from `formulae.brew.sh`. Vorssaint does not send its own analytics, capture passwords or run `brew` as root.
 
+4. **The app update check, only with App updates switched on.** Finding out which apps are behind has two halves. The Homebrew half runs the local `brew` command, exactly as above. The App Store half asks Apple's public lookup service at `itunes.apple.com` which version is current, and to do that it sends the bundle identifiers of the apps you installed from the App Store, plus your Mac's region. Nothing else about those apps leaves the Mac, and no account or identifier of yours goes along. The check runs when you open the list or press Check now, and on a schedule only if you set one; the switch "Include apps from the App Store" under App updates turns this half off entirely, and then the whole check stays on your Mac.
+
 That is the entire list. There are no Vorssaint servers, no hidden beacons and no background uploads.
 
 ## Changes to this document

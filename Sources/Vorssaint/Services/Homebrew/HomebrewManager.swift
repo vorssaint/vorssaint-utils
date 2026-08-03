@@ -207,6 +207,19 @@ final class HomebrewManager: ObservableObject {
         perform(.upgradeAll, package: nil)
     }
 
+    /// Upgrades exactly the casks asked for, through the same single
+    /// operation lane as every other Homebrew action, so the app never runs
+    /// two package commands at once. Used by the app update list, where the
+    /// person picks which apps to update.
+    func upgradeCasks(_ tokens: [String]) {
+        guard operation == nil,
+              let brewPath = brewPath ?? detectBrewPath(),
+              let command = HomebrewCommandBuilder.upgradeCasks(brewPath: brewPath, tokens: tokens) else {
+            return
+        }
+        perform(.upgradeAll, package: nil, command: command)
+    }
+
     func updateHomebrew() {
         perform(.updateHomebrew, package: nil)
     }
@@ -279,28 +292,13 @@ final class HomebrewManager: ObservableObject {
         return true
     }
 
-    private func perform(_ action: HomebrewOperation.Action, package: HomebrewPackage?) {
+    private func perform(_ action: HomebrewOperation.Action,
+                         package: HomebrewPackage?,
+                         command commandOverride: HomebrewCommand? = nil) {
         guard operation == nil else { return }
         guard let brewPath = brewPath ?? detectBrewPath() else { return }
-        let command: HomebrewCommand
-        switch action {
-        case .install:
-            guard let package,
-                  HomebrewCommandBuilder.isValidToken(package.name) else { return }
-            command = HomebrewCommandBuilder.install(brewPath: brewPath, package: package)
-        case .uninstall:
-            guard let package,
-                  HomebrewCommandBuilder.isValidToken(package.name) else { return }
-            command = HomebrewCommandBuilder.uninstall(brewPath: brewPath, package: package)
-        case .upgrade:
-            guard let package,
-                  HomebrewCommandBuilder.isValidToken(package.name) else { return }
-            command = HomebrewCommandBuilder.upgrade(brewPath: brewPath, package: package)
-        case .upgradeAll:
-            command = HomebrewCommandBuilder.upgradeAll(brewPath: brewPath)
-        case .updateHomebrew:
-            command = HomebrewCommandBuilder.update(brewPath: brewPath)
-        }
+        guard let command = commandOverride
+                ?? standardCommand(for: action, package: package, brewPath: brewPath) else { return }
         operation = HomebrewOperation(action: action, package: package)
         operationStatus = HomebrewOperationStatus(action: action,
                                                   package: package,
@@ -357,6 +355,25 @@ final class HomebrewManager: ObservableObject {
                 }
                 self.cancelRequested = false
             }
+        }
+    }
+
+    private func standardCommand(for action: HomebrewOperation.Action,
+                                 package: HomebrewPackage?,
+                                 brewPath: String) -> HomebrewCommand? {
+        switch action {
+        case .install, .uninstall, .upgrade:
+            guard let package,
+                  HomebrewCommandBuilder.isValidToken(package.name) else { return nil }
+            switch action {
+            case .install: return HomebrewCommandBuilder.install(brewPath: brewPath, package: package)
+            case .uninstall: return HomebrewCommandBuilder.uninstall(brewPath: brewPath, package: package)
+            default: return HomebrewCommandBuilder.upgrade(brewPath: brewPath, package: package)
+            }
+        case .upgradeAll:
+            return HomebrewCommandBuilder.upgradeAll(brewPath: brewPath)
+        case .updateHomebrew:
+            return HomebrewCommandBuilder.update(brewPath: brewPath)
         }
     }
 

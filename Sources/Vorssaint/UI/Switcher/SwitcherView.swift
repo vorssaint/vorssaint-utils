@@ -15,6 +15,20 @@ private enum SwitcherIconStyle {
     static let thumbnailBackground = Color.primary.opacity(0.055)
 }
 
+private extension SwitcherItem {
+    /// Whether this entry stands for the app itself because it has no window
+    /// to switch to. Those entries have no thumbnail to draw and no window to
+    /// name, so several places have to present them differently.
+    var isAppEntry: Bool { windowID == nil }
+
+    /// What the screen reader hears. An app entry replaces the window title
+    /// with its state on screen, so the label has to carry that state too or
+    /// the entry sounds identical to a window of the same app.
+    func spokenLabel(noOpenWindow: String) -> String {
+        isAppEntry ? "\(appName), \(noOpenWindow)" : accessibilityTitle
+    }
+}
+
 /// Content of the switcher panel: a grid of large window cards with live
 /// thumbnails, hover/keyboard selection and a springy highlight.
 struct SwitcherView: View {
@@ -233,7 +247,7 @@ struct SwitcherView: View {
                                 .foregroundStyle(SwitcherIconStyle.text)
                                 .lineLimit(1)
                                 .truncationMode(.tail)
-                            Text(selected.displayTitle)
+                            Text(selected.isAppEntry ? l10n.s.switcherNoOpenWindow : selected.displayTitle)
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundStyle(SwitcherIconStyle.secondaryText)
                                 .lineLimit(1)
@@ -322,7 +336,7 @@ struct SwitcherView: View {
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(Capsule(style: .continuous).fill(SwitcherIconStyle.tile))
-                    Text(selected.displayTitle)
+                    Text(selected.isAppEntry ? l10n.s.switcherNoOpenWindow : selected.displayTitle)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(SwitcherIconStyle.secondaryText)
                         .lineLimit(1)
@@ -477,13 +491,15 @@ private struct SwitcherWindowTitleChip: View {
     let onSelect: () -> Void
     let onHover: (Bool) -> Void
 
+    @ObservedObject private var l10n = L10n.shared
+
     var body: some View {
         HStack(spacing: 4) {
             if window.isMinimized {
                 Image(systemName: "minus.rectangle")
                     .font(.system(size: 9, weight: .semibold))
             }
-            Text(window.displayTitle)
+            Text(window.isAppEntry ? l10n.s.switcherNoOpenWindow : window.displayTitle)
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
@@ -504,7 +520,7 @@ private struct SwitcherWindowTitleChip: View {
         .contentShape(Capsule(style: .continuous))
         .onTapGesture(perform: onSelect)
         .onHover(perform: onHover)
-        .accessibilityLabel(window.accessibilityTitle)
+        .accessibilityLabel(window.spokenLabel(noOpenWindow: l10n.s.switcherNoOpenWindow))
     }
 }
 
@@ -599,6 +615,19 @@ private struct SwitcherWindowPreviewTile: View {
                         .aspectRatio(contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .padding(5)
+                } else if window.isAppEntry {
+                    VStack(spacing: 7) {
+                        if let icon = window.appIcon {
+                            Image(nsImage: icon)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 66, height: 66)
+                        }
+                        Text(l10n.s.switcherNoOpenWindow)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(SwitcherIconStyle.secondaryText)
+                            .lineLimit(1)
+                    }
                 } else if let icon = window.appIcon {
                     Image(nsImage: icon)
                         .resizable()
@@ -655,7 +684,7 @@ private struct SwitcherWindowPreviewTile: View {
         }
         .onHover { isHovering = $0 }
         .animation(.easeOut(duration: 0.12), value: showsCloseButton)
-        .accessibilityLabel(window.accessibilityTitle)
+        .accessibilityLabel(window.spokenLabel(noOpenWindow: l10n.s.switcherNoOpenWindow))
     }
 
     @ViewBuilder
@@ -751,6 +780,8 @@ private struct WindowCard: View {
                         .aspectRatio(contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .padding(5)
+                } else if window.isAppEntry {
+                    appEntryMark
                 } else if let icon = window.appIcon {
                     Image(nsImage: icon)
                         .resizable()
@@ -831,7 +862,25 @@ private struct WindowCard: View {
         .scaleEffect(isSelected ? 1.0 : 0.97)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: isSelected)
         .animation(.easeOut(duration: 0.12), value: showsCloseButton)
-        .accessibilityLabel(window.accessibilityTitle)
+        .accessibilityLabel(window.spokenLabel(noOpenWindow: l10n.s.switcherNoOpenWindow))
+    }
+
+    /// An app with no window has nothing to take a thumbnail of. Saying so
+    /// under a larger icon is what separates this card from a capture that did
+    /// not arrive, which is exactly what a lone icon in an empty well reads as.
+    private var appEntryMark: some View {
+        VStack(spacing: 9) {
+            if let icon = window.appIcon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 84, height: 84)
+            }
+            Text(l10n.s.switcherNoOpenWindow)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
     }
 
     @ViewBuilder

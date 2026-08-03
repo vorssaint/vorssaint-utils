@@ -26,9 +26,18 @@ enum MemoryPressure {
 /// is unavailable on the current hardware, and the UI hides those rows.
 struct SystemSnapshot {
     var cpuTemperature: Double?
+    /// When the CPU sensor behind `cpuTemperature` was last read, on the
+    /// system uptime clock. The value is carried between reads, so anything
+    /// judging how long the CPU has been hot has to tell repeats apart from
+    /// fresh readings.
+    var cpuTemperatureReadAt: TimeInterval?
     var gpuTemperature: Double?
     var batteryTemperature: Double?
     var cpuUsage: Double?          // 0...1
+    /// When `cpuUsage` was last really read, on the system uptime clock; the
+    /// value is carried over failed reads, and the hot CPU alert has to tell
+    /// those repeats apart from fresh readings.
+    var cpuUsageReadAt: TimeInterval?
     var gpuUsage: Double?          // 0...1
     var memoryUsed: UInt64?
     var memoryAppUsed: UInt64?
@@ -138,6 +147,7 @@ final class SystemMonitor: ObservableObject {
     /// what triggers the immediate resample instead of a wait of up to 60 s.
     private var lastSyncedPlan: SamplingPlan?
     private var lastCPUUsage: Double?
+    private var lastCPUUsageReadAt: TimeInterval?
     private var missedCPUUsageSamples = 0
     private var lastGPUUsage: Double?
     private var missedGPUUsageSamples = 0
@@ -395,12 +405,6 @@ final class SystemMonitor: ObservableObject {
         }
     }
 
-    private struct CachedSensorReading {
-        var value: Double
-        var updatedAt: TimeInterval
-        var missedSamples: Int
-    }
-
     private struct CachedMemoryReading {
         var used: UInt64
         var appUsed: UInt64
@@ -587,14 +591,17 @@ final class SystemMonitor: ObservableObject {
                 if take(.cpu),
                    let cpu = self.readCPUUsage() {
                     self.lastCPUUsage = cpu
+                    self.lastCPUUsageReadAt = now
                     self.missedCPUUsageSamples = 0
                     self.cpuHistory.push(cpu)
                 } else if self.missedCPUUsageSamples < 3 {
                     self.missedCPUUsageSamples += 1
                 } else {
                     self.lastCPUUsage = nil
+                    self.lastCPUUsageReadAt = nil
                 }
                 next.cpuUsage = self.lastCPUUsage
+                next.cpuUsageReadAt = self.lastCPUUsageReadAt
             }
 
             if plan.needMemory {
@@ -690,30 +697,38 @@ final class SystemMonitor: ObservableObject {
             let temperatureBridge = max(12, temperatureGap * 2.2)
             if plan.needCPUTemperature {
                 if take(.temperature) {
-                    next.cpuTemperature = Self.stabilizedTemperature(self.cpuTemperature(),
-                                                                     cache: &self.cpuTemperatureCache,
-                                                                     now: now,
-                                                                     maxAge: temperatureBridge)
+                    next.cpuTemperature = TemperatureSensorSelector.stabilizedTemperature(
+                        self.cpuTemperature(),
+                        cache: &self.cpuTemperatureCache,
+                        now: now,
+                        maxAge: temperatureBridge,
+                        minimum: TemperatureSensorSelector.minimumChipTemperature)
                 } else {
                     next.cpuTemperature = self.cpuTemperatureCache?.value
                 }
+                // The cache timestamp only moves on a real read, which is
+                // exactly what marks a value as fresh for the alert.
+                next.cpuTemperatureReadAt = self.cpuTemperatureCache?.updatedAt
             }
             if plan.needGPUTemperature {
                 if take(.temperature) {
-                    next.gpuTemperature = Self.stabilizedTemperature(self.maxTemperature(of: self.gpuKeys),
-                                                                     cache: &self.gpuTemperatureCache,
-                                                                     now: now,
-                                                                     maxAge: temperatureBridge)
+                    next.gpuTemperature = TemperatureSensorSelector.stabilizedTemperature(
+                        self.maxTemperature(of: self.gpuKeys),
+                        cache: &self.gpuTemperatureCache,
+                        now: now,
+                        maxAge: temperatureBridge,
+                        minimum: TemperatureSensorSelector.minimumChipTemperature)
                 } else {
                     next.gpuTemperature = self.gpuTemperatureCache?.value
                 }
             }
             if plan.needBatteryTemperature {
                 if take(.temperature) {
-                    next.batteryTemperature = Self.stabilizedTemperature(self.maxTemperature(of: self.batteryKeys),
-                                                                         cache: &self.batteryTemperatureCache,
-                                                                         now: now,
-                                                                         maxAge: temperatureBridge)
+                    next.batteryTemperature = TemperatureSensorSelector.stabilizedTemperature(
+                        self.maxTemperature(of: self.batteryKeys),
+                        cache: &self.batteryTemperatureCache,
+                        now: now,
+                        maxAge: temperatureBridge)
                 } else {
                     next.batteryTemperature = self.batteryTemperatureCache?.value
                 }
@@ -785,24 +800,6 @@ final class SystemMonitor: ObservableObject {
         }
         memoryCache = cached
         return (cached.used, cached.appUsed, cached.total, cached.pressure, false)
-    }
-
-    private static func stabilizedTemperature(_ reading: Double?,
-                                              cache: inout CachedSensorReading?,
-                                              now: TimeInterval,
-                                              maxAge: TimeInterval) -> Double? {
-        if let reading, reading > 1, reading < 125 {
-            cache = CachedSensorReading(value: reading, updatedAt: now, missedSamples: 0)
-            return reading
-        }
-        guard var cached = cache else { return nil }
-        cached.missedSamples += 1
-        if cached.missedSamples <= 4, now - cached.updatedAt <= maxAge {
-            cache = cached
-            return cached.value
-        }
-        cache = nil
-        return nil
     }
 
     // MARK: - Sensor preparation

@@ -14,6 +14,13 @@ enum QuickToolHUD {
     /// newer show() must not order the panel out from its completion handler.
     private static var generation = 0
 
+    /// The confirmation panel, when one is on screen. A recording in progress
+    /// leaves it out of the picture; nothing else needs to know it exists.
+    static var currentWindowNumber: Int? {
+        guard let panel, panel.isVisible else { return nil }
+        return panel.windowNumber
+    }
+
     static func show(icon: String, message: String, swatch: NSColor? = nil) {
         guard Thread.isMainThread else {
             DispatchQueue.main.async { show(icon: icon, message: message, swatch: swatch) }
@@ -40,11 +47,43 @@ enum QuickToolHUD {
         .padding(.vertical, 9)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
+        present(AnyView(content), dismissAfter: 1.5)
+    }
+
+    static func showCountdown(_ value: Int) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { showCountdown(value) }
+            return
+        }
+        let content = ZStack {
+            Circle()
+                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+            Circle()
+                .trim(from: 0.04, to: 0.96)
+                .stroke(Color.accentColor,
+                        style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .padding(6)
+            Text("\(value)")
+                .font(.system(size: 32, weight: .bold, design: .rounded))
+                .monospacedDigit()
+        }
+        .frame(width: 82, height: 82)
+        .background(.regularMaterial, in: Circle())
+        .padding(12)
+
+        present(AnyView(content), dismissAfter: 0.92, windowShadow: false)
+    }
+
+    private static func present(_ content: AnyView,
+                                dismissAfter: Double,
+                                windowShadow: Bool = true) {
         let host = NSHostingController(rootView: content)
         host.view.layoutSubtreeIfNeeded()
         let size = host.view.fittingSize
 
         let panel = ensurePanel()
+        panel.hasShadow = windowShadow
         panel.contentViewController = host
 
         let frame = NSScreen.pointerVisibleFrame
@@ -64,7 +103,7 @@ enum QuickToolHUD {
         dismissWork?.cancel()
         let work = DispatchWorkItem { dismiss() }
         dismissWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + dismissAfter, execute: work)
     }
 
     private static func dismiss() {
