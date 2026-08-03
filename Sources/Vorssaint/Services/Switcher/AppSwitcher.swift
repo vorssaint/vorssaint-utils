@@ -408,7 +408,9 @@ final class AppSwitcher: ObservableObject {
             advanceSelection(by: delta, wrapping: !isRepeat)
         case _ where sessionScope == .frontmostApp
             && keyCode == appsShortcut.keyCode
-            && appsShortcut.matches(event: event, allowingExtraShift: true):
+            && appsShortcut.matches(event: event,
+                                    allowingExtraShift: true,
+                                    tolerating: shortcut.modifiers):
             // A window-scoped session keeps its list when the Apps shortcut is
             // pressed with overlapping modifiers instead of expanding to all apps.
             if appsShortcut.shiftIsNavigationModifier, flags.contains(.maskShift), shiftBackNavigationHeld {
