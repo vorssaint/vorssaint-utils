@@ -204,7 +204,7 @@ extension Strings {
         switcherSimpleModeCaption: "プレビューやスイッチャーによる画面収録を使わず、アプリのアイコンとウインドウのタイトルを表示します。",
         switcherShortcutHintApps: "アプリ",
         switcherShortcutHintWindows: "ウインドウ",
-        switcherWindowShortcutCaption: "スイッチャーを開いている間、選択中のアプリのウインドウを順に切り替えます。",
+        switcherWindowShortcutCaption: "最前面のアプリのウインドウ用スイッチャーを開きます。アプリスイッチャー表示中は、選択中のアプリのウインドウを順に切り替えます。",
         switcherMergeTabs: "アプリごとに1つにまとめて表示",
         switcherMergeTabsCaption: "スイッチャーで、アプリのすべてのウインドウをウインドウごとではなく1つの項目にまとめます。",
         switcherWindowlessApps: "ウインドウなしのアプリ",

@@ -204,7 +204,7 @@ extension Strings {
         switcherSimpleModeCaption: "Mostra icone delle app e titoli delle finestre, senza anteprime né acquisizione dello schermo dal selettore.",
         switcherShortcutHintApps: "App",
         switcherShortcutHintWindows: "Finestre",
-        switcherWindowShortcutCaption: "Con il selettore aperto, salta tra le finestre dell’app selezionata.",
+        switcherWindowShortcutCaption: "Apre un selettore per le finestre dell’app in primo piano. Con il selettore app aperto, salta tra le finestre dell’app selezionata.",
         switcherMergeTabs: "Mostra una voce per app",
         switcherMergeTabsCaption: "Raggruppa tutte le finestre di un'app in un'unica voce nel commutatore, anziché una per finestra.",
         switcherWindowlessApps: "App senza finestre aperte",

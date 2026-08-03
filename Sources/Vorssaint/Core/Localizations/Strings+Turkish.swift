@@ -204,7 +204,7 @@ extension Strings {
         switcherSimpleModeCaption: "Uygulama simgelerini ve pencere başlıklarını gösterir; önizleme veya değiştirici tarafından ekran yakalama kullanmaz.",
         switcherShortcutHintApps: "Uygulamalar",
         switcherShortcutHintWindows: "Pencereler",
-        switcherWindowShortcutCaption: "Değiştirici açıkken seçili uygulamanın pencereleri arasında geçiş yapar.",
+        switcherWindowShortcutCaption: "Ön plandaki uygulamanın pencereleri için bir değiştirici açar. Uygulama değiştirici açıkken seçili uygulamanın pencereleri arasında geçiş yapar.",
         switcherMergeTabs: "Uygulama başına bir giriş göster",
         switcherMergeTabsCaption: "Değiştiricide pencere başına bir giriş yerine, bir uygulamanın tüm pencerelerini tek girişte toplar.",
         switcherWindowlessApps: "Açık penceresi olmayan uygulamalar",

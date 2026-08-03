@@ -205,7 +205,7 @@ extension Strings {
         switcherSimpleModeCaption: "顯示 App 圖示和視窗標題，不顯示預覽，也不會由切換器擷取螢幕。",
         switcherShortcutHintApps: "App",
         switcherShortcutHintWindows: "視窗",
-        switcherWindowShortcutCaption: "切換器開啟時，在所選應用程式的視窗之間跳轉。",
+        switcherWindowShortcutCaption: "開啟最前應用程式的視窗切換器。應用程式切換器開啟時，在所選應用程式的視窗之間跳轉。",
         switcherMergeTabs: "每個 App 僅顯示一項",
         switcherMergeTabsCaption: "將 App 的所有視窗合併為切換器中的一項，而不是每個視窗一項。",
         switcherWindowlessApps: "沒有開啟視窗的 App",

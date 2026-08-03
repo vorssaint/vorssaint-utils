@@ -29,6 +29,12 @@ enum SwitcherLetterAction: Equatable {
     case quitApp
 }
 
+/// Whether a switcher session lists every app or only the frontmost app's windows.
+enum SwitcherSessionScope: Equatable {
+    case allApps
+    case frontmostApp
+}
+
 /// Which running apps earn an entry of their own when they have no window the
 /// switcher can show. The switcher lists windows, so an app that closed all of
 /// them disappears from it while the system switcher still offers it.
@@ -213,6 +219,23 @@ enum SwitcherSupport {
     /// is not always the one the entries are filed under.
     static func appPID(forFrontmost frontmostPID: pid_t, items: [SwitcherItem]) -> pid_t {
         items.first(where: { $0.windowOwnerPID == frontmostPID })?.pid ?? frontmostPID
+    }
+
+    /// Keeps only the windows belonging to the app that owns the keyboard.
+    static func frontmostAppWindows(allItems: [SwitcherItem], frontmostPID: pid_t) -> [SwitcherItem] {
+        let appPID = appPID(forFrontmost: frontmostPID, items: allItems)
+        return allItems.filter { $0.pid == appPID }
+    }
+
+    /// Where a window-scoped session starts. The foreground window sits first,
+    /// so index 1 is the next window to switch to; a lone window stays at 0.
+    static func initialWindowScopedSelectionIndex(itemCount: Int,
+                                                  hasForegroundItem: Bool,
+                                                  reversed: Bool) -> Int {
+        guard itemCount > 0 else { return 0 }
+        if reversed { return itemCount - 1 }
+        guard hasForegroundItem else { return 0 }
+        return itemCount > 1 ? 1 : 0
     }
 
     /// Whether a process looks like a compatibility layer hosting a program

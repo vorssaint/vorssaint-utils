@@ -204,7 +204,7 @@ extension Strings {
         switcherSimpleModeCaption: "Zeigt App-Symbole und Fenstertitel, ohne Vorschauen oder Bildschirmaufnahme durch den Umschalter.",
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Fenster",
-        switcherWindowShortcutCaption: "Springt bei geöffnetem Umschalter zwischen den Fenstern der ausgewählten App.",
+        switcherWindowShortcutCaption: "Öffnet einen Umschalter für die Fenster der vordersten App. Bei geöffnetem App-Umschalter springt er zwischen den Fenstern der ausgewählten App.",
         switcherMergeTabs: "Einen Eintrag pro App anzeigen",
         switcherMergeTabsCaption: "Fasst alle Fenster einer App zu einem Eintrag im Umschalter zusammen, statt einen Eintrag pro Fenster.",
         switcherWindowlessApps: "Apps ohne geöffnetes Fenster",

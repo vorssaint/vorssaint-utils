@@ -205,7 +205,7 @@ extension Strings {
         switcherSimpleModeCaption: "Показывает значки приложений и заголовки окон, без миниатюр и захвата экрана переключателем.",
         switcherShortcutHintApps: "Приложения",
         switcherShortcutHintWindows: "Окна",
-        switcherWindowShortcutCaption: "Пока переключатель открыт, переходит между окнами выбранного приложения.",
+        switcherWindowShortcutCaption: "Открывает переключатель окон приложения на переднем плане. Пока открыт переключатель приложений, переходит между окнами выбранного приложения.",
         switcherMergeTabs: "Показывать одну запись на приложение",
         switcherMergeTabsCaption: "Сводит все окна приложения в одну запись в переключателе вместо отдельной записи на каждое окно.",
         switcherWindowlessApps: "Приложения без открытых окон",

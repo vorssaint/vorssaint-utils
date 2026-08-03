@@ -205,7 +205,7 @@ extension Strings {
         switcherSimpleModeCaption: "미리보기와 전환기의 화면 녹화 기능을 사용하지 않고 앱 아이콘과 윈도우 제목을 표시합니다.",
         switcherShortcutHintApps: "앱",
         switcherShortcutHintWindows: "윈도우",
-        switcherWindowShortcutCaption: "전환기가 열린 동안 선택한 앱의 윈도우를 차례로 전환합니다.",
+        switcherWindowShortcutCaption: "맨 앞 앱의 윈도우 전환기를 엽니다. 앱 전환기가 열려 있으면 선택한 앱의 윈도우를 차례로 전환합니다.",
         switcherMergeTabs: "앱별로 하나로 묶어 표시",
         switcherMergeTabsCaption: "전환기에서 앱의 모든 윈도우를 각각이 아닌 하나의 항목으로 묶습니다.",
         switcherWindowlessApps: "열린 윈도우가 없는 앱",
