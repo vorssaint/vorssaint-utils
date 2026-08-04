@@ -10423,6 +10423,8 @@ struct MetricsTests {
         expect(CommandBarLinks.trailingArgument(query: "ghost writer", name: "gh") == nil
                 && CommandBarLinks.trailingArgument(query: "gh", name: "gh") == nil,
                "a longer word is not the name, and the name alone is not an argument")
+        expect(CommandBarLinks.trailingArgument(query: "bd\u{3000}123", name: "bd") == "123",
+               "a full-width space separates the name from its argument")
         expect(CommandBarLink(name: "gh", kind: .link, destination: "https://x/{query}").takesQuery
                 && !CommandBarLink(name: "a", kind: .link, destination: "https://x").takesQuery,
                "a destination that waits for a query is a search")

@@ -110,8 +110,11 @@ enum CommandBarLinks {
         let normalizedQuery = CommandBarSearch.normalized(query)
         guard normalizedQuery.hasPrefix(normalizedName + " ") else { return nil }
         // The remainder comes from the ORIGINAL text: what someone searches for
-        // keeps its capitals and its accents.
-        let words = query.split(separator: " ", omittingEmptySubsequences: true)
+        // keeps its capitals and its accents. Splitting on any whitespace — not
+        // just the ASCII space — keeps a full-width space (U+3000), which some
+        // input methods produce, in step with the width-insensitive prefix check
+        // above.
+        let words = query.split(whereSeparator: \.isWhitespace)
         let nameWords = normalizedName.split(separator: " ").count
         guard words.count > nameWords else { return nil }
         return words.dropFirst(nameWords).joined(separator: " ")
