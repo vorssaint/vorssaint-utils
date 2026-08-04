@@ -306,7 +306,6 @@ struct ClipboardQuickPanelView: View {
                 history.copyQuickEntry(entry)
             }
         }
-        .help(entry.preview)
     }
 
     @ViewBuilder
@@ -317,7 +316,6 @@ struct ClipboardQuickPanelView: View {
                 .font(.system(size: 11.5))
                 .lineLimit(3)
                 .truncationMode(.tail)
-                .help(entry.preview)
         case .image:
             HStack(alignment: .center, spacing: 8) {
                 if let name = entry.imageFile,
