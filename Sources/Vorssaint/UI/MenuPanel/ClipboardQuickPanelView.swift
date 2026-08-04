@@ -22,14 +22,20 @@ struct ClipboardQuickPanelView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-            search
-            content
-            footer
+        HStack(alignment: .top, spacing: 0) {
+            VStack(alignment: .leading, spacing: 12) {
+                header
+                search
+                content
+                footer
+            }
+            .padding(.trailing, 12)
+            Divider()
+            ClipboardEntryPreviewSidebar(text: text, entry: history.selectedQuickEntry)
+                .frame(width: 280)
         }
         .padding(16)
-        .frame(width: 520, height: 560, alignment: .topLeading)
+        .frame(width: 800, height: 560, alignment: .topLeading)
         .background(.regularMaterial)
         .onAppear {
             hoveredEntryID = nil
