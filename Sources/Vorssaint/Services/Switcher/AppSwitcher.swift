@@ -363,8 +363,10 @@ final class AppSwitcher: ObservableObject {
                 (routeShortcut, routeWindowShortcut)
             }
             let isAppsShortcut = appsShortcut.matches(event: event, allowingExtraShift: true)
+            let windowShortcutMatchesPosition = windowShortcut.matches(event: event,
+                                                                        allowingExtraShift: true)
             let isWindowShortcut = !isAppsShortcut
-                && (windowShortcut.matches(event: event, allowingExtraShift: true)
+                && (windowShortcutMatchesPosition
                     || windowShortcut.matchesByCharacter(event: event))
             guard isAppsShortcut || isWindowShortcut else {
                 return Unmanaged.passUnretained(event)
@@ -378,7 +380,11 @@ final class AppSwitcher: ObservableObject {
             let tapAlive = lifecycleLock.withLock { tap != nil && !shouldStopTapThread }
             guard tapAlive else { return Unmanaged.passUnretained(event) }
             if isWindowShortcut {
-                let reversed = windowShortcut.shiftIsNavigationModifier && flags.contains(.maskShift)
+                let reversed = SwitcherSupport.windowNavigationDelta(
+                    positionalMatch: windowShortcutMatchesPosition,
+                    shiftIsNavigationModifier: windowShortcut.shiftIsNavigationModifier,
+                    shiftHeld: flags.contains(.maskShift)
+                ) < 0
                 beginSession(reversed: reversed, shortcut: windowShortcut, scope: .frontmostApp)
             } else {
                 let reversed = appsShortcut.shiftIsNavigationModifier && flags.contains(.maskShift)
@@ -391,10 +397,9 @@ final class AppSwitcher: ObservableObject {
             return nil
         }
 
-        let appsShortcut = GlobalShortcut.saved(for: DefaultsKey.switcherShortcut,
-                                                fallback: .switcherDefault)
-        let windowShortcut = GlobalShortcut.saved(for: DefaultsKey.switcherWindowShortcut,
-                                                  fallback: .switcherWindowDefault)
+        let (appsShortcut, windowShortcut) = routeLock.withLock {
+            (routeShortcut, routeWindowShortcut)
+        }
         let shortcut = sessionShortcut ?? appsShortcut
         switch keyCode {
         case _ where keyCode == shortcut.keyCode && shortcut.matches(event: event, allowingExtraShift: true):
@@ -436,8 +441,11 @@ final class AppSwitcher: ObservableObject {
             // match it may be part of typing the character itself.
             let positional = windowShortcut.matches(event: event, allowingExtraShift: true,
                                                     tolerating: shortcut.modifiers)
-            let delta = positional && windowShortcut.shiftIsNavigationModifier
-                && flags.contains(.maskShift) ? -1 : 1
+            let delta = SwitcherSupport.windowNavigationDelta(
+                positionalMatch: positional,
+                shiftIsNavigationModifier: windowShortcut.shiftIsNavigationModifier,
+                shiftHeld: flags.contains(.maskShift)
+            )
             if sessionScope == .frontmostApp {
                 let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
                 advanceSelection(by: delta, wrapping: !isRepeat)
@@ -729,7 +737,7 @@ final class AppSwitcher: ObservableObject {
 
     private func advanceSelection(by delta: Int, wrapping: Bool = true) {
         guard !windows.isEmpty else { return }
-        if usesIconRowLayout {
+        if usesIconRowLayout, sessionScope == .allApps {
             advanceAppSelection(by: delta, wrapping: wrapping)
             return
         }

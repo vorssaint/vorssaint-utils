@@ -5354,6 +5354,14 @@ struct MetricsTests {
                                                                  hasForegroundItem: true,
                                                                  reversed: true) == 2,
                "Window-scoped session starts at the far end when Shift reverses")
+        expect(SwitcherSupport.windowNavigationDelta(positionalMatch: true,
+                                                      shiftIsNavigationModifier: true,
+                                                      shiftHeld: true) == -1,
+               "Window shortcut Shift reverses a positional match")
+        expect(SwitcherSupport.windowNavigationDelta(positionalMatch: false,
+                                                      shiftIsNavigationModifier: true,
+                                                      shiftHeld: true) == 1,
+               "Window shortcut Shift stays forward when the layout needs it for the character")
         let afterFirstSwitch = WindowUseOrder.promoting(2, previous: 1, in: [])
         expect(afterFirstSwitch == [2, 1],
                "App Switcher use history records the previous window immediately after a switch")

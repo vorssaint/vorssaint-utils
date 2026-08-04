@@ -238,6 +238,14 @@ enum SwitcherSupport {
         return itemCount > 1 ? 1 : 0
     }
 
+    /// Shift means backward only for a physical-key match. Some keyboard
+    /// layouts need Shift merely to type the shortcut's displayed character.
+    static func windowNavigationDelta(positionalMatch: Bool,
+                                      shiftIsNavigationModifier: Bool,
+                                      shiftHeld: Bool) -> Int {
+        positionalMatch && shiftIsNavigationModifier && shiftHeld ? -1 : 1
+    }
+
     /// Whether a process looks like a compatibility layer hosting a program
     /// built for another platform. Those processes own real on-screen windows
     /// but run from a bare loader executable with no bundle identity: either
