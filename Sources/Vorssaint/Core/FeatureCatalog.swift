@@ -19,7 +19,7 @@ enum AppFeature: String, CaseIterable {
     case scrollInverter, smoothScroll, mouseNavigation, mouseButtonShortcuts, middleClick,
          keyboardDebounce, textSnippets, superKey
     // Clipboard and files
-    case clipboardHistory, pastePlain, finderCutPaste, shelf, urlCleaner
+    case clipboardHistory, pastePlain, finderCutPaste, finderRename, shelf, urlCleaner
     // Sound
     case mixer, soundOutputSwitcher, micMute, musicBlock
     // Energy and display
@@ -52,7 +52,7 @@ extension AppFeature {
         case .scrollInverter, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey:
             return .mouseKeyboard
-        case .clipboardHistory, .pastePlain, .finderCutPaste, .shelf, .urlCleaner:
+        case .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .shelf, .urlCleaner:
             return .clipboardFiles
         case .mixer, .soundOutputSwitcher, .micMute, .musicBlock:
             return .sound
@@ -86,6 +86,7 @@ extension AppFeature {
         case .clipboardHistory: return "doc.on.clipboard"
         case .pastePlain: return "doc.plaintext"
         case .finderCutPaste: return "scissors"
+        case .finderRename: return "pencil"
         case .shelf: return "tray.full"
         case .urlCleaner: return "link"
         case .mixer: return "slider.horizontal.3"
@@ -150,7 +151,9 @@ extension AppFeature {
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         case .clipboardHistory: return [DefaultsKey.clipboardHistoryEnabled]
         case .pastePlain: return [DefaultsKey.pastePlainEnabled]
-        case .finderCutPaste: return [DefaultsKey.finderCutPasteEnabled]
+        case .finderCutPaste: return [DefaultsKey.finderCutPasteEnabled,
+                                      DefaultsKey.finderPasteImageAsFile]
+        case .finderRename: return [DefaultsKey.finderRenameEnabled]
         case .shelf: return [DefaultsKey.shelfEnabled]
         case .urlCleaner: return [DefaultsKey.urlCleanerEnabled]
         case .soundOutputSwitcher: return [DefaultsKey.soundOutputSwitcherEnabled]
@@ -180,16 +183,17 @@ extension AppFeature {
              .commandBar:
             return [.accessibility]
         case .finderCutPaste: return [.accessibility, .automationFinder]
+        case .finderRename: return [.accessibility]
         // Only emptying the Trash asks the Finder; every other quick toggle
         // (dark mode included) works without a permission.
         case .quickToggles: return [.automationFinder]
         case .switcher: return [.accessibility, .screenRecording]
         case .dockPreview: return [.accessibility, .screenRecording]
         case .screenOCR: return [.screenRecording]
-        case .screenshot: return [.screenRecording]
-        // The sound of the Mac rides the same grant the pixels do; nothing
-        // here uses the audio tap the mixer needs.
-        case .screenRecorder: return [.screenRecording]
+        case .screenshot: return [.screenRecording, .accessibility]
+        // The sound of the Mac rides the same grant the pixels do. Accessibility
+        // keeps only typing timing while a recording is active.
+        case .screenRecorder: return [.screenRecording, .accessibility]
         case .cameraPreview: return [.camera]
         case .keepAwake: return [.accessibility]
         case .brightness: return [.accessibility]
@@ -204,6 +208,24 @@ extension AppFeature {
              .extraBrightness, .quickLauncher, .colorPicker, .micMute, .mediaTools,
              .scratchpad, .monitorGPU, .monitorNetwork:
             return []
+        }
+    }
+
+    /// Broad grants worth explaining during first run. Permissions used only
+    /// by an optional sub-feature stay contextual, at the moment that control
+    /// is actually used.
+    var onboardingPermissions: [AppPermission] {
+        switch self {
+        case .keepAwake, .brightness, .radialMenu, .quickToggles, .cleaner,
+             .uninstaller, .homebrew, .appUpdates, .mixer, .cameraPreview,
+             .micMute:
+            return []
+        case .screenshot:
+            // Accessibility is only needed by scrolling capture. The regular
+            // screenshot flow should not ask for it during first setup.
+            return [.screenRecording]
+        default:
+            return permissions.filter { $0 == .accessibility || $0 == .screenRecording }
         }
     }
 

@@ -153,6 +153,7 @@ struct GeneralSettings: View {
     @AppStorage(DefaultsKey.musicBlockReplacementPath) private var musicBlockReplacementPath = ""
 
     private var appearanceStrings: AppearanceStrings { FeatureStrings.appearance(l10n.language) }
+    private var feedbackStrings: FeedbackStrings { FeatureStrings.feedback(l10n.language) }
 
     var body: some View {
         Form {
@@ -247,6 +248,15 @@ struct GeneralSettings: View {
                     }
                     SettingsCaptionText(l10n.s.musicBlockCaption)
                 }
+            }
+            Section(feedbackStrings.sectionTitle) {
+                Button {
+                    appDelegate()?.openFeedbackWindow()
+                } label: {
+                    Label(feedbackStrings.openButton,
+                          systemImage: "bubble.left.and.text.bubble.right")
+                }
+                SettingsCaptionText(feedbackStrings.sectionCaption)
             }
         }
         .formStyle(.grouped)
@@ -882,8 +892,9 @@ struct SwitcherSettings: View {
                     .onChange(of: previewSize) { _, _ in
                         AppSwitcher.shared.syncWithPreferences()
                     }
+                    WindowPreviewExclusionsList()
                 } header: {
-                    Text(l10n.s.previewSizeLabel)
+                    Text(FeatureStrings.windowPreviewExclusions(l10n.language).sectionTitle)
                 }
             }
             if switcherEngaged || dockPreviewEngaged {

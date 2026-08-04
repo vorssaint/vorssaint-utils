@@ -404,12 +404,6 @@ final class SystemMonitor: ObservableObject {
         }
     }
 
-    private struct CachedSensorReading {
-        var value: Double
-        var updatedAt: TimeInterval
-        var missedSamples: Int
-    }
-
     private struct CachedMemoryReading {
         var used: UInt64
         var total: UInt64
@@ -700,10 +694,12 @@ final class SystemMonitor: ObservableObject {
             let temperatureBridge = max(12, temperatureGap * 2.2)
             if plan.needCPUTemperature {
                 if take(.temperature) {
-                    next.cpuTemperature = Self.stabilizedTemperature(self.cpuTemperature(),
-                                                                     cache: &self.cpuTemperatureCache,
-                                                                     now: now,
-                                                                     maxAge: temperatureBridge)
+                    next.cpuTemperature = TemperatureSensorSelector.stabilizedTemperature(
+                        self.cpuTemperature(),
+                        cache: &self.cpuTemperatureCache,
+                        now: now,
+                        maxAge: temperatureBridge,
+                        minimum: TemperatureSensorSelector.minimumChipTemperature)
                 } else {
                     next.cpuTemperature = self.cpuTemperatureCache?.value
                 }
@@ -713,20 +709,23 @@ final class SystemMonitor: ObservableObject {
             }
             if plan.needGPUTemperature {
                 if take(.temperature) {
-                    next.gpuTemperature = Self.stabilizedTemperature(self.maxTemperature(of: self.gpuKeys),
-                                                                     cache: &self.gpuTemperatureCache,
-                                                                     now: now,
-                                                                     maxAge: temperatureBridge)
+                    next.gpuTemperature = TemperatureSensorSelector.stabilizedTemperature(
+                        self.maxTemperature(of: self.gpuKeys),
+                        cache: &self.gpuTemperatureCache,
+                        now: now,
+                        maxAge: temperatureBridge,
+                        minimum: TemperatureSensorSelector.minimumChipTemperature)
                 } else {
                     next.gpuTemperature = self.gpuTemperatureCache?.value
                 }
             }
             if plan.needBatteryTemperature {
                 if take(.temperature) {
-                    next.batteryTemperature = Self.stabilizedTemperature(self.maxTemperature(of: self.batteryKeys),
-                                                                         cache: &self.batteryTemperatureCache,
-                                                                         now: now,
-                                                                         maxAge: temperatureBridge)
+                    next.batteryTemperature = TemperatureSensorSelector.stabilizedTemperature(
+                        self.maxTemperature(of: self.batteryKeys),
+                        cache: &self.batteryTemperatureCache,
+                        now: now,
+                        maxAge: temperatureBridge)
                 } else {
                     next.batteryTemperature = self.batteryTemperatureCache?.value
                 }
@@ -797,24 +796,6 @@ final class SystemMonitor: ObservableObject {
         }
         memoryCache = cached
         return (cached.used, cached.total, cached.pressure, false)
-    }
-
-    private static func stabilizedTemperature(_ reading: Double?,
-                                              cache: inout CachedSensorReading?,
-                                              now: TimeInterval,
-                                              maxAge: TimeInterval) -> Double? {
-        if let reading, reading > 1, reading < 125 {
-            cache = CachedSensorReading(value: reading, updatedAt: now, missedSamples: 0)
-            return reading
-        }
-        guard var cached = cache else { return nil }
-        cached.missedSamples += 1
-        if cached.missedSamples <= 4, now - cached.updatedAt <= maxAge {
-            cache = cached
-            return cached.value
-        }
-        cache = nil
-        return nil
     }
 
     // MARK: - Sensor preparation

@@ -50,6 +50,7 @@ enum AppUpdatesSupport {
     struct StoreEntry: Hashable {
         let bundleID: String
         let version: String
+        let minimumOSVersion: String?
         let page: String?
     }
 
@@ -158,11 +159,13 @@ enum AppUpdatesSupport {
     /// the truth and a row only survives if the app really is behind.
     static func packageUpdates(outdated: [HomebrewPackageUpdate],
                                installed: [HomebrewCaskRecord],
+                               ignoredTokens: Set<String> = [],
                                bundleVersion: (String) -> (name: String, version: String, path: String)?)
         -> [Item] {
         let recordsByToken = Dictionary(installed.map { ($0.token, $0) }, uniquingKeysWith: { first, _ in first })
         return outdated.compactMap { update -> Item? in
             guard update.kind == .cask, !update.isPinned else { return nil }
+            guard !ignoredTokens.contains(update.name) else { return nil }
             guard !isUncomparable(update.currentVersion) else { return nil }
             let record = recordsByToken[update.name]
             let bundle = candidateBundleNames(for: record).lazy.compactMap(bundleVersion).first
@@ -236,16 +239,20 @@ enum AppUpdatesSupport {
                   !version.isEmpty else { continue }
             entries[bundleID] = StoreEntry(bundleID: bundleID,
                                            version: version,
+                                           minimumOSVersion: result["minimumOsVersion"] as? String,
                                            page: result["trackViewUrl"] as? String)
         }
         return entries
     }
 
     static func appStoreUpdates(apps: [InstalledApp],
-                                storeVersions: [String: StoreEntry]) -> [Item] {
+                                storeVersions: [String: StoreEntry],
+                                operatingSystemVersion: String) -> [Item] {
         apps.compactMap { app in
-            guard let entry = storeVersions[app.bundleID],
-                  isNewer(entry.version, than: app.version) else { return nil }
+            guard let entry = storeVersions[app.bundleID] else { return nil }
+            if let minimum = entry.minimumOSVersion,
+               compare(operatingSystemVersion, minimum) == .orderedAscending { return nil }
+            guard isNewer(entry.version, than: app.version) else { return nil }
             return Item(id: "\(Source.appStore.rawValue):\(app.bundleID)",
                         source: .appStore,
                         name: app.name,

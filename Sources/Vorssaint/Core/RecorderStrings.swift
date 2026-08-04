@@ -98,6 +98,18 @@ struct RecorderFeatureStrings {
     let textPositionLabel: String
     let textColorLabel: String
     let removeText: String
+    let copyAndDeleteButton: String
+    let saveAsButton: String
+    let discardSavedMessage: String
+    let presetsButton: String
+    let savePreset: String
+    let presetNamePlaceholder: String
+    let removePreset: String
+    let zoomEmptyTitle: String
+    let zoomEmptyCaption: String
+    let createAutomaticZooms: String
+    let typingZoomToggle: String
+    let typingZoomCaption: String
 }
 
 extension FeatureStrings {
@@ -172,8 +184,8 @@ extension RecorderFeatureStrings {
         openEditorToggle: "Open the editor after recording",
         openEditorCaption: "The recording opens ready to trim, mute and save. Turn this off to get the file straight away.",
         lookLabel: "Look",
-        lookRaw: "Raw",
-        lookClean: "Clean",
+        lookRaw: "Original",
+        lookClean: "Smooth",
         lookStudio: "Studio",
         lookCaption: "A starting point. Change anything below and it stays changed.",
         pointerSectionLabel: "Pointer",
@@ -214,7 +226,19 @@ extension RecorderFeatureStrings {
         textSizeLabel: "Size",
         textPositionLabel: "Position",
         textColorLabel: "Colour",
-        removeText: "Remove"
+        removeText: "Remove",
+        copyAndDeleteButton: "Copy and delete",
+        saveAsButton: "Save as…",
+        discardSavedMessage: "Saved and copied files will stay where they are.",
+        presetsButton: "Presets",
+        savePreset: "Save current preset…",
+        presetNamePlaceholder: "Preset name",
+        removePreset: "Remove preset",
+        zoomEmptyTitle: "No zooms yet",
+        zoomEmptyCaption: "Create them from your clicks or add one on the timeline.",
+        createAutomaticZooms: "Create automatic zooms",
+        typingZoomToggle: "Keep zoomed in while typing",
+        typingZoomCaption: "After a click, typing keeps the automatic zoom on that spot.",
     )
 
     static let ptBR = RecorderFeatureStrings(
@@ -268,8 +292,8 @@ extension RecorderFeatureStrings {
         openEditorToggle: "Abrir o editor depois de gravar",
         openEditorCaption: "A gravação abre pronta para cortar, tirar o som e salvar. Desligue para receber o arquivo direto.",
         lookLabel: "Estilo",
-        lookRaw: "Cru",
-        lookClean: "Limpo",
+        lookRaw: "Original",
+        lookClean: "Suave",
         lookStudio: "Estúdio",
         lookCaption: "Um ponto de partida. Mude o que quiser abaixo e fica mudado.",
         pointerSectionLabel: "Ponteiro",
@@ -310,7 +334,19 @@ extension RecorderFeatureStrings {
         textSizeLabel: "Tamanho",
         textPositionLabel: "Posição",
         textColorLabel: "Cor",
-        removeText: "Remover"
+        removeText: "Remover",
+        copyAndDeleteButton: "Copiar e excluir",
+        saveAsButton: "Salvar como…",
+        discardSavedMessage: "Os arquivos salvos e copiados continuarão onde estão.",
+        presetsButton: "Predefinições",
+        savePreset: "Salvar predefinição atual…",
+        presetNamePlaceholder: "Nome da predefinição",
+        removePreset: "Remover predefinição",
+        zoomEmptyTitle: "Nenhum zoom ainda",
+        zoomEmptyCaption: "Crie a partir dos seus cliques ou adicione um na linha do tempo.",
+        createAutomaticZooms: "Criar zooms automáticos",
+        typingZoomToggle: "Manter o zoom ao digitar",
+        typingZoomCaption: "Depois de um clique, a digitação mantém o zoom automático naquele ponto.",
     )
 
     static let tr = RecorderFeatureStrings(
@@ -364,8 +400,8 @@ extension RecorderFeatureStrings {
         openEditorToggle: "Kayıttan sonra düzenleyiciyi aç",
         openEditorCaption: "Kayıt açıldığında budayabilir, sesini kapatabilir ve kaydedebilirsiniz. Dosyayı hemen almak için bunu kapatın.",
         lookLabel: "Görünüm",
-        lookRaw: "Ham",
-        lookClean: "Sade",
+        lookRaw: "Orijinal",
+        lookClean: "Akıcı",
         lookStudio: "Stüdyo",
         lookCaption: "Bir başlangıç noktası. Aşağıda ne değiştirirseniz öyle kalır.",
         pointerSectionLabel: "İmleç",
@@ -406,7 +442,19 @@ extension RecorderFeatureStrings {
         textSizeLabel: "Boyut",
         textPositionLabel: "Konum",
         textColorLabel: "Renk",
-        removeText: "Kaldır"
+        removeText: "Kaldır",
+        copyAndDeleteButton: "Kopyala ve sil",
+        saveAsButton: "Farklı kaydet…",
+        discardSavedMessage: "Kaydedilen ve kopyalanan dosyalar yerinde kalır.",
+        presetsButton: "Hazır ayarlar",
+        savePreset: "Geçerli hazır ayarı kaydet…",
+        presetNamePlaceholder: "Hazır ayar adı",
+        removePreset: "Hazır ayarı kaldır",
+        zoomEmptyTitle: "Henüz yakınlaştırma yok",
+        zoomEmptyCaption: "Tıklamalarınızdan oluşturun veya zaman çizelgesine bir tane ekleyin.",
+        createAutomaticZooms: "Otomatik yakınlaştırmalar oluştur",
+        typingZoomToggle: "Yazarken yakınlaştırmayı koru",
+        typingZoomCaption: "Bir tıklamadan sonra yazmak, otomatik yakınlaştırmayı o noktada tutar.",
     )
 
     static let ru = RecorderFeatureStrings(
@@ -460,8 +508,8 @@ extension RecorderFeatureStrings {
         openEditorToggle: "Открывать редактор после записи",
         openEditorCaption: "Запись открывается в редакторе, где её можно обрезать, выключить звук и сохранить. Отключите, чтобы сразу получать файл.",
         lookLabel: "Стиль",
-        lookRaw: "Исходный",
-        lookClean: "Чистый",
+        lookRaw: "Оригинал",
+        lookClean: "Плавный",
         lookStudio: "Студийный",
         lookCaption: "Отправная точка. Всё, что измените ниже, так и останется.",
         pointerSectionLabel: "Указатель",
@@ -502,7 +550,19 @@ extension RecorderFeatureStrings {
         textSizeLabel: "Размер",
         textPositionLabel: "Положение",
         textColorLabel: "Цвет",
-        removeText: "Удалить"
+        removeText: "Удалить",
+        copyAndDeleteButton: "Скопировать и удалить",
+        saveAsButton: "Сохранить как…",
+        discardSavedMessage: "Сохраненные и скопированные файлы останутся на месте.",
+        presetsButton: "Предустановки",
+        savePreset: "Сохранить текущую предустановку…",
+        presetNamePlaceholder: "Название предустановки",
+        removePreset: "Удалить предустановку",
+        zoomEmptyTitle: "Масштабов пока нет",
+        zoomEmptyCaption: "Создайте их из нажатий или добавьте один на шкалу времени.",
+        createAutomaticZooms: "Создать автоматические масштабы",
+        typingZoomToggle: "Сохранять масштаб при наборе",
+        typingZoomCaption: "После щелчка набор текста удерживает автоматический масштаб в этой точке.",
     )
 
     static let es = RecorderFeatureStrings(
@@ -556,8 +616,8 @@ extension RecorderFeatureStrings {
         openEditorToggle: "Abrir el editor al terminar de grabar",
         openEditorCaption: "La grabación se abre lista para recortar, silenciar y guardar. Desactiva esta opción para tener el archivo directamente.",
         lookLabel: "Estilo",
-        lookRaw: "Tal cual",
-        lookClean: "Limpio",
+        lookRaw: "Original",
+        lookClean: "Suave",
         lookStudio: "Estudio",
         lookCaption: "Un punto de partida. Lo que cambies abajo se mantiene.",
         pointerSectionLabel: "Puntero",
@@ -598,7 +658,19 @@ extension RecorderFeatureStrings {
         textSizeLabel: "Tamaño",
         textPositionLabel: "Posición",
         textColorLabel: "Color",
-        removeText: "Eliminar"
+        removeText: "Eliminar",
+        copyAndDeleteButton: "Copiar y eliminar",
+        saveAsButton: "Guardar como…",
+        discardSavedMessage: "Los archivos guardados y copiados permanecerán donde están.",
+        presetsButton: "Preajustes",
+        savePreset: "Guardar preajuste actual…",
+        presetNamePlaceholder: "Nombre del preajuste",
+        removePreset: "Eliminar preajuste",
+        zoomEmptyTitle: "Aún no hay zooms",
+        zoomEmptyCaption: "Créelos a partir de tus clics o añade uno a la línea de tiempo.",
+        createAutomaticZooms: "Crear zooms automáticos",
+        typingZoomToggle: "Mantener el zoom al escribir",
+        typingZoomCaption: "Después de un clic, escribir mantiene el zoom automático en ese punto.",
     )
 
     static let de = RecorderFeatureStrings(
@@ -652,8 +724,8 @@ extension RecorderFeatureStrings {
         openEditorToggle: "Editor nach der Aufnahme öffnen",
         openEditorCaption: "Die Aufnahme wird geöffnet und lässt sich sofort kürzen, stummschalten und sichern. Schalte die Option aus, um die Datei direkt zu erhalten.",
         lookLabel: "Stil",
-        lookRaw: "Roh",
-        lookClean: "Schlicht",
+        lookRaw: "Original",
+        lookClean: "Sanft",
         lookStudio: "Studio",
         lookCaption: "Ein Ausgangspunkt. Was du unten änderst, bleibt so.",
         pointerSectionLabel: "Zeiger",
@@ -694,7 +766,19 @@ extension RecorderFeatureStrings {
         textSizeLabel: "Größe",
         textPositionLabel: "Position",
         textColorLabel: "Farbe",
-        removeText: "Entfernen"
+        removeText: "Entfernen",
+        copyAndDeleteButton: "Kopieren und löschen",
+        saveAsButton: "Sichern unter…",
+        discardSavedMessage: "Gesicherte und kopierte Dateien bleiben an ihrem Speicherort.",
+        presetsButton: "Voreinstellungen",
+        savePreset: "Aktuelle Voreinstellung sichern…",
+        presetNamePlaceholder: "Name der Voreinstellung",
+        removePreset: "Voreinstellung entfernen",
+        zoomEmptyTitle: "Noch keine Zooms",
+        zoomEmptyCaption: "Erstelle sie aus deinen Klicks oder füge einen zur Zeitleiste hinzu.",
+        createAutomaticZooms: "Automatische Zooms erstellen",
+        typingZoomToggle: "Beim Tippen eingezoomt bleiben",
+        typingZoomCaption: "Nach einem Klick hält das Tippen den automatischen Zoom an dieser Stelle.",
     )
 
     static let fr = RecorderFeatureStrings(
@@ -748,8 +832,8 @@ extension RecorderFeatureStrings {
         openEditorToggle: "Ouvrir l'éditeur après l'enregistrement",
         openEditorCaption: "La vidéo s'ouvre pour que vous puissiez la rogner, couper le son et l'enregistrer. Désactivez cette option pour obtenir le fichier tout de suite.",
         lookLabel: "Style",
-        lookRaw: "Brut",
-        lookClean: "Épuré",
+        lookRaw: "Original",
+        lookClean: "Fluide",
         lookStudio: "Studio",
         lookCaption: "Un point de départ. Ce que vous modifiez ci-dessous est conservé.",
         pointerSectionLabel: "Pointeur",
@@ -790,7 +874,19 @@ extension RecorderFeatureStrings {
         textSizeLabel: "Taille",
         textPositionLabel: "Position",
         textColorLabel: "Couleur",
-        removeText: "Supprimer"
+        removeText: "Supprimer",
+        copyAndDeleteButton: "Copier et supprimer",
+        saveAsButton: "Enregistrer sous…",
+        discardSavedMessage: "Les fichiers enregistrés et copiés resteront à leur emplacement.",
+        presetsButton: "Préréglages",
+        savePreset: "Enregistrer le préréglage actuel…",
+        presetNamePlaceholder: "Nom du préréglage",
+        removePreset: "Supprimer le préréglage",
+        zoomEmptyTitle: "Aucun zoom pour le moment",
+        zoomEmptyCaption: "Créez-les à partir de vos clics ou ajoutez-en un à la chronologie.",
+        createAutomaticZooms: "Créer des zooms automatiques",
+        typingZoomToggle: "Garder le zoom pendant la saisie",
+        typingZoomCaption: "Après un clic, la saisie maintient le zoom automatique sur cet endroit.",
     )
 
     static let it = RecorderFeatureStrings(
@@ -844,8 +940,8 @@ extension RecorderFeatureStrings {
         openEditorToggle: "Apri l'editor dopo la registrazione",
         openEditorCaption: "La registrazione si apre nell'editor, dove puoi tagliarla, disattivare l'audio e salvarla. Disattiva questa opzione per avere subito il file.",
         lookLabel: "Stile",
-        lookRaw: "Grezzo",
-        lookClean: "Pulito",
+        lookRaw: "Originale",
+        lookClean: "Fluido",
         lookStudio: "Studio",
         lookCaption: "Un punto di partenza. Le modifiche qui sotto restano.",
         pointerSectionLabel: "Puntatore",
@@ -886,7 +982,19 @@ extension RecorderFeatureStrings {
         textSizeLabel: "Dimensione",
         textPositionLabel: "Posizione",
         textColorLabel: "Colore",
-        removeText: "Rimuovi"
+        removeText: "Rimuovi",
+        copyAndDeleteButton: "Copia ed elimina",
+        saveAsButton: "Salva con nome…",
+        discardSavedMessage: "I file salvati e copiati resteranno dove si trovano.",
+        presetsButton: "Preset",
+        savePreset: "Salva preset attuale…",
+        presetNamePlaceholder: "Nome del preset",
+        removePreset: "Rimuovi preset",
+        zoomEmptyTitle: "Nessuno zoom",
+        zoomEmptyCaption: "Creali dai tuoi clic o aggiungine uno alla timeline.",
+        createAutomaticZooms: "Crea zoom automatici",
+        typingZoomToggle: "Mantieni lo zoom mentre scrivi",
+        typingZoomCaption: "Dopo un clic, la digitazione mantiene lo zoom automatico su quel punto.",
     )
 
     static let ja = RecorderFeatureStrings(
@@ -940,8 +1048,8 @@ extension RecorderFeatureStrings {
         openEditorToggle: "収録後にエディタを開く",
         openEditorCaption: "収録した動画がそのまま開き、トリムや消音、保存をすぐに行えます。オフにすると、エディタを開かずにファイルがそのまま保存されます。",
         lookLabel: "見た目",
-        lookRaw: "そのまま",
-        lookClean: "すっきり",
+        lookRaw: "オリジナル",
+        lookClean: "なめらか",
         lookStudio: "スタジオ",
         lookCaption: "はじめの設定です。下の項目を変えると、その変更が残ります。",
         pointerSectionLabel: "ポインタ",
@@ -982,7 +1090,19 @@ extension RecorderFeatureStrings {
         textSizeLabel: "サイズ",
         textPositionLabel: "位置",
         textColorLabel: "色",
-        removeText: "削除"
+        removeText: "削除",
+        copyAndDeleteButton: "コピーして削除",
+        saveAsButton: "別名で保存…",
+        discardSavedMessage: "保存またはコピーしたファイルはそのまま残ります。",
+        presetsButton: "プリセット",
+        savePreset: "現在のプリセットを保存…",
+        presetNamePlaceholder: "プリセット名",
+        removePreset: "プリセットを削除",
+        zoomEmptyTitle: "ズームはまだありません",
+        zoomEmptyCaption: "クリックから作成するか、タイムラインに追加してください。",
+        createAutomaticZooms: "自動ズームを作成",
+        typingZoomToggle: "入力中はズームを維持",
+        typingZoomCaption: "クリック後に入力すると、その位置の自動ズームが続きます。",
     )
 
     static let ko = RecorderFeatureStrings(
@@ -1036,8 +1156,8 @@ extension RecorderFeatureStrings {
         openEditorToggle: "화면 기록 후 편집기 열기",
         openEditorCaption: "화면 기록이 열리면 바로 다듬고, 음소거하고, 저장할 수 있습니다. 이 옵션을 끄면 편집기 없이 파일이 바로 저장됩니다.",
         lookLabel: "스타일",
-        lookRaw: "그대로",
-        lookClean: "심플",
+        lookRaw: "원본",
+        lookClean: "부드럽게",
         lookStudio: "스튜디오",
         lookCaption: "시작점입니다. 아래에서 바꾼 내용은 유지됩니다.",
         pointerSectionLabel: "포인터",
@@ -1078,7 +1198,19 @@ extension RecorderFeatureStrings {
         textSizeLabel: "크기",
         textPositionLabel: "위치",
         textColorLabel: "색상",
-        removeText: "제거"
+        removeText: "제거",
+        copyAndDeleteButton: "복사하고 삭제",
+        saveAsButton: "다른 이름으로 저장…",
+        discardSavedMessage: "저장하거나 복사한 파일은 그대로 유지됩니다.",
+        presetsButton: "프리셋",
+        savePreset: "현재 프리셋 저장…",
+        presetNamePlaceholder: "프리셋 이름",
+        removePreset: "프리셋 제거",
+        zoomEmptyTitle: "아직 확대 없음",
+        zoomEmptyCaption: "클릭으로 만들거나 타임라인에 하나를 추가하세요.",
+        createAutomaticZooms: "자동 확대 만들기",
+        typingZoomToggle: "입력하는 동안 확대 유지",
+        typingZoomCaption: "클릭 후 입력하면 자동 확대가 그 위치에 유지됩니다.",
     )
 
     static let zhHans = RecorderFeatureStrings(
@@ -1132,8 +1264,8 @@ extension RecorderFeatureStrings {
         openEditorToggle: "录制后打开编辑器",
         openEditorCaption: "录制的内容会自动打开，可以修剪、静音，然后存储。关闭后会直接得到文件。",
         lookLabel: "外观",
-        lookRaw: "原样",
-        lookClean: "清爽",
+        lookRaw: "原始",
+        lookClean: "流畅",
         lookStudio: "影棚",
         lookCaption: "这只是一个起点。下面的设置改了就会保留。",
         pointerSectionLabel: "指针",
@@ -1174,7 +1306,19 @@ extension RecorderFeatureStrings {
         textSizeLabel: "大小",
         textPositionLabel: "位置",
         textColorLabel: "颜色",
-        removeText: "移除"
+        removeText: "移除",
+        copyAndDeleteButton: "复制并删除",
+        saveAsButton: "另存为…",
+        discardSavedMessage: "已保存和复制的文件会保留在原位置。",
+        presetsButton: "预设",
+        savePreset: "保存当前预设…",
+        presetNamePlaceholder: "预设名称",
+        removePreset: "移除预设",
+        zoomEmptyTitle: "还没有缩放",
+        zoomEmptyCaption: "根据点击创建，或在时间线上添加一个。",
+        createAutomaticZooms: "创建自动缩放",
+        typingZoomToggle: "输入时保持缩放",
+        typingZoomCaption: "点击后继续输入，会让自动缩放停留在该位置。",
     )
 
     static let zhTW = RecorderFeatureStrings(
@@ -1229,7 +1373,7 @@ extension RecorderFeatureStrings {
         openEditorCaption: "錄影會自動打開，可以先修剪、靜音再儲存。關閉後就直接取得檔案。",
         lookLabel: "風格",
         lookRaw: "原始",
-        lookClean: "簡潔",
+        lookClean: "流暢",
         lookStudio: "專業",
         lookCaption: "這只是起點，下方任何調整都會保留。",
         pointerSectionLabel: "指標",
@@ -1270,7 +1414,19 @@ extension RecorderFeatureStrings {
         textSizeLabel: "大小",
         textPositionLabel: "位置",
         textColorLabel: "顏色",
-        removeText: "移除"
+        removeText: "移除",
+        copyAndDeleteButton: "複製並刪除",
+        saveAsButton: "另存新檔…",
+        discardSavedMessage: "已儲存和複製的檔案會保留在原位置。",
+        presetsButton: "預設組合",
+        savePreset: "儲存目前的預設組合…",
+        presetNamePlaceholder: "預設組合名稱",
+        removePreset: "移除預設組合",
+        zoomEmptyTitle: "還沒有縮放",
+        zoomEmptyCaption: "根據點按建立，或在時間軸上加入一個。",
+        createAutomaticZooms: "建立自動縮放",
+        typingZoomToggle: "輸入時保持縮放",
+        typingZoomCaption: "點按後繼續輸入，會讓自動縮放停留在該位置。",
     )
 
     static let zhHK = RecorderFeatureStrings(
@@ -1324,8 +1480,8 @@ extension RecorderFeatureStrings {
         openEditorToggle: "錄影後開啟編輯器",
         openEditorCaption: "錄影完成後會開啟，可以修剪、靜音和儲存。關閉後就會直接取得檔案。",
         lookLabel: "風格",
-        lookRaw: "原片",
-        lookClean: "簡潔",
+        lookRaw: "原始",
+        lookClean: "流暢",
         lookStudio: "專業",
         lookCaption: "只是起點。下方的設定改了就會保留。",
         pointerSectionLabel: "指標",
@@ -1366,6 +1522,18 @@ extension RecorderFeatureStrings {
         textSizeLabel: "大小",
         textPositionLabel: "位置",
         textColorLabel: "顏色",
-        removeText: "移除"
+        removeText: "移除",
+        copyAndDeleteButton: "複製並刪除",
+        saveAsButton: "另存新檔…",
+        discardSavedMessage: "已儲存及複製的檔案會保留在原來位置。",
+        presetsButton: "預設組合",
+        savePreset: "儲存目前的預設組合…",
+        presetNamePlaceholder: "預設組合名稱",
+        removePreset: "移除預設組合",
+        zoomEmptyTitle: "還沒有縮放",
+        zoomEmptyCaption: "根據點按建立，或在時間軸上加入一個。",
+        createAutomaticZooms: "建立自動縮放",
+        typingZoomToggle: "輸入時保持縮放",
+        typingZoomCaption: "點按後繼續輸入，會讓自動縮放停留在該位置。",
     )
 }

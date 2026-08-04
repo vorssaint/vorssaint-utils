@@ -75,6 +75,8 @@ final class ScreenTextService: ObservableObject {
             case .region:
                 // Only the recorder asks for geometry; this session never does.
                 break
+            case .scrollingRegion:
+                break
             case .cancelled:
                 break
             case .failed:

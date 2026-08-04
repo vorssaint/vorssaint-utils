@@ -81,7 +81,10 @@ final class RecorderCaptureEngine: NSObject {
                                                     timescale: CMTimeScale(frameRate))
         configuration.pixelFormat = kCVPixelFormatType_32BGRA
         configuration.colorSpaceName = CGColorSpace.sRGB
-        configuration.scalesToFit = false
+        // An independent window keeps the output dimensions chosen when the
+        // recording starts. Scaling it into that output makes later window
+        // resizes follow the recording instead of leaving an empty frame.
+        configuration.scalesToFit = region.windowID != nil
         configuration.preservesAspectRatio = true
         configuration.captureResolution = .best
         // The pointer is drawn by us afterwards, from the track the sampler

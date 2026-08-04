@@ -58,6 +58,9 @@ struct ScreenRecorderSettings: View {
                 if !permissions.screenRecording {
                     PermissionRow(kind: .screenRecording)
                 }
+                if !permissions.accessibility {
+                    PermissionRow(kind: .accessibility)
+                }
             } header: {
                 Text(strings.pageTitle)
             }
@@ -73,16 +76,6 @@ struct ScreenRecorderSettings: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                VStack(alignment: .leading, spacing: 4) {
-                    Picker(strings.qualityLabel, selection: $qualityRaw) {
-                        Text(strings.qualitySmall).tag(RecorderSupport.Quality.small.rawValue)
-                        Text(strings.qualityBalanced).tag(RecorderSupport.Quality.balanced.rawValue)
-                        Text(strings.qualityHigh).tag(RecorderSupport.Quality.high.rawValue)
-                    }
-                    Text(strings.qualityCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle(strings.systemAudioToggle, isOn: $systemAudio)
                     Text(strings.systemAudioCaption)
@@ -100,6 +93,16 @@ struct ScreenRecorderSettings: View {
             Section {
                 folderRow
                 DisclosureGroup(strings.moreOptions, isExpanded: $showsMoreOptions) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Picker(strings.qualityLabel, selection: $qualityRaw) {
+                            Text(strings.qualitySmall).tag(RecorderSupport.Quality.small.rawValue)
+                            Text(strings.qualityBalanced).tag(RecorderSupport.Quality.balanced.rawValue)
+                            Text(strings.qualityHigh).tag(RecorderSupport.Quality.high.rawValue)
+                        }
+                        Text(strings.qualityCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     Picker(strings.frameRateLabel, selection: $frameRate) {
                         ForEach(RecorderSupport.frameRates, id: \.self) { rate in
                             Text(String(format: strings.frameRateFormat, rate)).tag(rate)

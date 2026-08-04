@@ -12,8 +12,10 @@ import ApplicationServices
 /// visible: the app's window list omits it and direct element access is
 /// refused (measured on macOS 26 and 27). The window server is the only
 /// witness that such a window exists, and the only reliable tell between a
-/// real parked window and a stale leftover surface: real windows always belong
-/// to at least one Space, leftovers belong to none.
+/// real parked window and a stale leftover surface: real windows normally
+/// belong to at least one Space, leftovers belong to none. Some auxiliary
+/// surfaces share a Space with a real window but explicitly opt out of window
+/// cycling, so their window-server tag is checked separately.
 enum SpaceWindowBridge {
     private typealias ConnectionID = UInt32
 
@@ -25,6 +27,13 @@ enum SpaceWindowBridge {
         typealias Function = @convention(c) () -> ConnectionID
         guard let symbol = symbol("CGSMainConnectionID") else { return 0 }
         return unsafeBitCast(symbol, to: Function.self)()
+    }()
+
+    private typealias GetWindowTagsFunction =
+        @convention(c) (ConnectionID, CGWindowID, UnsafeMutablePointer<UInt32>, Int) -> CGError
+    private static let getWindowTags: GetWindowTagsFunction? = {
+        guard let symbol = symbol("CGSGetWindowTags") else { return nil }
+        return unsafeBitCast(symbol, to: GetWindowTagsFunction.self)
     }()
 
     // MARK: - Space membership
@@ -91,6 +100,20 @@ enum SpaceWindowBridge {
         guard let visible = visibleSpaces ?? topology()?.visibleSpaces else { return false }
         return SpaceHopSupport.isParkedOnHiddenSpace(windowSpaces: spaces(of: windowID),
                                                      visibleSpaces: visible)
+    }
+
+    /// False when the private query is unavailable, preserving the existing
+    /// cross-Space behavior instead of hiding a legitimate window on a guess.
+    static func isExcludedFromWindowCycle(_ windowID: CGWindowID) -> Bool {
+        guard connection != 0, let getWindowTags else { return false }
+        var tags = [UInt32](repeating: 0, count: 2)
+        return tags.withUnsafeMutableBufferPointer { buffer in
+            guard let base = buffer.baseAddress,
+                  getWindowTags(connection, windowID, base,
+                                MemoryLayout<UnsafeRawPointer>.size * 8) == .success
+            else { return false }
+            return SpaceHopSupport.isExcludedFromWindowCycle(windowTagsLow: buffer[0])
+        }
     }
 
     // MARK: - Fronting a specific window

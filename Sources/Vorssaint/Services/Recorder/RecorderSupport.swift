@@ -256,6 +256,7 @@ enum RecorderSupport {
     /// the original pixels instead of from an already rendered result.
     static let takeVideoName = "take.mov"
     static let takePointerName = "pointer.bin"
+    static let takeTypingName = "typing.json"
     static let takeEditName = "edit.json"
     static let takeFolderPrefix = "Take-"
 

@@ -297,8 +297,14 @@ enum RecorderMotion {
     /// The press that stops the recording must never cause a zoom.
     static let zoomIgnoreTail: Double = 1.0
     static let zoomEndMargin: Double = 0.8
+    /// Typing after a click belongs to that click's zoom. The wider start
+    /// window covers the natural pause between focusing a field and writing.
+    static let typingZoomTail: Double = 1.4
+    static let typingZoomContinuation: Double = 8.0
 
-    static func zoomSegments(clicks: [Click], duration: Double) -> [ZoomSegment] {
+    static func zoomSegments(clicks: [Click],
+                             typingTimes: [Double] = [],
+                             duration: Double) -> [ZoomSegment] {
         guard duration > 0 else { return [] }
         let presses = clicks
             .filter { $0.isDown && $0.time < duration - zoomIgnoreTail }
@@ -317,6 +323,12 @@ enum RecorderMotion {
             } else {
                 merged.append(segment)
             }
+        }
+        for time in typingTimes.filter({ $0.isFinite }).sorted() {
+            guard let index = merged.lastIndex(where: {
+                time >= $0.start && time <= $0.end + typingZoomContinuation
+            }) else { continue }
+            merged[index].end = max(merged[index].end, time + typingZoomTail)
         }
         let limit = max(0, duration - zoomEndMargin)
         return merged.compactMap { segment in

@@ -37,6 +37,14 @@ enum SpaceHopSupport {
         return !windowSpaces.contains { visibleSpaces.contains($0) }
     }
 
+    /// The window server marks surfaces that must stay out of app window
+    /// cycling. This remains meaningful when Accessibility cannot inspect a
+    /// window because it lives on another Space.
+    static func isExcludedFromWindowCycle(windowTagsLow: UInt32) -> Bool {
+        let ignoresCycleTag: UInt32 = 1 << 18
+        return windowTagsLow & ignoresCycleTag != 0
+    }
+
     /// How many "move a space" presses take the user from the visible Space to
     /// `target`. Positive means move right, negative means move left. Returns
     /// nil when the target is already visible, cannot be found, or sits

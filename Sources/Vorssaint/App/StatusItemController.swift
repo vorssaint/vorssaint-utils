@@ -37,6 +37,7 @@ final class StatusItemController {
     private static let mainAutosaveName = "VorssaintMenuBarItem"
     private static let metricAutosavePrefix = "VorssaintMetric"
     private static let maxPlacementGeneration = 10_000
+    private static let emptyStatusImage = NSImage()
 
     private struct MetricStatusGroup {
         let id: String
@@ -286,7 +287,9 @@ final class StatusItemController {
         statusItem.isVisible = !mainItemHidden
 
         guard !hidden else {
-            button.image = nil
+            // A non-nil image lets macOS apply the inactive-display appearance
+            // to the title while keeping the glyph visually absent.
+            button.image = Self.emptyStatusImage
             return
         }
         let stateImage: NSImage?
@@ -492,7 +495,7 @@ final class StatusItemController {
                               range: NSRange(location: 0, length: full.length))
             button.font = MenuBarRenderer.statusFont(stacked: false)
             button.attributedTitle = full
-            button.image = nil
+            button.image = Self.emptyStatusImage
             button.imagePosition = .noImage
             button.toolTip = group.title
         }

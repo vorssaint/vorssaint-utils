@@ -45,7 +45,7 @@ Per app volume, a real system monitor, a better app switcher, window snapping, D
 
 Nobody needs all of it, and Vorssaint is built around that. The Features page installs and uninstalls whole features: what you uninstall disappears from the entire app and stops loading, so it spends no CPU, memory or energy. Nothing is deleted, and installing again brings your old settings back.
 
-Three one click bundles, Essentials, Windows, and Battery and quiet, shape the whole app in one move, and onboarding ends by asking which one you want. Every feature also wears an honest energy badge saying what it keeps alive while on.
+First setup offers three one click bundles, Essentials, Windows, and Battery and quiet, plus a visual picker for choosing individual features. Only the permissions those choices need are requested next, and everything can be changed later in Settings. Every feature also wears an honest energy badge saying what it keeps alive while on.
 
 <p align="center">
   <img src="docs/assets/readme/features-hub.png" width="720" alt="The Features hub in Settings, installing and uninstalling whole features">
@@ -57,7 +57,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 
 ### Sound
 
-- **Volume mixer.** Slide any single app up or down while the rest of the Mac stays put, and push a quiet one past 100 percent when a video is just too low. Hide the apps you never adjust to keep the list short. No audio driver, no setup.
+- **Volume mixer.** Adjust the Mac's overall volume or slide any single app up or down, and push a quiet one past 100 percent when a video is just too low. Send system sounds through another output, or hide the apps you never adjust to keep the list short. No audio driver, no setup.
 - **Per app output.** Send your music to the speakers and a call to your headset at the same time.
 - **Output switcher.** Cycle between chosen outputs with one shortcut, and drop the volume automatically when headphones disconnect.
 - **Microphone tools.** Pin your favorite input so the Mac stops guessing, and mute every microphone at once with a click or shortcut, whichever one an app is using.
@@ -65,14 +65,14 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 
 ### Know what your Mac is doing
 
-- **System monitor.** CPU, GPU, memory pressure and temperatures with history graphs, plus battery health, time remaining, cycle count, power draw and which apps are burning energy right now.
+- **System monitor.** CPU, GPU, memory pressure and temperatures with history graphs, plus battery health, time remaining, cycle count, power draw, the apps burning energy right now and a shortcut to the Mac's full process inspector.
 - **Menu bar readouts.** Keep the readings you care about in the bar itself, with values or compact usage bars, including optional battery time remaining, combined or as separate items.
 - **Network.** Live rates, session totals and a built in speed test.
 - **Alerts.** Optional notifications for sustained CPU load, high temperature, memory pressure, low disk space and low battery.
 
 ### Windows and the Dock
 
-- **App switcher.** A richer take on pressing ⌘Tab, with adjustable live window thumbnails, minimized windows included, and more than one window per app.
+- **App switcher.** A richer take on pressing ⌘Tab, with adjustable live window thumbnails, minimized windows included, and more than one window per app. Choose apps where Vorssaint pauses both switcher and Dock thumbnail capture while they are in front.
 - **Window layout.** Snap the active window to halves, thirds, sixths, corners, center or another display, each with its own optional shortcut. Restore steps back through recent placements. On a trackpad or mouse, hold chosen modifiers and drag anywhere to move a window, then add Shift to resize it. A mouse can also resize with the right button.
 - **Dock Preview.** Hover a Dock icon to peek at that app's windows and jump straight into the right one.
 - **Dock clicks.** Click the Dock icon of the active app to minimize its windows, or cycle through them one by one.
@@ -100,17 +100,17 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Clipboard history.** Local history of text, images and files with pinned favorites, search and quick paste shortcuts.
 - **Paste as plain text.** One shortcut pastes without fonts, colors or links, and the original stays on the clipboard.
 - **Shelf.** Park files, text and links near your cursor mid drag, then drop them where they belong later.
-- **Finder cut and paste.** ⌘X and ⌘V move files the way you always expected them to.
+- **Finder shortcuts.** ⌘X and ⌘V move files, an optional F2 shortcut renames the selection, and copied images can become PNG files with ⌘V.
 - **Clean URL.** Strips tracking parameters from copied links, on demand or automatically.
 
 ### Everyday tools
 
-- **Command Bar.** One shortcut opens a field over whatever you are doing. Type a few letters to run any Vorssaint action, open an app, switch to a window, insert a snippet or paste from your clipboard history at the cursor, and it reaches into the app you are using to run any command from its menus, showing that command's own shortcut. It answers sums, conversions, dates and questions about your Mac as you type, and acts on the text you already have selected. Press ⌘K on any row to name it, pin it, hide it or give it a shortcut of its own. It learns what you use most, forgets everything you type, and never leaves your Mac.
+- **Command Bar.** One shortcut opens a field over whatever you are doing. Type a few letters to run any Vorssaint action, open an app, switch to a window, insert a snippet or paste from your clipboard history at the cursor, and it reaches into the app you are using to run any command from its menus, showing that command's own shortcut. It answers sums, conversions, dates and questions about your Mac as you type, and acts on the text you already have selected. Press ⌘K on an app to quit, restart, force quit or send it to the Uninstaller, and on any row to name it, pin it, hide it or give it a shortcut of its own. Bug reports and feature ideas can also be sent from here, with every technical detail shown before you choose whether to include it. It learns what you use most and forgets everything you type into the bar.
 - **Quick panel.** ⌃⌘V opens a small floating palette with your favorite tools one key away.
 - **Quick toggles.** One-click system actions in their own panel tab: switch light and dark mode, empty the Trash, eject every disk, show hidden files, hide desktop icons, lock the screen and more.
 - **Radial menu.** Hold a shortcut, or a spare side mouse button, and a wheel of your favorite actions opens around the pointer: apps, files, links, key combos, media controls and Vorssaint tools, with submenus for more. Point and release to run one.
-- **Screenshot.** Capture an area, a window or the whole screen on a frozen picture. A quick preview can copy, save, delete or open the editor, which adds stickers, annotations, precise crop, redaction, backgrounds and pinned captures. A QR code in the shot shows its content to copy or open, from the preview and the editor. Optional timer, save folder and 1x export included. Captures can copy themselves to the clipboard, run your favorite action right after the shot, and save into dated subfolders with a file name pattern of your own.
-- **Screen recording.** Pick an area, a window or the whole screen the same way you pick a screenshot, and it records, with the sound of your Mac on its own track. A small pill shows the time and ends the recording with one click. Then the editor opens, and this is where it stops being an ordinary recorder: the pointer glides instead of jittering, the picture leans in on every click and back out afterwards, a ring marks where you clicked, and the recording can sit on a background with rounded corners in whatever shape you are posting to. Drag the ends of the filmstrip to cut it, silence the sound if you want it quiet, and save a video or a GIF. Three looks, Raw, Clean and Studio, set all of it in one click, and everything stays adjustable afterwards.
+- **Screenshot.** Capture an area, a window or the whole screen on a frozen picture, or join a long page or document into one image and stop exactly where you want. A quick preview can copy, save, delete or open the editor, which adds stickers, annotations, precise crop, redaction, adjustable backgrounds and pinned captures. The preview and editor can share a capture for 1, 6 or 24 hours and delete it early from the app. A QR code in the shot shows its content to copy or open, from the preview and the editor. Optional timer, save folder and 1x export included. Captures can copy themselves to the clipboard, run your favorite action right after the shot, save into dated subfolders with a file name pattern of your own, and use separate shortcuts for a whole-screen shot or reopening the latest capture.
+- **Screen recording.** Record an area, a window or the whole screen with optional system sound. The editor trims, cuts, smooths the pointer, adds automatic zooms that can stay with typing after a click, adds text and adjustable backgrounds, and saves reusable presets. Copy the finished video directly, copy and delete in one step, or export video and GIF files to the folder you choose.
 - **Camera preview.** A floating mirror to check how you look before joining a call, one click or shortcut away. Pick the camera when several are connected; it closes as soon as you click away.
 - **Scratchpad.** A floating pad for short-lived text: meeting notes, numbers, fragments on their way somewhere else. It saves as you type, steps aside when you click elsewhere (or stays floating, your call), and can copy everything, export to a file or clear itself after a quiet period.
 - **Copy text from screen.** Select any area and its text is recognized offline, straight onto the clipboard. When the area holds a QR code, its content is shown so you can copy it or open the link.
@@ -157,7 +157,7 @@ To remove Vorssaint completely, including its settings and permissions:
 
 ## Private by default
 
-Vorssaint has no backend, no account, no analytics and no tracking. The network is touched only by things you can see: update checks, the speed test, the app update check, and Homebrew searches and installs you start. The full story is in the [privacy notes](docs/PRIVACY.md).
+Vorssaint is local-first, with no account, analytics or tracking. The network is touched only by things you can see: update checks, the speed test, Homebrew actions, temporary screenshot links and feedback you explicitly send. The full story is in the [privacy notes](docs/PRIVACY.md).
 
 Permissions get the same treatment. Every one is optional, the app explains each in plain words, shows which features actually use it, and even tells you when a permission you granted is no longer needed by anything, with a shortcut to revoke it.
 

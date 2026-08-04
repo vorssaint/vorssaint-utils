@@ -16,6 +16,7 @@ struct ClipboardSettings: View {
     @AppStorage(DefaultsKey.clipboardHistoryIncludeImagesFiles) private var includeImagesFiles = true
     @AppStorage(DefaultsKey.clipboardHistoryShortcutEnabled) private var shortcutEnabled = true
     @AppStorage(DefaultsKey.panelUtilityClipboard) private var showInPanel = true
+    @AppStorage(DefaultsKey.finderPasteImageAsFile) private var pasteImageAsFile = false
 
     private var text: ClipboardFeatureStrings {
         FeatureStrings.clipboard(l10n.language)
@@ -58,6 +59,21 @@ struct ClipboardSettings: View {
                         }
                     }
                     Toggle(text.showInPanel, isOn: $showInPanel)
+                }
+            }
+
+            if AppFeature.finderCutPaste.isAvailable {
+                Section {
+                    Toggle(text.pasteImageAsFile, isOn: $pasteImageAsFile)
+                        .onChange(of: pasteImageAsFile) { _, _ in
+                            FinderCutPaste.shared.syncWithPreferences()
+                        }
+                    Text(text.pasteImageAsFileCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if pasteImageAsFile, !permissions.accessibility {
+                        PermissionRow(kind: .accessibility)
+                    }
                 }
             }
 

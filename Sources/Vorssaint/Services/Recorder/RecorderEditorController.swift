@@ -6,6 +6,7 @@ import AppKit
 import Carbon.HIToolbox
 import Combine
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// What the editor view watches. Holds the document, the player and the
 /// filmstrip; every change goes through here so undo has one thing to record.
@@ -22,6 +23,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     /// The last file this recording produced. Kept so the editor can hand it
     /// over: a HUD naming a folder is not the same as giving somebody the file.
     @Published private(set) var lastExportedURL: URL?
+    @Published private(set) var editPresets: [RecorderEditPreset] = []
     @Published var document: RecorderEditDocument {
         didSet { documentDidChange(from: oldValue) }
     }
@@ -46,10 +48,14 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     private(set) var sourceSize: CGSize = .zero
     private var sourceFrameRate = 60
     private(set) var pointerTrack = RecorderPointerTrack()
+    private(set) var typingTrack = RecorderTypingTrack()
     /// True when the recording carries a pointer track at all. Without one the
     /// pointer and zoom controls have nothing to act on and are hidden rather
     /// than shown doing nothing.
     var hasPointerTrack: Bool { !pointerTrack.isEmpty }
+    private var typingTimes: [Double] {
+        document.zoomsOnTyping ? typingTrack.times : []
+    }
 
     var trim: RecorderSupport.Trim {
         document.trim(duration: duration)
@@ -78,6 +84,8 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         }
         player.isMuted = !document.keepsSystemAudio
         pointerTrack = RecorderPointerTrack.decoded(try? Data(contentsOf: take.pointerURL))
+        typingTrack = RecorderTypingTrack.decoded(try? Data(contentsOf: take.typingURL))
+        loadEditPresets()
         loadBackdropPresets()
         observeTime()
         load()
@@ -336,7 +344,51 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     }
 
     func applyLook(_ look: RecorderEditDocument.Look) {
-        document = document.applying(look)
+        document = document.applying(look).restoringAutomaticZooms(
+            clicks: pointerTrack.clicks,
+            typingTimes: typingTimes,
+            duration: duration)
+    }
+
+    func applyPreset(_ preset: RecorderEditPreset) {
+        document = preset.applying(to: document)
+            .restoringAutomaticZooms(clicks: pointerTrack.clicks,
+                                     typingTimes: typingTimes,
+                                     duration: duration)
+            .sanitized(duration: duration)
+    }
+
+    func savePreset(named name: String) {
+        let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+        if let index = editPresets.firstIndex(where: {
+            $0.name.compare(clean, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        }) {
+            editPresets[index] = RecorderEditPreset(id: editPresets[index].id,
+                                                    name: clean,
+                                                    document: document)
+        } else {
+            editPresets.append(RecorderEditPreset(name: clean, document: document))
+            editPresets = Array(editPresets.suffix(12))
+        }
+        persistEditPresets()
+    }
+
+    func removePreset(_ preset: RecorderEditPreset) {
+        editPresets.removeAll { $0.id == preset.id }
+        persistEditPresets()
+    }
+
+    private func loadEditPresets() {
+        guard let data = UserDefaults.standard.data(forKey: DefaultsKey.recorderEditorPresets),
+              let presets = try? JSONDecoder().decode([RecorderEditPreset].self, from: data)
+        else { return }
+        editPresets = Array(presets.suffix(12))
+    }
+
+    private func persistEditPresets() {
+        guard let data = try? JSONEncoder().encode(editPresets) else { return }
+        UserDefaults.standard.set(data, forKey: DefaultsKey.recorderEditorPresets)
     }
 
     /// The edit lives next to the master, so reopening a recording finds it
@@ -432,6 +484,38 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         return zoom(selectedZoomID)
     }
 
+    var canCreateAutomaticZooms: Bool {
+        !RecorderTimeline.generatedSegments(
+            clicks: pointerTrack.clicks,
+            typingTimes: typingTimes,
+            duration: duration,
+            amount: document.zoomAmount).isEmpty
+    }
+
+    func setAutomaticZoomEnabled(_ enabled: Bool) {
+        var next = document
+        next.zoomEnabled = enabled
+        if enabled {
+            next = next.restoringAutomaticZooms(clicks: pointerTrack.clicks,
+                                                typingTimes: typingTimes,
+                                                duration: duration)
+        }
+        document = next
+    }
+
+    func setTypingZoomEnabled(_ enabled: Bool) {
+        var next = document
+        next.zoomsOnTyping = enabled
+        next.zoomSegments = RecorderTimeline.generatedSegments(
+            clicks: pointerTrack.clicks,
+            typingTimes: enabled ? typingTrack.times : [],
+            duration: duration,
+            amount: RecorderSupport.sanitizedZoomAmount(next.zoomAmount))
+        next.zoomEnabled = true
+        next.zoomsGenerated = true
+        document = next
+    }
+
     func zoom(_ id: UUID) -> RecorderTimeline.ZoomSegment? {
         document.zoomSegments.first { $0.id == id }
     }
@@ -448,6 +532,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         var next = document
         next.zoomSegments = RecorderTimeline.generatedSegments(
             clicks: pointerTrack.clicks,
+            typingTimes: typingTimes,
             duration: duration,
             amount: RecorderSupport.sanitizedZoomAmount(document.zoomAmount))
         next.zoomsGenerated = true
@@ -470,6 +555,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
             amount: lastZoomAmount ?? RecorderSupport.sanitizedZoomAmount(document.zoomAmount))
         var next = document
         next.zoomSegments.append(segment)
+        next.zoomEnabled = true
         next.zoomsGenerated = true
         applyDuringInteraction(next)
         selectedZoomID = segment.id
@@ -550,8 +636,10 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         var next = document
         next.zoomSegments = RecorderTimeline.generatedSegments(
             clicks: pointerTrack.clicks,
+            typingTimes: typingTimes,
             duration: duration,
             amount: RecorderSupport.sanitizedZoomAmount(document.zoomAmount))
+        next.zoomEnabled = true
         next.zoomsGenerated = true
         applyDuringInteraction(next)
         selectedZoomID = nil
@@ -786,10 +874,12 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         // A saved look is the look, not this recording's sliders.
         snapshot.padding = 0.5
         snapshot.cornerRadius = 0.1
+        snapshot.blur = 0
         guard !backdropPresets.contains(where: {
             var candidate = $0
             candidate.padding = 0.5
             candidate.cornerRadius = 0.1
+            candidate.blur = 0
             return candidate == snapshot
         }) else { return }
         backdropPresets = Array((backdropPresets + [snapshot])
@@ -814,6 +904,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
 
     func export(_ output: RecorderExporter.Output,
                 to destination: URL,
+                rememberDestination: Bool = true,
                 completion: @escaping (RecorderExporter.Failure?) -> Void) {
         guard !isExporting else { return }
         pause()
@@ -835,7 +926,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
             guard let self else { return }
             self.isExporting = false
             self.exporter = nil
-            if failure == nil { self.lastExportedURL = destination }
+            if failure == nil, rememberDestination { self.lastExportedURL = destination }
             completion(failure)
         }
     }
@@ -918,18 +1009,125 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
         run(.gif, to: destination)
     }
 
-    private func run(_ output: RecorderExporter.Output, to destination: URL) {
-        model.export(output, to: destination) { [weak self] failure in
+    func saveVideoAs() {
+        guard let window else { return }
+        let suggested = ScreenRecorderService.saveDestination(strings: strings,
+                                                               fileExtension: "mp4")
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.mpeg4Movie]
+        panel.canCreateDirectories = true
+        panel.directoryURL = suggested.deletingLastPathComponent()
+        panel.nameFieldStringValue = suggested.lastPathComponent
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            self?.run(.video, to: url)
+        }
+    }
+
+    func chooseSaveFolder() {
+        guard let window else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.beginSheetModal(for: window) { response in
+            guard response == .OK, let url = panel.url else { return }
+            UserDefaults.standard.set(url.path, forKey: DefaultsKey.recorderSaveFolder)
+        }
+    }
+
+    func copyVideo() {
+        copyVideoAndDelete(false)
+    }
+
+    func copyAndDelete() {
+        copyVideoAndDelete(true)
+    }
+
+    private func copyVideoAndDelete(_ deletesRecording: Bool) {
+        guard let destination = copyDestination() else {
+            QuickToolHUD.show(icon: "record.circle", message: strings.exportFailed)
+            return
+        }
+        run(.video, to: destination, rememberDestination: false) { [weak self] url in
+            guard let self else { return }
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            guard pasteboard.writeObjects([url as NSURL]) else {
+                NSSound.beep()
+                QuickToolHUD.show(icon: "record.circle", message: self.strings.exportFailed)
+                return
+            }
+            QuickToolHUD.show(icon: "doc.on.doc", message: self.strings.copiedHUD)
+            if deletesRecording {
+                self.confirmedClose = true
+                self.window?.close()
+            }
+        }
+    }
+
+    func saveCurrentPreset() {
+        guard let window else { return }
+        let field = NSTextField(string: "")
+        field.placeholderString = strings.presetNamePlaceholder
+        field.frame = NSRect(x: 0, y: 0, width: 260, height: 24)
+        let alert = NSAlert()
+        alert.messageText = strings.savePreset
+        alert.accessoryView = field
+        alert.addButton(withTitle: strings.saveButton)
+        alert.addButton(withTitle: strings.cancelButton)
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard response == .alertFirstButtonReturn else { return }
+            self?.model.savePreset(named: field.stringValue)
+        }
+    }
+
+    private func copyDestination() -> URL? {
+        let manager = FileManager.default
+        guard let base = manager.urls(for: .cachesDirectory, in: .userDomainMask).first,
+              let bundleID = Bundle.main.bundleIdentifier
+        else { return nil }
+        let folder = base.appendingPathComponent(bundleID, isDirectory: true)
+            .appendingPathComponent("Copied Recordings", isDirectory: true)
+        guard (try? manager.createDirectory(at: folder, withIntermediateDirectories: true)) != nil
+        else { return nil }
+        if let files = try? manager.contentsOfDirectory(
+            at: folder, includingPropertiesForKeys: [.contentModificationDateKey]) {
+            let cutoff = Date().addingTimeInterval(-24 * 3600)
+            for file in files where (try? file.resourceValues(
+                forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantFuture < cutoff {
+                try? manager.removeItem(at: file)
+            }
+        }
+        let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix,
+                                              date: Date(), fileExtension: "mp4")
+        let unique = ScreenshotSupport.uniqueFileName(name) { candidate in
+            manager.fileExists(atPath: folder.appendingPathComponent(candidate).path)
+        }
+        return folder.appendingPathComponent(unique)
+    }
+
+    private func run(_ output: RecorderExporter.Output,
+                     to destination: URL,
+                     rememberDestination: Bool = true,
+                     onSuccess: ((URL) -> Void)? = nil) {
+        model.export(output, to: destination, rememberDestination: rememberDestination) {
+            [weak self] failure in
             guard let self else { return }
             switch failure {
             case nil:
                 // The window stays: exports are slow and plural, and a person
                 // who just made a video often wants the GIF of it too.
                 self.exported = true
-                QuickToolHUD.show(
-                    icon: "record.circle",
-                    message: String(format: self.strings.savedHUDFormat,
-                                    destination.deletingLastPathComponent().lastPathComponent))
+                if let onSuccess {
+                    onSuccess(destination)
+                } else {
+                    QuickToolHUD.show(
+                        icon: "record.circle",
+                        message: String(format: self.strings.savedHUDFormat,
+                                        destination.deletingLastPathComponent().lastPathComponent))
+                }
             case .cancelled:
                 break
             case .tooLongForGIF:
@@ -958,7 +1156,7 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
         model.pause()
         let alert = NSAlert()
         alert.messageText = strings.discardTitle
-        alert.informativeText = strings.discardMessage
+        alert.informativeText = exported ? strings.discardSavedMessage : strings.discardMessage
         alert.alertStyle = .warning
         alert.addButton(withTitle: strings.discardButton)
         alert.addButton(withTitle: strings.cancelButton)
@@ -1007,6 +1205,12 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                     editorIsKey: window.isKeyWindow)
             else { return event }
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            let editsText = window.firstResponder is NSTextView
+            if editsText,
+               !(flags == .command && Int(event.keyCode) == kVK_ANSI_S),
+               !(flags == [.command, .shift] && Int(event.keyCode) == kVK_ANSI_S) {
+                return event
+            }
             if flags == .command {
                 switch Int(event.keyCode) {
                 case kVK_ANSI_S:
@@ -1015,12 +1219,23 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                 case kVK_ANSI_Z:
                     self.model.undo()
                     return nil
+                case kVK_ANSI_C:
+                    self.copyVideo()
+                    return nil
                 default:
                     return event
                 }
             }
             if flags == [.command, .shift], Int(event.keyCode) == kVK_ANSI_Z {
                 self.model.redo()
+                return nil
+            }
+            if flags == [.command, .shift], Int(event.keyCode) == kVK_ANSI_S {
+                self.saveVideoAs()
+                return nil
+            }
+            if flags == [.command, .option], Int(event.keyCode) == kVK_ANSI_C {
+                self.copyAndDelete()
                 return nil
             }
             guard flags.isEmpty else { return event }

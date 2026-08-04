@@ -103,17 +103,11 @@ enum WindowEnumerator {
         let embeddedHostPIDs = Dictionary(uniqueKeysWithValues: embeddedHostPairs)
         // The regular process owns the app identity, but an embedded accessory
         // process can own its real windows. Query both sides of that mapping.
-        let accessibilityPids: Set<pid_t>
-        if let filterPID {
-            let embeddedPIDs = embeddedHostPIDs.compactMap { ownerPID, hostPID in
-                hostPID == filterPID ? ownerPID : nil
-            }
-            accessibilityPids = Set([filterPID] + embeddedPIDs)
-        } else {
-            accessibilityPids = Set(regularApps.keys)
-                .union(embeddedHostPIDs.keys)
-                .subtracting([pid_t(ownPid)])
-        }
+        let accessibilityPids = SwitcherSupport.accessibilityPIDs(
+            regularAppPIDs: Set(regularApps.keys),
+            embeddedHostPIDs: embeddedHostPIDs,
+            ownPID: pid_t(ownPid),
+            filterPID: filterPID)
         let accessibilityWindows = accessibilityWindows(for: accessibilityPids,
                                                         undescribedSubrolePids: compatibilityLayerPids)
 
@@ -176,7 +170,8 @@ enum WindowEnumerator {
             }
             let axWindow = accessibilityWindows[windowOwnerPID]?.byID[CGWindowID(windowID)]
             if accessibilityWindows[windowOwnerPID] != nil, axWindow == nil,
-               !isOnHiddenSpace(CGWindowID(windowID)) {
+               (!isOnHiddenSpace(CGWindowID(windowID))
+                || SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID))) {
                 continue
             }
             let cgFrame = CGRect(x: (boundsDict["X"] as? NSNumber)?.doubleValue ?? 0,
@@ -285,18 +280,37 @@ enum WindowEnumerator {
                                              undescribedSubrolePids: Set<pid_t> = []) -> [pid_t: AccessibilityWindowSnapshotList] {
         guard Permissions.shared.accessibility else { return [:] }
 
+        let orderedPIDs = pids.sorted()
+        guard !orderedPIDs.isEmpty else { return [:] }
+        let screenFrames = NSScreen.screens.map(\.frame)
         var result: [pid_t: AccessibilityWindowSnapshotList] = [:]
-        for pid in pids {
-            guard let windows = accessibilityWindows(for: pid,
-                                                     acceptsUndescribedSubroles: undescribedSubrolePids.contains(pid))
-            else { continue }
-            result[pid] = windows
+        let resultLock = NSLock()
+        // A remote app can consume its whole messaging timeout. Overlap those
+        // independent calls so several slow background helpers cost one wait,
+        // not one wait each, while preserving Accessibility-only windows. The
+        // bound keeps a helper-heavy app from creating an unbounded thread burst.
+        let queryQueue = OperationQueue()
+        queryQueue.qualityOfService = .userInteractive
+        queryQueue.maxConcurrentOperationCount = min(8, orderedPIDs.count)
+        for pid in orderedPIDs {
+            queryQueue.addOperation {
+                guard let windows = accessibilityWindows(
+                    for: pid,
+                    acceptsUndescribedSubroles: undescribedSubrolePids.contains(pid),
+                    screenFrames: screenFrames
+                ) else { return }
+                resultLock.lock()
+                result[pid] = windows
+                resultLock.unlock()
+            }
         }
+        queryQueue.waitUntilAllOperationsAreFinished()
         return result
     }
 
     private static func accessibilityWindows(for pid: pid_t,
-                                             acceptsUndescribedSubroles: Bool = false) -> AccessibilityWindowSnapshotList? {
+                                             acceptsUndescribedSubroles: Bool = false,
+                                             screenFrames: [CGRect]) -> AccessibilityWindowSnapshotList? {
         let app = AXUIElementCreateApplication(pid)
         // This runs on the main thread (tap callback and activation warm-ups):
         // an app that is not servicing its run loop would hold every AX call
@@ -334,7 +348,8 @@ enum WindowEnumerator {
                                                            frame: frame,
                                                            isMinimized: boolAttribute(window, kAXMinimizedAttribute as String),
                                                            isFullscreen: isFullscreenWindow(window)
-                                                            || frameLooksFullscreen(frame))
+                                                            || frameLooksFullscreen(frame,
+                                                                                    screenFrames: screenFrames))
                 byID[id] = snapshot
                 ordered.append((id, snapshot))
             }
@@ -444,11 +459,13 @@ enum WindowEnumerator {
         return CGRect(origin: .zero, size: minimumSize)
     }
 
-    private static func frameLooksFullscreen(_ frame: CGRect?) -> Bool {
+    private static func frameLooksFullscreen(_ frame: CGRect?,
+                                             screenFrames: [CGRect]? = nil) -> Bool {
         guard let frame else { return false }
-        return NSScreen.screens.contains { screen in
-            abs(frame.width - screen.frame.width) <= 2
-                && abs(frame.height - screen.frame.height) <= 2
+        let frames = screenFrames ?? NSScreen.screens.map(\.frame)
+        return frames.contains { screenFrame in
+            abs(frame.width - screenFrame.width) <= 2
+                && abs(frame.height - screenFrame.height) <= 2
         }
     }
 

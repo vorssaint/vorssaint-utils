@@ -606,8 +606,8 @@ extension Strings {
         obLanguageUpdateTitle: "あなたの言語に対応",
         obLanguageUpdateBody: "Vorssaint が複数の言語に対応しました。使いたい言語を選んでください。設定でいつでも変更できます。",
         obPurposeTitle: "目的を教えてください",
-        obPurposeBody: "選ぶだけでアプリが自動で整います。残りは設定からワンクリックです。",
-        obPurposeSkip: "全部手元に置いておく",
+        obPurposeBody: "用意された設定か、使いたい機能を一つずつ選んでください。",
+        obPurposeSkip: "機能は後から設定で追加または削除できます。",
 
         tabMonitor: "モニタ",
         monitorMenuBarSection: "メニューバー",
@@ -891,6 +891,9 @@ extension Strings {
         switcherCurrentSpaceOnly: "現在のデスクトップのみ表示",
         switcherCurrentSpaceOnlyCaption: "今いるデスクトップのウインドウだけをスイッチャーに表示します。ウインドウを選んでも別のデスクトップには移動しません。",
         shelfFileMissing: "ファイルはもう存在しません",
-        previewSizeSmall: "小"
+        previewSizeSmall: "小",
+        mixerSoundEffectsOutputTitle: "システムサウンド",
+        mixerSoundEffectsOutputTooltip: "通知音とサウンドエフェクトの出力先を選択",
+        monitorOpenActivityMonitor: "アクティビティモニタを開く"
     )
 }

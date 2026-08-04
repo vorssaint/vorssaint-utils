@@ -296,7 +296,7 @@ private struct WindowLayoutActionRow: View {
     }
 
     private func save(_ shortcut: GlobalShortcut) {
-        if let conflict = GlobalShortcutRole.allCases.first(where: { $0.savedShortcut == shortcut }) {
+        if let conflict = GlobalShortcutRole.conflict(for: shortcut, excluding: nil) {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict.title(l10n.s))
             return
         }

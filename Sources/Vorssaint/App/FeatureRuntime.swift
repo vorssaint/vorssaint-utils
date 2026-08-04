@@ -63,12 +63,19 @@ final class FeatureRuntime: ObservableObject {
     /// else uninstalls. Nothing is deleted, so any feature returns with one
     /// click, settings intact.
     func apply(_ preset: FeaturePreset) {
-        for key in preset.enableKeys {
+        replaceAvailable(with: preset.features, enabling: preset.enableKeys)
+    }
+
+    /// Replaces the installed set after the first-run picker. It uses the same
+    /// availability layer as the hub, so unselected features disappear without
+    /// losing any of their settings.
+    func replaceAvailable(with selected: Set<AppFeature>, enabling keys: [String] = []) {
+        for key in keys {
             UserDefaults.standard.set(true, forKey: key)
         }
         for feature in AppFeature.allCases
-        where feature.isAvailable != preset.features.contains(feature) {
-            let joins = preset.features.contains(feature)
+        where feature.isAvailable != selected.contains(feature) {
+            let joins = selected.contains(feature)
             UserDefaults.standard.set(joins, forKey: feature.availabilityKey)
             if joins { loadedThisSession.insert(feature) }
             Self.bindings[feature]?()
@@ -76,7 +83,7 @@ final class FeatureRuntime: ObservableObject {
         // Features that stayed installed still need a sync: their enable
         // keys may have just flipped on. Syncs are idempotent, so a repeat
         // for the ones handled above costs nothing.
-        for feature in preset.features {
+        for feature in selected {
             Self.bindings[feature]?()
         }
         revision += 1
@@ -142,6 +149,7 @@ final class FeatureRuntime: ObservableObject {
         .clipboardHistory: { ClipboardHistoryService.shared.syncWithPreferences() },
         .pastePlain: { PastePlainService.shared.syncWithPreferences() },
         .finderCutPaste: { FinderCutPaste.shared.syncWithPreferences() },
+        .finderRename: { FinderRenameService.shared.syncWithPreferences() },
         .shelf: { ShelfService.shared.syncWithPreferences() },
         .urlCleaner: { URLCleanerService.shared.syncWithPreferences() },
         .mixer: {

@@ -426,7 +426,6 @@ struct SwitcherView: View {
                             }
                     }
                 }
-                .padding(.horizontal, 2)
                 .frame(height: SwitcherIconRowLayout.rowHeight, alignment: .center)
             }
             .scrollDisabled(groups.count <= switcher.iconRowLayout.visibleIconCount)

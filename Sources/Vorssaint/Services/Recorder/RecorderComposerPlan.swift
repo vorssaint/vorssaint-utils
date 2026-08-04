@@ -241,6 +241,13 @@ extension RecorderComposer {
         context.setFillColor(CGColor(gray: 0, alpha: 1))
         context.fill(CGRect(origin: .zero, size: canvas))
         drawFill(style: style, in: context, canvas: canvas)
+        if style.blur > 0, let background = context.makeImage() {
+            let bounds = CGRect(origin: .zero, size: canvas)
+            let blurred = ScreenshotRenderer.blurredBackdrop(
+                background, factor: CGFloat(style.blur))
+            context.clear(bounds)
+            context.draw(blurred, in: bounds)
+        }
 
         if corner > 0 || style.kind != .none {
             // The recording sits on the background rather than in it, and a

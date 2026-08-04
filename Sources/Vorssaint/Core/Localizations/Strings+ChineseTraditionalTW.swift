@@ -607,8 +607,8 @@ extension Strings {
         obLanguageUpdateTitle: "現在支援你的語言",
         obLanguageUpdateBody: "Vorssaint 現在支援多種語言。選擇你想使用的語言，隨時可在設定中變更。",
         obPurposeTitle: "你想用它做什麼？",
-        obPurposeBody: "選擇一項，App 會自動設定。其餘功能在設定中一鍵可得。",
-        obPurposeSkip: "全部留在手邊",
+        obPurposeBody: "選擇一套預設，或準確勾選你想使用的功能。",
+        obPurposeSkip: "之後可隨時在設定中加入或移除功能。",
 
         tabMonitor: "監控",
         monitorMenuBarSection: "在選單列中",
@@ -892,6 +892,9 @@ extension Strings {
         switcherCurrentSpaceOnly: "僅顯示目前的桌面",
         switcherCurrentSpaceOnlyCaption: "切換器中只顯示你所在桌面的視窗。選擇視窗不會把你帶到其他桌面。",
         shelfFileMissing: "檔案已不存在",
-        previewSizeSmall: "小"
+        previewSizeSmall: "小",
+        mixerSoundEffectsOutputTitle: "系統聲音",
+        mixerSoundEffectsOutputTooltip: "選擇提示音與音效的播放裝置",
+        monitorOpenActivityMonitor: "打開活動監視器"
     )
 }

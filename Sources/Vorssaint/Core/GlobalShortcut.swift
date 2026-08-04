@@ -89,10 +89,11 @@ struct GlobalShortcut: Equatable, Hashable {
     }
 
     init?(storageValue: String) {
-        let parts = storageValue.split(separator: ":", maxSplits: 1).map(String.init)
-        guard parts.count == 2, let keyCode = Int64(parts[1]) else { return nil }
+        guard let separator = storageValue.firstIndex(of: ":"),
+              let keyCode = Int64(storageValue[storageValue.index(after: separator)...])
+        else { return nil }
         var modifiers: GlobalShortcutModifiers = []
-        for token in parts[0].split(separator: "+") {
+        for token in storageValue[..<separator].split(separator: "+") {
             switch token {
             case "control": modifiers.insert(.control)
             case "option": modifiers.insert(.option)
@@ -165,6 +166,7 @@ struct GlobalShortcut: Equatable, Hashable {
     // combination; the others use the free ⌃⌥⌘ letters.
     static let pastePlainDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_V),
                                                   modifiers: [.shift, .option, .command])
+    static let finderRenameDefault = GlobalShortcut(keyCode: Int64(kVK_F2), modifiers: [])
     static let colorPickerDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_C),
                                                    modifiers: [.control, .option, .command])
     static let screenOCRDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_T),
@@ -180,6 +182,12 @@ struct GlobalShortcut: Equatable, Hashable {
     // Default screenshot shortcut on the available control-option-command layer.
     static let screenshotDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_4),
                                                   modifiers: [.control, .option, .command])
+    // Full screen sits beside the selector's 4 and the recorder's 5.
+    static let screenshotFullScreenDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_3),
+                                                            modifiers: [.control, .option, .command])
+    // E opens the latest capture in the editor, beside the capture shortcut.
+    static let screenshotLastCaptureDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_E),
+                                                             modifiers: [.control, .option, .command])
     // Space for the wheel, on the same free control-option-command layer.
     static let radialMenuDefault = GlobalShortcut(keyCode: Int64(kVK_Space),
                                                   modifiers: [.control, .option, .command])
@@ -222,7 +230,8 @@ struct GlobalShortcut: Equatable, Hashable {
     var hasUsableKeyCode: Bool { Self.keyCodeRange.contains(keyCode) }
 
     var isValid: Bool {
-        hasUsableKeyCode && modifiers.hasPrimaryModifier && keyLabel != nil
+        hasUsableKeyCode && keyLabel != nil
+            && (modifiers.hasPrimaryModifier || Self.standaloneFunctionKeys.contains(keyCode))
     }
 
     var displayString: String {
@@ -268,6 +277,14 @@ struct GlobalShortcut: Equatable, Hashable {
         kVK_LeftArrow, kVK_RightArrow, kVK_UpArrow, kVK_DownArrow,
     ] as [Int]).map(Int64.init))
 
+    /// Function-row keys are safe without modifiers: unlike a bare letter,
+    /// taking one never makes ordinary typing impossible. This also lets F2
+    /// serve as Finder's familiar Rename key.
+    private static let standaloneFunctionKeys: Set<Int64> = Set(([
+        kVK_F1, kVK_F2, kVK_F3, kVK_F4, kVK_F5, kVK_F6, kVK_F7, kVK_F8, kVK_F9, kVK_F10,
+        kVK_F11, kVK_F12, kVK_F13, kVK_F14, kVK_F15, kVK_F16, kVK_F17, kVK_F18, kVK_F19, kVK_F20,
+    ] as [Int]).map(Int64.init))
+
     /// The keypad, plus the arrows, which this system counts as part of it.
     private static let numericPadKeys: Set<Int64> = Set(([
         kVK_ANSI_Keypad0, kVK_ANSI_Keypad1, kVK_ANSI_Keypad2, kVK_ANSI_Keypad3, kVK_ANSI_Keypad4,
@@ -294,6 +311,10 @@ struct GlobalShortcut: Equatable, Hashable {
                  tolerating extra: GlobalShortcutModifiers = []) -> Bool {
         guard event.getIntegerValueField(.keyboardEventKeycode) == keyCode else { return false }
         return modifiersMatch(event: event, allowingExtraShift: allowingExtraShift, tolerating: extra)
+    }
+
+    func matches(keyCode: Int64, modifiers actual: GlobalShortcutModifiers) -> Bool {
+        keyCode == self.keyCode && actual == modifiers
     }
 
     /// Layout-tolerant match: true when the pressed key would type the same
@@ -499,11 +520,14 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case clipboard
     case soundOutputSwitcher
     case pastePlain
+    case finderRename
     case colorPicker
     case screenOCR
     case micMute
     case quickLauncher
     case screenshot
+    case screenshotFullScreen
+    case screenshotLastCapture
     case cameraPreview
     case radialMenu
     case scratchpad
@@ -522,11 +546,14 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .clipboard: return DefaultsKey.clipboardHistoryShortcut
         case .soundOutputSwitcher: return DefaultsKey.soundOutputSwitcherShortcut
         case .pastePlain: return DefaultsKey.pastePlainShortcut
+        case .finderRename: return DefaultsKey.finderRenameShortcut
         case .colorPicker: return DefaultsKey.colorPickerShortcut
         case .screenOCR: return DefaultsKey.screenOCRShortcut
         case .micMute: return DefaultsKey.micMuteShortcut
         case .quickLauncher: return DefaultsKey.quickLauncherShortcut
         case .screenshot: return DefaultsKey.screenshotShortcut
+        case .screenshotFullScreen: return DefaultsKey.screenshotFullScreenShortcut
+        case .screenshotLastCapture: return DefaultsKey.screenshotLastCaptureShortcut
         case .cameraPreview: return DefaultsKey.cameraPreviewShortcut
         case .radialMenu: return DefaultsKey.radialMenuShortcut
         case .scratchpad: return DefaultsKey.scratchpadShortcut
@@ -545,11 +572,14 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .clipboard: return .clipboardDefault
         case .soundOutputSwitcher: return .soundOutputSwitcherDefault
         case .pastePlain: return .pastePlainDefault
+        case .finderRename: return .finderRenameDefault
         case .colorPicker: return .colorPickerDefault
         case .screenOCR: return .screenOCRDefault
         case .micMute: return .micMuteDefault
         case .quickLauncher: return .quickLauncherDefault
         case .screenshot: return .screenshotDefault
+        case .screenshotFullScreen: return .screenshotFullScreenDefault
+        case .screenshotLastCapture: return .screenshotLastCaptureDefault
         case .cameraPreview: return .cameraPreviewDefault
         case .radialMenu: return .radialMenuDefault
         case .scratchpad: return .scratchpadDefault
@@ -572,11 +602,16 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .clipboard: return "Clipboard"
         case .soundOutputSwitcher: return strings.soundOutputSwitcherTitle
         case .pastePlain: return strings.pastePlainName
+        case .finderRename: return FeatureStrings.finderRename(L10n.shared.language).hubTitle
         case .colorPicker: return strings.colorPickerName
         case .screenOCR: return strings.ocrName
         case .micMute: return strings.micMuteName
         case .quickLauncher: return strings.launcherName
         case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).pageTitle
+        case .screenshotFullScreen:
+            return FeatureStrings.screenshot(L10n.shared.language).fullScreenShortcutTitle
+        case .screenshotLastCapture:
+            return FeatureStrings.screenshot(L10n.shared.language).editLastCapture
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
@@ -586,8 +621,11 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         }
     }
 
-    static func conflict(for shortcut: GlobalShortcut, excluding role: GlobalShortcutRole) -> GlobalShortcutRole? {
-        allCases.first { candidate in
+    static func conflict(for shortcut: GlobalShortcut,
+                         excluding role: GlobalShortcutRole?,
+                         isOn: (String) -> Bool = { UserDefaults.standard.bool(forKey: $0) },
+                         isAvailable: (AppFeature) -> Bool = { $0.isAvailable }) -> GlobalShortcutRole? {
+        activeRoles(isOn: isOn, isAvailable: isAvailable).first { candidate in
             candidate != role && candidate.savedShortcut == shortcut
         }
     }
@@ -605,11 +643,14 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
                                  DefaultsKey.clipboardHistoryShortcutEnabled]
         case .soundOutputSwitcher: return [DefaultsKey.soundOutputSwitcherEnabled]
         case .pastePlain: return [DefaultsKey.pastePlainEnabled]
+        case .finderRename: return [DefaultsKey.finderRenameEnabled]
         case .colorPicker: return [DefaultsKey.colorPickerShortcutEnabled]
         case .screenOCR: return [DefaultsKey.screenOCRShortcutEnabled]
         case .micMute: return [DefaultsKey.micMuteShortcutEnabled]
         case .quickLauncher: return [DefaultsKey.quickLauncherShortcutEnabled]
         case .screenshot: return [DefaultsKey.screenshotShortcutEnabled]
+        case .screenshotFullScreen: return [DefaultsKey.screenshotFullScreenShortcutEnabled]
+        case .screenshotLastCapture: return [DefaultsKey.screenshotLastCaptureShortcutEnabled]
         case .cameraPreview: return [DefaultsKey.cameraPreviewShortcutEnabled]
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         case .scratchpad: return [DefaultsKey.scratchpadShortcutEnabled]
@@ -630,11 +671,12 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .clipboard: return .clipboardHistory
         case .soundOutputSwitcher: return .soundOutputSwitcher
         case .pastePlain: return .pastePlain
+        case .finderRename: return .finderRename
         case .colorPicker: return .colorPicker
         case .screenOCR: return .screenOCR
         case .micMute: return .micMute
         case .quickLauncher: return .quickLauncher
-        case .screenshot: return .screenshot
+        case .screenshot, .screenshotFullScreen, .screenshotLastCapture: return .screenshot
         case .cameraPreview: return .cameraPreview
         case .radialMenu: return .radialMenu
         case .scratchpad: return .scratchpad

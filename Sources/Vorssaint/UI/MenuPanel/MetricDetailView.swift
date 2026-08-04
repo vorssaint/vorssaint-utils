@@ -101,6 +101,32 @@ extension MenuBarMetric {
     }
 }
 
+struct ActivityMonitorButton: View {
+    @ObservedObject private var l10n = L10n.shared
+    @State private var isHovered = false
+
+    var body: some View {
+        Button {
+            let fallback = URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app")
+            let url = NSWorkspace.shared
+                .urlForApplication(withBundleIdentifier: "com.apple.ActivityMonitor") ?? fallback
+            NSWorkspace.shared.open(url)
+        } label: {
+            Image(systemName: "arrow.up.forward.app")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 18, height: 18)
+                .background(Circle().fill(Color.primary.opacity(isHovered ? 0.1 : 0)))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .help(l10n.s.monitorOpenActivityMonitor)
+        .accessibilityLabel(l10n.s.monitorOpenActivityMonitor)
+        .animation(.easeOut(duration: 0.12), value: isHovered)
+    }
+}
+
 struct MetricDetailView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var monitor = SystemMonitor.shared
@@ -292,6 +318,7 @@ struct MetricDetailView: View {
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.tertiary)
                 Spacer(minLength: 0)
+                ActivityMonitorButton()
             }
             if processRows.isEmpty {
                 Text(processRowsLoading ? l10n.s.breakdownMeasuring : emptyProcessText)

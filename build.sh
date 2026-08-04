@@ -106,7 +106,9 @@ if (( TEST )); then
         Sources/Vorssaint/Core/RecorderStrings.swift \
         Sources/Vorssaint/Core/CameraPreviewStrings.swift \
         Sources/Vorssaint/Core/ScratchpadStrings.swift \
+        Sources/Vorssaint/Core/FinderRenameStrings.swift \
         Sources/Vorssaint/Core/CommandBarStrings.swift \
+        Sources/Vorssaint/Core/FeedbackStrings.swift \
         Sources/Vorssaint/Core/RadialMenuStrings.swift \
         Sources/Vorssaint/Core/MenuBarAppearanceStrings.swift \
         Sources/Vorssaint/Core/AppAppearance.swift \
@@ -120,6 +122,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Recorder/RecorderSupport.swift \
         Sources/Vorssaint/Services/Recorder/RecorderMotion.swift \
         Sources/Vorssaint/Services/Recorder/RecorderPointerTrack.swift \
+        Sources/Vorssaint/Services/Recorder/RecorderTypingTrack.swift \
         Sources/Vorssaint/Services/Recorder/RecorderTimeline.swift \
         Sources/Vorssaint/Services/Recorder/RecorderTextOverlay.swift \
         Sources/Vorssaint/Services/Recorder/RecorderEditDocument.swift \
@@ -144,7 +147,9 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Clipboard/ClipboardHistorySupport.swift \
         Sources/Vorssaint/Services/AutoQuit/AutoQuitSupport.swift \
         Sources/Vorssaint/Services/Shelf/ShelfSupport.swift \
+        Sources/Vorssaint/Services/Finder/FinderRenameSupport.swift \
         Sources/Vorssaint/Services/Update/UpdateInstallerSupport.swift \
+        Sources/Vorssaint/Services/InstalledApps.swift \
         Sources/Vorssaint/Services/LaunchAtLoginSupport.swift \
         Sources/Vorssaint/UI/Settings/SettingsSearchSupport.swift \
         Sources/Vorssaint/UI/Settings/FeatureVisibilitySupport.swift \
@@ -152,6 +157,7 @@ if (( TEST )); then
         Sources/Vorssaint/App/StatusItemAnchorSupport.swift \
         Sources/Vorssaint/Services/DockClick/DockClickSupport.swift \
         Sources/Vorssaint/Services/Finder/CutPasteProgressSupport.swift \
+        Sources/Vorssaint/Services/Finder/FinderPasteImageSupport.swift \
         Sources/Vorssaint/Services/MiddleClick/MiddleClickSupport.swift \
         Sources/Vorssaint/Services/MouseNavigation/MouseNavigationSupport.swift \
         Sources/Vorssaint/Services/MouseButtons/MouseButtonShortcutSupport.swift \
@@ -159,6 +165,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/MouseButtonStrings.swift \
         Sources/Vorssaint/Core/MouseExceptionStrings.swift \
         Sources/Vorssaint/Core/ClipboardIgnoredAppsStrings.swift \
+        Sources/Vorssaint/Core/WindowPreviewExclusionStrings.swift \
         Sources/Vorssaint/Services/QuickTools/QuickToolsSupport.swift \
         Sources/Vorssaint/Services/CommandBar/CommandBarSupport.swift \
         Sources/Vorssaint/Services/CommandBar/CommandBarPreferences.swift \
@@ -171,6 +178,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/QuickTools/MicMuteSupport.swift \
         Sources/Vorssaint/Services/QuickTools/QuickTogglesSupport.swift \
         Sources/Vorssaint/Services/QuickTools/ScreenshotSupport.swift \
+        Sources/Vorssaint/Services/QuickTools/ScreenshotSharingSupport.swift \
         Sources/Vorssaint/Services/KeyboardDebounce/KeyboardDebounceSupport.swift \
         Sources/Vorssaint/Services/SuperKey/SuperKeySupport.swift \
         Sources/Vorssaint/Core/SuperKeyStrings.swift \

@@ -13,6 +13,7 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
     let region: RecorderSupport.Region
     private let engine = RecorderCaptureEngine()
     private let pointer: RecorderPointerSampler
+    private let typing = RecorderTypingSampler()
     /// Immutable for the whole session, which is what makes it safe to touch
     /// from the capture queue while the main thread watches the clock.
     private let writer: RecorderWriter
@@ -48,6 +49,7 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
             return failure
         }
         pointer.start()
+        typing.start()
         return nil
     }
 
@@ -56,10 +58,14 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
     func stop() async -> Bool {
         await engine.stop()
         let track = pointer.stop()
+        let typingTrack = typing.stop()
         let end = CMClockGetTime(CMClockGetHostTimeClock())
         let written = await writer.finish(at: end)
         if written, !track.isEmpty {
             try? track.encoded().write(to: take.pointerURL, options: .atomic)
+        }
+        if written, !typingTrack.isEmpty, let data = typingTrack.encoded() {
+            try? data.write(to: take.typingURL, options: .atomic)
         }
         return written
     }
@@ -67,6 +73,7 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
     func abandon() async {
         await engine.stop()
         _ = pointer.stop()
+        _ = typing.stop()
         writer.cancel()
     }
 
@@ -192,6 +199,10 @@ final class ScreenRecorderService: ObservableObject {
             Permissions.shared.requestScreenRecording()
             return
         }
+        guard Permissions.shared.accessibility else {
+            Permissions.shared.requestAccessibility()
+            return
+        }
         guard RecorderSupport.canStart(freeBytes: RecorderTakeStore.shared.freeBytes()) else {
             reportNoSpace()
             return
@@ -215,7 +226,7 @@ final class ScreenRecorderService: ObservableObject {
             switch outcome {
             case .region(let region):
                 self.startCountdown(for: region)
-            case .captured, .cancelled:
+            case .captured, .scrollingRegion, .cancelled:
                 break
             case .failed:
                 QuickToolHUD.show(icon: "record.circle", message: self.strings.recordFailed)
@@ -242,7 +253,7 @@ final class ScreenRecorderService: ObservableObject {
             beginRecording(region: region)
             return
         }
-        QuickToolHUD.show(icon: "timer", message: "\(countdownRemaining)")
+        QuickToolHUD.showCountdown(countdownRemaining)
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.countdownRemaining -= 1
@@ -263,7 +274,6 @@ final class ScreenRecorderService: ObservableObject {
         let frameRate = RecorderSupport.sanitizedFrameRate(
             defaults.integer(forKey: DefaultsKey.recorderFrameRate))
         let capturesSystemAudio = defaults.bool(forKey: DefaultsKey.recorderSystemAudio)
-
         guard let session = RecorderSession(take: take,
                                             region: region,
                                             frameRate: frameRate,

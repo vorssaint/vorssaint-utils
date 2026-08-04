@@ -23,7 +23,6 @@ struct RadialMenuSettings: View {
     /// The submenu being edited; empty means the root wheel.
     @State private var openSubmenuID: UUID?
     @State private var editing: RadialMenuItem?
-    @State private var editingIsNew = false
     @State private var dragging: RadialMenuItem?
 
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
@@ -136,7 +135,6 @@ struct RadialMenuSettings: View {
                                   text: text,
                                   dragging: $dragging,
                                   edit: {
-                                      editingIsNew = false
                                       editing = item
                                   },
                                   remove: { remove(id: item.id) },
@@ -149,7 +147,6 @@ struct RadialMenuSettings: View {
                         // to the item id, so state can never leak from one
                         // add into the next (a leaked id made every save
                         // replace the previous action instead of appending).
-                        editingIsNew = true
                         editing = RadialMenuItem(kind: .app)
                     } label: {
                         Label(text.addButton, systemImage: "plus")
@@ -168,12 +165,18 @@ struct RadialMenuSettings: View {
         // never stays stuck at reduced opacity.
         .onDrop(of: [UTType.text], delegate: RadialDragCleanupDelegate(dragging: $dragging))
         .sheet(item: $editing) { item in
+            let isNew = !level.contains { $0.id == item.id }
             RadialItemEditor(text: text,
                              item: item,
-                             isNew: editingIsNew,
+                             isNew: isNew,
                              allowsSubmenu: openSubmenuID == nil,
-                             save: { upsert($0) },
-                             delete: editingIsNew ? nil : { remove(id: item.id) })
+                             save: { saved in
+                                 upsert(saved)
+                                 if isNew, saved.kind == .submenu {
+                                     openSubmenuID = saved.id
+                                 }
+                             },
+                             delete: isNew ? nil : { remove(id: item.id) })
         }
         .onChange(of: enabled) { _, on in
             RadialMenuService.shared.syncWithPreferences()
@@ -302,9 +305,10 @@ private struct RadialItemRow: View {
             .buttonStyle(.plain)
             if let openChildren {
                 Button(action: openChildren) {
-                    Label(text.editActionsButton, systemImage: "chevron.forward")
-                        .labelStyle(.iconOnly)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 5) {
+                        Text(text.editActionsButton)
+                        Image(systemName: "chevron.forward")
+                    }
                 }
                 .buttonStyle(.borderless)
                 .help(text.editActionsButton)

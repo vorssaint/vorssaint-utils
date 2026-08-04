@@ -175,6 +175,12 @@ enum SwitcherSupport {
         !simpleMode
     }
 
+    static func shouldPausePreviewCapture(frontmostBundleIdentifier: String?,
+                                          excludedBundleIdentifiers: [String]) -> Bool {
+        guard let frontmostBundleIdentifier else { return false }
+        return excludedBundleIdentifiers.contains(frontmostBundleIdentifier)
+    }
+
     static func needsScreenRecording(switcherEnabled: Bool,
                                      simpleMode: Bool,
                                      dockPreviewEnabled: Bool) -> Bool {
@@ -241,6 +247,23 @@ enum SwitcherSupport {
             }
             .max { lhs, rhs in lhs.value.count < rhs.value.count }?
             .key
+    }
+
+    /// Picks the processes queried through Accessibility when the switcher
+    /// opens. Every embedded helper stays eligible because Accessibility can be
+    /// the only source for its fullscreen window on another desktop; the
+    /// enumerator overlaps these remote queries so slow helpers do not stack.
+    static func accessibilityPIDs(regularAppPIDs: Set<pid_t>,
+                                  embeddedHostPIDs: [pid_t: pid_t],
+                                  ownPID: pid_t,
+                                  filterPID: pid_t?) -> Set<pid_t> {
+        if let filterPID {
+            let embeddedPIDs = embeddedHostPIDs.compactMap { ownerPID, hostPID in
+                hostPID == filterPID ? ownerPID : nil
+            }
+            return Set([filterPID] + embeddedPIDs)
+        }
+        return regularAppPIDs.union(embeddedHostPIDs.keys).subtracting([ownPID])
     }
 
     /// Picks the running apps that earn an entry of their own because the

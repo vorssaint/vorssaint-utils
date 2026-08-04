@@ -231,6 +231,7 @@ final class AppUpdatesService: ObservableObject {
         let items = AppUpdatesSupport.packageUpdates(
             outdated: Array(updates.values),
             installed: records,
+            ignoredTokens: Self.ownPackageTokens,
             bundleVersion: { fileName in
                 guard let app = byFileName[fileName], !app.record.version.isEmpty else { return nil }
                 return (name: app.record.name, version: app.record.version, path: app.record.path)
@@ -268,7 +269,11 @@ final class AppUpdatesService: ObservableObject {
         }
 
         group.notify(queue: workQueue) {
-            completion(AppUpdatesSupport.appStoreUpdates(apps: candidates, storeVersions: merged))
+            let os = ProcessInfo.processInfo.operatingSystemVersion
+            let version = "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"
+            completion(AppUpdatesSupport.appStoreUpdates(apps: candidates,
+                                                         storeVersions: merged,
+                                                         operatingSystemVersion: version))
         }
     }
 
@@ -451,6 +456,8 @@ final class AppUpdatesService: ObservableObject {
     private static func isOwnBundle(_ bundleID: String) -> Bool {
         bundleID == Bundle.main.bundleIdentifier || bundleID.hasPrefix("com.vorssaint")
     }
+
+    private static let ownPackageTokens: Set<String> = ["vorssaint"]
 
     /// The package manager refreshes its own catalog on the way, which can sit
     /// on a slow network. A ceiling keeps a stalled command from leaving the

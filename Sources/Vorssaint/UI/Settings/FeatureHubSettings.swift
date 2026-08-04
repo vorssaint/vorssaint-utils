@@ -75,7 +75,9 @@ struct FeatureHubSettings: View {
                 presetsSection
                 featureSections
             } else {
-                PermissionsPortalSections(hub: hub)
+                Section {
+                    PermissionsPortalSections(hub: hub)
+                }
             }
         }
         .formStyle(.grouped)
@@ -306,20 +308,25 @@ private struct FeatureHubRow: View {
 
 // MARK: - Permissions portal
 
-private struct PermissionsPortalSections: View {
+struct PermissionsPortalSections: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var permissions = Permissions.shared
     let hub: FeatureHubStrings
+    let visiblePermissions: [AppPermission]
     @State private var automation: [Permissions.AutomationTarget: Permissions.AutomationStatus] = [:]
 
+    init(hub: FeatureHubStrings,
+         visiblePermissions: [AppPermission] = AppPermission.allCases) {
+        self.hub = hub
+        self.visiblePermissions = visiblePermissions
+    }
+
     var body: some View {
-        Section {
-            ForEach(AppPermission.allCases, id: \.self) { permission in
-                PermissionPortalRow(permission: permission,
-                                    hub: hub,
-                                    status: status(for: permission))
-            }
+        ForEach(visiblePermissions, id: \.self) { permission in
+            PermissionPortalRow(permission: permission,
+                                hub: hub,
+                                status: status(for: permission))
         }
         .onAppear {
             // Statuses that only refresh at launch/activation get a fresh
@@ -543,6 +550,7 @@ extension AppFeature {
         case .clipboardHistory: return FeatureStrings.clipboard(L10n.shared.language).title
         case .pastePlain: return s.pastePlainName
         case .finderCutPaste: return s.cutPasteName
+        case .finderRename: return FeatureStrings.finderRename(L10n.shared.language).hubTitle
         case .shelf: return s.shelfName
         case .urlCleaner: return s.urlCleanerName
         case .mixer: return s.mixerSection
@@ -596,6 +604,7 @@ extension AppFeature {
         case .clipboardHistory: return hub.descClipboardHistory
         case .pastePlain: return hub.descPastePlain
         case .finderCutPaste: return hub.descFinderCutPaste
+        case .finderRename: return FeatureStrings.finderRename(L10n.shared.language).hubDescription
         case .shelf: return hub.descShelf
         case .urlCleaner: return hub.descURLCleaner
         case .mixer: return hub.descMixer

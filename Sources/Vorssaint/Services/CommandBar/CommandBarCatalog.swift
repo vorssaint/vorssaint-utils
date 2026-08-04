@@ -149,7 +149,7 @@ struct CommandBarEntry: Identifiable {
 enum CommandBarCatalog {
     /// Ids worth discovering before any habit forms; suggestion fill-ins.
     static let curatedSuggestionIDs = [
-        "action.screenshot", "action.keepAwake", "action.screenOCR",
+        "action.screenshot", "action.scrollingScreenshot", "action.keepAwake", "action.screenOCR",
         "action.clipboardWindow", "action.colorPicker", "action.darkMode",
         "action.snippetLibrary",
     ]
@@ -252,14 +252,23 @@ enum CommandBarCatalog {
 
         // Screen tools first: the beat lets the bar leave before capture.
         if AppFeature.screenshot.isAvailable {
+            let screenshot = FeatureStrings.screenshot(language)
             entries.append(CommandBarEntry(
                 id: "action.screenshot",
-                title: FeatureStrings.screenshot(language).pageTitle,
-                subtitle: area(.screenshot, under: FeatureStrings.screenshot(language).pageTitle),
+                title: screenshot.pageTitle,
+                subtitle: area(.screenshot, under: screenshot.pageTitle),
                 icon: .symbol("camera.viewfinder"),
                 shortcut: roleShortcut(.screenshot),
                 trouble: Permissions.shared.screenRecording ? nil : .needsPermission,
                 run: { _ in afterBeat { ScreenshotService.shared.capture() } }))
+            entries.append(CommandBarEntry(
+                id: "action.scrollingScreenshot",
+                title: screenshot.scrollingCaptureTitle,
+                subtitle: area(.screenshot, under: screenshot.pageTitle),
+                icon: .symbol("rectangle.stack"),
+                trouble: Permissions.shared.screenRecording && Permissions.shared.accessibility
+                    ? nil : .needsPermission,
+                run: { _ in afterBeat { ScreenshotService.shared.captureScrolling() } }))
         }
         if AppFeature.screenRecorder.isAvailable {
             let recorder = FeatureStrings.recorder(language)
@@ -612,6 +621,19 @@ enum CommandBarCatalog {
                 shortcut: roleShortcut(.quickLauncher),
                 run: { _ in afterBeat { QuickLauncherService.shared.show() } }))
         }
+        let feedback = FeatureStrings.feedback(language)
+        entries.append(CommandBarEntry(
+            id: "action.feedback.bug",
+            title: feedback.commandBug,
+            subtitle: feedback.commandSubtitle,
+            icon: .symbol("ladybug"),
+            run: { _ in afterBeat { appDelegate()?.openFeedbackWindow(kind: .bug) } }))
+        entries.append(CommandBarEntry(
+            id: "action.feedback.feature",
+            title: feedback.commandFeature,
+            subtitle: feedback.commandSubtitle,
+            icon: .symbol("lightbulb"),
+            run: { _ in afterBeat { appDelegate()?.openFeedbackWindow(kind: .feature) } }))
         // What people try on day one: put the Mac to sleep, restart it, turn
         // Wi-Fi off. Everything but sleep confirms on the row first.
         for action in CommandBarExtras.PowerAction.allCases {

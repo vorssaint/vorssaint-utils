@@ -95,6 +95,8 @@ final class WindowLayoutService: ObservableObject {
     }
 
     func shortcutConflictTitle(_ shortcut: GlobalShortcut, excluding excluded: WindowLayoutAction?) -> String? {
+        guard AppFeature.windowLayout.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutShortcutsEnabled) else { return nil }
         let text = FeatureStrings.windowLayout(L10n.shared.language)
         return WindowLayoutAction.shortcutActions.first {
             $0 != excluded && $0.savedShortcut == shortcut
@@ -199,15 +201,21 @@ final class WindowLayoutService: ObservableObject {
 
     private func focusedTarget() -> WindowLayoutTarget? {
         let ownBundleID = Bundle.main.bundleIdentifier
-        let frontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        let hasFocusedResizableOwnWindow = NSApp.isActive
+            && NSApp.keyWindow?.styleMask.contains(.resizable) == true
+        let frontmost = hasFocusedResizableOwnWindow
+            ? ownPID
+            : NSWorkspace.shared.frontmostApplication?.processIdentifier
         let pids = ([frontmost].compactMap { $0 } + WindowUseTracker.shared.apps).reduce(into: [pid_t]()) { result, pid in
             if !result.contains(pid) { result.append(pid) }
         }
 
         for pid in pids {
+            let isFocusedOwnApp = pid == ownPID && hasFocusedResizableOwnWindow
             guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.processIdentifier == pid }),
-                  app.activationPolicy == .regular,
-                  app.bundleIdentifier != ownBundleID
+                  isFocusedOwnApp
+                    || (app.activationPolicy == .regular && app.bundleIdentifier != ownBundleID)
             else { continue }
             let axApp = AXUIElementCreateApplication(pid)
             // Bounded AX: a hung app in the MRU list must not stall the main

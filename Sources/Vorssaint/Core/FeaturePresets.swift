@@ -12,6 +12,20 @@ enum FeaturePreset: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// A clean install starts from the small Essential set before any feature
+    /// binding runs. Updates keep every existing availability choice, and an
+    /// interrupted setup keeps the selection already applied on its purpose
+    /// step.
+    static func prepareFirstRunAvailability(in defaults: UserDefaults = .standard) {
+        guard !defaults.bool(forKey: DefaultsKey.hasOnboarded),
+              defaults.integer(forKey: DefaultsKey.onboardingStep) == 0
+        else { return }
+        let selected = FeaturePreset.essential.features
+        for feature in AppFeature.allCases {
+            defaults.set(selected.contains(feature), forKey: feature.availabilityKey)
+        }
+    }
+
     /// The features the preset keeps installed.
     var features: Set<AppFeature> {
         switch self {
@@ -78,7 +92,7 @@ extension AppFeature {
         case .scrollInverter, .smoothScroll, .windowMaximizer, .middleClick,
              .mouseNavigation, .mouseButtonShortcuts, .dockPreview, .dockClick, .shelf:
             return .mouse
-        case .switcher, .keyboardDebounce, .finderCutPaste, .superKey:
+        case .switcher, .keyboardDebounce, .finderCutPaste, .finderRename, .superKey:
             return .keyboard
         case .textSnippets, .autoQuit:
             return .inputs

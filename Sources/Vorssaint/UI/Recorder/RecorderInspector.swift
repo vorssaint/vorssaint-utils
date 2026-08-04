@@ -10,6 +10,8 @@ struct RecorderInspector: View {
     @ObservedObject var model: RecorderEditorModel
     @ObservedObject private var l10n = L10n.shared
     @State private var showsBackdropPopover = false
+    @State private var tab: Tab = .look
+    @State private var hoveredLook: RecorderEditDocument.Look?
     /// Typing is one edit, landed when the field is let go. Without this the
     /// caption would only reach the preview on a Return, and this field takes
     /// several lines, so Return is a new line and not a commit.
@@ -17,6 +19,14 @@ struct RecorderInspector: View {
 
     private var strings: RecorderFeatureStrings {
         FeatureStrings.recorder(l10n.language)
+    }
+
+    private var screenshotStrings: ScreenshotFeatureStrings {
+        FeatureStrings.screenshot(l10n.language)
+    }
+
+    private enum Tab: String, CaseIterable {
+        case look, pointer, zoom
     }
 
     var body: some View {
@@ -29,56 +39,143 @@ struct RecorderInspector: View {
                 } else if let selected = model.selectedZoom {
                     selectedZoomSection(selected)
                 } else {
-                    lookSection
-                    Divider().opacity(0.4)
-                    backgroundSection
-                    Divider().opacity(0.4)
-                    if model.hasPointerTrack {
-                        pointerSection
-                    } else {
-                        Text(strings.noPointerNote)
-                            .font(.system(size: 11))
-                            .foregroundStyle(Color(white: 0.55))
-                            .fixedSize(horizontal: false, vertical: true)
+                    tabPicker
+                    switch tab {
+                    case .look:
+                        lookSection
+                        Divider().opacity(0.35)
+                        backgroundSection
+                    case .pointer:
+                        if model.hasPointerTrack {
+                            pointerSection
+                        } else {
+                            Text(strings.noPointerNote)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    case .zoom:
+                        zoomSection
                     }
-                    Divider().opacity(0.4)
-                    // A zoom placed by hand needs no pointer track at all, so
-                    // this section is always here.
-                    zoomSection
                 }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
         }
         .scrollIndicators(.never)
-        .frame(width: 258)
-        .background(Color(white: 0.145))
+        .frame(width: 272)
+        .background(.ultraThinMaterial)
+    }
+
+    private var tabPicker: some View {
+        Picker("", selection: $tab) {
+            Text(strings.lookLabel).tag(Tab.look)
+            Text(strings.pointerSectionLabel).tag(Tab.pointer)
+            Text(strings.zoomSectionLabel).tag(Tab.zoom)
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
     }
 
     // MARK: - Look
 
     private var lookSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             sectionTitle(strings.lookLabel)
-            HStack(spacing: 6) {
-                lookButton(.raw, title: strings.lookRaw)
-                lookButton(.clean, title: strings.lookClean)
-                lookButton(.studio, title: strings.lookStudio)
+            HStack(spacing: 7) {
+                lookCard(.raw,
+                         title: strings.lookRaw,
+                         subtitle: strings.shapeOriginal,
+                         icon: "rectangle")
+                lookCard(.clean,
+                         title: strings.lookClean,
+                         subtitle: strings.pointerSmoothingSmooth,
+                         icon: "cursorarrow.motionlines")
+                lookCard(.studio,
+                         title: strings.lookStudio,
+                         subtitle: strings.backgroundSectionLabel,
+                         icon: "sparkles")
             }
-            Text(strings.lookCaption)
-                .font(.system(size: 10.5))
-                .foregroundStyle(Color(white: 0.5))
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    private func lookButton(_ look: RecorderEditDocument.Look, title: String) -> some View {
-        Button(title) {
-            model.applyLook(look)
+    private func lookCard(_ look: RecorderEditDocument.Look,
+                          title: String,
+                          subtitle: String,
+                          icon: String) -> some View {
+        let selected = model.document.matches(look)
+        let hovered = hoveredLook == look
+        return Button {
+            withAnimation(.easeOut(duration: 0.16)) {
+                model.applyLook(look)
+            }
+        } label: {
+            VStack(spacing: 6) {
+                lookPreview(look, icon: icon)
+                VStack(spacing: 1) {
+                    Text(title)
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                    Text(subtitle)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .fill(selected ? Color.accentColor.opacity(0.1)
+                                   : Color.white.opacity(hovered ? 0.07 : 0.035))
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .strokeBorder(selected ? Color.accentColor.opacity(0.72)
+                                           : Color.white.opacity(hovered ? 0.14 : 0.07),
+                                  lineWidth: selected ? 1.25 : 1)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .overlay(alignment: .topTrailing) {
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(selected ? Color.accentColor : Color.secondary.opacity(0.28))
+                    .padding(6)
+            }
         }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-        .frame(maxWidth: .infinity)
+        .buttonStyle(.plain)
+        .onHover { isInside in hoveredLook = isInside ? look : nil }
+    }
+
+    private func lookPreview(_ look: RecorderEditDocument.Look, icon: String) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(look == .studio
+                      ? AnyShapeStyle(LinearGradient(colors: [Color.indigo.opacity(0.9),
+                                                               Color.purple.opacity(0.55)],
+                                                     startPoint: .topLeading,
+                                                     endPoint: .bottomTrailing))
+                      : AnyShapeStyle(Color.black.opacity(look == .raw ? 0.82 : 0.62)))
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(Color(white: look == .raw ? 0.55 : 0.78).opacity(0.82))
+                .frame(width: 31, height: 20)
+                .overlay(alignment: .bottomTrailing) {
+                    Image(systemName: icon)
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(3)
+                }
+                .shadow(color: .black.opacity(0.24), radius: 3, y: 2)
+        }
+        .frame(width: 48, height: 36)
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+        }
     }
 
     // MARK: - Background
@@ -113,7 +210,7 @@ struct RecorderInspector: View {
             .buttonStyle(.bordered)
             .controlSize(.large)
             .popover(isPresented: $showsBackdropPopover, arrowEdge: .trailing) {
-                ScreenshotBackdropPopover(model: model)
+                ScreenshotBackdropPopover(model: model, showsAdjustments: false)
             }
 
             Picker(strings.shapeLabel, selection: aspectBinding) {
@@ -125,6 +222,55 @@ struct RecorderInspector: View {
             .pickerStyle(.menu)
             .disabled(!model.showsBackdrop)
             .opacity(model.showsBackdrop ? 1 : 0.45)
+
+            if model.showsBackdrop {
+                VStack(spacing: 7) {
+                    backgroundSlider(title: screenshotStrings.backdropPaddingLabel,
+                                     value: model.backdropStyle.padding,
+                                     onChange: { updateBackdrop(\.padding, to: $0) },
+                                     onReset: { updateBackdrop(\.padding, to: 0.5) })
+                    backgroundSlider(title: screenshotStrings.backdropCornersLabel,
+                                     value: model.backdropStyle.cornerRadius,
+                                     onChange: { updateBackdrop(\.cornerRadius, to: $0) },
+                                     onReset: { updateBackdrop(\.cornerRadius, to: 0) })
+                    backgroundSlider(title: screenshotStrings.backdropBlurLabel,
+                                     value: model.backdropStyle.blur,
+                                     onChange: { updateBackdrop(\.blur, to: $0) },
+                                     onReset: { updateBackdrop(\.blur, to: 0) })
+                }
+                .padding(9)
+                .background(Color.white.opacity(0.04),
+                            in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+        }
+    }
+
+    private func updateBackdrop(
+        _ keyPath: WritableKeyPath<ScreenshotSupport.BackdropStyle, Double>,
+        to value: Double
+    ) {
+        var style = model.backdropStyle
+        style[keyPath: keyPath] = value
+        model.backdropStyle = style
+    }
+
+    private func backgroundSlider(title: String,
+                                  value: Double,
+                                  onChange: @escaping (Double) -> Void,
+                                  onReset: @escaping () -> Void) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.system(size: 10.5))
+                .foregroundStyle(Color(white: 0.72))
+                .frame(width: 50, alignment: .leading)
+            Slider(value: Binding(get: { value }, set: onChange), in: 0...1)
+                .controlSize(.mini)
+                .onTapGesture(count: 2) { onReset() }
+            Text(String(format: "%.0f%%", value * 100))
+                .font(.system(size: 10.5, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(Color(white: 0.86))
+                .frame(width: 34, alignment: .trailing)
         }
     }
 
@@ -372,27 +518,90 @@ struct RecorderInspector: View {
     // MARK: - Zoom
 
     private var zoomSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             sectionTitle(strings.zoomSectionLabel)
             if model.hasPointerTrack {
-                Toggle(strings.zoomToggle, isOn: boolBinding(\.zoomEnabled))
+                Toggle(strings.zoomToggle, isOn: Binding(
+                    get: { model.document.zoomEnabled },
+                    set: model.setAutomaticZoomEnabled))
                     .toggleStyle(.switch)
                     .controlSize(.mini)
             }
             if model.document.zoomEnabled {
-                valueSlider(title: strings.zoomAmountLabel,
-                            value: model.document.zoomAmount,
-                            range: RecorderSupport.zoomAmountRange,
-                            format: "%.1fx",
-                            onChange: { doubleBinding(\.zoomAmount).wrappedValue = $0 },
-                            onReset: { doubleBinding(\.zoomAmount).wrappedValue = 1.8 })
-                if model.hasPointerTrack {
-                    Button(strings.regenerateZooms) { model.regenerateZooms() }
-                        .buttonStyle(.borderless)
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle(strings.typingZoomToggle, isOn: Binding(
+                        get: { model.document.zoomsOnTyping },
+                        set: model.setTypingZoomEnabled))
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                    Text(strings.typingZoomCaption)
                         .font(.system(size: 10.5))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if model.document.zoomSegments.isEmpty {
+                    zoomEmptyState
+                } else {
+                    VStack(alignment: .leading, spacing: 9) {
+                        valueSlider(title: strings.zoomAmountLabel,
+                                    value: model.document.zoomAmount,
+                                    range: RecorderSupport.zoomAmountRange,
+                                    format: "%.1fx",
+                                    onChange: { doubleBinding(\.zoomAmount).wrappedValue = $0 },
+                                    onReset: { doubleBinding(\.zoomAmount).wrappedValue = 1.8 })
+                        if model.hasPointerTrack {
+                            Button(strings.regenerateZooms) { model.regenerateZooms() }
+                                .buttonStyle(.borderless)
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundStyle(Color.accentColor)
+                        }
+                    }
+                    .padding(11)
+                    .background(Color.white.opacity(0.035),
+                                in: RoundedRectangle(cornerRadius: 11, style: .continuous))
                 }
             }
+        }
+    }
+
+    private var zoomEmptyState: some View {
+        VStack(spacing: 9) {
+            ZStack {
+                Circle()
+                    .fill(Color.accentColor.opacity(0.12))
+                    .frame(width: 38, height: 38)
+                Image(systemName: "plus.magnifyingglass")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+            }
+            VStack(spacing: 3) {
+                Text(strings.zoomEmptyTitle)
+                    .font(.system(size: 12, weight: .semibold))
+                Text(strings.zoomEmptyCaption)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Button(model.canCreateAutomaticZooms
+                   ? strings.createAutomaticZooms : strings.zoomLaneEmptyHint) {
+                if model.canCreateAutomaticZooms {
+                    model.regenerateZooms()
+                } else {
+                    model.addZoom(at: model.sourceTime)
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 14)
+        .background(Color.white.opacity(0.035),
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.07), lineWidth: 1)
         }
     }
 
@@ -443,4 +652,5 @@ struct RecorderInspector: View {
                     model.document = next
                 })
     }
+
 }

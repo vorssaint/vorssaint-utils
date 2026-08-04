@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var isTerminating = false
     private var cancellables = Set<AnyCancellable>()
     private var settingsWindow: NSWindow?
+    private var feedbackWindow: NSWindow?
     private var onboardingWindow: NSWindow?
     private var supportIntroWindow: NSWindow?
     private var updateHighlightsWindow: NSWindow?
@@ -49,6 +50,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // build, or retire a leftover old-named bundle. Returns true when we are
         // quitting to relaunch under the new name, so skip the rest of startup.
         if BundleMigration.run() { return }
+
+        // Shape a clean install before any feature can create a listener,
+        // timer or shortcut. The onboarding can replace this set after the
+        // person chooses what they actually want.
+        FeaturePreset.prepareFirstRunAvailability()
 
         // Redo a launch at login registration the system lost. The stored
         // choice is the last thing the user expressed in the app; startup
@@ -111,7 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             .sink { _ in
                 FeatureRuntime.shared.sync([
                     .scrollInverter, .smoothScroll, .mouseNavigation, .switcher,
-                    .dockPreview, .finderCutPaste, .autoQuit, .dockClick,
+                    .dockPreview, .finderCutPaste, .finderRename, .autoQuit, .dockClick,
                     .middleClick, .windowMaximizer, .keyboardDebounce, .windowLayout,
                     .textSnippets, .brightness, .radialMenu, .mouseButtonShortcuts,
                     .superKey, .mixer,
@@ -1187,6 +1193,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
     }
 
+    func openFeedbackWindow(kind: FeedbackKind = .bug) {
+        closePopover()
+        let host = NSHostingController(rootView: FeedbackView(initialKind: kind) { [weak self] in
+            self?.feedbackWindow?.close()
+        })
+        if let window = feedbackWindow {
+            window.contentViewController = host
+        } else {
+            let window = NSWindow(contentViewController: host)
+            window.styleMask = [.titled, .closable]
+            window.titleVisibility = .hidden
+            window.isReleasedWhenClosed = false
+            window.isRestorable = false
+            window.delegate = self
+            window.center()
+            feedbackWindow = window
+        }
+        feedbackWindow?.title = FeatureStrings.feedback(L10n.shared.language).windowTitle
+        NSApp.activate(ignoringOtherApps: true)
+        feedbackWindow?.makeKeyAndOrderFront(nil)
+    }
+
     private func positionSettingsWindow(_ window: NSWindow, force: Bool) {
         window.contentView?.layoutSubtreeIfNeeded()
         let popoverWindow = popover.contentViewController?.view.window
@@ -1333,13 +1361,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         let host = NSHostingController(rootView: OnboardingView(mode: mode) { [weak self] in
             self?.markOnboardingComplete()
-            Notifier.requestPermission()
             self?.onboardingWindow?.close()
         })
         host.sizingOptions = .preferredContentSize
         let window = NSWindow(contentViewController: host)
+        let isFirstRun = !UserDefaults.standard.bool(forKey: DefaultsKey.hasOnboarded)
         window.title = mode.title(L10n.shared.s)
-        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.styleMask = isFirstRun
+            ? [.titled, .fullSizeContentView]
+            : [.titled, .closable, .fullSizeContentView]
+        window.standardWindowButton(.closeButton)?.isHidden = isFirstRun
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isReleasedWhenClosed = false
@@ -1369,13 +1400,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             appVersion: AppInfo.version,
             lastSeenVersion: UserDefaults.standard.string(forKey: DefaultsKey.updateHighlightsSeenVersion)
         ) else { return false }
-        // If every featured item was uninstalled in the hub there is nothing
-        // to tour; mark it seen and stay quiet instead of showing an empty
-        // window.
-        guard UpdateHighlightsView.hasContent else {
-            markUpdateHighlightsSeen()
-            return false
-        }
         showUpdateHighlights()
         return true
     }
@@ -1389,8 +1413,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         let host = NSHostingController(rootView: UpdateHighlightsView(
             onFinish: { [weak self] in
-                self?.markUpdateHighlightsSeen()
-                self?.updateHighlightsWindow?.close()
+                guard let self else { return }
+                self.markUpdateHighlightsSeen()
+                self.updateHighlightsWindow?.close()
+                DispatchQueue.main.async { [weak self] in
+                    _ = self?.showSupportUpdateIntroIfNeeded()
+                }
             }
         ))
         host.sizingOptions = .preferredContentSize
@@ -1493,7 +1521,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         ))
         host.sizingOptions = .preferredContentSize
         let window = NSWindow(contentViewController: host)
-        window.title = L10n.shared.s.homebrewOfficialIntroTitle
+        window.title = L10n.shared.s.communityIntroTitle
         window.styleMask = [.titled, .fullSizeContentView]
         window.standardWindowButton(.closeButton)?.isHidden = true
         window.titlebarAppearsTransparent = true
@@ -1603,9 +1631,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         if window === onboardingWindow {
             onboardingWindow = nil
-            // Closing the window mid-flow counts as "skip" — but quitting (e.g.
-            // the relaunch macOS forces after granting Screen Recording) must NOT,
-            // so the flow can resume where it stopped.
+            // First run has no close action; it reaches here after completion.
+            // A system relaunch while granting access must not mark the flow
+            // complete, so it resumes at the same step.
             guard !isTerminating else { return }
             markOnboardingComplete()
         }

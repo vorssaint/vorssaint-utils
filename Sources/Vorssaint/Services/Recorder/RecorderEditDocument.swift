@@ -30,6 +30,8 @@ struct RecorderEditDocument: Codable, Equatable {
     var showsClickRing: Bool
     var zoomEnabled: Bool
     var zoomAmount: Double
+    /// Whether automatic click zooms stay on the clicked field while typing.
+    var zoomsOnTyping: Bool
     /// Stretches thrown away from the middle, in the recording's own time.
     var cuts: [RecorderTimeline.Cut]
     /// The lean-ins. Filled once from the clicks when a recording is first
@@ -56,6 +58,7 @@ struct RecorderEditDocument: Codable, Equatable {
          showsClickRing: Bool = true,
          zoomEnabled: Bool = true,
          zoomAmount: Double = 1.8,
+         zoomsOnTyping: Bool = false,
          cuts: [RecorderTimeline.Cut] = [],
          zoomSegments: [RecorderTimeline.ZoomSegment] = [],
          zoomsGenerated: Bool = false,
@@ -74,6 +77,7 @@ struct RecorderEditDocument: Codable, Equatable {
         self.showsClickRing = showsClickRing
         self.zoomEnabled = zoomEnabled
         self.zoomAmount = zoomAmount
+        self.zoomsOnTyping = zoomsOnTyping
         self.cuts = cuts
         self.zoomSegments = zoomSegments
         self.zoomsGenerated = zoomsGenerated
@@ -102,6 +106,7 @@ struct RecorderEditDocument: Codable, Equatable {
         showsClickRing = try container.decodeIfPresent(Bool.self, forKey: .showsClickRing) ?? true
         zoomEnabled = try container.decodeIfPresent(Bool.self, forKey: .zoomEnabled) ?? true
         zoomAmount = try container.decodeIfPresent(Double.self, forKey: .zoomAmount) ?? 1.8
+        zoomsOnTyping = try container.decodeIfPresent(Bool.self, forKey: .zoomsOnTyping) ?? false
         cuts = try container.decodeIfPresent([RecorderTimeline.Cut].self, forKey: .cuts) ?? []
         zoomSegments = try container.decodeIfPresent([RecorderTimeline.ZoomSegment].self,
                                                      forKey: .zoomSegments) ?? []
@@ -132,6 +137,24 @@ struct RecorderEditDocument: Codable, Equatable {
     func activeZoomSegments(duration: Double) -> [RecorderTimeline.ZoomSegment] {
         guard zoomEnabled else { return [] }
         return RecorderTimeline.normalized(segments: zoomSegments, duration: duration)
+    }
+
+    /// Turning automatic zoom back on is an explicit request to recover the
+    /// click-based zooms when the timeline was emptied by mistake.
+    func restoringAutomaticZooms(clicks: [RecorderMotion.Click],
+                                 typingTimes: [Double] = [],
+                                 duration: Double) -> RecorderEditDocument {
+        guard zoomEnabled, zoomSegments.isEmpty else { return self }
+        let generated = RecorderTimeline.generatedSegments(
+            clicks: clicks,
+            typingTimes: typingTimes,
+            duration: duration,
+            amount: RecorderSupport.sanitizedZoomAmount(zoomAmount))
+        guard !generated.isEmpty else { return self }
+        var next = self
+        next.zoomSegments = generated
+        next.zoomsGenerated = true
+        return next
     }
 
     var resolvedBackdrop: ScreenshotSupport.BackdropStyle {
@@ -185,6 +208,16 @@ struct RecorderEditDocument: Codable, Equatable {
             next.zoomEnabled = true
         }
         return next
+    }
+
+    func matches(_ look: Look) -> Bool {
+        let expected = applying(look)
+        return backdrop == expected.backdrop
+            && aspect == expected.aspect
+            && showsPointer == expected.showsPointer
+            && pointerSmoothing == expected.pointerSmoothing
+            && showsClickRing == expected.showsClickRing
+            && zoomEnabled == expected.zoomEnabled
     }
 
     var resolvedQuality: RecorderSupport.Quality {
@@ -265,5 +298,46 @@ struct RecorderEditDocument: Codable, Equatable {
         guard let data, let document = try? JSONDecoder().decode(RecorderEditDocument.self, from: data)
         else { return RecorderEditDocument() }
         return document
+    }
+}
+
+/// A named visual starting point. Timeline edits, captions and sound are never
+/// part of a preset, so applying one cannot undo real editing work.
+struct RecorderEditPreset: Codable, Equatable, Identifiable {
+    let id: UUID
+    var name: String
+    let backdrop: String
+    let aspect: String
+    let showsPointer: Bool
+    let pointerSmoothing: String
+    let pointerSize: Double
+    let showsClickRing: Bool
+    let zoomEnabled: Bool
+    let zoomAmount: Double
+
+    init(id: UUID = UUID(), name: String, document: RecorderEditDocument) {
+        self.id = id
+        self.name = name
+        backdrop = document.backdrop
+        aspect = document.aspect
+        showsPointer = document.showsPointer
+        pointerSmoothing = document.pointerSmoothing
+        pointerSize = document.pointerSize
+        showsClickRing = document.showsClickRing
+        zoomEnabled = document.zoomEnabled
+        zoomAmount = document.zoomAmount
+    }
+
+    func applying(to document: RecorderEditDocument) -> RecorderEditDocument {
+        var next = document
+        next.backdrop = backdrop
+        next.aspect = aspect
+        next.showsPointer = showsPointer
+        next.pointerSmoothing = pointerSmoothing
+        next.pointerSize = pointerSize
+        next.showsClickRing = showsClickRing
+        next.zoomEnabled = zoomEnabled
+        next.zoomAmount = zoomAmount
+        return next
     }
 }

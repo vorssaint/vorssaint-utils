@@ -20,6 +20,202 @@ enum ScreenshotSupport {
         allowedDelays.contains(raw) ? raw : 0
     }
 
+    // MARK: - Scrolling capture
+
+    /// A failed scroll target must never keep the capture alive forever or
+    /// exhaust memory. Reaching a guard keeps the valid portion and explains
+    /// why the capture stopped.
+    static let scrollingCaptureMaximumDuration: TimeInterval = 30
+    static let scrollingCaptureMaximumFrames = 32
+    static let scrollingCaptureMaximumRawPixels = 48_000_000
+    static let scrollingCaptureMaximumPixels = 60_000_000
+
+    static func scrollingCaptureStepPoints(regionHeight: CGFloat) -> CGFloat {
+        min(max(regionHeight * 0.62, 60), 720)
+    }
+
+    struct ScrollingSample: Equatable {
+        let width: Int
+        let height: Int
+        let pixels: [UInt8]
+
+        var isValid: Bool {
+            width > 0 && height > 0 && pixels.count == width * height
+        }
+    }
+
+    enum ScrollingTransition: Equatable {
+        case end
+        case advanced(overlap: Int)
+        case unmatched
+    }
+
+    struct ScrollingStitchPiece: Equatable {
+        let sourceY: Int
+        let height: Int
+        let destinationY: Int
+    }
+
+    /// Exact crop and placement geometry for the final canvas. Core Graphics
+    /// only draws this plan, keeping the seam math independently testable.
+    static func scrollingStitchPieces(frameHeights: [Int],
+                                      topCrops: [Int]) -> [ScrollingStitchPiece]? {
+        guard !frameHeights.isEmpty, frameHeights.count == topCrops.count,
+              zip(frameHeights, topCrops).allSatisfy({ pair in
+                  pair.0 > 0 && pair.1 >= 0 && pair.1 < pair.0
+              })
+        else { return nil }
+        let pieceHeights = zip(frameHeights, topCrops).map { pair in
+            pair.0 - pair.1
+        }
+        var destinationY = pieceHeights.reduce(0, +)
+        var pieces: [ScrollingStitchPiece] = []
+        for index in frameHeights.indices {
+            destinationY -= pieceHeights[index]
+            pieces.append(ScrollingStitchPiece(sourceY: topCrops[index],
+                                               height: pieceHeights[index],
+                                               destinationY: destinationY))
+        }
+        return destinationY == 0 ? pieces : nil
+    }
+
+    /// Finds how many rows two successive views share. The calculation is
+    /// deliberately pure: captures only provide small grayscale samples and
+    /// the exact same matching policy is exercised by the test harness.
+    static func scrollingTransition(previous: ScrollingSample,
+                                    current: ScrollingSample) -> ScrollingTransition {
+        guard previous.isValid, current.isValid,
+              previous.width == current.width,
+              previous.height == current.height,
+              previous.height >= 24
+        else { return .unmatched }
+
+        if scrollingDifference(previous, current) <= 1.5 {
+            return .end
+        }
+
+        let height = previous.height
+        // The final scroll at the bottom of a page is often only a few rows.
+        // Treating every advance below 18% as a mismatch discarded an otherwise
+        // valid capture on short pages just before it could detect the end.
+        let minimumAdvance = max(2, Int((Double(height) * 0.01).rounded()))
+        let maximumAdvance = min(height - 8, Int((Double(height) * 0.88).rounded()))
+        guard minimumAdvance <= maximumAdvance else { return .unmatched }
+
+        struct Match {
+            let advance: Int
+            let reversed: Bool
+            let longestRun: Int
+            let matchingRows: Int
+            let difference: Double
+        }
+
+        var matches: [Match] = []
+        for advance in minimumAdvance...maximumAdvance {
+            for reversed in [false, true] {
+                guard let match = scrollingMatch(previous: previous,
+                                                 current: current,
+                                                 advance: advance,
+                                                 reversed: reversed) else { continue }
+                matches.append(Match(advance: advance,
+                                     reversed: reversed,
+                                     longestRun: match.longestRun,
+                                     matchingRows: match.matchingRows,
+                                     difference: match.difference))
+            }
+        }
+        guard !matches.isEmpty else { return .unmatched }
+        matches.sort {
+            if $0.longestRun != $1.longestRun { return $0.longestRun > $1.longestRun }
+            if $0.matchingRows != $1.matchingRows { return $0.matchingRows > $1.matchingRows }
+            return $0.difference < $1.difference
+        }
+
+        let best = matches[0]
+        let requiredRun = max(8, min(28, height / 12))
+        guard best.longestRun >= requiredRun, best.difference <= 10 else {
+            return .unmatched
+        }
+
+        // Repeated blank bands can look equally good at several offsets. A
+        // unique match is required instead of guessing and creating a seam.
+        if let rival = matches.dropFirst().first(where: {
+            $0.reversed != best.reversed || abs($0.advance - best.advance) > 2
+        }),
+           rival.longestRun >= best.longestRun - 2,
+           rival.matchingRows >= best.matchingRows - 3,
+           rival.difference <= best.difference + 0.75 {
+            return .unmatched
+        }
+        return .advanced(overlap: height - best.advance)
+    }
+
+    private static func scrollingDifference(_ lhs: ScrollingSample,
+                                            _ rhs: ScrollingSample) -> Double {
+        let sideInset = max(0, lhs.width / 12)
+        let topInset = max(0, lhs.height / 24)
+        var difference = 0
+        var count = 0
+        for row in topInset..<(lhs.height - topInset) {
+            let start = row * lhs.width
+            for column in sideInset..<(lhs.width - sideInset) {
+                difference += abs(Int(lhs.pixels[start + column])
+                    - Int(rhs.pixels[start + column]))
+                count += 1
+            }
+        }
+        return count > 0 ? Double(difference) / Double(count) : .infinity
+    }
+
+    private static func scrollingMatch(previous: ScrollingSample,
+                                       current: ScrollingSample,
+                                       advance: Int,
+                                       reversed: Bool)
+        -> (longestRun: Int, matchingRows: Int, difference: Double)? {
+        let width = previous.width
+        let sideInset = max(1, width / 12)
+        let edgeInset = max(2, previous.height / 24)
+        let lastRow = previous.height - advance - edgeInset
+        guard lastRow > edgeInset, width - sideInset * 2 > 0 else { return nil }
+
+        var longestRun = 0
+        var run = 0
+        var matchingRows = 0
+        var totalDifference = 0
+        var comparedPixels = 0
+        for currentRow in edgeInset..<lastRow {
+            let previousRow = currentRow + advance
+            let previousStart = (reversed ? currentRow : previousRow) * width
+            let currentStart = (reversed ? previousRow : currentRow) * width
+            var rowDifference = 0
+            for column in sideInset..<(width - sideInset) {
+                rowDifference += abs(Int(previous.pixels[previousStart + column])
+                    - Int(current.pixels[currentStart + column]))
+            }
+            let rowPixels = width - sideInset * 2
+            let average = Double(rowDifference) / Double(rowPixels)
+            totalDifference += rowDifference
+            comparedPixels += rowPixels
+            if average <= 8 {
+                run += 1
+                matchingRows += 1
+                longestRun = max(longestRun, run)
+            } else {
+                run = 0
+            }
+        }
+        guard comparedPixels > 0 else { return nil }
+        return (longestRun, matchingRows, Double(totalDifference) / Double(comparedPixels))
+    }
+
+    /// Restores the pixels-per-point scale stored as standard PNG DPI.
+    static func captureScale(fromDPI dpi: Double?) -> CGFloat? {
+        guard let dpi, dpi.isFinite else { return nil }
+        let scale = dpi / 72
+        guard (0.5...4).contains(scale) else { return nil }
+        return CGFloat(scale)
+    }
+
     // MARK: - Selection geometry
 
     /// Rectangle between two drag points. `square` constrains to the largest
@@ -533,6 +729,35 @@ enum ScreenshotSupport {
         }
     }
 
+    /// Which way a selected annotation moves through the drawing order.
+    enum LayerMove {
+        case forward, backward
+    }
+
+    /// Whether the annotation has somewhere to go: false at the end it is
+    /// already heading for, and for an id that is not in the array.
+    static func canReorder(_ annotations: [Annotation],
+                           moving id: UUID,
+                           _ move: LayerMove) -> Bool {
+        guard let index = annotations.firstIndex(where: { $0.id == id }) else { return false }
+        return annotations.indices.contains(move == .forward ? index + 1 : index - 1)
+    }
+
+    /// Moves one annotation a single step through the array the renderer draws
+    /// in order, so a shape can go behind text that was written first. An
+    /// annotation already at the end it is heading for stays put, and an
+    /// unknown id leaves the array alone.
+    static func reordering(_ annotations: [Annotation],
+                           moving id: UUID,
+                           _ move: LayerMove) -> [Annotation] {
+        guard let index = annotations.firstIndex(where: { $0.id == id }) else { return annotations }
+        let target = move == .forward ? index + 1 : index - 1
+        guard annotations.indices.contains(target) else { return annotations }
+        var reordered = annotations
+        reordered.swapAt(index, target)
+        return reordered
+    }
+
     /// Counters stay 1…n in creation order; deleting one renumbers the rest
     /// so a sequence never shows a hole.
     static func renumberingCounters(_ annotations: [Annotation]) -> [Annotation] {
@@ -762,6 +987,13 @@ enum ScreenshotSupport {
         return (clamped * min(imageSize.width, imageSize.height) * 0.2).rounded()
     }
 
+    /// Gaussian blur radius in output pixels. Keeping it proportional makes
+    /// the same slider look consistent on small screenshots and 4K video.
+    static func backdropBlurRadius(for size: CGSize, factor: CGFloat) -> CGFloat {
+        let clamped = max(0, min(1, factor))
+        return clamped * min(size.width, size.height) * 0.035
+    }
+
     /// The full backdrop configuration behind a capture, persisted as JSON
     /// (one style in use, plus the user's saved presets). Colors are sRGB
     /// components so the codec stays pure and testable.
@@ -779,19 +1011,48 @@ enum ScreenshotSupport {
         var imagePath: String?
         var padding: Double
         var cornerRadius: Double
+        var blur: Double
 
         init(kind: Kind = .none,
              presetID: String? = nil,
              colors: [[Double]]? = nil,
              imagePath: String? = nil,
              padding: Double = 0.5,
-             cornerRadius: Double = 0) {
+             cornerRadius: Double = 0,
+             blur: Double = 0) {
             self.kind = kind
             self.presetID = presetID
             self.colors = colors
             self.imagePath = imagePath
             self.padding = padding
             self.cornerRadius = cornerRadius
+            self.blur = blur
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case kind, presetID, colors, imagePath, padding, cornerRadius, blur
+        }
+
+        init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            kind = try values.decode(Kind.self, forKey: .kind)
+            presetID = try values.decodeIfPresent(String.self, forKey: .presetID)
+            colors = try values.decodeIfPresent([[Double]].self, forKey: .colors)
+            imagePath = try values.decodeIfPresent(String.self, forKey: .imagePath)
+            padding = try values.decode(Double.self, forKey: .padding)
+            cornerRadius = try values.decode(Double.self, forKey: .cornerRadius)
+            blur = try values.decodeIfPresent(Double.self, forKey: .blur) ?? 0
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var values = encoder.container(keyedBy: CodingKeys.self)
+            try values.encode(kind, forKey: .kind)
+            try values.encodeIfPresent(presetID, forKey: .presetID)
+            try values.encodeIfPresent(colors, forKey: .colors)
+            try values.encodeIfPresent(imagePath, forKey: .imagePath)
+            try values.encode(padding, forKey: .padding)
+            try values.encode(cornerRadius, forKey: .cornerRadius)
+            try values.encode(blur, forKey: .blur)
         }
 
         /// Clamps sliders, validates colors and drops broken configurations
@@ -802,6 +1063,7 @@ enum ScreenshotSupport {
             style.padding = style.padding.isFinite ? max(0, min(1, style.padding)) : 0.5
             style.cornerRadius = style.cornerRadius.isFinite
                 ? max(0, min(1, style.cornerRadius)) : 0.1
+            style.blur = style.blur.isFinite ? max(0, min(1, style.blur)) : 0
             switch style.kind {
             case .none:
                 break

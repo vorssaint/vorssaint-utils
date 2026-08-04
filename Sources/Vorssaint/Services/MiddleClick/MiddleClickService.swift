@@ -31,9 +31,15 @@ final class MiddleClickService: ObservableObject {
     private var observers: [Any] = []
     private var hotplugPort: IONotificationPortRef?
     private var hotplugIterator: io_iterator_t = 0
-    /// The physical left button is currently being relayed as a middle
-    /// button, so its drag and release must transform too.
+    /// A physical primary or secondary press is currently being relayed as a
+    /// middle button, so its drag and release must transform too.
     private var middleButtonHeld = false
+    /// A duplicate native down was dropped; its drag and up must be dropped as
+    /// well instead of leaking an orphan event or ending the real held click.
+    private var suppressedButtonSequence = false
+    /// The process that received the transformed down. A recovery up targets
+    /// the same process even while this app is terminating.
+    private var middleButtonTargetPID: pid_t?
     /// When the hold began; a hold without its release for far too long means
     /// the up was lost (tap briefly disabled), and the flag must not keep
     /// swallowing clicks forever.
@@ -133,7 +139,10 @@ final class MiddleClickService: ObservableObject {
             options: .defaultTap,
             eventsOfInterest: CGEventMask(1 << CGEventType.leftMouseDown.rawValue)
                 | CGEventMask(1 << CGEventType.leftMouseUp.rawValue)
-                | CGEventMask(1 << CGEventType.leftMouseDragged.rawValue),
+                | CGEventMask(1 << CGEventType.leftMouseDragged.rawValue)
+                | CGEventMask(1 << CGEventType.rightMouseDown.rawValue)
+                | CGEventMask(1 << CGEventType.rightMouseUp.rawValue)
+                | CGEventMask(1 << CGEventType.rightMouseDragged.rawValue),
             callback: { _, type, event, userInfo in
                 guard let userInfo else { return Unmanaged.passUnretained(event) }
                 let service = Unmanaged<MiddleClickService>.fromOpaque(userInfo).takeUnretainedValue()
@@ -154,6 +163,9 @@ final class MiddleClickService: ObservableObject {
     }
 
     private func stop() {
+        // Close a transformed press while this process and its event tap are
+        // still alive, before tearing down either source.
+        releaseHeldMiddleButton()
         if let tap {
             CGEvent.tapEnable(tap: tap, enable: false)
         }
@@ -162,17 +174,6 @@ final class MiddleClickService: ObservableObject {
         }
         tap = nil
         runLoopSource = nil
-        if middleButtonHeld {
-            middleButtonHeld = false
-            // The press went out as a middle-button down; with the tap gone the
-            // physical release stays a LEFT up, so apps would keep the middle
-            // button held forever. Close it out explicitly.
-            let position = CGEvent(source: nil)?.location ?? .zero
-            CGEvent(mouseEventSource: CGEventSource(stateID: .hidSystemState),
-                    mouseType: .otherMouseUp,
-                    mouseCursorPosition: position,
-                    mouseButton: .center)?.post(tap: .cghidEventTap)
-        }
         stopMultitouch()
         removeObservers()
         lastTransformEnd = nil
@@ -393,27 +394,31 @@ final class MiddleClickService: ObservableObject {
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            releaseHeldMiddleButton()
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             return Unmanaged.passUnretained(event)
         }
 
         let now = ProcessInfo.processInfo.systemUptime
         switch type {
-        case .leftMouseDown:
+        case .leftMouseDown, .rightMouseDown:
             stateLock.lock()
             if tapStartUptime != nil { tapSawButton = true }
             stateLock.unlock()
+            if suppressedButtonSequence { return nil }
             if middleButtonHeld {
                 // A lost release must not swallow the user's clicks forever.
                 if now - middleButtonHeldSince > 10 {
-                    middleButtonHeld = false
+                    releaseHeldMiddleButton()
                 } else {
                     // Duplicate synthesized press while the middle button is
-                    // already being relayed: a bounce, drop it.
+                    // already being relayed: drop its whole sequence without
+                    // ending the real held click.
+                    suppressedButtonSequence = true
                     return nil
                 }
             }
-            // An app on the exception list keeps the plain left click, so a
+            // An app on the exception list keeps the plain native click, so a
             // three-finger click means to it what it always meant (issue #358).
             if MouseAppExceptions.shared.excludesPointerTarget(.middleClick, at: event.location) {
                 return Unmanaged.passUnretained(event)
@@ -434,18 +439,28 @@ final class MiddleClickService: ObservableObject {
             case .passThrough:
                 return Unmanaged.passUnretained(event)
             case .swallow:
+                suppressedButtonSequence = true
                 return nil
             case .transform:
                 middleButtonHeld = true
                 middleButtonHeldSince = now
+                let targetPID = event.getIntegerValueField(.eventTargetUnixProcessID)
+                middleButtonTargetPID = targetPID > 0 ? pid_t(targetPID) : nil
                 return Unmanaged.passUnretained(asMiddle(event, type: .otherMouseDown))
             }
-        case .leftMouseDragged:
-            guard middleButtonHeld else { return Unmanaged.passUnretained(event) }
-            return Unmanaged.passUnretained(asMiddle(event, type: .otherMouseDragged))
-        case .leftMouseUp:
+        case .leftMouseDragged, .rightMouseDragged:
+            if middleButtonHeld {
+                return Unmanaged.passUnretained(asMiddle(event, type: .otherMouseDragged))
+            }
+            return suppressedButtonSequence ? nil : Unmanaged.passUnretained(event)
+        case .leftMouseUp, .rightMouseUp:
+            if suppressedButtonSequence {
+                suppressedButtonSequence = false
+                return nil
+            }
             guard middleButtonHeld else { return Unmanaged.passUnretained(event) }
             middleButtonHeld = false
+            middleButtonTargetPID = nil
             lastTransformEnd = now
             return Unmanaged.passUnretained(asMiddle(event, type: .otherMouseUp))
         default:
@@ -453,8 +468,32 @@ final class MiddleClickService: ObservableObject {
         }
     }
 
+    /// A transformed down must always get its matching middle-button up, even
+    /// when the native release was lost or the event tap is being torn down.
+    private func releaseHeldMiddleButton() {
+        suppressedButtonSequence = false
+        guard middleButtonHeld else { return }
+        middleButtonHeld = false
+        let position = CGEvent(source: nil)?.location ?? .zero
+        let targetPID = middleButtonTargetPID
+        middleButtonTargetPID = nil
+        let event = CGEvent(mouseEventSource: CGEventSource(stateID: .hidSystemState),
+                            mouseType: .otherMouseUp,
+                            mouseCursorPosition: position,
+                            mouseButton: .center)
+        if let targetPID {
+            event?.postToPid(targetPID)
+        } else {
+            event?.post(tap: .cghidEventTap)
+        }
+        // CGEvent posting is asynchronous. During app termination, keep this
+        // process alive just long enough for WindowServer to deliver the up.
+        Thread.sleep(forTimeInterval: 0.02)
+        lastTransformEnd = ProcessInfo.processInfo.systemUptime
+    }
+
     /// Rewrites the event in place: same position, timestamp and modifiers,
-    /// but a middle-button event instead of a left one.
+    /// but a middle-button event instead of its native button.
     private func asMiddle(_ event: CGEvent, type: CGEventType) -> CGEvent {
         event.type = type
         event.setIntegerValueField(.mouseEventButtonNumber, value: 2)

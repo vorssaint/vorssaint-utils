@@ -606,8 +606,8 @@ extension Strings {
         obLanguageUpdateTitle: "Ahora en tu idioma",
         obLanguageUpdateBody: "Vorssaint ahora habla varios idiomas. Elige el que quieras usar; puedes cambiarlo cuando quieras en Ajustes.",
         obPurposeTitle: "¿Qué te trae por aquí?",
-        obPurposeBody: "Elige una opción y la app se configura sola. El resto queda a un clic en los Ajustes.",
-        obPurposeSkip: "Dejarlo todo a mano",
+        obPurposeBody: "Elige una configuración lista o exactamente las funciones que quieres usar.",
+        obPurposeSkip: "Puedes añadir o quitar funciones después en Ajustes.",
 
         tabMonitor: "Monitor",
         monitorMenuBarSection: "En la barra de menús",
@@ -891,6 +891,9 @@ extension Strings {
         switcherCurrentSpaceOnly: "Mostrar solo el escritorio actual",
         switcherCurrentSpaceOnlyCaption: "Muestra en el selector solo las ventanas del escritorio en el que estás. Elegir una ventana nunca te lleva a otro escritorio.",
         shelfFileMissing: "El archivo ya no existe",
-        previewSizeSmall: "Pequeño"
+        previewSizeSmall: "Pequeño",
+        mixerSoundEffectsOutputTitle: "Sonidos del sistema",
+        mixerSoundEffectsOutputTooltip: "Elegir dónde se reproducen los avisos y efectos de sonido",
+        monitorOpenActivityMonitor: "Abrir Monitor de Actividad"
     )
 }

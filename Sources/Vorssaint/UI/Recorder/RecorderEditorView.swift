@@ -40,49 +40,118 @@ struct RecorderEditorView: View {
     // MARK: - Bands
 
     private var topBand: some View {
-        ZStack {
-            BrandMark(width: 40, tint: Color(white: 0.92))
-            HStack(spacing: 8) {
-                Spacer()
-                if let url = model.lastExportedURL, !model.isExporting {
-                    finishedFileChip(url)
-                }
-                if model.isExporting {
-                    exportProgressChip
-                }
+        HStack(spacing: 8) {
+            BrandMark(width: 24, tint: Color(white: 0.92))
+            Text(strings.editorTitle)
+                .font(.system(size: 13, weight: .semibold))
+            Divider().frame(height: 18).padding(.horizontal, 3)
+            Button(action: model.undo) {
+                Image(systemName: "arrow.uturn.backward")
+            }
+            .buttonStyle(RecorderToolbarButtonStyle(compact: true))
+            .disabled(!model.canUndo)
+            .screenshotSafeHelp("⌘Z")
+            Button(action: model.redo) {
+                Image(systemName: "arrow.uturn.forward")
+            }
+            .buttonStyle(RecorderToolbarButtonStyle(compact: true))
+            .disabled(!model.canRedo)
+            .screenshotSafeHelp("⇧⌘Z")
+            presetsMenu
+
+            Spacer(minLength: 10)
+            if let url = model.lastExportedURL, !model.isExporting {
+                finishedFileChip(url)
+            }
+            if model.isExporting {
+                exportProgressChip
+            }
+            HStack(spacing: 5) {
                 Button(action: controller.discard) {
                     Image(systemName: "trash")
-                        .frame(width: 22, height: 18)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
+                .buttonStyle(RecorderToolbarButtonStyle(compact: true, destructive: true))
                 .screenshotSafeHelp(strings.discardButton)
                 .accessibilityLabel(strings.discardButton)
 
-                Button(strings.saveGIFButton, action: controller.saveGIF)
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-                    .disabled(model.isExporting)
-
-                Button(strings.saveVideoButton, action: controller.saveVideo)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(model.isExporting)
-                    .screenshotSafeHelp("⌘S")
+                Button(action: controller.copyAndDelete) {
+                    Label(strings.copyAndDeleteButton, systemImage: "doc.on.doc")
+                }
+                .buttonStyle(RecorderToolbarButtonStyle())
+                .disabled(model.isExporting)
+                .screenshotSafeHelp("⌥⌘C")
+                Button(action: controller.copyVideo) {
+                    Label(strings.copyButton, systemImage: "doc.on.doc")
+                }
+                .buttonStyle(RecorderToolbarButtonStyle())
+                .disabled(model.isExporting)
+                .screenshotSafeHelp("⌘C")
             }
-            // The room the traffic lights need belongs to the actions, not to
-            // the whole band: padding the band would slide the brand off the
-            // centre of the window by half of it.
-            .padding(.leading, 72)
-            .padding(.trailing, 18)
+
+            Menu {
+                Button(strings.saveVideoButton, action: controller.saveVideo)
+                    .keyboardShortcut("s", modifiers: .command)
+                Button(strings.saveAsButton, action: controller.saveVideoAs)
+                    .keyboardShortcut("s", modifiers: [.command, .shift])
+                Button(strings.saveGIFButton, action: controller.saveGIF)
+                Divider()
+                Button(strings.folderLabel + "…", action: controller.chooseSaveFolder)
+            } label: {
+                Label(strings.saveVideoButton, systemImage: "square.and.arrow.down")
+            } primaryAction: {
+                controller.saveVideo()
+            }
+            .menuStyle(.button)
+            .buttonStyle(.borderedProminent)
+            .disabled(model.isExporting)
+            .screenshotSafeHelp("⌘S")
         }
-        .frame(height: 56)
+        .padding(.leading, 76)
+        .padding(.trailing, 14)
+        .frame(height: 54)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .bottom) { Divider().opacity(0.45) }
+    }
+
+    private var presetsMenu: some View {
+        Menu {
+            Button(strings.lookRaw) { model.applyLook(.raw) }
+            Button(strings.lookClean) { model.applyLook(.clean) }
+            Button(strings.lookStudio) { model.applyLook(.studio) }
+            if !model.editPresets.isEmpty {
+                Divider()
+                ForEach(model.editPresets) { preset in
+                    Button(preset.name) { model.applyPreset(preset) }
+                }
+                Menu(strings.removePreset) {
+                    ForEach(model.editPresets) { preset in
+                        Button(preset.name) { model.removePreset(preset) }
+                    }
+                }
+            }
+            Divider()
+            Button(strings.savePreset, action: controller.saveCurrentPreset)
+        } label: {
+            Label(strings.presetsButton, systemImage: "slider.horizontal.3")
+                .font(.system(size: 12, weight: .medium))
+                .padding(.horizontal, 9)
+                .frame(height: 30)
+                .background(Color.white.opacity(0.055),
+                            in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                }
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
     }
 
     private var stage: some View {
         GeometryReader { proxy in
             ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.black.opacity(0.72))
                 PlayerSurface(player: model.player)
                 if model.isAimingZoom {
                     // Aiming is a single click on the picture, and the overlay
@@ -106,10 +175,15 @@ struct RecorderEditorView: View {
                     .allowsHitTesting(false)
                 }
             }
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, 18)
-        .padding(.vertical, 4)
+        .padding(.vertical, 14)
         .onTapGesture {
             guard !model.isAimingZoom else { return }
             // Clicking the picture puts a selected zoom down before it does
@@ -126,24 +200,46 @@ struct RecorderEditorView: View {
         VStack(spacing: 6) {
             transportRow
                 .padding(.bottom, 4)
-            ClickRuler(model: model)
-                .frame(height: 14)
-            RecorderZoomLane(model: model, kind: .zoom, emptyHint: strings.zoomLaneEmptyHint)
-                .frame(height: 30)
+            timelineRow(strings.zoomSectionLabel) {
+                VStack(spacing: 2) {
+                    ClickRuler(model: model).frame(height: 12)
+                    RecorderZoomLane(model: model, kind: .zoom,
+                                     emptyHint: strings.zoomLaneEmptyHint)
+                        .frame(height: 30)
+                }
+            }
             // The text lane only exists once there is text, so an editor
             // nobody typed in stays as simple as it was.
             if !model.document.texts.isEmpty {
-                RecorderZoomLane(model: model, kind: .text,
-                                 emptyHint: strings.textLaneEmptyHint)
-                    .frame(height: 30)
+                timelineRow(strings.textContentLabel) {
+                    RecorderZoomLane(model: model, kind: .text,
+                                     emptyHint: strings.textLaneEmptyHint)
+                        .frame(height: 30)
+                }
             }
-            Filmstrip(model: model)
-                .frame(height: 54)
-                .padding(.top, 4)
+            timelineRow(strings.editorTitle) {
+                Filmstrip(model: model).frame(height: 54)
+            }
         }
         .padding(.horizontal, 18)
         .padding(.top, 10)
         .padding(.bottom, 16)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .top) { Divider().opacity(0.45) }
+    }
+
+    private func timelineRow<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack(spacing: 10) {
+            Text(title)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 64, alignment: .trailing)
+                .lineLimit(1)
+            content()
+        }
     }
 
     private var transportRow: some View {
@@ -305,6 +401,27 @@ struct RecorderEditorView: View {
         .screenshotSafeHelp(l10n.s.cleanerRevealInFinder)
         .onDrag { NSItemProvider(contentsOf: url) ?? NSItemProvider() }
         .transition(.opacity)
+    }
+}
+
+private struct RecorderToolbarButtonStyle: ButtonStyle {
+    var compact = false
+    var destructive = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(destructive ? Color.red : Color.primary)
+            .padding(.horizontal, compact ? 0 : 10)
+            .frame(width: compact ? 30 : nil, height: 30)
+            .background(Color.white.opacity(configuration.isPressed ? 0.11 : 0.055),
+                        in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Color.white.opacity(configuration.isPressed ? 0.15 : 0.08),
+                                  lineWidth: 1)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 
