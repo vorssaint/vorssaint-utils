@@ -23,9 +23,11 @@ enum ScreenshotSupport {
     // MARK: - Scrolling capture
 
     /// A failed scroll target must never keep the capture alive forever or
-    /// quietly return a partial image. Reaching either guard is an explicit
-    /// failure that the UI reports.
-    static let scrollingCaptureMaximumDuration: TimeInterval = 120
+    /// exhaust memory. Reaching a guard keeps the valid portion and explains
+    /// why the capture stopped.
+    static let scrollingCaptureMaximumDuration: TimeInterval = 30
+    static let scrollingCaptureMaximumFrames = 32
+    static let scrollingCaptureMaximumRawPixels = 48_000_000
     static let scrollingCaptureMaximumPixels = 60_000_000
 
     static func scrollingCaptureStepPoints(regionHeight: CGFloat) -> CGFloat {
@@ -93,7 +95,10 @@ enum ScreenshotSupport {
         }
 
         let height = previous.height
-        let minimumAdvance = max(4, Int((Double(height) * 0.18).rounded()))
+        // The final scroll at the bottom of a page is often only a few rows.
+        // Treating every advance below 18% as a mismatch discarded an otherwise
+        // valid capture on short pages just before it could detect the end.
+        let minimumAdvance = max(2, Int((Double(height) * 0.01).rounded()))
         let maximumAdvance = min(height - 8, Int((Double(height) * 0.88).rounded()))
         guard minimumAdvance <= maximumAdvance else { return .unmatched }
 

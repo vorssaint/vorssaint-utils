@@ -4,20 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [3.3.0]
+## [3.3.0] - 2026-08-04
 
 ### Summary
-Vorssaint 3.3.0 records the screen with automatic zooms, captures long scrolling
-pages and lets screenshot annotations move forward or backward. Finder gains
-image tools and shortcuts, Window Layout restores recent placements, the mixer
-separates overall volume from system sounds and menu bar readings match the
-active display.
+Vorssaint 3.3.0 records the screen, captures and shares screenshots, and improves
+annotation order. Finder and Window Layout gain new tools and refinements, while
+setup and the Command Bar make features, feedback and saved searches easier to use.
 
 ### Added
 - Screen recording with automatic zooms for clicks and typing, reusable presets,
   direct copy, and video or GIF export. Off by default.
-- Scrolling screenshots join long pages and documents into one image, from
-  Screenshot or the Command Bar. Thanks to @ruvelro.
+- Screenshots can create temporary links for 1, 6 or 24 hours from the preview or
+  editor, with clear privacy details.
+- Scrolling screenshots join long pages into one image and stop exactly where
+  you choose. From Screenshot or the Command Bar. Thanks to @ruvelro.
+- Bug reports and feature ideas can be sent from General or the Command Bar,
+  with optional technical details shown before sending.
 - A slider for how solid the Dock preview panel looks. Under Switcher, with
   Dock Preview on. Thanks to @ruvelro.
 - Window thumbnail capture can pause while chosen apps are in front. Under
@@ -34,8 +36,14 @@ active display.
   Under Quick Tools. Thanks to @hash00.
 
 ### Changed
+- First setup now asks what you want before requesting only the permissions
+  those choices need. Features remain available later in Settings.
+- The Command Bar can quit, restart, force quit or send an app to the
+  Uninstaller. Newly installed apps appear when the bar reopens.
 - Screenshot annotations can move forward or backward through the drawing
   order, with undo support. Thanks to @hash00.
+- The System panel can open the Mac's full process inspector from its usage
+  list. Thanks to @hash00.
 - The Volume Mixer adjusts overall volume directly and can send system sounds
   to a separate output. Thanks to @vkplayz0 and @p3P4.
 - Mute microphone now lives in Quick toggles in the menu bar panel. Thanks to
@@ -55,6 +63,10 @@ active display.
   under Energy. Thanks to @hash00.
 
 ### Fixed
+- Quit on close now protects every part of an excepted app, including windows
+  run through bundled components.
+- Window Layout shortcuts now arrange the active Settings window too. Thanks to
+  @vraravam.
 - Menu bar readings now dim with the rest of the bar on displays that are not
   active. Thanks to @JaffryGao.
 - The App Switcher's initial selection no longer loses part of its border when
@@ -89,6 +101,8 @@ active display.
   everywhere, including the window shortcuts. Thanks to @hash00.
 - A saved search in the Command Bar stays in the list while you type what to
   look for after its name. Thanks to @tenbux.
+- Saved Command Bar searches now work with spaces produced by Chinese input
+  methods. Thanks to @tingke.
 
 ## [3.2.0] - 2026-07-31
 

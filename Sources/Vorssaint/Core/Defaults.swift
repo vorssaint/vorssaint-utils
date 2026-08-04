@@ -405,6 +405,9 @@ enum DefaultsKey {
     static let screenshotBackdropPresets = "screenshotBackdropPresets"
     static let screenshotOpenEditorDirectly = "screenshotOpenEditorDirectly"
     static let screenshotCopyToClipboard = "screenshotCopyToClipboard"
+    // Developer-only endpoint for an isolated test tunnel. The official app
+    // ignores it, and settings backups must never carry it to another Mac.
+    static let screenshotSharingDeveloperEndpoint = "screenshotSharingDeveloperEndpoint"
     static let panelUtilityScreenshot = "panelUtilityScreenshot"
 
     // Screen recorder - records the picked area, keeps the untouched master
@@ -490,7 +493,7 @@ enum UpdateHighlightsInfo {
     /// The single release whose first launch shows the tour; any other
     /// version never shows it. Bump deliberately for releases with headline
     /// features worth a tour.
-    static let releaseVersion = "3.2.0"
+    static let releaseVersion = "3.3.0"
 
     static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
         appVersion == releaseVersion && lastSeenVersion != releaseVersion
@@ -501,9 +504,7 @@ enum SupportUpdateIntroInfo {
     /// The single release whose first launch shows the update intro. It used
     /// to track AppInfo.version, which re-showed the ask on every update; now a
     /// release only shows it when this constant is deliberately bumped.
-    static let releaseVersion = "3.1.13"
-    static let installCommand = "brew install --cask vorssaint"
-    static let migrationCommand = "brew untap --force vorssaint/tap"
+    static let releaseVersion = "3.3.0"
 
     static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
         appVersion == releaseVersion && lastSeenVersion != releaseVersion
@@ -511,13 +512,11 @@ enum SupportUpdateIntroInfo {
 }
 
 enum SupportUpdateIntroStep: Equatable {
-    case homebrew
     case community
     case support
 
     var next: SupportUpdateIntroStep? {
         switch self {
-        case .homebrew: return .community
         case .community: return .support
         case .support: return nil
         }
@@ -525,8 +524,7 @@ enum SupportUpdateIntroStep: Equatable {
 
     var previous: SupportUpdateIntroStep? {
         switch self {
-        case .homebrew: return nil
-        case .community: return .homebrew
+        case .community: return nil
         case .support: return .community
         }
     }

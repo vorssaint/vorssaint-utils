@@ -26,8 +26,11 @@ final class ScreenshotService: ObservableObject {
     private var countdownRemaining = 0
     private var countdownMode: CaptureMode = .standard
     private var directCaptureTask: Task<Void, Never>?
+    private var autoCopyTask: Task<Void, Never>?
+    private var autoCopyGeneration = 0
     private var scrollingTask: Task<Void, Never>?
     private var scrollingCaptureID: UUID?
+    private var scrollingFinishSignal: ScreenshotScrollingCapture.FinishSignal?
 
     private enum CaptureMode {
         case standard
@@ -96,9 +99,14 @@ final class ScreenshotService: ObservableObject {
         countdown = nil
         directCaptureTask?.cancel()
         directCaptureTask = nil
+        autoCopyTask?.cancel()
+        autoCopyTask = nil
+        autoCopyGeneration += 1
         scrollingTask?.cancel()
         scrollingTask = nil
         scrollingCaptureID = nil
+        scrollingFinishSignal = nil
+        QuickToolHUD.dismissScrollingCapture()
         session?.cancel()
         session = nil
         preview?.close()
@@ -127,10 +135,10 @@ final class ScreenshotService: ObservableObject {
     }
 
     private func startCapture(_ mode: CaptureMode) {
-        // The same entry point is also the cancel action while a long capture
-        // is running. It can never open a second selection or capture task.
-        if let scrollingTask {
-            scrollingTask.cancel()
+        // Repeating the same action finishes a long capture at the current
+        // point. It can never open a second selection or capture task.
+        if scrollingTask != nil {
+            scrollingFinishSignal?.request()
             return
         }
         // Another feature may already own the capture surface (copying text
@@ -192,12 +200,15 @@ final class ScreenshotService: ObservableObject {
         preview = nil
         let defaults = UserDefaults.standard
         let controller = ScreenshotSelectionController(
-            freeze: defaults.bool(forKey: DefaultsKey.screenshotFreeze),
+            freeze: mode == .scrolling
+                ? false
+                : defaults.bool(forKey: DefaultsKey.screenshotFreeze),
             includePointer: defaults.bool(forKey: DefaultsKey.screenshotIncludePointer),
             showLastRegion: defaults.bool(forKey: DefaultsKey.screenshotShowLastRegion),
             purpose: mode == .scrolling ? strings.scrollingCaptureTitle : nil,
             mode: mode == .scrolling ? .geometry : .image,
-            supportsScrollingCapture: mode == .standard && Permissions.shared.accessibility)
+            supportsScrollingCapture: mode == .standard && Permissions.shared.accessibility,
+            requiresDraggedRegion: mode == .scrolling)
         session = controller
         controller.begin { [weak self] outcome in
             guard let self else { return }
@@ -257,24 +268,45 @@ final class ScreenshotService: ObservableObject {
             Permissions.shared.requestAccessibility()
             return
         }
-        QuickToolHUD.show(icon: "rectangle.stack", message: strings.scrollingCaptureProgressHUD)
+        guard let targetPID = ScreenshotScrollingCapture.targetPID(for: region) else {
+            QuickToolHUD.show(icon: "camera.viewfinder", message: strings.captureFailed)
+            return
+        }
+        let finishSignal = ScreenshotScrollingCapture.FinishSignal()
+        scrollingFinishSignal = finishSignal
+        QuickToolHUD.showScrollingCapture(
+            message: strings.scrollingCaptureProgressHUD,
+            finishTitle: strings.done,
+            cancelTitle: strings.cancel,
+            onFinish: { finishSignal.request() },
+            onCancel: { [weak self] in self?.scrollingTask?.cancel() })
         let captureID = UUID()
         scrollingCaptureID = captureID
         scrollingTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            let result = await ScreenshotScrollingCapture.capture(region: region,
-                                                                  includePointer: false)
+            let result = await ScreenshotScrollingCapture.capture(
+                region: region,
+                includePointer: false,
+                finishSignal: finishSignal,
+                targetPID: targetPID)
             guard self.scrollingCaptureID == captureID else { return }
             self.scrollingCaptureID = nil
             self.scrollingTask = nil
+            self.scrollingFinishSignal = nil
+            QuickToolHUD.dismissScrollingCapture()
             switch result {
             case .success(let capture):
                 self.route(capture)
-            case .cancelled:
-                QuickToolHUD.show(icon: "xmark", message: L10n.shared.s.mediaCancelled)
-            case .tooLong:
+            case .partial(let capture):
+                self.route(capture)
+                QuickToolHUD.show(icon: "rectangle.stack",
+                                  message: self.strings.scrollingCapturePartialHUD)
+            case .limited(let capture):
+                self.route(capture)
                 QuickToolHUD.show(icon: "rectangle.stack",
                                   message: self.strings.scrollingCaptureTooLongHUD)
+            case .cancelled:
+                QuickToolHUD.show(icon: "xmark", message: L10n.shared.s.mediaCancelled)
             case .failed:
                 QuickToolHUD.show(icon: "camera.viewfinder", message: self.strings.captureFailed)
             }
@@ -346,6 +378,13 @@ final class ScreenshotService: ObservableObject {
                     return [.discard]
                 }
             },
+            share: { [weak self] duration, completion in
+                guard let self else {
+                    completion(nil)
+                    return
+                }
+                self.shareDirect(capture, duration: duration, completion: completion)
+            },
             onClose: { [weak self] in self?.preview = nil })
         preview = controller
         controller.show()
@@ -379,10 +418,63 @@ final class ScreenshotService: ObservableObject {
     /// would only repeat that. A failure still beeps, since nothing else
     /// would reveal an empty clipboard before the paste.
     private func autoCopy(_ capture: ScreenshotSelectionController.Capture) {
-        if let image = flatten(capture), ScreenshotEditorController.copyImage(image) {
-            return
+        let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
+        autoCopyTask?.cancel()
+        autoCopyGeneration += 1
+        let generation = autoCopyGeneration
+        let pasteboardChangeCount = NSPasteboard.general.changeCount
+        autoCopyTask = Task { @MainActor [weak self] in
+            let payload = await Task.detached(priority: .userInitiated) {
+                guard let image = Self.flatten(capture, downscaleTo1x: downscale) else {
+                    return nil as ScreenshotEditorController.ClipboardPayload?
+                }
+                return ScreenshotEditorController.clipboardPayload(from: image)
+            }.value
+            guard let self, !Task.isCancelled,
+                  generation == self.autoCopyGeneration,
+                  pasteboardChangeCount == NSPasteboard.general.changeCount,
+                  AppFeature.screenshot.isAvailable
+            else { return }
+            guard let payload,
+                  ScreenshotEditorController.copyClipboardPayload(payload)
+            else {
+                NSSound.beep()
+                return
+            }
+            self.autoCopyTask = nil
         }
-        NSSound.beep()
+    }
+
+    private func shareDirect(_ capture: ScreenshotSelectionController.Capture,
+                             duration: ScreenshotShareDuration,
+                             completion: @escaping (ScreenshotShareRecord?) -> Void) {
+        let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
+        Task { @MainActor [weak self] in
+            guard let self else {
+                completion(nil)
+                return
+            }
+            let data = await Task.detached(priority: .userInitiated) {
+                guard let image = Self.flatten(capture, downscaleTo1x: downscale) else {
+                    return nil as Data?
+                }
+                return ScreenshotRenderer.pngData(from: image)
+            }.value
+            guard let data else {
+                QuickToolHUD.show(icon: "link", message: self.strings.shareFailedHUD)
+                completion(nil)
+                return
+            }
+            do {
+                let record = try await ScreenshotShareService.shared.createLink(
+                    pngData: data, duration: duration)
+                completion(record)
+            } catch {
+                QuickToolHUD.show(icon: "link", message: self.strings.shareFailedHUD)
+                NSSound.beep()
+                completion(nil)
+            }
+        }
     }
 
     @discardableResult
@@ -447,6 +539,13 @@ final class ScreenshotService: ObservableObject {
     /// downscale preference applies everywhere; no backdrop and no rounding,
     /// a direct capture is the raw pixels.
     private func flatten(_ capture: ScreenshotSelectionController.Capture) -> CGImage? {
+        Self.flatten(
+            capture,
+            downscaleTo1x: UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale))
+    }
+
+    private static func flatten(_ capture: ScreenshotSelectionController.Capture,
+                                downscaleTo1x: Bool) -> CGImage? {
         ScreenshotRenderer.renderExport(
             baseImage: capture.image,
             annotations: [],
@@ -455,7 +554,7 @@ final class ScreenshotService: ObservableObject {
             annotationShadowsEnabled: false,
             style: ScreenshotSupport.BackdropStyle(kind: .none, cornerRadius: 0),
             fill: .none,
-            downscaleTo1x: UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale))
+            downscaleTo1x: downscaleTo1x)
     }
 
     // MARK: - Save location
@@ -533,6 +632,13 @@ final class ScreenshotService: ObservableObject {
 /// One discardable PNG on disk keeps this shortcut useful across launches
 /// without holding a full-resolution screenshot in memory while the app rests.
 enum ScreenshotLastCaptureStore {
+    private static let writeQueue = DispatchQueue(
+        label: "com.vorssaint.utils.latest-screenshot",
+        qos: .utility)
+    private static let stateLock = NSLock()
+    private static var generation = 0
+    private static var pendingCapture: ScreenshotSelectionController.Capture?
+
     private static var fileURL: URL? {
         guard let base = FileManager.default.urls(for: .cachesDirectory,
                                                   in: .userDomainMask).first,
@@ -544,23 +650,43 @@ enum ScreenshotLastCaptureStore {
     }
 
     static func save(_ capture: ScreenshotSelectionController.Capture) {
-        guard let fileURL,
-              let data = ScreenshotRenderer.pngData(from: capture.image, scale: capture.scale)
-        else {
-            clear()
-            return
-        }
-        do {
-            try FileManager.default.createDirectory(
-                at: fileURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true)
-            try data.write(to: fileURL, options: .atomic)
-        } catch {
-            clear()
+        guard let fileURL else { return }
+        stateLock.lock()
+        generation += 1
+        let operation = generation
+        pendingCapture = capture
+        stateLock.unlock()
+
+        writeQueue.async {
+            guard let data = ScreenshotRenderer.pngData(
+                from: capture.image, scale: capture.scale)
+            else {
+                finish(operation, fileURL: fileURL, removeFile: true)
+                return
+            }
+            guard isCurrent(operation) else { return }
+            do {
+                try FileManager.default.createDirectory(
+                    at: fileURL.deletingLastPathComponent(),
+                    withIntermediateDirectories: true)
+                try data.write(to: fileURL, options: .atomic)
+                guard isCurrent(operation) else {
+                    try? FileManager.default.removeItem(at: fileURL)
+                    return
+                }
+                finish(operation, fileURL: fileURL, removeFile: false)
+            } catch {
+                finish(operation, fileURL: fileURL, removeFile: true)
+            }
         }
     }
 
     static func load() -> ScreenshotSelectionController.Capture? {
+        stateLock.lock()
+        let pending = pendingCapture
+        stateLock.unlock()
+        if let pending { return pending }
+
         guard let fileURL else { return nil }
         let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithURL(fileURL as CFURL, sourceOptions),
@@ -574,7 +700,29 @@ enum ScreenshotLastCaptureStore {
     }
 
     static func clear() {
+        stateLock.lock()
+        generation += 1
+        pendingCapture = nil
+        stateLock.unlock()
         guard let fileURL else { return }
         try? FileManager.default.removeItem(at: fileURL)
+    }
+
+    private static func isCurrent(_ operation: Int) -> Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return generation == operation
+    }
+
+    private static func finish(_ operation: Int, fileURL: URL, removeFile: Bool) {
+        guard isCurrent(operation) else { return }
+        if removeFile {
+            try? FileManager.default.removeItem(at: fileURL)
+        }
+        stateLock.lock()
+        if generation == operation {
+            pendingCapture = nil
+        }
+        stateLock.unlock()
     }
 }

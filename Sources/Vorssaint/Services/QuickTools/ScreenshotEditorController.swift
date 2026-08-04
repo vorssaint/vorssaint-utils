@@ -1069,6 +1069,46 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
 
     // MARK: Export actions
 
+    /// Uploads the rendered editor result without copying the URL or closing
+    /// the editor. The view presents the owner controls after it succeeds.
+    func share(duration: ScreenshotShareDuration,
+               completion: @escaping (ScreenshotShareRecord?) -> Void) {
+        guard let image = model.exportImage() else {
+            QuickToolHUD.show(icon: "link", message: strings.shareFailedHUD)
+            completion(nil)
+            return
+        }
+        Task { @MainActor [weak self] in
+            guard let self else {
+                completion(nil)
+                return
+            }
+            let data = await Task.detached(priority: .userInitiated) {
+                ScreenshotRenderer.pngData(from: image)
+            }.value
+            guard let data else {
+                QuickToolHUD.show(icon: "link", message: self.strings.shareFailedHUD)
+                completion(nil)
+                return
+            }
+            do {
+                let record = try await ScreenshotShareService.shared.createLink(
+                    pngData: data, duration: duration)
+                guard self.window != nil else {
+                    try? await ScreenshotShareService.shared.delete(record)
+                    completion(nil)
+                    return
+                }
+                self.model.markExported()
+                completion(record)
+            } catch {
+                QuickToolHUD.show(icon: "link", message: self.strings.shareFailedHUD)
+                NSSound.beep()
+                completion(nil)
+            }
+        }
+    }
+
     /// Every terminal output closes the editor: the capture leaves the app
     /// and the window's job is done, so nothing lingers to tidy up.
     func copyToClipboard() {
@@ -1084,14 +1124,29 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
 
     @discardableResult
     static func copyImage(_ image: CGImage) -> Bool {
+        copyClipboardPayload(clipboardPayload(from: image))
+    }
+
+    struct ClipboardPayload: Sendable {
+        let png: Data?
+        let tiff: Data?
+    }
+
+    static func clipboardPayload(from image: CGImage) -> ClipboardPayload {
+        let png = ScreenshotRenderer.pngData(from: image)
+        let bitmap = NSBitmapImageRep(cgImage: image)
+        return ClipboardPayload(png: png, tiff: bitmap.tiffRepresentation)
+    }
+
+    @discardableResult
+    static func copyClipboardPayload(_ payload: ClipboardPayload) -> Bool {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         let item = NSPasteboardItem()
-        if let png = ScreenshotRenderer.pngData(from: image) {
+        if let png = payload.png {
             item.setData(png, forType: .png)
         }
-        let bitmap = NSBitmapImageRep(cgImage: image)
-        if let tiff = bitmap.tiffRepresentation {
+        if let tiff = payload.tiff {
             item.setData(tiff, forType: .tiff)
         }
         return pasteboard.writeObjects([item])

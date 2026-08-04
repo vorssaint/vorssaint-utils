@@ -105,6 +105,7 @@ enum SettingsBackupSupport {
         DefaultsKey.updateShowcaseMediaOverride,
         DefaultsKey.settingsWindowWidth,
         DefaultsKey.settingsWindowHeight,
+        DefaultsKey.screenshotSharingDeveloperEndpoint,
     ]
 
     /// The file's content: an envelope with the format version, the app

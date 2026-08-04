@@ -64,7 +64,7 @@ final class AppUninstaller: ObservableObject {
         guard let bundle = Bundle(url: appURL) else { return }
         // System apps are SIP-protected and their support data is live OS
         // state; removing either would be wrong, so refuse the selection.
-        guard !appURL.standardizedFileURL.path.hasPrefix("/System") else { return }
+        guard !InstalledApps.isSystemApplication(at: appURL) else { return }
         // The bundle id and name become path components of the scan. Reject
         // values that could traverse out of the scanned roots (a hostile
         // Info.plist could otherwise make user folders look like leftovers).

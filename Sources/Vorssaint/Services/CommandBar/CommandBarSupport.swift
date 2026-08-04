@@ -43,9 +43,10 @@ enum CommandBarSearch {
             .folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
                      locale: nil)
             .lowercased()
-            .replacingOccurrences(of: "\n", with: " ")
-            .replacingOccurrences(of: "\t", with: " ")
-        return folded.split(separator: " ").joined(separator: " ")
+        // Splitting on any whitespace — not just the ASCII space — treats the
+        // full-width space (U+3000) that some input methods produce the same
+        // as the half-width one, so "bd　123" folds like "bd 123".
+        return folded.split(whereSeparator: \.isWhitespace).joined(separator: " ")
     }
 
     /// Drops the characters that take up no space and that nobody can type:

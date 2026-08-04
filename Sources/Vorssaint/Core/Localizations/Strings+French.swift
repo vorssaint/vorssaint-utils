@@ -603,8 +603,8 @@ extension Strings {
         obLanguageUpdateTitle: "Maintenant dans votre langue",
         obLanguageUpdateBody: "Vorssaint parle désormais plusieurs langues. Choisissez celle que vous voulez utiliser ; vous pouvez en changer à tout moment dans les Réglages.",
         obPurposeTitle: "Qu’est-ce qui vous amène ?",
-        obPurposeBody: "Choisissez une option et l’app se configure seule. Le reste demeure à un clic dans les Réglages.",
-        obPurposeSkip: "Tout garder sous la main",
+        obPurposeBody: "Choisissez une configuration prête ou exactement les fonctions à utiliser.",
+        obPurposeSkip: "Vous pourrez ajouter ou retirer des fonctions dans les Réglages.",
 
         tabMonitor: "Moniteur",
         monitorMenuBarSection: "Dans la barre des menus",
@@ -890,6 +890,7 @@ extension Strings {
         shelfFileMissing: "Le fichier n'existe plus",
         previewSizeSmall: "Petite",
         mixerSoundEffectsOutputTitle: "Sons du système",
-        mixerSoundEffectsOutputTooltip: "Choisir où sont diffusés les alertes et effets sonores"
+        mixerSoundEffectsOutputTooltip: "Choisir où sont diffusés les alertes et effets sonores",
+        monitorOpenActivityMonitor: "Ouvrir le Moniteur d’activité"
     )
 }

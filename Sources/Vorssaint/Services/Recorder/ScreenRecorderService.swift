@@ -418,10 +418,11 @@ final class ScreenRecorderService: ObservableObject {
     private func saveDirect(_ take: RecorderTakeStore.Take, reason: String?) {
         let destination = Self.saveDestination(strings: strings, fileExtension: "mov")
         do {
-            try FileManager.default.copyItem(at: take.videoURL, to: destination)
+            try RecorderTakeStore.shared.saveDirectly(take, to: destination)
         } catch {
             NSSound.beep()
             QuickToolHUD.show(icon: "record.circle", message: strings.recordFailed)
+            openEditor(with: take)
             return
         }
         let folder = destination.deletingLastPathComponent().lastPathComponent

@@ -603,8 +603,8 @@ extension Strings {
         obLanguageUpdateTitle: "Jetzt in deiner Sprache",
         obLanguageUpdateBody: "Vorssaint spricht jetzt mehrere Sprachen. Wähle die, die du verwenden möchtest; du kannst sie jederzeit in den Einstellungen ändern.",
         obPurposeTitle: "Was führt dich hierher?",
-        obPurposeBody: "Wähl eine Option und die App richtet sich selbst ein. Der Rest bleibt einen Klick entfernt.",
-        obPurposeSkip: "Alles griffbereit lassen",
+        obPurposeBody: "Wähle eine fertige Einrichtung oder genau die Funktionen, die du nutzen möchtest.",
+        obPurposeSkip: "Du kannst Funktionen später in den Einstellungen ändern.",
 
         tabMonitor: "Überwachung",
         monitorMenuBarSection: "In der Menüleiste",
@@ -890,6 +890,7 @@ extension Strings {
         shelfFileMissing: "Die Datei existiert nicht mehr",
         previewSizeSmall: "Klein",
         mixerSoundEffectsOutputTitle: "Systemtöne",
-        mixerSoundEffectsOutputTooltip: "Auswählen, wo Hinweise und Toneffekte wiedergegeben werden"
+        mixerSoundEffectsOutputTooltip: "Auswählen, wo Hinweise und Toneffekte wiedergegeben werden",
+        monitorOpenActivityMonitor: "Aktivitätsanzeige öffnen"
     )
 }

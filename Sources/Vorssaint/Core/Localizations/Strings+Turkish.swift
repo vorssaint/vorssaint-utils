@@ -603,8 +603,8 @@ extension Strings {
         obLanguageUpdateTitle: "Artık kendi dilinde",
         obLanguageUpdateBody: "Vorssaint artık birçok dil konuşuyor. Kullanmak istediğin dili seç; bunu istediğin zaman Ayarlar'dan değiştirebilirsin.",
         obPurposeTitle: "Sizi buraya ne getirdi?",
-        obPurposeBody: "Birini seçin, uygulama kendini kurar. Gerisi Ayarlar içinde bir tık uzakta kalır.",
-        obPurposeSkip: "Her şey elimin altında kalsın",
+        obPurposeBody: "Hazır bir kurulum veya kullanmak istediğiniz özellikleri tek tek seçin.",
+        obPurposeSkip: "Özellikleri daha sonra Ayarlar’dan değiştirebilirsiniz.",
 
         tabMonitor: "Monitör",
         monitorMenuBarSection: "Menü çubuğunda",
@@ -890,6 +890,7 @@ extension Strings {
         shelfFileMissing: "Dosya artık yok",
         previewSizeSmall: "Küçük",
         mixerSoundEffectsOutputTitle: "Sistem sesleri",
-        mixerSoundEffectsOutputTooltip: "Uyarıların ve ses efektlerinin çalacağı çıkışı seç"
+        mixerSoundEffectsOutputTooltip: "Uyarıların ve ses efektlerinin çalacağı çıkışı seç",
+        monitorOpenActivityMonitor: "Etkinlik Monitörü'nü aç"
     )
 }

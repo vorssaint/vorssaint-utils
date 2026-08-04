@@ -603,8 +603,8 @@ extension Strings {
         obLanguageUpdateTitle: "现在支持你的语言",
         obLanguageUpdateBody: "Vorssaint 现在支持多种语言。选择你想使用的语言，随时可在设置中更改。",
         obPurposeTitle: "你想用它做什么？",
-        obPurposeBody: "选择一项，应用自动配置。其余功能在设置中一键可得。",
-        obPurposeSkip: "全部留在手边",
+        obPurposeBody: "选择一套预设，或准确勾选你想使用的功能。",
+        obPurposeSkip: "之后可随时在设置中添加或移除功能。",
 
         tabMonitor: "监视",
         monitorMenuBarSection: "在菜单栏中",
@@ -890,6 +890,7 @@ extension Strings {
         shelfFileMissing: "文件已不存在",
         previewSizeSmall: "小",
         mixerSoundEffectsOutputTitle: "系统声音",
-        mixerSoundEffectsOutputTooltip: "选择提醒和音效的播放设备"
+        mixerSoundEffectsOutputTooltip: "选择提醒和音效的播放设备",
+        monitorOpenActivityMonitor: "打开活动监视器"
     )
 }

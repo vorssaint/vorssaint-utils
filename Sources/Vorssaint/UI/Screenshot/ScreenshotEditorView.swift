@@ -19,6 +19,8 @@ struct ScreenshotEditorView: View {
     @State private var backdropPopoverShown = false
     @State private var hoveredTool: ScreenshotSupport.Tool?
     @State private var toolOptionsShown = false
+    @State private var sharing = false
+    @State private var sharedRecord: ScreenshotShareRecord?
     @AppStorage(DefaultsKey.screenshotToolOrder) private var toolOrderRaw =
         ScreenshotSupport.Tool.defaultOrderStorage
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
@@ -56,6 +58,11 @@ struct ScreenshotEditorView: View {
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: model.tool)
         .animation(.easeOut(duration: 0.16), value: model.annotationShadowsEnabled)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: model.backdropStyle)
+        .sheet(item: $sharedRecord) { record in
+            ScreenshotEditorSharedLinkView(record: record,
+                                           strings: strings,
+                                           close: { sharedRecord = nil })
+        }
     }
 
     /// The window's crown: the brand centered like the menu bar panel, the
@@ -702,6 +709,9 @@ struct ScreenshotEditorView: View {
 
             Divider().frame(height: 16).padding(.horizontal, 3)
 
+            shareMenu
+            Divider().frame(height: 16).padding(.horizontal, 3)
+
             Menu {
                 Button(strings.saveButton) {
                     commitEditingTextIfNeeded()
@@ -735,6 +745,36 @@ struct ScreenshotEditorView: View {
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.16), radius: 14, y: 4)
+    }
+
+    private var shareMenu: some View {
+        Menu {
+            ForEach(ScreenshotShareDuration.allCases) { duration in
+                Button(duration.title(strings)) {
+                    commitEditingTextIfNeeded()
+                    sharing = true
+                    controller.share(duration: duration) { record in
+                        sharing = false
+                        sharedRecord = record
+                    }
+                }
+            }
+        } label: {
+            Group {
+                if sharing {
+                    ProgressView()
+                        .controlSize(.mini)
+                } else {
+                    Image(systemName: "link")
+                }
+            }
+            .frame(width: 24, height: 24)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .disabled(sharing)
+        .screenshotSafeHelp(sharing ? strings.sharingHUD : strings.shareButton)
+        .accessibilityLabel(strings.shareButton)
     }
 
     // MARK: - Bottom row
@@ -1134,6 +1174,92 @@ struct ScreenshotEditorView: View {
             .screenshotSafeHelp(strings.editorTitle)
     }
 
+}
+
+private struct ScreenshotEditorSharedLinkView: View {
+    let record: ScreenshotShareRecord
+    let strings: ScreenshotFeatureStrings
+    let close: () -> Void
+    @State private var deleting = false
+    @State private var showingDeleteError = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Label(strings.sharedLinksTitle, systemImage: "link")
+                    .font(.title3.weight(.semibold))
+                Spacer()
+                Button(strings.done, action: close)
+                    .keyboardShortcut(.defaultAction)
+            }
+
+            VStack(alignment: .leading, spacing: 7) {
+                Text(record.url.absoluteString)
+                    .font(.system(.body, design: .rounded))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                HStack(spacing: 4) {
+                    Text(strings.expiresLabel)
+                    Text(record.expiresAt, style: .relative)
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.primary.opacity(0.055),
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
+            }
+
+            HStack {
+                Spacer()
+                Button {
+                    if ScreenshotShareService.shared.copy(record.url) {
+                        QuickToolHUD.show(icon: "link", message: strings.sharedHUD)
+                    } else {
+                        NSSound.beep()
+                    }
+                } label: {
+                    Label(strings.copyLink, systemImage: "doc.on.doc")
+                }
+                .keyboardShortcut("c", modifiers: .command)
+                Button(role: .destructive) {
+                    deleteLink()
+                } label: {
+                    if deleting {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Label(strings.deleteLink, systemImage: "trash")
+                    }
+                }
+                .disabled(deleting)
+            }
+        }
+        .padding(20)
+        .frame(width: 480)
+        .alert(strings.deleteFailedHUD, isPresented: $showingDeleteError) {
+            Button(strings.done, role: .cancel) {}
+        }
+    }
+
+    private func deleteLink() {
+        deleting = true
+        Task { @MainActor in
+            do {
+                try await ScreenshotShareService.shared.delete(record)
+                QuickToolHUD.show(icon: "link", message: strings.linkDeletedHUD)
+                close()
+            } catch {
+                deleting = false
+                showingDeleteError = true
+            }
+        }
+    }
 }
 
 extension ScreenshotSupport.Tool {
