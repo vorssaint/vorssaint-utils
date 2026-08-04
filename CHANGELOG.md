@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [3.3.1]
+
+### Summary
+Vorssaint 3.3.1 makes switching between windows of the current app direct.
+
+### Changed
+- The window shortcut now opens the switcher for the app in front, without
+  opening the app list first. Thanks to @mrevanzak.
+
 ## [3.3.0] - 2026-08-04
 
 ### Summary

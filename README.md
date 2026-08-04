@@ -72,7 +72,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 
 ### Windows and the Dock
 
-- **App switcher.** A richer take on pressing ⌘Tab, with adjustable live window thumbnails, minimized windows included, and more than one window per app. Choose apps where Vorssaint pauses both switcher and Dock thumbnail capture while they are in front.
+- **App switcher.** A richer take on pressing ⌘Tab, with adjustable live window thumbnails, minimized windows included, and more than one window per app. Press the window shortcut directly to move between windows of the app in front. Choose apps where Vorssaint pauses both switcher and Dock thumbnail capture while they are in front.
 - **Window layout.** Snap the active window to halves, thirds, sixths, corners, center or another display, each with its own optional shortcut. Restore steps back through recent placements. On a trackpad or mouse, hold chosen modifiers and drag anywhere to move a window, then add Shift to resize it. A mouse can also resize with the right button.
 - **Dock Preview.** Hover a Dock icon to peek at that app's windows and jump straight into the right one.
 - **Dock clicks.** Click the Dock icon of the active app to minimize its windows, or cycle through them one by one.
