@@ -300,6 +300,10 @@ private struct WindowLayoutActionRow: View {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict.title(l10n.s))
             return
         }
+        if shortcut.conflictsWithSystemShortcut {
+            errorText = String(format: l10n.s.shortcutConflictFormat, "macOS")
+            return
+        }
         if let conflict = WindowLayoutService.shared.shortcutConflictTitle(shortcut, excluding: action) {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict)
             return

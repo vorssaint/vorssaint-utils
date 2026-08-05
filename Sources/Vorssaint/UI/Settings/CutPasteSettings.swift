@@ -130,6 +130,10 @@ struct CutPasteSettings: View {
             renameError = String(format: l10n.s.shortcutConflictFormat, conflict.title(l10n.s))
             return
         }
+        if shortcut.conflictsWithSystemShortcut {
+            renameError = String(format: l10n.s.shortcutConflictFormat, "macOS")
+            return
+        }
         if let conflict = WindowLayoutService.shared.shortcutConflictTitle(shortcut) {
             renameError = String(format: l10n.s.shortcutConflictFormat, conflict)
             return

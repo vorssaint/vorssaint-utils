@@ -330,6 +330,10 @@ struct ShortcutPreferenceRow: View {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict.title(l10n.s))
             return
         }
+        if shortcut.conflictsWithSystemShortcut {
+            errorText = String(format: l10n.s.shortcutConflictFormat, "macOS")
+            return
+        }
         if let conflict = additionalConflict(shortcut) {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict)
             return

@@ -4454,6 +4454,52 @@ struct MetricsTests {
                                            isAvailable: { $0 != .commandBar }) == nil,
                "a feature hidden from the hub does not reserve its shortcut")
 
+        // macOS stores its own shortcuts as [character, key code, modifier mask],
+        // the mask in NSEvent.ModifierFlags bits. 1 is S, 655360 is shift+option
+        // — the combination "save picture of selected area as a file" carries
+        // when someone moves it off its factory keys.
+        func systemHotKey(_ id: String, enabled: Bool,
+                          keyCode: Int, mask: Int, type: String = "standard") -> [String: Any] {
+            [id: ["enabled": NSNumber(value: enabled),
+                  "value": ["type": type,
+                            "parameters": [NSNumber(value: 115),
+                                           NSNumber(value: keyCode),
+                                           NSNumber(value: mask)]]]]
+        }
+        let systemAreaShot = systemHotKey("30", enabled: true, keyCode: 1, mask: 655360)
+        let optionShiftS = GlobalShortcut(keyCode: 1, modifiers: [.option, .shift])
+
+        expect(GlobalShortcut.matchesSystemShortcut(optionShiftS,
+                                                    symbolicHotKeys: systemAreaShot),
+               "a combination macOS already answers is reported as taken")
+        expect(!GlobalShortcut.matchesSystemShortcut(.screenshotDefault,
+                                                     symbolicHotKeys: systemAreaShot),
+               "the default screenshot shortcut stays clear of the system list")
+        expect(!GlobalShortcut.matchesSystemShortcut(
+                    GlobalShortcut(keyCode: 1, modifiers: [.command, .shift]),
+                    symbolicHotKeys: systemAreaShot),
+               "the same key with other modifiers is a different shortcut")
+        expect(!GlobalShortcut.matchesSystemShortcut(
+                    optionShiftS,
+                    symbolicHotKeys: systemHotKey("30", enabled: false, keyCode: 1, mask: 655360)),
+               "a system shortcut the user switched off is not in the way")
+        expect(!GlobalShortcut.matchesSystemShortcut(
+                    GlobalShortcut(keyCode: 0xFFFF, modifiers: [.option, .shift]),
+                    symbolicHotKeys: systemHotKey("30", enabled: true,
+                                                  keyCode: 0xFFFF, mask: 655360)),
+               "an entry with no key assigned matches nothing")
+        expect(!GlobalShortcut.matchesSystemShortcut(
+                    optionShiftS,
+                    symbolicHotKeys: systemHotKey("30", enabled: true, keyCode: 1,
+                                                  mask: 655360, type: "modifier")),
+               "an entry that is not a plain key combination is left alone")
+        expect(!GlobalShortcut.matchesSystemShortcut(
+                    optionShiftS,
+                    symbolicHotKeys: ["30": ["enabled": NSNumber(value: true)]]),
+               "an entry with no parameters is ignored rather than guessed at")
+        expect(!GlobalShortcut.matchesSystemShortcut(optionShiftS, symbolicHotKeys: nil),
+               "an unreadable system list reserves nothing")
+
         expect(UpdateInstallerSupport.progressStepAdvanced(from: nil, to: 0.004),
                "the first known download fraction always publishes")
         expect(!UpdateInstallerSupport.progressStepAdvanced(from: 0.011, to: 0.019),

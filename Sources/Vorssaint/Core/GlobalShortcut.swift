@@ -710,3 +710,49 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         }
     }
 }
+
+/// macOS answers its own shortcuts before an application hotkey ever sees the
+/// key, and it does not consume it, so a combination shared with the system
+/// fires both: the system screenshot picker opens and the app's own capture
+/// starts behind it. The system list is the only one that can be inspected —
+/// hotkeys other applications register are not published anywhere — so this
+/// catches the collisions it can and leaves the rest to the registration
+/// failure the shortcut rows already report.
+extension GlobalShortcut {
+    /// The system's shortcut list. Read fresh every time: it can change in
+    /// System Settings while a shortcut field is open.
+    static var systemSymbolicHotKeys: [String: Any]? {
+        UserDefaults(suiteName: "com.apple.symbolichotkeys")?
+            .dictionary(forKey: "AppleSymbolicHotKeys")
+    }
+
+    var conflictsWithSystemShortcut: Bool {
+        Self.matchesSystemShortcut(self, symbolicHotKeys: Self.systemSymbolicHotKeys)
+    }
+
+    /// Whether an enabled system shortcut uses exactly this combination. Entries
+    /// store `[character, key code, modifier mask]`, with the mask in
+    /// `NSEvent.ModifierFlags` bits, and a disabled entry is not in anyone's
+    /// way. Anything that does not parse is ignored rather than guessed at: a
+    /// wrong match would refuse a combination the user can legitimately take.
+    static func matchesSystemShortcut(_ shortcut: GlobalShortcut,
+                                      symbolicHotKeys: [String: Any]?) -> Bool {
+        guard let symbolicHotKeys else { return false }
+        return symbolicHotKeys.values.contains { entry in
+            guard let entry = entry as? [String: Any],
+                  (entry["enabled"] as? NSNumber)?.boolValue == true,
+                  let value = entry["value"] as? [String: Any],
+                  (value["type"] as? String) == "standard",
+                  let parameters = value["parameters"] as? [NSNumber],
+                  parameters.count >= 3
+            else { return false }
+            let keyCode = parameters[1].int64Value
+            guard keyCode == shortcut.keyCode, keyCode != Self.noKeyCode else { return false }
+            let flags = NSEvent.ModifierFlags(rawValue: UInt(parameters[2].uintValue))
+            return GlobalShortcutModifiers(eventFlags: flags) == shortcut.modifiers
+        }
+    }
+
+    /// The placeholder a system entry carries when it has no key assigned.
+    private static let noKeyCode: Int64 = 0xFFFF
+}
