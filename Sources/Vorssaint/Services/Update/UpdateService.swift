@@ -29,9 +29,12 @@ final class UpdateService: ObservableObject {
 
     private let repository = "vorssaint/vorssaint-utils"
     private var downloadURL: URL?
+    /// Size the release advertises for the asset, used to bound the download.
+    private var downloadExpectedBytes: Int64?
     private var refreshTimer: Timer?
     private var notifiedVersion: String?   // last release we posted a notification for
     private var downloadObservation: NSKeyValueObservation?
+    private var downloadLimitObservation: NSKeyValueObservation?
 
     private init() {}
 
@@ -118,6 +121,7 @@ final class UpdateService: ObservableObject {
                 let latest = release.tagName.trimmingCharacters(in: CharacterSet(charactersIn: "vV "))
                 let asset = release.assets.first { $0.name.hasSuffix(".dmg") }
                 self.downloadURL = asset?.browserDownloadURL
+                self.downloadExpectedBytes = asset?.size
 
                 if Self.isNewer(latest, than: AppInfo.version), self.downloadURL != nil {
                     self.availableNotes = ReleaseNotes.inAppUpdateNotes(from: release.body)
@@ -176,12 +180,33 @@ final class UpdateService: ObservableObject {
         if case let .available(version) = state { offered = version } else { offered = nil }
         state = .downloading(progress: nil)
 
-        let task = URLSession.shared.downloadTask(with: downloadURL) { [weak self] tempURL, _, error in
+        let expectedBytes = downloadExpectedBytes
+        let byteLimit = UpdateInstallerSupport.downloadByteLimit(expectedBytes: expectedBytes)
+        let task = URLSession.shared.downloadTask(with: downloadURL) { [weak self] tempURL, response, error in
             guard let self else { return }
-            DispatchQueue.main.async { self.downloadObservation = nil }
+            DispatchQueue.main.async {
+                self.downloadObservation = nil
+                self.downloadLimitObservation = nil
+            }
             guard let tempURL, error == nil else {
                 DispatchQueue.main.async {
                     self.state = offered.map { State.available(version: $0) } ?? .failed(error?.localizedDescription ?? "-")
+                }
+                return
+            }
+            // A response that cannot be the asset is dropped here, before it is
+            // moved out of the scratch space and mounted. The installer still
+            // verifies the signature; this only keeps a wrong body from getting
+            // that far.
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let received = (try? FileManager.default.attributesOfItem(atPath: tempURL.path))
+                .flatMap { $0[.size] as? NSNumber }?.int64Value ?? 0
+            guard UpdateInstallerSupport.downloadIsUsable(status: status,
+                                                          receivedBytes: received,
+                                                          expectedBytes: expectedBytes) else {
+                try? FileManager.default.removeItem(at: tempURL)
+                DispatchQueue.main.async {
+                    self.state = offered.map { State.available(version: $0) } ?? .failed("HTTP \(status)")
                 }
                 return
             }
@@ -215,6 +240,12 @@ final class UpdateService: ObservableObject {
                     self.state = .downloading(progress: fraction)
                 }
             }
+        }
+        // A body that keeps coming is abandoned as soon as it passes the size
+        // the release advertises, so a broken or hostile response cannot fill
+        // the temporary directory while the download looks normal.
+        downloadLimitObservation = task.progress.observe(\.completedUnitCount) { [weak task] progress, _ in
+            if progress.completedUnitCount > byteLimit { task?.cancel() }
         }
         task.resume()
     }
@@ -408,10 +439,12 @@ private struct GitHubRelease: Decodable {
     struct Asset: Decodable {
         let name: String
         let browserDownloadURL: URL
+        let size: Int64?
 
         enum CodingKeys: String, CodingKey {
             case name
             case browserDownloadURL = "browser_download_url"
+            case size
         }
     }
 }

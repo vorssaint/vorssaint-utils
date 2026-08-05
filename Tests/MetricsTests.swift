@@ -4463,6 +4463,41 @@ struct MetricsTests {
         expect(!UpdateInstallerSupport.progressStepAdvanced(from: 0.5, to: 0.5),
                "an unchanged fraction stays quiet")
 
+        let updateCeiling = UpdateInstallerSupport.downloadCeilingBytes
+        expect(UpdateInstallerSupport.downloadByteLimit(expectedBytes: 9_638_011) == 9_638_011,
+               "a download stops at the size the release advertises")
+        expect(UpdateInstallerSupport.downloadByteLimit(expectedBytes: nil) == updateCeiling,
+               "an asset with no size still stops at the ceiling")
+        expect(UpdateInstallerSupport.downloadByteLimit(expectedBytes: 0) == updateCeiling,
+               "a zero size is not a limit of zero")
+        expect(UpdateInstallerSupport.downloadByteLimit(expectedBytes: updateCeiling + 1) == updateCeiling,
+               "an advertised size beyond the ceiling cannot raise it")
+
+        expect(UpdateInstallerSupport.downloadIsUsable(status: 200,
+                                                       receivedBytes: 9_638_011,
+                                                       expectedBytes: 9_638_011),
+               "a complete asset download is handed to the installer")
+        expect(!UpdateInstallerSupport.downloadIsUsable(status: 404,
+                                                        receivedBytes: 1_200,
+                                                        expectedBytes: 9_638_011),
+               "an error page is refused whatever it contains")
+        expect(!UpdateInstallerSupport.downloadIsUsable(status: 200,
+                                                        receivedBytes: 4_000_000,
+                                                        expectedBytes: 9_638_011),
+               "a truncated body is refused")
+        expect(!UpdateInstallerSupport.downloadIsUsable(status: 200,
+                                                        receivedBytes: 0,
+                                                        expectedBytes: nil),
+               "an empty body is refused even with no advertised size")
+        expect(!UpdateInstallerSupport.downloadIsUsable(status: 200,
+                                                        receivedBytes: updateCeiling + 1,
+                                                        expectedBytes: nil),
+               "a body past the ceiling is refused with no advertised size")
+        expect(UpdateInstallerSupport.downloadIsUsable(status: 200,
+                                                       receivedBytes: 9_638_011,
+                                                       expectedBytes: nil),
+               "a plausible body with no advertised size is accepted")
+
         expect(SettingsSearchSupport.matches(query: "", title: "Monitor"),
                "a blank settings search matches everything")
         expect(SettingsSearchSupport.matches(query: "moni", title: "Monitor"),
