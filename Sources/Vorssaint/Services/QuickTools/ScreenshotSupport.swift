@@ -23,9 +23,11 @@ enum ScreenshotSupport {
     // MARK: - Scrolling capture
 
     /// A failed scroll target must never keep the capture alive forever or
-    /// quietly return a partial image. Reaching either guard is an explicit
-    /// failure that the UI reports.
-    static let scrollingCaptureMaximumDuration: TimeInterval = 120
+    /// exhaust memory. Reaching a guard keeps the valid portion and explains
+    /// why the capture stopped.
+    static let scrollingCaptureMaximumDuration: TimeInterval = 30
+    static let scrollingCaptureMaximumFrames = 32
+    static let scrollingCaptureMaximumRawPixels = 48_000_000
     static let scrollingCaptureMaximumPixels = 60_000_000
 
     static func scrollingCaptureStepPoints(regionHeight: CGFloat) -> CGFloat {
@@ -93,7 +95,10 @@ enum ScreenshotSupport {
         }
 
         let height = previous.height
-        let minimumAdvance = max(4, Int((Double(height) * 0.18).rounded()))
+        // The final scroll at the bottom of a page is often only a few rows.
+        // Treating every advance below 18% as a mismatch discarded an otherwise
+        // valid capture on short pages just before it could detect the end.
+        let minimumAdvance = max(2, Int((Double(height) * 0.01).rounded()))
         let maximumAdvance = min(height - 8, Int((Double(height) * 0.88).rounded()))
         guard minimumAdvance <= maximumAdvance else { return .unmatched }
 
@@ -722,6 +727,35 @@ enum ScreenshotSupport {
             self.stroke = stroke
             self.number = number
         }
+    }
+
+    /// Which way a selected annotation moves through the drawing order.
+    enum LayerMove {
+        case forward, backward
+    }
+
+    /// Whether the annotation has somewhere to go: false at the end it is
+    /// already heading for, and for an id that is not in the array.
+    static func canReorder(_ annotations: [Annotation],
+                           moving id: UUID,
+                           _ move: LayerMove) -> Bool {
+        guard let index = annotations.firstIndex(where: { $0.id == id }) else { return false }
+        return annotations.indices.contains(move == .forward ? index + 1 : index - 1)
+    }
+
+    /// Moves one annotation a single step through the array the renderer draws
+    /// in order, so a shape can go behind text that was written first. An
+    /// annotation already at the end it is heading for stays put, and an
+    /// unknown id leaves the array alone.
+    static func reordering(_ annotations: [Annotation],
+                           moving id: UUID,
+                           _ move: LayerMove) -> [Annotation] {
+        guard let index = annotations.firstIndex(where: { $0.id == id }) else { return annotations }
+        let target = move == .forward ? index + 1 : index - 1
+        guard annotations.indices.contains(target) else { return annotations }
+        var reordered = annotations
+        reordered.swapAt(index, target)
+        return reordered
     }
 
     /// Counters stay 1…n in creation order; deleting one renumbers the rest

@@ -34,7 +34,20 @@ final class CommandBarService: ObservableObject {
         let id: String
         let title: String
         let symbolName: String
+        let isDestructive: Bool
         let run: () -> Void
+
+        init(id: String,
+             title: String,
+             symbolName: String,
+             isDestructive: Bool = false,
+             run: @escaping () -> Void) {
+            self.id = id
+            self.title = title
+            self.symbolName = symbolName
+            self.isDestructive = isDestructive
+            self.run = run
+        }
     }
 
     @Published var query = "" {
@@ -90,7 +103,6 @@ final class CommandBarService: ObservableObject {
     /// The raw scan is what gets cached; the rows are rebuilt on every open so
     /// the live dot and the running apps are never a stale picture.
     private var cachedApps: [InstalledApps.InstalledApp] = []
-    private var appsLoadedAt: Date?
     private var appsLoading = false
     private var windowsLoading = false
     private var windowsLoadedAt: Date?
@@ -128,6 +140,9 @@ final class CommandBarService: ObservableObject {
     /// The system only shows its Accessibility prompt once; after that a
     /// refusal is a beep, the pattern the other quick tools follow.
     private var promptedForAccessibility = false
+    private var restartObserver: NSObjectProtocol?
+    private var restartPID: pid_t?
+    private var restartURL: URL?
 
     private init() {
         hotkey.onPress = { [weak self] in self?.toggle() }
@@ -160,9 +175,9 @@ final class CommandBarService: ObservableObject {
             entriesByID = [:]
             normalizedByID = [:]
             cachedApps = []
-            appsLoadedAt = nil
             windowsLoadedAt = nil
             rows = []
+            cancelPendingRestart()
         }
     }
 
@@ -171,6 +186,7 @@ final class CommandBarService: ObservableObject {
         for hotkey in rowHotkeys { hotkey.unregister() }
         rowHotkeys = []
         hide()
+        cancelPendingRestart()
     }
 
     var isVisible: Bool {
@@ -1073,7 +1089,7 @@ final class CommandBarService: ObservableObject {
                                                  query: split.number != nil ? split.text : trimmed)
     }
 
-    // MARK: - Running
+    // MARK: - App controls
 
     /// The actions offered for the selected row, built fresh so pin reads
     /// "unpin" the moment it is pinned.
@@ -1095,6 +1111,33 @@ final class CommandBarService: ObservableObject {
     private func actions(for entry: CommandBarEntry) -> [RowAction] {
         let bar = FeatureStrings.commandBar(L10n.shared.language)
         var actions: [RowAction] = []
+        if let app = installedApp(for: entry) {
+            if let running = runningApplication(for: app) {
+                actions.append(RowAction(id: "quitApp",
+                                         title: String(format: bar.quitFormat, app.name),
+                                         symbolName: "xmark.circle") { [weak self] in
+                    self?.quit(running)
+                })
+                actions.append(RowAction(id: "restartApp",
+                                         title: String(format: bar.restartAppFormat, app.name),
+                                         symbolName: "arrow.clockwise") { [weak self] in
+                    self?.restart(running, at: app.url)
+                })
+                actions.append(RowAction(id: "forceQuitApp",
+                                         title: String(format: bar.forceQuitAppFormat, app.name),
+                                         symbolName: "exclamationmark.octagon",
+                                         isDestructive: true) { [weak self] in
+                    self?.confirmForceQuit(running, name: app.name)
+                })
+            }
+            if AppFeature.uninstaller.isAvailable, !app.isSystem {
+                actions.append(RowAction(id: "uninstallApp",
+                                         title: String(format: bar.uninstallAppFormat, app.name),
+                                         symbolName: "trash") { [weak self] in
+                    self?.openUninstaller(for: app.url)
+                })
+            }
+        }
         if CommandBarPreferences.acceptsPin(rowID: entry.id) {
             actions.append(RowAction(id: "pin",
                                      title: isPinned(entry) ? bar.actionUnpin : bar.actionPin,
@@ -1140,6 +1183,122 @@ final class CommandBarService: ObservableObject {
             })
         }
         return actions
+    }
+
+    private func installedApp(for entry: CommandBarEntry) -> InstalledApps.InstalledApp? {
+        guard entry.id.hasPrefix("app.") else { return nil }
+        return cachedApps.first { "app.\($0.id)" == entry.id }
+    }
+
+    private func runningApplication(for app: InstalledApps.InstalledApp) -> NSRunningApplication? {
+        let running = NSWorkspace.shared.runningApplications.filter {
+            $0.activationPolicy == .regular && !$0.isTerminated
+        }
+        let path = app.url.resolvingSymlinksInPath().standardizedFileURL.path
+        if let exact = running.first(where: {
+            $0.bundleURL?.resolvingSymlinksInPath().standardizedFileURL.path == path
+        }) {
+            return exact
+        }
+        guard let bundleID = app.bundleID,
+              cachedApps.lazy.filter({ $0.bundleID == bundleID }).prefix(2).count == 1 else {
+            return nil
+        }
+        return running.first { $0.bundleIdentifier == bundleID }
+    }
+
+    private func quit(_ app: NSRunningApplication) {
+        hide()
+        let pid = app.processIdentifier
+        app.activate()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            guard let running = NSRunningApplication(processIdentifier: pid),
+                  !running.isTerminated, running.terminate() else {
+                NSSound.beep()
+                return
+            }
+        }
+    }
+
+    private func restart(_ app: NSRunningApplication, at url: URL) {
+        hide()
+        cancelPendingRestart()
+        let pid = app.processIdentifier
+        restartPID = pid
+        restartURL = url
+        let center = NSWorkspace.shared.notificationCenter
+        restartObserver = center.addObserver(forName: NSWorkspace.didTerminateApplicationNotification,
+                                             object: nil,
+                                             queue: .main) { [weak self] note in
+            guard let terminated = note.userInfo?[NSWorkspace.applicationUserInfoKey]
+                    as? NSRunningApplication,
+                  terminated.processIdentifier == self?.restartPID else { return }
+            self?.completeRestart()
+        }
+        app.activate()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+            guard self?.restartPID == pid,
+                  let running = NSRunningApplication(processIdentifier: pid),
+                  !running.isTerminated, running.terminate() else {
+                self?.cancelPendingRestart()
+                NSSound.beep()
+                return
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60) { [weak self] in
+            guard self?.restartPID == pid else { return }
+            self?.cancelPendingRestart()
+        }
+    }
+
+    private func completeRestart() {
+        guard let url = restartURL else {
+            cancelPendingRestart()
+            return
+        }
+        cancelPendingRestart()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            NSWorkspace.shared.openApplication(at: url,
+                                               configuration: NSWorkspace.OpenConfiguration()) {
+                _, error in
+                if error != nil { DispatchQueue.main.async { NSSound.beep() } }
+            }
+        }
+    }
+
+    private func cancelPendingRestart() {
+        if let restartObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(restartObserver)
+        }
+        restartObserver = nil
+        restartPID = nil
+        restartURL = nil
+    }
+
+    private func confirmForceQuit(_ app: NSRunningApplication, name: String) {
+        hide()
+        let bar = FeatureStrings.commandBar(L10n.shared.language)
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = String(format: bar.forceQuitAppConfirmFormat, name)
+        let actionTitle = String(format: bar.forceQuitAppFormat, name)
+        alert.addButton(withTitle: actionTitle.hasSuffix("…")
+                        ? String(actionTitle.dropLast()) : actionTitle)
+        alert.addButton(withTitle: L10n.shared.s.uninstallerCancel)
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        guard let running = NSRunningApplication(processIdentifier: app.processIdentifier),
+              !running.isTerminated, running.forceTerminate() else {
+            NSSound.beep()
+            return
+        }
+    }
+
+    private func openUninstaller(for url: URL) {
+        hide()
+        AppUninstaller.shared.select(appURL: url)
+        SettingsRouter.shared.page = .uninstaller
+        appDelegate()?.openSettingsWindow()
     }
 
     func openActions() {
@@ -1417,11 +1576,11 @@ final class CommandBarService: ObservableObject {
 
     // MARK: - Background loads
 
-    /// Installed apps are enumerated off the main thread and kept for the
-    /// session; a fresh walk only happens when the last one is old enough to
-    /// be stale. Icons are resolved lazily by the rows themselves.
+    /// Installed apps are enumerated off the main thread on every opening.
+    /// The previous list stays visible until the fresh one lands, so a newly
+    /// installed app appears promptly without a watcher living in the
+    /// background or a loading pause. Icons are resolved lazily by the rows.
     private func loadAppsIfNeeded() {
-        if let loadedAt = appsLoadedAt, Date().timeIntervalSince(loadedAt) < 300 { return }
         guard !appsLoading else { return }
         appsLoading = true
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -1429,7 +1588,6 @@ final class CommandBarService: ObservableObject {
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.cachedApps = apps
-                self.appsLoadedAt = Date()
                 self.appsLoading = false
                 self.rebuildRunningEntries()
                 if self.isVisible { self.refreshResults() }

@@ -12,6 +12,7 @@ enum InstalledApps {
         let name: String
         let bundleID: String?
         let url: URL
+        let isSystem: Bool
 
         var icon: NSImage {
             NSWorkspace.shared.icon(forFile: url.path)
@@ -44,6 +45,11 @@ enum InstalledApps {
     /// instead of by a hardcoded path.
     private static let systemBundleIDsOutsideFolders = ["com.apple.finder"]
 
+    static func isSystemApplication(at url: URL) -> Bool {
+        let path = url.resolvingSymlinksInPath().standardizedFileURL.path
+        return systemPathPrefixes.contains { path.hasPrefix($0) }
+    }
+
     static func installedApplications(includeSystemApplications: Bool = false) -> [InstalledApp] {
         let fm = FileManager.default
         var roots = [
@@ -72,7 +78,7 @@ enum InstalledApps {
                 // A link's target decides whether the app is the system's:
                 // the path inside the application folder says nothing.
                 let resolved = url.resolvingSymlinksInPath()
-                let isSystemApp = systemPathPrefixes.contains { resolved.path.hasPrefix($0) }
+                let isSystemApp = isSystemApplication(at: url)
                 guard includeSystemApplications || !isSystemApp else { continue }
                 guard seen.insert(resolved.standardizedFileURL.path).inserted else { continue }
                 apps.append(app(at: url, fileManager: fm))
@@ -100,7 +106,8 @@ enum InstalledApps {
         return InstalledApp(id: url.standardizedFileURL.path,
                             name: name,
                             bundleID: Bundle(url: url)?.bundleIdentifier,
-                            url: url)
+                            url: url,
+                            isSystem: isSystemApplication(at: url))
     }
 
     static func installedBundleApplications(excluding excludedBundleIDs: Set<String>) -> [InstalledApp] {

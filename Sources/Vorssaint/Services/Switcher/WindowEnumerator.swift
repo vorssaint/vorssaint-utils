@@ -60,6 +60,9 @@ enum WindowEnumerator {
 
         let ownPid = ProcessInfo.processInfo.processIdentifier
         let runningApps = NSWorkspace.shared.runningApplications
+        let bundleIdentifiers = Dictionary(uniqueKeysWithValues: runningApps.compactMap { app in
+            app.bundleIdentifier.map { (app.processIdentifier, $0) }
+        })
         // Bring the use history up to date before ordering by it: windows that
         // are gone leave, and any window that appeared without ever taking
         // focus is filed by the window server's front-to-back order.
@@ -109,6 +112,7 @@ enum WindowEnumerator {
             ownPID: pid_t(ownPid),
             filterPID: filterPID)
         let accessibilityWindows = accessibilityWindows(for: accessibilityPids,
+                                                        bundleIdentifiers: bundleIdentifiers,
                                                         undescribedSubrolePids: compatibilityLayerPids)
 
         var seen = Set<CGWindowID>()
@@ -277,6 +281,7 @@ enum WindowEnumerator {
     }
 
     private static func accessibilityWindows(for pids: Set<pid_t>,
+                                             bundleIdentifiers: [pid_t: String] = [:],
                                              undescribedSubrolePids: Set<pid_t> = []) -> [pid_t: AccessibilityWindowSnapshotList] {
         guard Permissions.shared.accessibility else { return [:] }
 
@@ -296,6 +301,7 @@ enum WindowEnumerator {
             queryQueue.addOperation {
                 guard let windows = accessibilityWindows(
                     for: pid,
+                    bundleIdentifier: bundleIdentifiers[pid],
                     acceptsUndescribedSubroles: undescribedSubrolePids.contains(pid),
                     screenFrames: screenFrames
                 ) else { return }
@@ -309,6 +315,7 @@ enum WindowEnumerator {
     }
 
     private static func accessibilityWindows(for pid: pid_t,
+                                             bundleIdentifier: String? = nil,
                                              acceptsUndescribedSubroles: Bool = false,
                                              screenFrames: [CGRect]) -> AccessibilityWindowSnapshotList? {
         let app = AXUIElementCreateApplication(pid)
@@ -325,7 +332,9 @@ enum WindowEnumerator {
         if windowsResult == .success, let windows = value as? [AXUIElement] {
             for window in windows {
                 AXUIElementSetMessagingTimeout(window, 0.35)
-                if isUserFacingWindow(window, acceptsUndescribedSubroles: acceptsUndescribedSubroles) {
+                if isUserFacingWindow(window,
+                                      bundleIdentifier: bundleIdentifier,
+                                      acceptsUndescribedSubroles: acceptsUndescribedSubroles) {
                     appendUnique(window, to: &axWindows)
                 }
             }
@@ -333,7 +342,9 @@ enum WindowEnumerator {
         for attribute in [kAXMainWindowAttribute, kAXFocusedWindowAttribute] {
             if let window = accessibilityWindowAttribute(app, attribute as String) {
                 AXUIElementSetMessagingTimeout(window, 0.35)
-                if isUserFacingWindow(window, acceptsUndescribedSubroles: acceptsUndescribedSubroles) {
+                if isUserFacingWindow(window,
+                                      bundleIdentifier: bundleIdentifier,
+                                      acceptsUndescribedSubroles: acceptsUndescribedSubroles) {
                     appendUnique(window, to: &axWindows)
                 }
             }
@@ -470,6 +481,7 @@ enum WindowEnumerator {
     }
 
     private static func isUserFacingWindow(_ window: AXUIElement,
+                                           bundleIdentifier: String? = nil,
                                            acceptsUndescribedSubroles: Bool = false) -> Bool {
         if isFullscreenWindow(window) { return true }
         if boolAttribute(window, kAXMinimizedAttribute as String),
@@ -478,6 +490,8 @@ enum WindowEnumerator {
         }
         if let subrole = stringAttribute(window, kAXSubroleAttribute as String) {
             if subrole == "AXStandardWindow" || subrole == "AXFullScreenWindow" { return true }
+            if SwitcherSupport.isAdobeFloatingWindow(bundleIdentifier: bundleIdentifier,
+                                                     subrole: subrole) { return true }
             // Compatibility-layer processes draw their own window chrome on
             // borderless surfaces, which Accessibility reports as AXUnknown;
             // for them the window role is the real signal.

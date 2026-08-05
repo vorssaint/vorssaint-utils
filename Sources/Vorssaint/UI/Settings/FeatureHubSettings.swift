@@ -75,7 +75,9 @@ struct FeatureHubSettings: View {
                 presetsSection
                 featureSections
             } else {
-                PermissionsPortalSections(hub: hub)
+                Section {
+                    PermissionsPortalSections(hub: hub)
+                }
             }
         }
         .formStyle(.grouped)
@@ -306,20 +308,25 @@ private struct FeatureHubRow: View {
 
 // MARK: - Permissions portal
 
-private struct PermissionsPortalSections: View {
+struct PermissionsPortalSections: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var permissions = Permissions.shared
     let hub: FeatureHubStrings
+    let visiblePermissions: [AppPermission]
     @State private var automation: [Permissions.AutomationTarget: Permissions.AutomationStatus] = [:]
 
+    init(hub: FeatureHubStrings,
+         visiblePermissions: [AppPermission] = AppPermission.allCases) {
+        self.hub = hub
+        self.visiblePermissions = visiblePermissions
+    }
+
     var body: some View {
-        Section {
-            ForEach(AppPermission.allCases, id: \.self) { permission in
-                PermissionPortalRow(permission: permission,
-                                    hub: hub,
-                                    status: status(for: permission))
-            }
+        ForEach(visiblePermissions, id: \.self) { permission in
+            PermissionPortalRow(permission: permission,
+                                hub: hub,
+                                status: status(for: permission))
         }
         .onAppear {
             // Statuses that only refresh at launch/activation get a fresh

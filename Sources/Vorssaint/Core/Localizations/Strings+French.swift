@@ -206,7 +206,7 @@ extension Strings {
         switcherSimpleModeCaption: "Affiche les icônes des apps et les titres des fenêtres, sans aperçu ni capture d’écran par le sélecteur.",
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Fenêtres",
-        switcherWindowShortcutCaption: "Sélecteur ouvert, passe d’une fenêtre à l’autre de l’app sélectionnée.",
+        switcherWindowShortcutCaption: "Ouvre un sélecteur pour les fenêtres de l’app au premier plan. Sélecteur d’apps ouvert, passe d’une fenêtre à l’autre de l’app sélectionnée.",
         switcherMergeTabs: "Afficher une seule entrée par app",
         switcherMergeTabsCaption: "Regroupe toutes les fenêtres d’une app en une seule entrée dans le sélecteur, au lieu d’une entrée par fenêtre.",
         switcherWindowlessApps: "Apps sans fenêtre ouverte",
@@ -605,8 +605,8 @@ extension Strings {
         obLanguageUpdateTitle: "Maintenant dans votre langue",
         obLanguageUpdateBody: "Vorssaint parle désormais plusieurs langues. Choisissez celle que vous voulez utiliser ; vous pouvez en changer à tout moment dans les Réglages.",
         obPurposeTitle: "Qu’est-ce qui vous amène ?",
-        obPurposeBody: "Choisissez une option et l’app se configure seule. Le reste demeure à un clic dans les Réglages.",
-        obPurposeSkip: "Tout garder sous la main",
+        obPurposeBody: "Choisissez une configuration prête ou exactement les fonctions à utiliser.",
+        obPurposeSkip: "Vous pourrez ajouter ou retirer des fonctions dans les Réglages.",
 
         tabMonitor: "Moniteur",
         monitorMenuBarSection: "Dans la barre des menus",
@@ -892,6 +892,7 @@ extension Strings {
         shelfFileMissing: "Le fichier n'existe plus",
         previewSizeSmall: "Petite",
         mixerSoundEffectsOutputTitle: "Sons du système",
-        mixerSoundEffectsOutputTooltip: "Choisir où sont diffusés les alertes et effets sonores"
+        mixerSoundEffectsOutputTooltip: "Choisir où sont diffusés les alertes et effets sonores",
+        monitorOpenActivityMonitor: "Ouvrir le Moniteur d’activité"
     )
 }

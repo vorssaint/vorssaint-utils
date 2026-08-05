@@ -206,7 +206,7 @@ extension Strings {
         switcherSimpleModeCaption: "Mostra icone delle app e titoli delle finestre, senza anteprime né acquisizione dello schermo dal selettore.",
         switcherShortcutHintApps: "App",
         switcherShortcutHintWindows: "Finestre",
-        switcherWindowShortcutCaption: "Con il selettore aperto, salta tra le finestre dell’app selezionata.",
+        switcherWindowShortcutCaption: "Apre un selettore per le finestre dell’app in primo piano. Con il selettore app aperto, salta tra le finestre dell’app selezionata.",
         switcherMergeTabs: "Mostra una voce per app",
         switcherMergeTabsCaption: "Raggruppa tutte le finestre di un'app in un'unica voce nel commutatore, anziché una per finestra.",
         switcherWindowlessApps: "App senza finestre aperte",
@@ -605,8 +605,8 @@ extension Strings {
         obLanguageUpdateTitle: "Ora nella tua lingua",
         obLanguageUpdateBody: "Vorssaint ora parla diverse lingue. Scegli quella che vuoi usare; puoi cambiarla quando vuoi nelle Impostazioni.",
         obPurposeTitle: "Cosa ti porta qui?",
-        obPurposeBody: "Scegli un’opzione e l’app si configura da sola. Il resto resta a un clic nelle Impostazioni.",
-        obPurposeSkip: "Tenere tutto a portata di mano",
+        obPurposeBody: "Scegli una configurazione pronta o esattamente le funzioni che vuoi usare.",
+        obPurposeSkip: "Puoi aggiungere o rimuovere funzioni in seguito nelle Impostazioni.",
 
         tabMonitor: "Monitoraggio",
         monitorMenuBarSection: "Nella barra dei menu",
@@ -892,6 +892,7 @@ extension Strings {
         shelfFileMissing: "Il file non esiste più",
         previewSizeSmall: "Piccola",
         mixerSoundEffectsOutputTitle: "Suoni di sistema",
-        mixerSoundEffectsOutputTooltip: "Scegli dove riprodurre avvisi ed effetti sonori"
+        mixerSoundEffectsOutputTooltip: "Scegli dove riprodurre avvisi ed effetti sonori",
+        monitorOpenActivityMonitor: "Apri Monitoraggio Attività"
     )
 }

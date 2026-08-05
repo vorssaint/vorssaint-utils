@@ -9,6 +9,7 @@ import SwiftUI
 /// the mouse, fading out on its own. Purely visual; never takes focus.
 enum QuickToolHUD {
     private static var panel: NSPanel?
+    private static var scrollingPanel: NSPanel?
     private static var dismissWork: DispatchWorkItem?
     /// Bumped by every show(). A dismiss whose fade-out was overtaken by a
     /// newer show() must not order the panel out from its completion handler.
@@ -75,6 +76,63 @@ enum QuickToolHUD {
         present(AnyView(content), dismissAfter: 0.92, windowShadow: false)
     }
 
+    /// The scrolling capture stays visible and controllable while the target
+    /// keeps moving. The panel does not activate the app, so clicking either
+    /// action never steals focus from the page being captured.
+    static func showScrollingCapture(message: String,
+                                     finishTitle: String,
+                                     cancelTitle: String,
+                                     onFinish: @escaping () -> Void,
+                                     onCancel: @escaping () -> Void) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async {
+                showScrollingCapture(message: message,
+                                     finishTitle: finishTitle,
+                                     cancelTitle: cancelTitle,
+                                     onFinish: onFinish,
+                                     onCancel: onCancel)
+            }
+            return
+        }
+        let content = HStack(spacing: 10) {
+            Image(systemName: "rectangle.stack.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+            Text(message)
+                .font(.system(size: 12, weight: .semibold))
+                .lineLimit(2)
+            Button(cancelTitle, action: onCancel)
+                .controlSize(.small)
+            Button(finishTitle, action: onFinish)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+        let host = NSHostingController(rootView: AnyView(content))
+        host.view.layoutSubtreeIfNeeded()
+        let size = host.view.fittingSize
+        let panel = ensureScrollingPanel()
+        panel.contentViewController = host
+        let frame = NSScreen.pointerVisibleFrame
+        panel.setFrame(NSRect(x: frame.midX - size.width / 2,
+                              y: frame.maxY - size.height - 24,
+                              width: size.width,
+                              height: size.height),
+                       display: true)
+        panel.orderFrontRegardless()
+    }
+
+    static func dismissScrollingCapture() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { dismissScrollingCapture() }
+            return
+        }
+        scrollingPanel?.orderOut(nil)
+    }
+
     private static func present(_ content: AnyView,
                                 dismissAfter: Double,
                                 windowShadow: Bool = true) {
@@ -120,6 +178,20 @@ enum QuickToolHUD {
 
     private static func ensurePanel() -> NSPanel {
         if let panel { return panel }
+        let panel = makePanel()
+        self.panel = panel
+        return panel
+    }
+
+    private static func ensureScrollingPanel() -> NSPanel {
+        if let scrollingPanel { return scrollingPanel }
+        let panel = makePanel()
+        panel.ignoresMouseEvents = false
+        scrollingPanel = panel
+        return panel
+    }
+
+    private static func makePanel() -> NSPanel {
         let panel = NSPanel(contentRect: .zero,
                             styleMask: [.borderless, .nonactivatingPanel],
                             backing: .buffered,
@@ -132,7 +204,6 @@ enum QuickToolHUD {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
-        self.panel = panel
         return panel
     }
 }

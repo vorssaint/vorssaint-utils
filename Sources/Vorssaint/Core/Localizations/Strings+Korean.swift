@@ -207,7 +207,7 @@ extension Strings {
         switcherSimpleModeCaption: "미리보기와 전환기의 화면 녹화 기능을 사용하지 않고 앱 아이콘과 윈도우 제목을 표시합니다.",
         switcherShortcutHintApps: "앱",
         switcherShortcutHintWindows: "윈도우",
-        switcherWindowShortcutCaption: "전환기가 열린 동안 선택한 앱의 윈도우를 차례로 전환합니다.",
+        switcherWindowShortcutCaption: "맨 앞 앱의 윈도우 전환기를 엽니다. 앱 전환기가 열려 있으면 선택한 앱의 윈도우를 차례로 전환합니다.",
         switcherMergeTabs: "앱별로 하나로 묶어 표시",
         switcherMergeTabsCaption: "전환기에서 앱의 모든 윈도우를 각각이 아닌 하나의 항목으로 묶습니다.",
         switcherWindowlessApps: "열린 윈도우가 없는 앱",
@@ -606,8 +606,8 @@ extension Strings {
         obLanguageUpdateTitle: "내 언어로 사용하기",
         obLanguageUpdateBody: "Vorssaint가 여러 언어를 지원합니다. 사용할 언어를 선택하세요. 설정에서 언제든 변경할 수 있습니다.",
         obPurposeTitle: "무엇을 하고 싶으신가요?",
-        obPurposeBody: "선택하기만 하면 앱이 자동으로 구성됩니다. 나머지는 설정에서 한 번의 클릭으로 바꿀 수 있습니다.",
-        obPurposeSkip: "모든 기능 직접 선택",
+        obPurposeBody: "준비된 설정을 고르거나 사용할 기능을 정확히 선택하세요.",
+        obPurposeSkip: "기능은 나중에 설정에서 추가하거나 제거할 수 있습니다.",
 
         tabMonitor: "모니터",
         monitorMenuBarSection: "메뉴 막대",
@@ -893,6 +893,7 @@ extension Strings {
         shelfFileMissing: "파일이 더 이상 존재하지 않습니다",
         previewSizeSmall: "작게",
         mixerSoundEffectsOutputTitle: "시스템 사운드",
-        mixerSoundEffectsOutputTooltip: "알림 및 사운드 효과를 재생할 출력 선택"
+        mixerSoundEffectsOutputTooltip: "알림 및 사운드 효과를 재생할 출력 선택",
+        monitorOpenActivityMonitor: "활성 상태 보기 열기"
     )
 }

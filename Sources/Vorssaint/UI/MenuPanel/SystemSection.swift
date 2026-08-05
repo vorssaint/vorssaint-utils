@@ -329,7 +329,13 @@ struct SystemSection: View {
 
     private func usageRows(editing: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            subsectionLabel(l10n.s.usageSection)
+            HStack(spacing: 6) {
+                subsectionLabel(l10n.s.usageSection)
+                Spacer(minLength: 0)
+                if !editing {
+                    ActivityMonitorButton()
+                }
+            }
             if sysCPU, cpuAvailable {
                 usageRow(label: l10n.s.cpuLabel, fraction: monitor.snapshot.cpuUsage,
                          kind: .cpu, editing: editing, visible: $sysCPU)

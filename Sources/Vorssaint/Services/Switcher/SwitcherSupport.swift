@@ -29,6 +29,12 @@ enum SwitcherLetterAction: Equatable {
     case quitApp
 }
 
+/// Whether a switcher session lists every app or only the frontmost app's windows.
+enum SwitcherSessionScope: Equatable {
+    case allApps
+    case frontmostApp
+}
+
 /// Which running apps earn an entry of their own when they have no window the
 /// switcher can show. The switcher lists windows, so an app that closed all of
 /// them disappears from it while the system switcher still offers it.
@@ -91,6 +97,8 @@ struct SwitcherIconRowLayout: Equatable {
     static var appTileWidth: CGFloat { iconLabelWidth + 12 }
     static var previewCardWidth: CGFloat { 220 * scale }
     static var previewCardHeight: CGFloat { 164 * scale }
+    static var appEntryIconSize: CGFloat { 66 * scale }
+    static var appEntrySpacing: CGFloat { 7 * scale }
     static var previewHeight: CGFloat { previewCardHeight + 76 * scale }
     static var hintHeight: CGFloat { 28 * scale }
     static var hintGap: CGFloat { 8 * scale }
@@ -215,6 +223,31 @@ enum SwitcherSupport {
         items.first(where: { $0.windowOwnerPID == frontmostPID })?.pid ?? frontmostPID
     }
 
+    /// Keeps only the windows belonging to the app that owns the keyboard.
+    static func frontmostAppWindows(allItems: [SwitcherItem], frontmostPID: pid_t) -> [SwitcherItem] {
+        let appPID = appPID(forFrontmost: frontmostPID, items: allItems)
+        return allItems.filter { $0.pid == appPID }
+    }
+
+    /// Where a window-scoped session starts. The foreground window sits first,
+    /// so index 1 is the next window to switch to; a lone window stays at 0.
+    static func initialWindowScopedSelectionIndex(itemCount: Int,
+                                                  hasForegroundItem: Bool,
+                                                  reversed: Bool) -> Int {
+        guard itemCount > 0 else { return 0 }
+        if reversed { return itemCount - 1 }
+        guard hasForegroundItem else { return 0 }
+        return itemCount > 1 ? 1 : 0
+    }
+
+    /// Shift means backward only for a physical-key match. Some keyboard
+    /// layouts need Shift merely to type the shortcut's displayed character.
+    static func windowNavigationDelta(positionalMatch: Bool,
+                                      shiftIsNavigationModifier: Bool,
+                                      shiftHeld: Bool) -> Int {
+        positionalMatch && shiftIsNavigationModifier && shiftHeld ? -1 : 1
+    }
+
     /// Whether a process looks like a compatibility layer hosting a program
     /// built for another platform. Those processes own real on-screen windows
     /// but run from a bare loader executable with no bundle identity: either
@@ -234,6 +267,16 @@ enum SwitcherSupport {
         }
         guard let localizedName else { return false }
         return localizedName.hasPrefix("wine")
+    }
+
+    /// Adobe's video and audio apps expose their main surface as a floating
+    /// Accessibility window instead of a standard macOS window. Match bundle
+    /// prefixes because recent releases append version or application suffixes.
+    static func isAdobeFloatingWindow(bundleIdentifier: String?, subrole: String?) -> Bool {
+        guard subrole == "AXFloatingWindow", let bundleIdentifier else { return false }
+        return bundleIdentifier.hasPrefix("com.adobe.Audition")
+            || bundleIdentifier.hasPrefix("com.adobe.AfterEffects")
+            || bundleIdentifier.hasPrefix("com.adobe.PremierePro")
     }
 
     /// Finds the regular app that contains an accessory helper bundle.

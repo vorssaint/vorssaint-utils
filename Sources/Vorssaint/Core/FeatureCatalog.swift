@@ -190,7 +190,7 @@ extension AppFeature {
         case .switcher: return [.accessibility, .screenRecording]
         case .dockPreview: return [.accessibility, .screenRecording]
         case .screenOCR: return [.screenRecording]
-        case .screenshot: return [.screenRecording]
+        case .screenshot: return [.screenRecording, .accessibility]
         // The sound of the Mac rides the same grant the pixels do. Accessibility
         // keeps only typing timing while a recording is active.
         case .screenRecorder: return [.screenRecording, .accessibility]
@@ -208,6 +208,24 @@ extension AppFeature {
              .extraBrightness, .quickLauncher, .colorPicker, .micMute, .mediaTools,
              .scratchpad, .monitorGPU, .monitorNetwork:
             return []
+        }
+    }
+
+    /// Broad grants worth explaining during first run. Permissions used only
+    /// by an optional sub-feature stay contextual, at the moment that control
+    /// is actually used.
+    var onboardingPermissions: [AppPermission] {
+        switch self {
+        case .keepAwake, .brightness, .radialMenu, .quickToggles, .cleaner,
+             .uninstaller, .homebrew, .appUpdates, .mixer, .cameraPreview,
+             .micMute:
+            return []
+        case .screenshot:
+            // Accessibility is only needed by scrolling capture. The regular
+            // screenshot flow should not ask for it during first setup.
+            return [.screenRecording]
+        default:
+            return permissions.filter { $0 == .accessibility || $0 == .screenRecording }
         }
     }
 

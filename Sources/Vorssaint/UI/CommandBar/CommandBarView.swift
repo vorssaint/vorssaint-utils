@@ -150,10 +150,12 @@ struct CommandBarView: View {
                         HStack(spacing: 10) {
                             Image(systemName: action.symbolName)
                                 .font(.system(size: 13.5, weight: .semibold))
-                                .foregroundStyle(Color.primary.opacity(0.85))
+                                .foregroundStyle(action.isDestructive
+                                                 ? Color.red : Color.primary.opacity(0.85))
                                 .frame(width: 30, height: 30)
                             Text(action.title)
                                 .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(action.isDestructive ? Color.red : Color.primary)
                             Spacer(minLength: 12)
                             Image(systemName: "return")
                                 .font(.system(size: 10, weight: .semibold))
@@ -166,7 +168,10 @@ struct CommandBarView: View {
                         .background(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
                                 .fill(index == service.actionIndex
-                                      ? Color.accentColor.opacity(0.14) : .clear)
+                                      ? (action.isDestructive
+                                         ? Color.red.opacity(0.12)
+                                         : Color.accentColor.opacity(0.14))
+                                      : .clear)
                         )
                     }
                     .buttonStyle(.plain)
