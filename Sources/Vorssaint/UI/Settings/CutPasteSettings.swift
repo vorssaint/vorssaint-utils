@@ -113,6 +113,7 @@ struct CutPasteSettings: View {
             }
         }
         .formStyle(.grouped)
+        .onChange(of: l10n.language) { _, _ in renameError = nil }
     }
 
     private func howRow(keys: [String], text: String) -> some View {
@@ -128,6 +129,10 @@ struct CutPasteSettings: View {
     private func saveRenameShortcut(_ shortcut: GlobalShortcut) {
         if let conflict = GlobalShortcutRole.conflict(for: shortcut, excluding: .finderRename) {
             renameError = String(format: l10n.s.shortcutConflictFormat, conflict.title(l10n.s))
+            return
+        }
+        if shortcut.conflictsWithSystemShortcut {
+            renameError = String(format: l10n.s.shortcutConflictFormat, "macOS")
             return
         }
         if let conflict = WindowLayoutService.shared.shortcutConflictTitle(shortcut) {

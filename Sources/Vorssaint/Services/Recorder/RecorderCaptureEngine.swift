@@ -52,9 +52,8 @@ final class RecorderCaptureEngine: NSObject {
 
     // MARK: - Lifecycle
 
-    /// Builds the filter and starts the stream. The app's own windows are
-    /// always excluded, so the recording indicator, the countdown and any
-    /// panel of ours can never appear inside the video.
+    /// Builds the filter and starts the stream. Only capture-time chrome is
+    /// excluded, so ordinary Vorssaint windows can still be recorded.
     func start(region: RecorderSupport.Region,
                frameRate: Int,
                capturesSystemAudio: Bool,

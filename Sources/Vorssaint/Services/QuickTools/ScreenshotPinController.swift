@@ -18,6 +18,10 @@ final class ScreenshotPinController {
 
     private init() {}
 
+    var protectedWindowIDs: Set<CGWindowID> {
+        Set(pins.compactMap { $0.isVisible && $0.windowNumber > 0 ? CGWindowID($0.windowNumber) : nil })
+    }
+
     func pin(image: CGImage, scale: CGFloat) {
         let window = ScreenshotPinWindow(image: image, scale: scale, controller: self)
         pins.append(window)

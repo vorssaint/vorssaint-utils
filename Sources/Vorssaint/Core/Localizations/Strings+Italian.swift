@@ -217,7 +217,7 @@ extension Strings {
         switcherNoOpenWindow: "Senza finestre aperte",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Anteprima finestre dal Dock",
-        dockPreviewEnableCaption: "Passa il mouse su un'app aperta nel Dock per vedere e mostrare al volo le sue finestre.",
+        dockPreviewEnableCaption: "Passa il mouse su un'app aperta nel Dock per vedere le sue finestre, poi fai clic su quella da aprire.",
         dockPreviewBackgroundOpacity: "Sfondo del pannello",
         dockPreviewBackgroundOpacityCaption: "Abbassalo per vedere di più di ciò che sta dietro al pannello.",
         dockClickMinimize: "Riduci con un clic sul Dock",
@@ -629,13 +629,6 @@ extension Strings {
         panelNavigationCaption: "Mostra una sezione alla volta. Scegli Lista per vedere tutto in uno scorrimento continuo.",
         panelFooterSections: "Sezioni",
         panelFooterList: "Lista",
-        fanControlBetaShow: "Mostra Fan Control (Beta) nel pannello",
-        fanControlBetaSection: "Fan Control",
-        fanControlBetaTitle: "Fan Control",
-        fanControlBetaStatus: "Automatico",
-        fanControlBetaCaption: "Beta. Il controllo manuale resta disattivato finché ogni modello di Mac non viene validato.",
-        fanControlModeAutomatic: "Automatico",
-        fanControlModeManual: "Manuale",
         betaBadge: "BETA",
         betaFeatureWarning: "Beta. Potresti riscontrare alcuni bug.",
 
@@ -715,7 +708,6 @@ extension Strings {
         memoryStyleDot: "Punto",
         memoryStylePercent: "%",
         memoryStyleBoth: "Entrambi",
-
         systemUptime: "Attivo da",
         batteryCharge: "Carica",
         powerHealth: "Stato batteria",
@@ -893,6 +885,11 @@ extension Strings {
         previewSizeSmall: "Piccola",
         mixerSoundEffectsOutputTitle: "Suoni di sistema",
         mixerSoundEffectsOutputTooltip: "Scegli dove riprodurre avvisi ed effetti sonori",
-        monitorOpenActivityMonitor: "Apri Monitoraggio Attività"
+        monitorOpenActivityMonitor: "Apri Monitoraggio Attività",
+        dockClickHide: "Nascondi l'app con un clic sul Dock",
+        dockClickHideCaption: "L'app attiva viene nascosta quando fai clic sulla sua icona nel Dock. Fai di nuovo clic per riportarla in primo piano.",
+        monitorMemoryMetricLabel: "Misura la memoria come",
+        memoryMetricUsed: "Memoria usata",
+        memoryMetricApp: "Memoria app"
     )
 }

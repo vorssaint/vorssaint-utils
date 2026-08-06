@@ -217,7 +217,7 @@ extension Strings {
         switcherNoOpenWindow: "无打开的窗口",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "在 Dock 中预览窗口",
-        dockPreviewEnableCaption: "将指针悬停在 Dock 中已打开的 App 上，即可查看并临时显示它的窗口。",
+        dockPreviewEnableCaption: "将指针悬停在 Dock 中已打开的 App 上查看窗口，然后点按要打开的窗口。",
         dockPreviewBackgroundOpacity: "面板背景",
         dockPreviewBackgroundOpacityCaption: "调低后可以看到更多面板后面的内容。",
         dockClickMinimize: "点按 Dock 图标最小化",
@@ -629,13 +629,6 @@ extension Strings {
         panelNavigationCaption: "一次显示一个分区。选择“列表”可在连续滚动中查看全部内容。",
         panelFooterSections: "分区",
         panelFooterList: "列表",
-        fanControlBetaShow: "在面板中显示 Fan Control (Beta)",
-        fanControlBetaSection: "Fan Control",
-        fanControlBetaTitle: "Fan Control",
-        fanControlBetaStatus: "自动",
-        fanControlBetaCaption: "Beta。手动控制会保持停用，直到每个 Mac 型号完成验证。",
-        fanControlModeAutomatic: "自动",
-        fanControlModeManual: "手动",
         betaBadge: "BETA",
         betaFeatureWarning: "测试版。你可能会遇到一些错误。",
 
@@ -715,7 +708,6 @@ extension Strings {
         memoryStyleDot: "圆点",
         memoryStylePercent: "%",
         memoryStyleBoth: "两者",
-
         systemUptime: "已运行",
         batteryCharge: "电量",
         powerHealth: "电池健康度",
@@ -893,6 +885,11 @@ extension Strings {
         previewSizeSmall: "小",
         mixerSoundEffectsOutputTitle: "系统声音",
         mixerSoundEffectsOutputTooltip: "选择提醒和音效的播放设备",
-        monitorOpenActivityMonitor: "打开活动监视器"
+        monitorOpenActivityMonitor: "打开活动监视器",
+        dockClickHide: "点按 Dock 图标隐藏 App",
+        dockClickHideCaption: "点按当前 App 的 Dock 图标可隐藏它。再次点按即可恢复。",
+        monitorMemoryMetricLabel: "内存计量方式",
+        memoryMetricUsed: "已用内存",
+        memoryMetricApp: "App 内存"
     )
 }

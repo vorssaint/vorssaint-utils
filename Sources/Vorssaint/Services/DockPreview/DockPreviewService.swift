@@ -27,14 +27,9 @@ final class DockPreviewService: ObservableObject {
     private var settingsTimer: Timer?
     private var pendingHover: PendingHover?
     private var pendingHide: DispatchWorkItem?
-    private var pendingPeekReconcile: DispatchWorkItem?
     private var lastAXMousePoint: CGPoint?
     private var lastAppKitMousePoint: CGPoint?
     private var panel: NSPanel?
-    /// The window the user came from, captured when a session first opens and
-    /// carried unchanged across app switches so cancelling always returns there —
-    /// not to a window we only peeked. Cleared when the session fully ends.
-    private var sessionOrigin: SessionOrigin?
     /// The app of the currently shown panel. `nil` means no session.
     private var currentSessionPID: pid_t?
     /// True once the cursor has reached the panel. Before this, the icon and
@@ -47,12 +42,6 @@ final class DockPreviewService: ObservableObject {
     private var activeCorridor: HoverCorridor?
     private var activeIconFrame: CGRect?
     private var activeDockPreferences: DockPreviewPreferences?
-    private var activePeekWindowID: CGWindowID?
-    /// The card the cursor is currently over, reconciled into an actual peek on a
-    /// short debounce so moving between cards never flickers through the origin.
-    private var desiredPeek: SwitcherItem?
-    private var touchedWindows: [CGWindowID: TouchedWindow] = [:]
-    private var touchedApps: [pid_t: Bool] = [:]
     private var pendingMinimizeConfirmations: [CGWindowID: UUID] = [:]
     private var pinnedPanels: [UUID: DockPreviewPinnedPanel] = [:]
     private var pinnedPanelWindows: [UUID: NSPanel] = [:]
@@ -87,7 +76,7 @@ final class DockPreviewService: ObservableObject {
 
         guard availability.canRun else {
             stopTap()
-            endSession(restore: true)
+            endSession()
             closeAllPinnedPanels()
             isRunning = false
             return
@@ -96,7 +85,7 @@ final class DockPreviewService: ObservableObject {
         if dockProcessID() == nil {
             blockedReason = .dockUnavailable
             stopTap()
-            endSession(restore: true)
+            endSession()
             closeAllPinnedPanels()
             isRunning = false
             return
@@ -108,7 +97,7 @@ final class DockPreviewService: ObservableObject {
     func stop() {
         stopSettingsTimer()
         stopTap()
-        endSession(restore: true)
+        endSession()
         closeAllPinnedPanels()
         isRunning = false
         blockedReason = nil
@@ -117,9 +106,7 @@ final class DockPreviewService: ObservableObject {
     func preview(_ item: SwitcherItem) {
         guard isVisible, windows.contains(item) else { return }
         cancelPendingHide()
-        desiredPeek = item
         selectedWindowID = item.windowID
-        schedulePeekReconcile()
     }
 
     /// Whether a preview panel (session or pinned) covers the given top-left-
@@ -135,18 +122,16 @@ final class DockPreviewService: ObservableObject {
 
     /// A Dock icon click was handled — and swallowed — by DockClickService, so
     /// the listen-only tap here never sees that mouseDown. Mirror what a native
-    /// Dock click does to the session; without this the panel stays open with a
-    /// pre-click idea of which windows are minimized, and a later hover peek
-    /// would happily pull a just-minimized window back out.
+    /// Dock click does to the session so the panel cannot stay open with stale
+    /// window state.
     func dockClickWasHandled() {
         cancelPendingHover()
         guard isVisible else { return }
         let decision = DockPreviewSupport.mouseDownDecision(isVisible: isVisible,
                                                             isPinned: isPinned,
-                                                            isInsidePanel: false,
-                                                            clickedDock: true)
+                                                            isInsidePanel: false)
         if decision.shouldEndSession {
-            endSession(restore: decision.restoreOrigin)
+            endSession()
         } else {
             cancelPendingHide()
         }
@@ -154,77 +139,19 @@ final class DockPreviewService: ObservableObject {
 
     func endPreview(_ item: SwitcherItem) {
         guard isVisible else { return }
-        // Only the card that currently owns the peek may release it. If the
-        // cursor has already moved to another card, that card is now in charge,
-        // so a late "ended" for the old card must not undo the new peek. This is
-        // what makes the reconcile order-independent across card-to-card moves.
-        guard desiredPeek?.id == item.id else { return }
-        desiredPeek = nil
-        schedulePeekReconcile()
-    }
-
-    private func schedulePeekReconcile() {
-        cancelPendingPeekReconcile()
-        let work = DispatchWorkItem { [weak self] in self?.reconcilePeek() }
-        pendingPeekReconcile = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + DockPreviewSupport.peekDelay, execute: work)
-    }
-
-    /// Brings the screen in line with `desiredPeek`: peek the hovered window, or
-    /// revert to the origin when nothing is hovered. Debounced, so a flick across
-    /// several cards resolves to a single activation of the final card.
-    private func reconcilePeek() {
-        pendingPeekReconcile = nil
-        guard isVisible else { return }
-
-        selectedWindowID = desiredPeek?.windowID
-
-        let targetWindowID = desiredPeek?.windowID
-        guard targetWindowID != activePeekWindowID else { return }
-
-        if let item = desiredPeek {
-            // A minimized window is only pulled out by an explicit click, never
-            // by a hover. The card can also go stale while the panel is open
-            // (the window can minimize underneath us — ⌘M, another utility…),
-            // so trust a live check over the captured item — and when the live
-            // check cannot even resolve the window, fail closed: skipping a
-            // peek is invisible, peeking an unverifiable window restores it.
-            if let windowID = item.windowID {
-                let liveMinimized = WindowActivator.windowMinimizedState(windowID: windowID,
-                                                                         pid: item.windowOwnerPID)
-                if item.isMinimized || liveMinimized != false {
-                    if liveMinimized == true, !item.isMinimized {
-                        windows = windows.map {
-                            $0.windowID == windowID ? $0.withMinimized(true) : $0
-                        }
-                    }
-                    if activePeekWindowID != nil {
-                        activePeekWindowID = nil
-                        restoreOrigin(retry: false)
-                    }
-                    return
-                }
-            }
-            recordTouch(item)
-            activePeekWindowID = item.windowID
-            WindowActivator.activate(item, retry: false)
-        } else {
-            activePeekWindowID = nil
-            restoreOrigin(retry: false)
-        }
+        guard selectedWindowID == item.windowID else { return }
+        selectedWindowID = nil
     }
 
     func commit(_ item: SwitcherItem) {
         guard windows.contains(item) else { return }
-        cancelPendingPeekReconcile()
-        desiredPeek = nil
-        endSession(restore: false)
+        endSession()
         WindowActivator.activate(item)
     }
 
     func closePreviewPanel() {
         guard isVisible else { return }
-        endSession(restore: true)
+        endSession()
     }
 
     func close(_ item: SwitcherItem) {
@@ -236,10 +163,6 @@ final class DockPreviewService: ObservableObject {
                                            windowOwnerPID: item.windowOwnerPID)
         else { return }
 
-        cancelPendingPeekReconcile()
-        if desiredPeek?.id == item.id {
-            desiredPeek = nil
-        }
         if selectedWindowID == windowID {
             selectedWindowID = nil
         }
@@ -257,30 +180,19 @@ final class DockPreviewService: ObservableObject {
         else { return }
 
         let shouldMinimize = !item.isMinimized
-        let restoreOriginAfterMinimize = DockPreviewSupport.shouldRestoreOriginAfterMinimize(
-            originPID: sessionOrigin?.pid,
-            originWindowID: sessionOrigin?.windowID,
-            targetPID: item.pid,
-            targetWindowID: windowID
-        )
         guard WindowActivator.setWindowMinimized(shouldMinimize,
                                                  windowID: windowID,
                                                  pid: item.windowOwnerPID) else { return }
-        if shouldMinimize && !restoreOriginAfterMinimize {
-            sessionOrigin = nil
-        }
-        touchedWindows[windowID] = TouchedWindow(pid: item.windowOwnerPID, wasMinimized: false)
         scheduleMinimizeConfirmation(windowID: windowID,
                                      pid: item.windowOwnerPID,
                                      minimized: shouldMinimize,
-                                     restoreOriginAfterMinimize: restoreOriginAfterMinimize,
                                      attempt: 0)
     }
 
     func togglePinned() {
         guard isVisible, let panel, !windows.isEmpty else { return }
         createPinnedPanel(from: panel.frame)
-        endSession(restore: true)
+        endSession()
     }
 
     func selectPreviousWindow() {
@@ -511,23 +423,13 @@ final class DockPreviewService: ObservableObject {
         let isInsidePanel = activePanelFrame?.contains(point) == true
         let initialDecision = DockPreviewSupport.mouseDownDecision(isVisible: isVisible,
                                                                    isPinned: isPinned,
-                                                                   isInsidePanel: isInsidePanel,
-                                                                   clickedDock: false)
+                                                                   isInsidePanel: isInsidePanel)
         if !initialDecision.shouldEndSession {
             cancelPendingHide()
             cancelPendingHover()
             return
         }
-        // A click on the Dock (this app's icon or any other) hands activation to
-        // the Dock itself, so don't fight it by restoring the previous window.
-        let clickedDock = dockHit(at: axPoint) != nil
-        let decision = DockPreviewSupport.mouseDownDecision(isVisible: isVisible,
-                                                            isPinned: false,
-                                                            isInsidePanel: false,
-                                                            clickedDock: clickedDock)
-        if decision.shouldEndSession {
-            endSession(restore: decision.restoreOrigin)
-        }
+        endSession()
     }
 
     private func scheduleHideIfStillOutside() {
@@ -538,7 +440,7 @@ final class DockPreviewService: ObservableObject {
             self.pendingHide = nil
             guard let point = self.lastAppKitMousePoint,
                   let axPoint = self.lastAXMousePoint else {
-                self.endSession(restore: true)
+                self.endSession()
                 return
             }
             switch self.currentZone(point: point, axPoint: axPoint) {
@@ -547,11 +449,11 @@ final class DockPreviewService: ObservableObject {
             case .ownIcon:
                 // Closes only once the panel was actually used; an unentered
                 // panel keeps resting on its opener icon.
-                if self.hasEnteredPanel { self.endSession(restore: true) }
+                if self.hasEnteredPanel { self.endSession() }
             case .otherIcon(let hit):
                 self.scheduleHover(hit, delay: DockPreviewSupport.switchDelay)
             case .outside:
-                self.endSession(restore: true)
+                self.endSession()
             }
         }
         pendingHide = work
@@ -601,24 +503,14 @@ final class DockPreviewService: ObservableObject {
         // An app with no real windows shows nothing; if a panel is already up
         // (the user moved here from another app), close it cleanly.
         guard !list.isEmpty else {
-            if isVisible { endSession(restore: true) }
+            if isVisible { endSession() }
             return
         }
 
-        // Switching apps: revert the previous app's peek and bring its origin
-        // back, but keep the panel on screen and carry the SAME origin into the
-        // new session — the user still came from that first window.
+        // Switching apps keeps the panel on screen and re-points it at the app
+        // under the cursor without changing the frontmost application.
         if isVisible {
-            tearDownVisuals(restore: true, retryRestore: false)
-        }
-
-        if sessionOrigin == nil {
-            let frontApp = NSWorkspace.shared.frontmostApplication
-            sessionOrigin = frontApp.map {
-                SessionOrigin(pid: $0.processIdentifier,
-                              windowID: WindowActivator.focusedWindowID(for: $0.processIdentifier),
-                              appName: $0.localizedName ?? "")
-            }
+            tearDownVisuals()
         }
 
         currentSessionPID = hit.app.processIdentifier
@@ -632,7 +524,6 @@ final class DockPreviewService: ObservableObject {
             }
         })
         selectedWindowID = nil
-        desiredPeek = nil
 
         WindowPreviewProvider.shared.refreshPreviews(for: list, maxPixelSize: 420 * PreviewSizing.scale) { [weak self] windowID, image in
             guard let self, self.isVisible, self.windows.contains(where: { $0.previewWindowID == windowID }) else { return }
@@ -642,31 +533,20 @@ final class DockPreviewService: ObservableObject {
         showPanel(for: hit, itemCount: list.count)
     }
 
-    /// Fully ends the session: tears down the panel and forgets the origin.
-    private func endSession(restore: Bool) {
+    /// Fully ends the session and tears down the panel.
+    private func endSession() {
         cancelPendingHover()
         cancelPendingHide()
         WindowPreviewProvider.shared.cancel()
-        tearDownVisuals(restore: restore, retryRestore: restore)
-        sessionOrigin = nil
+        tearDownVisuals()
         isPinned = false
         panel?.orderOut(nil)
     }
 
-    /// Reverts any peek and clears all per-app state, optionally restoring the
-    /// origin window and the minimized/hidden state of anything we touched.
-    /// Deliberately leaves `sessionOrigin` and the panel window alone so the
-    /// same panel can be re-pointed at another app during a switch.
-    ///
-    /// `retryRestore` is false on a switch: a second, delayed origin activation
-    /// would land after the new app's first peek and snatch focus back.
-    private func tearDownVisuals(restore: Bool, retryRestore: Bool) {
-        cancelPendingPeekReconcile()
+    /// Clears all per-app panel state while leaving the panel window available
+    /// so the same session can be re-pointed during a Dock switch.
+    private func tearDownVisuals() {
         cancelPendingMinimizeConfirmations()
-
-        let origin = sessionOrigin
-        let touchedWindows = self.touchedWindows
-        let touchedApps = self.touchedApps
 
         windows = []
         previews = [:]
@@ -678,21 +558,6 @@ final class DockPreviewService: ObservableObject {
         activeCorridor = nil
         activeIconFrame = nil
         activeDockPreferences = nil
-        activePeekWindowID = nil
-        desiredPeek = nil
-        self.touchedWindows = [:]
-        self.touchedApps = [:]
-
-        guard restore else { return }
-        restoreOrigin(origin, retry: retryRestore)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
-            for (windowID, state) in touchedWindows where state.wasMinimized {
-                WindowActivator.setWindowMinimized(true, windowID: windowID, pid: state.pid)
-            }
-            for (pid, wasHidden) in touchedApps where wasHidden && pid != origin?.pid {
-                NSRunningApplication(processIdentifier: pid)?.hide()
-            }
-        }
     }
 
     private func cancelPendingHover() {
@@ -705,11 +570,6 @@ final class DockPreviewService: ObservableObject {
         pendingHide = nil
     }
 
-    private func cancelPendingPeekReconcile() {
-        pendingPeekReconcile?.cancel()
-        pendingPeekReconcile = nil
-    }
-
     private func cancelPendingMinimizeConfirmations() {
         pendingMinimizeConfirmations.removeAll()
     }
@@ -717,7 +577,6 @@ final class DockPreviewService: ObservableObject {
     private func scheduleMinimizeConfirmation(windowID: CGWindowID,
                                               pid: pid_t,
                                               minimized: Bool,
-                                              restoreOriginAfterMinimize: Bool,
                                               attempt: Int) {
         let token = pendingMinimizeConfirmations[windowID] ?? UUID()
         pendingMinimizeConfirmations[windowID] = token
@@ -726,7 +585,6 @@ final class DockPreviewService: ObservableObject {
             self?.confirmMinimizedState(windowID: windowID,
                                         pid: pid,
                                         minimized: minimized,
-                                        restoreOriginAfterMinimize: restoreOriginAfterMinimize,
                                         attempt: attempt,
                                         token: token)
         }
@@ -735,7 +593,6 @@ final class DockPreviewService: ObservableObject {
     private func confirmMinimizedState(windowID: CGWindowID,
                                        pid: pid_t,
                                        minimized: Bool,
-                                       restoreOriginAfterMinimize: Bool,
                                        attempt: Int,
                                        token: UUID) {
         guard isVisible,
@@ -747,16 +604,14 @@ final class DockPreviewService: ObservableObject {
         if isMinimized == minimized {
             pendingMinimizeConfirmations.removeValue(forKey: windowID)
             applyMinimizedState(windowID: windowID,
-                                minimized: minimized,
-                                restoreOriginAfterMinimize: restoreOriginAfterMinimize)
+                                minimized: minimized)
             return
         }
 
         guard attempt + 1 < DockPreviewMinimizeConfirmation.delays.count else {
             pendingMinimizeConfirmations.removeValue(forKey: windowID)
             applyMinimizedState(windowID: windowID,
-                                minimized: isMinimized,
-                                restoreOriginAfterMinimize: false)
+                                minimized: isMinimized)
             return
         }
 
@@ -764,59 +619,21 @@ final class DockPreviewService: ObservableObject {
         scheduleMinimizeConfirmation(windowID: windowID,
                                      pid: pid,
                                      minimized: minimized,
-                                     restoreOriginAfterMinimize: restoreOriginAfterMinimize,
                                      attempt: attempt + 1)
     }
 
     private func applyMinimizedState(windowID: CGWindowID,
-                                     minimized: Bool,
-                                     restoreOriginAfterMinimize: Bool) {
+                                     minimized: Bool) {
         windows = windows.map { candidate in
             candidate.windowID == windowID ? candidate.withMinimized(minimized) : candidate
         }
 
         if minimized {
-            cancelPendingPeekReconcile()
-            if desiredPeek?.windowID == windowID {
-                desiredPeek = nil
-            }
             if selectedWindowID == windowID {
                 selectedWindowID = nil
             }
-            if activePeekWindowID == windowID {
-                activePeekWindowID = nil
-                if restoreOriginAfterMinimize {
-                    restoreOrigin(retry: false)
-                }
-            }
         } else {
             selectedWindowID = windowID
-        }
-    }
-
-    private func restoreOrigin(retry: Bool) {
-        restoreOrigin(sessionOrigin, retry: retry)
-    }
-
-    private func restoreOrigin(_ origin: SessionOrigin?, retry: Bool) {
-        guard let origin else { return }
-        WindowActivator.activate(pid: origin.pid,
-                                 windowID: origin.windowID,
-                                 appName: origin.appName,
-                                 retry: retry)
-    }
-
-    private func recordTouch(_ item: SwitcherItem) {
-        if touchedApps[item.pid] == nil {
-            touchedApps[item.pid] = NSRunningApplication(processIdentifier: item.pid)?.isHidden ?? false
-        }
-        if let windowID = item.windowID, touchedWindows[windowID] == nil {
-            touchedWindows[windowID] = TouchedWindow(
-                pid: item.windowOwnerPID,
-                wasMinimized: item.isMinimized
-                    || WindowActivator.windowIsMinimized(windowID: windowID,
-                                                         pid: item.windowOwnerPID)
-            )
         }
     }
 
@@ -839,13 +656,10 @@ final class DockPreviewService: ObservableObject {
     }
 
     private func applyClosedWindowRemoval(_ closedWindowID: CGWindowID) {
-        let wasActivePreview = activePeekWindowID == closedWindowID || desiredPeek?.windowID == closedWindowID
         let state = DockPreviewSupport.closeState(
             afterRemoving: closedWindowID,
             windowIDs: windows.compactMap(\.windowID),
-            selectedWindowID: selectedWindowID,
-            activePeekWindowID: activePeekWindowID,
-            desiredWindowID: desiredPeek?.windowID
+            selectedWindowID: selectedWindowID
         )
         let remaining = Set(state.remainingWindowIDs)
 
@@ -855,19 +669,11 @@ final class DockPreviewService: ObservableObject {
         }
         previews = previews.filter { remaining.contains($0.key) }
         selectedWindowID = state.selectedWindowID
-        activePeekWindowID = state.activePeekWindowID
-        if state.desiredWindowID == nil {
-            desiredPeek = nil
-        }
-        touchedWindows.removeValue(forKey: closedWindowID)
 
         if state.shouldEndSession {
-            endSession(restore: true)
+            endSession()
         } else {
             resizePanelForCurrentWindows()
-            if wasActivePreview {
-                restoreOrigin(retry: false)
-            }
         }
     }
 
@@ -1289,17 +1095,6 @@ private struct PendingHover {
     let app: NSRunningApplication
     let iconFrame: CGRect
     let workItem: DispatchWorkItem
-}
-
-private struct SessionOrigin {
-    let pid: pid_t
-    let windowID: CGWindowID?
-    let appName: String
-}
-
-private struct TouchedWindow {
-    let pid: pid_t
-    let wasMinimized: Bool
 }
 
 private enum DockPreviewMinimizeConfirmation {

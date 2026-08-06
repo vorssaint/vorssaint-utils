@@ -217,7 +217,7 @@ extension Strings {
         switcherNoOpenWindow: "ウインドウなし",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Dock でウインドウをプレビュー",
-        dockPreviewEnableCaption: "Dock の開いているアプリにポインタを重ねると、ウインドウを確認して一時表示できます。",
+        dockPreviewEnableCaption: "Dock の開いているアプリにポインタを重ねてウインドウを確認し、開きたいウインドウをクリックします。",
         dockPreviewBackgroundOpacity: "パネルの背景",
         dockPreviewBackgroundOpacityCaption: "下げると、パネルの後ろにあるものがより見えるようになります。",
         dockClickMinimize: "Dock クリックでしまう",
@@ -629,13 +629,6 @@ extension Strings {
         panelNavigationCaption: "1つのセクションだけを表示します。「リスト」を選ぶと、すべてを連続スクロールで表示します。",
         panelFooterSections: "セクション",
         panelFooterList: "リスト",
-        fanControlBetaShow: "Fan Control (Beta) をパネルに表示",
-        fanControlBetaSection: "Fan Control",
-        fanControlBetaTitle: "Fan Control",
-        fanControlBetaStatus: "自動",
-        fanControlBetaCaption: "Beta. 手動制御はMacモデルごとの検証が完了するまで無効です。",
-        fanControlModeAutomatic: "自動",
-        fanControlModeManual: "手動",
         betaBadge: "BETA",
         betaFeatureWarning: "ベータ版です。一部の不具合が残っている場合があります。",
 
@@ -715,7 +708,6 @@ extension Strings {
         memoryStyleDot: "ドット",
         memoryStylePercent: "%",
         memoryStyleBoth: "両方",
-
         systemUptime: "稼働時間",
         batteryCharge: "充電量",
         powerHealth: "バッテリーの状態",
@@ -893,6 +885,11 @@ extension Strings {
         previewSizeSmall: "小",
         mixerSoundEffectsOutputTitle: "システムサウンド",
         mixerSoundEffectsOutputTooltip: "通知音とサウンドエフェクトの出力先を選択",
-        monitorOpenActivityMonitor: "アクティビティモニタを開く"
+        monitorOpenActivityMonitor: "アクティビティモニタを開く",
+        dockClickHide: "Dock クリックでアプリを隠す",
+        dockClickHideCaption: "手前のアプリの Dock アイコンをクリックすると、そのアプリを隠します。もう一度クリックすると戻ります。",
+        monitorMemoryMetricLabel: "メモリの測定方法",
+        memoryMetricUsed: "使用中のメモリ",
+        memoryMetricApp: "Appメモリ"
     )
 }
