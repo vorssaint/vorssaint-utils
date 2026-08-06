@@ -818,6 +818,7 @@ extension Strings {
         musicBlockReplacementLabel: "Apri al suo posto",
         musicBlockReplacementNone: "Nessuna",
         musicBlockChooseApp: "Scegli app…",
+        musicBlockTeamsMuteLabel: "Silenzia MS Teams (EarPods)",
         cleanerName: "Pulizia",
         cleanerIntroTitle: "Pulisci il Mac",
         cleanerIntroCaption: "Cerca residui di app disinstallate, cache, log e il Cestino. Rivedi tutto prima e gli elementi rimossi vanno nel Cestino.",

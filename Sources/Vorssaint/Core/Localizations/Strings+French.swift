@@ -818,6 +818,7 @@ extension Strings {
         musicBlockReplacementLabel: "Ouvrir à la place",
         musicBlockReplacementNone: "Aucune",
         musicBlockChooseApp: "Choisir une app…",
+        musicBlockTeamsMuteLabel: "Désactiver le micro MS Teams (EarPods)",
         cleanerName: "Nettoyage",
         cleanerIntroTitle: "Nettoyez votre Mac",
         cleanerIntroCaption: "Recherche les restes d’apps désinstallées, les caches, les journaux et la corbeille. Vous vérifiez tout avant et les éléments retirés vont à la corbeille.",

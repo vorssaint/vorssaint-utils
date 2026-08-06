@@ -818,6 +818,7 @@ extension Strings {
         musicBlockReplacementLabel: "改为打开",
         musicBlockReplacementNone: "无",
         musicBlockChooseApp: "选择 App…",
+        musicBlockTeamsMuteLabel: "静音 MS Teams (EarPods)",
         cleanerName: "清理",
         cleanerIntroTitle: "清理 Mac 垃圾",
         cleanerIntroCaption: "查找已卸载 App 的残留、缓存、日志和废纸篓。清理前可逐项确认，移除的项目会进入废纸篓。",

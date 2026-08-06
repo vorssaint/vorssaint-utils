@@ -818,6 +818,7 @@ extension Strings {
         musicBlockReplacementLabel: "Stattdessen öffnen",
         musicBlockReplacementNone: "Keine",
         musicBlockChooseApp: "App wählen…",
+        musicBlockTeamsMuteLabel: "MS Teams stummschalten (EarPods)",
         cleanerName: "Aufräumen",
         cleanerIntroTitle: "Räume den Mac auf",
         cleanerIntroCaption: "Sucht Reste deinstallierter Apps, Caches, Protokolle und den Papierkorb. Du prüfst alles vorher und Entferntes landet im Papierkorb.",

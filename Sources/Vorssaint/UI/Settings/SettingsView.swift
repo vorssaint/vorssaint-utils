@@ -151,6 +151,7 @@ struct GeneralSettings: View {
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
     @AppStorage(DefaultsKey.musicBlockEnabled) private var musicBlockEnabled = false
     @AppStorage(DefaultsKey.musicBlockReplacementPath) private var musicBlockReplacementPath = ""
+    @AppStorage(DefaultsKey.musicBlockTeamsMute) private var musicBlockTeamsMute = false
 
     private var appearanceStrings: AppearanceStrings { FeatureStrings.appearance(l10n.language) }
     private var feedbackStrings: FeedbackStrings { FeatureStrings.feedback(l10n.language) }
@@ -227,6 +228,7 @@ struct GeneralSettings: View {
                     Toggle(l10n.s.musicBlockTitle, isOn: $musicBlockEnabled)
                         .onChange(of: musicBlockEnabled) { _, _ in
                             MusicLaunchBlocker.shared.syncWithPreferences()
+                            EarPodsTeamsMuteService.shared.syncWithPreferences()
                         }
                     if musicBlockEnabled {
                         HStack {
@@ -245,6 +247,11 @@ struct GeneralSettings: View {
                                 .foregroundStyle(.secondary)
                             }
                         }
+                        
+                        Toggle(l10n.s.musicBlockTeamsMuteLabel, isOn: $musicBlockTeamsMute)
+                            .onChange(of: musicBlockTeamsMute) { _, _ in
+                                EarPodsTeamsMuteService.shared.syncWithPreferences()
+                            }
                     }
                     SettingsCaptionText(l10n.s.musicBlockCaption)
                 }

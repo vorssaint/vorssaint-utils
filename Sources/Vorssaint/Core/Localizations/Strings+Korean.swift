@@ -819,6 +819,7 @@ extension Strings {
         musicBlockReplacementLabel: "대신 열기",
         musicBlockReplacementNone: "없음",
         musicBlockChooseApp: "앱 선택…",
+        musicBlockTeamsMuteLabel: "MS Teams 음소거 (EarPods)",
         cleanerName: "정리",
         cleanerIntroTitle: "Mac의 불필요한 파일 정리",
         cleanerIntroCaption: "삭제한 앱의 남은 파일, 캐시, 로그와 휴지통을 검사합니다. 실행 전에 모두 검토할 수 있고 삭제한 항목은 휴지통으로 이동합니다.",

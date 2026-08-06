@@ -109,6 +109,7 @@ enum DefaultsKey {
     static let startupDidNotFinish = "startupDidNotFinish"
     static let musicBlockEnabled = "musicBlockEnabled"
     static let musicBlockReplacementPath = "musicBlockReplacementPath"  // app bundle path ("" = none)
+    static let musicBlockTeamsMute = "musicBlockTeamsMute"
     static let cleanerScheduleFrequency = "cleanerScheduleFrequency"    // off | daily | weekly
     static let cleanerScheduleHour = "cleanerScheduleHour"
     static let cleanerScheduleMinute = "cleanerScheduleMinute"
@@ -726,6 +727,7 @@ enum Defaults {
         DefaultsKey.brightnessOSDEnabled: false,
         DefaultsKey.musicBlockEnabled: false,
         DefaultsKey.musicBlockReplacementPath: "",
+        DefaultsKey.musicBlockTeamsMute: false,
         DefaultsKey.cleanerScheduleFrequency: "off",
         DefaultsKey.cleanerScheduleHour: 9,
         DefaultsKey.cleanerScheduleMinute: 0,
