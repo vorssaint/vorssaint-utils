@@ -707,7 +707,6 @@ extension Strings {
         memoryStyleDot: "점",
         memoryStylePercent: "%",
         memoryStyleBoth: "둘 다",
-
         systemUptime: "가동 시간",
         batteryCharge: "충전량",
         powerHealth: "배터리 상태",
@@ -887,6 +886,11 @@ extension Strings {
         mixerSoundEffectsOutputTooltip: "알림 및 사운드 효과를 재생할 출력 선택",
         monitorOpenActivityMonitor: "활성 상태 보기 열기",
         dockClickHide: "Dock 클릭으로 앱 숨기기",
-        dockClickHideCaption: "활성 앱의 Dock 아이콘을 클릭하면 앱이 숨겨집니다. 다시 클릭하면 돌아옵니다."
+        dockClickHideCaption: "활성 앱의 Dock 아이콘을 클릭하면 앱이 숨겨집니다. 다시 클릭하면 돌아옵니다.",
+        monitorMemoryMetricLabel: "메모리 측정 방식",
+        memoryMetricUsed: "사용 중인 메모리",
+        memoryMetricApp: "앱 메모리",
+        keepAwakeRightClickToggle: "메뉴 막대 아이콘을 오른쪽 클릭하여 절전 방지 전환",
+        keepAwakeRightClickToggleCaption: "오른쪽 클릭 메뉴를 대체합니다."
     )
 }

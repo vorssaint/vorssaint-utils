@@ -40,6 +40,7 @@ struct SystemSnapshot {
     var cpuUsageReadAt: TimeInterval?
     var gpuUsage: Double?          // 0...1
     var memoryUsed: UInt64?
+    var memoryAppUsed: UInt64?
     var memoryTotal: UInt64?
     var memoryPressure: MemoryPressure = .unknown
     var fanSpeeds: [Double] = []
@@ -61,6 +62,7 @@ struct SystemSnapshot {
     var cpuHistory: [Double] = []          // 0...1
     var gpuHistory: [Double] = []          // 0...1
     var memoryHistory: [Double] = []       // 0...1
+    var memoryAppHistory: [Double] = []    // 0...1
     var netDownHistory: [Double] = []      // bytes/sec
     var netUpHistory: [Double] = []        // bytes/sec
     var diskReadHistory: [Double] = []     // bytes/sec
@@ -171,6 +173,7 @@ final class SystemMonitor: ObservableObject {
     private var cpuHistory: MetricHistory
     private var gpuHistory: MetricHistory
     private var memoryHistory: MetricHistory
+    private var memoryAppHistory: MetricHistory
     private var netDownHistory: MetricHistory
     private var netUpHistory: MetricHistory
     private var diskReadHistory: MetricHistory
@@ -183,6 +186,7 @@ final class SystemMonitor: ObservableObject {
         cpuHistory = MetricHistory(capacity: historyCapacity)
         gpuHistory = MetricHistory(capacity: historyCapacity)
         memoryHistory = MetricHistory(capacity: historyCapacity)
+        memoryAppHistory = MetricHistory(capacity: historyCapacity)
         netDownHistory = MetricHistory(capacity: historyCapacity)
         netUpHistory = MetricHistory(capacity: historyCapacity)
         diskReadHistory = MetricHistory(capacity: historyCapacity)
@@ -415,6 +419,7 @@ final class SystemMonitor: ObservableObject {
 
     private struct CachedMemoryReading {
         var used: UInt64
+        var appUsed: UInt64
         var total: UInt64
         var pressure: MemoryPressure
         var updatedAt: TimeInterval
@@ -626,10 +631,12 @@ final class SystemMonitor: ObservableObject {
                 if take(.memory),
                    let memory = self.stabilizedMemoryReading(now: now) {
                     next.memoryUsed = memory.used
+                    next.memoryAppUsed = memory.appUsed
                     next.memoryTotal = memory.total
                     next.memoryPressure = memory.pressure
                     if memory.isFresh, memory.total > 0 {
                         self.memoryHistory.push(Double(memory.used) / Double(memory.total))
+                        self.memoryAppHistory.push(Double(memory.appUsed) / Double(memory.total))
                     }
                 }
             }
@@ -767,6 +774,7 @@ final class SystemMonitor: ObservableObject {
             next.cpuHistory = plan.needCPU ? self.cpuHistory.values : []
             next.gpuHistory = plan.needGPUUsage ? self.gpuHistory.values : []
             next.memoryHistory = plan.needMemory ? self.memoryHistory.values : []
+            next.memoryAppHistory = plan.needMemory ? self.memoryAppHistory.values : []
             next.netDownHistory = plan.needNetwork ? self.netDownHistory.values : []
             next.netUpHistory = plan.needNetwork ? self.netUpHistory.values : []
             next.diskReadHistory = plan.needDisk ? self.diskReadHistory.values : []
@@ -796,7 +804,7 @@ final class SystemMonitor: ObservableObject {
         }
     }
 
-    private func stabilizedMemoryReading(now: TimeInterval) -> (used: UInt64, total: UInt64, pressure: MemoryPressure, isFresh: Bool)? {
+    private func stabilizedMemoryReading(now: TimeInterval) -> (used: UInt64, appUsed: UInt64, total: UInt64, pressure: MemoryPressure, isFresh: Bool)? {
         let pressure = Self.readMemoryPressure()
         if let memory = SystemInfo.memoryUsage(), memory.total > 0 {
             let stablePressure: MemoryPressure
@@ -807,11 +815,12 @@ final class SystemMonitor: ObservableObject {
                 stablePressure = pressure
             }
             memoryCache = CachedMemoryReading(used: memory.used,
+                                              appUsed: memory.appUsed,
                                               total: memory.total,
                                               pressure: stablePressure,
                                               updatedAt: now,
                                               missedSamples: 0)
-            return (memory.used, memory.total, stablePressure, true)
+            return (memory.used, memory.appUsed, memory.total, stablePressure, true)
         }
 
         guard var cached = memoryCache else { return nil }
@@ -828,7 +837,7 @@ final class SystemMonitor: ObservableObject {
             break
         }
         memoryCache = cached
-        return (cached.used, cached.total, cached.pressure, false)
+        return (cached.used, cached.appUsed, cached.total, cached.pressure, false)
     }
 
     // MARK: - Sensor preparation

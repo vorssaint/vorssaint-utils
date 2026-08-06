@@ -217,6 +217,11 @@ final class ScreenRecorderService: ObservableObject {
         let controller = ScreenshotSelectionController(freeze: false,
                                                        includePointer: false,
                                                        showLastRegion: true,
+                                                       hideVorssaintWindows: false,
+                                                       protectedWindowIDs: {
+                                                           ScreenshotService.shared
+                                                               .protectedWindowIDsForCapture
+                                                       },
                                                        purpose: strings.selectionPurpose,
                                                        mode: .geometry)
         selection = controller
@@ -307,12 +312,12 @@ final class ScreenRecorderService: ObservableObject {
             // first frames are of the desktop and not of a fading overlay.
             try? await Task.sleep(nanoseconds: 120_000_000)
             guard self.session === session else { return }
-            var chrome: [Int] = []
-            if let number = indicator.excludedWindowNumber { chrome.append(number) }
-            if let number = QuickToolHUD.currentWindowNumber { chrome.append(number) }
+            var chrome = Set(ScreenshotService.shared.protectedWindowIDsForCapture.map(Int.init))
+            if let number = indicator.excludedWindowNumber { chrome.insert(number) }
+            if let number = QuickToolHUD.currentWindowNumber { chrome.insert(number) }
             if let failure = await session.start(frameRate: frameRate,
                                                  capturesSystemAudio: capturesSystemAudio,
-                                                 excludedWindowNumbers: chrome) {
+                                                 excludedWindowNumbers: Array(chrome)) {
                 self.session = nil
                 self.indicator?.hide()
                 self.indicator = nil

@@ -706,7 +706,6 @@ extension Strings {
         memoryStyleDot: "Punkt",
         memoryStylePercent: "%",
         memoryStyleBoth: "Beides",
-
         systemUptime: "Aktiv seit",
         batteryCharge: "Ladung",
         powerHealth: "Batteriezustand",
@@ -886,6 +885,11 @@ extension Strings {
         mixerSoundEffectsOutputTooltip: "Auswählen, wo Hinweise und Toneffekte wiedergegeben werden",
         monitorOpenActivityMonitor: "Aktivitätsanzeige öffnen",
         dockClickHide: "Klick aufs Dock-Symbol blendet App aus",
-        dockClickHideCaption: "Die aktive App wird ausgeblendet, wenn du auf ihr Dock-Symbol klickst. Ein weiterer Klick holt sie zurück."
+        dockClickHideCaption: "Die aktive App wird ausgeblendet, wenn du auf ihr Dock-Symbol klickst. Ein weiterer Klick holt sie zurück.",
+        monitorMemoryMetricLabel: "Speicher messen als",
+        memoryMetricUsed: "Genutzter Speicher",
+        memoryMetricApp: "App-Speicher",
+        keepAwakeRightClickToggle: "Menüleistensymbol rechtsklicken, um Wachhalten umzuschalten",
+        keepAwakeRightClickToggleCaption: "Ersetzt das Kontextmenü beim Rechtsklick."
     )
 }

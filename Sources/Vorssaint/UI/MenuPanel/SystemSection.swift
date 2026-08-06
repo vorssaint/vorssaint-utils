@@ -588,8 +588,9 @@ struct SystemSection: View {
                     }
                     .buttonStyle(.plain)
                 }
-                if graphMemory, monitor.snapshot.memoryHistory.count >= 2 {
-                    Sparkline(values: monitor.snapshot.memoryHistory,
+                let memoryHistory = MonitorMemoryMetric.current.history(in: monitor.snapshot)
+                if graphMemory, memoryHistory.count >= 2 {
+                    Sparkline(values: memoryHistory,
                               color: PanelMetricColor.mint(for: colorScheme),
                               maxValue: 1,
                               showsZeroBaseline: true)
@@ -612,7 +613,8 @@ struct SystemSection: View {
                 .foregroundStyle(.secondary)
             PressureIndicator(pressure: monitor.snapshot.memoryPressure)
             Spacer()
-            if let used = monitor.snapshot.memoryUsed, let total = monitor.snapshot.memoryTotal {
+            let memoryValue = MonitorMemoryMetric.current.value(in: monitor.snapshot)
+            if let used = memoryValue, let total = monitor.snapshot.memoryTotal {
                 Text("\(formatMemory(used)) / \(formatMemory(total))")
                     .font(.system(size: 11, weight: .medium))
                     .monospacedDigit()

@@ -43,6 +43,11 @@ final class ScreenshotQuickPreviewController {
     private var autoDismissDuration: TimeInterval = 12
     private var closed = false
 
+    var protectedWindowIDs: Set<CGWindowID> {
+        guard let panel, panel.isVisible, panel.windowNumber > 0 else { return [] }
+        return [CGWindowID(panel.windowNumber)]
+    }
+
     init(capture: ScreenshotSelectionController.Capture,
          strings: ScreenshotFeatureStrings,
          action: @escaping (Action) -> Set<Action>,

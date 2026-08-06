@@ -78,7 +78,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             self?.captureStatusClick()
             self?.toggleMainPopover()
         }
-        statusController.onRightClick = { [weak self] in self?.showContextMenu() }
+        statusController.onRightClick = { [weak self] in
+            if AppFeature.keepAwake.isAvailable
+                && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRightClickToggle) {
+                KeepAwakeManager.shared.toggle()
+            } else {
+                self?.showContextMenu()
+            }
+        }
         statusController.onMetricClick = { [weak self] metric, button in
             self?.captureStatusClick()
             self?.showMetricPanel(for: metric, anchoredTo: button)

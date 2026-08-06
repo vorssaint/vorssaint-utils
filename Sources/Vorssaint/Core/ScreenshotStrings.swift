@@ -136,6 +136,7 @@ struct ScreenshotFeatureStrings {
     let previewPositionTopRight: String
     let previewPositionBottomLeft: String
     let previewPositionBottomRight: String
+    let hideVorssaintWindowsToggle: String
 }
 
 extension FeatureStrings {
@@ -290,7 +291,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "Top left",
         previewPositionTopRight: "Top right",
         previewPositionBottomLeft: "Bottom left",
-        previewPositionBottomRight: "Bottom right"
+        previewPositionBottomRight: "Bottom right",
+        hideVorssaintWindowsToggle: "Hide Vorssaint windows"
     )
 
     static let ptBR = ScreenshotFeatureStrings(
@@ -424,7 +426,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "Canto superior esquerdo",
         previewPositionTopRight: "Canto superior direito",
         previewPositionBottomLeft: "Canto inferior esquerdo",
-        previewPositionBottomRight: "Canto inferior direito"
+        previewPositionBottomRight: "Canto inferior direito",
+        hideVorssaintWindowsToggle: "Ocultar janelas do Vorssaint"
     )
 
     static let tr = ScreenshotFeatureStrings(
@@ -558,7 +561,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "Sol üst",
         previewPositionTopRight: "Sağ üst",
         previewPositionBottomLeft: "Sol alt",
-        previewPositionBottomRight: "Sağ alt"
+        previewPositionBottomRight: "Sağ alt",
+        hideVorssaintWindowsToggle: "Vorssaint pencerelerini gizle"
     )
 
     static let ru = ScreenshotFeatureStrings(
@@ -692,7 +696,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "Сверху слева",
         previewPositionTopRight: "Сверху справа",
         previewPositionBottomLeft: "Снизу слева",
-        previewPositionBottomRight: "Снизу справа"
+        previewPositionBottomRight: "Снизу справа",
+        hideVorssaintWindowsToggle: "Скрывать окна Vorssaint"
     )
 
     static let es = ScreenshotFeatureStrings(
@@ -826,7 +831,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "Arriba a la izquierda",
         previewPositionTopRight: "Arriba a la derecha",
         previewPositionBottomLeft: "Abajo a la izquierda",
-        previewPositionBottomRight: "Abajo a la derecha"
+        previewPositionBottomRight: "Abajo a la derecha",
+        hideVorssaintWindowsToggle: "Ocultar ventanas de Vorssaint"
     )
 
     static let de = ScreenshotFeatureStrings(
@@ -960,7 +966,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "Oben links",
         previewPositionTopRight: "Oben rechts",
         previewPositionBottomLeft: "Unten links",
-        previewPositionBottomRight: "Unten rechts"
+        previewPositionBottomRight: "Unten rechts",
+        hideVorssaintWindowsToggle: "Vorssaint-Fenster ausblenden"
     )
 
     static let fr = ScreenshotFeatureStrings(
@@ -1094,7 +1101,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "En haut à gauche",
         previewPositionTopRight: "En haut à droite",
         previewPositionBottomLeft: "En bas à gauche",
-        previewPositionBottomRight: "En bas à droite"
+        previewPositionBottomRight: "En bas à droite",
+        hideVorssaintWindowsToggle: "Masquer les fenêtres Vorssaint"
     )
 
     static let it = ScreenshotFeatureStrings(
@@ -1228,7 +1236,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "In alto a sinistra",
         previewPositionTopRight: "In alto a destra",
         previewPositionBottomLeft: "In basso a sinistra",
-        previewPositionBottomRight: "In basso a destra"
+        previewPositionBottomRight: "In basso a destra",
+        hideVorssaintWindowsToggle: "Nascondi le finestre di Vorssaint"
     )
 
     static let ja = ScreenshotFeatureStrings(
@@ -1362,7 +1371,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "左上",
         previewPositionTopRight: "右上",
         previewPositionBottomLeft: "左下",
-        previewPositionBottomRight: "右下"
+        previewPositionBottomRight: "右下",
+        hideVorssaintWindowsToggle: "Vorssaintのウインドウを隠す"
     )
 
     static let ko = ScreenshotFeatureStrings(
@@ -1496,7 +1506,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "왼쪽 위",
         previewPositionTopRight: "오른쪽 위",
         previewPositionBottomLeft: "왼쪽 아래",
-        previewPositionBottomRight: "오른쪽 아래"
+        previewPositionBottomRight: "오른쪽 아래",
+        hideVorssaintWindowsToggle: "Vorssaint 윈도우 가리기"
     )
 
     static let zhHans = ScreenshotFeatureStrings(
@@ -1630,7 +1641,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "左上角",
         previewPositionTopRight: "右上角",
         previewPositionBottomLeft: "左下角",
-        previewPositionBottomRight: "右下角"
+        previewPositionBottomRight: "右下角",
+        hideVorssaintWindowsToggle: "隐藏 Vorssaint 窗口"
     )
 
     static let zhTW = ScreenshotFeatureStrings(
@@ -1764,7 +1776,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "左上角",
         previewPositionTopRight: "右上角",
         previewPositionBottomLeft: "左下角",
-        previewPositionBottomRight: "右下角"
+        previewPositionBottomRight: "右下角",
+        hideVorssaintWindowsToggle: "隱藏 Vorssaint 視窗"
     )
 
     static let zhHK = ScreenshotFeatureStrings(
@@ -1898,6 +1911,7 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "左上角",
         previewPositionTopRight: "右上角",
         previewPositionBottomLeft: "左下角",
-        previewPositionBottomRight: "右下角"
+        previewPositionBottomRight: "右下角",
+        hideVorssaintWindowsToggle: "隱藏 Vorssaint 視窗"
     )
 }

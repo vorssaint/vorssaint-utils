@@ -706,7 +706,6 @@ extension Strings {
         memoryStyleDot: "ドット",
         memoryStylePercent: "%",
         memoryStyleBoth: "両方",
-
         systemUptime: "稼働時間",
         batteryCharge: "充電量",
         powerHealth: "バッテリーの状態",
@@ -886,6 +885,11 @@ extension Strings {
         mixerSoundEffectsOutputTooltip: "通知音とサウンドエフェクトの出力先を選択",
         monitorOpenActivityMonitor: "アクティビティモニタを開く",
         dockClickHide: "Dock クリックでアプリを隠す",
-        dockClickHideCaption: "手前のアプリの Dock アイコンをクリックすると、そのアプリを隠します。もう一度クリックすると戻ります。"
+        dockClickHideCaption: "手前のアプリの Dock アイコンをクリックすると、そのアプリを隠します。もう一度クリックすると戻ります。",
+        monitorMemoryMetricLabel: "メモリの測定方法",
+        memoryMetricUsed: "使用中のメモリ",
+        memoryMetricApp: "Appメモリ",
+        keepAwakeRightClickToggle: "メニューバーアイコンの右クリックでスリープ防止を切り替える",
+        keepAwakeRightClickToggleCaption: "右クリックのコンテキストメニューを置き換えます。"
     )
 }

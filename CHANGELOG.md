@@ -7,18 +7,25 @@ All notable changes to this project are documented here. The format follows
 ## [3.3.1]
 
 ### Summary
-Vorssaint 3.3.1 adds optional Fan Control, per-app Switcher rules, Previous Display,
-configurable screenshot previews, tabbed Scratchpads and Dock clicks that hide the active
-app. App removal finds more verified leftovers, while previews, panels, shortcuts and
-mouse controls are more reliable.
+Vorssaint 3.3.1 adds optional Fan Control, per-app Switcher rules, screenshot controls,
+Previous Display, tabbed Scratchpads and faster Keep Awake controls. App removal finds more
+verified leftovers, while updates, clipboard history, panels, shortcuts, mouse controls and
+Cleaning Mode are more reliable.
 
 ### Added
 - Per-app Switcher rules can include apps without windows, keep them window-only,
   or hide them from the Switcher. Under Switcher. Thanks to @Yahddyyp.
 - Dock clicks can hide the active app instead of minimizing its windows, off by
   default under Switcher. Thanks to @sidbena.
+- Screenshots can include ordinary Vorssaint windows, and recordings can select them
+  like other windows, while capture controls stay out. Off by default under Screenshot.
+  Thanks to @PathGao.
 
 ### Changed
+- Clipboard history keeps the full selected text, image or file paths visible beside
+  the list. Thanks to @notdanna.
+- Memory readouts can focus on memory held by apps instead of total memory in use.
+  Under Monitor. Thanks to @WazZro.
 - Mouse feature exceptions can now choose apps from anywhere on the Mac.
   Thanks to @kyteidev.
 - The optional Fan Control beta shows live fan speed in the panel and menu bar.
@@ -27,14 +34,20 @@ mouse controls are more reliable.
   shortcut. Thanks to @owen-vromans.
 - The screenshot preview can stay near the capture or appear in any screen corner.
   Under Screenshot. Thanks to @lmilojevicc.
+- Keep Awake can optionally toggle with a right click on the menu bar icon.
+  Under Energy. Thanks to @yspreen.
 - The window shortcut now opens the switcher for the app in front, without
   opening the app list first. Thanks to @mrevanzak.
 - The Uninstaller now finds more configuration, cache and helper files owned by
   the selected app. Thanks to @lmilojevicc.
 - Scratchpad can keep several named notes in tabs, including their order and
   current selection in Settings backups.
+- Clipboard History settings now follow its main switch, while saved items remain
+  searchable, reusable and clearable when new capture is off. Thanks to @PathGao.
 
 ### Fixed
+- Cleaning Mode stays active while the keyboard is being cleaned, then unlocks
+  after one minute without a new key press.
 - Windowless apps now keep their labels aligned in the App Switcher's Small size.
   Thanks to @Yahddyyp.
 - Small app icons now keep the correct artwork in Finder. Thanks to @slrgt.
@@ -53,6 +66,8 @@ mouse controls are more reliable.
 - Side-wheel directions can now carry separate mouse shortcuts. Thanks to @JoeMo-GenX.
 - Shortcut fields now reject combinations already used by macOS, avoiding both
   actions running together. Thanks to @PathGao.
+- In-app updates now stop downloads that exceed the release's expected size.
+  Thanks to @PathGao.
 
 ## [3.3.0] - 2026-08-04
 

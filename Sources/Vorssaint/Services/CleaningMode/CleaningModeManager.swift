@@ -16,7 +16,7 @@ import SwiftUI
 /// Three independent escapes guarantee no one is ever stranded:
 ///   1. press the same key five times in a row (deliberate, unlike random wiping),
 ///   2. click Unlock on the overlay (the mouse is never locked),
-///   3. an automatic timeout after a minute.
+///   3. an automatic timeout after a minute without a new key press.
 ///
 /// Requires Accessibility, like the app's other event taps. If it is missing the
 /// tap can't be created, so we never lock the keyboard with no way to unlock it.
@@ -35,8 +35,8 @@ final class CleaningModeManager: ObservableObject {
     /// accident while the keyboard is being cleaned.
     let unlockThreshold = 5
 
-    /// Failsafe: the keyboard always comes back on its own after this long, even
-    /// if the overlay is somehow missed.
+    /// Failsafe: the keyboard comes back after this long without a new physical
+    /// key press, even if the overlay is somehow missed.
     private let autoUnlockSeconds: TimeInterval = 60
 
     private var tap: CFMachPort?
@@ -82,9 +82,17 @@ final class CleaningModeManager: ObservableObject {
         isActive = true
         installScreenObserver()
         showOverlays()
+        armAutoUnlock()
+    }
+
+    private func armAutoUnlock() {
         // Add the failsafe to .common modes (not just the default mode) so it still
-        // fires while a tracking or modal run-loop is active — matching the tap's
-        // own run-loop source, so the 60 s "always unlocks" guarantee always holds.
+        // fires while a tracking or modal run-loop is active. Reuse the timer when
+        // cleaning activity extends the session instead of allocating one per key.
+        if let autoUnlockTimer {
+            autoUnlockTimer.fireDate = Date(timeIntervalSinceNow: autoUnlockSeconds)
+            return
+        }
         let timer = Timer(timeInterval: autoUnlockSeconds, repeats: false) { [weak self] _ in
             self?.deactivate()
         }
@@ -179,6 +187,11 @@ final class CleaningModeManager: ObservableObject {
     }
 
     private func registerUnlockKeyDown(code: Int64, isRepeat: Bool) {
+        // A fresh press means cleaning is still in progress. Auto-repeat does not
+        // extend the session, so a key held down cannot defeat the failsafe.
+        if !isRepeat {
+            armAutoUnlock()
+        }
         let unlocked = unlock.registerKeyDown(code: code,
                                               time: ProcessInfo.processInfo.systemUptime,
                                               isRepeat: isRepeat)

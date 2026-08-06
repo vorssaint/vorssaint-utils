@@ -165,6 +165,35 @@ enum UpdateInstallerSupport {
         return Int(fraction * 100) > Int(current * 100)
     }
 
+    /// Absolute ceiling for an update download. Releases are DMGs of roughly
+    /// ten megabytes, so this is far above any real asset and only exists to
+    /// stop a response that never ends.
+    static let downloadCeilingBytes: Int64 = 200 * 1024 * 1024
+
+    /// How many bytes the download may write before it is abandoned. The
+    /// release lists the asset's exact size, so that is the bound whenever it
+    /// looks sane; an absent or absurd size falls back to the ceiling.
+    static func downloadByteLimit(expectedBytes: Int64?,
+                                  ceiling: Int64 = downloadCeilingBytes) -> Int64 {
+        guard let expectedBytes, expectedBytes > 0, expectedBytes <= ceiling else {
+            return ceiling
+        }
+        return expectedBytes
+    }
+
+    /// Whether a finished download may be handed to the installer. The
+    /// signature check still decides what gets installed; this only refuses
+    /// bodies that cannot be the asset before they are handed to the installer
+    /// and mounted.
+    static func downloadIsUsable(status: Int,
+                                 receivedBytes: Int64,
+                                 expectedBytes: Int64?,
+                                 ceiling: Int64 = downloadCeilingBytes) -> Bool {
+        guard status == 200, receivedBytes > 0, receivedBytes <= ceiling else { return false }
+        guard let expectedBytes, expectedBytes > 0 else { return true }
+        return receivedBytes == expectedBytes
+    }
+
     /// True when the app cannot be updated in place at all: running from the
     /// randomized read-only mount Gatekeeper uses for translocated apps, or
     /// from any other read-only volume (the mounted DMG). External writable

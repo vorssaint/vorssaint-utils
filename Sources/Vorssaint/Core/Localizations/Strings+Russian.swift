@@ -707,7 +707,6 @@ extension Strings {
         memoryStyleDot: "Точка",
         memoryStylePercent: "%",
         memoryStyleBoth: "Оба",
-
         systemUptime: "Время работы",
         batteryCharge: "Заряд",
         powerHealth: "Состояние батареи",
@@ -887,6 +886,11 @@ extension Strings {
         mixerSoundEffectsOutputTooltip: "Выбрать устройство для оповещений и звуковых эффектов",
         monitorOpenActivityMonitor: "Открыть Мониторинг системы",
         dockClickHide: "Скрывать приложение кликом по Dock",
-        dockClickHideCaption: "Активное приложение скрывается при клике по его значку в Dock. Нажмите ещё раз, чтобы вернуть его."
+        dockClickHideCaption: "Активное приложение скрывается при клике по его значку в Dock. Нажмите ещё раз, чтобы вернуть его.",
+        monitorMemoryMetricLabel: "Как измерять память",
+        memoryMetricUsed: "Занято памяти",
+        memoryMetricApp: "Память приложений",
+        keepAwakeRightClickToggle: "Щёлкните правой кнопкой значок в строке меню, чтобы включить или выключить «Не давать уснуть»",
+        keepAwakeRightClickToggleCaption: "Заменяет контекстное меню правой кнопки мыши."
     )
 }

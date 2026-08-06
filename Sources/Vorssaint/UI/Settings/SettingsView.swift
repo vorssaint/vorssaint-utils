@@ -386,6 +386,7 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration = 0
     @AppStorage(DefaultsKey.batteryLimit) private var batteryLimit = 10
     @AppStorage(DefaultsKey.keepAwakeAutoStart) private var keepAwakeAutoStart = false
+    @AppStorage(DefaultsKey.keepAwakeRightClickToggle) private var keepAwakeRightClickToggle = false
     @AppStorage(DefaultsKey.showCountdown) private var showCountdown = false
     @AppStorage(DefaultsKey.keepAwakeIconTint) private var keepAwakeIconTint = KeepAwakeIconTint.orange.rawValue
     @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
@@ -408,6 +409,9 @@ struct EnergySettings: View {
                     SettingsToggleWithCaption(title: l10n.s.keepAwakeAutoStart,
                                               caption: l10n.s.keepAwakeAutoStartCaption,
                                               isOn: $keepAwakeAutoStart)
+                    SettingsToggleWithCaption(title: l10n.s.keepAwakeRightClickToggle,
+                                              caption: l10n.s.keepAwakeRightClickToggleCaption,
+                                              isOn: $keepAwakeRightClickToggle)
                     // The countdown is a Keep Awake session readout, so it sits
                     // with the session options. Under the General page's menu
                     // bar section the label gave no clue which time it meant.

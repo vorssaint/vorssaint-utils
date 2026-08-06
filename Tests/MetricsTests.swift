@@ -253,6 +253,22 @@ struct MetricsTests {
                "clipboard quick window starts keyboard navigation on the first item")
         expect(ClipboardHistorySelection.initialIndex(totalCount: 0) == 0,
                "clipboard quick window keeps an empty selection index safe")
+        let previewID = UUID(uuidString: "00000000-0000-0000-0000-000000000101")!
+        let nextPreviewID = UUID(uuidString: "00000000-0000-0000-0000-000000000102")!
+        let updatedPreview = ClipboardHistoryEntry(id: previewID, text: "updated")
+        let nextPreview = ClipboardHistoryEntry(id: nextPreviewID, text: "next")
+        expect(ClipboardHistorySelection.previewEntry(preferredID: previewID,
+                                                      visibleEntries: [updatedPreview, nextPreview],
+                                                      selectedEntry: nextPreview)?.text == "updated",
+               "clipboard preview resolves the current payload for its UUID")
+        expect(ClipboardHistorySelection.previewEntry(preferredID: previewID,
+                                                      visibleEntries: [nextPreview],
+                                                      selectedEntry: nextPreview)?.id == nextPreviewID,
+               "clipboard search falls back to the selected visible entry")
+        expect(ClipboardHistorySelection.previewEntry(preferredID: previewID,
+                                                      visibleEntries: [],
+                                                      selectedEntry: nil) == nil,
+               "clipboard preview clears after removing the final visible entry")
         expectEqual(ClipboardHistoryBatch.combinedText(["First", "Second", "Third"]),
                     "First\nSecond\nThird",
                     "clipboard batch joins selected entries as a single paste")
@@ -1072,9 +1088,41 @@ struct MetricsTests {
                                        freePages: 20, speculativePages: 0, fileBackedPages: 0) == 0,
                "memory used clamps impossible available memory")
 
+        // MARK: App memory
+
+        let appUsed = MetricFormat.appMemory(totalBytes: 16 * 1024,
+                                             pageSize: 1024,
+                                             internalPages: 10,
+                                             purgeablePages: 3)
+        expect(appUsed == 7 * 1024, "app memory excludes purgeable pages from internal pages")
+        expect(MetricFormat.appMemory(totalBytes: 16 * 1024, pageSize: 1024,
+                                      internalPages: 2, purgeablePages: 5) == 0,
+               "app memory is zero when purgeable pages exceed internal pages")
+        expect(MetricFormat.appMemory(totalBytes: 16, pageSize: 1,
+                                      internalPages: 100, purgeablePages: 0) == 16,
+               "app memory clamps to total physical memory")
+        expect(MetricFormat.appMemory(totalBytes: 0, pageSize: 1024,
+                                      internalPages: 10, purgeablePages: 0) == 0,
+               "app memory is zero when total is zero")
+        expect(MetricFormat.appMemory(totalBytes: 16 * 1024, pageSize: 0,
+                                      internalPages: 10, purgeablePages: 0) == 0,
+               "app memory is zero when page size is zero")
+        expect(MetricFormat.selectedMemory(used: 12, app: 7, metric: "app") == 7,
+               "the shared memory selector returns app memory")
+        expect(MetricFormat.selectedMemory(used: 12, app: 7, metric: "unknown") == 12,
+               "an unknown shared memory selector falls back to used memory")
+
         // MARK: Registered defaults
 
         let registeredDefaults = Defaults.registeredDefaults
+        expect(registeredDefaults[DefaultsKey.monitorMemoryMetric] as? String == "used",
+               "monitor memory metric defaults to memory used")
+        expect(Defaults.sanitizedMonitorMemoryMetric("app") == "app",
+               "app is an allowed memory metric")
+        expect(Defaults.sanitizedMonitorMemoryMetric("bogus") == "used",
+               "unknown memory metric values fall back to used")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.monitorMemoryMetric),
+               "monitor memory metric is included in settings backups")
         expect(registeredDefaults[DefaultsKey.appearance] as? String == AppAppearance.system.rawValue,
                "the app follows the system appearance until the user picks a side")
         expect(AppAppearance.sanitized(nil) == .system
@@ -1086,6 +1134,10 @@ struct MetricsTests {
                "appearance raw values are persisted keys and their order is the picker order")
         expect(registeredDefaults[DefaultsKey.keepAwakeAutoStart] as? Bool == false,
                "Keep Awake launch restore is opt-in")
+        expect(registeredDefaults[DefaultsKey.keepAwakeRightClickToggle] as? Bool == false,
+               "right-click Keep Awake toggle is opt-in")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keepAwakeRightClickToggle),
+               "right-click Keep Awake preference follows settings backups")
         expect(registeredDefaults[DefaultsKey.keepAwakeExternalDisplay] as? Bool == false,
                "external-display Keep Awake is opt-in")
         expect(registeredDefaults[DefaultsKey.keepAwakeConnectedToPower] as? Bool == false,
@@ -4662,6 +4714,41 @@ struct MetricsTests {
         expect(!UpdateInstallerSupport.progressStepAdvanced(from: 0.5, to: 0.5),
                "an unchanged fraction stays quiet")
 
+        let updateCeiling = UpdateInstallerSupport.downloadCeilingBytes
+        expect(UpdateInstallerSupport.downloadByteLimit(expectedBytes: 9_638_011) == 9_638_011,
+               "a download stops at the size the release advertises")
+        expect(UpdateInstallerSupport.downloadByteLimit(expectedBytes: nil) == updateCeiling,
+               "an asset with no size still stops at the ceiling")
+        expect(UpdateInstallerSupport.downloadByteLimit(expectedBytes: 0) == updateCeiling,
+               "a zero size is not a limit of zero")
+        expect(UpdateInstallerSupport.downloadByteLimit(expectedBytes: updateCeiling + 1) == updateCeiling,
+               "an advertised size beyond the ceiling cannot raise it")
+
+        expect(UpdateInstallerSupport.downloadIsUsable(status: 200,
+                                                       receivedBytes: 9_638_011,
+                                                       expectedBytes: 9_638_011),
+               "a complete asset download is handed to the installer")
+        expect(!UpdateInstallerSupport.downloadIsUsable(status: 404,
+                                                        receivedBytes: 1_200,
+                                                        expectedBytes: 9_638_011),
+               "an error page is refused whatever it contains")
+        expect(!UpdateInstallerSupport.downloadIsUsable(status: 200,
+                                                        receivedBytes: 4_000_000,
+                                                        expectedBytes: 9_638_011),
+               "a truncated body is refused")
+        expect(!UpdateInstallerSupport.downloadIsUsable(status: 200,
+                                                        receivedBytes: 0,
+                                                        expectedBytes: nil),
+               "an empty body is refused even with no advertised size")
+        expect(!UpdateInstallerSupport.downloadIsUsable(status: 200,
+                                                        receivedBytes: updateCeiling + 1,
+                                                        expectedBytes: nil),
+               "a body past the ceiling is refused with no advertised size")
+        expect(UpdateInstallerSupport.downloadIsUsable(status: 200,
+                                                       receivedBytes: 9_638_011,
+                                                       expectedBytes: nil),
+               "a plausible body with no advertised size is accepted")
+
         expect(SettingsSearchSupport.matches(query: "", title: "Monitor"),
                "a blank settings search matches everything")
         expect(SettingsSearchSupport.matches(query: "moni", title: "Monitor"),
@@ -6610,6 +6697,11 @@ struct MetricsTests {
                    && !strings.mixerSoundEffectsOutputTitle.contains("—")
                    && !strings.mixerSoundEffectsOutputTooltip.contains("—"),
                    "\(prefix) system sound output labels are present without em dash")
+            expect(!strings.keepAwakeRightClickToggle.isEmpty
+                   && !strings.keepAwakeRightClickToggleCaption.isEmpty
+                   && !strings.keepAwakeRightClickToggle.contains("—")
+                   && !strings.keepAwakeRightClickToggleCaption.contains("—"),
+                   "\(prefix) right-click Keep Awake labels are present without em dash")
             expectFormat(strings.homebrewConfirmInstallBodyFormat, ["@"], "\(prefix) Homebrew install format")
             expectFormat(strings.homebrewConfirmUninstallBodyFormat, ["@"], "\(prefix) Homebrew uninstall format")
             expectFormat(strings.homebrewConfirmUpgradeBodyFormat, ["@"], "\(prefix) Homebrew upgrade format")
@@ -7368,7 +7460,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let values = Mirror(reflecting: FeatureStrings.clipboard(language)).children
                 .compactMap { $0.value as? String }
-            expect(values.count == 42 && values.allSatisfy { !$0.isEmpty },
+            expect(values.count == 43 && values.allSatisfy { !$0.isEmpty },
                    "every clipboard string is set for \(language.rawValue)")
             expect(values.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible clipboard strings (\(language.rawValue))")
@@ -8322,6 +8414,51 @@ struct MetricsTests {
                "the volume the Mac booted from is never ejected, even on an external drive")
 
         // MARK: Screenshot tool
+
+        let ownScreenshotWindows: Set<CGWindowID> = [11, 12, 13]
+        let protectedScreenshotWindows: Set<CGWindowID> = [12, 99]
+        expect(Defaults.registeredDefaults[DefaultsKey.screenshotHideVorssaintWindows]
+                as? Bool == true,
+               "screenshots hide Vorssaint windows by default")
+        expect(SettingsBackupSupport.exportKeys().contains(
+            DefaultsKey.screenshotHideVorssaintWindows),
+               "the screenshot window visibility preference travels in backups")
+        expect(ScreenshotCapturePolicy.excludedWindowIDs(
+            hideVorssaintWindows: true,
+            ownWindowIDs: ownScreenshotWindows,
+            protectedWindowIDs: protectedScreenshotWindows
+        ) == ownScreenshotWindows,
+        "screenshot hiding Vorssaint excludes every own window")
+        expect(ScreenshotCapturePolicy.excludedWindowIDs(
+            hideVorssaintWindows: false,
+            ownWindowIDs: ownScreenshotWindows,
+            protectedWindowIDs: protectedScreenshotWindows
+        ) == [12],
+        "screenshot keeps protected windows excluded while Vorssaint is visible")
+        expect(ScreenshotCapturePolicy.canPickWindow(
+            7,
+            isOwnWindow: false,
+            hideVorssaintWindows: true,
+            protectedWindowIDs: protectedScreenshotWindows
+        ), "screenshot can always pick an ordinary external window")
+        expect(!ScreenshotCapturePolicy.canPickWindow(
+            11,
+            isOwnWindow: true,
+            hideVorssaintWindows: true,
+            protectedWindowIDs: protectedScreenshotWindows
+        ), "screenshot cannot pick a Vorssaint window while hiding them")
+        expect(ScreenshotCapturePolicy.canPickWindow(
+            11,
+            isOwnWindow: true,
+            hideVorssaintWindows: false,
+            protectedWindowIDs: protectedScreenshotWindows
+        ), "screenshot can pick an ordinary Vorssaint window when visible")
+        expect(!ScreenshotCapturePolicy.canPickWindow(
+            12,
+            isOwnWindow: true,
+            hideVorssaintWindows: false,
+            protectedWindowIDs: protectedScreenshotWindows
+        ), "screenshot cannot pick its own protected capture UI")
 
         expect(ScreenshotSupport.sanitizedDelay(5) == 5
                 && ScreenshotSupport.sanitizedDelay(7) == 0
@@ -10236,6 +10373,15 @@ struct MetricsTests {
         expect(CommandBarSource.actions.isAlwaysOn
                 && CommandBarSource.allCases.filter(\.isAlwaysOn).count == 1,
                "only the app's own actions cannot be switched off")
+        expect(CommandBarClipboardAccess.canUseHistory(captureEnabled: true,
+                                                       hasSavedItems: false),
+               "clipboard capture makes the command bar history available")
+        expect(CommandBarClipboardAccess.canUseHistory(captureEnabled: false,
+                                                       hasSavedItems: true),
+               "saved clipboard items stay available when capture is off")
+        expect(!CommandBarClipboardAccess.canUseHistory(captureEnabled: false,
+                                                        hasSavedItems: false),
+               "an empty disabled clipboard still points to setup")
         expect(CommandBarPreferences.source(ofRowID: "app.x") == .apps
                 && CommandBarPreferences.source(ofRowID: "menu.1.Bold") == .menus
                 && CommandBarPreferences.source(ofRowID: "folder./tmp") == .folders

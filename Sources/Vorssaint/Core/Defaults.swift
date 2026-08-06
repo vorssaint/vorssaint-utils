@@ -20,6 +20,7 @@ enum DefaultsKey {
     static let defaultDuration = "defaultDurationMinutes" // 0 = indefinite
     static let batteryLimit = "batteryLimitPercent"       // 0 = never
     static let keepAwakeAutoStart = "keepAwakeAutoStart"  // start Keep Awake when the app launches
+    static let keepAwakeRightClickToggle = "keepAwakeRightClickToggle"
     static let keepAwakeExternalDisplay = "keepAwakeExternalDisplay"
     static let keepAwakeConnectedToPower = "keepAwakeConnectedToPower"
     static let keepAwakeMouseJiggleEnabled = "keepAwakeMouseJiggleEnabled"
@@ -238,6 +239,7 @@ enum DefaultsKey {
     static let menuBarNetworkUploadFirst = "menuBarNetworkUploadFirst" // network menu bar block shows upload above download
     static let menuBarLabelStyle = "menuBarLabelStyle"     // compact | classic
     static let menuBarMemoryStyle = "menuBarMemoryStyle"   // dot | percent | both
+    static let monitorMemoryMetric = "monitorMemoryMetric" // used | app
     static let monitorInterval = "monitorIntervalSeconds"  // sampling cadence: 1/2/5
     static let temperatureUnit = "temperatureUnit"          // celsius | fahrenheit
     // System monitor — which blocks appear in the panel.
@@ -395,6 +397,7 @@ enum DefaultsKey {
     static let screenshotLastCaptureShortcutEnabled = "screenshotLastCaptureShortcutEnabled"
     static let screenshotLastCaptureShortcut = "screenshotLastCaptureShortcut"
     static let screenshotFreeze = "screenshotFreeze"
+    static let screenshotHideVorssaintWindows = "screenshotHideVorssaintWindows"
     static let screenshotSaveFolder = "screenshotSaveFolder"
     static let screenshotSaveSubfolder = "screenshotSaveSubfolder"
     static let screenshotFileNamePattern = "screenshotFileNamePattern"
@@ -638,6 +641,7 @@ enum Defaults {
     ]
     static let allowedMenuBarLabelStyles = ["compact", "classic"]
     static let allowedMenuBarMemoryStyles = ["dot", "percent", "both"]
+    static let allowedMonitorMemoryMetrics = ["used", "app"]
     static let allowedPreviewSizes = ["small", "normal", "large", "xlarge"]
     static let allowedClipboardHistoryLimits = [20, 50, 100, 250, 500, 1_000]
     static let allowedMonitorAlertCooldowns = [2, 5, 15, 30, 60]
@@ -648,6 +652,7 @@ enum Defaults {
         DefaultsKey.defaultDuration: 0,
         DefaultsKey.batteryLimit: 10,
         DefaultsKey.keepAwakeAutoStart: false,
+        DefaultsKey.keepAwakeRightClickToggle: false,
         DefaultsKey.keepAwakeExternalDisplay: false,
         DefaultsKey.keepAwakeConnectedToPower: false,
         DefaultsKey.keepAwakeMouseJiggleEnabled: false,
@@ -847,6 +852,7 @@ enum Defaults {
         DefaultsKey.menuBarNetworkUploadFirst: false,
         DefaultsKey.menuBarLabelStyle: "compact",
         DefaultsKey.menuBarMemoryStyle: "percent",
+        DefaultsKey.monitorMemoryMetric: "used",
         DefaultsKey.monitorShowSystem: true,
         DefaultsKey.monitorShowNetwork: true,
         DefaultsKey.monitorShowDisk: true,
@@ -981,6 +987,7 @@ enum Defaults {
         DefaultsKey.screenshotLastCaptureShortcutEnabled: false,
         DefaultsKey.screenshotLastCaptureShortcut: GlobalShortcut.screenshotLastCaptureDefault.storageValue,
         DefaultsKey.screenshotFreeze: true,
+        DefaultsKey.screenshotHideVorssaintWindows: true,
         DefaultsKey.screenshotSaveFolder: "",
         DefaultsKey.screenshotSaveSubfolder: "",
         DefaultsKey.screenshotFileNamePattern: "",
@@ -1244,6 +1251,10 @@ enum Defaults {
 
     static func sanitizedMenuBarMemoryStyle(_ style: String) -> String {
         allowedMenuBarMemoryStyles.contains(style) ? style : "percent"
+    }
+
+    static func sanitizedMonitorMemoryMetric(_ metric: String) -> String {
+        allowedMonitorMemoryMetrics.contains(metric) ? metric : "used"
     }
 
     static func sanitizedClipboardHistoryLimit(_ value: Int) -> Int {

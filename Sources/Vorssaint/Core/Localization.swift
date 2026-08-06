@@ -840,7 +840,6 @@ struct Strings {
     let memoryStyleDot: String
     let memoryStylePercent: String
     let memoryStyleBoth: String
-
     // MARK: System uptime, battery health, speed test
     let systemUptime: String
     let batteryCharge: String
@@ -1031,6 +1030,11 @@ struct Strings {
     let monitorOpenActivityMonitor: String
     let dockClickHide: String
     let dockClickHideCaption: String
+    let monitorMemoryMetricLabel: String
+    let memoryMetricUsed: String
+    let memoryMetricApp: String
+    let keepAwakeRightClickToggle: String
+    let keepAwakeRightClickToggleCaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -1738,7 +1742,6 @@ extension Strings {
         memoryStyleDot: "Ponto",
         memoryStylePercent: "%",
         memoryStyleBoth: "Ambos",
-
         systemUptime: "Ativo há",
         batteryCharge: "Carga",
         powerHealth: "Saúde da bateria",
@@ -1918,7 +1921,12 @@ extension Strings {
         mixerSoundEffectsOutputTooltip: "Escolher onde alertas e efeitos sonoros tocam",
         monitorOpenActivityMonitor: "Abrir o Monitor de Atividade",
         dockClickHide: "Clicar no Dock oculta o app",
-        dockClickHideCaption: "O app ativo é ocultado ao clicar no ícone dele no Dock. Clique de novo para trazê-lo de volta."
+        dockClickHideCaption: "O app ativo é ocultado ao clicar no ícone dele no Dock. Clique de novo para trazê-lo de volta.",
+        monitorMemoryMetricLabel: "Medir memória como",
+        memoryMetricUsed: "Memória usada",
+        memoryMetricApp: "Memória de apps",
+        keepAwakeRightClickToggle: "Clique com o botão direito no ícone da barra de menus para alternar “Manter acordado”",
+        keepAwakeRightClickToggleCaption: "Substitui o menu de contexto do clique com o botão direito."
     )
 }
 
@@ -2627,7 +2635,6 @@ extension Strings {
         memoryStyleDot: "Dot",
         memoryStylePercent: "%",
         memoryStyleBoth: "Both",
-
         systemUptime: "Up for",
         batteryCharge: "Charge",
         powerHealth: "Battery health",
@@ -2807,6 +2814,11 @@ extension Strings {
         mixerSoundEffectsOutputTooltip: "Choose where alerts and sound effects play",
         monitorOpenActivityMonitor: "Open Activity Monitor",
         dockClickHide: "Click the Dock icon to hide the app",
-        dockClickHideCaption: "The active app hides when you click its Dock icon. Click again to bring it back."
+        dockClickHideCaption: "The active app hides when you click its Dock icon. Click again to bring it back.",
+        monitorMemoryMetricLabel: "Measure memory as",
+        memoryMetricUsed: "Memory Used",
+        memoryMetricApp: "App Memory",
+        keepAwakeRightClickToggle: "Right-click the menu bar icon to toggle Keep Awake",
+        keepAwakeRightClickToggleCaption: "Replaces the right-click context menu."
     )
 }
