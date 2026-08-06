@@ -152,16 +152,28 @@ enum MemoryMenuBarStyle: String, CaseIterable {
     var showsPercent: Bool { self == .percent || self == .both }
 }
 
-/// Which memory figure the menu bar (and detail panel) displays: the
-/// Activity-Monitor-matching "Memory Used" total, or just App Memory (the
-/// non-purgeable internal footprint), both as a fraction of physical RAM.
-enum MenuBarMemoryMetric: String, CaseIterable {
+/// Which memory figure the monitor displays across the menu bar and panel.
+enum MonitorMemoryMetric: String, CaseIterable {
     case used, app
 
-    static var current: MenuBarMemoryMetric {
-        let raw = UserDefaults.standard.string(forKey: DefaultsKey.menuBarMemoryMetric) ?? ""
-        let metric = Defaults.sanitizedMenuBarMemoryMetric(raw)
-        return MenuBarMemoryMetric(rawValue: metric) ?? .used
+    static var current: MonitorMemoryMetric {
+        let raw = UserDefaults.standard.string(forKey: DefaultsKey.monitorMemoryMetric) ?? ""
+        let metric = Defaults.sanitizedMonitorMemoryMetric(raw)
+        return MonitorMemoryMetric(rawValue: metric) ?? .used
+    }
+
+    func value(in snapshot: SystemSnapshot) -> UInt64? {
+        MetricFormat.selectedMemory(used: snapshot.memoryUsed,
+                                    app: snapshot.memoryAppUsed,
+                                    metric: rawValue)
+    }
+
+    func history(in snapshot: SystemSnapshot) -> [Double] {
+        self == .app ? snapshot.memoryAppHistory : snapshot.memoryHistory
+    }
+
+    func title(in strings: Strings) -> String {
+        self == .app ? strings.memoryMetricApp : strings.memoryMetricUsed
     }
 }
 
@@ -342,7 +354,7 @@ enum MenuBarRenderer {
                 }
             case .memory:
                 let style = MemoryMenuBarStyle.current
-                let memoryValue = MenuBarMemoryMetric.current == .app ? snapshot.memoryAppUsed : snapshot.memoryUsed
+                let memoryValue = MonitorMemoryMetric.current.value(in: snapshot)
                 var segments: [MenuBarSegment] = []
                 segments.append(.symbol(metric.symbolName))
                 if style.showsDot {
@@ -563,7 +575,7 @@ enum MenuBarRenderer {
                 }
             case .memory:
                 let memoryStyle = MemoryMenuBarStyle.current
-                let memoryValue = MenuBarMemoryMetric.current == .app ? snapshot.memoryAppUsed : snapshot.memoryUsed
+                let memoryValue = MonitorMemoryMetric.current.value(in: snapshot)
                 if usesBars {
                     groups.append([.usageBarBlock(label: "RAM",
                                                   fraction: MenuBarUsageBarSupport.memoryFraction(used: memoryValue,
@@ -1233,6 +1245,7 @@ enum MenuBarRenderer {
         snapshot.cpuUsage = 1
         snapshot.gpuUsage = 1
         snapshot.memoryUsed = 100
+        snapshot.memoryAppUsed = 100
         snapshot.memoryTotal = 100
         snapshot.memoryPressure = .normal
         snapshot.cpuTemperature = 125

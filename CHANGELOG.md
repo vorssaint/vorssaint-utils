@@ -7,10 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [3.3.1]
 
 ### Summary
-Vorssaint 3.3.1 adds optional Fan Control, per-app Switcher rules, Previous Display,
-configurable screenshot previews, optional capture of Vorssaint windows, tabbed Scratchpads
-and Dock clicks that hide the active app. App removal finds more verified leftovers, while
-update downloads, clipboard history, previews, panels, shortcuts and mouse controls are more useful.
+Vorssaint 3.3.1 adds optional Fan Control, per-app Switcher rules, memory readout choices,
+Previous Display, configurable screenshot previews, optional capture of Vorssaint windows,
+tabbed Scratchpads and Dock clicks that hide the active app. App removal finds more verified
+leftovers, while update downloads, clipboard history, previews, panels, shortcuts and mouse controls are more useful.
 
 ### Added
 - Per-app Switcher rules can include apps without windows, keep them window-only,
@@ -24,6 +24,8 @@ update downloads, clipboard history, previews, panels, shortcuts and mouse contr
 ### Changed
 - Clipboard history keeps the full selected text, image or file paths visible beside
   the list. Thanks to @notdanna.
+- Memory readouts can focus on memory held by apps instead of total memory in use.
+  Under Monitor. Thanks to @WazZro.
 - Mouse feature exceptions can now choose apps from anywhere on the Mac.
   Thanks to @kyteidev.
 - The optional Fan Control beta shows live fan speed in the panel and menu bar.

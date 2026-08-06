@@ -706,10 +706,6 @@ extension Strings {
         memoryStyleDot: "Nokta",
         memoryStylePercent: "%",
         memoryStyleBoth: "İkisi de",
-        monitorMemoryMetricLabel: "Belleği şu şekilde ölç",
-        memoryMetricUsed: "Kullanılan Bellek",
-        memoryMetricApp: "Uygulama Belleği",
-
         systemUptime: "Çalışma süresi",
         batteryCharge: "Şarj",
         powerHealth: "Pil sağlığı",
@@ -889,6 +885,9 @@ extension Strings {
         mixerSoundEffectsOutputTooltip: "Uyarıların ve ses efektlerinin çalacağı çıkışı seç",
         monitorOpenActivityMonitor: "Etkinlik Monitörü'nü aç",
         dockClickHide: "Dock simgesine tıklayınca uygulamayı gizle",
-        dockClickHideCaption: "Etkin uygulamanın Dock simgesine tıklayınca uygulama gizlenir. Geri getirmek için yeniden tıklayın."
+        dockClickHideCaption: "Etkin uygulamanın Dock simgesine tıklayınca uygulama gizlenir. Geri getirmek için yeniden tıklayın.",
+        monitorMemoryMetricLabel: "Belleği şu şekilde ölç",
+        memoryMetricUsed: "Kullanılan Bellek",
+        memoryMetricApp: "Uygulama Belleği"
     )
 }

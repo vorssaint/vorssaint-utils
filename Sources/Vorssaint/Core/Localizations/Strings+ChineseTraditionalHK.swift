@@ -707,10 +707,6 @@ extension Strings {
         memoryStyleDot: "圓點",
         memoryStylePercent: "%",
         memoryStyleBoth: "兩者",
-        monitorMemoryMetricLabel: "記憶體計量方式",
-        memoryMetricUsed: "已用記憶體",
-        memoryMetricApp: "App 記憶體",
-
         systemUptime: "已運作",
         batteryCharge: "電量",
         powerHealth: "電池健康度",
@@ -890,6 +886,9 @@ extension Strings {
         mixerSoundEffectsOutputTooltip: "選擇提示音和音效的播放裝置",
         monitorOpenActivityMonitor: "打開活動監視器",
         dockClickHide: "點按 Dock 圖示隱藏 App",
-        dockClickHideCaption: "點按目前 App 的 Dock 圖示即可隱藏它。再點按一次即可帶回。"
+        dockClickHideCaption: "點按目前 App 的 Dock 圖示即可隱藏它。再點按一次即可帶回。",
+        monitorMemoryMetricLabel: "記憶體計量方式",
+        memoryMetricUsed: "已用記憶體",
+        memoryMetricApp: "App 記憶體"
     )
 }

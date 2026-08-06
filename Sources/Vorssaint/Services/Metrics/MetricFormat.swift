@@ -41,9 +41,8 @@ enum MetricFormat {
         return availableBytes.partialValue >= totalBytes ? 0 : totalBytes - availableBytes.partialValue
     }
 
-    /// The "App Memory" bucket Activity Monitor and iStat Menus show inside
-    /// their Used breakdown: internal pages a process could reclaim on demand
-    /// (purgeable) do not count as memory it is actively using.
+    /// Purgeable internal pages do not count because the system can reclaim
+    /// them on demand.
     static func appMemory(totalBytes: UInt64,
                           pageSize: UInt64,
                           internalPages: UInt64,
@@ -54,6 +53,12 @@ enum MetricFormat {
         let activeBytes = activePages.partialValue.multipliedReportingOverflow(by: pageSize)
         guard !activeBytes.overflow else { return 0 }
         return min(activeBytes.partialValue, totalBytes)
+    }
+
+    /// Keeps every memory surface on the same persisted choice. Unknown
+    /// values intentionally fall back to total memory in use.
+    static func selectedMemory<Value>(used: Value, app: Value, metric: String) -> Value {
+        metric == "app" ? app : used
     }
 
     /// Menu bar memory should keep its slot even while a transient sample is

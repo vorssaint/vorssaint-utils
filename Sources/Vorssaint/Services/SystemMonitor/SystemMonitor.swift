@@ -62,6 +62,7 @@ struct SystemSnapshot {
     var cpuHistory: [Double] = []          // 0...1
     var gpuHistory: [Double] = []          // 0...1
     var memoryHistory: [Double] = []       // 0...1
+    var memoryAppHistory: [Double] = []    // 0...1
     var netDownHistory: [Double] = []      // bytes/sec
     var netUpHistory: [Double] = []        // bytes/sec
     var diskReadHistory: [Double] = []     // bytes/sec
@@ -172,6 +173,7 @@ final class SystemMonitor: ObservableObject {
     private var cpuHistory: MetricHistory
     private var gpuHistory: MetricHistory
     private var memoryHistory: MetricHistory
+    private var memoryAppHistory: MetricHistory
     private var netDownHistory: MetricHistory
     private var netUpHistory: MetricHistory
     private var diskReadHistory: MetricHistory
@@ -184,6 +186,7 @@ final class SystemMonitor: ObservableObject {
         cpuHistory = MetricHistory(capacity: historyCapacity)
         gpuHistory = MetricHistory(capacity: historyCapacity)
         memoryHistory = MetricHistory(capacity: historyCapacity)
+        memoryAppHistory = MetricHistory(capacity: historyCapacity)
         netDownHistory = MetricHistory(capacity: historyCapacity)
         netUpHistory = MetricHistory(capacity: historyCapacity)
         diskReadHistory = MetricHistory(capacity: historyCapacity)
@@ -633,6 +636,7 @@ final class SystemMonitor: ObservableObject {
                     next.memoryPressure = memory.pressure
                     if memory.isFresh, memory.total > 0 {
                         self.memoryHistory.push(Double(memory.used) / Double(memory.total))
+                        self.memoryAppHistory.push(Double(memory.appUsed) / Double(memory.total))
                     }
                 }
             }
@@ -770,6 +774,7 @@ final class SystemMonitor: ObservableObject {
             next.cpuHistory = plan.needCPU ? self.cpuHistory.values : []
             next.gpuHistory = plan.needGPUUsage ? self.gpuHistory.values : []
             next.memoryHistory = plan.needMemory ? self.memoryHistory.values : []
+            next.memoryAppHistory = plan.needMemory ? self.memoryAppHistory.values : []
             next.netDownHistory = plan.needNetwork ? self.netDownHistory.values : []
             next.netUpHistory = plan.needNetwork ? self.netUpHistory.values : []
             next.diskReadHistory = plan.needDisk ? self.diskReadHistory.values : []

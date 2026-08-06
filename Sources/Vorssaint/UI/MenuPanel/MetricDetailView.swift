@@ -217,7 +217,9 @@ struct MetricDetailView: View {
         case .gpu:
             historyGraph(monitor.snapshot.gpuHistory, color: summaryColor, maxValue: 1)
         case .memory:
-            historyGraph(monitor.snapshot.memoryHistory, color: summaryColor, maxValue: 1)
+            historyGraph(MonitorMemoryMetric.current.history(in: monitor.snapshot),
+                         color: summaryColor,
+                         maxValue: 1)
         case .network:
             networkGraph
         case .disk:
@@ -363,11 +365,12 @@ struct MetricDetailView: View {
                 row(l10n.s.temperatures, snapshot.gpuTemperature.map(formatTemperature) ?? l10n.s.monitorUnavailable),
             ]
         case .memory:
-            let memoryValue = MenuBarMemoryMetric.current == .app ? snapshot.memoryAppUsed : snapshot.memoryUsed
+            let metric = MonitorMemoryMetric.current
+            let memoryValue = metric.value(in: snapshot)
             let used = memoryValue.map(formatMemory) ?? l10n.s.networkMeasuring
             let total = snapshot.memoryTotal.map(formatMemory) ?? "-"
             return [
-                row(l10n.s.memorySection, "\(used) / \(total)"),
+                row(metric.title(in: l10n.s), "\(used) / \(total)"),
                 row(l10n.s.memoryPressure, pressureText(snapshot.memoryPressure), showsPressure: true),
             ]
         case .network:
@@ -448,7 +451,7 @@ struct MetricDetailView: View {
         case .gpu:
             return snapshot.gpuUsage.map(MetricFormat.percent) ?? "-"
         case .memory:
-            let memoryValue = MenuBarMemoryMetric.current == .app ? snapshot.memoryAppUsed : snapshot.memoryUsed
+            let memoryValue = MonitorMemoryMetric.current.value(in: snapshot)
             guard let used = memoryValue, let total = snapshot.memoryTotal, total > 0 else { return "-" }
             return MetricFormat.percent(Double(used) / Double(total))
         case .network:
@@ -478,7 +481,7 @@ struct MetricDetailView: View {
         case .gpu:
             return snapshot.gpuTemperature.map(formatTemperature) ?? l10n.s.temperatures
         case .memory:
-            let memoryValue = MenuBarMemoryMetric.current == .app ? snapshot.memoryAppUsed : snapshot.memoryUsed
+            let memoryValue = MonitorMemoryMetric.current.value(in: snapshot)
             guard let used = memoryValue, let total = snapshot.memoryTotal else { return l10n.s.memoryPressure }
             return "\(formatMemory(used)) / \(formatMemory(total))"
         case .network:

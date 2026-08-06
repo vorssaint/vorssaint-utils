@@ -706,10 +706,6 @@ extension Strings {
         memoryStyleDot: "Point",
         memoryStylePercent: "%",
         memoryStyleBoth: "Les deux",
-        monitorMemoryMetricLabel: "Mesurer la mémoire comme",
-        memoryMetricUsed: "Mémoire utilisée",
-        memoryMetricApp: "Mémoire des apps",
-
         systemUptime: "Actif depuis",
         batteryCharge: "Charge",
         powerHealth: "État de la batterie",
@@ -889,6 +885,9 @@ extension Strings {
         mixerSoundEffectsOutputTooltip: "Choisir où sont diffusés les alertes et effets sonores",
         monitorOpenActivityMonitor: "Ouvrir le Moniteur d’activité",
         dockClickHide: "Masquer l’app d’un clic sur le Dock",
-        dockClickHideCaption: "L’app active se masque lorsque vous cliquez sur son icône dans le Dock. Cliquez à nouveau pour la faire revenir."
+        dockClickHideCaption: "L’app active se masque lorsque vous cliquez sur son icône dans le Dock. Cliquez à nouveau pour la faire revenir.",
+        monitorMemoryMetricLabel: "Mesurer la mémoire comme",
+        memoryMetricUsed: "Mémoire utilisée",
+        memoryMetricApp: "Mémoire des apps"
     )
 }
