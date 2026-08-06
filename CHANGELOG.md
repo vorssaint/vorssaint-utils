@@ -8,9 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Summary
 Vorssaint 3.3.1 adds optional Fan Control, per-app Switcher rules, screenshot controls,
-Previous Display, tabbed Scratchpads and faster Keep Awake controls. App removal finds more
-verified leftovers, while updates, clipboard history, panels, shortcuts, mouse controls and
-Cleaning Mode are more reliable.
+Previous Display, tabbed Scratchpads and faster Keep Awake controls. The Command Bar opens
+typed web addresses, while app removal, updates, clipboard history, panels and shortcuts are
+more reliable.
 
 ### Added
 - Per-app Switcher rules can include apps without windows, keep them window-only,
@@ -22,6 +22,7 @@ Cleaning Mode are more reliable.
   Thanks to @PathGao.
 
 ### Changed
+- The Command Bar opens a web address typed directly into it. Thanks to @tingke.
 - Clipboard history keeps the full selected text, image or file paths visible beside
   the list. Thanks to @notdanna.
 - Memory readouts can focus on memory held by apps instead of total memory in use.
