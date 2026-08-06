@@ -1,14 +1,14 @@
 # Privacy
 
-Vorssaint is built to be local-first. Core features run on your Mac, and the app has no Vorssaint account, cloud dashboard or backend.
+Vorssaint is built to be local-first. Core features run on your Mac, and the app has no Vorssaint account or cloud dashboard. Its Vorssaint-operated services are limited to temporary screenshot links and feedback you explicitly choose to send.
 
 ## The short version
 
 - **No account.** There is nothing to sign up for and nobody to log in as.
 - **No subscription.** The app is free and stays free, with nothing held back behind a paid tier.
-- **No telemetry.** Vorssaint gathers no usage stats, no crash reports, no device identifiers and no diagnostics.
+- **No automatic telemetry.** Vorssaint gathers no usage stats, crash reports or device identifiers. Feedback sends technical details only when you select them after seeing the complete list.
 - **No Vorssaint analytics or tracking.** There are no analytics kits, no ad networks and no third party tracking anywhere in the app.
-- **No data selling.** There is nothing to sell, because none of your information is collected to begin with.
+- **No data selling.** Vorssaint never sells personal information or shared images.
 - **Your settings stay put.** Preferences and saved state live in the app's own local storage on your Mac and are never uploaded.
 
 ## What it reads, and where that stays
@@ -31,7 +31,15 @@ Vorssaint opens only a few kinds of connection, and each one belongs to a visibl
 
 4. **The app update check, only with App updates switched on.** Finding out which apps are behind has two halves. The Homebrew half runs the local `brew` command, exactly as above. The App Store half asks Apple's public lookup service at `itunes.apple.com` which version is current, and to do that it sends the bundle identifiers of the apps you installed from the App Store, plus your Mac's region. Nothing else about those apps leaves the Mac, and no account or identifier of yours goes along. The check runs when you open the list or press Check now, and on a schedule only if you set one; the switch "Include apps from the App Store" under App updates turns this half off entirely, and then the whole check stays on your Mac.
 
-That is the entire list. There are no Vorssaint servers, no hidden beacons and no background uploads.
+5. **Temporary screenshot links, only when you choose to create one.** Creating a link sends the rendered PNG and your chosen expiration of 1, 6 or 24 hours to the Vorssaint service over HTTPS. It does not send your name, account, device identifier or MAC address. On your Mac, the feature keeps only the link, expiration and private deletion token while the link is active, so you can copy it or delete it early. The service holds your public IP address in memory for no more than 24 hours to prevent abuse, while network providers may process normal HTTPS request data under their own policies.
+
+The uploaded PNG is decoded and rebuilt without embedded metadata. The image and its link metadata are permanently deleted when the link expires or you delete it, and the service does not create screenshot backups. Private moderation stores the active link, not another uploaded image, and removes that message when the link ends. Anyone with the link can view, download, save or redistribute the image, and active links are available to the service operator for abuse moderation. Share only with people you trust.
+
+6. **Feedback, only when you press Send.** A submission sends the category you choose and the text you type. The optional technical details switch adds only the app version and build, macOS version, Mac model and app language shown in the form. It never includes your name, account, email address, device identifier, logs, screenshots, files or clipboard content. Your public IP address is processed temporarily in memory for rate limiting and is not attached to the feedback.
+
+Feedback is delivered to private support channels visible to the service owner. After delivery, the text and any technical details you selected remain there until the service owner deletes them. The temporary delivery copy is then deleted; if delivery never succeeds, that copy is permanently deleted after 7 days. No contact information is sent, so feedback cannot receive a direct reply.
+
+That is the entire list. There are no hidden beacons or background uploads.
 
 ## Changes to this document
 

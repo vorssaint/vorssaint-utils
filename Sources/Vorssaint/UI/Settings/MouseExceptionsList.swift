@@ -86,14 +86,15 @@ struct MouseExceptionsList: View {
 
     private var appPickerSheet: some View {
         let listed = Set(exceptions.list(scope))
-        return AppPickerView {
+        return AppPickerView(canBrowseApplications: true) {
             showingAppPicker = false
         } onSelect: { url in
-            showingAppPicker = false
             guard let bundleID = Bundle(url: url)?.bundleIdentifier else { return }
             exceptions.add(bundleID, to: scope)
+            showingAppPicker = false
         } loadApps: {
-            InstalledApps.installedBundleApplications(excluding: listed)
+            InstalledApps.installedBundleApplications(excluding: listed,
+                                                       includeRunningApplications: true)
         }
     }
 }

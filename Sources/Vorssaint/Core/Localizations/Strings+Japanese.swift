@@ -204,7 +204,7 @@ extension Strings {
         switcherSimpleModeCaption: "プレビューやスイッチャーによる画面収録を使わず、アプリのアイコンとウインドウのタイトルを表示します。",
         switcherShortcutHintApps: "アプリ",
         switcherShortcutHintWindows: "ウインドウ",
-        switcherWindowShortcutCaption: "スイッチャーを開いている間、選択中のアプリのウインドウを順に切り替えます。",
+        switcherWindowShortcutCaption: "最前面のアプリのウインドウ用スイッチャーを開きます。アプリスイッチャー表示中は、選択中のアプリのウインドウを順に切り替えます。",
         switcherMergeTabs: "アプリごとに1つにまとめて表示",
         switcherMergeTabsCaption: "スイッチャーで、アプリのすべてのウインドウをウインドウごとではなく1つの項目にまとめます。",
         switcherWindowlessApps: "ウインドウなしのアプリ",
@@ -215,7 +215,7 @@ extension Strings {
         switcherNoOpenWindow: "ウインドウなし",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Dock でウインドウをプレビュー",
-        dockPreviewEnableCaption: "Dock の開いているアプリにポインタを重ねると、ウインドウを確認して一時表示できます。",
+        dockPreviewEnableCaption: "Dock の開いているアプリにポインタを重ねてウインドウを確認し、開きたいウインドウをクリックします。",
         dockPreviewBackgroundOpacity: "パネルの背景",
         dockPreviewBackgroundOpacityCaption: "下げると、パネルの後ろにあるものがより見えるようになります。",
         dockClickMinimize: "Dock クリックでしまう",
@@ -603,8 +603,8 @@ extension Strings {
         obLanguageUpdateTitle: "あなたの言語に対応",
         obLanguageUpdateBody: "Vorssaint が複数の言語に対応しました。使いたい言語を選んでください。設定でいつでも変更できます。",
         obPurposeTitle: "目的を教えてください",
-        obPurposeBody: "選ぶだけでアプリが自動で整います。残りは設定からワンクリックです。",
-        obPurposeSkip: "全部手元に置いておく",
+        obPurposeBody: "用意された設定か、使いたい機能を一つずつ選んでください。",
+        obPurposeSkip: "機能は後から設定で追加または削除できます。",
 
         tabMonitor: "モニタ",
         monitorMenuBarSection: "メニューバー",
@@ -627,13 +627,6 @@ extension Strings {
         panelNavigationCaption: "1つのセクションだけを表示します。「リスト」を選ぶと、すべてを連続スクロールで表示します。",
         panelFooterSections: "セクション",
         panelFooterList: "リスト",
-        fanControlBetaShow: "Fan Control (Beta) をパネルに表示",
-        fanControlBetaSection: "Fan Control",
-        fanControlBetaTitle: "Fan Control",
-        fanControlBetaStatus: "自動",
-        fanControlBetaCaption: "Beta. 手動制御はMacモデルごとの検証が完了するまで無効です。",
-        fanControlModeAutomatic: "自動",
-        fanControlModeManual: "手動",
         betaBadge: "BETA",
         betaFeatureWarning: "ベータ版です。一部の不具合が残っている場合があります。",
 
@@ -893,6 +886,9 @@ extension Strings {
         shelfFileMissing: "ファイルはもう存在しません",
         previewSizeSmall: "小",
         mixerSoundEffectsOutputTitle: "システムサウンド",
-        mixerSoundEffectsOutputTooltip: "通知音とサウンドエフェクトの出力先を選択"
+        mixerSoundEffectsOutputTooltip: "通知音とサウンドエフェクトの出力先を選択",
+        monitorOpenActivityMonitor: "アクティビティモニタを開く",
+        dockClickHide: "Dock クリックでアプリを隠す",
+        dockClickHideCaption: "手前のアプリの Dock アイコンをクリックすると、そのアプリを隠します。もう一度クリックすると戻ります。"
     )
 }

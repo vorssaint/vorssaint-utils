@@ -204,7 +204,7 @@ extension Strings {
         switcherSimpleModeCaption: "显示 App 图标和窗口标题，不显示预览，也不会由切换器捕捉屏幕。",
         switcherShortcutHintApps: "App",
         switcherShortcutHintWindows: "窗口",
-        switcherWindowShortcutCaption: "切换器打开时，在所选应用的窗口之间跳转。",
+        switcherWindowShortcutCaption: "打开最前应用的窗口切换器。应用切换器打开时，在所选应用的窗口之间跳转。",
         switcherMergeTabs: "每个 App 仅显示一项",
         switcherMergeTabsCaption: "将一个 App 的所有窗口合并为切换器中的一项，而不是每个窗口一项。",
         switcherWindowlessApps: "无打开窗口的 App",
@@ -215,7 +215,7 @@ extension Strings {
         switcherNoOpenWindow: "无打开的窗口",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "在 Dock 中预览窗口",
-        dockPreviewEnableCaption: "将指针悬停在 Dock 中已打开的 App 上，即可查看并临时显示它的窗口。",
+        dockPreviewEnableCaption: "将指针悬停在 Dock 中已打开的 App 上查看窗口，然后点按要打开的窗口。",
         dockPreviewBackgroundOpacity: "面板背景",
         dockPreviewBackgroundOpacityCaption: "调低后可以看到更多面板后面的内容。",
         dockClickMinimize: "点按 Dock 图标最小化",
@@ -603,8 +603,8 @@ extension Strings {
         obLanguageUpdateTitle: "现在支持你的语言",
         obLanguageUpdateBody: "Vorssaint 现在支持多种语言。选择你想使用的语言，随时可在设置中更改。",
         obPurposeTitle: "你想用它做什么？",
-        obPurposeBody: "选择一项，应用自动配置。其余功能在设置中一键可得。",
-        obPurposeSkip: "全部留在手边",
+        obPurposeBody: "选择一套预设，或准确勾选你想使用的功能。",
+        obPurposeSkip: "之后可随时在设置中添加或移除功能。",
 
         tabMonitor: "监视",
         monitorMenuBarSection: "在菜单栏中",
@@ -627,13 +627,6 @@ extension Strings {
         panelNavigationCaption: "一次显示一个分区。选择“列表”可在连续滚动中查看全部内容。",
         panelFooterSections: "分区",
         panelFooterList: "列表",
-        fanControlBetaShow: "在面板中显示 Fan Control (Beta)",
-        fanControlBetaSection: "Fan Control",
-        fanControlBetaTitle: "Fan Control",
-        fanControlBetaStatus: "自动",
-        fanControlBetaCaption: "Beta。手动控制会保持停用，直到每个 Mac 型号完成验证。",
-        fanControlModeAutomatic: "自动",
-        fanControlModeManual: "手动",
         betaBadge: "BETA",
         betaFeatureWarning: "测试版。你可能会遇到一些错误。",
 
@@ -893,6 +886,9 @@ extension Strings {
         shelfFileMissing: "文件已不存在",
         previewSizeSmall: "小",
         mixerSoundEffectsOutputTitle: "系统声音",
-        mixerSoundEffectsOutputTooltip: "选择提醒和音效的播放设备"
+        mixerSoundEffectsOutputTooltip: "选择提醒和音效的播放设备",
+        monitorOpenActivityMonitor: "打开活动监视器",
+        dockClickHide: "点按 Dock 图标隐藏 App",
+        dockClickHideCaption: "点按当前 App 的 Dock 图标可隐藏它。再次点按即可恢复。"
     )
 }

@@ -130,6 +130,10 @@ struct CommandBarFeatureStrings {
     let turnOffFormat: String
     let everythingTitle: String
     let categoryAll: String
+    let restartAppFormat: String
+    let forceQuitAppFormat: String
+    let forceQuitAppConfirmFormat: String
+    let uninstallAppFormat: String
 }
 
 extension FeatureStrings {
@@ -276,7 +280,11 @@ extension CommandBarFeatureStrings {
         turnOnFormat: "Turn on %@",
         turnOffFormat: "Turn off %@",
         everythingTitle: "Everything it can do",
-        categoryAll: "All")
+        categoryAll: "All",
+        restartAppFormat: "Restart %@",
+        forceQuitAppFormat: "Force Quit %@…",
+        forceQuitAppConfirmFormat: "Force quit %@? Unsaved changes will be lost.",
+        uninstallAppFormat: "Uninstall %@…")
 
     static let ptBR = CommandBarFeatureStrings(
         pageTitle: "Barra de comando",
@@ -401,7 +409,11 @@ extension CommandBarFeatureStrings {
         turnOnFormat: "Ligar %@",
         turnOffFormat: "Desligar %@",
         everythingTitle: "Tudo o que ela faz",
-        categoryAll: "Tudo")
+        categoryAll: "Tudo",
+        restartAppFormat: "Reiniciar %@",
+        forceQuitAppFormat: "Forçar encerramento de %@…",
+        forceQuitAppConfirmFormat: "Forçar o encerramento de %@? Alterações não salvas serão perdidas.",
+        uninstallAppFormat: "Desinstalar %@…")
 
     static let tr = CommandBarFeatureStrings(
         pageTitle: "Komut çubuğu",
@@ -526,7 +538,11 @@ extension CommandBarFeatureStrings {
         turnOnFormat: "%@ aç",
         turnOffFormat: "%@ kapat",
         everythingTitle: "Yapabildiği her şey",
-        categoryAll: "Tümü")
+        categoryAll: "Tümü",
+        restartAppFormat: "%@ uygulamasını yeniden başlat",
+        forceQuitAppFormat: "%@ uygulamasını zorla kapat…",
+        forceQuitAppConfirmFormat: "%@ uygulaması zorla kapatılsın mı? Kaydedilmemiş değişiklikler kaybolacak.",
+        uninstallAppFormat: "%@ uygulamasını kaldır…")
 
     static let ru = CommandBarFeatureStrings(
         pageTitle: "Командная панель",
@@ -651,7 +667,11 @@ extension CommandBarFeatureStrings {
         turnOnFormat: "Включить: %@",
         turnOffFormat: "Выключить: %@",
         everythingTitle: "Всё, что она умеет",
-        categoryAll: "Все")
+        categoryAll: "Все",
+        restartAppFormat: "Перезапустить %@",
+        forceQuitAppFormat: "Завершить %@ принудительно…",
+        forceQuitAppConfirmFormat: "Завершить %@ принудительно? Несохранённые изменения будут потеряны.",
+        uninstallAppFormat: "Удалить %@…")
 
     static let es = CommandBarFeatureStrings(
         pageTitle: "Barra de comandos",
@@ -776,7 +796,11 @@ extension CommandBarFeatureStrings {
         turnOnFormat: "Activar %@",
         turnOffFormat: "Desactivar %@",
         everythingTitle: "Todo lo que puede hacer",
-        categoryAll: "Todo")
+        categoryAll: "Todo",
+        restartAppFormat: "Reiniciar %@",
+        forceQuitAppFormat: "Forzar salida de %@…",
+        forceQuitAppConfirmFormat: "¿Forzar la salida de %@? Se perderán los cambios no guardados.",
+        uninstallAppFormat: "Desinstalar %@…")
 
     static let de = CommandBarFeatureStrings(
         pageTitle: "Befehlsleiste",
@@ -901,7 +925,11 @@ extension CommandBarFeatureStrings {
         turnOnFormat: "%@ einschalten",
         turnOffFormat: "%@ ausschalten",
         everythingTitle: "Alles, was sie kann",
-        categoryAll: "Alle")
+        categoryAll: "Alle",
+        restartAppFormat: "%@ neu starten",
+        forceQuitAppFormat: "%@ sofort beenden…",
+        forceQuitAppConfirmFormat: "%@ sofort beenden? Nicht gesicherte Änderungen gehen verloren.",
+        uninstallAppFormat: "%@ deinstallieren…")
 
     static let fr = CommandBarFeatureStrings(
         pageTitle: "Barre de commande",
@@ -1026,7 +1054,11 @@ extension CommandBarFeatureStrings {
         turnOnFormat: "Activer %@",
         turnOffFormat: "Désactiver %@",
         everythingTitle: "Tout ce qu’elle sait faire",
-        categoryAll: "Tout")
+        categoryAll: "Tout",
+        restartAppFormat: "Relancer %@",
+        forceQuitAppFormat: "Forcer %@ à quitter…",
+        forceQuitAppConfirmFormat: "Forcer %@ à quitter ? Les modifications non enregistrées seront perdues.",
+        uninstallAppFormat: "Désinstaller %@…")
 
     static let it = CommandBarFeatureStrings(
         pageTitle: "Barra dei comandi",
@@ -1151,7 +1183,11 @@ extension CommandBarFeatureStrings {
         turnOnFormat: "Attiva %@",
         turnOffFormat: "Disattiva %@",
         everythingTitle: "Tutto quello che sa fare",
-        categoryAll: "Tutto")
+        categoryAll: "Tutto",
+        restartAppFormat: "Riavvia %@",
+        forceQuitAppFormat: "Forza l’uscita da %@…",
+        forceQuitAppConfirmFormat: "Forzare l’uscita da %@? Le modifiche non salvate andranno perse.",
+        uninstallAppFormat: "Disinstalla %@…")
 
     static let ja = CommandBarFeatureStrings(
         pageTitle: "コマンドバー",
@@ -1276,7 +1312,11 @@ extension CommandBarFeatureStrings {
         turnOnFormat: "%@ をオン",
         turnOffFormat: "%@ をオフ",
         everythingTitle: "できること全部",
-        categoryAll: "すべて")
+        categoryAll: "すべて",
+        restartAppFormat: "%@を再起動",
+        forceQuitAppFormat: "%@を強制終了…",
+        forceQuitAppConfirmFormat: "%@を強制終了しますか？保存していない変更内容は失われます。",
+        uninstallAppFormat: "%@をアンインストール…")
 
     static let ko = CommandBarFeatureStrings(
         pageTitle: "명령 막대",
@@ -1401,7 +1441,11 @@ extension CommandBarFeatureStrings {
         turnOnFormat: "%@ 켜기",
         turnOffFormat: "%@ 끄기",
         everythingTitle: "할 수 있는 모든 것",
-        categoryAll: "전체")
+        categoryAll: "전체",
+        restartAppFormat: "%@ 재시작",
+        forceQuitAppFormat: "%@ 강제 종료…",
+        forceQuitAppConfirmFormat: "%@ 앱을 강제로 종료할까요? 저장하지 않은 변경 사항은 사라집니다.",
+        uninstallAppFormat: "%@ 제거…")
 
     static let zhHans = CommandBarFeatureStrings(
         pageTitle: "命令栏",
@@ -1526,7 +1570,11 @@ extension CommandBarFeatureStrings {
         turnOnFormat: "打开%@",
         turnOffFormat: "关闭%@",
         everythingTitle: "它能做的一切",
-        categoryAll: "全部")
+        categoryAll: "全部",
+        restartAppFormat: "重新启动%@",
+        forceQuitAppFormat: "强制退出%@…",
+        forceQuitAppConfirmFormat: "要强制退出%@吗？未保存的更改将会丢失。",
+        uninstallAppFormat: "卸载%@…")
 
     static let zhTW = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -1651,7 +1699,11 @@ extension CommandBarFeatureStrings {
         turnOnFormat: "開啟%@",
         turnOffFormat: "關閉%@",
         everythingTitle: "它能做的一切",
-        categoryAll: "全部")
+        categoryAll: "全部",
+        restartAppFormat: "重新啟動%@",
+        forceQuitAppFormat: "強制結束%@…",
+        forceQuitAppConfirmFormat: "要強制結束%@嗎？未儲存的更改將會遺失。",
+        uninstallAppFormat: "解除安裝%@…")
 
     static let zhHK = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -1776,5 +1828,9 @@ extension CommandBarFeatureStrings {
         turnOnFormat: "開啟%@",
         turnOffFormat: "關閉%@",
         everythingTitle: "它能做的一切",
-        categoryAll: "全部")
+        categoryAll: "全部",
+        restartAppFormat: "重新啟動%@",
+        forceQuitAppFormat: "強制結束%@…",
+        forceQuitAppConfirmFormat: "要強制結束%@嗎？未儲存的更改將會遺失。",
+        uninstallAppFormat: "解除安裝%@…")
 }

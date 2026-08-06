@@ -426,7 +426,6 @@ struct SwitcherView: View {
                             }
                     }
                 }
-                .padding(.horizontal, 2)
                 .frame(height: SwitcherIconRowLayout.rowHeight, alignment: .center)
             }
             .scrollDisabled(groups.count <= switcher.iconRowLayout.visibleIconCount)
@@ -616,12 +615,13 @@ private struct SwitcherWindowPreviewTile: View {
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .padding(5)
                 } else if window.isAppEntry {
-                    VStack(spacing: 7) {
+                    VStack(spacing: SwitcherIconRowLayout.appEntrySpacing) {
                         if let icon = window.appIcon {
                             Image(nsImage: icon)
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
-                                .frame(width: 66, height: 66)
+                                .frame(width: SwitcherIconRowLayout.appEntryIconSize,
+                                       height: SwitcherIconRowLayout.appEntryIconSize)
                         }
                         Text(l10n.s.switcherNoOpenWindow)
                             .font(.system(size: 10, weight: .medium))

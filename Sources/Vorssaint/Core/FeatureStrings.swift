@@ -135,7 +135,8 @@ extension ClipboardFeatureStrings {
         imageEntryLabel: "이미지",
         fileCountFormat: "파일 %d개",
         pasteImageAsFile: "복사한 이미지를 파일로 붙여넣기",
-        pasteImageAsFileCaption: "Finder가 활성화되어 있을 때 ⌘V를 누르면 복사한 이미지가 현재 폴더에 PNG로 저장됩니다."
+        pasteImageAsFileCaption: "Finder가 활성화되어 있을 때 ⌘V를 누르면 복사한 이미지가 현재 폴더에 PNG로 저장됩니다.",
+        previewLabel: "미리보기"
     )
 }
 
@@ -190,7 +191,8 @@ extension WindowLayoutFeatureStrings {
         center: "가운데",
         nextDisplay: "다음 디스플레이",
         restore: "복원",
-        fullScreen: "전체 화면"
+        fullScreen: "전체 화면",
+        previousDisplay: "이전 디스플레이"
     )
 }
 
@@ -387,6 +389,7 @@ struct ClipboardFeatureStrings {
     let fileCountFormat: String
     let pasteImageAsFile: String
     let pasteImageAsFileCaption: String
+    let previewLabel: String
 
     static let enUS = ClipboardFeatureStrings(
         title: "Clipboard",
@@ -430,7 +433,8 @@ struct ClipboardFeatureStrings {
         imageEntryLabel: "Image",
         fileCountFormat: "%d files",
         pasteImageAsFile: "Paste copied images as files",
-        pasteImageAsFileCaption: "When Finder is active, ⌘V saves a copied image as a PNG in the current folder."
+        pasteImageAsFileCaption: "When Finder is active, ⌘V saves a copied image as a PNG in the current folder.",
+        previewLabel: "Preview"
     )
 
     static let ptBR = ClipboardFeatureStrings(
@@ -475,7 +479,8 @@ struct ClipboardFeatureStrings {
         imageEntryLabel: "Imagem",
         fileCountFormat: "%d arquivos",
         pasteImageAsFile: "Colar imagens copiadas como arquivos",
-        pasteImageAsFileCaption: "Com o Finder ativo, ⌘V salva uma imagem copiada como PNG na pasta atual."
+        pasteImageAsFileCaption: "Com o Finder ativo, ⌘V salva uma imagem copiada como PNG na pasta atual.",
+        previewLabel: "Prévia"
     )
 
     static let tr = ClipboardFeatureStrings(
@@ -520,7 +525,8 @@ struct ClipboardFeatureStrings {
         imageEntryLabel: "Görsel",
         fileCountFormat: "%d dosya",
         pasteImageAsFile: "Kopyalanan görselleri dosya olarak yapıştır",
-        pasteImageAsFileCaption: "Finder etkinken ⌘V, kopyalanan görseli geçerli klasöre PNG olarak kaydeder."
+        pasteImageAsFileCaption: "Finder etkinken ⌘V, kopyalanan görseli geçerli klasöre PNG olarak kaydeder.",
+        previewLabel: "Önizleme"
     )
 
     static let ru = ClipboardFeatureStrings(
@@ -565,7 +571,8 @@ struct ClipboardFeatureStrings {
         imageEntryLabel: "Изображение",
         fileCountFormat: "Файлов: %d",
         pasteImageAsFile: "Вставлять скопированные изображения как файлы",
-        pasteImageAsFileCaption: "Когда Finder активен, ⌘V сохраняет скопированное изображение как PNG в текущей папке."
+        pasteImageAsFileCaption: "Когда Finder активен, ⌘V сохраняет скопированное изображение как PNG в текущей папке.",
+        previewLabel: "Просмотр"
     )
 
     static let es = ClipboardFeatureStrings(
@@ -610,7 +617,8 @@ struct ClipboardFeatureStrings {
         imageEntryLabel: "Imagen",
         fileCountFormat: "%d archivos",
         pasteImageAsFile: "Pegar imágenes copiadas como archivos",
-        pasteImageAsFileCaption: "Con Finder activo, ⌘V guarda una imagen copiada como PNG en la carpeta actual."
+        pasteImageAsFileCaption: "Con Finder activo, ⌘V guarda una imagen copiada como PNG en la carpeta actual.",
+        previewLabel: "Vista previa"
     )
 
     static let de = ClipboardFeatureStrings(
@@ -655,7 +663,8 @@ struct ClipboardFeatureStrings {
         imageEntryLabel: "Bild",
         fileCountFormat: "%d Dateien",
         pasteImageAsFile: "Kopierte Bilder als Dateien einsetzen",
-        pasteImageAsFileCaption: "Wenn Finder aktiv ist, speichert ⌘V ein kopiertes Bild als PNG im aktuellen Ordner."
+        pasteImageAsFileCaption: "Wenn Finder aktiv ist, speichert ⌘V ein kopiertes Bild als PNG im aktuellen Ordner.",
+        previewLabel: "Vorschau"
     )
 
     static let fr = ClipboardFeatureStrings(
@@ -700,7 +709,8 @@ struct ClipboardFeatureStrings {
         imageEntryLabel: "Image",
         fileCountFormat: "%d fichiers",
         pasteImageAsFile: "Coller les images copiées comme fichiers",
-        pasteImageAsFileCaption: "Lorsque Finder est actif, ⌘V enregistre l’image copiée au format PNG dans le dossier actuel."
+        pasteImageAsFileCaption: "Lorsque Finder est actif, ⌘V enregistre l’image copiée au format PNG dans le dossier actuel.",
+        previewLabel: "Aperçu"
     )
 
     static let it = ClipboardFeatureStrings(
@@ -745,7 +755,8 @@ struct ClipboardFeatureStrings {
         imageEntryLabel: "Immagine",
         fileCountFormat: "%d file",
         pasteImageAsFile: "Incolla le immagini copiate come file",
-        pasteImageAsFileCaption: "Quando Finder è attivo, ⌘V salva un’immagine copiata come PNG nella cartella attuale."
+        pasteImageAsFileCaption: "Quando Finder è attivo, ⌘V salva un’immagine copiata come PNG nella cartella attuale.",
+        previewLabel: "Anteprima"
     )
 
     static let ja = ClipboardFeatureStrings(
@@ -790,7 +801,8 @@ struct ClipboardFeatureStrings {
         imageEntryLabel: "画像",
         fileCountFormat: "%d個のファイル",
         pasteImageAsFile: "コピーした画像をファイルとしてペースト",
-        pasteImageAsFileCaption: "Finder がアクティブなとき、⌘V でコピーした画像を現在のフォルダに PNG として保存します。"
+        pasteImageAsFileCaption: "Finder がアクティブなとき、⌘V でコピーした画像を現在のフォルダに PNG として保存します。",
+        previewLabel: "プレビュー"
     )
 
     static let zhHans = ClipboardFeatureStrings(
@@ -835,7 +847,8 @@ struct ClipboardFeatureStrings {
         imageEntryLabel: "图片",
         fileCountFormat: "%d 个文件",
         pasteImageAsFile: "将复制的图片粘贴为文件",
-        pasteImageAsFileCaption: "Finder 处于活动状态时，按 ⌘V 会将复制的图片以 PNG 格式保存到当前文件夹。"
+        pasteImageAsFileCaption: "Finder 处于活动状态时，按 ⌘V 会将复制的图片以 PNG 格式保存到当前文件夹。",
+        previewLabel: "预览"
     )
 
     static let zhTW = ClipboardFeatureStrings(
@@ -880,7 +893,8 @@ struct ClipboardFeatureStrings {
         imageEntryLabel: "圖片",
         fileCountFormat: "%d 個檔案",
         pasteImageAsFile: "將複製的圖片貼上為檔案",
-        pasteImageAsFileCaption: "Finder 啟用時，按下 ⌘V 會將複製的圖片以 PNG 格式儲存到目前的資料夾。"
+        pasteImageAsFileCaption: "Finder 啟用時，按下 ⌘V 會將複製的圖片以 PNG 格式儲存到目前的資料夾。",
+        previewLabel: "預覽"
     )
 
     static let zhHK = ClipboardFeatureStrings(
@@ -925,7 +939,8 @@ struct ClipboardFeatureStrings {
         imageEntryLabel: "圖片",
         fileCountFormat: "%d 個檔案",
         pasteImageAsFile: "將複製的圖片貼上為檔案",
-        pasteImageAsFileCaption: "Finder 啟用時，按下 ⌘V 會將複製的圖片以 PNG 格式儲存到目前的資料夾。"
+        pasteImageAsFileCaption: "Finder 啟用時，按下 ⌘V 會將複製的圖片以 PNG 格式儲存到目前的資料夾。",
+        previewLabel: "預覽"
     )
 }
 
@@ -980,6 +995,7 @@ struct WindowLayoutFeatureStrings {
     let nextDisplay: String
     let restore: String
     let fullScreen: String
+    let previousDisplay: String
 
     static let enUS = WindowLayoutFeatureStrings(
         title: "Window layout",
@@ -1031,7 +1047,8 @@ struct WindowLayoutFeatureStrings {
         center: "Center",
         nextDisplay: "Next display",
         restore: "Restore",
-        fullScreen: "Full Screen"
+        fullScreen: "Full Screen",
+        previousDisplay: "Previous display"
     )
 
     static let ptBR = WindowLayoutFeatureStrings(
@@ -1084,7 +1101,8 @@ struct WindowLayoutFeatureStrings {
         center: "Centralizar",
         nextDisplay: "Próximo display",
         restore: "Restaurar",
-        fullScreen: "Tela cheia"
+        fullScreen: "Tela cheia",
+        previousDisplay: "Display anterior"
     )
 
     static let tr = WindowLayoutFeatureStrings(
@@ -1137,7 +1155,8 @@ struct WindowLayoutFeatureStrings {
         center: "Ortala",
         nextDisplay: "Sonraki ekran",
         restore: "Geri yükle",
-        fullScreen: "Tam ekran"
+        fullScreen: "Tam ekran",
+        previousDisplay: "Önceki ekran"
     )
 
     static let ru = WindowLayoutFeatureStrings(
@@ -1190,7 +1209,8 @@ struct WindowLayoutFeatureStrings {
         center: "По центру",
         nextDisplay: "Следующий дисплей",
         restore: "Восстановить",
-        fullScreen: "Во весь экран"
+        fullScreen: "Во весь экран",
+        previousDisplay: "Предыдущий дисплей"
     )
 
     static let es = WindowLayoutFeatureStrings(
@@ -1243,7 +1263,8 @@ struct WindowLayoutFeatureStrings {
         center: "Centrar",
         nextDisplay: "Siguiente pantalla",
         restore: "Restaurar",
-        fullScreen: "Pantalla completa"
+        fullScreen: "Pantalla completa",
+        previousDisplay: "Pantalla anterior"
     )
 
     static let de = WindowLayoutFeatureStrings(
@@ -1296,7 +1317,8 @@ struct WindowLayoutFeatureStrings {
         center: "Zentrieren",
         nextDisplay: "Nächstes Display",
         restore: "Wiederherstellen",
-        fullScreen: "Vollbild"
+        fullScreen: "Vollbild",
+        previousDisplay: "Vorheriges Display"
     )
 
     static let fr = WindowLayoutFeatureStrings(
@@ -1349,7 +1371,8 @@ struct WindowLayoutFeatureStrings {
         center: "Centrer",
         nextDisplay: "Écran suivant",
         restore: "Restaurer",
-        fullScreen: "Plein écran"
+        fullScreen: "Plein écran",
+        previousDisplay: "Écran précédent"
     )
 
     static let it = WindowLayoutFeatureStrings(
@@ -1402,7 +1425,8 @@ struct WindowLayoutFeatureStrings {
         center: "Centra",
         nextDisplay: "Display successivo",
         restore: "Ripristina",
-        fullScreen: "Schermo intero"
+        fullScreen: "Schermo intero",
+        previousDisplay: "Display precedente"
     )
 
     static let ja = WindowLayoutFeatureStrings(
@@ -1455,7 +1479,8 @@ struct WindowLayoutFeatureStrings {
         center: "中央",
         nextDisplay: "次のディスプレイ",
         restore: "復元",
-        fullScreen: "フルスクリーン"
+        fullScreen: "フルスクリーン",
+        previousDisplay: "前のディスプレイ"
     )
 
     static let zhHans = WindowLayoutFeatureStrings(
@@ -1508,7 +1533,8 @@ struct WindowLayoutFeatureStrings {
         center: "居中",
         nextDisplay: "下一台显示器",
         restore: "恢复",
-        fullScreen: "全屏幕"
+        fullScreen: "全屏幕",
+        previousDisplay: "上一台显示器"
     )
 
     static let zhTW = WindowLayoutFeatureStrings(
@@ -1561,7 +1587,8 @@ struct WindowLayoutFeatureStrings {
         center: "置中",
         nextDisplay: "下一台顯示器",
         restore: "還原",
-        fullScreen: "全螢幕"
+        fullScreen: "全螢幕",
+        previousDisplay: "上一台顯示器"
     )
 
     static let zhHK = WindowLayoutFeatureStrings(
@@ -1614,7 +1641,8 @@ struct WindowLayoutFeatureStrings {
         center: "置中",
         nextDisplay: "下一部顯示器",
         restore: "還原",
-        fullScreen: "全螢幕"
+        fullScreen: "全螢幕",
+        previousDisplay: "上一部顯示器"
     )
 }
 

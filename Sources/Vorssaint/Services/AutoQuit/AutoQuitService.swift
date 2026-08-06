@@ -283,7 +283,9 @@ final class AutoQuitService: ObservableObject {
     private func checkWindows(pid: pid_t, confirm: Bool = true) {
         guard running, hadWindows[pid] == true,
               let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else { return }
-        let appIsExcepted = app.bundleIdentifier.map { exceptions.contains($0) } ?? false
+        let appIsExcepted = AutoQuitSupport.isExcepted(bundleIdentifier: app.bundleIdentifier,
+                                                       bundleURL: app.bundleURL,
+                                                       exceptions: exceptions)
         let hiddenByCloseRequest = app.isHidden && hasRecentCloseButtonRequest(pid: pid)
 
         // Cheap early-outs before any synchronous AX IPC: excepted apps and

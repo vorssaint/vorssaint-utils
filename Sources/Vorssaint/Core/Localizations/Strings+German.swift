@@ -204,7 +204,7 @@ extension Strings {
         switcherSimpleModeCaption: "Zeigt App-Symbole und Fenstertitel, ohne Vorschauen oder Bildschirmaufnahme durch den Umschalter.",
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Fenster",
-        switcherWindowShortcutCaption: "Springt bei geöffnetem Umschalter zwischen den Fenstern der ausgewählten App.",
+        switcherWindowShortcutCaption: "Öffnet einen Umschalter für die Fenster der vordersten App. Bei geöffnetem App-Umschalter springt er zwischen den Fenstern der ausgewählten App.",
         switcherMergeTabs: "Einen Eintrag pro App anzeigen",
         switcherMergeTabsCaption: "Fasst alle Fenster einer App zu einem Eintrag im Umschalter zusammen, statt einen Eintrag pro Fenster.",
         switcherWindowlessApps: "Apps ohne geöffnetes Fenster",
@@ -215,7 +215,7 @@ extension Strings {
         switcherNoOpenWindow: "Kein geöffnetes Fenster",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Fenster im Dock vorab anzeigen",
-        dockPreviewEnableCaption: "Zeige auf eine geöffnete App im Dock, um ihre Fenster zu sehen und kurz einzublenden.",
+        dockPreviewEnableCaption: "Zeige auf eine geöffnete App im Dock, um ihre Fenster zu sehen, und klicke dann auf das gewünschte.",
         dockPreviewBackgroundOpacity: "Hintergrund des Panels",
         dockPreviewBackgroundOpacityCaption: "Verringere ihn, um mehr von dem zu sehen, was hinter dem Panel liegt.",
         dockClickMinimize: "Klick aufs Dock-Symbol minimiert",
@@ -603,8 +603,8 @@ extension Strings {
         obLanguageUpdateTitle: "Jetzt in deiner Sprache",
         obLanguageUpdateBody: "Vorssaint spricht jetzt mehrere Sprachen. Wähle die, die du verwenden möchtest; du kannst sie jederzeit in den Einstellungen ändern.",
         obPurposeTitle: "Was führt dich hierher?",
-        obPurposeBody: "Wähl eine Option und die App richtet sich selbst ein. Der Rest bleibt einen Klick entfernt.",
-        obPurposeSkip: "Alles griffbereit lassen",
+        obPurposeBody: "Wähle eine fertige Einrichtung oder genau die Funktionen, die du nutzen möchtest.",
+        obPurposeSkip: "Du kannst Funktionen später in den Einstellungen ändern.",
 
         tabMonitor: "Überwachung",
         monitorMenuBarSection: "In der Menüleiste",
@@ -627,13 +627,6 @@ extension Strings {
         panelNavigationCaption: "Zeigt jeweils einen Bereich. Wähle Liste, um alles in einem durchgehenden Scrollbereich zu sehen.",
         panelFooterSections: "Bereiche",
         panelFooterList: "Liste",
-        fanControlBetaShow: "Fan Control (Beta) im Panel anzeigen",
-        fanControlBetaSection: "Fan Control",
-        fanControlBetaTitle: "Fan Control",
-        fanControlBetaStatus: "Automatisch",
-        fanControlBetaCaption: "Beta. Die manuelle Steuerung bleibt deaktiviert, bis jedes Mac-Modell validiert ist.",
-        fanControlModeAutomatic: "Automatisch",
-        fanControlModeManual: "Manuell",
         betaBadge: "BETA",
         betaFeatureWarning: "Beta. Es können noch Fehler auftreten.",
 
@@ -893,6 +886,9 @@ extension Strings {
         shelfFileMissing: "Die Datei existiert nicht mehr",
         previewSizeSmall: "Klein",
         mixerSoundEffectsOutputTitle: "Systemtöne",
-        mixerSoundEffectsOutputTooltip: "Auswählen, wo Hinweise und Toneffekte wiedergegeben werden"
+        mixerSoundEffectsOutputTooltip: "Auswählen, wo Hinweise und Toneffekte wiedergegeben werden",
+        monitorOpenActivityMonitor: "Aktivitätsanzeige öffnen",
+        dockClickHide: "Klick aufs Dock-Symbol blendet App aus",
+        dockClickHideCaption: "Die aktive App wird ausgeblendet, wenn du auf ihr Dock-Symbol klickst. Ein weiterer Klick holt sie zurück."
     )
 }

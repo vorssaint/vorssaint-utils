@@ -23,9 +23,11 @@ enum ScreenshotSupport {
     // MARK: - Scrolling capture
 
     /// A failed scroll target must never keep the capture alive forever or
-    /// quietly return a partial image. Reaching either guard is an explicit
-    /// failure that the UI reports.
-    static let scrollingCaptureMaximumDuration: TimeInterval = 120
+    /// exhaust memory. Reaching a guard keeps the valid portion and explains
+    /// why the capture stopped.
+    static let scrollingCaptureMaximumDuration: TimeInterval = 30
+    static let scrollingCaptureMaximumFrames = 32
+    static let scrollingCaptureMaximumRawPixels = 48_000_000
     static let scrollingCaptureMaximumPixels = 60_000_000
 
     static func scrollingCaptureStepPoints(regionHeight: CGFloat) -> CGFloat {
@@ -93,7 +95,10 @@ enum ScreenshotSupport {
         }
 
         let height = previous.height
-        let minimumAdvance = max(4, Int((Double(height) * 0.18).rounded()))
+        // The final scroll at the bottom of a page is often only a few rows.
+        // Treating every advance below 18% as a mismatch discarded an otherwise
+        // valid capture on short pages just before it could detect the end.
+        let minimumAdvance = max(2, Int((Double(height) * 0.01).rounded()))
         let maximumAdvance = min(height - 8, Int((Double(height) * 0.88).rounded()))
         guard minimumAdvance <= maximumAdvance else { return .unmatched }
 
@@ -320,16 +325,72 @@ enum ScreenshotSupport {
 
     // MARK: - Quick preview placement
 
-    /// Places the capture preview beside the selection when possible, then
-    /// falls back near the pointer and clamps the whole panel to the display.
+    enum QuickPreviewPosition: String, CaseIterable {
+        case automatic = ""
+        case topLeft
+        case topRight
+        case bottomLeft
+        case bottomRight
+    }
+
+    /// Picks the display containing most of the capture. The pointer breaks
+    /// an exact tie and is also the fallback when a display was disconnected
+    /// or rearranged before the preview appears.
+    static func quickPreviewVisibleFrame(
+        anchor: CGRect,
+        pointer: CGPoint,
+        screens: [(frame: CGRect, visibleFrame: CGRect)],
+        fallback: CGRect
+    ) -> CGRect {
+        var selected: (frame: CGRect, visibleFrame: CGRect)?
+        var selectedArea: CGFloat = 0
+        for screen in screens {
+            let overlap = anchor.intersection(screen.frame)
+            let area = overlap.isNull ? 0 : max(0, overlap.width) * max(0, overlap.height)
+            let winsTie = area == selectedArea
+                && area > 0
+                && screen.frame.contains(pointer)
+                && !(selected?.frame.contains(pointer) ?? false)
+            if area > selectedArea || winsTie {
+                selected = screen
+                selectedArea = area
+            }
+        }
+        if let selected { return selected.visibleFrame }
+        return screens.first { $0.frame.contains(pointer) }?.visibleFrame ?? fallback
+    }
+
+    /// Places the capture preview beside the selection in automatic mode, or
+    /// in the selected display corner, and clamps it to the visible frame.
     static func quickPreviewFrame(size: CGSize,
                                   anchor: CGRect,
                                   pointer: CGPoint,
-                                  visibleFrame: CGRect) -> CGRect {
-        let gap: CGFloat = 14
-        let inset: CGFloat = 10
+                                  visibleFrame: CGRect,
+                                  position: QuickPreviewPosition = .automatic) -> CGRect {
+        let inset: CGFloat = position == .automatic ? 10 : 16
         let usable = visibleFrame.insetBy(dx: inset, dy: inset)
 
+        if position != .automatic {
+            let x: CGFloat
+            let y: CGFloat
+            switch position {
+            case .automatic, .bottomRight:
+                x = max(usable.minX, usable.maxX - size.width)
+                y = usable.minY
+            case .topLeft:
+                x = usable.minX
+                y = max(usable.minY, usable.maxY - size.height)
+            case .topRight:
+                x = max(usable.minX, usable.maxX - size.width)
+                y = max(usable.minY, usable.maxY - size.height)
+            case .bottomLeft:
+                x = usable.minX
+                y = usable.minY
+            }
+            return CGRect(origin: CGPoint(x: x, y: y), size: size)
+        }
+
+        let gap: CGFloat = 14
         var x = anchor.maxX + gap
         if x + size.width > usable.maxX {
             x = anchor.minX - size.width - gap
@@ -353,18 +414,6 @@ enum ScreenshotSupport {
 
         x = min(max(x, usable.minX), max(usable.minX, usable.maxX - size.width))
         y = min(max(y, usable.minY), max(usable.minY, usable.maxY - size.height))
-        return CGRect(origin: CGPoint(x: x, y: y), size: size)
-    }
-
-    /// A quieter, corner-anchored placement used when a default action is
-    /// configured — the HUD is now just a confirmation, not something the
-    /// person needs to act on, so it stays out of the way in the corner
-    /// instead of popping up next to the selection.
-    static func quickPreviewCornerFrame(size: CGSize, visibleFrame: CGRect) -> CGRect {
-        let inset: CGFloat = 16
-        let usable = visibleFrame.insetBy(dx: inset, dy: inset)
-        let x = max(usable.minX, usable.maxX - size.width)
-        let y = usable.minY
         return CGRect(origin: CGPoint(x: x, y: y), size: size)
     }
 
@@ -722,6 +771,35 @@ enum ScreenshotSupport {
             self.stroke = stroke
             self.number = number
         }
+    }
+
+    /// Which way a selected annotation moves through the drawing order.
+    enum LayerMove {
+        case forward, backward
+    }
+
+    /// Whether the annotation has somewhere to go: false at the end it is
+    /// already heading for, and for an id that is not in the array.
+    static func canReorder(_ annotations: [Annotation],
+                           moving id: UUID,
+                           _ move: LayerMove) -> Bool {
+        guard let index = annotations.firstIndex(where: { $0.id == id }) else { return false }
+        return annotations.indices.contains(move == .forward ? index + 1 : index - 1)
+    }
+
+    /// Moves one annotation a single step through the array the renderer draws
+    /// in order, so a shape can go behind text that was written first. An
+    /// annotation already at the end it is heading for stays put, and an
+    /// unknown id leaves the array alone.
+    static func reordering(_ annotations: [Annotation],
+                           moving id: UUID,
+                           _ move: LayerMove) -> [Annotation] {
+        guard let index = annotations.firstIndex(where: { $0.id == id }) else { return annotations }
+        let target = move == .forward ? index + 1 : index - 1
+        guard annotations.indices.contains(target) else { return annotations }
+        var reordered = annotations
+        reordered.swapAt(index, target)
+        return reordered
     }
 
     /// Counters stay 1…n in creation order; deleting one renumbers the rest

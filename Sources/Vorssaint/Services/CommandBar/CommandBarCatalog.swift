@@ -304,13 +304,16 @@ enum CommandBarCatalog {
         if AppFeature.clipboardHistory.isAvailable {
             let clipboardTitle = FeatureStrings.clipboard(language).title
             let keepsHistory = UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryEnabled)
+            let canUseHistory = CommandBarClipboardAccess.canUseHistory(
+                captureEnabled: keepsHistory,
+                hasSavedItems: !ClipboardHistoryService.shared.entries.isEmpty)
             entries.append(CommandBarEntry(
                 id: "action.clipboardWindow",
                 title: clipboardTitle,
                 subtitle: area(.clipboardHistory, under: clipboardTitle),
                 icon: .symbol("doc.on.clipboard"),
                 shortcut: keepsHistory ? roleShortcut(.clipboard) : nil,
-                trouble: keepsHistory ? nil
+                trouble: canUseHistory ? nil
                     : .needsSetup(featureTitle: clipboardTitle, page: .clipboard),
                 run: { _ in afterBeat(0.1) { ClipboardHistoryService.shared.showHistoryWindow() } }))
         }
@@ -621,6 +624,19 @@ enum CommandBarCatalog {
                 shortcut: roleShortcut(.quickLauncher),
                 run: { _ in afterBeat { QuickLauncherService.shared.show() } }))
         }
+        let feedback = FeatureStrings.feedback(language)
+        entries.append(CommandBarEntry(
+            id: "action.feedback.bug",
+            title: feedback.commandBug,
+            subtitle: feedback.commandSubtitle,
+            icon: .symbol("ladybug"),
+            run: { _ in afterBeat { appDelegate()?.openFeedbackWindow(kind: .bug) } }))
+        entries.append(CommandBarEntry(
+            id: "action.feedback.feature",
+            title: feedback.commandFeature,
+            subtitle: feedback.commandSubtitle,
+            icon: .symbol("lightbulb"),
+            run: { _ in afterBeat { appDelegate()?.openFeedbackWindow(kind: .feature) } }))
         // What people try on day one: put the Mac to sleep, restart it, turn
         // Wi-Fi off. Everything but sleep confirms on the row first.
         for action in CommandBarExtras.PowerAction.allCases {
@@ -1226,10 +1242,13 @@ enum CommandBarCatalog {
                                  limit: Int = 4,
                                  paste: @escaping (ClipboardHistoryEntry) -> Void) -> [CommandBarEntry] {
         guard AppFeature.clipboardHistory.isAvailable,
-              UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryEnabled),
               !query.isEmpty else { return [] }
+        let history = ClipboardHistoryService.shared
+        guard CommandBarClipboardAccess.canUseHistory(
+            captureEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryEnabled),
+            hasSavedItems: !history.entries.isEmpty) else { return [] }
         let imageLabel = FeatureStrings.clipboard(L10n.shared.language).imageEntryLabel
-        return ClipboardHistoryService.shared.filteredEntries(matching: query)
+        return history.filteredEntries(matching: query)
             .prefix(limit)
             .map { clipboardRow($0, imageLabel: imageLabel, bar: bar, paste: paste) }
     }
@@ -1265,11 +1284,13 @@ enum CommandBarCatalog {
                                        bar: CommandBarFeatureStrings,
                                        paste: @escaping (ClipboardHistoryEntry) -> Void)
         -> [CommandBarEntry] {
-        guard AppFeature.clipboardHistory.isAvailable,
-              UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryEnabled)
-        else { return [] }
+        guard AppFeature.clipboardHistory.isAvailable else { return [] }
+        let history = ClipboardHistoryService.shared
+        guard CommandBarClipboardAccess.canUseHistory(
+            captureEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryEnabled),
+            hasSavedItems: !history.entries.isEmpty) else { return [] }
         let imageLabel = FeatureStrings.clipboard(L10n.shared.language).imageEntryLabel
-        return ClipboardHistoryService.shared.entries.prefix(limit).map { entry in
+        return history.entries.prefix(limit).map { entry in
             clipboardRow(entry, imageLabel: imageLabel, bar: bar, paste: paste)
         }
     }

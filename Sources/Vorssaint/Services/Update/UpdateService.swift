@@ -29,9 +29,11 @@ final class UpdateService: ObservableObject {
 
     private let repository = "vorssaint/vorssaint-utils"
     private var downloadURL: URL?
+    /// Size the release advertises for the asset, used to bound the download.
+    private var downloadExpectedBytes: Int64?
     private var refreshTimer: Timer?
     private var notifiedVersion: String?   // last release we posted a notification for
-    private var downloadObservation: NSKeyValueObservation?
+    private var downloadSession: URLSession?
 
     private init() {}
 
@@ -118,6 +120,7 @@ final class UpdateService: ObservableObject {
                 let latest = release.tagName.trimmingCharacters(in: CharacterSet(charactersIn: "vV "))
                 let asset = release.assets.first { $0.name.hasSuffix(".dmg") }
                 self.downloadURL = asset?.browserDownloadURL
+                self.downloadExpectedBytes = asset?.size
 
                 if Self.isNewer(latest, than: AppInfo.version), self.downloadURL != nil {
                     self.availableNotes = ReleaseNotes.inAppUpdateNotes(from: release.body)
@@ -176,46 +179,81 @@ final class UpdateService: ObservableObject {
         if case let .available(version) = state { offered = version } else { offered = nil }
         state = .downloading(progress: nil)
 
-        let task = URLSession.shared.downloadTask(with: downloadURL) { [weak self] tempURL, _, error in
-            guard let self else { return }
-            DispatchQueue.main.async { self.downloadObservation = nil }
-            guard let tempURL, error == nil else {
-                DispatchQueue.main.async {
-                    self.state = offered.map { State.available(version: $0) } ?? .failed(error?.localizedDescription ?? "-")
-                }
-                return
-            }
-            // Move out of the URL session's scratch space before handing off.
-            let dmgURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("Vorssaint-update.dmg")
-            try? FileManager.default.removeItem(at: dmgURL)
-            do {
-                try FileManager.default.moveItem(at: tempURL, to: dmgURL)
-            } catch {
-                DispatchQueue.main.async {
-                    self.state = offered.map { State.available(version: $0) } ?? .failed(error.localizedDescription)
-                }
-                return
-            }
+        let expectedBytes = downloadExpectedBytes
+        let byteLimit = UpdateInstallerSupport.downloadByteLimit(expectedBytes: expectedBytes)
+        let delegate: BoundedUpdateDownloadDelegate
+        do {
+            delegate = try BoundedUpdateDownloadDelegate(
+                byteLimit: byteLimit,
+                progress: { [weak self] receivedBytes, responseExpectedBytes in
+                    let totalBytes = expectedBytes ?? responseExpectedBytes
+                    guard let totalBytes, totalBytes > 0 else { return }
+                    let fraction = min(Double(receivedBytes) / Double(totalBytes), 1)
+                    DispatchQueue.main.async {
+                        guard let self, case let .downloading(current) = self.state else { return }
+                        if UpdateInstallerSupport.progressStepAdvanced(from: current, to: fraction) {
+                            self.state = .downloading(progress: fraction)
+                        }
+                    }
+                },
+                completion: { [weak self] tempURL, response, error in
+                    guard let self else { return }
+                    self.downloadSession?.finishTasksAndInvalidate()
+                    DispatchQueue.main.async {
+                        self.downloadSession = nil
+                    }
+                    guard let tempURL, error == nil else {
+                        DispatchQueue.main.async {
+                            self.state = offered.map { State.available(version: $0) }
+                                ?? .failed(error?.localizedDescription ?? "-")
+                        }
+                        return
+                    }
+                    // A response that cannot be the asset is dropped here, before it is
+                    // moved out of the scratch space and mounted. The installer still
+                    // verifies the signature; this only keeps a wrong body from getting
+                    // that far.
+                    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    let received = (try? FileManager.default.attributesOfItem(atPath: tempURL.path))
+                        .flatMap { $0[.size] as? NSNumber }?.int64Value ?? 0
+                    guard UpdateInstallerSupport.downloadIsUsable(status: status,
+                                                                  receivedBytes: received,
+                                                                  expectedBytes: expectedBytes) else {
+                        try? FileManager.default.removeItem(at: tempURL)
+                        DispatchQueue.main.async {
+                            self.state = offered.map { State.available(version: $0) }
+                                ?? .failed("HTTP \(status)")
+                        }
+                        return
+                    }
+                    // Move out of the session's scratch space before handing off.
+                    let dmgURL = FileManager.default.temporaryDirectory
+                        .appendingPathComponent("Vorssaint-update.dmg")
+                    try? FileManager.default.removeItem(at: dmgURL)
+                    do {
+                        try FileManager.default.moveItem(at: tempURL, to: dmgURL)
+                    } catch {
+                        DispatchQueue.main.async {
+                            self.state = offered.map { State.available(version: $0) }
+                                ?? .failed(error.localizedDescription)
+                        }
+                        return
+                    }
+                    DispatchQueue.main.async {
+                        self.state = .installing
+                        self.launchInstaller(dmgPath: dmgURL.path, offered: offered)
+                    }
+                })
+        } catch {
             DispatchQueue.main.async {
-                self.state = .installing
-                self.launchInstaller(dmgPath: dmgURL.path, offered: offered)
+                self.state = offered.map { State.available(version: $0) }
+                    ?? .failed(error.localizedDescription)
             }
+            return
         }
-        // Publish download progress in whole-percent steps (Progress fires
-        // far more often than the bar can show). While the server has not
-        // sent a total size the fraction stays meaningless, so it publishes
-        // nil and the UI keeps its indeterminate spinner.
-        downloadObservation = task.progress.observe(\.fractionCompleted) { [weak self] progress, _ in
-            let fraction = progress.totalUnitCount > 0 ? progress.fractionCompleted : nil
-            DispatchQueue.main.async {
-                guard let self, case let .downloading(current) = self.state else { return }
-                guard let fraction else { return }
-                if UpdateInstallerSupport.progressStepAdvanced(from: current, to: fraction) {
-                    self.state = .downloading(progress: fraction)
-                }
-            }
-        }
+        let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+        downloadSession = session
+        let task = session.dataTask(with: downloadURL)
         task.resume()
     }
 
@@ -392,6 +430,106 @@ final class UpdateService: ObservableObject {
     }
 }
 
+private final class BoundedUpdateDownloadDelegate: NSObject, URLSessionDataDelegate {
+    private let byteLimit: Int64
+    private let progress: (Int64, Int64?) -> Void
+    private let completion: (URL?, URLResponse?, Error?) -> Void
+    private let fileURL: URL
+    private let fileHandle: FileHandle
+    private var response: URLResponse?
+    private var responseExpectedBytes: Int64?
+    private var receivedBytes: Int64 = 0
+    private var completed = false
+    private var exceededLimit = false
+    private var writeError: Error?
+
+    init(byteLimit: Int64,
+         progress: @escaping (Int64, Int64?) -> Void,
+         completion: @escaping (URL?, URLResponse?, Error?) -> Void) throws {
+        self.byteLimit = byteLimit
+        self.progress = progress
+        self.completion = completion
+        let temporaryFileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Vorssaint-update-\(UUID().uuidString).download")
+        fileURL = temporaryFileURL
+        guard FileManager.default.createFile(atPath: temporaryFileURL.path, contents: nil) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        do {
+            fileHandle = try FileHandle(forWritingTo: temporaryFileURL)
+        } catch {
+            try? FileManager.default.removeItem(at: temporaryFileURL)
+            throw error
+        }
+    }
+
+    deinit {
+        try? fileHandle.close()
+        try? FileManager.default.removeItem(at: fileURL)
+    }
+
+    func urlSession(_ session: URLSession,
+                    dataTask: URLSessionDataTask,
+                    didReceive response: URLResponse,
+                    completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        self.response = response
+        responseExpectedBytes = response.expectedContentLength > 0 ? response.expectedContentLength : nil
+        completionHandler(.allow)
+    }
+
+    func urlSession(_ session: URLSession,
+                    dataTask: URLSessionDataTask,
+                    didReceive data: Data) {
+        guard writeError == nil, !exceededLimit else { return }
+        let chunkBytes = Int64(data.count)
+        guard chunkBytes <= byteLimit - receivedBytes else {
+            exceededLimit = true
+            dataTask.cancel()
+            return
+        }
+        do {
+            try fileHandle.write(contentsOf: data)
+            receivedBytes += chunkBytes
+            progress(receivedBytes, responseExpectedBytes)
+        } catch {
+            writeError = error
+            dataTask.cancel()
+        }
+    }
+
+    func urlSession(_ session: URLSession,
+                    task: URLSessionTask,
+                    didCompleteWithError error: Error?) {
+        let closeError: Error?
+        do {
+            try fileHandle.close()
+            closeError = nil
+        } catch {
+            closeError = error
+        }
+        if let writeError {
+            complete(location: nil, response: response, error: writeError)
+        } else if exceededLimit {
+            complete(location: nil, response: response, error: POSIXError(.EFBIG))
+        } else if let error {
+            complete(location: nil, response: response, error: error)
+        } else if let closeError {
+            complete(location: nil, response: response, error: closeError)
+        } else {
+            complete(location: fileURL, response: response, error: nil)
+        }
+    }
+
+    private func complete(location: URL?, response: URLResponse?, error: Error?) {
+        guard !completed else { return }
+        completed = true
+        if location == nil {
+            try? FileManager.default.removeItem(at: fileURL)
+        }
+        completion(location, response, error)
+    }
+}
+
 // MARK: - GitHub API shapes
 
 private struct GitHubRelease: Decodable {
@@ -408,10 +546,12 @@ private struct GitHubRelease: Decodable {
     struct Asset: Decodable {
         let name: String
         let browserDownloadURL: URL
+        let size: Int64?
 
         enum CodingKeys: String, CodingKey {
             case name
             case browserDownloadURL = "browser_download_url"
+            case size
         }
     }
 }

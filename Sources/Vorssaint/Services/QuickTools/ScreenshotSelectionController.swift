@@ -41,13 +41,26 @@ final class ScreenshotSelectionController {
     }
 
     private var panels: [ScreenshotOverlayPanel] = []
+
+    var protectedWindowIDs: Set<CGWindowID> {
+        Set(panels.compactMap { $0.windowNumber > 0 ? CGWindowID($0.windowNumber) : nil })
+    }
+
+    /// The overlays are part of the capture, so they stay excluded even when
+    /// the session is not registered anywhere yet.
+    private var captureExcludedWindowIDs: Set<CGWindowID> {
+        otherProtectedWindowIDs().union(protectedWindowIDs)
+    }
     private var keyMonitor: Any?
     private var completion: ((Outcome) -> Void)?
     private let freeze: Bool
     private let includePointer: Bool
     private let showLastRegion: Bool
+    private let hideVorssaintWindows: Bool
+    private let otherProtectedWindowIDs: () -> Set<CGWindowID>
     private let mode: Mode
     private let supportsScrollingCapture: Bool
+    fileprivate let requiresDraggedRegion: Bool
     private var finished = false
     /// Read by the overlays so a late event finds a session that is over.
     fileprivate var isOver: Bool { finished }
@@ -62,6 +75,9 @@ final class ScreenshotSelectionController {
     }
     fileprivate var offersScrollingCapture: Bool {
         supportsScrollingCapture && mode == .image
+    }
+    fileprivate var acceptsWindowClick: Bool {
+        !requiresDraggedRegion && !scrollingCaptureEnabled
     }
     fileprivate var loupeEnabled = false {
         didSet { panels.forEach { $0.overlayView.refreshPointerState() } }
@@ -86,15 +102,21 @@ final class ScreenshotSelectionController {
     init(freeze: Bool,
          includePointer: Bool,
          showLastRegion: Bool,
+         hideVorssaintWindows: Bool = true,
+         protectedWindowIDs: @escaping () -> Set<CGWindowID> = { [] },
          purpose: String? = nil,
          mode: Mode = .image,
-         supportsScrollingCapture: Bool = false) {
+         supportsScrollingCapture: Bool = false,
+         requiresDraggedRegion: Bool = false) {
         self.freeze = freeze
         self.includePointer = includePointer
         self.showLastRegion = showLastRegion
+        self.hideVorssaintWindows = hideVorssaintWindows
+        self.otherProtectedWindowIDs = protectedWindowIDs
         self.purpose = purpose
         self.mode = mode
         self.supportsScrollingCapture = supportsScrollingCapture
+        self.requiresDraggedRegion = requiresDraggedRegion
     }
 
     func begin(completion: @escaping (Outcome) -> Void) {
@@ -104,7 +126,9 @@ final class ScreenshotSelectionController {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 let images = await ScreenshotCaptureEngine.captureAllDisplays(
-                    includePointer: self.includePointer)
+                    includePointer: self.includePointer,
+                    hideVorssaintWindows: self.hideVorssaintWindows,
+                    protectedWindowIDs: self.captureExcludedWindowIDs)
                 guard !images.isEmpty else {
                     self.finish(.failed)
                     return
@@ -118,7 +142,9 @@ final class ScreenshotSelectionController {
 
     private func present(frozenImages: [CGDirectDisplayID: CGImage]) {
         guard !finished else { return }
-        let pickable = ScreenshotCaptureEngine.pickableWindows()
+        let pickable = ScreenshotCaptureEngine.pickableWindows(
+            hideVorssaintWindows: hideVorssaintWindows,
+            protectedWindowIDs: captureExcludedWindowIDs)
         let mainHeight = NSScreen.screens.first?.frame.height ?? 0
 
         for screen in NSScreen.screens {
@@ -157,8 +183,13 @@ final class ScreenshotSelectionController {
     /// pixels. Capture them once after the overlays exist; ScreenCaptureKit
     /// excludes this app's own panels, so the screen itself remains live.
     private func loadLiveLoupeImages() {
+        let hideWindows = hideVorssaintWindows
+        let excludedIDs = captureExcludedWindowIDs
         Task { @MainActor [weak self] in
-            let images = await ScreenshotCaptureEngine.captureAllDisplays(includePointer: false)
+            let images = await ScreenshotCaptureEngine.captureAllDisplays(
+                includePointer: false,
+                hideVorssaintWindows: hideWindows,
+                protectedWindowIDs: excludedIDs)
             guard let self, !self.finished else { return }
             for panel in self.panels {
                 panel.overlayView.updateLoupeImage(images[panel.displayID])
@@ -179,7 +210,9 @@ final class ScreenshotSelectionController {
             case kVK_Escape:
                 self.finish(.cancelled)
             case kVK_Return, kVK_ANSI_KeypadEnter:
-                self.captureFullDisplayUnderMouse()
+                if self.acceptsWindowClick {
+                    self.captureFullDisplayUnderMouse()
+                }
             case kVK_Space:
                 if let panel = self.panelUnderMouse(), panel.overlayView.isDragging {
                     // Holding Space moves the in-progress selection.
@@ -222,6 +255,7 @@ final class ScreenshotSelectionController {
     private func toggleScrollingCapture() {
         guard offersScrollingCapture else { return }
         scrollingCaptureEnabled.toggle()
+        panels.forEach { $0.overlayView.refreshPointerState() }
     }
 
     private func toggleLoupe() {
@@ -387,7 +421,10 @@ final class ScreenshotSelectionController {
             guard let self else { return }
             try? await Task.sleep(nanoseconds: 120_000_000)
             guard var image = await ScreenshotCaptureEngine.captureDisplay(
-                displayID, includePointer: self.includePointer)
+                displayID,
+                includePointer: self.includePointer,
+                hideVorssaintWindows: self.hideVorssaintWindows,
+                protectedWindowIDs: self.captureExcludedWindowIDs)
             else {
                 self.finish(.failed)
                 return
@@ -578,6 +615,7 @@ private final class ScreenshotOverlayView: NSView {
             strings: strings,
             purpose: purpose,
             offersScrollingCapture: controller.offersScrollingCapture,
+            requiresDraggedRegion: controller.requiresDraggedRegion,
             scrollingCaptureEnabled: controller.scrollingCaptureEnabled))
         super.init(frame: frame)
         let tracking = NSTrackingArea(rect: .zero,
@@ -611,7 +649,9 @@ private final class ScreenshotOverlayView: NSView {
                             y: panel.screenFrame.maxY - NSEvent.mouseLocation.y)
         if bounds.contains(point) {
             hoverPoint = point
-            hoveredWindow = ScreenshotSupport.window(at: hoverPoint, in: windows)
+            hoveredWindow = controller?.acceptsWindowClick == true
+                ? ScreenshotSupport.window(at: hoverPoint, in: windows)
+                : nil
         }
         needsDisplay = true
     }
@@ -626,6 +666,7 @@ private final class ScreenshotOverlayView: NSView {
             strings: strings,
             purpose: purpose,
             offersScrollingCapture: controller?.offersScrollingCapture ?? false,
+            requiresDraggedRegion: controller?.requiresDraggedRegion ?? false,
             scrollingCaptureEnabled: controller?.scrollingCaptureEnabled ?? false)
     }
 
@@ -633,7 +674,9 @@ private final class ScreenshotOverlayView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         hoverPoint = convert(event.locationInWindow, from: nil)
-        hoveredWindow = ScreenshotSupport.window(at: hoverPoint, in: windows)
+        hoveredWindow = controller?.acceptsWindowClick == true
+            ? ScreenshotSupport.window(at: hoverPoint, in: windows)
+            : nil
         needsDisplay = true
     }
 
@@ -694,7 +737,8 @@ private final class ScreenshotOverlayView: NSView {
 
         let clicked = ScreenshotSupport.isClick(from: origin, to: point)
         if clicked {
-            if let target = ScreenshotSupport.window(at: point, in: windows) {
+            if controller.acceptsWindowClick,
+               let target = ScreenshotSupport.window(at: point, in: windows) {
                 controller.confirmWindow(target.windowID, frame: target.frame, on: panel)
             }
             selection = .zero
@@ -921,6 +965,7 @@ private struct CaptureGuideView: View {
     let strings: ScreenshotFeatureStrings
     let purpose: String?
     let offersScrollingCapture: Bool
+    let requiresDraggedRegion: Bool
     let scrollingCaptureEnabled: Bool
 
     var body: some View {
@@ -943,7 +988,9 @@ private struct CaptureGuideView: View {
             }
             Spacer(minLength: 8)
             HStack(spacing: 7) {
-                keyHint("↩", icon: "rectangle.inset.filled")
+                if !requiresDraggedRegion && !scrollingCaptureEnabled {
+                    keyHint("↩", icon: "rectangle.inset.filled")
+                }
                 if offersScrollingCapture {
                     keyHint(scrollingCaptureEnabled ? "S on" : "S",
                             icon: "rectangle.stack")
@@ -970,7 +1017,9 @@ private struct CaptureGuideView: View {
     }
 
     private var subtitle: String {
-        let base = purpose?.isEmpty == false
+        let base = requiresDraggedRegion || scrollingCaptureEnabled
+            ? strings.scrollingCaptureSelectionHint
+            : purpose?.isEmpty == false
             ? strings.hintDrag + "  ·  " + strings.hintClick
             : strings.hintClick
         guard offersScrollingCapture else { return base }

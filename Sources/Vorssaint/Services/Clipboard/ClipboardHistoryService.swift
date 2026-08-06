@@ -974,7 +974,7 @@ final class ClipboardHistoryService: ObservableObject {
 
     private func ensurePanel() -> NSPanel {
         if let panel { return panel }
-        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 520, height: 560),
+        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 800, height: 560),
                             styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
                             backing: .buffered,
                             defer: false)
@@ -998,7 +998,7 @@ final class ClipboardHistoryService: ObservableObject {
 
     private func position(_ panel: NSPanel) {
         panel.contentViewController?.view.layoutSubtreeIfNeeded()
-        let size = panel.contentViewController?.view.fittingSize ?? NSSize(width: 520, height: 560)
+        let size = panel.contentViewController?.view.fittingSize ?? NSSize(width: 800, height: 560)
         let screen = NSScreen.pointerVisibleFrame
         let x = screen.midX - size.width / 2
         let y = min(screen.maxY - size.height - 54, screen.midY - size.height / 2)

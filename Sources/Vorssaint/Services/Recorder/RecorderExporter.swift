@@ -224,9 +224,15 @@ final class RecorderExporter {
             try? FileManager.default.removeItem(at: destination)
             return .cancelled
         }
+        let readerStatus = reader.status
+        guard readerStatus == .completed else {
+            reader.cancelReading()
+            writer.cancelWriting()
+            try? FileManager.default.removeItem(at: destination)
+            return readerStatus == .failed ? .readFailed : .writeFailed
+        }
         progress(0.95)
         await writer.finishWriting()
-        reader.cancelReading()
         guard writer.status == .completed else {
             try? FileManager.default.removeItem(at: destination)
             return .writeFailed

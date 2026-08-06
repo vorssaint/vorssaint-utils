@@ -153,6 +153,7 @@ struct GeneralSettings: View {
     @AppStorage(DefaultsKey.musicBlockReplacementPath) private var musicBlockReplacementPath = ""
 
     private var appearanceStrings: AppearanceStrings { FeatureStrings.appearance(l10n.language) }
+    private var feedbackStrings: FeedbackStrings { FeatureStrings.feedback(l10n.language) }
 
     var body: some View {
         Form {
@@ -247,6 +248,15 @@ struct GeneralSettings: View {
                     }
                     SettingsCaptionText(l10n.s.musicBlockCaption)
                 }
+            }
+            Section(feedbackStrings.sectionTitle) {
+                Button {
+                    appDelegate()?.openFeedbackWindow()
+                } label: {
+                    Label(feedbackStrings.openButton,
+                          systemImage: "bubble.left.and.text.bubble.right")
+                }
+                SettingsCaptionText(feedbackStrings.sectionCaption)
             }
         }
         .formStyle(.grouped)
@@ -407,15 +417,17 @@ struct EnergySettings: View {
                     SettingsCaptionText(automationStrings.automationCaption)
                     KeepAwakeAutomationEditor()
                 }
-                Section(l10n.s.batteryProtectionSection) {
-                    Picker(l10n.s.batteryDisableBelow, selection: $batteryLimit) {
-                        Text(l10n.s.batteryNever).tag(0)
-                        Text("5%").tag(5)
-                        Text("10%").tag(10)
-                        Text("15%").tag(15)
-                        Text("20%").tag(20)
+                if PowerSampler.hasInternalBattery {
+                    Section(l10n.s.batteryProtectionSection) {
+                        Picker(l10n.s.batteryDisableBelow, selection: $batteryLimit) {
+                            Text(l10n.s.batteryNever).tag(0)
+                            Text("5%").tag(5)
+                            Text("10%").tag(10)
+                            Text("15%").tag(15)
+                            Text("20%").tag(20)
+                        }
+                        SettingsCaptionText(l10n.s.batteryProtectionCaption)
                     }
-                    SettingsCaptionText(l10n.s.batteryProtectionCaption)
                 }
                 Section(l10n.s.keepAwakeTitle) {
                     KeepAwakeIconPicker(iconValue: $keepAwakeActiveIcon,
@@ -750,6 +762,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var dockPreviewBackgroundOpacity = 1.0
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
+    @AppStorage(DefaultsKey.dockClickHide) private var dockClickHide = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
     @AppStorage(DefaultsKey.previewSize) private var previewSize = "normal"
 
@@ -824,6 +837,7 @@ struct SwitcherSettings: View {
                     Text(l10n.s.switcherWindowlessAppsCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    SwitcherAppRulesList()
                 }
             }
             if AppFeature.dockPreview.isAvailable || AppFeature.dockClick.isAvailable {
@@ -852,10 +866,19 @@ struct SwitcherSettings: View {
                     }
                     if AppFeature.dockClick.isAvailable {
                         Toggle(l10n.s.dockClickMinimize, isOn: $dockClickMinimize)
-                            .onChange(of: dockClickMinimize) { _, _ in
+                            .onChange(of: dockClickMinimize) { _, enabled in
+                                if enabled { dockClickHide = false }
                                 DockClickService.shared.syncWithPreferences()
                             }
                         Text(l10n.s.dockClickMinimizeCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Toggle(l10n.s.dockClickHide, isOn: $dockClickHide)
+                            .onChange(of: dockClickHide) { _, enabled in
+                                if enabled { dockClickMinimize = false }
+                                DockClickService.shared.syncWithPreferences()
+                            }
+                        Text(l10n.s.dockClickHideCaption)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Toggle(l10n.s.dockClickCycleWindows, isOn: $dockClickCycleWindows)

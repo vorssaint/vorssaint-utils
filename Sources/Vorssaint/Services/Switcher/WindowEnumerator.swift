@@ -24,11 +24,23 @@ enum WindowEnumerator {
     private static let maximumCount = 24
 
     static func listWindows() -> [SwitcherItem] {
+        listWindows(appRules: SwitcherAppRule.rules(
+            storedValue: UserDefaults.standard.dictionary(forKey: DefaultsKey.switcherAppRules)))
+    }
+
+    /// The Command Bar shares the window walk, not the Switcher's visibility
+    /// preferences. An app hidden from ⌘Tab must remain searchable there.
+    static func listWindowsForCommandBar() -> [SwitcherItem] {
+        listWindows(appRules: [:])
+    }
+
+    private static func listWindows(appRules: [String: SwitcherAppRule]) -> [SwitcherItem] {
         let windowlessApps = SwitcherWindowlessApps.mode(
             storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherWindowlessApps))
         return listWindows(filterPID: nil,
                            maximumCount: maximumCount,
                            windowlessApps: windowlessApps,
+                           appRules: appRules,
                            groupByApp: UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs),
                            currentSpaceOnly: UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly))
     }
@@ -47,6 +59,7 @@ enum WindowEnumerator {
         listWindows(filterPID: pid,
                     maximumCount: maximumCount,
                     windowlessApps: .off,
+                    appRules: [:],
                     groupByApp: false,
                     currentSpaceOnly: false)
     }
@@ -54,12 +67,16 @@ enum WindowEnumerator {
     private static func listWindows(filterPID: pid_t?,
                                     maximumCount: Int,
                                     windowlessApps: SwitcherWindowlessApps,
+                                    appRules: [String: SwitcherAppRule],
                                     groupByApp: Bool,
                                     currentSpaceOnly: Bool) -> [SwitcherItem] {
         let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
 
         let ownPid = ProcessInfo.processInfo.processIdentifier
         let runningApps = NSWorkspace.shared.runningApplications
+        let bundleIdentifiers = Dictionary(uniqueKeysWithValues: runningApps.compactMap { app in
+            app.bundleIdentifier.map { (app.processIdentifier, $0) }
+        })
         // Bring the use history up to date before ordering by it: windows that
         // are gone leave, and any window that appeared without ever taking
         // focus is filed by the window server's front-to-back order.
@@ -109,6 +126,7 @@ enum WindowEnumerator {
             ownPID: pid_t(ownPid),
             filterPID: filterPID)
         let accessibilityWindows = accessibilityWindows(for: accessibilityPids,
+                                                        bundleIdentifiers: bundleIdentifiers,
                                                         undescribedSubrolePids: compatibilityLayerPids)
 
         var seen = Set<CGWindowID>()
@@ -159,6 +177,8 @@ enum WindowEnumerator {
                 : embeddedHostPIDs[windowOwnerPID]
             guard let appPID else { continue }
             if let filterPID, appPID != filterPID { continue }
+            if SwitcherSupport.hidesApp(bundleIdentifier: bundleIdentifiers[appPID],
+                                        appRules: appRules) { continue }
             // Current-Space mode (issue #337): windows living on another
             // desktop are left out entirely, including minimized ones that
             // kept their desktop of origin, so picking an entry never moves
@@ -233,6 +253,9 @@ enum WindowEnumerator {
                                        seen: &seen,
                                        filterPID: filterPID,
                                        excludeWindow: { windowID, appPID in
+                                           if SwitcherSupport.hidesApp(
+                                               bundleIdentifier: bundleIdentifiers[appPID],
+                                               appRules: appRules) { return true }
                                            guard currentSpaceOnly, isOnHiddenSpace(windowID) else { return false }
                                            withheldPIDs.insert(appPID)
                                            return true
@@ -243,7 +266,8 @@ enum WindowEnumerator {
                              regularApps: regularApps,
                              accessibilityWindows: accessibilityWindows,
                              ownPID: pid_t(ownPid),
-                             withheldPIDs: withheldPIDs)
+                             withheldPIDs: withheldPIDs,
+                             appRules: appRules)
         if groupByApp {
             windows = groupWindowsByApp(windows)
         }
@@ -277,6 +301,7 @@ enum WindowEnumerator {
     }
 
     private static func accessibilityWindows(for pids: Set<pid_t>,
+                                             bundleIdentifiers: [pid_t: String] = [:],
                                              undescribedSubrolePids: Set<pid_t> = []) -> [pid_t: AccessibilityWindowSnapshotList] {
         guard Permissions.shared.accessibility else { return [:] }
 
@@ -296,6 +321,7 @@ enum WindowEnumerator {
             queryQueue.addOperation {
                 guard let windows = accessibilityWindows(
                     for: pid,
+                    bundleIdentifier: bundleIdentifiers[pid],
                     acceptsUndescribedSubroles: undescribedSubrolePids.contains(pid),
                     screenFrames: screenFrames
                 ) else { return }
@@ -309,6 +335,7 @@ enum WindowEnumerator {
     }
 
     private static func accessibilityWindows(for pid: pid_t,
+                                             bundleIdentifier: String? = nil,
                                              acceptsUndescribedSubroles: Bool = false,
                                              screenFrames: [CGRect]) -> AccessibilityWindowSnapshotList? {
         let app = AXUIElementCreateApplication(pid)
@@ -325,7 +352,9 @@ enum WindowEnumerator {
         if windowsResult == .success, let windows = value as? [AXUIElement] {
             for window in windows {
                 AXUIElementSetMessagingTimeout(window, 0.35)
-                if isUserFacingWindow(window, acceptsUndescribedSubroles: acceptsUndescribedSubroles) {
+                if isUserFacingWindow(window,
+                                      bundleIdentifier: bundleIdentifier,
+                                      acceptsUndescribedSubroles: acceptsUndescribedSubroles) {
                     appendUnique(window, to: &axWindows)
                 }
             }
@@ -333,7 +362,9 @@ enum WindowEnumerator {
         for attribute in [kAXMainWindowAttribute, kAXFocusedWindowAttribute] {
             if let window = accessibilityWindowAttribute(app, attribute as String) {
                 AXUIElementSetMessagingTimeout(window, 0.35)
-                if isUserFacingWindow(window, acceptsUndescribedSubroles: acceptsUndescribedSubroles) {
+                if isUserFacingWindow(window,
+                                      bundleIdentifier: bundleIdentifier,
+                                      acceptsUndescribedSubroles: acceptsUndescribedSubroles) {
                     appendUnique(window, to: &axWindows)
                 }
             }
@@ -470,6 +501,7 @@ enum WindowEnumerator {
     }
 
     private static func isUserFacingWindow(_ window: AXUIElement,
+                                           bundleIdentifier: String? = nil,
                                            acceptsUndescribedSubroles: Bool = false) -> Bool {
         if isFullscreenWindow(window) { return true }
         if boolAttribute(window, kAXMinimizedAttribute as String),
@@ -478,6 +510,8 @@ enum WindowEnumerator {
         }
         if let subrole = stringAttribute(window, kAXSubroleAttribute as String) {
             if subrole == "AXStandardWindow" || subrole == "AXFullScreenWindow" { return true }
+            if SwitcherSupport.isAdobeFloatingWindow(bundleIdentifier: bundleIdentifier,
+                                                     subrole: subrole) { return true }
             // Compatibility-layer processes draw their own window chrome on
             // borderless surfaces, which Accessibility reports as AXUnknown;
             // for them the window role is the real signal.
@@ -540,8 +574,8 @@ enum WindowEnumerator {
                                              regularApps: [pid_t: String],
                                              accessibilityWindows: [pid_t: AccessibilityWindowSnapshotList],
                                              ownPID: pid_t,
-                                             withheldPIDs: Set<pid_t>) {
-        guard mode != .off else { return }
+                                             withheldPIDs: Set<pid_t>,
+                                             appRules: [String: SwitcherAppRule]) {
         // The window server order is stable across calls, so apps that were
         // never brought to the front keep a settled place instead of shuffling
         // between one press and the next.
@@ -560,7 +594,8 @@ enum WindowEnumerator {
             candidates: candidates,
             pidsWithWindows: Set(windows.map(\.pid)),
             pidsWithWithheldWindows: withheldPIDs,
-            desktopAppBundleIdentifier: Defaults.finderBundleIdentifier)
+            desktopAppBundleIdentifier: Defaults.finderBundleIdentifier,
+            appRules: appRules)
         for pid in chosen {
             guard let name = regularApps[pid] else { continue }
             windows.append(.appOnly(appName: name, pid: pid))

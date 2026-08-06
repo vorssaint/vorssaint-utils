@@ -4,21 +4,10 @@
 import SwiftUI
 
 /// First-run experience, also reachable later through Settings › About.
-/// Covers welcome and language, permissions, monitor setup, optional features,
-/// status verification and the final summary.
+/// The person chooses what they want first; only then does the app explain and
+/// request the permissions that choice actually needs.
 enum OnboardingMode {
     case full
-
-    var steps: [OnboardingStep] {
-        // Ten pages on purpose: setup and permissions first, the quick panel
-        // right after the panel pages (it is the app's fastest entry point),
-        // and one single page that turns the optional features on. The old
-        // per-feature showcase pages moved into that page as plain toggles;
-        // each feature's Settings page still teaches the details.
-        [.welcome, .accessibility, .screenRecording, .monitor, .menuBarSetup,
-         .panelSetup, .quickPanel, .optionalFeatures, .purpose,
-         .status, .done]
-    }
 
     func title(_ strings: Strings) -> String {
         strings.obStepWelcomeTitle
@@ -26,10 +15,7 @@ enum OnboardingMode {
 }
 
 enum OnboardingStep {
-    case welcome, accessibility, screenRecording, monitor, menuBarSetup, panelSetup, optionalFeatures
-    case quickPanel
-    case purpose
-    case status, done
+    case welcome, purpose, permissions, done
 }
 
 struct OnboardingView: View {
@@ -37,12 +23,32 @@ struct OnboardingView: View {
     var onFinish: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
-    @ObservedObject private var permissions = Permissions.shared
     /// Persisted so the flow resumes where it stopped — macOS relaunches the
     /// app when Screen Recording is granted mid-onboarding.
     @AppStorage(DefaultsKey.onboardingStep) private var index = 0
+    @State private var selectedFeatures: Set<AppFeature>
+    @State private var selectedPreset: FeaturePreset?
 
-    private var steps: [OnboardingStep] { mode.steps }
+    init(mode: OnboardingMode = .full, onFinish: @escaping () -> Void) {
+        self.mode = mode
+        self.onFinish = onFinish
+        let defaults = UserDefaults.standard
+        let selectionWasApplied = defaults.bool(forKey: DefaultsKey.hasOnboarded)
+            || defaults.integer(forKey: DefaultsKey.onboardingStep) >= 2
+        let features = selectionWasApplied
+            ? Set(AppFeature.allCases.filter(\.isAvailable))
+            : FeaturePreset.essential.features
+        _selectedFeatures = State(initialValue: features)
+        _selectedPreset = State(initialValue: selectionWasApplied ? nil : .essential)
+    }
+
+    private var setupPermissions: [AppPermission] {
+        let permissions = Set(selectedFeatures.flatMap(\.onboardingPermissions))
+        return [.accessibility, .screenRecording].filter { permissions.contains($0) }
+    }
+    private var steps: [OnboardingStep] {
+        [.welcome, .purpose, .permissions, .done]
+    }
     private var current: OnboardingStep { steps[min(max(0, index), steps.count - 1)] }
 
     var body: some View {
@@ -75,23 +81,10 @@ struct OnboardingView: View {
     private var content: some View {
         switch current {
         case .welcome: WelcomeStep()
-        case .accessibility: PermissionStep(kind: .accessibility,
-                                            icon: "accessibility",
-                                            title: l10n.s.obStepAccessibilityTitle,
-                                            body: l10n.s.obStepAccessibilityBody,
-                                            why: l10n.s.obAccessibilityWhy)
-        case .screenRecording: PermissionStep(kind: .screenRecording,
-                                              icon: "rectangle.dashed.badge.record",
-                                              title: l10n.s.obStepRecordingTitle,
-                                              body: l10n.s.obStepRecordingBody,
-                                              why: l10n.s.obRecordingWhy)
-        case .monitor: MonitorStep()
-        case .menuBarSetup: MenuBarSetupStep()
-        case .panelSetup: PanelSetupStep()
-        case .quickPanel: QuickPanelShowcaseStep()
-        case .optionalFeatures: OptionalFeaturesStep()
-        case .purpose: PurposeStep()
-        case .status: StatusStep()
+        case .purpose: PurposeStep(selectedFeatures: $selectedFeatures,
+                                   selectedPreset: $selectedPreset)
+        case .permissions: SelectedPermissionsStep(features: selectedFeatures,
+                                                   permissions: setupPermissions)
         case .done: DoneStep()
         }
     }
@@ -121,6 +114,11 @@ struct OnboardingView: View {
                     index = 0
                     onFinish()
                 } else {
+                    if current == .purpose {
+                        FeatureRuntime.shared.replaceAvailable(
+                            with: selectedFeatures,
+                            enabling: selectedPreset?.enableKeys ?? [])
+                    }
                     withAnimation(.easeInOut(duration: 0.2)) { index += 1 }
                 }
             }
@@ -133,13 +131,7 @@ struct OnboardingView: View {
 
     private var primaryButtonTitle: String {
         if index >= steps.count - 1 { return l10n.s.obStart }
-        switch current {
-        case .accessibility where !permissions.accessibility,
-             .screenRecording where !permissions.screenRecording:
-            return l10n.s.obSkipStep
-        default:
-            return l10n.s.obContinue
-        }
+        return l10n.s.obContinue
     }
 }
 
@@ -213,67 +205,20 @@ private struct WelcomeStep: View {
     }
 }
 
-// MARK: - Steps 2–3: permissions
+// MARK: - Purpose step
 
-private struct PermissionStep: View {
-    @ObservedObject private var l10n = L10n.shared
-    let kind: PermissionKind
-    let icon: String
-    let title: String
-    let body_: String
-    let why: String
-
-    init(kind: PermissionKind, icon: String, title: String, body: String, why: String) {
-        self.kind = kind
-        self.icon = icon
-        self.title = title
-        self.body_ = body
-        self.why = why
-    }
-
-    var body: some View {
-        VStack(spacing: 18) {
-            StepHeader(icon: icon, title: title, subtitle: body_)
-
-            VStack(alignment: .leading, spacing: 12) {
-                PermissionRow(kind: kind)
-                Text(l10n.s.permissionRestartNote)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.primary.opacity(0.05))
-            )
-            .padding(.horizontal, 28)
-
-            Text(why)
-                .font(.system(size: 11.5))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 36)
-
-            Spacer()
-        }
-    }
-}
-
-// MARK: - Purpose step: one answer shapes the whole app
-
-/// "What brought you here?" — the answers are the hub's own bundles, same
-/// names and descriptions, so onboarding and the Features hub speak one
-/// language. One click applies the bundle and the app leaves setup already
-/// shaped for it. Skipping keeps everything at hand.
+/// Presets are quick starts, while the catalog below allows an exact choice.
+/// Both use the Features hub's own names and descriptions so setup stays
+/// consistent with what the person can change later.
 private struct PurposeStep: View {
     @ObservedObject private var l10n = L10n.shared
-    @State private var chosen: FeaturePreset?
+    @Binding var selectedFeatures: Set<AppFeature>
+    @Binding var selectedPreset: FeaturePreset?
 
     private var hub: FeatureHubStrings { FeatureStrings.hub(l10n.language) }
 
     var body: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 16) {
             StepHeader(icon: "sparkles.rectangle.stack",
                        title: l10n.s.obPurposeTitle,
                        subtitle: l10n.s.obPurposeBody)
@@ -285,9 +230,39 @@ private struct PurposeStep: View {
             }
             .padding(.horizontal, 28)
 
+            HStack {
+                Text(hub.tabFeatures.uppercased())
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .tracking(1)
+                Spacer()
+                Text(String(format: hub.activeCountFormat,
+                            selectedFeatures.count, AppFeature.allCases.count))
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 28)
+
+            LazyVStack(spacing: 14) {
+                ForEach(FeatureGroup.allCases, id: \.self) { group in
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text(groupTitle(group))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        ForEach(AppFeature.features(in: group), id: \.self) { feature in
+                            featureCard(feature)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 28)
+
             Text(l10n.s.obPurposeSkip)
-                .font(.system(size: 11.5))
+                .font(.caption)
                 .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 36)
+                .padding(.bottom, 12)
 
             Spacer()
         }
@@ -310,355 +285,209 @@ private struct PurposeStep: View {
     }
 
     private func bundleCard(_ preset: FeaturePreset) -> some View {
-        let selected = chosen == preset
+        let selected = selectedPreset == preset
         return Button {
-            guard !selected else { return }
-            chosen = preset
-            withAnimation(.easeOut(duration: 0.2)) {
-                FeatureRuntime.shared.apply(preset)
-            }
+            selectedPreset = preset
+            selectedFeatures = preset.features
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: preset.symbolName)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(selected ? AnyShapeStyle(.white) : AnyShapeStyle(Color.accentColor))
+                    .foregroundStyle(Color.accentColor)
                     .frame(width: 26)
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(name(preset))
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(selected ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+                        .foregroundStyle(.primary)
                     Text(caption(preset))
                         .font(.system(size: 11))
-                        .foregroundStyle(selected ? AnyShapeStyle(Color.white.opacity(0.85)) : AnyShapeStyle(.secondary))
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
                 if selected {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.accentColor)
+                        .accessibilityHidden(true)
                 }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(selected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color.primary.opacity(0.05)))
+                    .fill(selected ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.05))
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(selected ? Color.accentColor.opacity(0.45) : .clear,
+                                  lineWidth: 1)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(name(preset)). \(caption(preset))")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .animation(.easeOut(duration: 0.15), value: selectedPreset)
+    }
+
+    private func featureCard(_ feature: AppFeature) -> some View {
+        let selected = selectedFeatures.contains(feature)
+        return Button {
+            selectedPreset = nil
+            if selected {
+                selectedFeatures.remove(feature)
+            } else {
+                selectedFeatures.insert(feature)
+            }
+        } label: {
+            HStack(spacing: 10) {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(selected
+                          ? AnyShapeStyle(Theme.spaceGradient)
+                          : AnyShapeStyle(Color.secondary.opacity(0.16)))
+                    .frame(width: 32, height: 32)
+                    .overlay {
+                        Image(systemName: feature.symbolName)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(selected ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
+                            .accessibilityHidden(true)
+                    }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(feature.hubTitle(l10n.s, hub: hub))
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(.primary)
+                    Text(feature.hubDescription(hub))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(selected ? Color.accentColor : Color.secondary.opacity(0.45))
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(selected ? Color.accentColor.opacity(0.09) : Color.primary.opacity(0.035))
             )
             .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
-        .animation(.easeOut(duration: 0.15), value: chosen)
+        .accessibilityLabel("\(feature.hubTitle(l10n.s, hub: hub)). \(feature.hubDescription(hub))")
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
-}
 
-// MARK: - Step 4: system monitor
-
-private struct MonitorStep: View {
-    @ObservedObject private var l10n = L10n.shared
-
-    var body: some View {
-        // The live System preview is the tallest step and can exceed the window,
-        // so it scrolls. The navigation bar lives outside `content`, so Back and
-        // Continue stay pinned and visible regardless of scroll position.
-        ScrollView {
-            VStack(spacing: 18) {
-                StepHeader(icon: "gauge.with.dots.needle.50percent",
-                           title: l10n.s.obStepMonitorTitle,
-                           subtitle: l10n.s.obStepMonitorBody)
-
-                // A live taste of the panel's System section.
-                SystemSection()
-                    .frame(width: 320)
-                    .onAppear { SystemMonitor.shared.panelDidAppear() }
-                    .onDisappear { SystemMonitor.shared.panelDidDisappear() }
-
-                Text(l10n.s.obMonitorNoPermission)
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 36)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
+    private func groupTitle(_ group: FeatureGroup) -> String {
+        switch group {
+        case .windowsDock: return hub.groupWindowsDock
+        case .mouseKeyboard: return hub.groupMouseKeyboard
+        case .clipboardFiles: return hub.groupClipboardFiles
+        case .sound: return hub.groupSound
+        case .energyDisplay: return hub.groupEnergyDisplay
+        case .tools: return hub.groupTools
+        case .monitor: return hub.groupMonitor
         }
     }
 }
 
-// MARK: - Menu bar setup (live preview + toggles)
-
-/// New-feature step: a live preview of the menu bar with the toggles right
-/// there, so people choose what to pin before they ever open Settings. Shown in
-/// the first-run flow and as the one-time "what's new" pass for updaters.
-private struct MenuBarSetupStep: View {
+private struct SelectedPermissionsStep: View {
     @ObservedObject private var l10n = L10n.shared
-    @AppStorage(DefaultsKey.menuBarCPU) private var cpu = false
-    @AppStorage(DefaultsKey.menuBarGPU) private var gpu = false
-    @AppStorage(DefaultsKey.menuBarMemory) private var memory = false
-    @AppStorage(DefaultsKey.menuBarCPUTemperature) private var cpuTemperature = false
-    @AppStorage(DefaultsKey.menuBarGPUTemperature) private var gpuTemperature = false
-    @AppStorage(DefaultsKey.menuBarBatteryTemperature) private var batteryTemperature = false
-    @AppStorage(DefaultsKey.menuBarNetwork) private var network = false
-    @AppStorage(DefaultsKey.menuBarDiskUsage) private var diskUsage = false
-    @AppStorage(DefaultsKey.menuBarDiskActivity) private var diskActivity = false
-    @AppStorage(DefaultsKey.menuBarBattery) private var battery = false
-    @AppStorage(DefaultsKey.menuBarBatteryTime) private var batteryTime = false
-    @AppStorage(DefaultsKey.menuBarPeripheralBattery) private var peripheralBattery = false
-    @AppStorage(DefaultsKey.menuBarPower) private var power = false
+    @State private var showingOtherPermissions = false
+    let features: Set<AppFeature>
+    let permissions: [AppPermission]
+
+    private var hub: FeatureHubStrings { FeatureStrings.hub(l10n.language) }
+    private var otherPermissions: [AppPermission] {
+        AppPermission.allCases.filter { !permissions.contains($0) }
+    }
 
     var body: some View {
-        VStack(spacing: 16) {
-            StepHeader(icon: "menubar.rectangle",
-                       title: l10n.s.obStepMenuBarTitle,
-                       subtitle: l10n.s.obStepMenuBarBody)
+        VStack(spacing: 18) {
+            StepHeader(icon: "key.horizontal.fill",
+                       title: hub.tabPermissions,
+                       subtitle: hub.permissionsIntro)
 
-            MenuBarMetricsPreview()
-                .padding(.horizontal, 28)
+            VStack(alignment: .leading, spacing: 12) {
+                Text(hub.onboardingSelectedPermissionsTitle)
+                    .font(.headline)
 
-            VStack(spacing: 0) {
-                toggle(l10n.s.monitorShowCPU, $cpu)
-                Divider()
-                toggle(l10n.s.monitorShowGPU, $gpu)
-                Divider()
-                toggle(l10n.s.monitorShowMemory, $memory)
-                Divider()
-                toggle(l10n.s.monitorShowCPUTemperature, $cpuTemperature)
-                Divider()
-                toggle(l10n.s.monitorShowGPUTemperature, $gpuTemperature)
-                Divider()
-                toggle(l10n.s.monitorShowBatteryTemperature, $batteryTemperature)
-                Divider()
-                toggle(l10n.s.monitorShowNetwork, $network)
-                Divider()
-                toggle(l10n.s.monitorItemDiskUsage, $diskUsage)
-                Divider()
-                toggle(l10n.s.monitorItemDiskActivity, $diskActivity)
-                Divider()
-                toggle(l10n.s.batteryLabel, $battery)
-                Divider()
-                toggle(FeatureStrings.batteryTime(l10n.language).title, $batteryTime)
-                Divider()
-                toggle(l10n.s.monitorShowPeripheralBattery, $peripheralBattery)
-                Divider()
-                toggle(l10n.s.monitorShowPowerLabel, $power)
+                if permissions.isEmpty {
+                    Label(hub.onboardingNoSelectedPermissions,
+                          systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(Array(permissions.enumerated()), id: \.offset) { index, permission in
+                            if index > 0 { Divider().padding(.vertical, 12) }
+                            VStack(alignment: .leading, spacing: 8) {
+                                PermissionRow(kind: permission == .accessibility
+                                              ? .accessibility : .screenRecording)
+                                Text(permission.explainer(hub))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(String(format: hub.usedByFormat,
+                                            featureNames(for: permission)))
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                    }
+                }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 4)
+            .padding(16)
             .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color.primary.opacity(0.05))
             )
             .padding(.horizontal, 28)
 
-            Text(l10n.s.obStepMenuBarNote)
+            DisclosureGroup(isExpanded: $showingOtherPermissions) {
+                VStack(spacing: 14) {
+                    PermissionsPortalSections(hub: hub,
+                                              visiblePermissions: otherPermissions)
+                }
+                .padding(.top, 12)
+            } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(hub.onboardingOtherPermissionsTitle)
+                        .font(.headline)
+                    Text(hub.onboardingOtherPermissionsCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.primary.opacity(0.05))
+            )
+            .padding(.horizontal, 28)
+
+            Text(l10n.s.permissionRestartNote)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 36)
 
             Spacer()
         }
     }
 
-    private func toggle(_ title: String, _ isOn: Binding<Bool>) -> some View {
-        Toggle(title, isOn: isOn)
-            .toggleStyle(.switch)
-            .controlSize(.small)
-            .padding(.vertical, 6)
+    private func featureNames(for permission: AppPermission) -> String {
+        features
+            .filter { $0.onboardingPermissions.contains(permission) }
+            .map { $0.hubTitle(l10n.s, hub: hub) }
+            .sorted()
+            .joined(separator: ", ")
     }
 }
 
-// MARK: - Panel setup (what's in the panel — expandable per-section config)
-
-private struct PanelSetupStep: View {
-    @ObservedObject private var l10n = L10n.shared
-
-    var body: some View {
-        VStack(spacing: 12) {
-            StepHeader(icon: "rectangle.stack",
-                       title: l10n.s.obStepPanelTitle,
-                       subtitle: l10n.s.obStepPanelBody)
-            Form {
-                MonitorPanelConfig()
-            }
-            .formStyle(.grouped)
-            .frame(maxHeight: .infinity)
-        }
-    }
-}
-
-// MARK: - Step 5: optional features
-
-private struct OptionalFeaturesStep: View {
-    @ObservedObject private var l10n = L10n.shared
-    @State private var launchAtLogin = LaunchAtLogin.isEnabled
-    @State private var loginError: String?
-    @AppStorage(DefaultsKey.scrollInverterEnabled) private var inverterEnabled = false
-    @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
-    @AppStorage(DefaultsKey.finderCutPasteEnabled) private var cutPasteEnabled = false
-    @AppStorage(DefaultsKey.autoQuitEnabled) private var autoQuitEnabled = false
-    @AppStorage(DefaultsKey.shelfEnabled) private var shelfEnabled = false
-
-    var body: some View {
-        VStack(spacing: 18) {
-            StepHeader(icon: "slider.horizontal.3",
-                       title: l10n.s.obStepOptionalTitle,
-                       subtitle: l10n.s.obStepOptionalBody)
-
-            VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Toggle(l10n.s.launchAtLogin, isOn: $launchAtLogin)
-                        .onChange(of: launchAtLogin) { _, enabled in
-                            do {
-                                try LaunchAtLogin.setEnabled(enabled)
-                                loginError = nil
-                            } catch {
-                                loginError = error.localizedDescription
-                                launchAtLogin = LaunchAtLogin.isEnabled
-                            }
-                        }
-                    if let loginError {
-                        Text(loginError)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-                }
-
-                Divider()
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Toggle(l10n.s.invertMouseScroll, isOn: $inverterEnabled)
-                        .onChange(of: inverterEnabled) { _, _ in
-                            ScrollInverter.shared.syncWithPreferences()
-                        }
-                    Text(l10n.s.scrollTrackpadNote)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Divider()
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Toggle(l10n.s.switcherEnable, isOn: $switcherEnabled)
-                        .onChange(of: switcherEnabled) { _, _ in
-                            AppSwitcher.shared.syncWithPreferences()
-                        }
-                    Text(l10n.s.switcherEnableCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Divider()
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Toggle(l10n.s.cutPasteEnable, isOn: $cutPasteEnabled)
-                        .onChange(of: cutPasteEnabled) { _, _ in
-                            FinderCutPaste.shared.syncWithPreferences()
-                        }
-                    Text(l10n.s.cutPasteEnableCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Divider()
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Toggle(l10n.s.autoQuitEnable, isOn: $autoQuitEnabled)
-                        .onChange(of: autoQuitEnabled) { _, _ in
-                            AutoQuitService.shared.syncWithPreferences()
-                        }
-                    Text(l10n.s.autoQuitEnableCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Divider()
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Toggle(l10n.s.shelfEnable, isOn: $shelfEnabled)
-                        .onChange(of: shelfEnabled) { _, _ in
-                            ShelfService.shared.syncWithPreferences()
-                        }
-                    Text(l10n.s.shelfEnableCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.primary.opacity(0.05))
-            )
-            .padding(.horizontal, 28)
-
-            Spacer()
-        }
-    }
-}
-
-// MARK: - Step 6: status verification
-
-private struct StatusStep: View {
-    @ObservedObject private var l10n = L10n.shared
-    @ObservedObject private var permissions = Permissions.shared
-    @AppStorage(DefaultsKey.scrollInverterEnabled) private var inverterEnabled = false
-    @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
-    @AppStorage(DefaultsKey.finderCutPasteEnabled) private var cutPasteEnabled = false
-    @AppStorage(DefaultsKey.autoQuitEnabled) private var autoQuitEnabled = false
-
-    var body: some View {
-        VStack(spacing: 18) {
-            StepHeader(icon: "checklist",
-                       title: l10n.s.obStepStatusTitle,
-                       subtitle: l10n.s.obStepStatusBody)
-
-            VStack(spacing: 0) {
-                statusRow(name: l10n.s.permissionAccessibility,
-                          // Cut and paste and quit on close moved into the
-                          // optional-features page; both need accessibility.
-                          needed: inverterEnabled || switcherEnabled
-                              || cutPasteEnabled || autoQuitEnabled,
-                          granted: permissions.accessibility)
-                Divider().padding(.vertical, 8)
-                statusRow(name: l10n.s.permissionScreenRecording,
-                          needed: switcherEnabled,
-                          granted: permissions.screenRecording)
-            }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.primary.opacity(0.05))
-            )
-            .padding(.horizontal, 28)
-
-            Button(l10n.s.obStatusRecheck) {
-                permissions.refresh()
-            }
-            .controlSize(.small)
-
-            Text(l10n.s.permissionRestartNote)
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-
-            Spacer()
-        }
-    }
-
-    private func statusRow(name: String, needed: Bool, granted: Bool) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: granted ? "checkmark.circle.fill"
-                                      : (needed ? "exclamationmark.circle.fill" : "minus.circle"))
-                .foregroundStyle(granted ? .green : (needed ? .orange : .secondary))
-            Text(name)
-            Spacer()
-            Text(granted ? l10n.s.permissionGranted : l10n.s.permissionMissing)
-                .font(.caption)
-                .foregroundStyle(granted ? .green : (needed ? .orange : .secondary))
-        }
-    }
-}
-
-// MARK: - Step 7: done
+// MARK: - Done
 
 private struct DoneStep: View {
     @ObservedObject private var l10n = L10n.shared
