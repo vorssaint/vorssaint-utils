@@ -142,7 +142,9 @@ final class ScreenshotSelectionController {
 
     private func present(frozenImages: [CGDirectDisplayID: CGImage]) {
         guard !finished else { return }
-        let pickable = ScreenshotCaptureEngine.pickableWindows()
+        let pickable = ScreenshotCaptureEngine.pickableWindows(
+            hideVorssaintWindows: hideVorssaintWindows,
+            protectedWindowIDs: captureExcludedWindowIDs)
         let mainHeight = NSScreen.screens.first?.frame.height ?? 0
 
         for screen in NSScreen.screens {

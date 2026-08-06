@@ -58,6 +58,8 @@ final class ScreenshotService: ObservableObject {
         return ids
     }
 
+    var protectedWindowIDsForCapture: Set<CGWindowID> { protectedWindowIDs }
+
     private var strings: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(L10n.shared.language)
     }

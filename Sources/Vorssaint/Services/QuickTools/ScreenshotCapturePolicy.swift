@@ -12,4 +12,12 @@ enum ScreenshotCapturePolicy {
                                   protectedWindowIDs: Set<CGWindowID>) -> Set<CGWindowID> {
         hideVorssaintWindows ? ownWindowIDs : ownWindowIDs.intersection(protectedWindowIDs)
     }
+
+    static func canPickWindow(_ windowID: CGWindowID,
+                              isOwnWindow: Bool,
+                              hideVorssaintWindows: Bool,
+                              protectedWindowIDs: Set<CGWindowID>) -> Bool {
+        !isOwnWindow
+            || (!hideVorssaintWindows && !protectedWindowIDs.contains(windowID))
+    }
 }

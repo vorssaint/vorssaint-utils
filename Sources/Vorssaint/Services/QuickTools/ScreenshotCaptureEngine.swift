@@ -162,18 +162,26 @@ enum ScreenshotCaptureEngine {
     }
 
     /// On-screen windows a click can capture, front to back, in the window
-    /// server's global top-left coordinates. Only ordinary layer-zero windows
-    /// outside this process are returned.
-    static func pickableWindows() -> [(id: CGWindowID, bounds: CGRect)] {
+    /// server's global top-left coordinates. Ordinary layer-zero windows from
+    /// this process follow the visibility preference, except for capture UI.
+    static func pickableWindows(hideVorssaintWindows: Bool,
+                                protectedWindowIDs: Set<CGWindowID>)
+        -> [(id: CGWindowID, bounds: CGRect)] {
         guard let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
                                                     kCGNullWindowID) as? [[String: Any]]
         else { return [] }
         let ownPID = Int32(ProcessInfo.processInfo.processIdentifier)
         return info.compactMap { entry in
             guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0,
-                  let pid = entry[kCGWindowOwnerPID as String] as? Int32, pid != ownPID,
+                  let pid = entry[kCGWindowOwnerPID as String] as? Int32,
                   let id = (entry[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
                   let boundsDict = entry[kCGWindowBounds as String] as? [String: CGFloat]
+            else { return nil }
+            guard ScreenshotCapturePolicy.canPickWindow(
+                id,
+                isOwnWindow: pid == ownPID,
+                hideVorssaintWindows: hideVorssaintWindows,
+                protectedWindowIDs: protectedWindowIDs)
             else { return nil }
             let bounds = CGRect(x: boundsDict["X"] ?? 0,
                                 y: boundsDict["Y"] ?? 0,

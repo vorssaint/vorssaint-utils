@@ -16,7 +16,6 @@ struct ScreenshotFeatureStrings {
     let hintCancel: String
     let hintRepeat: String
     let freezeToggle: String
-    let hideVorssaintWindowsToggle: String
     let freezeCaption: String
     let folderLabel: String
     let folderChoose: String
@@ -137,6 +136,7 @@ struct ScreenshotFeatureStrings {
     let previewPositionTopRight: String
     let previewPositionBottomLeft: String
     let previewPositionBottomRight: String
+    let hideVorssaintWindowsToggle: String
 }
 
 extension FeatureStrings {
@@ -172,7 +172,6 @@ extension ScreenshotFeatureStrings {
         hintCancel: "Esc cancels",
         hintRepeat: "R repeats the last area",
         freezeToggle: "Freeze the screen while selecting",
-        hideVorssaintWindowsToggle: "Hide Vorssaint windows",
         freezeCaption: "The picture stops while you choose the area, so nothing moves away or changes during the selection.",
         folderLabel: "Save to",
         folderChoose: "Choose…",
@@ -292,7 +291,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "Top left",
         previewPositionTopRight: "Top right",
         previewPositionBottomLeft: "Bottom left",
-        previewPositionBottomRight: "Bottom right"
+        previewPositionBottomRight: "Bottom right",
+        hideVorssaintWindowsToggle: "Hide Vorssaint windows"
     )
 
     static let ptBR = ScreenshotFeatureStrings(
@@ -307,7 +307,6 @@ extension ScreenshotFeatureStrings {
         hintCancel: "Esc cancela",
         hintRepeat: "R repete a última área",
         freezeToggle: "Congelar a tela durante a seleção",
-        hideVorssaintWindowsToggle: "Ocultar janelas do Vorssaint",
         freezeCaption: "A imagem para enquanto você escolhe a área, então nada se move nem muda durante a seleção.",
         folderLabel: "Salvar em",
         folderChoose: "Escolher…",
@@ -427,7 +426,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "Canto superior esquerdo",
         previewPositionTopRight: "Canto superior direito",
         previewPositionBottomLeft: "Canto inferior esquerdo",
-        previewPositionBottomRight: "Canto inferior direito"
+        previewPositionBottomRight: "Canto inferior direito",
+        hideVorssaintWindowsToggle: "Ocultar janelas do Vorssaint"
     )
 
     static let tr = ScreenshotFeatureStrings(
@@ -442,7 +442,6 @@ extension ScreenshotFeatureStrings {
         hintCancel: "Esc iptal eder",
         hintRepeat: "R son alanı yineler",
         freezeToggle: "Seçim sırasında ekranı dondur",
-        hideVorssaintWindowsToggle: "Vorssaint pencerelerini gizle",
         freezeCaption: "Alanı seçerken görüntü durur, böylece seçim sırasında hiçbir şey hareket etmez veya değişmez.",
         folderLabel: "Kayıt yeri",
         folderChoose: "Seç…",
@@ -562,7 +561,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "Sol üst",
         previewPositionTopRight: "Sağ üst",
         previewPositionBottomLeft: "Sol alt",
-        previewPositionBottomRight: "Sağ alt"
+        previewPositionBottomRight: "Sağ alt",
+        hideVorssaintWindowsToggle: "Vorssaint pencerelerini gizle"
     )
 
     static let ru = ScreenshotFeatureStrings(
@@ -577,7 +577,6 @@ extension ScreenshotFeatureStrings {
         hintCancel: "Esc отменяет",
         hintRepeat: "R повторяет последнюю область",
         freezeToggle: "Замораживать экран при выделении",
-        hideVorssaintWindowsToggle: "Скрывать окна Vorssaint",
         freezeCaption: "Изображение останавливается, пока вы выбираете область, поэтому во время выделения ничего не двигается и не меняется.",
         folderLabel: "Сохранять в",
         folderChoose: "Выбрать…",
@@ -697,7 +696,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "Сверху слева",
         previewPositionTopRight: "Сверху справа",
         previewPositionBottomLeft: "Снизу слева",
-        previewPositionBottomRight: "Снизу справа"
+        previewPositionBottomRight: "Снизу справа",
+        hideVorssaintWindowsToggle: "Скрывать окна Vorssaint"
     )
 
     static let es = ScreenshotFeatureStrings(
@@ -712,7 +712,6 @@ extension ScreenshotFeatureStrings {
         hintCancel: "Esc cancela",
         hintRepeat: "R repite la última área",
         freezeToggle: "Congelar la pantalla durante la selección",
-        hideVorssaintWindowsToggle: "Ocultar ventanas de Vorssaint",
         freezeCaption: "La imagen se detiene mientras eliges el área, así nada se mueve ni cambia durante la selección.",
         folderLabel: "Guardar en",
         folderChoose: "Elegir…",
@@ -832,7 +831,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "Arriba a la izquierda",
         previewPositionTopRight: "Arriba a la derecha",
         previewPositionBottomLeft: "Abajo a la izquierda",
-        previewPositionBottomRight: "Abajo a la derecha"
+        previewPositionBottomRight: "Abajo a la derecha",
+        hideVorssaintWindowsToggle: "Ocultar ventanas de Vorssaint"
     )
 
     static let de = ScreenshotFeatureStrings(
@@ -847,7 +847,6 @@ extension ScreenshotFeatureStrings {
         hintCancel: "Esc bricht ab",
         hintRepeat: "R wiederholt den letzten Bereich",
         freezeToggle: "Bildschirm während der Auswahl einfrieren",
-        hideVorssaintWindowsToggle: "Vorssaint-Fenster ausblenden",
         freezeCaption: "Das Bild bleibt stehen, während du den Bereich wählst. So bewegt oder ändert sich nichts während der Auswahl.",
         folderLabel: "Sichern unter",
         folderChoose: "Auswählen…",
@@ -967,7 +966,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "Oben links",
         previewPositionTopRight: "Oben rechts",
         previewPositionBottomLeft: "Unten links",
-        previewPositionBottomRight: "Unten rechts"
+        previewPositionBottomRight: "Unten rechts",
+        hideVorssaintWindowsToggle: "Vorssaint-Fenster ausblenden"
     )
 
     static let fr = ScreenshotFeatureStrings(
@@ -982,7 +982,6 @@ extension ScreenshotFeatureStrings {
         hintCancel: "Esc annule",
         hintRepeat: "R répète la dernière zone",
         freezeToggle: "Figer l'écran pendant la sélection",
-        hideVorssaintWindowsToggle: "Masquer les fenêtres Vorssaint",
         freezeCaption: "L'image s'arrête pendant que vous choisissez la zone, donc rien ne bouge ni ne change pendant la sélection.",
         folderLabel: "Enregistrer dans",
         folderChoose: "Choisir…",
@@ -1102,7 +1101,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "En haut à gauche",
         previewPositionTopRight: "En haut à droite",
         previewPositionBottomLeft: "En bas à gauche",
-        previewPositionBottomRight: "En bas à droite"
+        previewPositionBottomRight: "En bas à droite",
+        hideVorssaintWindowsToggle: "Masquer les fenêtres Vorssaint"
     )
 
     static let it = ScreenshotFeatureStrings(
@@ -1117,7 +1117,6 @@ extension ScreenshotFeatureStrings {
         hintCancel: "Esc annulla",
         hintRepeat: "R ripete l'ultima area",
         freezeToggle: "Congela lo schermo durante la selezione",
-        hideVorssaintWindowsToggle: "Nascondi le finestre di Vorssaint",
         freezeCaption: "L'immagine si ferma mentre scegli l'area, quindi niente si muove o cambia durante la selezione.",
         folderLabel: "Salva in",
         folderChoose: "Scegli…",
@@ -1237,7 +1236,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "In alto a sinistra",
         previewPositionTopRight: "In alto a destra",
         previewPositionBottomLeft: "In basso a sinistra",
-        previewPositionBottomRight: "In basso a destra"
+        previewPositionBottomRight: "In basso a destra",
+        hideVorssaintWindowsToggle: "Nascondi le finestre di Vorssaint"
     )
 
     static let ja = ScreenshotFeatureStrings(
@@ -1252,7 +1252,6 @@ extension ScreenshotFeatureStrings {
         hintCancel: "Escでキャンセル",
         hintRepeat: "Rで前回の範囲を再撮影",
         freezeToggle: "選択中は画面を静止させる",
-        hideVorssaintWindowsToggle: "Vorssaintのウインドウを隠す",
         freezeCaption: "範囲を選んでいる間は画像が止まるため、選択中に何も動いたり変わったりしません。",
         folderLabel: "保存先",
         folderChoose: "選択…",
@@ -1372,7 +1371,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "左上",
         previewPositionTopRight: "右上",
         previewPositionBottomLeft: "左下",
-        previewPositionBottomRight: "右下"
+        previewPositionBottomRight: "右下",
+        hideVorssaintWindowsToggle: "Vorssaintのウインドウを隠す"
     )
 
     static let ko = ScreenshotFeatureStrings(
@@ -1387,7 +1387,6 @@ extension ScreenshotFeatureStrings {
         hintCancel: "Esc 키로 취소",
         hintRepeat: "R 키로 마지막 영역 반복",
         freezeToggle: "선택하는 동안 화면 정지",
-        hideVorssaintWindowsToggle: "Vorssaint 윈도우 가리기",
         freezeCaption: "영역을 고르는 동안 화면이 멈추므로 선택 중에 아무것도 움직이거나 바뀌지 않습니다.",
         folderLabel: "저장 위치",
         folderChoose: "선택…",
@@ -1507,7 +1506,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "왼쪽 위",
         previewPositionTopRight: "오른쪽 위",
         previewPositionBottomLeft: "왼쪽 아래",
-        previewPositionBottomRight: "오른쪽 아래"
+        previewPositionBottomRight: "오른쪽 아래",
+        hideVorssaintWindowsToggle: "Vorssaint 윈도우 가리기"
     )
 
     static let zhHans = ScreenshotFeatureStrings(
@@ -1522,7 +1522,6 @@ extension ScreenshotFeatureStrings {
         hintCancel: "按 Esc 取消",
         hintRepeat: "按 R 重复上次区域",
         freezeToggle: "选择时冻结屏幕",
-        hideVorssaintWindowsToggle: "隐藏 Vorssaint 窗口",
         freezeCaption: "选择区域时画面会静止，因此选择过程中不会有任何移动或变化。",
         folderLabel: "存储位置",
         folderChoose: "选择…",
@@ -1642,7 +1641,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "左上角",
         previewPositionTopRight: "右上角",
         previewPositionBottomLeft: "左下角",
-        previewPositionBottomRight: "右下角"
+        previewPositionBottomRight: "右下角",
+        hideVorssaintWindowsToggle: "隐藏 Vorssaint 窗口"
     )
 
     static let zhTW = ScreenshotFeatureStrings(
@@ -1657,7 +1657,6 @@ extension ScreenshotFeatureStrings {
         hintCancel: "按 Esc 取消",
         hintRepeat: "按 R 重複上次區域",
         freezeToggle: "選取時凍結螢幕",
-        hideVorssaintWindowsToggle: "隱藏 Vorssaint 視窗",
         freezeCaption: "選取區域時畫面會靜止，因此選取過程中不會有任何移動或變化。",
         folderLabel: "儲存位置",
         folderChoose: "選擇…",
@@ -1777,7 +1776,8 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "左上角",
         previewPositionTopRight: "右上角",
         previewPositionBottomLeft: "左下角",
-        previewPositionBottomRight: "右下角"
+        previewPositionBottomRight: "右下角",
+        hideVorssaintWindowsToggle: "隱藏 Vorssaint 視窗"
     )
 
     static let zhHK = ScreenshotFeatureStrings(
@@ -1792,7 +1792,6 @@ extension ScreenshotFeatureStrings {
         hintCancel: "按 Esc 取消",
         hintRepeat: "按 R 重複上次範圍",
         freezeToggle: "選取時凍結螢幕",
-        hideVorssaintWindowsToggle: "隱藏 Vorssaint 視窗",
         freezeCaption: "選取範圍時畫面會靜止，因此選取過程中不會有任何移動或變化。",
         folderLabel: "儲存位置",
         folderChoose: "選擇…",
@@ -1912,6 +1911,7 @@ extension ScreenshotFeatureStrings {
         previewPositionTopLeft: "左上角",
         previewPositionTopRight: "右上角",
         previewPositionBottomLeft: "左下角",
-        previewPositionBottomRight: "右下角"
+        previewPositionBottomRight: "右下角",
+        hideVorssaintWindowsToggle: "隱藏 Vorssaint 視窗"
     )
 }
