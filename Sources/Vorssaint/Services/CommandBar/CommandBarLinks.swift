@@ -145,4 +145,23 @@ enum CommandBarLinks {
             return URL(string: "https://" + trimmed)
         }
     }
+
+    /// True when the text reads like a URL — typed to be opened, not searched
+    /// for. A known scheme makes it certain; otherwise the text has to look
+    /// like a domain: no spaces, a dot, and a letter-only tail of two or more
+    /// (the TLD), which keeps "file.txt" and "3.14" out.
+    static func looksLikeURL(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty,
+              !trimmed.contains(where: { $0.isWhitespace }) else { return false }
+        if let url = URL(string: trimmed),
+           let scheme = url.scheme?.lowercased(),
+           ["http", "https", "ftp"].contains(scheme) {
+            return true
+        }
+        guard trimmed.contains(".") else { return false }
+        let host = trimmed.split(separator: "/").first.map(String.init) ?? trimmed
+        guard let tail = host.split(separator: ".").last, !tail.isEmpty else { return false }
+        return tail.count >= 2 && tail.allSatisfy { $0.isLetter }
+    }
 }

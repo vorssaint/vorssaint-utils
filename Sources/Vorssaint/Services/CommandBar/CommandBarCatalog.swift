@@ -1229,6 +1229,25 @@ enum CommandBarCatalog {
         return nil
     }
 
+    /// A row that opens what was typed as a web address, offered only when the
+    /// text reads like one. It leads the list the way the calculator answer
+    /// does, so Return opens it at once. Reuses the link URL builder so a bare
+    /// domain ("apple.com") is filled in the same way a saved link without a
+    /// scheme would be.
+    static func openURLEntry(for query: String, bar: CommandBarFeatureStrings) -> CommandBarEntry? {
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        guard CommandBarLinks.looksLikeURL(trimmed) else { return nil }
+        let link = CommandBarLink(name: "", kind: .link, destination: trimmed)
+        guard let url = CommandBarLinks.url(for: link, expanded: trimmed) else { return nil }
+        return CommandBarEntry(
+            id: "action.openURL",
+            title: trimmed,
+            subtitle: bar.openInBrowser,
+            icon: .symbol("safari"),
+            countsUsage: false,
+            run: { _ in NSWorkspace.shared.open(url) })
+    }
+
     // MARK: - Clipboard history
 
     /// Rows for history items matching the query, capped so pasted text never

@@ -11326,6 +11326,30 @@ struct MetricsTests {
                     keywords: "Link", query: "gh vorssaint utils") != nil,
                "a saved search stays in the list while what to look for is typed")
 
+        // MARK: Open what was typed as a URL
+        for address in ["apple.com", "apple.com/x", "https://example.com",
+                        "http://example.com/path?q=1", "ftp://files.example.org",
+                        "sub.domain.co.uk", "例子.中国"] {
+            expect(CommandBarLinks.looksLikeURL(address),
+                   "\"\(address)\" reads like a URL")
+        }
+        for plain in ["hello", "file.txt", "3.14", "version 2.0", "notes",
+                      "a b c", "", "  ", "v1.2", "localhost",
+                      "user@example.com", "something/else"] {
+            expect(!CommandBarLinks.looksLikeURL(plain),
+                   "\"\(plain)\" is a search, not a URL")
+        }
+        // A bare domain is filled in the same way a saved link without a
+        // scheme is, so the two paths open the same URL.
+        expect(CommandBarLinks.url(for: CommandBarLink(name: "", kind: .link, destination: "apple.com"),
+                                   expanded: "apple.com")?.absoluteString == "https://apple.com",
+               "a typed bare domain is opened with an https scheme")
+        expect(CommandBarLinks.url(for: CommandBarLink(name: "", kind: .link,
+                                                       destination: "https://example.com/x"),
+                                   expanded: "https://example.com/x")?.absoluteString
+                == "https://example.com/x",
+               "a typed address with a scheme keeps its scheme")
+
         expect(CommandBarText.wordCount("uma frase com cinco palavras") == 5
                 && CommandBarText.wordCount("  espaços   demais  ") == 2
                 && CommandBarText.wordCount("") == 0,
