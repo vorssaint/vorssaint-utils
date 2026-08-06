@@ -30,7 +30,7 @@ enum AppFeature: String, CaseIterable {
          commandBar, screenRecorder
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
-    case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower
+    case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower, fanControl
 }
 
 /// Hub sections, in display order.
@@ -62,7 +62,8 @@ extension AppFeature {
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
              .scratchpad, .commandBar, .screenRecorder:
             return .tools
-        case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
+        case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
+             .fanControl:
             return .monitor
         }
     }
@@ -118,13 +119,16 @@ extension AppFeature {
         case .monitorNetwork: return "network"
         case .monitorDisk: return "internaldrive"
         case .monitorPower: return "bolt.fill"
+        case .fanControl: return "fanblades.fill"
         }
     }
 
     var availabilityKey: String { DefaultsKey.featureAvailable(rawValue) }
 
-    /// Availability read straight from defaults (registered true, so updates
-    /// change nothing for existing users).
+    var isBeta: Bool { self == .fanControl }
+
+    /// Availability read straight from defaults. Existing features stay
+    /// available on update; explicit beta opt-ins may start unavailable.
     var isAvailable: Bool {
         UserDefaults.standard.bool(forKey: availabilityKey)
     }
@@ -137,7 +141,9 @@ extension AppFeature {
         switch self {
         case .switcher: return [DefaultsKey.switcherEnabled]
         case .dockPreview: return [DefaultsKey.dockPreviewEnabled]
-        case .dockClick: return [DefaultsKey.dockClickMinimize, DefaultsKey.dockClickCycleWindows]
+        case .dockClick: return [DefaultsKey.dockClickMinimize,
+                                 DefaultsKey.dockClickHide,
+                                 DefaultsKey.dockClickCycleWindows]
         case .windowMaximizer: return [DefaultsKey.windowMaximizeEnabled]
         case .autoQuit: return [DefaultsKey.autoQuitEnabled]
         case .scrollInverter: return [DefaultsKey.scrollInverterEnabled]
@@ -164,7 +170,8 @@ extension AppFeature {
              .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
              .commandBar, .screenRecorder,
-             .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
+             .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
+             .fanControl:
             return []
         }
     }
@@ -206,7 +213,7 @@ extension AppFeature {
         case .clipboardHistory, .shelf, .urlCleaner,
              .soundOutputSwitcher, .musicBlock,
              .extraBrightness, .quickLauncher, .colorPicker, .micMute, .mediaTools,
-             .scratchpad, .monitorGPU, .monitorNetwork:
+             .scratchpad, .monitorGPU, .monitorNetwork, .fanControl:
             return []
         }
     }
@@ -233,11 +240,12 @@ extension AppFeature {
         allCases.filter { $0.group == group }
     }
 
-    /// Registered defaults: every feature ships available, so an update is a
-    /// no-op for existing users. Generated from allCases so a new case can
-    /// never be forgotten.
+    /// Registered defaults preserve existing features on update. Fan Control
+    /// is the exception: it ships uninstalled while it is in beta.
     static var availabilityDefaults: [String: Any] {
-        Dictionary(uniqueKeysWithValues: allCases.map { ($0.availabilityKey, true) })
+        Dictionary(uniqueKeysWithValues: allCases.map {
+            ($0.availabilityKey, $0 != .fanControl)
+        })
     }
 
     /// Features that are available, engaged and using `permission` right now.

@@ -143,25 +143,28 @@ final class WindowLayoutService: ObservableObject {
             if applied { lastActions[target.key] = .fullScreen }
             return applied ? finish(.success(restored: false)) : finish(.failure(.failed))
         }
-        guard let screen = bestScreen(for: target.frame) else {
+        let screens = NSScreen.screens
+        guard let screen = bestScreen(for: target.frame, screens: screens) else {
             return finish(.failure(.failed))
         }
         let currentRect = appKitFrame(fromAX: target.frame)
-        if action == .nextDisplay {
-            guard let destination = nextScreen(after: screen) else {
+        if action == .previousDisplay || action == .nextDisplay {
+            guard let destination = adjacentScreen(to: screen,
+                                                   screens: screens,
+                                                   movingForward: action == .nextDisplay) else {
                 return finish(.failure(.failed))
             }
-            let rect = WindowLayoutGeometry.rectForNextDisplay(current: currentRect,
-                                                               sourceVisibleFrame: screen.visibleFrame,
-                                                               destinationVisibleFrame: destination.visibleFrame)
+            let rect = WindowLayoutGeometry.rectForDisplay(current: currentRect,
+                                                           sourceVisibleFrame: screen.visibleFrame,
+                                                           destinationVisibleFrame: destination.visibleFrame)
             frameHistory.record(target.frame, for: target.key)
             if setFrame(axFrame(fromAppKit: rect),
                         targetRect: rect,
                         screenVisibleFrame: destination.visibleFrame,
-                        action: .nextDisplay,
+                        action: action,
                         on: target.window,
                         windowKey: target.key) {
-                lastActions[target.key] = .nextDisplay
+                lastActions[target.key] = action
                 return finish(.success(restored: false))
             }
             frameHistory.discardLatest(for: target.key)
@@ -202,8 +205,10 @@ final class WindowLayoutService: ObservableObject {
     private func focusedTarget() -> WindowLayoutTarget? {
         let ownBundleID = Bundle.main.bundleIdentifier
         let ownPID = ProcessInfo.processInfo.processIdentifier
+        let ownKeyWindow = NSApp.keyWindow
         let hasFocusedResizableOwnWindow = NSApp.isActive
-            && NSApp.keyWindow?.styleMask.contains(.resizable) == true
+            && ownKeyWindow?.styleMask.contains(.resizable) == true
+            && !(ownKeyWindow is NSPanel)
         let frontmost = hasFocusedResizableOwnWindow
             ? ownPID
             : NSWorkspace.shared.frontmostApplication?.processIdentifier
@@ -211,11 +216,13 @@ final class WindowLayoutService: ObservableObject {
             if !result.contains(pid) { result.append(pid) }
         }
 
+        guard let onScreenWindowIDs = onScreenWindowIDs() else { return nil }
         for pid in pids {
             let isFocusedOwnApp = pid == ownPID && hasFocusedResizableOwnWindow
             guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.processIdentifier == pid }),
                   isFocusedOwnApp
-                    || (app.activationPolicy == .regular && app.bundleIdentifier != ownBundleID)
+                    || (app.activationPolicy == .regular && !app.isHidden
+                        && app.bundleIdentifier != ownBundleID)
             else { continue }
             let axApp = AXUIElementCreateApplication(pid)
             // Bounded AX: a hung app in the MRU list must not stall the main
@@ -223,12 +230,16 @@ final class WindowLayoutService: ObservableObject {
             AXUIElementSetMessagingTimeout(axApp, 0.35)
             for attribute in [kAXFocusedWindowAttribute, kAXMainWindowAttribute] {
                 if let window = windowAttribute(axApp, attribute as String),
-                   let target = target(from: window, app: app) {
+                   let target = target(from: window,
+                                       app: app,
+                                       onScreenWindowIDs: onScreenWindowIDs) {
                     return target
                 }
             }
             if let windows = windowsAttribute(axApp),
-               let first = windows.compactMap({ target(from: $0, app: app) }).first {
+               let first = windows.compactMap({ target(from: $0,
+                                                        app: app,
+                                                        onScreenWindowIDs: onScreenWindowIDs) }).first {
                 return first
             }
         }
@@ -236,11 +247,15 @@ final class WindowLayoutService: ObservableObject {
     }
 
     private func target(from window: AXUIElement,
-                        app: NSRunningApplication) -> WindowLayoutTarget? {
+                        app: NSRunningApplication,
+                        onScreenWindowIDs: Set<CGWindowID>) -> WindowLayoutTarget? {
         guard role(of: window) == (kAXWindowRole as String),
               !boolAttribute(window, "AXFullScreen"),
+              !boolAttribute(window, kAXMinimizedAttribute as String),
+              stringAttribute(window, kAXSubroleAttribute as String) != "AXFloatingWindow",
               canSetFrame(on: window),
               let windowID = AXWindowResolver.windowID(for: window),
+              onScreenWindowIDs.contains(windowID),
               let frame = frame(of: window),
               frame.size.width > 80,
               frame.size.height > 80
@@ -251,6 +266,15 @@ final class WindowLayoutService: ObservableObject {
             windowID: windowID
         )
         return WindowLayoutTarget(window: window, key: key, frame: frame)
+    }
+
+    private func onScreenWindowIDs() -> Set<CGWindowID>? {
+        guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                                       kCGNullWindowID) as? [[String: Any]]
+        else { return nil }
+        return Set(windows.compactMap {
+            ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value
+        })
     }
 
     /// Removes histories whose process or window no longer exists. This runs
@@ -990,24 +1014,25 @@ final class WindowLayoutService: ObservableObject {
         return WindowLayoutFrame(origin: origin, size: size)
     }
 
-    private func bestScreen(for frame: WindowLayoutFrame) -> NSScreen? {
+    private func bestScreen(for frame: WindowLayoutFrame,
+                            screens: [NSScreen] = NSScreen.screens) -> NSScreen? {
         let appKitFrame = appKitFrame(fromAX: frame)
-        return NSScreen.screens.max { lhs, rhs in
+        return screens.max { lhs, rhs in
             lhs.frame.intersection(appKitFrame).area < rhs.frame.intersection(appKitFrame).area
-        } ?? NSScreen.main ?? NSScreen.screens.first
+        } ?? NSScreen.main ?? screens.first
     }
 
-    private func nextScreen(after current: NSScreen) -> NSScreen? {
-        let screens = NSScreen.screens.sorted {
-            if abs($0.frame.minX - $1.frame.minX) > 0.5 {
-                return $0.frame.minX < $1.frame.minX
-            }
-            return $0.frame.minY < $1.frame.minY
-        }
-        guard screens.count > 1,
-              let index = screens.firstIndex(where: { $0 === current })
+    private func adjacentScreen(to current: NSScreen,
+                                screens: [NSScreen],
+                                movingForward: Bool) -> NSScreen? {
+        guard let currentIndex = screens.firstIndex(where: { $0 === current }),
+              let destinationIndex = WindowLayoutGeometry.adjacentDisplayIndex(
+                currentIndex: currentIndex,
+                frames: screens.map(\.frame),
+                movingForward: movingForward
+              )
         else { return nil }
-        return screens[(index + 1) % screens.count]
+        return screens[destinationIndex]
     }
 
     private func axFrame(fromAppKit rect: NSRect) -> WindowLayoutFrame {
@@ -1042,6 +1067,13 @@ final class WindowLayoutService: ObservableObject {
               let value
         else { return false }
         return (value as? Bool) ?? false
+    }
+
+    private func stringAttribute(_ element: AXUIElement, _ attribute: String) -> String? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success
+        else { return nil }
+        return value as? String
     }
 
     private func windowAttribute(_ element: AXUIElement, _ attribute: String) -> AXUIElement? {

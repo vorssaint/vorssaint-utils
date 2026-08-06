@@ -13,19 +13,24 @@ struct HomebrewSettings: View {
     @State private var showOperationDetails = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            pageHeader
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-            Divider()
-            Group {
-                if homebrew.brewPath == nil {
-                    missingState
-                } else {
-                    content
+        GeometryReader { proxy in
+            VStack(spacing: 0) {
+                pageHeader
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                Divider()
+                Group {
+                    if homebrew.brewPath == nil {
+                        missingState
+                    } else {
+                        content
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            // A long package list must scroll inside its pane instead of
+            // expanding the whole split view beyond the Settings window.
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
         .onAppear {
             if homebrew.installed.isEmpty {

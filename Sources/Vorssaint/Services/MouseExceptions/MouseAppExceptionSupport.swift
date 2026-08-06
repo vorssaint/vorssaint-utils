@@ -105,4 +105,13 @@ enum MouseAppExceptionSupport {
         guard let bundleID, !exceptions.isEmpty else { return false }
         return exceptions.contains(bundleID)
     }
+
+    static func sourceProcessID(_ rawValue: Int64) -> Int32? {
+        guard rawValue > 0 else { return nil }
+        return Int32(exactly: rawValue)
+    }
+
+    static func isExcepted(_ bundleIDs: [String], exceptions: Set<String>) -> Bool {
+        bundleIDs.contains(where: exceptions.contains)
+    }
 }

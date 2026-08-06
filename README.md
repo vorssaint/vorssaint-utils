@@ -65,17 +65,17 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 
 ### Know what your Mac is doing
 
-- **System monitor.** CPU, GPU, memory pressure and temperatures with history graphs, plus battery health, time remaining, cycle count, power draw, the apps burning energy right now and a shortcut to the Mac's full process inspector.
-- **Menu bar readouts.** Keep the readings you care about in the bar itself, with values or compact usage bars, including optional battery time remaining, combined or as separate items.
+- **System monitor.** CPU, GPU, memory pressure and temperatures with history graphs, plus battery health, time remaining, cycle count, power draw, an optional Fan Control beta for temporary maximum cooling with automatic return, the apps burning energy right now and a shortcut to the Mac's full process inspector.
+- **Menu bar readouts.** Keep the readings you care about in the bar itself, with values or compact usage bars, including optional battery time remaining and fan speed, combined or as separate items.
 - **Network.** Live rates, session totals and a built in speed test.
 - **Alerts.** Optional notifications for sustained CPU load, high temperature, memory pressure, low disk space and low battery.
 
 ### Windows and the Dock
 
-- **App switcher.** A richer take on pressing ⌘Tab, with adjustable live window thumbnails, minimized windows included, and more than one window per app. Press the window shortcut directly to move between windows of the app in front. Choose apps where Vorssaint pauses both switcher and Dock thumbnail capture while they are in front.
-- **Window layout.** Snap the active window to halves, thirds, sixths, corners, center or another display, each with its own optional shortcut. Restore steps back through recent placements. On a trackpad or mouse, hold chosen modifiers and drag anywhere to move a window, then add Shift to resize it. A mouse can also resize with the right button.
-- **Dock Preview.** Hover a Dock icon to peek at that app's windows and jump straight into the right one.
-- **Dock clicks.** Click the Dock icon of the active app to minimize its windows, or cycle through them one by one.
+- **App switcher.** A richer take on pressing ⌘Tab, with adjustable live window thumbnails, minimized windows included, and more than one window per app. Press the window shortcut directly to move between windows of the app in front. Set per-app rules to include windowless apps, keep them window-only or hide them. Choose apps where Vorssaint pauses both switcher and Dock thumbnail capture while they are in front.
+- **Window layout.** Snap the active window to halves, thirds, sixths, corners or center, or move it to the next or previous display, each with its own optional shortcut. Restore steps back through recent placements. On a trackpad or mouse, hold chosen modifiers and drag anywhere to move a window, then add Shift to resize it. A mouse can also resize with the right button.
+- **Dock Preview.** Hover a Dock icon to see that app's windows, then click the one you want.
+- **Dock clicks.** Click the Dock icon of the active app to minimize its windows, hide the app, or cycle through its windows.
 - **Maximize windows.** The green button fills the screen without creating another Space, and puts the window back on the next click.
 - **Quit on close.** Apps you choose quit when their last window closes.
 
@@ -89,9 +89,9 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Smooth scrolling.** Gives a mouse wheel the glide of a trackpad.
 - **Scroll direction.** Invert the wheel without touching the trackpad's natural scrolling.
 - **Side buttons.** The mouse Back and Forward buttons start meaning it, in Finder, browsers and compatible apps.
-- **Mouse button shortcuts.** Give any extra mouse button a key combination of your choice. Click add, press the button, record the keys.
+- **Mouse button shortcuts.** Give any extra button or side-wheel direction a key combination of your choice. Click add, use it, record the keys.
 - **Middle click.** A three finger press becomes a real middle click.
-- **Apps to leave alone.** Every feature above can name apps that drive themselves with the mouse, like 3D and design tools, and it steps aside in those.
+- **Apps to leave alone.** Every feature above can name apps from anywhere on your Mac that drive themselves with the mouse, like 3D and design tools, and it steps aside in those.
 - **Key debounce.** Filters the double letters a worn keyboard invents.
 - **Super key.** Hold Caps Lock and it counts as Shift, Control, Option and Command together, so the shortcuts you build on it never fight with the ones apps already use. A tap on its own can still switch capitals, press Escape, or do nothing.
 
@@ -109,16 +109,16 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Quick panel.** ⌃⌘V opens a small floating palette with your favorite tools one key away.
 - **Quick toggles.** One-click system actions in their own panel tab: switch light and dark mode, empty the Trash, eject every disk, show hidden files, hide desktop icons, lock the screen and more.
 - **Radial menu.** Hold a shortcut, or a spare side mouse button, and a wheel of your favorite actions opens around the pointer: apps, files, links, key combos, media controls and Vorssaint tools, with submenus for more. Point and release to run one.
-- **Screenshot.** Capture an area, a window or the whole screen on a frozen picture, or join a long page or document into one image and stop exactly where you want. A quick preview can copy, save, delete or open the editor, which adds stickers, annotations, precise crop, redaction, adjustable backgrounds and pinned captures. The preview and editor can share a capture for 1, 6 or 24 hours and delete it early from the app. A QR code in the shot shows its content to copy or open, from the preview and the editor. Optional timer, save folder and 1x export included. Captures can copy themselves to the clipboard, run your favorite action right after the shot, save into dated subfolders with a file name pattern of your own, and use separate shortcuts for a whole-screen shot or reopening the latest capture.
-- **Screen recording.** Record an area, a window or the whole screen with optional system sound. The editor trims, cuts, smooths the pointer, adds automatic zooms that can stay with typing after a click, adds text and adjustable backgrounds, and saves reusable presets. Copy the finished video directly, copy and delete in one step, or export video and GIF files to the folder you choose.
+- **Screenshot.** Capture an area, a window or the whole screen on a frozen picture, or join a long page or document into one image and stop exactly where you want. It can include ordinary Vorssaint windows without showing its own capture controls. Its quick preview can stay near the shot or in any screen corner, and can copy, save, delete or open the editor, which adds stickers, annotations, precise crop, redaction, adjustable backgrounds and pinned captures. The preview and editor can share a capture for 1, 6 or 24 hours and delete it early from the app. A QR code in the shot shows its content to copy or open, from the preview and the editor. Optional timer, save folder and 1x export included. Captures can copy themselves to the clipboard, run your favorite action right after the shot, save into dated subfolders with a file name pattern of your own, and use separate shortcuts for a whole-screen shot or reopening the latest capture.
+- **Screen recording.** Record an area, a window or the whole screen with optional system sound. Vorssaint windows can be selected like any other while recording controls stay out. The editor trims, cuts, smooths the pointer, adds automatic zooms that can stay with typing after a click, adds text and adjustable backgrounds, and saves reusable presets. Copy the finished video directly, copy and delete in one step, or export video and GIF files to the folder you choose.
 - **Camera preview.** A floating mirror to check how you look before joining a call, one click or shortcut away. Pick the camera when several are connected; it closes as soon as you click away.
-- **Scratchpad.** A floating pad for short-lived text: meeting notes, numbers, fragments on their way somewhere else. It saves as you type, steps aside when you click elsewhere (or stays floating, your call), and can copy everything, export to a file or clear itself after a quiet period.
+- **Scratchpad.** Floating pads in named tabs for short-lived text: meeting notes, numbers, fragments on their way somewhere else. They save as you type, step aside when you click elsewhere (or stay floating, your call), and can copy everything, export to a file or clear themselves after a quiet period.
 - **Copy text from screen.** Select any area and its text is recognized offline, straight onto the clipboard. When the area holds a QR code, its content is shown so you can copy it or open the link.
 - **Color picker.** Grab any pixel with the system loupe as HEX, RGB, HSL or SwiftUI code.
 - **App updates.** One list of the apps on your Mac that have a newer version, from Homebrew and from the App Store. Tick the ones you want and they update together, so you stop opening a different store for each app. It can also check in the background and tell you when something is waiting.
 - **Cleaner.** Sweeps app leftovers, caches and logs, by hand or on a schedule.
 - **Messaging downloads.** The Cleaner can also tidy the media a messaging app saves into Downloads, confirmed by macOS metadata and only ever moved to the Trash, with a review list, retention rules and an optional organizer that files new ones into a folder of your choice.
-- **Uninstaller.** Drop an app in and take its caches, preferences and logs to the Trash with it.
+- **Uninstaller.** Drop an app in and take its verified caches, preferences, helpers and other leftovers to the Trash with it.
 - **Media tools.** Compress videos and images, make GIFs and extract text, all locally.
 - **Homebrew manager.** Search, install and remove formulae and casks without opening a terminal.
 - **Cleaning Mode.** Locks the keyboard and blacks out every display while you clean.

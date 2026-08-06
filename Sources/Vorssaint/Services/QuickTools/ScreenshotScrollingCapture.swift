@@ -41,13 +41,18 @@ enum ScreenshotScrollingCapture {
 
     static func capture(region: RecorderSupport.Region,
                         includePointer: Bool,
+                        hideVorssaintWindows: Bool,
+                        protectedWindowIDs: Set<CGWindowID>,
                         finishSignal: FinishSignal,
                         targetPID: pid_t) async -> Result {
         do {
             try await Task.sleep(nanoseconds: 140_000_000)
             try Task.checkCancellation()
 
-            guard let first = await capturedRegion(region, includePointer: includePointer)
+            guard let first = await capturedRegion(region,
+                                                   includePointer: includePointer,
+                                                   hideVorssaintWindows: hideVorssaintWindows,
+                                                   protectedWindowIDs: protectedWindowIDs)
             else { return .failed }
             try Task.checkCancellation()
             guard let firstSample = sample(first) else { return .failed }
@@ -78,7 +83,10 @@ enum ScreenshotScrollingCapture {
                 try await Task.sleep(nanoseconds: 360_000_000)
                 try Task.checkCancellation()
 
-                guard var current = await capturedRegion(region, includePointer: includePointer)
+                guard var current = await capturedRegion(region,
+                                                         includePointer: includePointer,
+                                                         hideVorssaintWindows: hideVorssaintWindows,
+                                                         protectedWindowIDs: protectedWindowIDs)
                 else { return .failed }
                 try Task.checkCancellation()
                 guard var currentSample = sample(current) else { return .failed }
@@ -92,8 +100,11 @@ enum ScreenshotScrollingCapture {
                 if transition == .unmatched {
                     try await Task.sleep(nanoseconds: 180_000_000)
                     try Task.checkCancellation()
-                    guard let settled = await capturedRegion(region,
-                                                             includePointer: includePointer)
+                    guard let settled = await capturedRegion(
+                        region,
+                        includePointer: includePointer,
+                        hideVorssaintWindows: hideVorssaintWindows,
+                        protectedWindowIDs: protectedWindowIDs)
                     else { return .failed }
                     try Task.checkCancellation()
                     guard let settledSample = sample(settled) else { return .failed }
@@ -167,11 +178,15 @@ enum ScreenshotScrollingCapture {
     }
 
     private static func capturedRegion(_ region: RecorderSupport.Region,
-                                       includePointer: Bool) async -> CGImage? {
+                                       includePointer: Bool,
+                                       hideVorssaintWindows: Bool,
+                                       protectedWindowIDs: Set<CGWindowID>) async -> CGImage? {
         await ScreenshotCaptureEngine.captureDisplayRegion(
             displayID: region.displayID,
             pixelRect: region.pixelRect,
-            includePointer: includePointer)
+            includePointer: includePointer,
+            hideVorssaintWindows: hideVorssaintWindows,
+            protectedWindowIDs: protectedWindowIDs)
     }
 
     /// Resolve the app beneath the chosen area before our progress HUD appears.

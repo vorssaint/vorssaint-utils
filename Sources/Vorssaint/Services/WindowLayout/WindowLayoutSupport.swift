@@ -10,7 +10,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
     case topLeftSixth, topCenterSixth, topRightSixth
     case bottomLeftSixth, bottomCenterSixth, bottomRightSixth
     case topLeft, topRight, bottomLeft, bottomRight
-    case maximize, fullScreen, center, nextDisplay, restore
+    case maximize, fullScreen, center, previousDisplay, nextDisplay, restore
 
     var id: String { rawValue }
 
@@ -20,7 +20,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         .topLeftSixth, .topCenterSixth, .topRightSixth,
         .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
         .topLeft, .topRight, .bottomLeft, .bottomRight,
-        .maximize, .fullScreen, .center, .restore, .nextDisplay,
+        .maximize, .fullScreen, .center, .restore, .previousDisplay, .nextDisplay,
     ]
 
     var supportsShortcut: Bool {
@@ -53,6 +53,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .bottomCenterSixth: return 51
         case .bottomRightSixth: return 52
         case .fullScreen: return 53
+        case .previousDisplay: return 54
         }
     }
 
@@ -80,6 +81,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .rightThird: return DefaultsKey.windowLayoutShortcutRightThird
         case .leftTwoThirds: return DefaultsKey.windowLayoutShortcutLeftTwoThirds
         case .rightTwoThirds: return DefaultsKey.windowLayoutShortcutRightTwoThirds
+        case .previousDisplay: return DefaultsKey.windowLayoutShortcutPreviousDisplay
         case .nextDisplay: return DefaultsKey.windowLayoutShortcutNextDisplay
         case .topLeftSixth: return DefaultsKey.windowLayoutShortcutTopLeftSixth
         case .topCenterSixth: return DefaultsKey.windowLayoutShortcutTopCenterSixth
@@ -114,9 +116,8 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .nextDisplay: return .windowLayoutNextDisplayDefault
         case .topLeftSixth, .topCenterSixth, .topRightSixth,
                 .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
-                // Native full screen starts unassigned like the sixths: a new
-                // action must never claim a system-wide combination unasked.
-                .fullScreen:
+                .fullScreen, .previousDisplay:
+            // New actions must never claim a system-wide combination unasked.
             return nil
         }
     }
@@ -182,6 +183,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .bottomLeftSixth: return text.bottomLeftSixth
         case .bottomCenterSixth: return text.bottomCenterSixth
         case .bottomRightSixth: return text.bottomRightSixth
+        case .previousDisplay: return text.previousDisplay
         case .nextDisplay: return text.nextDisplay
         }
     }
@@ -207,6 +209,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .maximize: return "arrow.up.left.and.arrow.down.right"
         case .fullScreen: return "rectangle.fill"
         case .center: return "scope"
+        case .previousDisplay: return "arrow.left.to.line"
         case .nextDisplay: return "arrow.right.to.line"
         case .restore: return "arrow.uturn.backward"
         }
@@ -298,7 +301,7 @@ enum WindowLayoutGeometry {
                           y: visibleFrame.midY - height / 2,
                           width: width,
                           height: height).integral
-        case .nextDisplay:
+        case .previousDisplay, .nextDisplay:
             return current.integral
         case .restore:
             return current.integral
@@ -312,7 +315,8 @@ enum WindowLayoutGeometry {
                              targetRect: CGRect,
                              actualSize: CGSize,
                              visibleFrame: CGRect) -> CGRect {
-        guard action != .maximize, action != .restore, action != .nextDisplay,
+        guard action != .maximize, action != .restore,
+              action != .previousDisplay, action != .nextDisplay,
               action != .fullScreen else { return targetRect.integral }
 
         let size = CGSize(width: max(1, actualSize.width),
@@ -374,7 +378,7 @@ enum WindowLayoutGeometry {
         case .center:
             origin.x = targetRect.midX - size.width / 2
             origin.y = targetRect.midY - size.height / 2
-        case .maximize, .nextDisplay, .restore, .fullScreen:
+        case .maximize, .previousDisplay, .nextDisplay, .restore, .fullScreen:
             break
         }
 
@@ -479,7 +483,7 @@ enum WindowLayoutGeometry {
         case .center:
             return abs(actualRect.midX - targetRect.midX) <= anchorTolerance
                 && abs(actualRect.midY - targetRect.midY) <= anchorTolerance
-        case .nextDisplay:
+        case .previousDisplay, .nextDisplay:
             return overlap > 0.72
         case .restore:
             return false
@@ -488,9 +492,9 @@ enum WindowLayoutGeometry {
         }
     }
 
-    static func rectForNextDisplay(current: CGRect,
-                                   sourceVisibleFrame: CGRect,
-                                   destinationVisibleFrame: CGRect) -> CGRect {
+    static func rectForDisplay(current: CGRect,
+                               sourceVisibleFrame: CGRect,
+                               destinationVisibleFrame: CGRect) -> CGRect {
         guard sourceVisibleFrame.width > 0,
               sourceVisibleFrame.height > 0,
               destinationVisibleFrame.width > 0,
@@ -510,6 +514,24 @@ enum WindowLayoutGeometry {
         let y = min(max(unclampedY, destinationVisibleFrame.minY), destinationVisibleFrame.maxY - height)
 
         return CGRect(x: x, y: y, width: width, height: height).integral
+    }
+
+    static func adjacentDisplayIndex(currentIndex: Int,
+                                     frames: [CGRect],
+                                     movingForward: Bool) -> Int? {
+        guard frames.count > 1, frames.indices.contains(currentIndex) else { return nil }
+        let ordered = frames.indices.sorted { lhsIndex, rhsIndex in
+            let lhs = frames[lhsIndex]
+            let rhs = frames[rhsIndex]
+            if lhs.minX != rhs.minX { return lhs.minX < rhs.minX }
+            if lhs.minY != rhs.minY { return lhs.minY < rhs.minY }
+            if lhs.width != rhs.width { return lhs.width < rhs.width }
+            if lhs.height != rhs.height { return lhs.height < rhs.height }
+            return lhsIndex < rhsIndex
+        }
+        guard let position = ordered.firstIndex(of: currentIndex) else { return nil }
+        let destination = (position + (movingForward ? 1 : ordered.count - 1)) % ordered.count
+        return ordered[destination]
     }
 
     private static func area(_ rect: CGRect) -> CGFloat {

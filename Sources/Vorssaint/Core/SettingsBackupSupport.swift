@@ -30,6 +30,7 @@ enum SettingsBackupSupport {
         DefaultsKey.shelfEnabled,
         DefaultsKey.finderCutPasteEnabled,
         DefaultsKey.textSnippets,
+        DefaultsKey.scratchpadDocument,
         DefaultsKey.radialMenuItems,
         DefaultsKey.commandBarLinks,
         DefaultsKey.commandBarRowShortcuts,
@@ -106,6 +107,8 @@ enum SettingsBackupSupport {
         DefaultsKey.settingsWindowWidth,
         DefaultsKey.settingsWindowHeight,
         DefaultsKey.screenshotSharingDeveloperEndpoint,
+        DefaultsKey.fanControlRecoveryNeeded,
+        DefaultsKey.fanControlHelperVersion,
     ]
 
     /// The file's content: an envelope with the format version, the app
@@ -144,6 +147,9 @@ enum SettingsBackupSupport {
     /// switch belongs, or text where a number belongs, would otherwise reach
     /// code that trusts its own settings.
     static func valueLooksRight(_ key: String, _ value: Any) -> Bool {
+        if key == DefaultsKey.scratchpadDocument {
+            return ScratchpadDocument.decoded(value as? Data, defaultName: "Scratchpad") != nil
+        }
         guard let expected = Defaults.registeredDefaults[key] else {
             // Not a registered setting, so there is nothing to compare
             // against; the allowed list is the only gate for these.
