@@ -965,6 +965,8 @@ struct UtilitiesSection: View {
 }
 
 private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
+    case mouseScroll, mouseNavigation, switcher, cutPaste, finderDeleteShortcuts, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
+         dockClick, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts, superKey
     case mouseScroll, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
          dockClick, dockClickHide, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts, superKey
 
@@ -978,6 +980,7 @@ private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
         case .mouseNavigation: return .mouseNavigation
         case .switcher: return .switcher
         case .cutPaste: return .finderCutPaste
+        case .finderDeleteShortcuts: return .finderDeleteShortcuts
         case .autoQuit: return .autoQuit
         case .shelf: return .shelf
         case .windowMaximize: return .windowMaximizer
@@ -1007,7 +1010,7 @@ private enum ControlCategory: String, CaseIterable, Identifiable {
         case .mouseScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
              .textSnippets, .radialMenu, .superKey:
             return .inputDevices
-        case .cutPaste, .shelf:
+        case .cutPaste, .finderDeleteShortcuts, .shelf:
             return .files
         }
     }
@@ -1033,6 +1036,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.switcherSimpleMode) private var switcherSimpleMode = false
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
     @AppStorage(DefaultsKey.finderCutPasteEnabled) private var cutPasteEnabled = false
+    @AppStorage(DefaultsKey.finderDeleteShortcutsEnabled) private var finderDeleteShortcutsEnabled = false
     @AppStorage(DefaultsKey.autoQuitEnabled) private var autoQuitEnabled = false
     @AppStorage(DefaultsKey.shelfEnabled) private var shelfEnabled = false
     @AppStorage(DefaultsKey.windowMaximizeEnabled) private var windowMaximizeEnabled = false
@@ -1051,6 +1055,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.panelControlSwitcher) private var showSwitcher = true
     @AppStorage(DefaultsKey.panelControlDockPreview) private var showDockPreview = true
     @AppStorage(DefaultsKey.panelControlCutPaste) private var showCutPaste = true
+    @AppStorage(DefaultsKey.panelControlFinderDeleteShortcuts) private var showFinderDeleteShortcuts = true
     @AppStorage(DefaultsKey.panelControlAutoQuit) private var showAutoQuit = true
     @AppStorage(DefaultsKey.panelControlShelf) private var showShelf = true
     @AppStorage(DefaultsKey.panelControlWindowMaximize) private var showWindowMaximize = true
@@ -1166,6 +1171,7 @@ struct QuickControlsSection: View {
         case .mouseNavigation: return mouseNavigationEnabled
         case .switcher: return switcherEnabled
         case .cutPaste: return cutPasteEnabled
+        case .finderDeleteShortcuts: return finderDeleteShortcutsEnabled
         case .autoQuit: return autoQuitEnabled
         case .shelf: return shelfEnabled
         case .windowMaximize: return windowMaximizeEnabled
@@ -1241,6 +1247,7 @@ struct QuickControlsSection: View {
         case .switcher: return showSwitcher
         case .keyDebounce: return showKeyDebounce
         case .cutPaste: return showCutPaste
+        case .finderDeleteShortcuts: return showFinderDeleteShortcuts
         case .autoQuit: return showAutoQuit
         case .shelf: return showShelf
         case .windowMaximize: return showWindowMaximize
@@ -1351,6 +1358,41 @@ struct QuickControlsSection: View {
                     FinderCutPaste.shared.syncWithPreferences()
                     requestAccessibilityIfNeeded(enabled)
                 }
+        case .finderDeleteShortcuts:
+            VStack(alignment: .leading, spacing: 5) {
+                PanelToggleRow(title: FeatureStrings.hub(l10n.language).nameFinderDeleteShortcuts,
+                               caption: caption(FeatureStrings.hub(l10n.language).descFinderDeleteShortcuts, needsAccessibility: finderDeleteShortcutsEnabled),
+                               systemImage: "trash",
+                               isOn: $finderDeleteShortcutsEnabled,
+                               isEditing: editing,
+                               showsDragHandle: true,
+                               visibility: $showFinderDeleteShortcuts,
+                               needsAttention: finderDeleteShortcutsEnabled && !permissions.accessibility,
+                               permissionButtonTitle: l10n.s.permissionRequest,
+                               permissionAction: accessibilityPermissionAction(finderDeleteShortcutsEnabled))
+                    .onChange(of: finderDeleteShortcutsEnabled) { _, enabled in
+                        FinderDeleteShortcuts.shared.syncWithPreferences()
+                        requestAccessibilityIfNeeded(enabled)
+                    }
+                if finderDeleteShortcutsEnabled && !editing {
+                    VStack(spacing: 5) {
+                        ShortcutPreferenceRow(role: .finderDelete,
+                                              isEnabled: finderDeleteShortcutsEnabled,
+                                              label: FeatureStrings.hub(l10n.language).shortcutFinderDelete,
+                                              onChange: {})
+                        ShortcutPreferenceRow(role: .finderRevert,
+                                              isEnabled: finderDeleteShortcutsEnabled,
+                                              label: FeatureStrings.hub(l10n.language).shortcutFinderRevert,
+                                              onChange: {})
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color.primary.opacity(0.04))
+                    )
+                }
+            }
         case .autoQuit:
             PanelToggleRow(title: l10n.s.autoQuitName,
                            caption: caption(l10n.s.autoQuitEnableCaption, needsAccessibility: autoQuitEnabled),
@@ -1597,6 +1639,7 @@ struct QuickControlsSection: View {
         showMouseNavigation = true
         showSwitcher = true
         showCutPaste = true
+        showFinderDeleteShortcuts = true
         showAutoQuit = true
         showShelf = true
         showWindowMaximize = true

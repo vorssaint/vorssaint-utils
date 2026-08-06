@@ -236,10 +236,17 @@ struct SystemSection: View {
         if expanded == kind {
             VStack(alignment: .leading, spacing: 4) {
                 if breakdownRows.isEmpty {
-                    Text(breakdownIsLoading ? l10n.s.breakdownMeasuring : emptyBreakdownText(for: kind))
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.tertiary)
-                        .padding(.leading, 38)
+                    if breakdownIsLoading {
+                        Text(l10n.s.breakdownMeasuring)
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.tertiary)
+                            .padding(.leading, 38)
+                    } else if kind == .energy {
+                        Text(l10n.s.energyAppsIdle)
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.tertiary)
+                            .padding(.leading, 38)
+                    }
                 } else {
                     ForEach(breakdownRows) { row in
                         ProcessUsageRow(row: row,
@@ -250,10 +257,6 @@ struct SystemSection: View {
                 }
             }
         }
-    }
-
-    private func emptyBreakdownText(for kind: BreakdownKind) -> String {
-        kind == .energy ? l10n.s.energyAppsIdle : l10n.s.breakdownMeasuring
     }
 
     private func breakdownValue(_ row: ProcessUsage, for kind: BreakdownKind) -> String {
@@ -277,23 +280,38 @@ struct SystemSection: View {
                         PanelInlineHideButton(isVisible: $sysTemps)
                     }
                 }
-                HStack(spacing: 8) {
-                    if cpuAvailable {
-                        temperatureCell(icon: "cpu", label: l10n.s.cpuLabel,
-                                        value: monitor.snapshot.cpuTemperature)
+                
+                let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 3)
+                LazyVGrid(columns: columns, spacing: 8) {
+                    if cpuAvailable, let value = monitor.snapshot.cpuTemperature {
+                        temperatureCell(icon: "cpu", label: l10n.s.cpuLabel, value: value)
                     }
-                    if gpuAvailable {
-                        temperatureCell(icon: "memorychip", label: l10n.s.gpuLabel,
-                                        value: monitor.snapshot.gpuTemperature)
+                    if gpuAvailable, let value = monitor.snapshot.gpuTemperature {
+                        temperatureCell(icon: "memorychip", label: l10n.s.gpuLabel, value: value)
                     }
+                    if powerAvailable, let value = monitor.snapshot.batteryTemperature {
+                        temperatureCell(icon: "battery.100", label: l10n.s.batteryLabel, value: value)
+                    }
+                    if let value = monitor.snapshot.ssdTemperature {
+                        temperatureCell(icon: "internaldrive", label: "SSD", value: value)
+                    }
+                    if let value = monitor.snapshot.memoryTemperature {
+                        temperatureCell(icon: "memorychip.fill", label: "RAM", value: value)
+                    }
+                    if let value = monitor.snapshot.fanSpeed {
+                        fanCell(icon: "fanblades", label: "Fan", value: value)
                     if batteryAvailable {
                         temperatureCell(icon: "battery.100", label: l10n.s.batteryLabel,
                                         value: monitor.snapshot.batteryTemperature)
                     }
                 }
+                
                 if monitor.snapshot.cpuTemperature == nil,
                    monitor.snapshot.gpuTemperature == nil,
-                   monitor.snapshot.batteryTemperature == nil {
+                   monitor.snapshot.batteryTemperature == nil,
+                   monitor.snapshot.ssdTemperature == nil,
+                   monitor.snapshot.memoryTemperature == nil,
+                   monitor.snapshot.fanSpeed == nil {
                     Text(l10n.s.monitorUnavailable)
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
@@ -302,7 +320,7 @@ struct SystemSection: View {
         }
     }
 
-    private func temperatureCell(icon: String, label: String, value: Double?) -> some View {
+    private func temperatureCell(icon: String, label: String, value: Double) -> some View {
         VStack(spacing: 3) {
             HStack(spacing: 4) {
                 Image(systemName: icon)
@@ -312,16 +330,34 @@ struct SystemSection: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }
-            Text(value.map { MetricFormat.temperature($0, unit: displayTemperatureUnit) } ?? "-")
+            Text(MetricFormat.temperature(value, unit: displayTemperatureUnit))
                 .font(.system(size: 15, weight: .semibold, design: .rounded))
                 .monospacedDigit()
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(Color.primary.opacity(0.045))
-        )
+        .background(Color.secondary.opacity(0.08))
+        .cornerRadius(6)
+    }
+
+    private func fanCell(icon: String, label: String, value: Double) -> some View {
+        VStack(spacing: 3) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                Text(label)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+            Text("\(Int(value)) RPM")
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
+        .background(Color.secondary.opacity(0.08))
+        .cornerRadius(6)
     }
 
     private var displayTemperatureUnit: TemperatureUnit {

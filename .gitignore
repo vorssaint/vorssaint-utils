@@ -25,3 +25,12 @@ E2E/
 *.xcodeproj
 xcuserdata/
 .swiftpm/
+
+# IDEs / Editor
+.vscode/
+.idea/
+*.swp
+*~
+test.swift
+test_*
+test

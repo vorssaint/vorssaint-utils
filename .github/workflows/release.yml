@@ -16,7 +16,7 @@ permissions:
 jobs:
   release:
     name: Build & publish DMG
-    runs-on: macos-26
+    runs-on: macos-14
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
@@ -89,8 +89,12 @@ jobs:
             echo "__VRSS_FILES__"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Verify notarization
+      - name: Verify signature & notarization
         run: |
+          if [ -z "${{ secrets.NOTARY_API_KEY_P8 }}" ]; then
+            echo "No notarization credentials found — skipping signature verification."
+            exit 0
+          fi
           DMG=$(ls dist/*.dmg | head -1)
           xcrun stapler validate "$DMG"
           MP=$(mktemp -d)

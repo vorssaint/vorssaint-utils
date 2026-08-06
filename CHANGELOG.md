@@ -4,7 +4,26 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [3.3.2]
+
+Vorssaint 3.3.2 improves hardware monitoring and sensor compatibility.
+
+- **System Monitor**:
+  - Added support for reading and displaying NVMe SSD, HDD, and Memory temperatures.
+  - Added support for displaying Fan speeds (RPM) alongside other temperatures.
+  - Improved compatibility with Hackintosh systems and specific Intel/Apple Silicon configurations by cleanly hiding any unsupported sensors instead of displaying unavailable or placeholder states.
+
 ## [3.3.1]
+
+### Added
+- Added Finder Delete Shortcuts (Delete with Backspace and Revert with Shift+Backspace).
+
+### Fixed
+- Fixed an issue where GPU usage would not display on certain hardware configurations.
+- Fixed a crash related to missing SMC keys when reading fan speeds.
+- Improved the reliability of battery metrics readings by adding fallback IORegistry keys.
+- Fixed alignment of the Finder Delete Shortcuts in the Menu Panel.
+- Translated Finder Delete Shortcuts to all supported languages.
 
 ### Summary
 Vorssaint 3.3.1 adds optional Fan Control, per-app Switcher rules, screenshot controls,

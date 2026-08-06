@@ -338,9 +338,15 @@ struct MetricDetailView: View {
                 ActivityMonitorButton()
             }
             if processRows.isEmpty {
-                Text(processRowsLoading ? l10n.s.breakdownMeasuring : emptyProcessText)
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(.tertiary)
+                if processRowsLoading {
+                    Text(l10n.s.breakdownMeasuring)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.tertiary)
+                } else if !emptyProcessText.isEmpty {
+                    Text(emptyProcessText)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.tertiary)
+                }
             } else {
                 ForEach(processRows) { row in
                     ProcessUsageRow(row: row, value: processValue(row))
@@ -354,16 +360,22 @@ struct MetricDetailView: View {
         let snapshot = monitor.snapshot
         switch kind {
         case .cpu:
-            return [
+            var rows = [
                 row(l10n.s.usageSection, snapshot.cpuUsage.map(MetricFormat.percent) ?? l10n.s.networkMeasuring),
-                row(l10n.s.temperatures, snapshot.cpuTemperature.map(formatTemperature) ?? l10n.s.monitorUnavailable),
-                row(l10n.s.systemUptime, SystemSection.uptimeString()),
             ]
+            if let temp = snapshot.cpuTemperature {
+                rows.append(row(l10n.s.temperatures, formatTemperature(temp)))
+            }
+            rows.append(row(l10n.s.systemUptime, SystemSection.uptimeString()))
+            return rows
         case .gpu:
-            return [
+            var rows = [
                 row(l10n.s.usageSection, snapshot.gpuUsage.map(MetricFormat.percent) ?? l10n.s.networkMeasuring),
-                row(l10n.s.temperatures, snapshot.gpuTemperature.map(formatTemperature) ?? l10n.s.monitorUnavailable),
             ]
+            if let temp = snapshot.gpuTemperature {
+                rows.append(row(l10n.s.temperatures, formatTemperature(temp)))
+            }
+            return rows
         case .memory:
             let metric = MonitorMemoryMetric.current
             let memoryValue = metric.value(in: snapshot)
@@ -394,6 +406,15 @@ struct MetricDetailView: View {
             ]
         case .battery:
             let power = snapshot.power
+            var rows = [
+                row(l10n.s.batteryCharge, power?.chargePercent.map { "\($0)%" } ?? l10n.s.networkMeasuring),
+                row(l10n.s.powerBattery, batteryFlowText(power)),
+            ]
+            if let temp = snapshot.batteryTemperature {
+                rows.append(row(l10n.s.temperatures, formatTemperature(temp)))
+            }
+            rows.append(row(l10n.s.powerHealth, power?.healthPercent.map { "\(Int($0.rounded()))%" } ?? "-"))
+            rows.append(row(l10n.s.powerCycles, power?.cycleCount.map(String.init) ?? "-"))
             var rows: [MetricDetailRow] = []
             if PowerSampler.hasInternalBattery {
                 rows.append(contentsOf: [
@@ -526,9 +547,9 @@ struct MetricDetailView: View {
 
     private var emptyProcessText: String {
         switch kind {
-        case .power: return l10n.s.energyAppsIdle
+        case .battery, .power: return l10n.s.energyAppsIdle
         case .network: return l10n.s.networkAppsIdle
-        default: return l10n.s.breakdownMeasuring
+        default: return ""
         }
     }
 

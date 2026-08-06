@@ -480,22 +480,26 @@ final class MediaService: ObservableObject {
         }
     }
 
+    private class ResultBox<T> {
+        var result: Result<T, Error>?
+    }
+
     private func generateCGImage(from generator: AVAssetImageGenerator,
                                  at time: CMTime) throws -> CGImage {
         let semaphore = DispatchSemaphore(value: 0)
-        var result: Result<CGImage, Error>?
+        let box = ResultBox<CGImage>()
 
         generator.generateCGImageAsynchronously(for: time) { image, _, error in
             if let image {
-                result = .success(image)
+                box.result = .success(image)
             } else {
-                result = .failure(error ?? MediaFailureBox(.failed("Video frame unavailable.")))
+                box.result = .failure(error ?? MediaFailureBox(.failed("Video frame unavailable.")))
             }
             semaphore.signal()
         }
 
         semaphore.wait()
-        guard let result else {
+        guard let result = box.result else {
             throw MediaFailureBox(.failed("Video frame unavailable."))
         }
         return try result.get()
@@ -503,19 +507,19 @@ final class MediaService: ObservableObject {
 
     private func runAsync<T>(_ operation: @escaping () async throws -> T) throws -> T {
         let semaphore = DispatchSemaphore(value: 0)
-        var result: Result<T, Error>?
+        let box = ResultBox<T>()
 
         Task {
             do {
-                result = .success(try await operation())
+                box.result = .success(try await operation())
             } catch {
-                result = .failure(error)
+                box.result = .failure(error)
             }
             semaphore.signal()
         }
 
         semaphore.wait()
-        guard let result else {
+        guard let result = box.result else {
             throw MediaFailureBox(.failed("Video metadata unavailable."))
         }
         return try result.get()

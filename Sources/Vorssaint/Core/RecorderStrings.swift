@@ -238,7 +238,7 @@ extension RecorderFeatureStrings {
         zoomEmptyCaption: "Create them from your clicks or add one on the timeline.",
         createAutomaticZooms: "Create automatic zooms",
         typingZoomToggle: "Keep zoomed in while typing",
-        typingZoomCaption: "After a click, typing keeps the automatic zoom on that spot.",
+        typingZoomCaption: "After a click, typing keeps the automatic zoom on that spot."
     )
 
     static let ptBR = RecorderFeatureStrings(
@@ -346,7 +346,7 @@ extension RecorderFeatureStrings {
         zoomEmptyCaption: "Crie a partir dos seus cliques ou adicione um na linha do tempo.",
         createAutomaticZooms: "Criar zooms automáticos",
         typingZoomToggle: "Manter o zoom ao digitar",
-        typingZoomCaption: "Depois de um clique, a digitação mantém o zoom automático naquele ponto.",
+        typingZoomCaption: "Depois de um clique, a digitação mantém o zoom automático naquele ponto."
     )
 
     static let tr = RecorderFeatureStrings(
@@ -454,7 +454,7 @@ extension RecorderFeatureStrings {
         zoomEmptyCaption: "Tıklamalarınızdan oluşturun veya zaman çizelgesine bir tane ekleyin.",
         createAutomaticZooms: "Otomatik yakınlaştırmalar oluştur",
         typingZoomToggle: "Yazarken yakınlaştırmayı koru",
-        typingZoomCaption: "Bir tıklamadan sonra yazmak, otomatik yakınlaştırmayı o noktada tutar.",
+        typingZoomCaption: "Bir tıklamadan sonra yazmak, otomatik yakınlaştırmayı o noktada tutar."
     )
 
     static let ru = RecorderFeatureStrings(
@@ -562,7 +562,7 @@ extension RecorderFeatureStrings {
         zoomEmptyCaption: "Создайте их из нажатий или добавьте один на шкалу времени.",
         createAutomaticZooms: "Создать автоматические масштабы",
         typingZoomToggle: "Сохранять масштаб при наборе",
-        typingZoomCaption: "После щелчка набор текста удерживает автоматический масштаб в этой точке.",
+        typingZoomCaption: "После щелчка набор текста удерживает автоматический масштаб в этой точке."
     )
 
     static let es = RecorderFeatureStrings(
@@ -670,7 +670,7 @@ extension RecorderFeatureStrings {
         zoomEmptyCaption: "Créelos a partir de tus clics o añade uno a la línea de tiempo.",
         createAutomaticZooms: "Crear zooms automáticos",
         typingZoomToggle: "Mantener el zoom al escribir",
-        typingZoomCaption: "Después de un clic, escribir mantiene el zoom automático en ese punto.",
+        typingZoomCaption: "Después de un clic, escribir mantiene el zoom automático en ese punto."
     )
 
     static let de = RecorderFeatureStrings(
@@ -778,7 +778,7 @@ extension RecorderFeatureStrings {
         zoomEmptyCaption: "Erstelle sie aus deinen Klicks oder füge einen zur Zeitleiste hinzu.",
         createAutomaticZooms: "Automatische Zooms erstellen",
         typingZoomToggle: "Beim Tippen eingezoomt bleiben",
-        typingZoomCaption: "Nach einem Klick hält das Tippen den automatischen Zoom an dieser Stelle.",
+        typingZoomCaption: "Nach einem Klick hält das Tippen den automatischen Zoom an dieser Stelle."
     )
 
     static let fr = RecorderFeatureStrings(
@@ -886,7 +886,7 @@ extension RecorderFeatureStrings {
         zoomEmptyCaption: "Créez-les à partir de vos clics ou ajoutez-en un à la chronologie.",
         createAutomaticZooms: "Créer des zooms automatiques",
         typingZoomToggle: "Garder le zoom pendant la saisie",
-        typingZoomCaption: "Après un clic, la saisie maintient le zoom automatique sur cet endroit.",
+        typingZoomCaption: "Après un clic, la saisie maintient le zoom automatique sur cet endroit."
     )
 
     static let it = RecorderFeatureStrings(
@@ -994,7 +994,7 @@ extension RecorderFeatureStrings {
         zoomEmptyCaption: "Creali dai tuoi clic o aggiungine uno alla timeline.",
         createAutomaticZooms: "Crea zoom automatici",
         typingZoomToggle: "Mantieni lo zoom mentre scrivi",
-        typingZoomCaption: "Dopo un clic, la digitazione mantiene lo zoom automatico su quel punto.",
+        typingZoomCaption: "Dopo un clic, la digitazione mantiene lo zoom automatico su quel punto."
     )
 
     static let ja = RecorderFeatureStrings(
@@ -1102,7 +1102,7 @@ extension RecorderFeatureStrings {
         zoomEmptyCaption: "クリックから作成するか、タイムラインに追加してください。",
         createAutomaticZooms: "自動ズームを作成",
         typingZoomToggle: "入力中はズームを維持",
-        typingZoomCaption: "クリック後に入力すると、その位置の自動ズームが続きます。",
+        typingZoomCaption: "クリック後に入力すると、その位置の自動ズームが続きます。"
     )
 
     static let ko = RecorderFeatureStrings(
@@ -1210,7 +1210,7 @@ extension RecorderFeatureStrings {
         zoomEmptyCaption: "클릭으로 만들거나 타임라인에 하나를 추가하세요.",
         createAutomaticZooms: "자동 확대 만들기",
         typingZoomToggle: "입력하는 동안 확대 유지",
-        typingZoomCaption: "클릭 후 입력하면 자동 확대가 그 위치에 유지됩니다.",
+        typingZoomCaption: "클릭 후 입력하면 자동 확대가 그 위치에 유지됩니다."
     )
 
     static let zhHans = RecorderFeatureStrings(
@@ -1318,7 +1318,7 @@ extension RecorderFeatureStrings {
         zoomEmptyCaption: "根据点击创建，或在时间线上添加一个。",
         createAutomaticZooms: "创建自动缩放",
         typingZoomToggle: "输入时保持缩放",
-        typingZoomCaption: "点击后继续输入，会让自动缩放停留在该位置。",
+        typingZoomCaption: "点击后继续输入，会让自动缩放停留在该位置。"
     )
 
     static let zhTW = RecorderFeatureStrings(
@@ -1426,7 +1426,7 @@ extension RecorderFeatureStrings {
         zoomEmptyCaption: "根據點按建立，或在時間軸上加入一個。",
         createAutomaticZooms: "建立自動縮放",
         typingZoomToggle: "輸入時保持縮放",
-        typingZoomCaption: "點按後繼續輸入，會讓自動縮放停留在該位置。",
+        typingZoomCaption: "點按後繼續輸入，會讓自動縮放停留在該位置。"
     )
 
     static let zhHK = RecorderFeatureStrings(
@@ -1534,6 +1534,6 @@ extension RecorderFeatureStrings {
         zoomEmptyCaption: "根據點按建立，或在時間軸上加入一個。",
         createAutomaticZooms: "建立自動縮放",
         typingZoomToggle: "輸入時保持縮放",
-        typingZoomCaption: "點按後繼續輸入，會讓自動縮放停留在該位置。",
+        typingZoomCaption: "點按後繼續輸入，會讓自動縮放停留在該位置。"
     )
 }

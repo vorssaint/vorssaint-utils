@@ -233,8 +233,8 @@ final class CameraPreviewService: ObservableObject {
     private func installDeviceObservers() {
         guard deviceObservers.isEmpty else { return }
         let center = NotificationCenter.default
-        for name in [AVCaptureDevice.wasConnectedNotification,
-                     AVCaptureDevice.wasDisconnectedNotification] {
+        for name in [NSNotification.Name.AVCaptureDeviceWasConnected,
+                     NSNotification.Name.AVCaptureDeviceWasDisconnected] {
             deviceObservers.append(center.addObserver(forName: name, object: nil,
                                                       queue: .main) { [weak self] _ in
                 self?.handleDevicesChanged()

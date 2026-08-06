@@ -1722,7 +1722,7 @@ struct MetricsTests {
         expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.0", lastSeenVersion: "3.3.0"),
                "support prompt stays hidden after it is seen")
         expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.2.0", lastSeenVersion: nil)
-               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.1", lastSeenVersion: nil),
+               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.2", lastSeenVersion: nil),
                "support prompt never leaks into another release")
         expect(SupportUpdateIntroStep.community.next == .support
                && SupportUpdateIntroStep.support.next == nil,
@@ -1735,7 +1735,7 @@ struct MetricsTests {
         // per-release decision: this check fails on every version bump so the
         // decision above is made consciously, never by omission.
         let plistVersion = (NSDictionary(contentsOfFile: "Resources/Info.plist")?["CFBundleShortVersionString"] as? String) ?? ""
-        expect(plistVersion == "3.3.1",
+        expect(plistVersion == "3.3.2",
                "bumping the app version requires re-deciding the support prompt pin above")
         expect(SupportUpdateIntroInfo.releaseVersion == "3.3.0",
                "3.3.0 shows the deliberately curated community and support intro")
@@ -7142,7 +7142,7 @@ struct MetricsTests {
             "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit",
             "scrollInverter", "smoothScroll", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
             "keyboardDebounce", "textSnippets", "superKey",
-            "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
+            "clipboardHistory", "pastePlain", "finderCutPaste", "finderDeleteShortcuts", "finderRename", "shelf", "urlCleaner",
             "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
             "keepAwake", "brightness", "extraBrightness",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
@@ -7768,10 +7768,10 @@ struct MetricsTests {
 
         let ddcWrite = BrightnessSupport.writePacket(code: 0x10, value: 0x1234)
         expect(ddcWrite == [0x84, 0x03, 0x10, 0x12, 0x34,
-                            0x6E ^ 0x51 ^ 0x84 ^ 0x03 ^ 0x10 ^ 0x12 ^ 0x34],
+                            UInt8(0x6E) ^ 0x51 ^ 0x84 ^ 0x03 ^ 0x10 ^ 0x12 ^ 0x34],
                "DDC write packet carries the set opcode, big-endian value and checksum")
         let ddcRead = BrightnessSupport.readRequestPacket(code: 0x10)
-        expect(ddcRead == [0x82, 0x01, 0x10, 0x6E ^ 0x82 ^ 0x01 ^ 0x10],
+        expect(ddcRead == [0x82, 0x01, 0x10, UInt8(0x6E) ^ 0x82 ^ 0x01 ^ 0x10],
                "DDC read request omits the sub-address from its checksum seed")
         expect(Array(BrightnessSupport.writePacket(code: 0x10, value: 100)[3...4]) == [0x00, 0x64],
                "DDC values split into high and low bytes")

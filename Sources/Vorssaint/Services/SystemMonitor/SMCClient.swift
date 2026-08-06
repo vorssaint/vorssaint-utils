@@ -95,6 +95,25 @@ final class SMCClient {
         try writeBytes(bytes, to: key)
     }
 
+        let bytes = withUnsafeBytes(of: out.bytes) { Array($0.prefix(Int(key.dataSize))) }
+        switch key.dataType {
+        case "flt " where bytes.count == 4:
+            return Double(bytes.withUnsafeBytes { $0.load(as: Float32.self) })
+        case "ioft" where bytes.count == 8:
+            return Double(bytes.withUnsafeBytes { $0.load(as: UInt64.self) }) / 65536.0
+        default:
+            if bytes.count == 2, (key.dataType.hasPrefix("sp") || key.dataType.hasPrefix("fp")) {
+                let typeChars = Array(key.dataType)
+                if typeChars.count == 4, let fracBits = Int(String(typeChars[3]), radix: 16) {
+                    let raw = UInt16(bytes[0]) << 8 | UInt16(bytes[1])
+                    if typeChars[0] == "s" {
+                        return Double(Int16(bitPattern: raw)) / Double(1 << fracBits)
+                    } else {
+                        return Double(raw) / Double(1 << fracBits)
+                    }
+                }
+            }
+            return nil
     func writeBytes(_ bytes: [UInt8], to key: Key) throws {
         guard key.dataSize > 0, key.dataSize <= 32,
               bytes.count == Int(key.dataSize) else {
@@ -110,6 +129,25 @@ final class SMCClient {
         let (result, output) = invoke(&input)
         guard result == kIOReturnSuccess else { throw WriteError.transport(result) }
         guard output.result == 0 else { throw WriteError.controller(output.result) }
+    }
+
+    /// Writes raw bytes to the key. Requires elevated privileges (root).
+    func writeValue(_ key: Key, bytes: [UInt8]) -> Bool {
+        var input = SMCParamStruct()
+        input.key = key.code
+        input.keyInfo.dataSize = key.dataSize
+        input.data8 = Self.cmdWriteKey
+        
+        // Copy the bytes into the SMCParamStruct
+        let count = min(bytes.count, 32)
+        withUnsafeMutableBytes(of: &input.bytes) { buffer in
+            for i in 0..<count {
+                buffer[i] = bytes[i]
+            }
+        }
+        
+        guard let out = call(&input) else { return false }
+        return out.result == 0
     }
 
     /// Looks up a single key by its 4-character code, returning its size and type

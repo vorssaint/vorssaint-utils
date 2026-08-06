@@ -17,7 +17,7 @@ cd vorssaint-utils
 ./build.sh --install               # install into /Applications and launch
 ```
 
-You need macOS 14 or newer, Apple Silicon and the Xcode Command Line Tools. The
+You need macOS 14 or newer and the Xcode Command Line Tools. The
 build is a plain `swiftc` invocation, see `build.sh`, with no Xcode project and
 no external dependencies, reproducible by design. `Package.swift` is there so
 SwiftPM aware editors can index the code.

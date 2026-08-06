@@ -566,6 +566,7 @@ extension AppFeature {
         case .clipboardHistory: return FeatureStrings.clipboard(L10n.shared.language).title
         case .pastePlain: return s.pastePlainName
         case .finderCutPaste: return s.cutPasteName
+        case .finderDeleteShortcuts: return hub.nameFinderDeleteShortcuts
         case .finderRename: return FeatureStrings.finderRename(L10n.shared.language).hubTitle
         case .shelf: return s.shelfName
         case .urlCleaner: return s.urlCleanerName
@@ -621,6 +622,7 @@ extension AppFeature {
         case .clipboardHistory: return hub.descClipboardHistory
         case .pastePlain: return hub.descPastePlain
         case .finderCutPaste: return hub.descFinderCutPaste
+        case .finderDeleteShortcuts: return hub.descFinderDeleteShortcuts
         case .finderRename: return FeatureStrings.finderRename(L10n.shared.language).hubDescription
         case .shelf: return hub.descShelf
         case .urlCleaner: return hub.descURLCleaner

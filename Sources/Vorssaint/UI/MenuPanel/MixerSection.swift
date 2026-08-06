@@ -528,13 +528,7 @@ struct MixerSection: View {
 
     @ViewBuilder
     private var mixerRows: some View {
-        if #available(macOS 26.0, *) {
-            GlassEffectContainer(spacing: 8) {
-                rowList
-            }
-        } else {
-            rowList
-        }
+        rowList
     }
 
     @ViewBuilder
@@ -888,7 +882,8 @@ private struct LiquidGlassMixerSlider: View {
                 .overlay(Capsule().fill(tint.opacity(colorScheme == .light ? 0.10 : 0.16)))
         } else {
             Color.clear
-                .glassEffect(.regular.tint(tint.opacity(isBoosting ? 0.18 : 0.10)).interactive(), in: Capsule())
+                .background(.regularMaterial, in: Capsule())
+                .overlay(Capsule().fill(tint.opacity(isBoosting ? 0.18 : 0.10)))
         }
     }
 

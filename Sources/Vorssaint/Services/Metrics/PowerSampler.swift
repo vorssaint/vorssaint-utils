@@ -84,23 +84,29 @@ final class PowerSampler {
                 externalConnected: reading.externalConnected,
                 isCharging: reading.isCharging)
 
-            let voltageMv = (props["Voltage"] as? Int) ?? 0
-            let amperageMa = (props["Amperage"] as? Int) ?? (props["InstantAmperage"] as? Int) ?? 0
+            let voltageMv = batteryInt("Voltage", in: props) ?? 0
+            let amperageMa = batteryInt("Amperage", in: props) ?? batteryInt("InstantAmperage", in: props) ?? 0
             if voltageMv > 0, amperageMa != 0 {
                 // Power = V x I, signed by the amperage (negative while discharging).
                 reading.batteryWatts = (Double(voltageMv) / 1000.0) * (Double(amperageMa) / 1000.0)
             }
 
             if let adapter = props["AdapterDetails"] as? [String: Any],
-               let rated = adapter["Watts"] as? Int, rated > 0 {
+               let rated = intValue(adapter["Watts"]), rated > 0 {
                 reading.adapterMaxWatts = Double(rated)
             }
 
-            if let capacity = props["CurrentCapacity"] as? Int,
-               let maxCapacity = props["MaxCapacity"] as? Int, maxCapacity > 0 {
+            let capacity = batteryInt("CurrentCapacity", in: props)
+                ?? batteryInt("AppleRawCurrentCapacity", in: props)
+            
+            let maxCapacity = batteryInt("MaxCapacity", in: props)
+                ?? batteryInt("AppleRawMaxCapacity", in: props)
+                ?? batteryInt("DesignCapacity", in: props)
+                
+            if let capacity = capacity, let maxCapacity = maxCapacity, maxCapacity > 0 {
                 reading.chargePercent = Int((Double(capacity) / Double(maxCapacity) * 100).rounded())
             }
-            if let cycles = props["CycleCount"] as? Int { reading.cycleCount = cycles }
+            if let cycles = batteryInt("CycleCount", in: props) { reading.cycleCount = cycles }
             if let design = batteryInt("DesignCapacity", in: props), design > 0 {
                 // Fallback estimate from IORegistry: a full-charge capacity over
                 // design. NominalChargeCapacity is the smoothed value (closest of

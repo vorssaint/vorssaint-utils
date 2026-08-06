@@ -125,7 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             .sink { _ in
                 FeatureRuntime.shared.sync([
                     .scrollInverter, .smoothScroll, .mouseNavigation, .switcher,
-                    .dockPreview, .finderCutPaste, .finderRename, .autoQuit, .dockClick,
+                    .dockPreview, .finderCutPaste, .finderDeleteShortcuts, .finderRename, .autoQuit, .dockClick,
                     .middleClick, .windowMaximizer, .keyboardDebounce, .windowLayout,
                     .textSnippets, .brightness, .radialMenu, .mouseButtonShortcuts,
                     .superKey,

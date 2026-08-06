@@ -59,7 +59,6 @@ struct SettingsView: View {
                 .searchable(text: $searchQuery,
                             placement: .sidebar,
                             prompt: l10n.s.settingsSearchPlaceholder)
-                .scrollEdgeEffectStyle(.hard, for: .top)
         } else if #available(macOS 26, *) {
             VStack(spacing: 0) {
                 SidebarSearchField(query: $searchQuery)

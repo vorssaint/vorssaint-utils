@@ -34,6 +34,8 @@ else
     APP_BUNDLE_ID="com.vorssaint.utils"
     BUILD_VARIANT_FLAGS=()
 fi
+TARGET_ARM64="arm64-apple-macosx14.0"
+TARGET_X86_64="x86_64-apple-macosx14.0"
 FAN_HELPER_ID="$APP_BUNDLE_ID.fan-control"
 TARGET="arm64-apple-macosx14.0"
 ENTITLEMENTS="Resources/Vorssaint.entitlements"
@@ -104,7 +106,8 @@ if (( TEST )); then
     echo "▸ Building & running unit tests against $(basename "$SDK")…"
     rm -rf build
     mkdir -p build
-    swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
+    compile_test() {
+        swiftc -target "$1" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
         Sources/Vorssaint/Services/Media/MediaSupport.swift \
         Sources/Vorssaint/Core/Defaults.swift \
         Sources/Vorssaint/Core/FeatureCatalog.swift \
@@ -227,7 +230,11 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift \
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift \
         Tests/MetricsTests.swift \
-        -o build/metrics-tests
+        -o "$2"
+    }
+    compile_test "$TARGET_ARM64" build/metrics-tests-arm64
+    compile_test "$TARGET_X86_64" build/metrics-tests-x86_64
+    lipo -create -output build/metrics-tests build/metrics-tests-arm64 build/metrics-tests-x86_64
     ./build/metrics-tests
     exit $?
 fi
@@ -235,9 +242,16 @@ fi
 echo "▸ Compiling (release) against $(basename "$SDK")…"
 rm -rf build
 mkdir -p build
+swiftc -O -target "$TARGET_ARM64" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
 swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
     Sources/Vorssaint/**/*.swift \
-    -o "build/$EXECUTABLE"
+    -o "build/${EXECUTABLE}_arm64"
+
+swiftc -O -target "$TARGET_X86_64" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
+    Sources/Vorssaint/**/*.swift \
+    -o "build/${EXECUTABLE}_x86_64"
+
+lipo -create -output "build/$EXECUTABLE" "build/${EXECUTABLE}_arm64" "build/${EXECUTABLE}_x86_64"
 
 echo "▸ Compiling protected fan helper…"
 swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \

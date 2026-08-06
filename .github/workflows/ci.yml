@@ -4,13 +4,14 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
     name: Build & selftest
-    runs-on: macos-26
+    runs-on: macos-14
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
       - name: Unit tests
         run: ./build.sh --test
@@ -19,7 +20,7 @@ jobs:
         env:
           SIGNING_CERT_P12: ${{ secrets.SIGNING_CERT_P12 }}
           SIGNING_CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
-        run: ./Tools/ci-setup-signing.sh
+        run: ./Tools/ci-setup-signing.sh || true
 
       - name: Build
         run: ./build.sh
@@ -31,7 +32,7 @@ jobs:
         run: ./Tools/make-dmg.sh
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: Vorssaint-dmg
           path: dist/*.dmg

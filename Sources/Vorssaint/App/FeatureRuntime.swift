@@ -149,6 +149,7 @@ final class FeatureRuntime: ObservableObject {
         .clipboardHistory: { ClipboardHistoryService.shared.syncWithPreferences() },
         .pastePlain: { PastePlainService.shared.syncWithPreferences() },
         .finderCutPaste: { FinderCutPaste.shared.syncWithPreferences() },
+        .finderDeleteShortcuts: { FinderDeleteShortcuts.shared.syncWithPreferences() },
         .finderRename: { FinderRenameService.shared.syncWithPreferences() },
         .shelf: { ShelfService.shared.syncWithPreferences() },
         .urlCleaner: { URLCleanerService.shared.syncWithPreferences() },
