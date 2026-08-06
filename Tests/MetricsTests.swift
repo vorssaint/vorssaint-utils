@@ -11474,7 +11474,7 @@ struct MetricsTests {
 
         // MARK: Open what was typed as a URL
         for address in ["example.com", "example.com/x", "https://example.com",
-                        "http://example.com/path?q=1",
+                        "example.com:8080/path", "http://example.com/path?q=1",
                         "sub.domain.co.uk", "https://example.museum", "https://例子.中国"] {
             expect(CommandBarLinks.typedURL(address) != nil,
                    "\"\(address)\" reads like a URL")
@@ -11488,6 +11488,9 @@ struct MetricsTests {
         }
         expect(CommandBarLinks.typedURL("example.com")?.absoluteString == "https://example.com",
                "a typed bare domain is opened with an https scheme")
+        expect(CommandBarLinks.typedURL("example.com:8080/path")?.absoluteString
+                == "https://example.com:8080/path",
+               "a port on a bare domain does not become a fake scheme")
         expect(CommandBarLinks.typedURL("https://example.com/x")?.absoluteString
                 == "https://example.com/x",
                "a typed address with a scheme keeps its scheme")

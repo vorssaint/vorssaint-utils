@@ -160,7 +160,9 @@ enum CommandBarLinks {
         else { return nil }
 
         let url: URL?
-        if let explicit = URL(string: trimmed), explicit.scheme != nil {
+        if let explicit = URL(string: trimmed),
+           let scheme = explicit.scheme?.lowercased(),
+           scheme == "http" || scheme == "https" {
             url = explicit
         } else {
             url = URL(string: "https://" + trimmed)
