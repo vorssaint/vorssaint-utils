@@ -47,22 +47,25 @@ struct ClipboardSettings: View {
 
                 Section {
                     Toggle(text.includeImagesFiles, isOn: $includeImagesFiles)
+                        .disabled(!enabled)
                     Text(text.includeImagesFilesCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Toggle(text.skipSensitive, isOn: $skipSensitive)
+                        .disabled(!enabled)
                     Text(text.skipSensitiveCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     ClipboardIgnoredAppsList()
+                        .disabled(!enabled)
                     Picker(text.limit, selection: $limit) {
                         ForEach(Defaults.allowedClipboardHistoryLimits, id: \.self) { value in
                             Text("\(value)").tag(value)
                         }
                     }
+                    .disabled(!enabled)
                     Toggle(text.showInPanel, isOn: $showInPanel)
                 }
-                .disabled(!enabled)
             }
 
             if AppFeature.finderCutPaste.isAvailable {
@@ -126,6 +129,7 @@ struct ClipboardSettings: View {
                 .onChange(of: shortcutEnabled) { _, _ in
                     ClipboardHistoryService.shared.syncHotkey()
                 }
+                .disabled(!enabled)
             ShortcutPreferenceRow(role: .clipboard,
                                   isEnabled: enabled && shortcutEnabled,
                                   additionalConflict: WindowLayoutService.shared.shortcutConflictTitle) {
@@ -146,7 +150,6 @@ struct ClipboardSettings: View {
             }
             .disabled(history.entries.isEmpty)
         }
-        .disabled(!enabled)
     }
 
     private var clipboardStatsSection: some View {
@@ -171,6 +174,5 @@ struct ClipboardSettings: View {
                     .disabled(history.recentEntries.isEmpty)
                 }
             }
-            .disabled(!enabled)
     }
 }

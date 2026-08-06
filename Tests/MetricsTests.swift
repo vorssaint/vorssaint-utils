@@ -10316,6 +10316,15 @@ struct MetricsTests {
         expect(CommandBarSource.actions.isAlwaysOn
                 && CommandBarSource.allCases.filter(\.isAlwaysOn).count == 1,
                "only the app's own actions cannot be switched off")
+        expect(CommandBarClipboardAccess.canUseHistory(captureEnabled: true,
+                                                       hasSavedItems: false),
+               "clipboard capture makes the command bar history available")
+        expect(CommandBarClipboardAccess.canUseHistory(captureEnabled: false,
+                                                       hasSavedItems: true),
+               "saved clipboard items stay available when capture is off")
+        expect(!CommandBarClipboardAccess.canUseHistory(captureEnabled: false,
+                                                        hasSavedItems: false),
+               "an empty disabled clipboard still points to setup")
         expect(CommandBarPreferences.source(ofRowID: "app.x") == .apps
                 && CommandBarPreferences.source(ofRowID: "menu.1.Bold") == .menus
                 && CommandBarPreferences.source(ofRowID: "folder./tmp") == .folders
