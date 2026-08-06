@@ -215,7 +215,7 @@ extension Strings {
         switcherNoOpenWindow: "Sin ventanas abiertas",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Previsualizar ventanas en el Dock",
-        dockPreviewEnableCaption: "Pasa el cursor sobre una app abierta en el Dock para ver y asomarte a sus ventanas.",
+        dockPreviewEnableCaption: "Pasa el cursor sobre una app abierta en el Dock para ver sus ventanas y haz clic en la que quieras abrir.",
         dockPreviewBackgroundOpacity: "Fondo del panel",
         dockPreviewBackgroundOpacityCaption: "Bájalo para ver más de lo que hay detrás del panel.",
         dockClickMinimize: "Clic en el Dock para minimizar",
@@ -627,13 +627,6 @@ extension Strings {
         panelNavigationCaption: "Muestra una sección a la vez. Elige Lista para ver todo en un desplazamiento continuo.",
         panelFooterSections: "Secciones",
         panelFooterList: "Lista",
-        fanControlBetaShow: "Mostrar Fan Control (Beta) en el panel",
-        fanControlBetaSection: "Fan Control",
-        fanControlBetaTitle: "Fan Control",
-        fanControlBetaStatus: "Automático",
-        fanControlBetaCaption: "Beta. El control manual queda desactivado hasta validar cada modelo de Mac.",
-        fanControlModeAutomatic: "Automático",
-        fanControlModeManual: "Manual",
         betaBadge: "BETA",
         betaFeatureWarning: "Beta. Puedes encontrar algunos errores.",
 
@@ -891,6 +884,8 @@ extension Strings {
         previewSizeSmall: "Pequeño",
         mixerSoundEffectsOutputTitle: "Sonidos del sistema",
         mixerSoundEffectsOutputTooltip: "Elegir dónde se reproducen los avisos y efectos de sonido",
-        monitorOpenActivityMonitor: "Abrir Monitor de Actividad"
+        monitorOpenActivityMonitor: "Abrir Monitor de Actividad",
+        dockClickHide: "Ocultar la app al hacer clic en el Dock",
+        dockClickHideCaption: "La app activa se oculta al hacer clic en su icono del Dock. Haz clic de nuevo para recuperarla."
     )
 }

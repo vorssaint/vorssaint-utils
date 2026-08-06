@@ -29,6 +29,7 @@ struct ScreenshotSettings: View {
         ScreenshotSupport.Tool.defaultOrderStorage
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
     @AppStorage(DefaultsKey.screenshotCopyToClipboard) private var copyToClipboard = false
+    @AppStorage(DefaultsKey.screenshotPreviewPosition) private var previewPositionRaw = ""
     @State private var showingSharedLinks = false
     @State private var showingSharePrivacy = false
 
@@ -122,6 +123,7 @@ struct ScreenshotSettings: View {
                 .pickerStyle(.segmented)
                 Toggle(strings.pointerToggle, isOn: $includePointer)
                 Toggle(strings.lastRegionToggle, isOn: $showLastRegion)
+                previewPositionRow
                 defaultActionRow
             }
 
@@ -198,6 +200,21 @@ struct ScreenshotSettings: View {
             Text(strings.defaultActionCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    private var previewPositionRow: some View {
+        Picker(strings.previewPositionLabel, selection: $previewPositionRaw) {
+            Text(strings.previewPositionAutomatic)
+                .tag(ScreenshotSupport.QuickPreviewPosition.automatic.rawValue)
+            Text(strings.previewPositionTopLeft)
+                .tag(ScreenshotSupport.QuickPreviewPosition.topLeft.rawValue)
+            Text(strings.previewPositionTopRight)
+                .tag(ScreenshotSupport.QuickPreviewPosition.topRight.rawValue)
+            Text(strings.previewPositionBottomLeft)
+                .tag(ScreenshotSupport.QuickPreviewPosition.bottomLeft.rawValue)
+            Text(strings.previewPositionBottomRight)
+                .tag(ScreenshotSupport.QuickPreviewPosition.bottomRight.rawValue)
         }
     }
 

@@ -123,6 +123,7 @@ struct WindowLayoutSettings: View {
                 actionRow(.maximize)
                 actionRow(.fullScreen)
                 actionRow(.center)
+                actionRow(.previousDisplay)
                 actionRow(.nextDisplay)
                 actionRow(.restore)
                 if let message = resultMessage {
@@ -174,6 +175,7 @@ struct WindowLayoutSettings: View {
         case .maximize: return "arrow.up.left.and.arrow.down.right"
         case .fullScreen: return "rectangle.fill"
         case .center: return "scope"
+        case .previousDisplay: return "arrow.left.to.line"
         case .nextDisplay: return "arrow.right.to.line"
         case .restore: return "arrow.uturn.backward"
         }
@@ -282,6 +284,7 @@ private struct WindowLayoutActionRow: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .onChange(of: l10n.language) { _, _ in errorText = nil }
     }
 
     private var shortcut: GlobalShortcut? {

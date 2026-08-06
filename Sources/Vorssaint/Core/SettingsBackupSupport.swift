@@ -106,6 +106,8 @@ enum SettingsBackupSupport {
         DefaultsKey.settingsWindowWidth,
         DefaultsKey.settingsWindowHeight,
         DefaultsKey.screenshotSharingDeveloperEndpoint,
+        DefaultsKey.fanControlRecoveryNeeded,
+        DefaultsKey.fanControlHelperVersion,
     ]
 
     /// The file's content: an envelope with the format version, the app

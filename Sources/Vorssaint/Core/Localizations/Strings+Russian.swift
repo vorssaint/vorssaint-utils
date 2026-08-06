@@ -216,7 +216,7 @@ extension Strings {
         switcherNoOpenWindow: "Без открытых окон",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Показывать окна из Dock",
-        dockPreviewEnableCaption: "Наведите курсор на открытое приложение в Dock, чтобы увидеть превью и заглянуть в его окна.",
+        dockPreviewEnableCaption: "Наведите указатель на открытое приложение в Dock, чтобы увидеть его окна, затем нажмите нужное.",
         dockPreviewBackgroundOpacity: "Фон панели",
         dockPreviewBackgroundOpacityCaption: "Уменьшите, чтобы видеть больше того, что находится за панелью.",
         dockClickMinimize: "Сворачивать кликом по Dock",
@@ -628,13 +628,6 @@ extension Strings {
         panelNavigationCaption: "Показывает по одной секции за раз. Выберите «Список», чтобы просматривать всё непрерывной прокруткой.",
         panelFooterSections: "Секции",
         panelFooterList: "Список",
-        fanControlBetaShow: "Показывать Fan Control (Beta) в панели",
-        fanControlBetaSection: "Fan Control",
-        fanControlBetaTitle: "Fan Control",
-        fanControlBetaStatus: "Авто",
-        fanControlBetaCaption: "Бета. Ручное управление останется отключённым, пока не будут проверены все модели Mac.",
-        fanControlModeAutomatic: "Авто",
-        fanControlModeManual: "Вручную",
         betaBadge: "БЕТА",
         betaFeatureWarning: "Бета. Возможны ошибки.",
 
@@ -892,6 +885,8 @@ extension Strings {
         previewSizeSmall: "Маленький",
         mixerSoundEffectsOutputTitle: "Системные звуки",
         mixerSoundEffectsOutputTooltip: "Выбрать устройство для оповещений и звуковых эффектов",
-        monitorOpenActivityMonitor: "Открыть Мониторинг системы"
+        monitorOpenActivityMonitor: "Открыть Мониторинг системы",
+        dockClickHide: "Скрывать приложение кликом по Dock",
+        dockClickHideCaption: "Активное приложение скрывается при клике по его значку в Dock. Нажмите ещё раз, чтобы вернуть его."
     )
 }

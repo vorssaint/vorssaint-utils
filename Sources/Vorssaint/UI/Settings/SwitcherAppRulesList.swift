@@ -3,40 +3,43 @@
 
 import SwiftUI
 
-/// The "apps to leave alone" block that lives INSIDE a mouse feature's own
-/// section in Settings (issue #358), right under the switch it holds back, so
-/// the list is where the user is already looking. One list per feature: the
-/// same view with a different scope.
-///
-/// It stays a single quiet row while nothing is listed, and comes up open when
-/// the feature already has exceptions, so a page with every mouse feature on
-/// never turns into a wall of lists.
-struct MouseExceptionsList: View {
-    let scope: MouseExceptionScope
-
+struct SwitcherAppRulesList: View {
     @ObservedObject private var l10n = L10n.shared
-    @ObservedObject private var exceptions = MouseAppExceptions.shared
+    @State private var rules: [String: SwitcherAppRule]
     @State private var isExpanded: Bool
     @State private var showingAppPicker = false
 
-    init(scope: MouseExceptionScope) {
-        self.scope = scope
-        _isExpanded = State(initialValue: !MouseAppExceptions.shared.list(scope).isEmpty)
+    init() {
+        let rules = Self.savedRules
+        _rules = State(initialValue: rules)
+        _isExpanded = State(initialValue: !rules.isEmpty)
     }
 
-    private var text: MouseExceptionStrings { FeatureStrings.mouseExceptions(l10n.language) }
+    private var text: SwitcherAppRulesStrings {
+        FeatureStrings.switcherAppRules(l10n.language)
+    }
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
-            ForEach(sortedApps, id: \.self) { bundleID in
+            ForEach(sortedBundleIDs, id: \.self) { bundleID in
                 HStack(spacing: 9) {
                     Image(nsImage: InstalledApps.icon(for: bundleID))
                         .resizable()
                         .frame(width: 18, height: 18)
                     Text(InstalledApps.name(for: bundleID))
-                    Spacer()
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    Picker(text.behaviorLabel, selection: binding(for: bundleID)) {
+                        Text(text.showWithoutWindows).tag(SwitcherAppRule.showWithoutWindows)
+                        Text(text.windowsOnly).tag(SwitcherAppRule.windowsOnly)
+                        Text(text.hidden).tag(SwitcherAppRule.hidden)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
                     Button {
-                        exceptions.remove(bundleID, from: scope)
+                        var updated = rules
+                        updated.removeValue(forKey: bundleID)
+                        save(updated)
                     } label: {
                         Image(systemName: "minus.circle.fill")
                             .foregroundStyle(.secondary)
@@ -52,11 +55,9 @@ struct MouseExceptionsList: View {
                 Label(text.addButton, systemImage: "plus")
             }
             .controlSize(.small)
-            // Rows inside a disclosure group center themselves; the button
-            // belongs under the list it adds to.
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text(text.caption(for: scope))
+            Text(text.caption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -65,8 +66,8 @@ struct MouseExceptionsList: View {
             HStack {
                 Text(text.listTitle)
                 Spacer()
-                if !sortedApps.isEmpty {
-                    Text("\(sortedApps.count)")
+                if !rules.isEmpty {
+                    Text("\(rules.count)")
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
                 }
@@ -77,24 +78,48 @@ struct MouseExceptionsList: View {
         }
     }
 
-    private var sortedApps: [String] {
-        exceptions.list(scope).sorted {
+    private static var savedRules: [String: SwitcherAppRule] {
+        SwitcherAppRule.rules(
+            storedValue: UserDefaults.standard.dictionary(forKey: DefaultsKey.switcherAppRules))
+    }
+
+    private var sortedBundleIDs: [String] {
+        rules.keys.sorted {
             InstalledApps.name(for: $0).localizedCaseInsensitiveCompare(InstalledApps.name(for: $1))
                 == .orderedAscending
         }
     }
 
     private var appPickerSheet: some View {
-        let listed = Set(exceptions.list(scope))
+        let listed = Set(rules.keys)
         return AppPickerView(canBrowseApplications: true) {
             showingAppPicker = false
         } onSelect: { url in
             guard let bundleID = Bundle(url: url)?.bundleIdentifier else { return }
-            exceptions.add(bundleID, to: scope)
+            var updated = rules
+            updated[bundleID] = .showWithoutWindows
+            save(updated)
             showingAppPicker = false
         } loadApps: {
             InstalledApps.installedBundleApplications(excluding: listed,
                                                        includeRunningApplications: true)
         }
+    }
+
+    private func binding(for bundleID: String) -> Binding<SwitcherAppRule> {
+        Binding(
+            get: { rules[bundleID] ?? .windowsOnly },
+            set: { newRule in
+                var updated = rules
+                updated[bundleID] = newRule
+                save(updated)
+            }
+        )
+    }
+
+    private func save(_ updated: [String: SwitcherAppRule]) {
+        let stored = SwitcherAppRule.storedValue(updated)
+        UserDefaults.standard.set(stored, forKey: DefaultsKey.switcherAppRules)
+        rules = SwitcherAppRule.rules(storedValue: stored as [String: Any])
     }
 }

@@ -215,7 +215,7 @@ extension Strings {
         switcherNoOpenWindow: "Kein geöffnetes Fenster",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Fenster im Dock vorab anzeigen",
-        dockPreviewEnableCaption: "Zeige auf eine geöffnete App im Dock, um ihre Fenster zu sehen und kurz einzublenden.",
+        dockPreviewEnableCaption: "Zeige auf eine geöffnete App im Dock, um ihre Fenster zu sehen, und klicke dann auf das gewünschte.",
         dockPreviewBackgroundOpacity: "Hintergrund des Panels",
         dockPreviewBackgroundOpacityCaption: "Verringere ihn, um mehr von dem zu sehen, was hinter dem Panel liegt.",
         dockClickMinimize: "Klick aufs Dock-Symbol minimiert",
@@ -627,13 +627,6 @@ extension Strings {
         panelNavigationCaption: "Zeigt jeweils einen Bereich. Wähle Liste, um alles in einem durchgehenden Scrollbereich zu sehen.",
         panelFooterSections: "Bereiche",
         panelFooterList: "Liste",
-        fanControlBetaShow: "Fan Control (Beta) im Panel anzeigen",
-        fanControlBetaSection: "Fan Control",
-        fanControlBetaTitle: "Fan Control",
-        fanControlBetaStatus: "Automatisch",
-        fanControlBetaCaption: "Beta. Die manuelle Steuerung bleibt deaktiviert, bis jedes Mac-Modell validiert ist.",
-        fanControlModeAutomatic: "Automatisch",
-        fanControlModeManual: "Manuell",
         betaBadge: "BETA",
         betaFeatureWarning: "Beta. Es können noch Fehler auftreten.",
 
@@ -891,6 +884,8 @@ extension Strings {
         previewSizeSmall: "Klein",
         mixerSoundEffectsOutputTitle: "Systemtöne",
         mixerSoundEffectsOutputTooltip: "Auswählen, wo Hinweise und Toneffekte wiedergegeben werden",
-        monitorOpenActivityMonitor: "Aktivitätsanzeige öffnen"
+        monitorOpenActivityMonitor: "Aktivitätsanzeige öffnen",
+        dockClickHide: "Klick aufs Dock-Symbol blendet App aus",
+        dockClickHideCaption: "Die aktive App wird ausgeblendet, wenn du auf ihr Dock-Symbol klickst. Ein weiterer Klick holt sie zurück."
     )
 }

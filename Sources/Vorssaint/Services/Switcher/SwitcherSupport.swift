@@ -64,6 +64,38 @@ enum SwitcherWindowlessApps: String, CaseIterable, Equatable {
     }
 }
 
+/// A per-app override for the switcher's regular window and windowless-app
+/// choices. Apps without an override keep following `SwitcherWindowlessApps`.
+enum SwitcherAppRule: String, CaseIterable, Equatable {
+    case showWithoutWindows
+    case windowsOnly
+    case hidden
+
+    static func rules(storedValue: [String: Any]?) -> [String: SwitcherAppRule] {
+        guard let storedValue else { return [:] }
+        var rules: [String: SwitcherAppRule] = [:]
+        for rawBundleID in storedValue.keys.sorted() {
+            let bundleID = rawBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !bundleID.isEmpty,
+                  let rawRule = storedValue[rawBundleID] as? String,
+                  let rule = SwitcherAppRule(rawValue: rawRule)
+            else { continue }
+            rules[bundleID] = rule
+        }
+        return rules
+    }
+
+    static func storedValue(_ rules: [String: SwitcherAppRule]) -> [String: String] {
+        var stored: [String: String] = [:]
+        for (rawBundleID, rule) in rules {
+            let bundleID = rawBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !bundleID.isEmpty else { continue }
+            stored[bundleID] = rule.rawValue
+        }
+        return stored
+    }
+}
+
 /// A running app considered for an entry of its own, with the identity the
 /// choice above is decided on.
 struct SwitcherAppCandidate: Equatable {
@@ -322,12 +354,21 @@ enum SwitcherSupport {
                                   candidates: [SwitcherAppCandidate],
                                   pidsWithWindows: Set<pid_t>,
                                   pidsWithWithheldWindows: Set<pid_t>,
-                                  desktopAppBundleIdentifier: String) -> [pid_t] {
-        guard mode != .off else { return [] }
+                                  desktopAppBundleIdentifier: String,
+                                  appRules: [String: SwitcherAppRule] = [:]) -> [pid_t] {
         return candidates.compactMap { candidate in
             guard !pidsWithWindows.contains(candidate.pid),
                   !pidsWithWithheldWindows.contains(candidate.pid)
             else { return nil }
+            if let bundleIdentifier = candidate.bundleIdentifier,
+               let rule = appRules[bundleIdentifier] {
+                switch rule {
+                case .showWithoutWindows:
+                    return candidate.pid
+                case .windowsOnly, .hidden:
+                    return nil
+                }
+            }
             switch mode {
             case .off:
                 return nil
@@ -337,6 +378,12 @@ enum SwitcherSupport {
                 return candidate.pid
             }
         }
+    }
+
+    static func hidesApp(bundleIdentifier: String?,
+                         appRules: [String: SwitcherAppRule]) -> Bool {
+        guard let bundleIdentifier else { return false }
+        return appRules[bundleIdentifier] == .hidden
     }
 
     /// Downsamples a capture into a small alpha grid for classification.

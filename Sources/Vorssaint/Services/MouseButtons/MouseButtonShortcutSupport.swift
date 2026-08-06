@@ -16,9 +16,82 @@ enum MouseButtonShortcutSupport {
 
     static let backButtonNumber: Int64 = 3
     static let forwardButtonNumber: Int64 = 4
+    /// Negative values cannot collide with CoreGraphics mouse button numbers.
+    /// They let the existing persisted dictionary represent the two directions
+    /// of a side wheel without adding another preference or storage format.
+    static let sideWheelLeftInput: Int64 = -2
+    static let sideWheelRightInput: Int64 = -1
 
-    static func canMap(_ button: Int64) -> Bool {
-        buttonRange.contains(button)
+    /// A wheel driver can emit several horizontal packets for one physical
+    /// move. Keep the first packet for each direction in that burst and let a
+    /// quiet gap begin a new move, without a timer or work between events.
+    struct SideWheelGestureGate {
+        static let quietNanoseconds: UInt64 = 250_000_000
+
+        private var lastTimestamp: UInt64?
+        private var firedDirections: UInt8 = 0
+
+        mutating func shouldFire(_ input: Int64, at timestamp: UInt64) -> Bool {
+            let bit: UInt8
+            switch input {
+            case MouseButtonShortcutSupport.sideWheelLeftInput: bit = 1
+            case MouseButtonShortcutSupport.sideWheelRightInput: bit = 2
+            default: return false
+            }
+
+            if let lastTimestamp,
+               timestamp >= lastTimestamp,
+               timestamp - lastTimestamp <= Self.quietNanoseconds {
+                self.lastTimestamp = timestamp
+            } else {
+                lastTimestamp = timestamp
+                firedDirections = 0
+            }
+
+            guard firedDirections & bit == 0 else { return false }
+            firedDirections |= bit
+            return true
+        }
+
+        mutating func reset() {
+            lastTimestamp = nil
+            firedDirections = 0
+        }
+    }
+
+    static func canMap(_ input: Int64) -> Bool {
+        input == sideWheelLeftInput
+            || input == sideWheelRightInput
+            || buttonRange.contains(input)
+    }
+
+    /// Resolves only horizontal mouse-wheel movement. Vertical scrolling stays
+    /// ordinary scrolling, and the caller first excludes touch gestures.
+    static func sideWheelInput(isContinuous: Bool,
+                               vertical: (line: Double, fixedPoint: Double, point: Double),
+                               horizontal: (line: Double, fixedPoint: Double, point: Double)) -> Int64? {
+        guard vertical.line.isFinite,
+              vertical.fixedPoint.isFinite,
+              vertical.point.isFinite,
+              horizontal.line.isFinite,
+              horizontal.fixedPoint.isFinite,
+              horizontal.point.isFinite else { return nil }
+        let verticalDelta: Double
+        let horizontalDelta: Double
+        if isContinuous {
+            verticalDelta = vertical.point != 0
+                ? vertical.point : (vertical.fixedPoint != 0 ? vertical.fixedPoint : vertical.line)
+            horizontalDelta = horizontal.point != 0
+                ? horizontal.point : (horizontal.fixedPoint != 0 ? horizontal.fixedPoint : horizontal.line)
+        } else {
+            verticalDelta = vertical.fixedPoint != 0
+                ? vertical.fixedPoint : (vertical.line != 0 ? vertical.line : vertical.point)
+            horizontalDelta = horizontal.fixedPoint != 0
+                ? horizontal.fixedPoint : (horizontal.line != 0 ? horizontal.line : horizontal.point)
+        }
+        guard horizontalDelta != 0, abs(horizontalDelta) > abs(verticalDelta) else { return nil }
+        // AppKit defines a positive horizontal delta as movement to the left.
+        return horizontalDelta > 0 ? sideWheelLeftInput : sideWheelRightInput
     }
 
     /// Mappings persist as a plain dictionary of button number to the same
@@ -84,6 +157,8 @@ enum MouseButtonShortcutSupport {
     /// software (button number 5 is the sixth button of the mouse).
     static func buttonName(for button: Int64, strings: MouseButtonFeatureStrings) -> String {
         switch button {
+        case sideWheelLeftInput: return strings.sideWheelLeftName
+        case sideWheelRightInput: return strings.sideWheelRightName
         case backButtonNumber: return strings.backButtonName
         case forwardButtonNumber: return strings.forwardButtonName
         default: return String(format: strings.otherButtonFormat, Int(button) + 1)

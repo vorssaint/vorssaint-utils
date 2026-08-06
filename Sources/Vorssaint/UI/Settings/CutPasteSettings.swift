@@ -113,6 +113,7 @@ struct CutPasteSettings: View {
             }
         }
         .formStyle(.grouped)
+        .onChange(of: l10n.language) { _, _ in renameError = nil }
     }
 
     private func howRow(keys: [String], text: String) -> some View {

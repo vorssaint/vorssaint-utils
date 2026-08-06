@@ -42,6 +42,7 @@ struct SystemSnapshot {
     var memoryUsed: UInt64?
     var memoryTotal: UInt64?
     var memoryPressure: MemoryPressure = .unknown
+    var fanSpeeds: [Double] = []
 
     // Network
     var netDownBytesPerSec: Double?
@@ -84,12 +85,13 @@ struct SystemMonitorPanelNeeds: Equatable {
     var cpuTemperature = false
     var gpuTemperature = false
     var batteryTemperature = false
+    var fanSpeed = false
 
     static let none = SystemMonitorPanelNeeds()
 
     var any: Bool {
         system || network || disk || power || cpu || gpu || memory || battery ||
-            peripheralBattery || cpuTemperature || gpuTemperature || batteryTemperature
+            peripheralBattery || cpuTemperature || gpuTemperature || batteryTemperature || fanSpeed
     }
 }
 
@@ -126,7 +128,9 @@ final class SystemMonitor: ObservableObject {
     private var fallbackCPUKeys: [SMCClient.Key] = []
     private var gpuKeys: [SMCClient.Key] = []
     private var batteryKeys: [SMCClient.Key] = []
+    private var fanKeys: [SMCClient.Key] = []
     private var tempKeysPrepared = false
+    private var fanKeysPrepared = false
     private var cpuTemperaturePlatform: CPUTemperaturePlatform = .generic
 
     // Samplers
@@ -154,6 +158,8 @@ final class SystemMonitor: ObservableObject {
     private var cpuTemperatureCache: CachedSensorReading?
     private var gpuTemperatureCache: CachedSensorReading?
     private var batteryTemperatureCache: CachedSensorReading?
+    private var lastFanSpeeds: [Double] = []
+    private var missedFanSpeedSamples = 0
     private var lastDiskReading: DiskReading?
     private var lastPowerReading: PowerReading?
     private var lastPeripheralBatteries: [PeripheralBatteryDevice] = []
@@ -183,7 +189,9 @@ final class SystemMonitor: ObservableObject {
         diskWriteHistory = MetricHistory(capacity: historyCapacity)
         powerHistory = MetricHistory(capacity: historyCapacity)
         batteryHistory = MetricHistory(capacity: historyCapacity)
-        installPowerSourceObserver()
+        if PowerSampler.hasInternalBattery {
+            installPowerSourceObserver()
+        }
     }
 
     deinit {
@@ -391,8 +399,9 @@ final class SystemMonitor: ObservableObject {
         var needCPUTemperature = false
         var needGPUTemperature = false
         var needBatteryTemperature = false
+        var needFanSpeed = false
 
-        var needSMC: Bool { needPower || needTemperature }
+        var needSMC: Bool { needPower || needTemperature || needFanSpeed }
 
         var needTemperature: Bool {
             needCPUTemperature || needGPUTemperature || needBatteryTemperature
@@ -400,7 +409,7 @@ final class SystemMonitor: ObservableObject {
 
         var any: Bool {
             needCPU || needMemory || needNetwork || needDisk || needPower ||
-                needPeripheralBattery || needGPUUsage || needTemperature
+                needPeripheralBattery || needGPUUsage || needTemperature || needFanSpeed
         }
     }
 
@@ -414,6 +423,7 @@ final class SystemMonitor: ObservableObject {
 
     private func currentPlan(defaults: UserDefaults) -> SamplingPlan {
         var plan = SamplingPlan()
+        let hasInternalBattery = PowerSampler.hasInternalBattery
         let panelNeedsSystem = fullMonitorVisible || menuPanelNeeds.system
         let panelNeedsNetwork = fullMonitorVisible || menuPanelNeeds.network
         let panelNeedsDisk = fullMonitorVisible || menuPanelNeeds.disk
@@ -422,13 +432,14 @@ final class SystemMonitor: ObservableObject {
         let panelCPU = (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysCPU)) || menuPanelNeeds.cpu
         let panelGPU = (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysGPU)) || menuPanelNeeds.gpu
         let panelMemory = (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysMemory)) || menuPanelNeeds.memory
-        let panelBattery = (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysBattery)) || menuPanelNeeds.battery
+        let panelBattery = hasInternalBattery
+            && ((panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysBattery)) || menuPanelNeeds.battery)
         let panelTemps = panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysTemps)
         let alertCPU = defaults.bool(forKey: DefaultsKey.monitorAlertCPU)
         let alertCPUTemperature = defaults.bool(forKey: DefaultsKey.monitorAlertCPUTemperature)
         let alertMemory = defaults.bool(forKey: DefaultsKey.monitorAlertMemory)
         let alertDisk = defaults.bool(forKey: DefaultsKey.monitorAlertDisk)
-        let alertBattery = defaults.bool(forKey: DefaultsKey.monitorAlertBattery)
+        let alertBattery = hasInternalBattery && defaults.bool(forKey: DefaultsKey.monitorAlertBattery)
 
         plan.needCPU = panelCPU || defaults.bool(forKey: DefaultsKey.menuBarCPU) || alertCPU
         plan.needMemory = panelMemory || defaults.bool(forKey: DefaultsKey.menuBarMemory) || alertMemory
@@ -439,8 +450,8 @@ final class SystemMonitor: ObservableObject {
             || alertDisk
         plan.needPower = panelNeedsPower || panelBattery
             || defaults.bool(forKey: DefaultsKey.menuBarPower)
-            || defaults.bool(forKey: DefaultsKey.menuBarBattery)
-            || defaults.bool(forKey: DefaultsKey.menuBarBatteryTime)
+            || (hasInternalBattery && defaults.bool(forKey: DefaultsKey.menuBarBattery))
+            || (hasInternalBattery && defaults.bool(forKey: DefaultsKey.menuBarBatteryTime))
             || alertBattery
         plan.needPeripheralBattery = menuPanelNeeds.peripheralBattery
             || defaults.bool(forKey: DefaultsKey.menuBarPeripheralBattery)
@@ -449,8 +460,13 @@ final class SystemMonitor: ObservableObject {
             defaults.bool(forKey: DefaultsKey.menuBarCPUTemperature) || alertCPUTemperature
         plan.needGPUTemperature = panelTemps || menuPanelNeeds.gpuTemperature ||
             defaults.bool(forKey: DefaultsKey.menuBarGPUTemperature)
-        plan.needBatteryTemperature = panelTemps || menuPanelNeeds.batteryTemperature ||
-            defaults.bool(forKey: DefaultsKey.menuBarBatteryTemperature)
+        plan.needBatteryTemperature = hasInternalBattery && (panelTemps || menuPanelNeeds.batteryTemperature ||
+            defaults.bool(forKey: DefaultsKey.menuBarBatteryTemperature))
+        if defaults.bool(forKey: AppFeature.fanControl.availabilityKey),
+           Self.fanTelemetryAvailable {
+            plan.needFanSpeed = fullMonitorVisible || menuPanelNeeds.fanSpeed
+                || defaults.bool(forKey: DefaultsKey.menuBarFanSpeed)
+        }
 
         // The hub gates whole metric families: an unavailable metric never
         // samples, no matter what is pinned, shown or alerting.
@@ -473,6 +489,7 @@ final class SystemMonitor: ObservableObject {
             plan.needPeripheralBattery = false
             plan.needBatteryTemperature = false
         }
+        if !available(.fanControl) { plan.needFanSpeed = false }
         return plan
     }
 
@@ -517,6 +534,7 @@ final class SystemMonitor: ObservableObject {
         if plan.needPeripheralBattery { kinds.append(.peripheralBattery) }
         if plan.needGPUUsage { kinds.append(.gpuUsage) }
         if plan.needTemperature { kinds.append(.temperature) }
+        if plan.needFanSpeed { kinds.append(.fanSpeed) }
         return kinds
     }
 
@@ -566,7 +584,9 @@ final class SystemMonitor: ObservableObject {
         tickCount &+= scheduledWakeTicks
         queue.async { [weak self] in
             guard let self else { return }
-            self.prepareIfNeeded(needSMC: plan.needSMC, needTemperature: plan.needTemperature)
+            self.prepareIfNeeded(needSMC: plan.needSMC,
+                                 needTemperature: plan.needTemperature,
+                                 needFanSpeed: plan.needFanSpeed)
             let now = ProcessInfo.processInfo.systemUptime
 
             var next = SystemSnapshot()
@@ -730,6 +750,19 @@ final class SystemMonitor: ObservableObject {
                     next.batteryTemperature = self.batteryTemperatureCache?.value
                 }
             }
+            if plan.needFanSpeed {
+                if take(.fanSpeed) {
+                    if let speeds = self.readFanSpeeds() {
+                        self.lastFanSpeeds = speeds
+                        self.missedFanSpeedSamples = 0
+                    } else if self.missedFanSpeedSamples < 3 {
+                        self.missedFanSpeedSamples += 1
+                    } else {
+                        self.lastFanSpeeds = []
+                    }
+                }
+                next.fanSpeeds = self.lastFanSpeeds
+            }
 
             next.cpuHistory = plan.needCPU ? self.cpuHistory.values : []
             next.gpuHistory = plan.needGPUUsage ? self.gpuHistory.values : []
@@ -803,16 +836,28 @@ final class SystemMonitor: ObservableObject {
     /// Opens the SMC lazily. Temperature key discovery is heavier (it enumerates
     /// every SMC key) so it waits until the panel or a pinned temperature metric
     /// actually needs it.
-    private func prepareIfNeeded(needSMC: Bool, needTemperature: Bool) {
+    private func prepareIfNeeded(needSMC: Bool,
+                                 needTemperature: Bool,
+                                 needFanSpeed: Bool) {
         if needSMC, !smcTried {
             smcTried = true
             smc = SMCClient()
             cpuTemperaturePlatform = TemperatureSensorSelector.currentPlatform()
             powerSampler = PowerSampler(smc: smc)
         }
+        guard let client = smc else { return }
+
+        if needFanSpeed, !fanKeysPrepared {
+            fanKeysPrepared = true
+            let count = Self.fanTelemetryCount
+            if count > 0 {
+                let keys = (0..<count).compactMap { client.key(named: "F\($0)Ac") }
+                if keys.count == count { fanKeys = keys }
+            }
+        }
+
         guard needTemperature, !tempKeysPrepared else { return }
         tempKeysPrepared = true
-        guard let client = smc else { return }
 
         let all = client.keys { name in
             name.hasPrefix("Tp") || name.hasPrefix("Te") || name.hasPrefix("Tg")
@@ -826,6 +871,28 @@ final class SystemMonitor: ObservableObject {
         fallbackCPUKeys = cpuKeys.filter { !preferredNames.contains($0.name) }
         gpuKeys = all.filter { $0.name.hasPrefix("Tg") }
         batteryKeys = all.filter { $0.name.hasPrefix("TB") }
+    }
+
+    static let fanTelemetryCount: Int = {
+        guard let client = SMCClient(),
+              let countKey = client.key(named: "FNum"),
+              let countValue = client.readValue(countKey),
+              let count = FanControlPolicy.fanCount(from: countValue) else { return 0 }
+        let readings = (0..<count).map { index -> Double? in
+            guard let key = client.key(named: "F\(index)Ac") else { return nil }
+            return client.readValue(key)
+        }
+        guard FanControlPolicy.telemetryReadings(expectedCount: count,
+                                                 readings: readings) != nil else { return 0 }
+        return count
+    }()
+
+    static var fanTelemetryAvailable: Bool { fanTelemetryCount > 0 }
+
+    private func readFanSpeeds() -> [Double]? {
+        guard let smc, !fanKeys.isEmpty else { return nil }
+        return FanControlPolicy.telemetryReadings(expectedCount: fanKeys.count,
+                                                  readings: fanKeys.map { smc.readValue($0) })
     }
 
     private func cpuTemperature() -> Double? {
