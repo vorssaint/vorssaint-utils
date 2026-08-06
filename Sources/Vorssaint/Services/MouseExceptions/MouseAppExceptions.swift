@@ -32,6 +32,12 @@ final class MouseAppExceptions: ObservableObject {
     /// True while every list is empty, the fast path out of every question.
     private var allEmpty = true
 
+    /// Source process ids are resolved outside the event tap. The scroll taps
+    /// only ask these sets, never AppKit or the workspace, for each wheel event.
+    private var sourceProcessIDs: [MouseExceptionScope: Set<Int32>] = [:]
+    private var trackedSourceScopes: Set<MouseExceptionScope> = []
+    private var runningApplicationsObservation: NSKeyValueObservation?
+
     /// The last resolved answer: the app, the window it came from (nil when
     /// the pointer was over nothing), where the pointer was and when.
     private var cachedBundleID: String?
@@ -60,6 +66,7 @@ final class MouseAppExceptions: ObservableObject {
         }
         allEmpty = lookups.values.allSatisfy(\.isEmpty)
         invalidateCache()
+        refreshSourceTracking()
     }
 
     func list(_ scope: MouseExceptionScope) -> [String] { lists[scope] ?? [] }
@@ -79,11 +86,17 @@ final class MouseAppExceptions: ObservableObject {
 
     // MARK: - The question the taps ask
 
-    /// True when the app under the pointer is on this feature's list. For the
-    /// features whose event lands wherever the pointer is: the wheel and the
-    /// synthesized middle click.
-    func excludesPointerTarget(_ scope: MouseExceptionScope, at point: CGPoint) -> Bool {
+    /// True when the app under the pointer or the app that posted the event is
+    /// on this feature's list. Source ids are used only by the two scroll taps;
+    /// hardware wheel events have no app source and keep the original path.
+    func excludesPointerTarget(_ scope: MouseExceptionScope,
+                               at point: CGPoint,
+                               sourceProcessID: Int64 = 0) -> Bool {
         guard let exceptions = lookups[scope], !exceptions.isEmpty else { return false }
+        if let pid = MouseAppExceptionSupport.sourceProcessID(sourceProcessID),
+           sourceProcessIDs[scope]?.contains(pid) == true {
+            return true
+        }
         return MouseAppExceptionSupport.isExcepted(pointerBundleID(at: point), exceptions: exceptions)
     }
 
@@ -92,13 +105,93 @@ final class MouseAppExceptions: ObservableObject {
     /// command to the app in front, while the click they swallow belonged to
     /// the app under the pointer, so an exception on either side means hands
     /// off.
-    func excludesActionTarget(_ scope: MouseExceptionScope, at point: CGPoint) -> Bool {
+    func excludesActionTarget(_ scope: MouseExceptionScope,
+                              at point: CGPoint,
+                              sourceProcessID: Int64 = 0) -> Bool {
         guard let exceptions = lookups[scope], !exceptions.isEmpty else { return false }
+        if let pid = MouseAppExceptionSupport.sourceProcessID(sourceProcessID),
+           sourceProcessIDs[scope]?.contains(pid) == true {
+            return true
+        }
         if MouseAppExceptionSupport.isExcepted(pointerBundleID(at: point), exceptions: exceptions) {
             return true
         }
         return MouseAppExceptionSupport.isExcepted(NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
                                                   exceptions: exceptions)
+    }
+
+    /// Services that intercept wheel events call this with their tap lifecycle.
+    /// With every such feature off, unavailable or carrying an empty list, no
+    /// workspace observer or source cache remains alive.
+    func setSourceTracking(_ active: Bool, for scope: MouseExceptionScope) {
+        if active {
+            trackedSourceScopes.insert(scope)
+        } else {
+            trackedSourceScopes.remove(scope)
+        }
+        refreshSourceTracking()
+    }
+
+    private func refreshSourceTracking() {
+        let shouldTrack = trackedSourceScopes.contains {
+            lookups[$0]?.isEmpty == false
+        }
+        guard shouldTrack else {
+            stopSourceTracking()
+            return
+        }
+
+        if runningApplicationsObservation == nil {
+            runningApplicationsObservation = NSWorkspace.shared.observe(
+                \.runningApplications, options: [.initial, .new]) { [weak self] workspace, _ in
+                    self?.rebuildSourceProcesses(workspace.runningApplications)
+            }
+        } else {
+            rebuildSourceProcesses(NSWorkspace.shared.runningApplications)
+        }
+    }
+
+    private func stopSourceTracking() {
+        runningApplicationsObservation?.invalidate()
+        runningApplicationsObservation = nil
+        sourceProcessIDs.removeAll(keepingCapacity: false)
+    }
+
+    private func rebuildSourceProcesses(_ applications: [NSRunningApplication]) {
+        sourceProcessIDs.removeAll(keepingCapacity: true)
+        for app in applications {
+            let bundleIDs = sourceBundleIdentifiers(for: app)
+            guard !bundleIDs.isEmpty else { continue }
+            for scope in trackedSourceScopes {
+                guard let exceptions = lookups[scope],
+                      MouseAppExceptionSupport.isExcepted(bundleIDs,
+                                                          exceptions: exceptions) else { continue }
+                sourceProcessIDs[scope, default: []].insert(app.processIdentifier)
+            }
+        }
+    }
+
+    /// Helpers bundled inside a selected app inherit its exception. This uses
+    /// only public bundle URLs and runs on launch or preference changes, never
+    /// in the wheel callback.
+    private func sourceBundleIdentifiers(for app: NSRunningApplication) -> [String] {
+        var identifiers: [String] = []
+        if let bundleID = app.bundleIdentifier {
+            identifiers.append(bundleID)
+        }
+
+        var url = (app.bundleURL ?? app.executableURL)?.standardizedFileURL
+        while let candidate = url, candidate.path != "/" {
+            if candidate.pathExtension.caseInsensitiveCompare("app") == .orderedSame,
+               let bundleID = Bundle(url: candidate)?.bundleIdentifier,
+               !identifiers.contains(bundleID) {
+                identifiers.append(bundleID)
+            }
+            let parent = candidate.deletingLastPathComponent()
+            guard parent != candidate else { break }
+            url = parent
+        }
+        return identifiers
     }
 
     // MARK: - Resolving

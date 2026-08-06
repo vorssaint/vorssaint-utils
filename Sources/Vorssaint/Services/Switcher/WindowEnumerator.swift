@@ -24,11 +24,23 @@ enum WindowEnumerator {
     private static let maximumCount = 24
 
     static func listWindows() -> [SwitcherItem] {
+        listWindows(appRules: SwitcherAppRule.rules(
+            storedValue: UserDefaults.standard.dictionary(forKey: DefaultsKey.switcherAppRules)))
+    }
+
+    /// The Command Bar shares the window walk, not the Switcher's visibility
+    /// preferences. An app hidden from ⌘Tab must remain searchable there.
+    static func listWindowsForCommandBar() -> [SwitcherItem] {
+        listWindows(appRules: [:])
+    }
+
+    private static func listWindows(appRules: [String: SwitcherAppRule]) -> [SwitcherItem] {
         let windowlessApps = SwitcherWindowlessApps.mode(
             storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherWindowlessApps))
         return listWindows(filterPID: nil,
                            maximumCount: maximumCount,
                            windowlessApps: windowlessApps,
+                           appRules: appRules,
                            groupByApp: UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs),
                            currentSpaceOnly: UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly))
     }
@@ -47,6 +59,7 @@ enum WindowEnumerator {
         listWindows(filterPID: pid,
                     maximumCount: maximumCount,
                     windowlessApps: .off,
+                    appRules: [:],
                     groupByApp: false,
                     currentSpaceOnly: false)
     }
@@ -54,6 +67,7 @@ enum WindowEnumerator {
     private static func listWindows(filterPID: pid_t?,
                                     maximumCount: Int,
                                     windowlessApps: SwitcherWindowlessApps,
+                                    appRules: [String: SwitcherAppRule],
                                     groupByApp: Bool,
                                     currentSpaceOnly: Bool) -> [SwitcherItem] {
         let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
@@ -163,6 +177,8 @@ enum WindowEnumerator {
                 : embeddedHostPIDs[windowOwnerPID]
             guard let appPID else { continue }
             if let filterPID, appPID != filterPID { continue }
+            if SwitcherSupport.hidesApp(bundleIdentifier: bundleIdentifiers[appPID],
+                                        appRules: appRules) { continue }
             // Current-Space mode (issue #337): windows living on another
             // desktop are left out entirely, including minimized ones that
             // kept their desktop of origin, so picking an entry never moves
@@ -237,6 +253,9 @@ enum WindowEnumerator {
                                        seen: &seen,
                                        filterPID: filterPID,
                                        excludeWindow: { windowID, appPID in
+                                           if SwitcherSupport.hidesApp(
+                                               bundleIdentifier: bundleIdentifiers[appPID],
+                                               appRules: appRules) { return true }
                                            guard currentSpaceOnly, isOnHiddenSpace(windowID) else { return false }
                                            withheldPIDs.insert(appPID)
                                            return true
@@ -247,7 +266,8 @@ enum WindowEnumerator {
                              regularApps: regularApps,
                              accessibilityWindows: accessibilityWindows,
                              ownPID: pid_t(ownPid),
-                             withheldPIDs: withheldPIDs)
+                             withheldPIDs: withheldPIDs,
+                             appRules: appRules)
         if groupByApp {
             windows = groupWindowsByApp(windows)
         }
@@ -554,8 +574,8 @@ enum WindowEnumerator {
                                              regularApps: [pid_t: String],
                                              accessibilityWindows: [pid_t: AccessibilityWindowSnapshotList],
                                              ownPID: pid_t,
-                                             withheldPIDs: Set<pid_t>) {
-        guard mode != .off else { return }
+                                             withheldPIDs: Set<pid_t>,
+                                             appRules: [String: SwitcherAppRule]) {
         // The window server order is stable across calls, so apps that were
         // never brought to the front keep a settled place instead of shuffling
         // between one press and the next.
@@ -574,7 +594,8 @@ enum WindowEnumerator {
             candidates: candidates,
             pidsWithWindows: Set(windows.map(\.pid)),
             pidsWithWithheldWindows: withheldPIDs,
-            desktopAppBundleIdentifier: Defaults.finderBundleIdentifier)
+            desktopAppBundleIdentifier: Defaults.finderBundleIdentifier,
+            appRules: appRules)
         for pid in chosen {
             guard let name = regularApps[pid] else { continue }
             windows.append(.appOnly(appName: name, pid: pid))

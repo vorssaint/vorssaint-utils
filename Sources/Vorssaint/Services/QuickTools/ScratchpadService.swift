@@ -8,8 +8,8 @@ import UniformTypeIdentifiers
 
 /// A floating pad for short-lived text: meeting notes, numbers, fragments on
 /// their way somewhere else. Summoned from the panel, the quick panel or a
-/// global shortcut, it saves every edit by itself to one local file, so
-/// nothing exists at rest and nothing is ever lost between openings. It steps
+/// global shortcut, it saves every edit by itself in a small tabbed document, so
+/// nothing runs at rest and edits remain available between openings. It steps
 /// aside on a click outside, and an option keeps it floating over other apps
 /// instead.
 final class ScratchpadService: ObservableObject {
@@ -17,10 +17,16 @@ final class ScratchpadService: ObservableObject {
 
     @Published private(set) var shortcutRegistrationFailed = false
     @Published private(set) var isPinned = false
-    /// The single buffer. The pad's editor binds straight to it; every change
-    /// schedules a save, so there is no save ceremony anywhere.
+    @Published private(set) var pads: [ScratchpadPad] = []
+    @Published private(set) var selectedPadID: UUID?
     @Published var text = "" {
-        didSet { scheduleSave() }
+        didSet {
+            guard hasLoaded, !isReplacingText, var document else { return }
+            document.updateSelectedText(text, modifiedAt: Date())
+            self.document = document
+            pads = document.pads
+            scheduleSave()
+        }
     }
 
     private let hotkey = QuickToolHotkey(id: 18)
@@ -30,9 +36,11 @@ final class ScratchpadService: ObservableObject {
     private var outsideClickMonitor: Any?
     private weak var textView: NSTextView?
     private var pendingSave: DispatchWorkItem?
-    private var lastSavedText: String?
+    private var document: ScratchpadDocument?
+    private var lastSavedDocument: ScratchpadDocument?
     private var hasLoaded = false
-    private static var exportModalActive = false
+    private var isReplacingText = false
+    private var modalInteractionActive = false
 
     private init() {
         hotkey.onPress = { [weak self] in self?.toggle() }
@@ -65,7 +73,7 @@ final class ScratchpadService: ObservableObject {
     /// visible but unfocused, it grabs focus instead of closing, so one press
     /// always lands the caret in the text.
     func toggle() {
-        guard !Self.exportModalActive else { return }
+        guard !modalInteractionActive else { return }
         if isVisible, panel?.isKeyWindow == true {
             hide()
         } else {
@@ -74,7 +82,7 @@ final class ScratchpadService: ObservableObject {
     }
 
     func show() {
-        guard AppFeature.scratchpad.isAvailable, !Self.exportModalActive else { return }
+        guard AppFeature.scratchpad.isAvailable, !modalInteractionActive else { return }
         if isVisible {
             focusText()
             return
@@ -103,15 +111,14 @@ final class ScratchpadService: ObservableObject {
         removeMonitors()
         panel?.orderOut(nil)
         isPinned = false
+        modalInteractionActive = false
     }
 
-    // MARK: - Buffer
+    // MARK: - Document
 
-    /// The buffer file. Plain text the user could open by hand; its
-    /// modification date doubles as the "last edit" the retention rule reads,
-    /// so no extra bookkeeping exists anywhere. Without a resolvable home the
-    /// pad simply keeps text in memory for the session.
-    private static var storeURL: URL? {
+    /// The former single-buffer file is read once and removed only after the
+    /// replacement document has been written and read back successfully.
+    private static var legacyStoreURL: URL? {
         guard let base = FileManager.default.urls(for: .applicationSupportDirectory,
                                                   in: .userDomainMask).first,
               let bundleID = Bundle.main.bundleIdentifier else { return nil }
@@ -122,26 +129,46 @@ final class ScratchpadService: ObservableObject {
 
     private func loadApplyingRetention() {
         hasLoaded = true
-        guard let url = Self.storeURL else { return }
-        // A dirty buffer means an edit newer than anything on disk (a failed
-        // flush left it behind); reloading would clobber the user's text with
-        // the stale file. Retry the save instead and keep the buffer.
-        if let lastSavedText, text != lastSavedText {
+        if let document, document != lastSavedDocument {
             flushSave()
             return
         }
-        let manager = FileManager.default
+        let defaults = UserDefaults.standard
+        let defaultName = FeatureStrings.scratchpad(L10n.shared.language).pageTitle
         let retention = ScratchpadRetention.sanitized(
-            UserDefaults.standard.string(forKey: DefaultsKey.scratchpadRetention))
-        let lastEdited = (try? manager.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
-        if ScratchpadSupport.shouldClear(lastEdited: lastEdited, now: Date(), retention: retention) {
-            try? manager.removeItem(at: url)
+            defaults.string(forKey: DefaultsKey.scratchpadRetention))
+
+        if let stored = defaults.object(forKey: DefaultsKey.scratchpadDocument) {
+            let data = stored as? Data
+            let decoded = data.flatMap { try? JSONDecoder().decode(ScratchpadDocument.self, from: $0) }
+            var loaded = decoded?.sanitized(defaultName: defaultName)
+                ?? .initial(defaultName: defaultName)
+            loaded.applyRetention(retention, now: Date())
+            if loaded == decoded {
+                lastSavedDocument = loaded
+            } else {
+                _ = persist(loaded)
+            }
+            apply(loaded)
+            return
         }
-        let saved = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-        lastSavedText = saved
-        if text != saved {
-            text = saved
+
+        let manager = FileManager.default
+        let legacyURL = Self.legacyStoreURL
+        let legacyText = legacyURL.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+        let lastEdited = legacyURL.flatMap {
+            (try? manager.attributesOfItem(atPath: $0.path))?[.modificationDate] as? Date
         }
+        let migrated = ScratchpadSupport.migratedLegacyDocument(
+            text: legacyText,
+            lastEdited: lastEdited,
+            defaultName: defaultName,
+            retention: retention,
+            now: Date())
+        if persist(migrated), let legacyURL {
+            try? manager.removeItem(at: legacyURL)
+        }
+        apply(migrated)
     }
 
     private func scheduleSave() {
@@ -151,24 +178,82 @@ final class ScratchpadService: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8, execute: work)
     }
 
-    /// Writes only when the buffer really changed since the last write, so
-    /// reopening the pad never touches the file's modification date.
     private func flushSave() {
         pendingSave?.cancel()
         pendingSave = nil
-        guard hasLoaded, text != lastSavedText, let url = Self.storeURL else { return }
-        if text.isEmpty {
-            try? FileManager.default.removeItem(at: url)
-            lastSavedText = text
-        } else {
-            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
-                                                     withIntermediateDirectories: true)
-            // Only a write that really landed marks the buffer clean, so a
-            // failed save retries on the next edit or close.
-            if (try? text.write(to: url, atomically: true, encoding: .utf8)) != nil {
-                lastSavedText = text
-            }
-        }
+        guard hasLoaded, let document else { return }
+        _ = persist(document)
+    }
+
+    @discardableResult
+    private func persist(_ document: ScratchpadDocument) -> Bool {
+        if document == lastSavedDocument { return true }
+        guard let data = document.encoded() else { return false }
+        let defaults = UserDefaults.standard
+        defaults.set(data, forKey: DefaultsKey.scratchpadDocument)
+        guard defaults.data(forKey: DefaultsKey.scratchpadDocument) == data else { return false }
+        lastSavedDocument = document
+        return true
+    }
+
+    private func apply(_ document: ScratchpadDocument, focus: Bool = false) {
+        self.document = document
+        pads = document.pads
+        selectedPadID = document.selectedID
+        let selectedText = document.pads.first(where: { $0.id == document.selectedID })?.text ?? ""
+        isReplacingText = true
+        text = selectedText
+        isReplacingText = false
+        if focus { focusText() }
+    }
+
+    var canCreatePad: Bool { pads.count < ScratchpadDocument.maximumPadCount }
+    var canClosePad: Bool { pads.count > 1 }
+    var selectedPadName: String {
+        pads.first(where: { $0.id == selectedPadID })?.name
+            ?? FeatureStrings.scratchpad(L10n.shared.language).pageTitle
+    }
+
+    func createPad(defaultName: String) {
+        guard let document, let next = document.addingPad(defaultName: defaultName), persist(next) else { return }
+        apply(next, focus: true)
+    }
+
+    func selectPad(_ id: UUID) {
+        guard id != selectedPadID, let document, let next = document.selecting(id), persist(next) else { return }
+        apply(next, focus: true)
+    }
+
+    func renamePad(_ id: UUID, to name: String) {
+        guard let document, let next = document.renaming(id, to: name), persist(next) else { return }
+        apply(next, focus: id == selectedPadID)
+    }
+
+    @discardableResult
+    func closePad(_ id: UUID) -> Bool {
+        guard let document, let next = document.removing(id), persist(next) else { return false }
+        apply(next, focus: true)
+        return true
+    }
+
+    func setModalInteractionActive(_ active: Bool) {
+        modalInteractionActive = active
+    }
+
+    /// Settings export asks for a current document only when the user invokes
+    /// it; normal app launch still performs no scratchpad content read.
+    func prepareForSettingsBackup() {
+        if hasLoaded { flushSave() } else { loadApplyingRetention() }
+    }
+
+    /// Import intentionally replaces settings. Drop the in-memory document so
+    /// the termination flush cannot overwrite the restored backup on the way out.
+    func prepareForSettingsRestore() {
+        pendingSave?.cancel()
+        pendingSave = nil
+        hasLoaded = false
+        document = nil
+        lastSavedDocument = nil
     }
 
     // MARK: - Actions
@@ -214,8 +299,8 @@ final class ScratchpadService: ObservableObject {
     /// takes no clicks or keys. Activate first and let the run loop turn, then
     /// hand key focus back to the pad.
     func exportText(suggestedName: String) {
-        guard !text.isEmpty, !Self.exportModalActive else { return }
-        Self.exportModalActive = true
+        guard !text.isEmpty, !modalInteractionActive else { return }
+        modalInteractionActive = true
         flushSave()
         let savePanel = NSSavePanel()
         savePanel.allowedContentTypes = [.plainText]
@@ -226,7 +311,7 @@ final class ScratchpadService: ObservableObject {
         NSApp.activate(ignoringOtherApps: true)
         DispatchQueue.main.async { [weak self] in
             let response = savePanel.runModal()
-            Self.exportModalActive = false
+            self?.modalInteractionActive = false
             if response == .OK, let url = savePanel.url {
                 try? content.write(to: url, atomically: true, encoding: .utf8)
             }
@@ -322,7 +407,7 @@ final class ScratchpadService: ObservableObject {
     /// a file must never be what closes it.
     private var dismissesOnOutsideClick: Bool {
         ScratchpadSupport.dismissesOnOutsideClick(isPinned: isPinned,
-                                                  exportModalActive: Self.exportModalActive)
+                                                  exportModalActive: modalInteractionActive)
     }
 
     private func installMonitors(for panel: NSPanel) {

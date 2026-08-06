@@ -9,7 +9,7 @@ protocol PanelOrderItem: RawRepresentable, CaseIterable, Hashable where RawValue
 /// The major, user-customizable sections of the menu panel. Raw values are the
 /// stable identifiers persisted in the saved order and the collapsed set, so
 /// renaming a case would orphan a user's stored layout — keep them stable.
-enum PanelSectionID: String, CaseIterable, Identifiable {
+enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
     case keepAwake, brightness, mixer, system, network, disk, power, fanControl, utilities, controls,
          toggles
 
@@ -25,7 +25,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
         case .network: return s.networkSection
         case .disk: return s.diskSection
         case .power: return s.powerSection
-        case .fanControl: return s.fanControlBetaSection
+        case .fanControl: return FeatureStrings.fanControl(L10n.shared.language).title
         case .utilities: return s.utilitiesSection
         case .controls: return s.quickControlsSection
         case .toggles: return FeatureStrings.quickToggles(L10n.shared.language).pageTitle
@@ -60,15 +60,15 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
         case .network: return DefaultsKey.monitorShowNetwork
         case .disk: return DefaultsKey.monitorShowDisk
         case .power: return DefaultsKey.monitorShowPower
-        case .fanControl: return DefaultsKey.monitorShowFanControlBeta
+        case .fanControl: return DefaultsKey.panelShowFanControl
         case .utilities: return DefaultsKey.panelShowUtilities
         case .controls: return DefaultsKey.panelShowControls
         case .toggles: return DefaultsKey.panelShowToggles
         }
     }
 
-    /// Fan Control is a beta opt-in (default hidden); everything else shows by default.
-    var shownByDefault: Bool { self != .fanControl }
+    /// Installed sections show by default and remain individually hideable.
+    var shownByDefault: Bool { true }
 
     /// Hub features that keep this section alive: with all of them off, the
     /// section leaves the panel, the section navigation and the layout
@@ -83,9 +83,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable {
         case .network: return [.monitorNetwork]
         case .disk: return [.monitorDisk]
         case .power: return [.monitorPower]
-        // The fan curves read the same thermal picture as the monitor, so the
-        // beta rides on the monitor family being present at all.
-        case .fanControl: return FeatureVisibilitySupport.monitorFeatures
+        case .fanControl: return [.fanControl]
         case .utilities: return [.quickLauncher, .cleaner, .homebrew, .appUpdates, .mediaTools,
                                  .clipboardHistory,
                                  .windowLayout, .uninstaller, .urlCleaner, .cleaningMode, .screenOCR,
