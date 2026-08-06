@@ -16,6 +16,7 @@ enum SettingsPage: Hashable {
 enum FeatureVisibilitySupport {
     static let monitorFeatures: [AppFeature] = [
         .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
+        .fanControl,
     ]
 
     /// Features gating a page; empty means the page is part of the app and

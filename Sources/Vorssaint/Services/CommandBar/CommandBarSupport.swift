@@ -3,6 +3,12 @@
 
 import Foundation
 
+enum CommandBarClipboardAccess {
+    static func canUseHistory(captureEnabled: Bool, hasSavedItems: Bool) -> Bool {
+        captureEnabled || hasSavedItems
+    }
+}
+
 /// One searchable row offered to the command bar's ranking pass. `boost`
 /// carries whatever the caller wants to privilege (usage, pinning) so the
 /// ranking itself stays a pure function of text.

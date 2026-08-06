@@ -98,6 +98,7 @@ enum SelfUninstall {
     }
 
     private static func detachFromSystem() {
+        FanControlService.restoreAndUnregisterForRemoval()
         // Restore normal sleep if a closed-lid session left it disabled.
         if UserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag) {
             _ = Sudoers.pmsetDisableSleep(false)

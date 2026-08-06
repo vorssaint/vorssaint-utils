@@ -18,6 +18,7 @@ enum SettingsBackup {
         panel.canCreateDirectories = true
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url else { return nil }
+        ScratchpadService.shared.prepareForSettingsBackup()
         let defaults = UserDefaults.standard
         // object(forKey:) sees through to registered defaults, so the file is
         // a complete snapshot: importing it reproduces this exact setup even
@@ -60,6 +61,7 @@ enum SettingsBackup {
     /// Clears the exportable keys (unset ones fall back to their registered
     /// defaults), writes the file's values and relaunches.
     static func applyAndRelaunch(settings: [String: Any]) {
+        ScratchpadService.shared.prepareForSettingsRestore()
         let defaults = UserDefaults.standard
         for key in SettingsBackupSupport.exportKeys() {
             defaults.removeObject(forKey: key)

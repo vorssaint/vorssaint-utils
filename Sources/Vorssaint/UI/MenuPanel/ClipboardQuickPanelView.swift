@@ -8,8 +8,7 @@ struct ClipboardQuickPanelView: View {
     @ObservedObject private var history = ClipboardHistoryService.shared
     @FocusState private var searchFocused: Bool
     @State private var hoveredEntryID: UUID?
-    // Sticky: updated on hover-enter or keyboard navigation, never on hover-leave.
-    @State private var previewEntry: ClipboardHistoryEntry?
+    @State private var previewEntryID: UUID?
 
     private var text: ClipboardFeatureStrings {
         FeatureStrings.clipboard(l10n.language)
@@ -17,6 +16,12 @@ struct ClipboardQuickPanelView: View {
 
     private var filtered: [ClipboardHistoryEntry] {
         history.filteredQuickEntries
+    }
+
+    private var previewEntry: ClipboardHistoryEntry? {
+        ClipboardHistorySelection.previewEntry(preferredID: previewEntryID,
+                                               visibleEntries: filtered,
+                                               selectedEntry: history.selectedQuickEntry)
     }
 
     private var canReorderEntries: Bool {
@@ -33,7 +38,7 @@ struct ClipboardQuickPanelView: View {
             }
             .padding(.trailing, 12)
             Divider()
-            ClipboardEntryPreviewSidebar(text: text, entry: previewEntry ?? history.selectedQuickEntry)
+            ClipboardEntryPreviewSidebar(text: text, entry: previewEntry)
                 .frame(width: 280)
         }
         .padding(16)
@@ -41,19 +46,22 @@ struct ClipboardQuickPanelView: View {
         .background(.regularMaterial)
         .onAppear {
             hoveredEntryID = nil
-            previewEntry = history.selectedQuickEntry
+            previewEntryID = history.selectedQuickEntryID
             DispatchQueue.main.async { searchFocused = true }
         }
         .onDisappear {
             hoveredEntryID = nil
-            previewEntry = nil
+            previewEntryID = nil
         }
         .onChange(of: history.quickSelectionIndex) { _, _ in
-            previewEntry = history.selectedQuickEntry
+            previewEntryID = history.selectedQuickEntryID
+        }
+        .onChange(of: history.quickQuery) { _, _ in
+            previewEntryID = history.selectedQuickEntryID
         }
         .onChange(of: history.quickWindowPresentationID) { _, _ in
             hoveredEntryID = nil
-            previewEntry = history.selectedQuickEntry
+            previewEntryID = history.selectedQuickEntryID
         }
     }
 
@@ -287,7 +295,7 @@ struct ClipboardQuickPanelView: View {
                 hoveredEntryID = hovering ? entry.id : (hoveredEntryID == entry.id ? nil : hoveredEntryID)
             }
             if hovering {
-                previewEntry = entry
+                previewEntryID = entry.id
             }
         }
         .onTapGesture {

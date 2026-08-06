@@ -130,6 +130,13 @@ struct ScreenshotFeatureStrings {
     let scrollingCaptureCaption: String
     let scrollingCaptureSelectionHint: String
     let scrollingCapturePartialHUD: String
+    let previewPositionLabel: String
+    let previewPositionAutomatic: String
+    let previewPositionTopLeft: String
+    let previewPositionTopRight: String
+    let previewPositionBottomLeft: String
+    let previewPositionBottomRight: String
+    let hideVorssaintWindowsToggle: String
 }
 
 extension FeatureStrings {
@@ -278,7 +285,14 @@ extension ScreenshotFeatureStrings {
         sharePrivacyAccess: "Anyone with the link can view, download, save or redistribute the image. Active links are available to the service operator for abuse moderation. Share only with people you trust.",
         scrollingCaptureCaption: "Automatically joins a long page and lets you stop at exactly the right place.",
         scrollingCaptureSelectionHint: "Drag only the part of the page that moves.",
-        scrollingCapturePartialHUD: "The page changed. The completed part was kept."
+        scrollingCapturePartialHUD: "The page changed. The completed part was kept.",
+        previewPositionLabel: "Preview position",
+        previewPositionAutomatic: "Automatic",
+        previewPositionTopLeft: "Top left",
+        previewPositionTopRight: "Top right",
+        previewPositionBottomLeft: "Bottom left",
+        previewPositionBottomRight: "Bottom right",
+        hideVorssaintWindowsToggle: "Hide Vorssaint windows"
     )
 
     static let ptBR = ScreenshotFeatureStrings(
@@ -406,7 +420,14 @@ extension ScreenshotFeatureStrings {
         sharePrivacyAccess: "Qualquer pessoa com o link pode ver, baixar, salvar ou redistribuir a imagem. Os links ativos ficam disponíveis ao operador do serviço para moderação de abuso. Compartilhe somente com pessoas de confiança.",
         scrollingCaptureCaption: "Une automaticamente uma página longa e permite parar exatamente onde você quiser.",
         scrollingCaptureSelectionHint: "Arraste apenas a parte da página que rola.",
-        scrollingCapturePartialHUD: "A página mudou. A parte concluída foi mantida."
+        scrollingCapturePartialHUD: "A página mudou. A parte concluída foi mantida.",
+        previewPositionLabel: "Posição da prévia",
+        previewPositionAutomatic: "Automática",
+        previewPositionTopLeft: "Canto superior esquerdo",
+        previewPositionTopRight: "Canto superior direito",
+        previewPositionBottomLeft: "Canto inferior esquerdo",
+        previewPositionBottomRight: "Canto inferior direito",
+        hideVorssaintWindowsToggle: "Ocultar janelas do Vorssaint"
     )
 
     static let tr = ScreenshotFeatureStrings(
@@ -534,7 +555,14 @@ extension ScreenshotFeatureStrings {
         sharePrivacyAccess: "Bağlantıya sahip herkes görüntüyü görebilir, indirebilir, kaydedebilir veya yeniden dağıtabilir. Etkin bağlantılar kötüye kullanım denetimi için hizmet operatörü tarafından görülebilir. Yalnızca güvendiğiniz kişilerle paylaşın.",
         scrollingCaptureCaption: "Uzun bir sayfayı otomatik birleştirir ve tam istediğiniz yerde durmanızı sağlar.",
         scrollingCaptureSelectionHint: "Sayfanın yalnızca kayan bölümünü seçin.",
-        scrollingCapturePartialHUD: "Sayfa değişti. Tamamlanan bölüm korundu."
+        scrollingCapturePartialHUD: "Sayfa değişti. Tamamlanan bölüm korundu.",
+        previewPositionLabel: "Önizleme konumu",
+        previewPositionAutomatic: "Otomatik",
+        previewPositionTopLeft: "Sol üst",
+        previewPositionTopRight: "Sağ üst",
+        previewPositionBottomLeft: "Sol alt",
+        previewPositionBottomRight: "Sağ alt",
+        hideVorssaintWindowsToggle: "Vorssaint pencerelerini gizle"
     )
 
     static let ru = ScreenshotFeatureStrings(
@@ -662,7 +690,14 @@ extension ScreenshotFeatureStrings {
         sharePrivacyAccess: "Любой, у кого есть ссылка, может просмотреть, скачать, сохранить или распространить изображение. Активные ссылки доступны оператору сервиса для модерации злоупотреблений. Делитесь ими только с теми, кому доверяете.",
         scrollingCaptureCaption: "Автоматически объединяет длинную страницу и позволяет остановиться в нужном месте.",
         scrollingCaptureSelectionHint: "Выделите только прокручиваемую часть страницы.",
-        scrollingCapturePartialHUD: "Страница изменилась. Готовая часть сохранена."
+        scrollingCapturePartialHUD: "Страница изменилась. Готовая часть сохранена.",
+        previewPositionLabel: "Положение предпросмотра",
+        previewPositionAutomatic: "Автоматически",
+        previewPositionTopLeft: "Сверху слева",
+        previewPositionTopRight: "Сверху справа",
+        previewPositionBottomLeft: "Снизу слева",
+        previewPositionBottomRight: "Снизу справа",
+        hideVorssaintWindowsToggle: "Скрывать окна Vorssaint"
     )
 
     static let es = ScreenshotFeatureStrings(
@@ -790,7 +825,14 @@ extension ScreenshotFeatureStrings {
         sharePrivacyAccess: "Cualquiera que tenga el enlace puede ver, descargar, guardar o redistribuir la imagen. Los enlaces activos están disponibles para el operador del servicio a fin de moderar abusos. Compártelos solo con personas de confianza.",
         scrollingCaptureCaption: "Une automáticamente una página larga y te permite parar justo donde quieras.",
         scrollingCaptureSelectionHint: "Selecciona solo la parte de la página que se desplaza.",
-        scrollingCapturePartialHUD: "La página cambió. Se conservó la parte completada."
+        scrollingCapturePartialHUD: "La página cambió. Se conservó la parte completada.",
+        previewPositionLabel: "Posición de la vista previa",
+        previewPositionAutomatic: "Automática",
+        previewPositionTopLeft: "Arriba a la izquierda",
+        previewPositionTopRight: "Arriba a la derecha",
+        previewPositionBottomLeft: "Abajo a la izquierda",
+        previewPositionBottomRight: "Abajo a la derecha",
+        hideVorssaintWindowsToggle: "Ocultar ventanas de Vorssaint"
     )
 
     static let de = ScreenshotFeatureStrings(
@@ -918,7 +960,14 @@ extension ScreenshotFeatureStrings {
         sharePrivacyAccess: "Jeder mit dem Link kann das Bild ansehen, herunterladen, speichern oder weitergeben. Aktive Links sind für den Betreiber des Dienstes zur Missbrauchsmoderation verfügbar. Teile sie nur mit Personen, denen du vertraust.",
         scrollingCaptureCaption: "Fügt eine lange Seite automatisch zusammen und stoppt genau an der gewünschten Stelle.",
         scrollingCaptureSelectionHint: "Wähle nur den scrollenden Bereich der Seite aus.",
-        scrollingCapturePartialHUD: "Die Seite hat sich geändert. Der fertige Teil wurde behalten."
+        scrollingCapturePartialHUD: "Die Seite hat sich geändert. Der fertige Teil wurde behalten.",
+        previewPositionLabel: "Position der Vorschau",
+        previewPositionAutomatic: "Automatisch",
+        previewPositionTopLeft: "Oben links",
+        previewPositionTopRight: "Oben rechts",
+        previewPositionBottomLeft: "Unten links",
+        previewPositionBottomRight: "Unten rechts",
+        hideVorssaintWindowsToggle: "Vorssaint-Fenster ausblenden"
     )
 
     static let fr = ScreenshotFeatureStrings(
@@ -1046,7 +1095,14 @@ extension ScreenshotFeatureStrings {
         sharePrivacyAccess: "Toute personne disposant du lien peut afficher, télécharger, enregistrer ou redistribuer l’image. Les liens actifs sont accessibles à l’opérateur du service pour modérer les abus. Partagez-les uniquement avec des personnes de confiance.",
         scrollingCaptureCaption: "Assemble automatiquement une longue page et s’arrête exactement où vous le souhaitez.",
         scrollingCaptureSelectionHint: "Sélectionnez uniquement la partie de la page qui défile.",
-        scrollingCapturePartialHUD: "La page a changé. La partie terminée a été conservée."
+        scrollingCapturePartialHUD: "La page a changé. La partie terminée a été conservée.",
+        previewPositionLabel: "Position de l’aperçu",
+        previewPositionAutomatic: "Automatique",
+        previewPositionTopLeft: "En haut à gauche",
+        previewPositionTopRight: "En haut à droite",
+        previewPositionBottomLeft: "En bas à gauche",
+        previewPositionBottomRight: "En bas à droite",
+        hideVorssaintWindowsToggle: "Masquer les fenêtres Vorssaint"
     )
 
     static let it = ScreenshotFeatureStrings(
@@ -1174,7 +1230,14 @@ extension ScreenshotFeatureStrings {
         sharePrivacyAccess: "Chiunque abbia il link può visualizzare, scaricare, salvare o ridistribuire l’immagine. I link attivi sono disponibili al gestore del servizio per moderare gli abusi. Condividili solo con persone fidate.",
         scrollingCaptureCaption: "Unisce automaticamente una pagina lunga e ti lascia fermare nel punto esatto.",
         scrollingCaptureSelectionHint: "Seleziona solo la parte della pagina che scorre.",
-        scrollingCapturePartialHUD: "La pagina è cambiata. La parte completata è stata conservata."
+        scrollingCapturePartialHUD: "La pagina è cambiata. La parte completata è stata conservata.",
+        previewPositionLabel: "Posizione dell’anteprima",
+        previewPositionAutomatic: "Automatica",
+        previewPositionTopLeft: "In alto a sinistra",
+        previewPositionTopRight: "In alto a destra",
+        previewPositionBottomLeft: "In basso a sinistra",
+        previewPositionBottomRight: "In basso a destra",
+        hideVorssaintWindowsToggle: "Nascondi le finestre di Vorssaint"
     )
 
     static let ja = ScreenshotFeatureStrings(
@@ -1302,7 +1365,14 @@ extension ScreenshotFeatureStrings {
         sharePrivacyAccess: "リンクを知っている人は誰でも画像を表示、ダウンロード、保存、再配布できます。不正利用の監視のため、有効なリンクはサービス運営者も確認できます。信頼できる相手とのみ共有してください。",
         scrollingCaptureCaption: "長いページを自動でつなぎ、ちょうどよい位置で停止できます。",
         scrollingCaptureSelectionHint: "ページ内でスクロールする部分だけを選択してください。",
-        scrollingCapturePartialHUD: "ページが変化したため、完了した部分を残しました。"
+        scrollingCapturePartialHUD: "ページが変化したため、完了した部分を残しました。",
+        previewPositionLabel: "プレビューの位置",
+        previewPositionAutomatic: "自動",
+        previewPositionTopLeft: "左上",
+        previewPositionTopRight: "右上",
+        previewPositionBottomLeft: "左下",
+        previewPositionBottomRight: "右下",
+        hideVorssaintWindowsToggle: "Vorssaintのウインドウを隠す"
     )
 
     static let ko = ScreenshotFeatureStrings(
@@ -1430,7 +1500,14 @@ extension ScreenshotFeatureStrings {
         sharePrivacyAccess: "링크를 가진 사람은 누구나 이미지를 보고, 다운로드하고, 저장하거나 재배포할 수 있습니다. 악용 관리를 위해 활성 링크는 서비스 운영자도 확인할 수 있습니다. 신뢰하는 사람에게만 공유하세요.",
         scrollingCaptureCaption: "긴 페이지를 자동으로 이어 붙이고 원하는 정확한 위치에서 멈출 수 있습니다.",
         scrollingCaptureSelectionHint: "페이지에서 스크롤되는 부분만 선택하세요.",
-        scrollingCapturePartialHUD: "페이지가 바뀌어 완료된 부분만 유지했습니다."
+        scrollingCapturePartialHUD: "페이지가 바뀌어 완료된 부분만 유지했습니다.",
+        previewPositionLabel: "미리보기 위치",
+        previewPositionAutomatic: "자동",
+        previewPositionTopLeft: "왼쪽 위",
+        previewPositionTopRight: "오른쪽 위",
+        previewPositionBottomLeft: "왼쪽 아래",
+        previewPositionBottomRight: "오른쪽 아래",
+        hideVorssaintWindowsToggle: "Vorssaint 윈도우 가리기"
     )
 
     static let zhHans = ScreenshotFeatureStrings(
@@ -1558,7 +1635,14 @@ extension ScreenshotFeatureStrings {
         sharePrivacyAccess: "任何获得链接的人都可以查看、下载、保存或再次分发图片。为处理滥用情况，服务运营者可以查看有效链接。请只与信任的人分享。",
         scrollingCaptureCaption: "自动拼接长页面，并可在你想要的位置准确停止。",
         scrollingCaptureSelectionHint: "只选择页面中会滚动的部分。",
-        scrollingCapturePartialHUD: "页面发生变化，已保留完成的部分。"
+        scrollingCapturePartialHUD: "页面发生变化，已保留完成的部分。",
+        previewPositionLabel: "预览位置",
+        previewPositionAutomatic: "自动",
+        previewPositionTopLeft: "左上角",
+        previewPositionTopRight: "右上角",
+        previewPositionBottomLeft: "左下角",
+        previewPositionBottomRight: "右下角",
+        hideVorssaintWindowsToggle: "隐藏 Vorssaint 窗口"
     )
 
     static let zhTW = ScreenshotFeatureStrings(
@@ -1686,7 +1770,14 @@ extension ScreenshotFeatureStrings {
         sharePrivacyAccess: "任何取得連結的人都可以檢視、下載、儲存或再次散佈圖片。為處理濫用情況，服務營運者可以檢視有效連結。請只與信任的人分享。",
         scrollingCaptureCaption: "自動拼接長頁面，並可在你想要的位置準確停止。",
         scrollingCaptureSelectionHint: "只選取頁面中會捲動的部分。",
-        scrollingCapturePartialHUD: "頁面發生變化，已保留完成的部分。"
+        scrollingCapturePartialHUD: "頁面發生變化，已保留完成的部分。",
+        previewPositionLabel: "預覽位置",
+        previewPositionAutomatic: "自動",
+        previewPositionTopLeft: "左上角",
+        previewPositionTopRight: "右上角",
+        previewPositionBottomLeft: "左下角",
+        previewPositionBottomRight: "右下角",
+        hideVorssaintWindowsToggle: "隱藏 Vorssaint 視窗"
     )
 
     static let zhHK = ScreenshotFeatureStrings(
@@ -1814,6 +1905,13 @@ extension ScreenshotFeatureStrings {
         sharePrivacyAccess: "任何取得連結嘅人都可以檢視、下載、儲存或再次散佈圖片。為處理濫用情況，服務營運者可以檢視有效連結。只應同你信任嘅人分享。",
         scrollingCaptureCaption: "自動拼接長頁面，並可喺你想要嘅位置準確停止。",
         scrollingCaptureSelectionHint: "只選取頁面中會捲動嘅部分。",
-        scrollingCapturePartialHUD: "頁面發生變化，已保留完成嘅部分。"
+        scrollingCapturePartialHUD: "頁面發生變化，已保留完成嘅部分。",
+        previewPositionLabel: "預覽位置",
+        previewPositionAutomatic: "自動",
+        previewPositionTopLeft: "左上角",
+        previewPositionTopRight: "右上角",
+        previewPositionBottomLeft: "左下角",
+        previewPositionBottomRight: "右下角",
+        hideVorssaintWindowsToggle: "隱藏 Vorssaint 視窗"
     )
 }

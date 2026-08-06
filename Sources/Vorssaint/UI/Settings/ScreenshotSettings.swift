@@ -15,6 +15,7 @@ struct ScreenshotSettings: View {
     @AppStorage(DefaultsKey.screenshotLastCaptureShortcutEnabled)
     private var lastCaptureShortcutEnabled = false
     @AppStorage(DefaultsKey.screenshotFreeze) private var freeze = true
+    @AppStorage(DefaultsKey.screenshotHideVorssaintWindows) private var hideVorssaintWindows = true
     @AppStorage(DefaultsKey.screenshotSaveFolder) private var saveFolder = ""
     @AppStorage(DefaultsKey.screenshotSaveSubfolder) private var saveSubfolder = ""
     @AppStorage(DefaultsKey.screenshotFileNamePattern) private var fileNamePattern = ""
@@ -29,6 +30,7 @@ struct ScreenshotSettings: View {
         ScreenshotSupport.Tool.defaultOrderStorage
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
     @AppStorage(DefaultsKey.screenshotCopyToClipboard) private var copyToClipboard = false
+    @AppStorage(DefaultsKey.screenshotPreviewPosition) private var previewPositionRaw = ""
     @State private var showingSharedLinks = false
     @State private var showingSharePrivacy = false
 
@@ -110,6 +112,7 @@ struct ScreenshotSettings: View {
                 Text(strings.freezeCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Toggle(strings.hideVorssaintWindowsToggle, isOn: $hideVorssaintWindows)
                 Picker(strings.delayLabel, selection: $delay) {
                     ForEach(ScreenshotSupport.allowedDelays, id: \.self) { seconds in
                         if seconds == 0 {
@@ -122,6 +125,7 @@ struct ScreenshotSettings: View {
                 .pickerStyle(.segmented)
                 Toggle(strings.pointerToggle, isOn: $includePointer)
                 Toggle(strings.lastRegionToggle, isOn: $showLastRegion)
+                previewPositionRow
                 defaultActionRow
             }
 
@@ -198,6 +202,21 @@ struct ScreenshotSettings: View {
             Text(strings.defaultActionCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    private var previewPositionRow: some View {
+        Picker(strings.previewPositionLabel, selection: $previewPositionRaw) {
+            Text(strings.previewPositionAutomatic)
+                .tag(ScreenshotSupport.QuickPreviewPosition.automatic.rawValue)
+            Text(strings.previewPositionTopLeft)
+                .tag(ScreenshotSupport.QuickPreviewPosition.topLeft.rawValue)
+            Text(strings.previewPositionTopRight)
+                .tag(ScreenshotSupport.QuickPreviewPosition.topRight.rawValue)
+            Text(strings.previewPositionBottomLeft)
+                .tag(ScreenshotSupport.QuickPreviewPosition.bottomLeft.rawValue)
+            Text(strings.previewPositionBottomRight)
+                .tag(ScreenshotSupport.QuickPreviewPosition.bottomRight.rawValue)
         }
     }
 

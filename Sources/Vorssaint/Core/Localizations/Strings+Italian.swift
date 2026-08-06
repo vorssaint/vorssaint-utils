@@ -204,7 +204,7 @@ extension Strings {
         switcherSimpleModeCaption: "Mostra icone delle app e titoli delle finestre, senza anteprime né acquisizione dello schermo dal selettore.",
         switcherShortcutHintApps: "App",
         switcherShortcutHintWindows: "Finestre",
-        switcherWindowShortcutCaption: "Con il selettore aperto, salta tra le finestre dell’app selezionata.",
+        switcherWindowShortcutCaption: "Apre un selettore per le finestre dell’app in primo piano. Con il selettore app aperto, salta tra le finestre dell’app selezionata.",
         switcherMergeTabs: "Mostra una voce per app",
         switcherMergeTabsCaption: "Raggruppa tutte le finestre di un'app in un'unica voce nel commutatore, anziché una per finestra.",
         switcherWindowlessApps: "App senza finestre aperte",
@@ -215,7 +215,7 @@ extension Strings {
         switcherNoOpenWindow: "Senza finestre aperte",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Anteprima finestre dal Dock",
-        dockPreviewEnableCaption: "Passa il mouse su un'app aperta nel Dock per vedere e mostrare al volo le sue finestre.",
+        dockPreviewEnableCaption: "Passa il mouse su un'app aperta nel Dock per vedere le sue finestre, poi fai clic su quella da aprire.",
         dockPreviewBackgroundOpacity: "Sfondo del pannello",
         dockPreviewBackgroundOpacityCaption: "Abbassalo per vedere di più di ciò che sta dietro al pannello.",
         dockClickMinimize: "Riduci con un clic sul Dock",
@@ -627,13 +627,6 @@ extension Strings {
         panelNavigationCaption: "Mostra una sezione alla volta. Scegli Lista per vedere tutto in uno scorrimento continuo.",
         panelFooterSections: "Sezioni",
         panelFooterList: "Lista",
-        fanControlBetaShow: "Mostra Fan Control (Beta) nel pannello",
-        fanControlBetaSection: "Fan Control",
-        fanControlBetaTitle: "Fan Control",
-        fanControlBetaStatus: "Automatico",
-        fanControlBetaCaption: "Beta. Il controllo manuale resta disattivato finché ogni modello di Mac non viene validato.",
-        fanControlModeAutomatic: "Automatico",
-        fanControlModeManual: "Manuale",
         betaBadge: "BETA",
         betaFeatureWarning: "Beta. Potresti riscontrare alcuni bug.",
 
@@ -891,6 +884,8 @@ extension Strings {
         previewSizeSmall: "Piccola",
         mixerSoundEffectsOutputTitle: "Suoni di sistema",
         mixerSoundEffectsOutputTooltip: "Scegli dove riprodurre avvisi ed effetti sonori",
-        monitorOpenActivityMonitor: "Apri Monitoraggio Attività"
+        monitorOpenActivityMonitor: "Apri Monitoraggio Attività",
+        dockClickHide: "Nascondi l'app con un clic sul Dock",
+        dockClickHideCaption: "L'app attiva viene nascosta quando fai clic sulla sua icona nel Dock. Fai di nuovo clic per riportarla in primo piano."
     )
 }

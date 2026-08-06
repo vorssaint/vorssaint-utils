@@ -205,7 +205,7 @@ extension Strings {
         switcherSimpleModeCaption: "미리보기와 전환기의 화면 녹화 기능을 사용하지 않고 앱 아이콘과 윈도우 제목을 표시합니다.",
         switcherShortcutHintApps: "앱",
         switcherShortcutHintWindows: "윈도우",
-        switcherWindowShortcutCaption: "전환기가 열린 동안 선택한 앱의 윈도우를 차례로 전환합니다.",
+        switcherWindowShortcutCaption: "맨 앞 앱의 윈도우 전환기를 엽니다. 앱 전환기가 열려 있으면 선택한 앱의 윈도우를 차례로 전환합니다.",
         switcherMergeTabs: "앱별로 하나로 묶어 표시",
         switcherMergeTabsCaption: "전환기에서 앱의 모든 윈도우를 각각이 아닌 하나의 항목으로 묶습니다.",
         switcherWindowlessApps: "열린 윈도우가 없는 앱",
@@ -216,7 +216,7 @@ extension Strings {
         switcherNoOpenWindow: "열린 윈도우 없음",
         dockPreviewName: "Dock 미리보기",
         dockPreviewEnable: "Dock에서 윈도우 미리보기",
-        dockPreviewEnableCaption: "Dock의 열린 앱 위에 포인터를 올리면 윈도우를 확인하고 잠시 표시할 수 있습니다.",
+        dockPreviewEnableCaption: "Dock의 열린 앱 위에 포인터를 올려 윈도우를 확인한 다음 원하는 윈도우를 클릭하세요.",
         dockPreviewBackgroundOpacity: "패널 배경",
         dockPreviewBackgroundOpacityCaption: "낮추면 패널 뒤에 있는 것이 더 많이 보입니다.",
         dockClickMinimize: "Dock 클릭으로 최소화",
@@ -628,13 +628,6 @@ extension Strings {
         panelNavigationCaption: "한 번에 하나의 섹션만 표시합니다. ‘목록’을 선택하면 모든 섹션을 연속으로 스크롤해 표시합니다.",
         panelFooterSections: "섹션",
         panelFooterList: "목록",
-        fanControlBetaShow: "패널에 Fan Control(Beta) 표시",
-        fanControlBetaSection: "Fan Control",
-        fanControlBetaTitle: "Fan Control",
-        fanControlBetaStatus: "자동",
-        fanControlBetaCaption: "베타 기능입니다. 수동 제어는 Mac 모델별 검증이 완료될 때까지 비활성화됩니다.",
-        fanControlModeAutomatic: "자동",
-        fanControlModeManual: "수동",
         betaBadge: "BETA",
         betaFeatureWarning: "베타 기능입니다. 일부 문제가 남아 있을 수 있습니다.",
 
@@ -892,6 +885,8 @@ extension Strings {
         previewSizeSmall: "작게",
         mixerSoundEffectsOutputTitle: "시스템 사운드",
         mixerSoundEffectsOutputTooltip: "알림 및 사운드 효과를 재생할 출력 선택",
-        monitorOpenActivityMonitor: "활성 상태 보기 열기"
+        monitorOpenActivityMonitor: "활성 상태 보기 열기",
+        dockClickHide: "Dock 클릭으로 앱 숨기기",
+        dockClickHideCaption: "활성 앱의 Dock 아이콘을 클릭하면 앱이 숨겨집니다. 다시 클릭하면 돌아옵니다."
     )
 }

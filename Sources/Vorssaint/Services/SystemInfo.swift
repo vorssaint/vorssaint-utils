@@ -28,6 +28,7 @@ enum SystemInfo {
     }
 
     static func batterySnapshot() -> BatteryInfo? {
+        guard PowerSampler.hasInternalBattery else { return nil }
         guard let blobRef = IOPSCopyPowerSourcesInfo() else { return nil }
         let blob = blobRef.takeRetainedValue()
         guard let listRef = IOPSCopyPowerSourcesList(blob) else { return nil }

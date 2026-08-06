@@ -191,7 +191,8 @@ extension WindowLayoutFeatureStrings {
         center: "가운데",
         nextDisplay: "다음 디스플레이",
         restore: "복원",
-        fullScreen: "전체 화면"
+        fullScreen: "전체 화면",
+        previousDisplay: "이전 디스플레이"
     )
 }
 
@@ -708,7 +709,7 @@ struct ClipboardFeatureStrings {
         imageEntryLabel: "Image",
         fileCountFormat: "%d fichiers",
         pasteImageAsFile: "Coller les images copiées comme fichiers",
-        pasteImageAsFileCaption: "Lorsque Finder est actif, ⌘V enregistre l'image copiée au format PNG dans le dossier actuel.",
+        pasteImageAsFileCaption: "Lorsque Finder est actif, ⌘V enregistre l’image copiée au format PNG dans le dossier actuel.",
         previewLabel: "Aperçu"
     )
 
@@ -754,7 +755,7 @@ struct ClipboardFeatureStrings {
         imageEntryLabel: "Immagine",
         fileCountFormat: "%d file",
         pasteImageAsFile: "Incolla le immagini copiate come file",
-        pasteImageAsFileCaption: "Quando Finder è attivo, ⌘V salva un'immagine copiata come PNG nella cartella attuale.",
+        pasteImageAsFileCaption: "Quando Finder è attivo, ⌘V salva un’immagine copiata come PNG nella cartella attuale.",
         previewLabel: "Anteprima"
     )
 
@@ -994,6 +995,7 @@ struct WindowLayoutFeatureStrings {
     let nextDisplay: String
     let restore: String
     let fullScreen: String
+    let previousDisplay: String
 
     static let enUS = WindowLayoutFeatureStrings(
         title: "Window layout",
@@ -1045,7 +1047,8 @@ struct WindowLayoutFeatureStrings {
         center: "Center",
         nextDisplay: "Next display",
         restore: "Restore",
-        fullScreen: "Full Screen"
+        fullScreen: "Full Screen",
+        previousDisplay: "Previous display"
     )
 
     static let ptBR = WindowLayoutFeatureStrings(
@@ -1098,7 +1101,8 @@ struct WindowLayoutFeatureStrings {
         center: "Centralizar",
         nextDisplay: "Próximo display",
         restore: "Restaurar",
-        fullScreen: "Tela cheia"
+        fullScreen: "Tela cheia",
+        previousDisplay: "Display anterior"
     )
 
     static let tr = WindowLayoutFeatureStrings(
@@ -1151,7 +1155,8 @@ struct WindowLayoutFeatureStrings {
         center: "Ortala",
         nextDisplay: "Sonraki ekran",
         restore: "Geri yükle",
-        fullScreen: "Tam ekran"
+        fullScreen: "Tam ekran",
+        previousDisplay: "Önceki ekran"
     )
 
     static let ru = WindowLayoutFeatureStrings(
@@ -1204,7 +1209,8 @@ struct WindowLayoutFeatureStrings {
         center: "По центру",
         nextDisplay: "Следующий дисплей",
         restore: "Восстановить",
-        fullScreen: "Во весь экран"
+        fullScreen: "Во весь экран",
+        previousDisplay: "Предыдущий дисплей"
     )
 
     static let es = WindowLayoutFeatureStrings(
@@ -1257,7 +1263,8 @@ struct WindowLayoutFeatureStrings {
         center: "Centrar",
         nextDisplay: "Siguiente pantalla",
         restore: "Restaurar",
-        fullScreen: "Pantalla completa"
+        fullScreen: "Pantalla completa",
+        previousDisplay: "Pantalla anterior"
     )
 
     static let de = WindowLayoutFeatureStrings(
@@ -1310,7 +1317,8 @@ struct WindowLayoutFeatureStrings {
         center: "Zentrieren",
         nextDisplay: "Nächstes Display",
         restore: "Wiederherstellen",
-        fullScreen: "Vollbild"
+        fullScreen: "Vollbild",
+        previousDisplay: "Vorheriges Display"
     )
 
     static let fr = WindowLayoutFeatureStrings(
@@ -1363,7 +1371,8 @@ struct WindowLayoutFeatureStrings {
         center: "Centrer",
         nextDisplay: "Écran suivant",
         restore: "Restaurer",
-        fullScreen: "Plein écran"
+        fullScreen: "Plein écran",
+        previousDisplay: "Écran précédent"
     )
 
     static let it = WindowLayoutFeatureStrings(
@@ -1416,7 +1425,8 @@ struct WindowLayoutFeatureStrings {
         center: "Centra",
         nextDisplay: "Display successivo",
         restore: "Ripristina",
-        fullScreen: "Schermo intero"
+        fullScreen: "Schermo intero",
+        previousDisplay: "Display precedente"
     )
 
     static let ja = WindowLayoutFeatureStrings(
@@ -1469,7 +1479,8 @@ struct WindowLayoutFeatureStrings {
         center: "中央",
         nextDisplay: "次のディスプレイ",
         restore: "復元",
-        fullScreen: "フルスクリーン"
+        fullScreen: "フルスクリーン",
+        previousDisplay: "前のディスプレイ"
     )
 
     static let zhHans = WindowLayoutFeatureStrings(
@@ -1522,7 +1533,8 @@ struct WindowLayoutFeatureStrings {
         center: "居中",
         nextDisplay: "下一台显示器",
         restore: "恢复",
-        fullScreen: "全屏幕"
+        fullScreen: "全屏幕",
+        previousDisplay: "上一台显示器"
     )
 
     static let zhTW = WindowLayoutFeatureStrings(
@@ -1575,7 +1587,8 @@ struct WindowLayoutFeatureStrings {
         center: "置中",
         nextDisplay: "下一台顯示器",
         restore: "還原",
-        fullScreen: "全螢幕"
+        fullScreen: "全螢幕",
+        previousDisplay: "上一台顯示器"
     )
 
     static let zhHK = WindowLayoutFeatureStrings(
@@ -1628,7 +1641,8 @@ struct WindowLayoutFeatureStrings {
         center: "置中",
         nextDisplay: "下一部顯示器",
         restore: "還原",
-        fullScreen: "全螢幕"
+        fullScreen: "全螢幕",
+        previousDisplay: "上一部顯示器"
     )
 }
 

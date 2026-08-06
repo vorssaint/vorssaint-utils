@@ -202,6 +202,16 @@ enum ClipboardHistorySelection {
         guard totalCount > 0 else { return 0 }
         return 0
     }
+
+    static func previewEntry(preferredID: UUID?,
+                             visibleEntries: [ClipboardHistoryEntry],
+                             selectedEntry: ClipboardHistoryEntry?) -> ClipboardHistoryEntry? {
+        if let preferredID,
+           let entry = visibleEntries.first(where: { $0.id == preferredID }) {
+            return entry
+        }
+        return selectedEntry
+    }
 }
 
 enum ClipboardHistoryBatch {

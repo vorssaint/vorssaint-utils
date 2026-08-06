@@ -204,7 +204,7 @@ extension Strings {
         switcherSimpleModeCaption: "Uygulama simgelerini ve pencere başlıklarını gösterir; önizleme veya değiştirici tarafından ekran yakalama kullanmaz.",
         switcherShortcutHintApps: "Uygulamalar",
         switcherShortcutHintWindows: "Pencereler",
-        switcherWindowShortcutCaption: "Değiştirici açıkken seçili uygulamanın pencereleri arasında geçiş yapar.",
+        switcherWindowShortcutCaption: "Ön plandaki uygulamanın pencereleri için bir değiştirici açar. Uygulama değiştirici açıkken seçili uygulamanın pencereleri arasında geçiş yapar.",
         switcherMergeTabs: "Uygulama başına bir giriş göster",
         switcherMergeTabsCaption: "Değiştiricide pencere başına bir giriş yerine, bir uygulamanın tüm pencerelerini tek girişte toplar.",
         switcherWindowlessApps: "Açık penceresi olmayan uygulamalar",
@@ -215,7 +215,7 @@ extension Strings {
         switcherNoOpenWindow: "Açık penceresi yok",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Dock'tan pencereleri önizle",
-        dockPreviewEnableCaption: "Pencerelerini önizlemek ve göz atmak için Dock'ta açık bir uygulamanın üzerine gel.",
+        dockPreviewEnableCaption: "Pencerelerini görmek için Dock'taki açık bir uygulamanın üzerine gel, ardından açmak istediğin pencereye tıkla.",
         dockPreviewBackgroundOpacity: "Panel arka planı",
         dockPreviewBackgroundOpacityCaption: "Panelin arkasındakileri daha çok görmek için azalt.",
         dockClickMinimize: "Dock simgesine tıklayınca küçült",
@@ -627,13 +627,6 @@ extension Strings {
         panelNavigationCaption: "Her seferinde bir bölüm gösterir. Her şeyi kesintisiz kaydırmada görmek için Liste'yi seç.",
         panelFooterSections: "Bölümler",
         panelFooterList: "Liste",
-        fanControlBetaShow: "Fan Control (Beta)'yı panelde göster",
-        fanControlBetaSection: "Fan Control",
-        fanControlBetaTitle: "Fan Control",
-        fanControlBetaStatus: "Otomatik",
-        fanControlBetaCaption: "Beta. Her Mac modeli doğrulanana kadar elle denetim kapalı kalır.",
-        fanControlModeAutomatic: "Otomatik",
-        fanControlModeManual: "Elle",
         betaBadge: "BETA",
         betaFeatureWarning: "Beta. Bazı hatalarla karşılaşabilirsin.",
 
@@ -891,6 +884,8 @@ extension Strings {
         previewSizeSmall: "Küçük",
         mixerSoundEffectsOutputTitle: "Sistem sesleri",
         mixerSoundEffectsOutputTooltip: "Uyarıların ve ses efektlerinin çalacağı çıkışı seç",
-        monitorOpenActivityMonitor: "Etkinlik Monitörü'nü aç"
+        monitorOpenActivityMonitor: "Etkinlik Monitörü'nü aç",
+        dockClickHide: "Dock simgesine tıklayınca uygulamayı gizle",
+        dockClickHideCaption: "Etkin uygulamanın Dock simgesine tıklayınca uygulama gizlenir. Geri getirmek için yeniden tıklayın."
     )
 }

@@ -757,13 +757,6 @@ struct Strings {
     let panelNavigationCaption: String
     let panelFooterSections: String
     let panelFooterList: String
-    let fanControlBetaShow: String
-    let fanControlBetaSection: String
-    let fanControlBetaTitle: String
-    let fanControlBetaStatus: String
-    let fanControlBetaCaption: String
-    let fanControlModeAutomatic: String
-    let fanControlModeManual: String
     let betaBadge: String
     let betaFeatureWarning: String
 
@@ -1036,6 +1029,8 @@ struct Strings {
     let mixerSoundEffectsOutputTitle: String
     let mixerSoundEffectsOutputTooltip: String
     let monitorOpenActivityMonitor: String
+    let dockClickHide: String
+    let dockClickHideCaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -1241,7 +1236,7 @@ extension Strings {
         switcherSimpleModeCaption: "Mostra ícones de apps e títulos das janelas, sem previews nem captura da tela pelo alternador.",
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Janelas",
-        switcherWindowShortcutCaption: "Com o seletor aberto, pula entre as janelas do app selecionado.",
+        switcherWindowShortcutCaption: "Abre um seletor das janelas do app em primeiro plano. Com o seletor de apps aberto, pula entre as janelas do app selecionado.",
         switcherMergeTabs: "Mostrar uma entrada por app",
         switcherMergeTabsCaption: "Junta todas as janelas de um app em uma só entrada no alternador, em vez de uma por janela.",
         switcherWindowlessApps: "Apps sem janela aberta",
@@ -1252,7 +1247,7 @@ extension Strings {
         switcherNoOpenWindow: "Sem janela aberta",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Pré-visualizar janelas no Dock",
-        dockPreviewEnableCaption: "Passe o mouse em um app aberto no Dock para ver e espiar suas janelas.",
+        dockPreviewEnableCaption: "Passe o mouse em um app aberto no Dock para ver suas janelas e clique na que quiser abrir.",
         dockPreviewBackgroundOpacity: "Fundo do painel",
         dockPreviewBackgroundOpacityCaption: "Diminua para ver mais do que está atrás do painel.",
         dockClickMinimize: "Clicar no Dock minimiza",
@@ -1664,13 +1659,6 @@ extension Strings {
         panelNavigationCaption: "Mostra uma seção por vez. Escolha Lista para ver tudo em uma rolagem contínua.",
         panelFooterSections: "Seções",
         panelFooterList: "Lista",
-        fanControlBetaShow: "Mostrar Fan Control (Beta) no painel",
-        fanControlBetaSection: "Fan Control",
-        fanControlBetaTitle: "Fan Control",
-        fanControlBetaStatus: "Automático",
-        fanControlBetaCaption: "Beta. O controle manual fica desativado até validação por modelo de Mac.",
-        fanControlModeAutomatic: "Automático",
-        fanControlModeManual: "Manual",
         betaBadge: "BETA",
         betaFeatureWarning: "Beta. Você pode encontrar alguns bugs.",
 
@@ -1928,7 +1916,9 @@ extension Strings {
         previewSizeSmall: "Pequeno",
         mixerSoundEffectsOutputTitle: "Sons do sistema",
         mixerSoundEffectsOutputTooltip: "Escolher onde alertas e efeitos sonoros tocam",
-        monitorOpenActivityMonitor: "Abrir o Monitor de Atividade"
+        monitorOpenActivityMonitor: "Abrir o Monitor de Atividade",
+        dockClickHide: "Clicar no Dock oculta o app",
+        dockClickHideCaption: "O app ativo é ocultado ao clicar no ícone dele no Dock. Clique de novo para trazê-lo de volta."
     )
 }
 
@@ -2135,7 +2125,7 @@ extension Strings {
         switcherSimpleModeCaption: "Shows app icons and window titles, without previews or screen capture by the switcher.",
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Windows",
-        switcherWindowShortcutCaption: "While the switcher is open, jumps between the selected app's windows.",
+        switcherWindowShortcutCaption: "Opens a switcher for the frontmost app's windows. While the Apps switcher is open, jumps between the selected app's windows.",
         switcherMergeTabs: "Show one entry per app",
         switcherMergeTabsCaption: "Collapses all of an app's windows into one entry in the switcher, instead of one entry per window.",
         switcherWindowlessApps: "Apps with no open window",
@@ -2146,7 +2136,7 @@ extension Strings {
         switcherNoOpenWindow: "No open window",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Preview windows from the Dock",
-        dockPreviewEnableCaption: "Hover over an open app in the Dock to preview and peek at its windows.",
+        dockPreviewEnableCaption: "Hover over an open app in the Dock to see its windows, then click the one you want.",
         dockPreviewBackgroundOpacity: "Panel background",
         dockPreviewBackgroundOpacityCaption: "Turn it down to see more of what sits behind the panel.",
         dockClickMinimize: "Click the Dock icon to minimize",
@@ -2558,13 +2548,6 @@ extension Strings {
         panelNavigationCaption: "Shows one section at a time. Choose List to see everything in one continuous scroll.",
         panelFooterSections: "Sections",
         panelFooterList: "List",
-        fanControlBetaShow: "Show Fan Control (Beta) in the panel",
-        fanControlBetaSection: "Fan Control",
-        fanControlBetaTitle: "Fan Control",
-        fanControlBetaStatus: "Automatic",
-        fanControlBetaCaption: "Beta. Manual control stays disabled until each Mac model is validated.",
-        fanControlModeAutomatic: "Automatic",
-        fanControlModeManual: "Manual",
         betaBadge: "BETA",
         betaFeatureWarning: "Beta. You may run into some bugs.",
 
@@ -2822,6 +2805,8 @@ extension Strings {
         previewSizeSmall: "Small",
         mixerSoundEffectsOutputTitle: "System sounds",
         mixerSoundEffectsOutputTooltip: "Choose where alerts and sound effects play",
-        monitorOpenActivityMonitor: "Open Activity Monitor"
+        monitorOpenActivityMonitor: "Open Activity Monitor",
+        dockClickHide: "Click the Dock icon to hide the app",
+        dockClickHideCaption: "The active app hides when you click its Dock icon. Click again to bring it back."
     )
 }

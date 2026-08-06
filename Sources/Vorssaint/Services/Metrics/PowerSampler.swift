@@ -31,6 +31,16 @@ struct PowerReading {
 /// built on); battery flow and the charger's rating come from AppleSmartBattery.
 /// Anything the hardware does not expose stays nil.
 final class PowerSampler {
+    /// Internal-battery presence is immutable for the lifetime of a Mac boot.
+    /// Resolve it once so desktops do not keep probing a service they cannot have.
+    static let hasInternalBattery: Bool = {
+        let service = IOServiceGetMatchingService(kIOMainPortDefault,
+                                                  IOServiceMatching("AppleSmartBattery"))
+        guard service != 0 else { return false }
+        IOObjectRelease(service)
+        return true
+    }()
+
     private let smc: SMCClient?
     private var systemKey: SMCClient.Key?
     private var adapterKey: SMCClient.Key?
@@ -189,6 +199,7 @@ final class PowerSampler {
     }
 
     private func resolvedBatteryService() -> io_service_t {
+        guard Self.hasInternalBattery else { return 0 }
         if batteryService != 0 { return batteryService }
         batteryService = IOServiceGetMatchingService(kIOMainPortDefault,
                                                      IOServiceMatching("AppleSmartBattery"))

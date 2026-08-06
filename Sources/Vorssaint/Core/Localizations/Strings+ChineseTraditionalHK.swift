@@ -205,7 +205,7 @@ extension Strings {
         switcherSimpleModeCaption: "顯示 App 圖示和視窗標題，不顯示預覽，也不會由切換器擷取螢幕。",
         switcherShortcutHintApps: "App",
         switcherShortcutHintWindows: "視窗",
-        switcherWindowShortcutCaption: "切換器開啟時，在所選應用程式的視窗之間跳轉。",
+        switcherWindowShortcutCaption: "開啟最前應用程式的視窗切換器。應用程式切換器開啟時，在所選應用程式的視窗之間跳轉。",
         switcherMergeTabs: "每個 App 僅顯示一項",
         switcherMergeTabsCaption: "將 App 的所有視窗合併為切換器中的一項，而不是每個視窗一項。",
         switcherWindowlessApps: "沒有開啟視窗的 App",
@@ -216,7 +216,7 @@ extension Strings {
         switcherNoOpenWindow: "沒有開啟視窗",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "在 Dock 中預覽視窗",
-        dockPreviewEnableCaption: "將指標停留在 Dock 中已開啟的 App 上，即可查看並暫時顯示它的視窗。",
+        dockPreviewEnableCaption: "將指標停在 Dock 中已開啟的 App 上查看視窗，然後點按要開啟的視窗。",
         dockPreviewBackgroundOpacity: "面板背景",
         dockPreviewBackgroundOpacityCaption: "調低後可以看到更多面板後面的內容。",
         dockClickMinimize: "點按 Dock 圖示最小化",
@@ -628,13 +628,6 @@ extension Strings {
         panelNavigationCaption: "一次顯示一個分區。選擇「清單」即可連續捲動查看全部內容。",
         panelFooterSections: "分區",
         panelFooterList: "清單",
-        fanControlBetaShow: "在面板中顯示 Fan Control (測試版)",
-        fanControlBetaSection: "Fan Control",
-        fanControlBetaTitle: "Fan Control",
-        fanControlBetaStatus: "自動",
-        fanControlBetaCaption: "測試版。手動控制會保持停用，直到每個 Mac 型號完成驗證。",
-        fanControlModeAutomatic: "自動",
-        fanControlModeManual: "手動",
         betaBadge: "BETA",
         betaFeatureWarning: "測試版。你可能會遇到一些問題。",
 
@@ -892,6 +885,8 @@ extension Strings {
         previewSizeSmall: "小",
         mixerSoundEffectsOutputTitle: "系統聲音",
         mixerSoundEffectsOutputTooltip: "選擇提示音和音效的播放裝置",
-        monitorOpenActivityMonitor: "打開活動監視器"
+        monitorOpenActivityMonitor: "打開活動監視器",
+        dockClickHide: "點按 Dock 圖示隱藏 App",
+        dockClickHideCaption: "點按目前 App 的 Dock 圖示即可隱藏它。再點按一次即可帶回。"
     )
 }

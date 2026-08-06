@@ -43,6 +43,11 @@ final class ScreenshotQuickPreviewController {
     private var autoDismissDuration: TimeInterval = 12
     private var closed = false
 
+    var protectedWindowIDs: Set<CGWindowID> {
+        guard let panel, panel.isVisible, panel.windowNumber > 0 else { return [] }
+        return [CGWindowID(panel.windowNumber)]
+    }
+
     init(capture: ScreenshotSelectionController.Capture,
          strings: ScreenshotFeatureStrings,
          action: @escaping (Action) -> Set<Action>,
@@ -274,18 +279,30 @@ final class ScreenshotQuickPreviewController {
     }
 
     private func previewFrame(for size: CGSize) -> CGRect {
-        let visibleFrame = (NSScreen.screens.first { $0.frame.intersects(capture.anchorRect) }
-            ?? NSScreen.withMouse)?.visibleFrame ?? NSScreen.pointerVisibleFrame
+        let pointer = NSEvent.mouseLocation
+        let screens = NSScreen.screens.map { (frame: $0.frame, visibleFrame: $0.visibleFrame) }
+        let visibleFrame = ScreenshotSupport.quickPreviewVisibleFrame(
+            anchor: capture.anchorRect,
+            pointer: pointer,
+            screens: screens,
+            fallback: NSScreen.pointerVisibleFrame)
+        let storedPosition = UserDefaults.standard.string(
+            forKey: DefaultsKey.screenshotPreviewPosition) ?? ""
+        let position = ScreenshotSupport.QuickPreviewPosition(rawValue: storedPosition)
+            ?? .automatic
         // With an after-capture action the preview is just a confirmation,
         // so it sits quietly in the corner and leaves sooner, instead of
         // popping up next to the selection and waiting.
-        return ScreenshotDefaultAction.current == .none
-            ? ScreenshotSupport.quickPreviewFrame(
-                size: size,
-                anchor: capture.anchorRect,
-                pointer: NSEvent.mouseLocation,
-                visibleFrame: visibleFrame)
-            : ScreenshotSupport.quickPreviewCornerFrame(size: size, visibleFrame: visibleFrame)
+        let effectivePosition: ScreenshotSupport.QuickPreviewPosition =
+            position == .automatic && ScreenshotDefaultAction.current != .none
+                ? .bottomRight
+                : position
+        return ScreenshotSupport.quickPreviewFrame(
+            size: size,
+            anchor: capture.anchorRect,
+            pointer: pointer,
+            visibleFrame: visibleFrame,
+            position: effectivePosition)
     }
 
     private func resizePanel(showingLink: Bool) {
