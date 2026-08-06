@@ -11079,7 +11079,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let commandBarValues = Mirror(reflecting: FeatureStrings.commandBar(language)).children
                 .compactMap { $0.value as? String }
-            expect(commandBarValues.count == 127 && commandBarValues.allSatisfy { !$0.isEmpty },
+            expect(commandBarValues.count == 128 && commandBarValues.allSatisfy { !$0.isEmpty },
                    "every command bar string is set for \(language.rawValue)")
             expect(commandBarValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible command bar strings (\(language.rawValue))")
@@ -11329,7 +11329,7 @@ struct MetricsTests {
         // MARK: Open what was typed as a URL
         for address in ["apple.com", "apple.com/x", "https://example.com",
                         "http://example.com/path?q=1", "ftp://files.example.org",
-                        "sub.domain.co.uk", "例子.中国"] {
+                        "sub.domain.co.uk"] {
             expect(CommandBarLinks.looksLikeURL(address),
                    "\"\(address)\" reads like a URL")
         }

@@ -148,12 +148,13 @@ enum CommandBarLinks {
 
     /// True when the text reads like a URL — typed to be opened, not searched
     /// for. A known scheme makes it certain; otherwise the text has to look
-    /// like a domain: no spaces, a dot, and a letter-only tail of two or more
-    /// (the TLD), which keeps "file.txt" and "3.14" out.
+    /// like a domain: no spaces or "@", a dot, and a tail that is a known TLD,
+    /// which keeps "file.txt", emails, and "3.14" out.
     static func looksLikeURL(_ text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty,
-              !trimmed.contains(where: { $0.isWhitespace }) else { return false }
+              !trimmed.contains(where: { $0.isWhitespace }),
+              !trimmed.contains("@") else { return false }
         if let url = URL(string: trimmed),
            let scheme = url.scheme?.lowercased(),
            ["http", "https", "ftp"].contains(scheme) {
@@ -163,5 +164,19 @@ enum CommandBarLinks {
         let host = trimmed.split(separator: "/").first.map(String.init) ?? trimmed
         guard let tail = host.split(separator: ".").last, !tail.isEmpty else { return false }
         return tail.count >= 2 && tail.allSatisfy { $0.isLetter }
+            && Self.commonTLDs.contains(tail.lowercased())
     }
+
+    /// The most-used top-level domains — enough to tell a real address
+    /// ("apple.com") apart from a filename or version ("file.txt").
+    private static let commonTLDs: Set<String> = [
+        "com", "org", "net", "io", "dev", "app", "co", "ai", "gov", "edu",
+        "info", "biz", "me", "tv", "xyz", "online", "store", "blog", "tech",
+        "cloud", "site", "news", "design", "world", "zone", "page", "link",
+        "uk", "us", "de", "fr", "jp", "cn", "ru", "br", "in", "au", "ca",
+        "eu", "it", "es", "nl", "se", "no", "fi", "dk", "pl", "ch", "at",
+        "be", "kr", "tw", "hk", "sg", "my", "th", "id", "ph", "vn", "tr",
+        "za", "mx", "ar", "cl", "nz", "ie", "pt", "gr", "cz", "hu", "ro",
+        "il", "ae", "sa"
+    ]
 }
