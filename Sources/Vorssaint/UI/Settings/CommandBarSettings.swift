@@ -24,7 +24,11 @@ struct CommandBarSettings: View {
 
     /// The examples do double duty: they say what the bar can do, which no
     /// list of toggles ever manages to.
-    private let examples = ["100 km to mi", "2+2*3", "brightness 40", "fire", "battery"]
+    private var examples: [String] {
+        ["100 km to mi", "2+2*3", "brightness 40", "fire", "battery"].filter {
+            $0 != "battery" || PowerSampler.hasInternalBattery
+        }
+    }
 
     var body: some View {
         Form {

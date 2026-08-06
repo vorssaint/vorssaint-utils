@@ -215,7 +215,7 @@ extension Strings {
         switcherNoOpenWindow: "Sans fenêtre ouverte",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Prévisualiser les fenêtres dans le Dock",
-        dockPreviewEnableCaption: "Survolez une app ouverte dans le Dock pour voir ses fenêtres et les afficher brièvement.",
+        dockPreviewEnableCaption: "Survolez une app ouverte dans le Dock pour voir ses fenêtres, puis cliquez sur celle à ouvrir.",
         dockPreviewBackgroundOpacity: "Fond du panneau",
         dockPreviewBackgroundOpacityCaption: "Baissez-le pour voir davantage ce qui se trouve derrière le panneau.",
         dockClickMinimize: "Réduire d'un clic sur le Dock",
@@ -627,13 +627,6 @@ extension Strings {
         panelNavigationCaption: "Affiche une section à la fois. Choisissez Liste pour tout voir dans un défilement continu.",
         panelFooterSections: "Sections",
         panelFooterList: "Liste",
-        fanControlBetaShow: "Afficher Fan Control (Beta) dans le panneau",
-        fanControlBetaSection: "Fan Control",
-        fanControlBetaTitle: "Fan Control",
-        fanControlBetaStatus: "Automatique",
-        fanControlBetaCaption: "Beta. Le contrôle manuel reste désactivé jusqu’à la validation de chaque modèle de Mac.",
-        fanControlModeAutomatic: "Automatique",
-        fanControlModeManual: "Manuel",
         betaBadge: "BETA",
         betaFeatureWarning: "Bêta. Vous pouvez rencontrer quelques bugs.",
 
@@ -891,6 +884,8 @@ extension Strings {
         previewSizeSmall: "Petite",
         mixerSoundEffectsOutputTitle: "Sons du système",
         mixerSoundEffectsOutputTooltip: "Choisir où sont diffusés les alertes et effets sonores",
-        monitorOpenActivityMonitor: "Ouvrir le Moniteur d’activité"
+        monitorOpenActivityMonitor: "Ouvrir le Moniteur d’activité",
+        dockClickHide: "Masquer l’app d’un clic sur le Dock",
+        dockClickHideCaption: "L’app active se masque lorsque vous cliquez sur son icône dans le Dock. Cliquez à nouveau pour la faire revenir."
     )
 }

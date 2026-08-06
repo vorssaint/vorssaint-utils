@@ -22,6 +22,13 @@ enum QuickToolHUD {
         return panel.windowNumber
     }
 
+    /// The scrolling capture controls, when they are on screen. They belong to
+    /// the capture in progress and must stay out of its own pictures.
+    static var currentScrollingWindowNumber: Int? {
+        guard let scrollingPanel, scrollingPanel.isVisible else { return nil }
+        return scrollingPanel.windowNumber
+    }
+
     static func show(icon: String, message: String, swatch: NSColor? = nil) {
         guard Thread.isMainThread else {
             DispatchQueue.main.async { show(icon: icon, message: message, swatch: swatch) }

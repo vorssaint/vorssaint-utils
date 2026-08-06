@@ -10,7 +10,11 @@ import SwiftUI
 struct CommandBarView: View {
     /// Short enough to sit on one line, chosen to show three different things
     /// the bar can do that a list of commands would never reveal.
-    static let examples = ["100 km to mi", "2+2*3", "battery", "fire"]
+    static var examples: [String] {
+        ["100 km to mi", "2+2*3", "battery", "fire"].filter {
+            $0 != "battery" || PowerSampler.hasInternalBattery
+        }
+    }
     /// As tall as the list is ever allowed to be, so the panel never grows
     /// past what a laptop screen can show above the fold.
     static let listCeiling: CGFloat = 452

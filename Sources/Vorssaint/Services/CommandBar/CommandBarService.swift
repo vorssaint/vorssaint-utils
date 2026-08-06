@@ -1698,7 +1698,7 @@ final class CommandBarService: ObservableObject {
         guard !windowsLoading else { return }
         windowsLoading = true
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let windows = WindowEnumerator.listWindows()
+            let windows = WindowEnumerator.listWindowsForCommandBar()
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.windowsLoading = false

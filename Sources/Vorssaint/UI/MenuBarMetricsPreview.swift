@@ -54,8 +54,10 @@ struct MenuBarMetricsPreview: View {
             Spacer()
             Image(systemName: "wifi")
                 .foregroundStyle(.white.opacity(0.5))
-            Image(systemName: "battery.75")
-                .foregroundStyle(.white.opacity(0.5))
+            if PowerSampler.hasInternalBattery {
+                Image(systemName: "battery.75")
+                    .foregroundStyle(.white.opacity(0.5))
+            }
             HStack(spacing: 5) {
                 glyph
                     .frame(width: 20, height: 14)

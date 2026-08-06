@@ -190,6 +190,15 @@ final class FeatureRuntime: ObservableObject {
         .monitorNetwork: { FeatureRuntime.syncMonitor() },
         .monitorDisk: { FeatureRuntime.syncMonitor() },
         .monitorPower: { FeatureRuntime.syncMonitor() },
+        .fanControl: {
+            SystemMonitor.shared.planDidChange()
+            let defaults = UserDefaults.standard
+            let needsRecovery = defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded)
+            let hasRegisteredHelper = !(defaults.string(forKey: DefaultsKey.fanControlHelperVersion) ?? "").isEmpty
+            if needsRecovery || (!AppFeature.fanControl.isAvailable && hasRegisteredHelper) {
+                FanControlService.shared.syncWithPreferences()
+            }
+        },
     ]
 
     private static func syncMonitor() {

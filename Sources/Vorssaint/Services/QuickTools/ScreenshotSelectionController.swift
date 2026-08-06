@@ -41,11 +41,23 @@ final class ScreenshotSelectionController {
     }
 
     private var panels: [ScreenshotOverlayPanel] = []
+
+    var protectedWindowIDs: Set<CGWindowID> {
+        Set(panels.compactMap { $0.windowNumber > 0 ? CGWindowID($0.windowNumber) : nil })
+    }
+
+    /// The overlays are part of the capture, so they stay excluded even when
+    /// the session is not registered anywhere yet.
+    private var captureExcludedWindowIDs: Set<CGWindowID> {
+        otherProtectedWindowIDs().union(protectedWindowIDs)
+    }
     private var keyMonitor: Any?
     private var completion: ((Outcome) -> Void)?
     private let freeze: Bool
     private let includePointer: Bool
     private let showLastRegion: Bool
+    private let hideVorssaintWindows: Bool
+    private let otherProtectedWindowIDs: () -> Set<CGWindowID>
     private let mode: Mode
     private let supportsScrollingCapture: Bool
     fileprivate let requiresDraggedRegion: Bool
@@ -90,6 +102,8 @@ final class ScreenshotSelectionController {
     init(freeze: Bool,
          includePointer: Bool,
          showLastRegion: Bool,
+         hideVorssaintWindows: Bool = true,
+         protectedWindowIDs: @escaping () -> Set<CGWindowID> = { [] },
          purpose: String? = nil,
          mode: Mode = .image,
          supportsScrollingCapture: Bool = false,
@@ -97,6 +111,8 @@ final class ScreenshotSelectionController {
         self.freeze = freeze
         self.includePointer = includePointer
         self.showLastRegion = showLastRegion
+        self.hideVorssaintWindows = hideVorssaintWindows
+        self.otherProtectedWindowIDs = protectedWindowIDs
         self.purpose = purpose
         self.mode = mode
         self.supportsScrollingCapture = supportsScrollingCapture
@@ -110,7 +126,9 @@ final class ScreenshotSelectionController {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 let images = await ScreenshotCaptureEngine.captureAllDisplays(
-                    includePointer: self.includePointer)
+                    includePointer: self.includePointer,
+                    hideVorssaintWindows: self.hideVorssaintWindows,
+                    protectedWindowIDs: self.captureExcludedWindowIDs)
                 guard !images.isEmpty else {
                     self.finish(.failed)
                     return
@@ -124,7 +142,9 @@ final class ScreenshotSelectionController {
 
     private func present(frozenImages: [CGDirectDisplayID: CGImage]) {
         guard !finished else { return }
-        let pickable = ScreenshotCaptureEngine.pickableWindows()
+        let pickable = ScreenshotCaptureEngine.pickableWindows(
+            hideVorssaintWindows: hideVorssaintWindows,
+            protectedWindowIDs: captureExcludedWindowIDs)
         let mainHeight = NSScreen.screens.first?.frame.height ?? 0
 
         for screen in NSScreen.screens {
@@ -163,8 +183,13 @@ final class ScreenshotSelectionController {
     /// pixels. Capture them once after the overlays exist; ScreenCaptureKit
     /// excludes this app's own panels, so the screen itself remains live.
     private func loadLiveLoupeImages() {
+        let hideWindows = hideVorssaintWindows
+        let excludedIDs = captureExcludedWindowIDs
         Task { @MainActor [weak self] in
-            let images = await ScreenshotCaptureEngine.captureAllDisplays(includePointer: false)
+            let images = await ScreenshotCaptureEngine.captureAllDisplays(
+                includePointer: false,
+                hideVorssaintWindows: hideWindows,
+                protectedWindowIDs: excludedIDs)
             guard let self, !self.finished else { return }
             for panel in self.panels {
                 panel.overlayView.updateLoupeImage(images[panel.displayID])
@@ -396,7 +421,10 @@ final class ScreenshotSelectionController {
             guard let self else { return }
             try? await Task.sleep(nanoseconds: 120_000_000)
             guard var image = await ScreenshotCaptureEngine.captureDisplay(
-                displayID, includePointer: self.includePointer)
+                displayID,
+                includePointer: self.includePointer,
+                hideVorssaintWindows: self.hideVorssaintWindows,
+                protectedWindowIDs: self.captureExcludedWindowIDs)
             else {
                 self.finish(.failed)
                 return

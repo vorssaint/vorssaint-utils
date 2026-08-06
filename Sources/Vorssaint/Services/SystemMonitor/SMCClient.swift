@@ -4,11 +4,16 @@
 import Foundation
 import IOKit
 
-/// Minimal client for the System Management Controller (AppleSMC), used to read
-/// temperature sensors on Apple Silicon. Speaks the public SMCParamStruct ABI
-/// through IOConnectCallStructMethod — the same mechanism used by Activity
-/// Monitor-style tools.
+/// Minimal client for the System Management Controller (AppleSMC). It reads
+/// sensors and allows narrowly scoped writes through the SMCParamStruct ABI.
 final class SMCClient {
+    enum WriteError: Error {
+        case invalidPayload
+        case unsupportedType
+        case transport(kern_return_t)
+        case controller(UInt8)
+    }
+
     struct Key {
         let code: UInt32
         let name: String
@@ -21,6 +26,7 @@ final class SMCClient {
     // Selector and command bytes of the SMC user client.
     private static let handleYPCEvent: UInt32 = 2
     private static let cmdReadKey: UInt8 = 5
+    private static let cmdWriteKey: UInt8 = 6
     private static let cmdKeyFromIndex: UInt8 = 8
     private static let cmdKeyInfo: UInt8 = 9
 
@@ -65,23 +71,45 @@ final class SMCClient {
 
     /// Reads a temperature-style value in the key's native encoding.
     func readValue(_ key: Key) -> Double? {
+        guard let bytes = readBytes(key) else { return nil }
+        return SMCValueCodec.decode(bytes, type: key.dataType)
+    }
+
+    func readBytes(_ key: Key) -> [UInt8]? {
+        guard key.dataSize > 0, key.dataSize <= 32 else { return nil }
         var input = SMCParamStruct()
         input.key = key.code
         input.keyInfo.dataSize = key.dataSize
         input.data8 = Self.cmdReadKey
         guard let out = call(&input), out.result == 0 else { return nil }
+        return withUnsafeBytes(of: out.bytes) { Array($0.prefix(Int(key.dataSize))) }
+    }
 
-        let bytes = withUnsafeBytes(of: out.bytes) { Array($0.prefix(Int(key.dataSize))) }
-        switch key.dataType {
-        case "flt " where bytes.count == 4:
-            return Double(bytes.withUnsafeBytes { $0.load(as: Float32.self) })
-        case "sp78" where bytes.count == 2:
-            return Double(Int16(bitPattern: UInt16(bytes[0]) << 8 | UInt16(bytes[1]))) / 256.0
-        case "ioft" where bytes.count == 8:
-            return Double(bytes.withUnsafeBytes { $0.load(as: UInt64.self) }) / 65536.0
-        default:
-            return nil
+    /// Writes only a value encoded in the key's own reported type and size.
+    /// Callers cannot change the key metadata or overrun the fixed SMC payload.
+    func writeValue(_ value: Double, to key: Key) throws {
+        guard let bytes = SMCValueCodec.encode(value, type: key.dataType,
+                                               size: Int(key.dataSize)) else {
+            throw WriteError.unsupportedType
         }
+        try writeBytes(bytes, to: key)
+    }
+
+    func writeBytes(_ bytes: [UInt8], to key: Key) throws {
+        guard key.dataSize > 0, key.dataSize <= 32,
+              bytes.count == Int(key.dataSize) else {
+            throw WriteError.invalidPayload
+        }
+        var input = SMCParamStruct()
+        input.key = key.code
+        input.keyInfo.dataSize = key.dataSize
+        input.data8 = Self.cmdWriteKey
+        withUnsafeMutableBytes(of: &input.bytes) { destination in
+            destination.copyBytes(from: bytes)
+        }
+        let (result, output) = invoke(&input)
+        guard result == kIOReturnSuccess else { throw WriteError.transport(result) }
+        guard output.result == 0 else { throw WriteError.controller(output.result) }
     }
 
     /// Looks up a single key by its 4-character code, returning its size and type
@@ -111,12 +139,17 @@ final class SMCClient {
     }
 
     private func call(_ input: inout SMCParamStruct) -> SMCParamStruct? {
+        let (result, output) = invoke(&input)
+        return result == kIOReturnSuccess ? output : nil
+    }
+
+    private func invoke(_ input: inout SMCParamStruct) -> (kern_return_t, SMCParamStruct) {
         var output = SMCParamStruct()
         var outSize = MemoryLayout<SMCParamStruct>.stride
         let kr = IOConnectCallStructMethod(connection, Self.handleYPCEvent,
                                            &input, MemoryLayout<SMCParamStruct>.stride,
                                            &output, &outSize)
-        return kr == kIOReturnSuccess ? output : nil
+        return (kr, output)
     }
 
     private static func fourCC(_ s: String) -> UInt32 {
