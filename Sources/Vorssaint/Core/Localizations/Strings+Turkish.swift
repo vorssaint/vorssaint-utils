@@ -136,8 +136,6 @@ extension Strings {
         defaultDurationLabel: "Varsayılan süre",
         keepAwakeAutoStart: "Vorssaint açılınca uyanık tut",
         keepAwakeAutoStartCaption: "Varsayılan süreyle bir oturum başlatır.",
-        keepAwakeRightClickToggle: "Uyanık tutmayı açıp kapatmak için menü çubuğu simgesine sağ tıkla",
-        keepAwakeRightClickToggleCaption: "Sağ tık bağlam menüsünün yerini alır.",
         batteryProtectionSection: "Pil koruması",
         batteryDisableBelow: "Pil şu seviyenin altına düşünce kapat",
         batteryNever: "Asla",
@@ -890,6 +888,8 @@ extension Strings {
         dockClickHideCaption: "Etkin uygulamanın Dock simgesine tıklayınca uygulama gizlenir. Geri getirmek için yeniden tıklayın.",
         monitorMemoryMetricLabel: "Belleği şu şekilde ölç",
         memoryMetricUsed: "Kullanılan Bellek",
-        memoryMetricApp: "Uygulama Belleği"
+        memoryMetricApp: "Uygulama Belleği",
+        keepAwakeRightClickToggle: "Uyanık tutmayı açıp kapatmak için menü çubuğu simgesine sağ tıkla",
+        keepAwakeRightClickToggleCaption: "Sağ tık bağlam menüsünün yerini alır."
     )
 }

@@ -136,8 +136,6 @@ extension Strings {
         defaultDurationLabel: "기본 지속 시간",
         keepAwakeAutoStart: "Vorssaint 실행 시 잠자기 방지",
         keepAwakeAutoStartCaption: "기본 시간으로 세션을 시작합니다.",
-        keepAwakeRightClickToggle: "메뉴 막대 아이콘을 오른쪽 클릭하여 절전 방지 전환",
-        keepAwakeRightClickToggleCaption: "오른쪽 클릭 메뉴를 대체합니다.",
         batteryProtectionSection: "배터리 보호",
         batteryDisableBelow: "배터리 잔량이 다음보다 낮으면 끄기",
         batteryNever: "안 함",
@@ -891,6 +889,8 @@ extension Strings {
         dockClickHideCaption: "활성 앱의 Dock 아이콘을 클릭하면 앱이 숨겨집니다. 다시 클릭하면 돌아옵니다.",
         monitorMemoryMetricLabel: "메모리 측정 방식",
         memoryMetricUsed: "사용 중인 메모리",
-        memoryMetricApp: "앱 메모리"
+        memoryMetricApp: "앱 메모리",
+        keepAwakeRightClickToggle: "메뉴 막대 아이콘을 오른쪽 클릭하여 절전 방지 전환",
+        keepAwakeRightClickToggleCaption: "오른쪽 클릭 메뉴를 대체합니다."
     )
 }

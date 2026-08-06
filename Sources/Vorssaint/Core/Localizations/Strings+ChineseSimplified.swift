@@ -136,8 +136,6 @@ extension Strings {
         defaultDurationLabel: "默认时长",
         keepAwakeAutoStart: "打开 Vorssaint 时保持唤醒",
         keepAwakeAutoStartCaption: "使用默认时长启动会话。",
-        keepAwakeRightClickToggle: "右键点按菜单栏图标以切换“保持唤醒”",
-        keepAwakeRightClickToggleCaption: "将取代右键点按菜单。",
         batteryProtectionSection: "电池保护",
         batteryDisableBelow: "电量低于以下值时关闭",
         batteryNever: "从不",
@@ -890,6 +888,8 @@ extension Strings {
         dockClickHideCaption: "点按当前 App 的 Dock 图标可隐藏它。再次点按即可恢复。",
         monitorMemoryMetricLabel: "内存计量方式",
         memoryMetricUsed: "已用内存",
-        memoryMetricApp: "App 内存"
+        memoryMetricApp: "App 内存",
+        keepAwakeRightClickToggle: "右键点按菜单栏图标以切换“保持唤醒”",
+        keepAwakeRightClickToggleCaption: "将取代右键点按菜单。"
     )
 }

@@ -136,8 +136,6 @@ extension Strings {
         defaultDurationLabel: "デフォルトの継続時間",
         keepAwakeAutoStart: "Vorssaint起動時にスリープを防ぐ",
         keepAwakeAutoStartCaption: "既定の時間でセッションを開始します。",
-        keepAwakeRightClickToggle: "メニューバーアイコンの右クリックでスリープ防止を切り替える",
-        keepAwakeRightClickToggleCaption: "右クリックのコンテキストメニューを置き換えます。",
         batteryProtectionSection: "バッテリー保護",
         batteryDisableBelow: "バッテリーが次の値を下回ったらオフにする",
         batteryNever: "しない",
@@ -890,6 +888,8 @@ extension Strings {
         dockClickHideCaption: "手前のアプリの Dock アイコンをクリックすると、そのアプリを隠します。もう一度クリックすると戻ります。",
         monitorMemoryMetricLabel: "メモリの測定方法",
         memoryMetricUsed: "使用中のメモリ",
-        memoryMetricApp: "Appメモリ"
+        memoryMetricApp: "Appメモリ",
+        keepAwakeRightClickToggle: "メニューバーアイコンの右クリックでスリープ防止を切り替える",
+        keepAwakeRightClickToggleCaption: "右クリックのコンテキストメニューを置き換えます。"
     )
 }

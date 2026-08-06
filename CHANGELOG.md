@@ -9,8 +9,9 @@ All notable changes to this project are documented here. The format follows
 ### Summary
 Vorssaint 3.3.1 adds optional Fan Control, per-app Switcher rules, memory readout choices,
 Previous Display, configurable screenshot previews, optional capture of Vorssaint windows,
-tabbed Scratchpads and Dock clicks that hide the active app. App removal finds more verified
-leftovers, while update downloads, clipboard history, previews, panels, shortcuts and mouse controls are more useful.
+tabbed Scratchpads, faster Keep Awake control and Dock clicks that hide the active app. App
+removal finds more verified leftovers, while update downloads, clipboard history, previews,
+panels, shortcuts and mouse controls are more useful.
 
 ### Added
 - Per-app Switcher rules can include apps without windows, keep them window-only,
@@ -34,6 +35,8 @@ leftovers, while update downloads, clipboard history, previews, panels, shortcut
   shortcut. Thanks to @owen-vromans.
 - The screenshot preview can stay near the capture or appear in any screen corner.
   Under Screenshot. Thanks to @lmilojevicc.
+- Keep Awake can optionally toggle with a right click on the menu bar icon.
+  Under Energy. Thanks to @yspreen.
 - The window shortcut now opens the switcher for the app in front, without
   opening the app list first. Thanks to @mrevanzak.
 - The Uninstaller now finds more configuration, cache and helper files owned by

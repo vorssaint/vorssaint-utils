@@ -249,8 +249,6 @@ struct Strings {
     let defaultDurationLabel: String
     let keepAwakeAutoStart: String
     let keepAwakeAutoStartCaption: String
-    let keepAwakeRightClickToggle: String
-    let keepAwakeRightClickToggleCaption: String
     let batteryProtectionSection: String
     let batteryDisableBelow: String
     let batteryNever: String
@@ -1035,6 +1033,8 @@ struct Strings {
     let monitorMemoryMetricLabel: String
     let memoryMetricUsed: String
     let memoryMetricApp: String
+    let keepAwakeRightClickToggle: String
+    let keepAwakeRightClickToggleCaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -1171,8 +1171,6 @@ extension Strings {
         defaultDurationLabel: "Duração padrão",
         keepAwakeAutoStart: "Manter acordado ao abrir o Vorssaint",
         keepAwakeAutoStartCaption: "Inicia uma sessão com a duração padrão.",
-        keepAwakeRightClickToggle: "Clique com o botão direito no ícone da barra de menus para alternar “Manter acordado”",
-        keepAwakeRightClickToggleCaption: "Substitui o menu de contexto do clique com o botão direito.",
         batteryProtectionSection: "Proteção de bateria",
         batteryDisableBelow: "Desativar com bateria abaixo de",
         batteryNever: "Nunca",
@@ -1926,7 +1924,9 @@ extension Strings {
         dockClickHideCaption: "O app ativo é ocultado ao clicar no ícone dele no Dock. Clique de novo para trazê-lo de volta.",
         monitorMemoryMetricLabel: "Medir memória como",
         memoryMetricUsed: "Memória usada",
-        memoryMetricApp: "Memória de apps"
+        memoryMetricApp: "Memória de apps",
+        keepAwakeRightClickToggle: "Clique com o botão direito no ícone da barra de menus para alternar “Manter acordado”",
+        keepAwakeRightClickToggleCaption: "Substitui o menu de contexto do clique com o botão direito."
     )
 }
 
@@ -2064,8 +2064,6 @@ extension Strings {
         defaultDurationLabel: "Default duration",
         keepAwakeAutoStart: "Keep Awake when Vorssaint opens",
         keepAwakeAutoStartCaption: "Starts a session with the default duration.",
-        keepAwakeRightClickToggle: "Right-click the menu bar icon to toggle Keep Awake",
-        keepAwakeRightClickToggleCaption: "Replaces the right-click context menu.",
         batteryProtectionSection: "Battery protection",
         batteryDisableBelow: "Disable when battery drops below",
         batteryNever: "Never",
@@ -2819,6 +2817,8 @@ extension Strings {
         dockClickHideCaption: "The active app hides when you click its Dock icon. Click again to bring it back.",
         monitorMemoryMetricLabel: "Measure memory as",
         memoryMetricUsed: "Memory Used",
-        memoryMetricApp: "App Memory"
+        memoryMetricApp: "App Memory",
+        keepAwakeRightClickToggle: "Right-click the menu bar icon to toggle Keep Awake",
+        keepAwakeRightClickToggleCaption: "Replaces the right-click context menu."
     )
 }

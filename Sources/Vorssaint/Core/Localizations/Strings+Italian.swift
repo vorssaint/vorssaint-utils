@@ -136,8 +136,6 @@ extension Strings {
         defaultDurationLabel: "Durata predefinita",
         keepAwakeAutoStart: "Mantieni attivo all'apertura di Vorssaint",
         keepAwakeAutoStartCaption: "Avvia una sessione con la durata predefinita.",
-        keepAwakeRightClickToggle: "Fai clic destro sull'icona della barra dei menu per attivare o disattivare «Mantieni attivo»",
-        keepAwakeRightClickToggleCaption: "Sostituisce il menu contestuale del clic destro.",
         batteryProtectionSection: "Protezione della batteria",
         batteryDisableBelow: "Disattiva quando la batteria scende sotto",
         batteryNever: "Mai",
@@ -890,6 +888,8 @@ extension Strings {
         dockClickHideCaption: "L'app attiva viene nascosta quando fai clic sulla sua icona nel Dock. Fai di nuovo clic per riportarla in primo piano.",
         monitorMemoryMetricLabel: "Misura la memoria come",
         memoryMetricUsed: "Memoria usata",
-        memoryMetricApp: "Memoria app"
+        memoryMetricApp: "Memoria app",
+        keepAwakeRightClickToggle: "Fai clic destro sull'icona della barra dei menu per attivare o disattivare «Mantieni attivo»",
+        keepAwakeRightClickToggleCaption: "Sostituisce il menu contestuale del clic destro."
     )
 }

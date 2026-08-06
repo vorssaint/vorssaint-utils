@@ -125,7 +125,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 
 ### Energy and display
 
-- **Keep awake.** Keep the Mac up for a timer, until you say stop or automatically with an external display or power connection, including with the lid closed, choose the active menu bar icon and color, and see the remaining time beside it.
+- **Keep awake.** Keep the Mac up for a timer, until you say stop or automatically with an external display or power connection, including with the lid closed, choose the active menu bar icon and color, see the remaining time beside it, and optionally toggle it with a right click.
 - **Displays.** Adjust brightness or turn individual displays on and off from the menu bar panel. External screens use their own control channel when available and fall back to dimming the picture, while the keyboard brightness keys can follow the pointer and show the brightness percentage.
 - **Extra brightness.** Pushes the XDR panel of a MacBook Pro past its regular maximum using the display's HDR headroom.
 

@@ -136,8 +136,6 @@ extension Strings {
         defaultDurationLabel: "Standarddauer",
         keepAwakeAutoStart: "Beim Öffnen von Vorssaint wach halten",
         keepAwakeAutoStartCaption: "Startet eine Sitzung mit der Standarddauer.",
-        keepAwakeRightClickToggle: "Menüleistensymbol rechtsklicken, um Wachhalten umzuschalten",
-        keepAwakeRightClickToggleCaption: "Ersetzt das Kontextmenü beim Rechtsklick.",
         batteryProtectionSection: "Batterieschutz",
         batteryDisableBelow: "Deaktivieren bei Batterie unter",
         batteryNever: "Nie",
@@ -890,6 +888,8 @@ extension Strings {
         dockClickHideCaption: "Die aktive App wird ausgeblendet, wenn du auf ihr Dock-Symbol klickst. Ein weiterer Klick holt sie zurück.",
         monitorMemoryMetricLabel: "Speicher messen als",
         memoryMetricUsed: "Genutzter Speicher",
-        memoryMetricApp: "App-Speicher"
+        memoryMetricApp: "App-Speicher",
+        keepAwakeRightClickToggle: "Menüleistensymbol rechtsklicken, um Wachhalten umzuschalten",
+        keepAwakeRightClickToggleCaption: "Ersetzt das Kontextmenü beim Rechtsklick."
     )
 }

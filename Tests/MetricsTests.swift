@@ -1136,6 +1136,8 @@ struct MetricsTests {
                "Keep Awake launch restore is opt-in")
         expect(registeredDefaults[DefaultsKey.keepAwakeRightClickToggle] as? Bool == false,
                "right-click Keep Awake toggle is opt-in")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keepAwakeRightClickToggle),
+               "right-click Keep Awake preference follows settings backups")
         expect(registeredDefaults[DefaultsKey.keepAwakeExternalDisplay] as? Bool == false,
                "external-display Keep Awake is opt-in")
         expect(registeredDefaults[DefaultsKey.keepAwakeConnectedToPower] as? Bool == false,
@@ -6695,6 +6697,11 @@ struct MetricsTests {
                    && !strings.mixerSoundEffectsOutputTitle.contains("—")
                    && !strings.mixerSoundEffectsOutputTooltip.contains("—"),
                    "\(prefix) system sound output labels are present without em dash")
+            expect(!strings.keepAwakeRightClickToggle.isEmpty
+                   && !strings.keepAwakeRightClickToggleCaption.isEmpty
+                   && !strings.keepAwakeRightClickToggle.contains("—")
+                   && !strings.keepAwakeRightClickToggleCaption.contains("—"),
+                   "\(prefix) right-click Keep Awake labels are present without em dash")
             expectFormat(strings.homebrewConfirmInstallBodyFormat, ["@"], "\(prefix) Homebrew install format")
             expectFormat(strings.homebrewConfirmUninstallBodyFormat, ["@"], "\(prefix) Homebrew uninstall format")
             expectFormat(strings.homebrewConfirmUpgradeBodyFormat, ["@"], "\(prefix) Homebrew upgrade format")

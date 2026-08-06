@@ -136,8 +136,6 @@ extension Strings {
         defaultDurationLabel: "Durée par défaut",
         keepAwakeAutoStart: "Garder éveillé à l'ouverture de Vorssaint",
         keepAwakeAutoStartCaption: "Démarre une session avec la durée par défaut.",
-        keepAwakeRightClickToggle: "Faire un clic droit sur l’icône de la barre des menus pour basculer « Garder éveillé »",
-        keepAwakeRightClickToggleCaption: "Remplace le menu contextuel du clic droit.",
         batteryProtectionSection: "Protection de la batterie",
         batteryDisableBelow: "Désactiver lorsque la batterie passe sous",
         batteryNever: "Jamais",
@@ -890,6 +888,8 @@ extension Strings {
         dockClickHideCaption: "L’app active se masque lorsque vous cliquez sur son icône dans le Dock. Cliquez à nouveau pour la faire revenir.",
         monitorMemoryMetricLabel: "Mesurer la mémoire comme",
         memoryMetricUsed: "Mémoire utilisée",
-        memoryMetricApp: "Mémoire des apps"
+        memoryMetricApp: "Mémoire des apps",
+        keepAwakeRightClickToggle: "Faire un clic droit sur l’icône de la barre des menus pour basculer « Garder éveillé »",
+        keepAwakeRightClickToggleCaption: "Remplace le menu contextuel du clic droit."
     )
 }
