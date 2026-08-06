@@ -183,8 +183,8 @@ enum UpdateInstallerSupport {
 
     /// Whether a finished download may be handed to the installer. The
     /// signature check still decides what gets installed; this only refuses
-    /// bodies that cannot be the asset, so a wrong response is not written to
-    /// disk and mounted first.
+    /// bodies that cannot be the asset before they are handed to the installer
+    /// and mounted.
     static func downloadIsUsable(status: Int,
                                  receivedBytes: Int64,
                                  expectedBytes: Int64?,
