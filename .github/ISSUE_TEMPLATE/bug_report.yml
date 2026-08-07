@@ -36,7 +36,8 @@ body:
     id: vorssaint_version
     attributes:
       label: Vorssaint Version
-      placeholder: e.g. 2.12.0
+      description: The number shown in Settings, on the About page.
+      placeholder: Copy the number from the About page
     validations:
       required: true
 

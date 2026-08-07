@@ -3,7 +3,7 @@
 
 import Foundation
 
-/// What to do with an incoming left-button press.
+/// What to do with an incoming physical trackpad press.
 enum MiddleClickClickAction: Equatable {
     case transform
     case passThrough
@@ -30,7 +30,7 @@ enum MiddleClickSupport {
     /// treated as a synthesizer bounce and dropped.
     static let repeatGuard: TimeInterval = 0.30
 
-    /// Decides what a left-button press becomes. Only real presses count
+    /// Decides what an incoming press becomes. Only real presses count
     /// (owner decision: taps, swipes and resting fingers must never click),
     /// and while the system's own three-finger drag gesture is enabled it
     /// owns three-finger touches: it synthesizes clicks from unpressed

@@ -75,7 +75,9 @@ struct FeatureHubSettings: View {
                 presetsSection
                 featureSections
             } else {
-                PermissionsPortalSections(hub: hub)
+                Section {
+                    PermissionsPortalSections(hub: hub)
+                }
             }
         }
         .formStyle(.grouped)
@@ -223,6 +225,11 @@ private struct FeatureHubRow: View {
 
     private var installed: Bool { feature.isAvailable }
 
+    private var accessibilityTitle: String {
+        let title = feature.hubTitle(l10n.s, hub: hub)
+        return feature.isBeta ? "\(title). \(l10n.s.betaFeatureWarning)" : title
+    }
+
     private var energyLabel: String {
         switch feature.energyProfile {
         case .idle: return hub.energyIdle
@@ -250,6 +257,15 @@ private struct FeatureHubRow: View {
                 HStack(spacing: 6) {
                     Text(feature.hubTitle(l10n.s, hub: hub))
                         .foregroundStyle(installed ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                    if feature.isBeta {
+                        Text(l10n.s.betaBadge)
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(Color.white)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(Color.accentColor))
+                            .accessibilityHidden(true)
+                    }
                     ForEach(feature.permissions, id: \.self) { permission in
                         Image(systemName: permission.symbolName)
                             .font(.system(size: 9))
@@ -286,7 +302,7 @@ private struct FeatureHubRow: View {
         }
         .padding(.vertical, 1)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(feature.hubTitle(l10n.s, hub: hub))
+        .accessibilityLabel(accessibilityTitle)
         .accessibilityValue(installed ? "1" : "0")
     }
 
@@ -306,20 +322,25 @@ private struct FeatureHubRow: View {
 
 // MARK: - Permissions portal
 
-private struct PermissionsPortalSections: View {
+struct PermissionsPortalSections: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var permissions = Permissions.shared
     let hub: FeatureHubStrings
+    let visiblePermissions: [AppPermission]
     @State private var automation: [Permissions.AutomationTarget: Permissions.AutomationStatus] = [:]
 
+    init(hub: FeatureHubStrings,
+         visiblePermissions: [AppPermission] = AppPermission.allCases) {
+        self.hub = hub
+        self.visiblePermissions = visiblePermissions
+    }
+
     var body: some View {
-        Section {
-            ForEach(AppPermission.allCases, id: \.self) { permission in
-                PermissionPortalRow(permission: permission,
-                                    hub: hub,
-                                    status: status(for: permission))
-            }
+        ForEach(visiblePermissions, id: \.self) { permission in
+            PermissionPortalRow(permission: permission,
+                                hub: hub,
+                                status: status(for: permission))
         }
         .onAppear {
             // Statuses that only refresh at launch/activation get a fresh
@@ -363,12 +384,22 @@ private struct PermissionsPortalSections: View {
                 return .missing
             }
             return .unknown
+        case .microphone:
+            switch permissions.microphone {
+            case .granted: return .granted
+            case .denied, .undetermined: return .missing
+            case .unknown: return .unknown
+            }
         case .camera:
             switch permissions.camera {
             case .granted: return .granted
             case .denied, .undetermined: return .missing
             case .unknown: return .unknown
             }
+        case .appManagement:
+            // macOS has no public preflight API for this permission. The
+            // system records the app only after its first protected write.
+            return .unknown
         }
     }
 
@@ -425,7 +456,9 @@ private struct PermissionPortalRow: View {
     }
 
     private var activeFeatures: [AppFeature] {
-        AppFeature.activeFeatures(using: permission)
+        AppFeature.activeFeatures(using: permission).filter {
+            permission != .notifications || $0 != .monitorPower || PowerSampler.hasInternalBattery
+        }
     }
 
     private var usedByLine: String {
@@ -478,7 +511,9 @@ private struct PermissionPortalRow: View {
         case .accessibility, .screenRecording, .fullDiskAccess: return true
         case .notifications: return Permissions.shared.notifications == .undetermined
         case .camera: return Permissions.shared.camera == .undetermined
-        case .filesAndFolders, .automationFinder, .automationTerminal, .audioCapture: return false
+        case .microphone: return Permissions.shared.microphone == .undetermined
+        case .filesAndFolders, .automationFinder, .automationTerminal, .audioCapture,
+             .appManagement: return false
         }
     }
 
@@ -493,7 +528,9 @@ private struct PermissionPortalRow: View {
                 Permissions.shared.refresh()
             }
         case .camera: Permissions.shared.requestCamera()
-        case .filesAndFolders, .automationFinder, .automationTerminal, .audioCapture:
+        case .microphone: Permissions.shared.requestMicrophone()
+        case .filesAndFolders, .automationFinder, .automationTerminal, .audioCapture,
+             .appManagement:
             break
         }
     }
@@ -507,7 +544,9 @@ private struct PermissionPortalRow: View {
         case .notifications: Permissions.shared.openNotificationSettings()
         case .automationFinder, .automationTerminal: Permissions.shared.openAutomationSettings()
         case .audioCapture: Permissions.shared.openAudioCaptureSettings()
+        case .microphone: Permissions.shared.openMicrophoneSettings()
         case .camera: Permissions.shared.openCameraSettings()
+        case .appManagement: Permissions.shared.openAppManagementSettings()
         }
     }
 }
@@ -536,8 +575,11 @@ extension AppFeature {
         case .clipboardHistory: return FeatureStrings.clipboard(L10n.shared.language).title
         case .pastePlain: return s.pastePlainName
         case .finderCutPaste: return s.cutPasteName
+        case .finderRename: return FeatureStrings.finderRename(L10n.shared.language).hubTitle
         case .shelf: return s.shelfName
         case .urlCleaner: return s.urlCleanerName
+        case .diskImageInstaller:
+            return FeatureStrings.diskImageInstaller(L10n.shared.language).title
         case .mixer: return s.mixerSection
         case .soundOutputSwitcher: return s.soundOutputSwitcherTitle
         case .micMute: return s.micMuteName
@@ -550,6 +592,7 @@ extension AppFeature {
         case .colorPicker: return s.colorPickerName
         case .screenOCR: return s.ocrName
         case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).pageTitle
+        case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).pageTitle
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
@@ -566,6 +609,7 @@ extension AppFeature {
         case .monitorNetwork: return s.monitorShowNetwork
         case .monitorDisk: return s.diskSection
         case .monitorPower: return s.powerSection
+        case .fanControl: return FeatureStrings.fanControl(L10n.shared.language).title
         }
     }
 
@@ -588,8 +632,11 @@ extension AppFeature {
         case .clipboardHistory: return hub.descClipboardHistory
         case .pastePlain: return hub.descPastePlain
         case .finderCutPaste: return hub.descFinderCutPaste
+        case .finderRename: return FeatureStrings.finderRename(L10n.shared.language).hubDescription
         case .shelf: return hub.descShelf
         case .urlCleaner: return hub.descURLCleaner
+        case .diskImageInstaller:
+            return FeatureStrings.diskImageInstaller(L10n.shared.language).hubDescription
         case .mixer: return hub.descMixer
         case .soundOutputSwitcher: return hub.descSoundOutputSwitcher
         case .micMute: return hub.descMicMute
@@ -602,6 +649,7 @@ extension AppFeature {
         case .colorPicker: return hub.descColorPicker
         case .screenOCR: return hub.descScreenOCR
         case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).hubDescription
+        case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).hubDescription
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).hubDescription
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).hubDescription
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).hubDescription
@@ -620,6 +668,7 @@ extension AppFeature {
         case .monitorNetwork: return hub.descMonitorNetwork
         case .monitorDisk: return hub.descMonitorDisk
         case .monitorPower: return hub.descMonitorPower
+        case .fanControl: return FeatureStrings.fanControl(L10n.shared.language).hubDescription
         }
     }
 }
@@ -635,7 +684,9 @@ extension AppPermission {
         case .automationFinder: return hub.permAutomationFinder
         case .automationTerminal: return hub.permAutomationTerminal
         case .audioCapture: return hub.permAudioCapture
+        case .microphone: return FeatureStrings.recorder(L10n.shared.language).microphonePermissionName
         case .camera: return FeatureStrings.cameraPreview(L10n.shared.language).permName
+        case .appManagement: return FeatureStrings.settingsCategories(L10n.shared.language).appManagement
         }
     }
 
@@ -649,7 +700,10 @@ extension AppPermission {
         case .automationFinder: return hub.explainAutomationFinder
         case .automationTerminal: return hub.explainAutomationTerminal
         case .audioCapture: return hub.explainAudioCapture
+        case .microphone:
+            return FeatureStrings.recorder(L10n.shared.language).microphonePermissionExplain
         case .camera: return FeatureStrings.cameraPreview(L10n.shared.language).permExplain
+        case .appManagement: return hub.explainAppManagement
         }
     }
 }

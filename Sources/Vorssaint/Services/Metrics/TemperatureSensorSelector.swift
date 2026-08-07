@@ -13,7 +13,15 @@ enum CPUTemperaturePlatform: Equatable {
     case generic
 }
 
+struct CachedSensorReading {
+    var value: Double
+    var updatedAt: TimeInterval
+    var missedSamples: Int
+}
+
 enum TemperatureSensorSelector {
+    static let minimumChipTemperature = 10.0
+
     private static let appleM1CPUCoreKeys: Set<String> = [
         "Tp09", "Tp0T",
         "Tp01", "Tp05", "Tp0D", "Tp0H",
@@ -108,6 +116,25 @@ enum TemperatureSensorSelector {
         }
     }
 
+    static func stabilizedTemperature(_ reading: Double?,
+                                      cache: inout CachedSensorReading?,
+                                      now: TimeInterval,
+                                      maxAge: TimeInterval,
+                                      minimum: Double = 1) -> Double? {
+        if let reading, reading > 1, reading >= minimum, reading < 125 {
+            cache = CachedSensorReading(value: reading, updatedAt: now, missedSamples: 0)
+            return reading
+        }
+        guard var cached = cache else { return nil }
+        cached.missedSamples += 1
+        if cached.missedSamples <= 4, now - cached.updatedAt <= maxAge {
+            cache = cached
+            return cached.value
+        }
+        cache = nil
+        return nil
+    }
+
     private static func appleSiliconGeneration(in brand: String) -> Int? {
         guard brand.hasPrefix("Apple M") else { return nil }
         let remainder = brand.dropFirst("Apple M".count)
@@ -119,6 +146,6 @@ enum TemperatureSensorSelector {
     }
 
     private static func isPlausibleTemperature(_ value: Double) -> Bool {
-        value > 1 && value < 125
+        value >= minimumChipTemperature && value < 125
     }
 }

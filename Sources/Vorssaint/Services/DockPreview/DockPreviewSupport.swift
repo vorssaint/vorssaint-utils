@@ -65,14 +65,11 @@ struct DockPreviewAvailability: Equatable {
 struct DockPreviewCloseState: Equatable {
     let remainingWindowIDs: [CGWindowID]
     let selectedWindowID: CGWindowID?
-    let activePeekWindowID: CGWindowID?
-    let desiredWindowID: CGWindowID?
     let shouldEndSession: Bool
 }
 
 struct DockPreviewMouseDownDecision: Equatable {
     let shouldEndSession: Bool
-    let restoreOrigin: Bool
 }
 
 /// A thin keep-alive region connecting a Dock icon to its preview panel.
@@ -97,7 +94,6 @@ enum DockPreviewSupport {
     /// to the app under the cursor should feel immediate, not like a fresh open.
     static let switchDelay: TimeInterval = 0.25
     static let hideDelay: TimeInterval = 0.22
-    static let peekDelay: TimeInterval = 0.08
     /// A little slack around the panel so the cursor grazing its edge doesn't
     /// flicker the session between "inside" and "leaving".
     static let panelStayMargin: CGFloat = 6
@@ -110,8 +106,8 @@ enum DockPreviewSupport {
     static let corridorMargin: CGFloat = 12
     static var cardWidth: CGFloat { 190 * PreviewSizing.scale }
     static var cardHeight: CGFloat { 142 * PreviewSizing.scale }
-    static let cardSpacing: CGFloat = 8
-    static let panelPadding: CGFloat = 12
+    static var cardSpacing: CGFloat { 8 * PreviewSizing.scale }
+    static var panelPadding: CGFloat { 12 * PreviewSizing.scale }
     static let panelHeaderHeight: CGFloat = 28
     static var mediaPanelWidth: CGFloat { 330 * PreviewSizing.scale }
     static var mediaPanelHeight: CGFloat { 174 * PreviewSizing.scale }
@@ -248,20 +244,11 @@ enum DockPreviewSupport {
 
     static func mouseDownDecision(isVisible: Bool,
                                   isPinned: Bool,
-                                  isInsidePanel: Bool,
-                                  clickedDock: Bool) -> DockPreviewMouseDownDecision {
+                                  isInsidePanel: Bool) -> DockPreviewMouseDownDecision {
         guard isVisible, !isPinned, !isInsidePanel else {
-            return DockPreviewMouseDownDecision(shouldEndSession: false, restoreOrigin: false)
+            return DockPreviewMouseDownDecision(shouldEndSession: false)
         }
-        return DockPreviewMouseDownDecision(shouldEndSession: true, restoreOrigin: !clickedDock)
-    }
-
-    static func shouldRestoreOriginAfterMinimize(originPID: pid_t?,
-                                                 originWindowID: CGWindowID?,
-                                                 targetPID: pid_t,
-                                                 targetWindowID: CGWindowID) -> Bool {
-        guard let originPID else { return false }
-        return originPID != targetPID || originWindowID != targetWindowID
+        return DockPreviewMouseDownDecision(shouldEndSession: true)
     }
 
     /// The keep-alive corridor for a session: the icon and panel (each with a
@@ -306,24 +293,14 @@ enum DockPreviewSupport {
         return HoverCorridor(rects: [icon, panel, bridge])
     }
 
-    static func shouldRestoreOnEnd(committed: Bool) -> Bool {
-        !committed
-    }
-
     static func closeState(afterRemoving closedWindowID: CGWindowID,
                            windowIDs: [CGWindowID],
-                           selectedWindowID: CGWindowID?,
-                           activePeekWindowID: CGWindowID?,
-                           desiredWindowID: CGWindowID?) -> DockPreviewCloseState {
+                           selectedWindowID: CGWindowID?) -> DockPreviewCloseState {
         let remaining = windowIDs.filter { $0 != closedWindowID }
         let removedSelection = selectedWindowID == closedWindowID
-        let removedPeek = activePeekWindowID == closedWindowID
-        let removedDesired = desiredWindowID == closedWindowID
         return DockPreviewCloseState(
             remainingWindowIDs: remaining,
             selectedWindowID: removedSelection ? nil : selectedWindowID,
-            activePeekWindowID: removedPeek ? nil : activePeekWindowID,
-            desiredWindowID: removedDesired ? nil : desiredWindowID,
             shouldEndSession: remaining.isEmpty
         )
     }

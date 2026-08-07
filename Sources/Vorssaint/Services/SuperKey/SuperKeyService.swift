@@ -30,6 +30,11 @@ final class SuperKeyService: ObservableObject {
     /// of the combination it stands for. Main thread only, like both taps.
     private(set) static var isEngaged = false
 
+    /// A held gesture can follow this virtual modifier. True means the key was
+    /// released; false means the hold was cancelled by teardown or recovery.
+    var onHoldEnded: ((_ released: Bool) -> Void)?
+    var isHeld: Bool { state.isHeld }
+
     private let hidutilPath = "/usr/bin/hidutil"
     /// Matches every keyboard, including one plugged in later.
     private let keyboardMatch = "keyboard"
@@ -233,6 +238,7 @@ final class SuperKeyService: ObservableObject {
             armHeldKeyWatchdog()
         case .triggerUp:
             cancelHeldKeyWatchdog()
+            onHoldEnded?(true)
         case .otherKey, .otherModifier, .capsLock:
             break
         }
@@ -270,7 +276,9 @@ final class SuperKeyService: ObservableObject {
     /// Back to the key being up. Runs on the main thread, like the tap.
     private func forgetHeldKey() {
         cancelHeldKeyWatchdog()
+        let wasHeld = state.isHeld
         state.reset()
+        if wasHeld { onHoldEnded?(false) }
     }
 
     private static func classify(type: CGEventType, keyCode: Int64, event: CGEvent) -> SuperKeySupport.Event {

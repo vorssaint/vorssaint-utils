@@ -13,7 +13,7 @@ enum URLCleaning {
         "fb_action_ids", "fb_action_types", "fb_source", "mibextid",
     ]
 
-    static func cleanedString(from text: String) -> String? {
+    static func cleanedString(from text: String, customParameters: Set<String> = []) -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard var components = URLComponents(string: trimmed),
               let scheme = components.scheme?.lowercased(),
@@ -24,7 +24,7 @@ enum URLCleaning {
 
         if let items = components.queryItems {
             let kept = items.filter { item in
-                !shouldRemove(parameter: item.name)
+                !shouldRemove(parameter: item.name, customParameters: customParameters)
             }
             components.queryItems = kept.isEmpty ? nil : kept
         }
@@ -32,8 +32,18 @@ enum URLCleaning {
         return components.url?.absoluteString
     }
 
-    private static func shouldRemove(parameter name: String) -> Bool {
+    static func customParameters(from storedValue: String?) -> Set<String> {
+        Set((storedValue ?? "")
+            .split(whereSeparator: { $0 == "," || $0.isNewline })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty })
+    }
+
+    private static func shouldRemove(parameter name: String,
+                                     customParameters: Set<String>) -> Bool {
         let normalized = name.lowercased()
-        return trackedParameters.contains(normalized) || normalized.hasPrefix("utm_")
+        return trackedParameters.contains(normalized)
+            || normalized.hasPrefix("utm_")
+            || customParameters.contains(normalized)
     }
 }

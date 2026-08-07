@@ -115,6 +115,11 @@ struct FeatureHubStrings {
     let energyInputs: String
     let energyPeriodic: String
     let energyHelp: String
+    let explainAppManagement: String
+    let onboardingSelectedPermissionsTitle: String
+    let onboardingNoSelectedPermissions: String
+    let onboardingOtherPermissionsTitle: String
+    let onboardingOtherPermissionsCaption: String
 }
 
 extension FeatureStrings {
@@ -155,7 +160,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "에너지 및 디스플레이",
         groupTools: "도구",
         groupMonitor: "시스템 모니터",
-        permissionsIntro: "각 권한의 용도와 사용하는 기능을 확인하세요.",
+        permissionsIntro: "각 권한의 용도와 사용하는 기능을 확인하세요. 다른 접근 권한은 해당 기능을 사용할 때만 요청합니다.",
         usedByFormat: "사용 중: %@",
         usedByNone: "현재 켜진 기능 중 이 권한을 사용하는 기능이 없습니다.",
         unusedBanner: "이 권한을 허용했지만 현재 켠 기능은 필요로 하지 않습니다. 원한다면 시스템 설정에서 취소할 수 있습니다.",
@@ -184,7 +189,7 @@ extension FeatureHubStrings {
         descDockPreview: "Dock에 포인터를 올리면 윈도우 미리보기",
         descDockClick: "Dock 아이콘 클릭으로 최소화 또는 윈도우 전환",
         descWindowMaximizer: "초록색 버튼으로 전체 화면 대신 최대화",
-        descWindowLayout: "단축키로 윈도우를 배치하거나 드래그로 이동 및 크기 조절",
+        descWindowLayout: "단축키나 화면 가장자리 맞춤으로 배치하고 드래그로 이동 및 크기 조절",
         descAutoQuit: "마지막 윈도우를 닫으면 앱 종료",
         descScrollInverter: "마우스 휠 방향 반전",
         descSmoothScroll: "부드러운 애니메이션 마우스 스크롤",
@@ -241,7 +246,12 @@ extension FeatureHubStrings {
         energyKeyboard: "키보드 감시",
         energyInputs: "마우스와 키보드 감시",
         energyPeriodic: "일정 간격으로 확인",
-        energyHelp: "기능이 켜져 있을 때 계속 유지하는 작업입니다. 제거한 기능은 전혀 불러오지 않습니다."
+        energyHelp: "기능이 켜져 있을 때 계속 유지하는 작업입니다. 제거한 기능은 전혀 불러오지 않습니다.",
+        explainAppManagement: "업데이트가 패키지 관리자로 설치한 앱을 교체하거나 제거할 수 있게 합니다.",
+        onboardingSelectedPermissionsTitle: "선택한 기능에 필요한 권한",
+        onboardingNoSelectedPermissions: "설정을 마치는 데 필요한 권한이 없습니다.",
+        onboardingOtherPermissionsTitle: "기타 권한",
+        onboardingOtherPermissionsCaption: "선택 사항입니다. 기능에서 필요할 때 지금 또는 나중에 허용할 수 있습니다."
     )
 }
 
@@ -263,7 +273,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Energy and display",
         groupTools: "Tools",
         groupMonitor: "System monitor",
-        permissionsIntro: "What each permission does and which features use it.",
+        permissionsIntro: "What each permission does and which features use it. Other access is requested only when you use it.",
         usedByFormat: "Used by %@",
         usedByNone: "Nothing that is on uses this permission right now.",
         unusedBanner: "You granted this permission, but nothing that is on needs it. If you like, revoke it in System Settings.",
@@ -292,7 +302,7 @@ extension FeatureHubStrings {
         descDockPreview: "Window previews when hovering the Dock",
         descDockClick: "Click a Dock icon to minimize or cycle windows",
         descWindowMaximizer: "The green button maximizes instead of full screen",
-        descWindowLayout: "Arrange windows with shortcuts or move and resize them by dragging",
+        descWindowLayout: "Arrange windows with shortcuts or edge snapping, then adjust them by dragging",
         descAutoQuit: "Quit apps when their last window closes",
         descScrollInverter: "Invert the mouse wheel direction",
         descSmoothScroll: "Smooth, animated mouse scrolling",
@@ -349,7 +359,12 @@ extension FeatureHubStrings {
         energyKeyboard: "Listens to the keyboard",
         energyInputs: "Listens to mouse and keyboard",
         energyPeriodic: "Checks on an interval",
-        energyHelp: "What the feature keeps alive while it is on. Uninstalled features load nothing at all."
+        energyHelp: "What the feature keeps alive while it is on. Uninstalled features load nothing at all.",
+        explainAppManagement: "Lets updates replace or remove apps installed by the package manager.",
+        onboardingSelectedPermissionsTitle: "Permissions for your choices",
+        onboardingNoSelectedPermissions: "You do not need to grant any permission to finish setup.",
+        onboardingOtherPermissionsTitle: "Other permissions",
+        onboardingOtherPermissionsCaption: "Optional. Grant these now or later, when a feature needs them."
     )
 
     static let ptBR = FeatureHubStrings(
@@ -369,7 +384,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Energia e tela",
         groupTools: "Ferramentas",
         groupMonitor: "Monitor do sistema",
-        permissionsIntro: "O que cada permissão faz e quais recursos usam cada uma.",
+        permissionsIntro: "O que cada permissão faz e quais recursos usam cada uma. Outros acessos só são pedidos quando você os usa.",
         usedByFormat: "Usada por %@",
         usedByNone: "Nada que está ligado usa esta permissão agora.",
         unusedBanner: "Você concedeu esta permissão, mas nada que está ligado precisa dela. Se quiser, revogue nos Ajustes do Sistema.",
@@ -398,7 +413,7 @@ extension FeatureHubStrings {
         descDockPreview: "Miniaturas das janelas ao passar o mouse no Dock",
         descDockClick: "Clique no ícone do Dock para minimizar ou alternar",
         descWindowMaximizer: "O botão verde maximiza em vez de tela cheia",
-        descWindowLayout: "Organize janelas com atalhos ou mova e redimensione por arraste",
+        descWindowLayout: "Organize janelas com atalhos ou encaixe nas bordas e ajuste por arraste",
         descAutoQuit: "Fecha o app quando a última janela fecha",
         descScrollInverter: "Inverte a direção da rodinha do mouse",
         descSmoothScroll: "Rolagem suave e animada do mouse",
@@ -455,7 +470,12 @@ extension FeatureHubStrings {
         energyKeyboard: "Escuta o teclado",
         energyInputs: "Escuta mouse e teclado",
         energyPeriodic: "Verifica em intervalos",
-        energyHelp: "O custo enquanto a função está ligada. Desinstalada, ela não carrega nada."
+        energyHelp: "O custo enquanto a função está ligada. Desinstalada, ela não carrega nada.",
+        explainAppManagement: "Permite que as atualizações substituam ou removam apps instalados pelo gerenciador de pacotes.",
+        onboardingSelectedPermissionsTitle: "Permissões para suas escolhas",
+        onboardingNoSelectedPermissions: "Você não precisa conceder nenhuma permissão para concluir a configuração.",
+        onboardingOtherPermissionsTitle: "Outras permissões",
+        onboardingOtherPermissionsCaption: "Opcional. Você pode concedê-las agora ou depois, quando algum recurso precisar."
     )
 
     static let tr = FeatureHubStrings(
@@ -475,7 +495,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Enerji ve ekran",
         groupTools: "Araçlar",
         groupMonitor: "Sistem monitörü",
-        permissionsIntro: "Her iznin ne yaptığı ve hangi özelliklerin onu kullandığı.",
+        permissionsIntro: "Her iznin ne yaptığı ve hangi özelliklerin onu kullandığı. Diğer erişimler yalnızca kullandığınızda istenir.",
         usedByFormat: "Kullanan: %@",
         usedByNone: "Şu anda açık olan hiçbir şey bu izni kullanmıyor.",
         unusedBanner: "Bu izni verdiniz ama açık olan hiçbir şeyin ona ihtiyacı yok. İsterseniz Sistem Ayarları'ndan geri alabilirsiniz.",
@@ -504,7 +524,7 @@ extension FeatureHubStrings {
         descDockPreview: "Dock üzerine gelince pencere önizlemeleri",
         descDockClick: "Dock simgesine tıklayarak küçültün veya geçiş yapın",
         descWindowMaximizer: "Yeşil düğme tam ekran yerine büyütür",
-        descWindowLayout: "Pencereleri kısayollarla yerleştirin veya sürükleyerek taşıyıp boyutlandırın",
+        descWindowLayout: "Pencereleri kısayollarla veya kenarlara yerleştirin ve sürükleyerek ayarlayın",
         descAutoQuit: "Son pencere kapanınca uygulamadan çıkar",
         descScrollInverter: "Fare tekerleğinin yönünü ters çevirir",
         descSmoothScroll: "Akıcı ve animasyonlu fare kaydırması",
@@ -561,7 +581,12 @@ extension FeatureHubStrings {
         energyKeyboard: "Klavyeyi dinler",
         energyInputs: "Fare ve klavyeyi dinler",
         energyPeriodic: "Aralıklarla denetler",
-        energyHelp: "Özellik açıkken tuttuğu maliyet. Kaldırılan özellik hiçbir şey yüklemez."
+        energyHelp: "Özellik açıkken tuttuğu maliyet. Kaldırılan özellik hiçbir şey yüklemez.",
+        explainAppManagement: "Güncellemelerin paket yöneticisiyle yüklenen uygulamaları değiştirmesini veya kaldırmasını sağlar.",
+        onboardingSelectedPermissionsTitle: "Seçimleriniz için gereken izinler",
+        onboardingNoSelectedPermissions: "Kurulumu tamamlamak için izin vermeniz gerekmiyor.",
+        onboardingOtherPermissionsTitle: "Diğer izinler",
+        onboardingOtherPermissionsCaption: "İsteğe bağlıdır. Bir özellik gerektiğinde şimdi veya daha sonra izin verebilirsiniz."
     )
 
     static let ru = FeatureHubStrings(
@@ -581,7 +606,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Энергия и экран",
         groupTools: "Инструменты",
         groupMonitor: "Системный монитор",
-        permissionsIntro: "Что делает каждое разрешение и какие функции им пользуются.",
+        permissionsIntro: "Что делает каждое разрешение и какие функции им пользуются. Остальной доступ запрашивается только при использовании.",
         usedByFormat: "Используется: %@",
         usedByNone: "Сейчас ни одна включённая функция не использует это разрешение.",
         unusedBanner: "Вы дали это разрешение, но ничему включённому оно не нужно. При желании отзовите его в Системных настройках.",
@@ -610,7 +635,7 @@ extension FeatureHubStrings {
         descDockPreview: "Миниатюры окон при наведении на Dock",
         descDockClick: "Клик по значку в Dock сворачивает или переключает окна",
         descWindowMaximizer: "Зелёная кнопка разворачивает вместо полного экрана",
-        descWindowLayout: "Раскладывайте окна клавишами или перемещайте и меняйте размер перетаскиванием",
+        descWindowLayout: "Раскладывайте окна клавишами или привязкой к краям и меняйте их перетаскиванием",
         descAutoQuit: "Закрывает приложение вместе с последним окном",
         descScrollInverter: "Инвертирует направление колёсика мыши",
         descSmoothScroll: "Плавная анимированная прокрутка мышью",
@@ -667,7 +692,12 @@ extension FeatureHubStrings {
         energyKeyboard: "Слушает клавиатуру",
         energyInputs: "Слушает мышь и клавиатуру",
         energyPeriodic: "Проверяет с интервалом",
-        energyHelp: "Стоимость, пока функция включена. Удалённая функция ничего не загружает."
+        energyHelp: "Стоимость, пока функция включена. Удалённая функция ничего не загружает.",
+        explainAppManagement: "Позволяет обновлениям заменять или удалять приложения, установленные через менеджер пакетов.",
+        onboardingSelectedPermissionsTitle: "Разрешения для выбранных функций",
+        onboardingNoSelectedPermissions: "Для завершения настройки разрешения не нужны.",
+        onboardingOtherPermissionsTitle: "Другие разрешения",
+        onboardingOtherPermissionsCaption: "Необязательно. Их можно выдать сейчас или позже, когда они понадобятся функции."
     )
 
     static let es = FeatureHubStrings(
@@ -687,7 +717,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Energía y pantalla",
         groupTools: "Herramientas",
         groupMonitor: "Monitor del sistema",
-        permissionsIntro: "Qué hace cada permiso y qué funciones lo usan.",
+        permissionsIntro: "Qué hace cada permiso y qué funciones lo usan. Los demás accesos se piden solo al utilizarlos.",
         usedByFormat: "Usado por %@",
         usedByNone: "Nada de lo que está activo usa este permiso ahora.",
         unusedBanner: "Concediste este permiso, pero nada de lo que está activo lo necesita. Si quieres, revócalo en Ajustes del Sistema.",
@@ -716,7 +746,7 @@ extension FeatureHubStrings {
         descDockPreview: "Miniaturas de ventanas al pasar por el Dock",
         descDockClick: "Clic en un icono del Dock para minimizar o alternar",
         descWindowMaximizer: "El botón verde maximiza en vez de pantalla completa",
-        descWindowLayout: "Organiza ventanas con atajos o muévelas y cambia su tamaño al arrastrar",
+        descWindowLayout: "Organiza ventanas con atajos o ajuste a los bordes y modifícalas al arrastrar",
         descAutoQuit: "Cierra la app cuando se cierra su última ventana",
         descScrollInverter: "Invierte la dirección de la rueda del ratón",
         descSmoothScroll: "Desplazamiento suave y animado del ratón",
@@ -773,7 +803,12 @@ extension FeatureHubStrings {
         energyKeyboard: "Escucha el teclado",
         energyInputs: "Escucha ratón y teclado",
         energyPeriodic: "Comprueba a intervalos",
-        energyHelp: "El coste mientras la función está activada. Desinstalada, no carga nada."
+        energyHelp: "El coste mientras la función está activada. Desinstalada, no carga nada.",
+        explainAppManagement: "Permite que las actualizaciones sustituyan o eliminen apps instaladas con el gestor de paquetes.",
+        onboardingSelectedPermissionsTitle: "Permisos para tus elecciones",
+        onboardingNoSelectedPermissions: "No necesitas conceder permisos para terminar la configuración.",
+        onboardingOtherPermissionsTitle: "Otros permisos",
+        onboardingOtherPermissionsCaption: "Opcional. Concédelos ahora o después, cuando una función los necesite."
     )
 
     static let de = FeatureHubStrings(
@@ -793,7 +828,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Energie und Display",
         groupTools: "Werkzeuge",
         groupMonitor: "Systemmonitor",
-        permissionsIntro: "Was jede Berechtigung tut und welche Funktionen sie nutzen.",
+        permissionsIntro: "Was jede Berechtigung tut und welche Funktionen sie nutzen. Weitere Zugriffe werden erst bei der Nutzung angefragt.",
         usedByFormat: "Genutzt von %@",
         usedByNone: "Nichts Eingeschaltetes nutzt diese Berechtigung gerade.",
         unusedBanner: "Du hast diese Berechtigung erteilt, aber nichts Eingeschaltetes braucht sie. Du kannst sie in den Systemeinstellungen widerrufen.",
@@ -822,7 +857,7 @@ extension FeatureHubStrings {
         descDockPreview: "Fenstervorschauen beim Zeigen aufs Dock",
         descDockClick: "Dock-Symbol klicken, um zu minimieren oder zu wechseln",
         descWindowMaximizer: "Der grüne Knopf maximiert statt Vollbild",
-        descWindowLayout: "Fenster mit Kurzbefehlen anordnen oder durch Ziehen verschieben und skalieren",
+        descWindowLayout: "Fenster mit Kurzbefehlen oder Einrasten anordnen und durch Ziehen anpassen",
         descAutoQuit: "Beendet Apps, wenn das letzte Fenster schließt",
         descScrollInverter: "Kehrt die Richtung des Mausrads um",
         descSmoothScroll: "Sanftes, animiertes Scrollen mit der Maus",
@@ -879,7 +914,12 @@ extension FeatureHubStrings {
         energyKeyboard: "Hört auf die Tastatur",
         energyInputs: "Hört auf Maus und Tastatur",
         energyPeriodic: "Prüft in Intervallen",
-        energyHelp: "Die Kosten, solange die Funktion an ist. Deinstalliert lädt sie gar nichts."
+        energyHelp: "Die Kosten, solange die Funktion an ist. Deinstalliert lädt sie gar nichts.",
+        explainAppManagement: "Erlaubt App-Updates, vom Paketmanager installierte Apps zu ersetzen oder zu entfernen.",
+        onboardingSelectedPermissionsTitle: "Berechtigungen für deine Auswahl",
+        onboardingNoSelectedPermissions: "Zum Abschließen der Einrichtung ist keine Berechtigung nötig.",
+        onboardingOtherPermissionsTitle: "Weitere Berechtigungen",
+        onboardingOtherPermissionsCaption: "Optional. Erlaube sie jetzt oder später, wenn eine Funktion sie benötigt."
     )
 
     static let fr = FeatureHubStrings(
@@ -899,7 +939,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Énergie et écran",
         groupTools: "Outils",
         groupMonitor: "Moniteur système",
-        permissionsIntro: "Ce que fait chaque autorisation et quelles fonctions l'utilisent.",
+        permissionsIntro: "Ce que fait chaque autorisation et quelles fonctions l’utilisent. Les autres accès ne sont demandés qu’à l’utilisation.",
         usedByFormat: "Utilisée par %@",
         usedByNone: "Rien d'activé n'utilise cette autorisation pour l'instant.",
         unusedBanner: "Vous avez accordé cette autorisation, mais rien d'activé n'en a besoin. Si vous voulez, révoquez-la dans Réglages Système.",
@@ -928,7 +968,7 @@ extension FeatureHubStrings {
         descDockPreview: "Aperçus des fenêtres au survol du Dock",
         descDockClick: "Cliquez une icône du Dock pour réduire ou alterner",
         descWindowMaximizer: "Le bouton vert agrandit au lieu du plein écran",
-        descWindowLayout: "Organisez les fenêtres avec des raccourcis ou par glissement",
+        descWindowLayout: "Organisez les fenêtres avec des raccourcis ou l’ancrage aux bords, puis par glissement",
         descAutoQuit: "Quitte l'app quand sa dernière fenêtre se ferme",
         descScrollInverter: "Inverse le sens de la molette de la souris",
         descSmoothScroll: "Défilement fluide et animé à la souris",
@@ -985,7 +1025,12 @@ extension FeatureHubStrings {
         energyKeyboard: "Écoute le clavier",
         energyInputs: "Écoute souris et clavier",
         energyPeriodic: "Vérifie par intervalles",
-        energyHelp: "Le coût quand la fonction est active. Désinstallée, elle ne charge rien."
+        energyHelp: "Le coût quand la fonction est active. Désinstallée, elle ne charge rien.",
+        explainAppManagement: "Permet aux mises à jour de remplacer ou supprimer les apps installées par le gestionnaire de paquets.",
+        onboardingSelectedPermissionsTitle: "Autorisations pour vos choix",
+        onboardingNoSelectedPermissions: "Aucune autorisation n’est nécessaire pour terminer la configuration.",
+        onboardingOtherPermissionsTitle: "Autres autorisations",
+        onboardingOtherPermissionsCaption: "Facultatif. Accordez-les maintenant ou plus tard, lorsqu’une fonction en aura besoin."
     )
 
     static let it = FeatureHubStrings(
@@ -1005,7 +1050,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "Energia e schermo",
         groupTools: "Strumenti",
         groupMonitor: "Monitor di sistema",
-        permissionsIntro: "Cosa fa ogni permesso e quali funzioni lo usano.",
+        permissionsIntro: "Cosa fa ogni permesso e quali funzioni lo usano. Gli altri accessi vengono chiesti solo quando servono.",
         usedByFormat: "Usato da %@",
         usedByNone: "Niente di attivo usa questo permesso al momento.",
         unusedBanner: "Hai concesso questo permesso, ma niente di attivo ne ha bisogno. Se vuoi, revocalo in Impostazioni di Sistema.",
@@ -1034,7 +1079,7 @@ extension FeatureHubStrings {
         descDockPreview: "Anteprime delle finestre passando sul Dock",
         descDockClick: "Clic su un'icona del Dock per ridurre o alternare",
         descWindowMaximizer: "Il pulsante verde ingrandisce invece dello schermo intero",
-        descWindowLayout: "Disponi le finestre con scorciatoie oppure spostale e ridimensionale trascinando",
+        descWindowLayout: "Disponi le finestre con scorciatoie o aggancio ai bordi, poi regolale trascinando",
         descAutoQuit: "Chiude l'app quando si chiude l'ultima finestra",
         descScrollInverter: "Inverte la direzione della rotella del mouse",
         descSmoothScroll: "Scorrimento fluido e animato del mouse",
@@ -1091,7 +1136,12 @@ extension FeatureHubStrings {
         energyKeyboard: "Ascolta la tastiera",
         energyInputs: "Ascolta mouse e tastiera",
         energyPeriodic: "Controlla a intervalli",
-        energyHelp: "Il costo mentre la funzione è attiva. Disinstallata non carica nulla."
+        energyHelp: "Il costo mentre la funzione è attiva. Disinstallata non carica nulla.",
+        explainAppManagement: "Consente agli aggiornamenti di sostituire o rimuovere le app installate dal gestore di pacchetti.",
+        onboardingSelectedPermissionsTitle: "Permessi per le tue scelte",
+        onboardingNoSelectedPermissions: "Non servono permessi per completare la configurazione.",
+        onboardingOtherPermissionsTitle: "Altri permessi",
+        onboardingOtherPermissionsCaption: "Facoltativo. Concedili ora o più tardi, quando una funzione ne avrà bisogno."
     )
 
     static let ja = FeatureHubStrings(
@@ -1111,7 +1161,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "エネルギーとディスプレイ",
         groupTools: "ツール",
         groupMonitor: "システムモニタ",
-        permissionsIntro: "各権限の役割と、それを使う機能。",
+        permissionsIntro: "各権限の役割と、それを使う機能です。その他のアクセスは機能を使うときだけ求めます。",
         usedByFormat: "使用中: %@",
         usedByNone: "現在オンの機能でこの権限を使うものはありません。",
         unusedBanner: "この権限は許可されていますが、オンの機能はどれも必要としていません。よければシステム設定で取り消せます。",
@@ -1140,7 +1190,7 @@ extension FeatureHubStrings {
         descDockPreview: "Dockにポインタを重ねるとウインドウをプレビュー",
         descDockClick: "Dockアイコンのクリックで最小化や切り替え",
         descWindowMaximizer: "緑のボタンがフルスクリーンではなく最大化に",
-        descWindowLayout: "ショートカットで配置、またはドラッグで移動とサイズ変更",
+        descWindowLayout: "ショートカットや画面端へのスナップで配置し、ドラッグで移動やサイズ変更",
         descAutoQuit: "最後のウインドウを閉じるとアプリを終了",
         descScrollInverter: "マウスホイールの向きを反転",
         descSmoothScroll: "なめらかにアニメーションするスクロール",
@@ -1197,7 +1247,12 @@ extension FeatureHubStrings {
         energyKeyboard: "キーボードを監視",
         energyInputs: "マウスとキーボードを監視",
         energyPeriodic: "一定間隔で確認",
-        energyHelp: "オンの間のコストです。アンインストールすれば何も読み込みません。"
+        energyHelp: "オンの間のコストです。アンインストールすれば何も読み込みません。",
+        explainAppManagement: "パッケージマネージャでインストールしたAppをアップデートで置き換えたり削除したりできるようにします。",
+        onboardingSelectedPermissionsTitle: "選んだ機能に必要な許可",
+        onboardingNoSelectedPermissions: "設定を完了するための許可は必要ありません。",
+        onboardingOtherPermissionsTitle: "その他の許可",
+        onboardingOtherPermissionsCaption: "任意です。機能で必要になったときに、今または後で許可できます。"
     )
 
     static let zhHans = FeatureHubStrings(
@@ -1217,7 +1272,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "能耗与显示",
         groupTools: "工具",
         groupMonitor: "系统监视器",
-        permissionsIntro: "每项权限的作用以及哪些功能在使用它。",
+        permissionsIntro: "每项权限的作用以及哪些功能会使用它。其他访问权限只会在使用相关功能时请求。",
         usedByFormat: "使用者：%@",
         usedByNone: "目前没有已开启的功能在使用此权限。",
         unusedBanner: "你已授予此权限，但没有已开启的功能需要它。如果愿意，可以在系统设置中撤销。",
@@ -1246,7 +1301,7 @@ extension FeatureHubStrings {
         descDockPreview: "悬停程序坞时显示窗口预览",
         descDockClick: "点按程序坞图标以最小化或切换窗口",
         descWindowMaximizer: "绿色按钮改为最大化而非全屏",
-        descWindowLayout: "用快捷键排列窗口，或拖动以移动和调整大小",
+        descWindowLayout: "用快捷键或屏幕边缘贴靠排列窗口，也可拖动移动和调整大小",
         descAutoQuit: "最后一个窗口关闭时退出应用",
         descScrollInverter: "反转鼠标滚轮方向",
         descSmoothScroll: "顺滑带动画的鼠标滚动",
@@ -1303,7 +1358,12 @@ extension FeatureHubStrings {
         energyKeyboard: "监听键盘",
         energyInputs: "监听鼠标和键盘",
         energyPeriodic: "按间隔检查",
-        energyHelp: "功能开启期间的开销。卸载后完全不加载。"
+        energyHelp: "功能开启期间的开销。卸载后完全不加载。",
+        explainAppManagement: "允许更新替换或移除通过软件包管理器安装的 App。",
+        onboardingSelectedPermissionsTitle: "所选功能需要的权限",
+        onboardingNoSelectedPermissions: "完成设置无需授予任何权限。",
+        onboardingOtherPermissionsTitle: "其他权限",
+        onboardingOtherPermissionsCaption: "可选。你可以现在授予，也可以等功能需要时再授予。"
     )
 
     static let zhTW = FeatureHubStrings(
@@ -1323,7 +1383,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "能耗與顯示",
         groupTools: "工具",
         groupMonitor: "系統監視器",
-        permissionsIntro: "每項權限的作用，以及哪些功能在使用它。",
+        permissionsIntro: "每項權限的作用，以及哪些功能會使用它。其他存取權限只會在使用相關功能時要求。",
         usedByFormat: "使用者：%@",
         usedByNone: "目前沒有已開啟的功能在使用此權限。",
         unusedBanner: "你已授予此權限，但沒有已開啟的功能需要它。若你願意，可以在系統設定中撤銷。",
@@ -1352,7 +1412,7 @@ extension FeatureHubStrings {
         descDockPreview: "游標停在 Dock 上時顯示視窗預覽",
         descDockClick: "點按 Dock 圖像以縮到最小或切換視窗",
         descWindowMaximizer: "綠色按鈕改為最大化而非全螢幕",
-        descWindowLayout: "用快速鍵排列視窗，或拖移以移動及調整大小",
+        descWindowLayout: "用快速鍵或貼齊螢幕邊緣排列視窗，也可拖移移動及調整大小",
         descAutoQuit: "最後一個視窗關閉時結束 App",
         descScrollInverter: "反轉滑鼠滾輪方向",
         descSmoothScroll: "順暢帶動畫的滑鼠捲動",
@@ -1409,7 +1469,12 @@ extension FeatureHubStrings {
         energyKeyboard: "監聽鍵盤",
         energyInputs: "監聽滑鼠與鍵盤",
         energyPeriodic: "按間隔檢查",
-        energyHelp: "功能開啟期間的負擔。解除安裝後完全不載入。"
+        energyHelp: "功能開啟期間的負擔。解除安裝後完全不載入。",
+        explainAppManagement: "允許更新取代或移除透過套件管理器安裝的 App。",
+        onboardingSelectedPermissionsTitle: "所選功能需要的權限",
+        onboardingNoSelectedPermissions: "完成設定不需要授予任何權限。",
+        onboardingOtherPermissionsTitle: "其他權限",
+        onboardingOtherPermissionsCaption: "可選。你可以現在授予，也可以等功能需要時再授予。"
     )
 
     static let zhHK = FeatureHubStrings(
@@ -1429,7 +1494,7 @@ extension FeatureHubStrings {
         groupEnergyDisplay: "能耗與顯示",
         groupTools: "工具",
         groupMonitor: "系統監察器",
-        permissionsIntro: "每項權限的作用，以及哪些功能正在使用它。",
+        permissionsIntro: "每項權限嘅作用，以及哪些功能會使用佢。其他存取權限只會喺使用相關功能時要求。",
         usedByFormat: "使用者：%@",
         usedByNone: "目前沒有已開啟的功能使用此權限。",
         unusedBanner: "你已授予此權限，但沒有已開啟的功能需要它。如願意，可在系統設定中撤銷。",
@@ -1458,7 +1523,7 @@ extension FeatureHubStrings {
         descDockPreview: "游標停在 Dock 上時顯示視窗預覽",
         descDockClick: "點按 Dock 圖示以縮到最小或切換視窗",
         descWindowMaximizer: "綠色按鈕改為最大化而非全螢幕",
-        descWindowLayout: "用快捷鍵排列視窗，或拖動以移動及調整大小",
+        descWindowLayout: "用快捷鍵或貼齊螢幕邊緣排列視窗，也可拖動移動及調整大小",
         descAutoQuit: "最後一個視窗關閉時結束 App",
         descScrollInverter: "反轉滑鼠滾輪方向",
         descSmoothScroll: "順暢帶動畫的滑鼠捲動",
@@ -1515,6 +1580,11 @@ extension FeatureHubStrings {
         energyKeyboard: "監聽鍵盤",
         energyInputs: "監聽滑鼠與鍵盤",
         energyPeriodic: "按間隔檢查",
-        energyHelp: "功能開啟期間的負擔。解除安裝後完全不載入。"
+        energyHelp: "功能開啟期間的負擔。解除安裝後完全不載入。",
+        explainAppManagement: "允許更新取代或移除透過套件管理器安裝的 App。",
+        onboardingSelectedPermissionsTitle: "所選功能需要嘅權限",
+        onboardingNoSelectedPermissions: "完成設定唔需要授予任何權限。",
+        onboardingOtherPermissionsTitle: "其他權限",
+        onboardingOtherPermissionsCaption: "可選。你可以而家授予，亦可以等功能需要時再授予。"
     )
 }

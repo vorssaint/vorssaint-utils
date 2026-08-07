@@ -70,7 +70,7 @@ struct MenuPanelView: View {
     @AppStorage(DefaultsKey.monitorShowNetwork) private var showNetwork = true
     @AppStorage(DefaultsKey.monitorShowDisk) private var showDisk = true
     @AppStorage(DefaultsKey.monitorShowPower) private var showPower = true
-    @AppStorage(DefaultsKey.monitorShowFanControlBeta) private var showFanControlBeta = false
+    @AppStorage(DefaultsKey.panelShowFanControl) private var showFanControl = true
     @AppStorage(DefaultsKey.panelShowKeepAwake) private var showKeepAwake = true
     @AppStorage(DefaultsKey.panelShowBrightness) private var showBrightness = true
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
@@ -83,6 +83,7 @@ struct MenuPanelView: View {
     @State private var updateBannerHeight: CGFloat = 0
     @State private var selectedSection: PanelSectionID = .keepAwake
     @State private var selectedMetric: MetricDetailKind?
+    @FocusState private var focusedSection: PanelSectionID?
 
     /// Cap the panel to the usable screen height so it never overflows the menu
     /// bar; taller content scrolls inside. Measured against the display the
@@ -125,6 +126,9 @@ struct MenuPanelView: View {
         .onChange(of: panelFocus.request) { _, request in
             applyFocus(request)
         }
+        .onChange(of: focusedSection) { _, section in
+            if let section { selectedSection = section }
+        }
     }
 
     private var monitorNeeds: SystemMonitorPanelNeeds {
@@ -153,7 +157,9 @@ struct MenuPanelView: View {
             guard isSectionVisible(section) else { return }
             selectedMetric = nil
             selectedSection = section
+            focusedSection = section
         case .metric(let metric):
+            focusedSection = nil
             selectedMetric = metric
             selectedSection = metric.panelSection
         }
@@ -254,7 +260,7 @@ struct MenuPanelView: View {
         case .network: return 190
         case .disk: return 360
         case .power: return 170
-        case .fanControl: return 92
+        case .fanControl: return 220
         case .utilities: return 500
         case .controls: return 360
         case .toggles: return 420
@@ -268,6 +274,7 @@ struct MenuPanelView: View {
         case .network: return 330
         case .disk: return 360
         case .battery, .power: return 360
+        case .fan: return 240
         }
     }
 
@@ -284,7 +291,7 @@ struct MenuPanelView: View {
         case .network: if showNetwork { NetworkSection(collapsible: collapsible) }
         case .disk: if showDisk { DiskSection(collapsible: collapsible) }
         case .power: if showPower { PowerSection(collapsible: collapsible) }
-        case .fanControl: if showFanControlBeta { FanControlSection(collapsible: collapsible) }
+        case .fanControl: if showFanControl { FanControlSection(collapsible: collapsible) }
         case .utilities: UtilitiesSection(collapsible: collapsible, startCleaning: startCleaning)
         case .controls: QuickControlsSection(collapsible: collapsible)
         case .toggles: QuickTogglesSection(collapsible: collapsible)
@@ -303,7 +310,7 @@ struct MenuPanelView: View {
         case .network: return showNetwork
         case .disk: return showDisk
         case .power: return showPower
-        case .fanControl: return showFanControlBeta
+        case .fanControl: return showFanControl
         case .utilities: return showUtilities
         case .controls: return showControls
         case .toggles: return showToggles
@@ -316,6 +323,7 @@ struct MenuPanelView: View {
                 let isActive = activeSection == id
                 Button {
                     selectedSection = id
+                    focusedSection = id
                 } label: {
                     Image(systemName: id.symbolName)
                         .font(.system(size: 13.5, weight: .semibold))
@@ -324,6 +332,7 @@ struct MenuPanelView: View {
                         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .focused($focusedSection, equals: id)
                 .foregroundStyle(isActive ? Color.accentColor : Color.secondary.opacity(0.86))
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -457,8 +466,8 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // to allCases). Screenshot leads in 3.1.13; existing orders that predate it
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
-         uninstaller, cleanURL, cleaning, screenOCR, colorPicker, micMute, cameraPreview, scratchpad,
-         commandBar
+         uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
+         commandBar, screenRecorder
 
     var id: String { rawValue }
 
@@ -478,8 +487,8 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .cleaning: return .cleaningMode
         case .screenOCR: return .screenOCR
         case .colorPicker: return .colorPicker
-        case .micMute: return .micMute
         case .screenshot: return .screenshot
+        case .screenRecorder: return .screenRecorder
         case .cameraPreview: return .cameraPreview
         case .scratchpad: return .scratchpad
         case .commandBar: return .commandBar
@@ -512,11 +521,11 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityScreenshot) private var showScreenshot = true
     @AppStorage(DefaultsKey.panelUtilityQuickLauncher) private var showQuickLauncher = true
     @AppStorage(DefaultsKey.panelUtilityColorPicker) private var showColorPicker = true
-    @AppStorage(DefaultsKey.panelUtilityMicMute) private var showMicMute = true
     @AppStorage(DefaultsKey.panelUtilityCameraPreview) private var showCameraPreview = true
     @AppStorage(DefaultsKey.panelUtilityScratchpad) private var showScratchpad = true
     @AppStorage(DefaultsKey.panelUtilityCommandBar) private var showCommandBar = true
-    @ObservedObject private var micMute = MicMuteService.shared
+    @AppStorage(DefaultsKey.panelUtilityScreenRecorder) private var showScreenRecorder = true
+    @ObservedObject private var recorder = ScreenRecorderService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
     @State private var draggingItem: UtilityPanelItem?
@@ -636,12 +645,12 @@ struct UtilitiesSection: View {
         case .cleaning: return showCleaning
         case .screenOCR: return showScreenOCR
         case .colorPicker: return showColorPicker
-        case .micMute: return showMicMute
         case .cameraPreview: return showCameraPreview
         case .scratchpad: return showScratchpad
         case .commandBar: return showCommandBar
         case .quickLauncher: return showQuickLauncher
         case .screenshot: return showScreenshot
+        case .screenRecorder: return showScreenRecorder
         }
     }
 
@@ -784,6 +793,23 @@ struct UtilitiesSection: View {
                                         ScreenshotService.shared.capture()
                                     }
                                 })
+        case .screenRecorder:
+            UtilityActionButton(title: screenRecorderTitle,
+                                caption: screenRecorderCaption,
+                                systemImage: recorder.isRecording ? "stop.circle" : "record.circle",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showScreenRecorder,
+                                needsAttention: !permissions.screenRecording,
+                                permissionButtonTitle: l10n.s.permissionRequest,
+                                permissionAction: permissions.screenRecording ? nil : grantScreenRecordingPermission,
+                                shortcutHint: shortcutHint(.screenRecorder),
+                                action: {
+                                    appDelegate()?.closePopover()
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                        ScreenRecorderService.shared.toggle()
+                                    }
+                                })
         case .colorPicker:
             UtilityActionButton(title: l10n.s.colorPickerName,
                                 caption: l10n.s.colorPickerCaption,
@@ -797,17 +823,6 @@ struct UtilitiesSection: View {
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                                         ColorSamplerService.shared.pick()
                                     }
-                                })
-        case .micMute:
-            UtilityActionButton(title: micMute.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName,
-                                caption: l10n.s.micMuteCaption,
-                                systemImage: micMute.isMuted ? "mic.slash.fill" : "mic",
-                                isEditing: editing,
-                                showsDragHandle: true,
-                                visibility: $showMicMute,
-                                shortcutHint: shortcutHint(.micMute),
-                                action: {
-                                    MicMuteService.shared.toggle()
                                 })
         case .cameraPreview:
             UtilityActionButton(title: FeatureStrings.cameraPreview(l10n.language).pageTitle,
@@ -889,6 +904,23 @@ struct UtilitiesSection: View {
             : "\(l10n.s.permissionRequired): \(l10n.s.permissionScreenRecording)"
     }
 
+    /// While a recording runs the tile becomes the way to end it, so the
+    /// panel never shows an action the person cannot take.
+    private var screenRecorderTitle: String {
+        let strings = FeatureStrings.recorder(l10n.language)
+        return recorder.isRecording ? strings.stopButton : strings.pageTitle
+    }
+
+    private var screenRecorderCaption: String {
+        guard permissions.screenRecording else {
+            return "\(l10n.s.permissionRequired): \(l10n.s.permissionScreenRecording)"
+        }
+        let strings = FeatureStrings.recorder(l10n.language)
+        return recorder.isRecording
+            ? RecorderSupport.elapsedLabel(seconds: recorder.elapsedSeconds)
+            : strings.panelCaption
+    }
+
     private var screenshotCaption: String {
         permissions.screenRecording
             ? FeatureStrings.screenshot(l10n.language).panelCaption
@@ -920,7 +952,6 @@ struct UtilitiesSection: View {
         showScreenOCR = true
         showScreenshot = true
         showColorPicker = true
-        showMicMute = true
         showCameraPreview = true
         showScratchpad = true
         showQuickLauncher = true
@@ -935,7 +966,7 @@ struct UtilitiesSection: View {
 
 private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
     case mouseScroll, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
-         dockClick, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts, superKey
+         dockClick, dockClickHide, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts, superKey
 
     var id: String { rawValue }
 
@@ -952,7 +983,7 @@ private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
         case .windowMaximize: return .windowMaximizer
         case .dockPreview: return .dockPreview
         case .keyDebounce: return .keyboardDebounce
-        case .dockClick, .dockClickCycle: return .dockClick
+        case .dockClick, .dockClickHide, .dockClickCycle: return .dockClick
         case .middleClick: return .middleClick
         case .textSnippets: return .textSnippets
         case .radialMenu: return .radialMenu
@@ -971,7 +1002,7 @@ private enum ControlCategory: String, CaseIterable, Identifiable {
 
     static func category(for item: ControlPanelItem) -> ControlCategory {
         switch item {
-        case .switcher, .dockPreview, .dockClick, .dockClickCycle, .windowMaximize, .autoQuit:
+        case .switcher, .dockPreview, .dockClick, .dockClickHide, .dockClickCycle, .windowMaximize, .autoQuit:
             return .windows
         case .mouseScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
              .textSnippets, .radialMenu, .superKey:
@@ -1008,6 +1039,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.keyboardDebounceEnabled) private var keyDebounceEnabled = false
     @AppStorage(DefaultsKey.keyboardDebounceWindowMs) private var keyDebounceWindow = Defaults.defaultKeyboardDebounceWindowMs
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickEnabled = false
+    @AppStorage(DefaultsKey.dockClickHide) private var dockClickHideEnabled = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.textSnippetsEnabled) private var textSnippetsEnabled = false
@@ -1024,6 +1056,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.panelControlWindowMaximize) private var showWindowMaximize = true
     @AppStorage(DefaultsKey.panelControlKeyDebounce) private var showKeyDebounce = true
     @AppStorage(DefaultsKey.panelControlDockClick) private var showDockClick = true
+    @AppStorage(DefaultsKey.panelControlDockClickHide) private var showDockClickHide = true
     @AppStorage(DefaultsKey.panelControlDockClickCycle) private var showDockClickCycle = true
     @AppStorage(DefaultsKey.panelControlMiddleClick) private var showMiddleClick = true
     @AppStorage(DefaultsKey.panelControlTextSnippets) private var showTextSnippets = true
@@ -1139,6 +1172,7 @@ struct QuickControlsSection: View {
         case .dockPreview: return dockPreviewEnabled
         case .keyDebounce: return keyDebounceEnabled
         case .dockClick: return dockClickEnabled
+        case .dockClickHide: return dockClickHideEnabled
         case .dockClickCycle: return dockClickCycleEnabled
         case .middleClick: return middleClickEnabled
         case .textSnippets: return textSnippetsEnabled
@@ -1212,6 +1246,7 @@ struct QuickControlsSection: View {
         case .windowMaximize: return showWindowMaximize
         case .dockPreview: return showDockPreview
         case .dockClick: return showDockClick
+        case .dockClickHide: return showDockClickHide
         case .dockClickCycle: return showDockClickCycle
         case .middleClick: return showMiddleClick
         case .textSnippets: return showTextSnippets
@@ -1395,6 +1430,23 @@ struct QuickControlsSection: View {
                            permissionButtonTitle: l10n.s.permissionRequest,
                            permissionAction: accessibilityPermissionAction(dockClickEnabled))
                 .onChange(of: dockClickEnabled) { _, enabled in
+                    if enabled { dockClickHideEnabled = false }
+                    DockClickService.shared.syncWithPreferences()
+                    requestAccessibilityIfNeeded(enabled)
+                }
+        case .dockClickHide:
+            PanelToggleRow(title: l10n.s.dockClickHide,
+                           caption: caption(l10n.s.dockClickHideCaption, needsAccessibility: dockClickHideEnabled),
+                           systemImage: "eye.slash",
+                           isOn: $dockClickHideEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showDockClickHide,
+                           needsAttention: dockClickHideEnabled && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: accessibilityPermissionAction(dockClickHideEnabled))
+                .onChange(of: dockClickHideEnabled) { _, enabled in
+                    if enabled { dockClickEnabled = false }
                     DockClickService.shared.syncWithPreferences()
                     requestAccessibilityIfNeeded(enabled)
                 }
@@ -1551,6 +1603,7 @@ struct QuickControlsSection: View {
         showDockPreview = true
         showKeyDebounce = true
         showDockClick = true
+        showDockClickHide = true
         showDockClickCycle = true
         showMiddleClick = true
         showTextSnippets = true

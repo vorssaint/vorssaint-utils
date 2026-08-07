@@ -61,8 +61,16 @@ struct PowerSection: View {
     }
 
     private func blocks(editing: Bool) -> [Block] {
-        if editing { return orderedBlocks }
-        return orderedBlocks.filter(isVisible)
+        let available = orderedBlocks.filter(isAvailable)
+        if editing { return available }
+        return available.filter(isVisible)
+    }
+
+    private func isAvailable(_ block: Block) -> Bool {
+        switch block {
+        case .system, .adapter: return true
+        case .battery, .remaining, .health: return PowerSampler.hasInternalBattery
+        }
     }
 
     private func isVisible(_ block: Block) -> Bool {

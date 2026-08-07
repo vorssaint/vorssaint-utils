@@ -6,10 +6,9 @@ import ApplicationServices
 import Carbon.HIToolbox
 import CoreGraphics
 
-/// Taskbar-style Dock clicks: clicking the Dock icon of the app that is
-/// already frontmost minimizes its windows, like traditional taskbars; the
-/// Dock's native behavior (activate, restore, modifier shortcuts) is left
-/// untouched for every other click. Requires Accessibility.
+/// Adds optional actions when the active app's Dock icon is clicked: minimize
+/// its windows, hide the app, or cycle its windows. The Dock's native behavior
+/// remains untouched for every other click. Requires Accessibility.
 final class DockClickService {
     static let shared = DockClickService()
 
@@ -65,8 +64,11 @@ final class DockClickService {
 
     func syncWithPreferences() {
         let minimizeEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickMinimize)
+        let hideEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickHide)
         let cycleEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickCycleWindows)
-        if AppFeature.dockClick.isAvailable, (minimizeEnabled || cycleEnabled), Permissions.shared.accessibility {
+        if AppFeature.dockClick.isAvailable,
+           (minimizeEnabled || hideEnabled || cycleEnabled),
+           Permissions.shared.accessibility {
             start()
         } else {
             stop()
@@ -176,7 +178,9 @@ final class DockClickService {
         guard AXIsProcessTrusted() else { return Unmanaged.passUnretained(event) }
 
         let hit = dockApplication(at: point)
-        guard let app = hit, app.processIdentifier != getpid()
+        guard let app = hit,
+              app.processIdentifier != getpid(),
+              !DockClickSupport.isOwnBundleIdentifier(app.bundleIdentifier)
         else { return Unmanaged.passUnretained(event) }
 
         let pid = app.processIdentifier
@@ -187,42 +191,51 @@ final class DockClickService {
                                                        elapsed: record.map { now - $0.time })
         if decision == .swallow { return nil }
 
-        var windows = Self.standardWindows(pid: pid)
-        var windowServerSeesWindows = false
-        if windows.unminimized.isEmpty, windows.minimized.isEmpty {
-            // The AX list came back empty; the window server is the cheap,
-            // AX-free truth about whether the app really is windowless. Java
-            // and Eclipse apps (DBeaver, issue #200) regularly fail or time
-            // out the AX side while their windows sit right there.
-            windowServerSeesWindows = Self.windowServerHasStandardWindows(pid: pid)
-            if windowServerSeesWindows {
-                // One slower retry: a busy JVM often just missed the 0.35 s
-                // leash. Rare path, so the extra wait never taxes normal apps.
-                windows = Self.standardWindows(pid: pid, timeout: 0.7)
-            }
-        }
-        guard !windows.hasFullscreen else { return Unmanaged.passUnretained(event) }
-
         let cycleEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickCycleWindows)
         let minimizeEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickMinimize)
+        let hideEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickHide)
         // Launcher-style apps can misreport isActive; the workspace's idea of
         // the frontmost app is the tiebreaker.
-        let frontmost = app.isActive
+        let frontmost = !app.isHidden && (app.isActive
             || NSWorkspace.shared.frontmostApplication?.processIdentifier == pid
-        let hasUnminimized = DockClickSupport.effectiveHasUnminimized(
-            unminimizedCount: windows.unminimized.count,
-            minimizedCount: windows.minimized.count,
-            windowServerSeesWindows: windowServerSeesWindows)
+        )
+        var windows = (unminimized: [AXUIElement](),
+                       minimized: [AXUIElement](),
+                       hasFullscreen: false)
+        var windowServerSeesWindows = false
         let action: DockClickAction
         if case .toggle(let toggled) = decision {
+            windows = Self.standardWindows(pid: pid)
             action = toggled
+        } else if hideEnabled, !cycleEnabled {
+            // Hiding is an app-level AppKit action. It needs no AX window walk,
+            // keeping this common path out of the event tap's timeout budget.
+            action = frontmost ? .hide : .passThrough
         } else {
+            windows = Self.standardWindows(pid: pid)
+            if windows.unminimized.isEmpty, windows.minimized.isEmpty {
+                // The AX list came back empty; the window server is the cheap,
+                // AX-free truth about whether the app really is windowless.
+                // Some compatibility layers regularly fail or time out here
+                // while their windows remain plainly visible (#200).
+                windowServerSeesWindows = Self.windowServerHasStandardWindows(pid: pid)
+                if windowServerSeesWindows {
+                    // One slower retry: a busy JVM often just missed the 0.35 s
+                    // leash. Rare path, so the extra wait never taxes normal apps.
+                    windows = Self.standardWindows(pid: pid, timeout: 0.7)
+                }
+            }
+            let hasUnminimized = DockClickSupport.effectiveHasUnminimized(
+                unminimizedCount: windows.unminimized.count,
+                minimizedCount: windows.minimized.count,
+                windowServerSeesWindows: windowServerSeesWindows)
             action = DockClickSupport.action(appIsFrontmost: frontmost,
                                              hasUnminimizedWindows: hasUnminimized,
                                              hasMinimizedWindows: !windows.minimized.isEmpty,
-                                             hasFullscreenWindows: false,
+                                             hasFullscreenWindows: windows.hasFullscreen,
                                              hasModifiers: false,
                                              minimizeEnabled: minimizeEnabled,
+                                             hideEnabled: hideEnabled,
                                              cycleWindowsEnabled: cycleEnabled,
                                              unminimizedWindowCount: windows.unminimized.count)
         }
@@ -330,6 +343,12 @@ final class DockClickService {
             restoreBackToFront(targets, pid: pid, frontToBack: frontToBack, actionTime: now)
             DispatchQueue.main.async {
                 DockPreviewService.shared.dockClickWasHandled()
+            }
+        case .hide:
+            lastAction[pid] = ActionRecord(kind: .hide, time: now, targets: [])
+            DispatchQueue.main.async {
+                DockPreviewService.shared.dockClickWasHandled()
+                _ = pending.app.hide()
             }
         case .passThrough:
             break

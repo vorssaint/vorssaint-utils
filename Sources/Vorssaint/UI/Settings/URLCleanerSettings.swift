@@ -8,6 +8,7 @@ struct URLCleanerSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var cleaner = URLCleanerService.shared
     @AppStorage(DefaultsKey.urlCleanerEnabled) private var enabled = false
+    @AppStorage(DefaultsKey.urlCleanerCustomParameters) private var customParameters = ""
     @State private var input = ""
     @State private var output = ""
     @State private var message: String?
@@ -31,6 +32,13 @@ struct URLCleanerSettings: View {
                         .font(.caption)
                         .foregroundStyle(.green)
                 }
+            }
+
+            Section(l10n.s.urlCleanerCustomTitle) {
+                TextField(l10n.s.urlCleanerCustomPlaceholder, text: $customParameters)
+                Text(l10n.s.urlCleanerCustomCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section(l10n.s.urlCleanerManualTitle) {

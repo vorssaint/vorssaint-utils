@@ -20,7 +20,8 @@ struct MonitorSettings: View {
     @AppStorage(DefaultsKey.menuBarHideIconWithMetrics) private var hideIconWithMetrics = false
     @AppStorage(DefaultsKey.monitorInterval) private var interval = 2
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
-    @AppStorage(DefaultsKey.monitorShowFanControlBeta) private var showFanControlBeta = false
+    @AppStorage(DefaultsKey.monitorMemoryMetric) private var memoryMetric = "used"
+    @AppStorage(DefaultsKey.panelShowFanControl) private var showFanControl = true
 
     @AppStorage(DefaultsKey.monitorGraphCPU) private var graphCPU = true
     @AppStorage(DefaultsKey.monitorGraphGPU) private var graphGPU = true
@@ -86,6 +87,13 @@ struct MonitorSettings: View {
                     Text("°F").tag(TemperatureUnit.fahrenheit.rawValue)
                 }
                 .pickerStyle(.segmented)
+                if AppFeature.monitorMemory.isAvailable {
+                    Picker(l10n.s.monitorMemoryMetricLabel, selection: $memoryMetric) {
+                        Text(l10n.s.memoryMetricUsed).tag("used")
+                        Text(l10n.s.memoryMetricApp).tag("app")
+                    }
+                    .pickerStyle(.segmented)
+                }
             }
             monitorAlertsSection
             Section(l10n.s.monitorPanelSection) {
@@ -94,11 +102,27 @@ struct MonitorSettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Section(l10n.s.fanControlBetaSection) {
-                Toggle(l10n.s.fanControlBetaShow, isOn: $showFanControlBeta)
-                Text(l10n.s.fanControlBetaCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            if AppFeature.fanControl.isAvailable {
+                let fanStrings = FeatureStrings.fanControl(l10n.language)
+                Section {
+                    Toggle(fanStrings.showInPanel, isOn: $showFanControl)
+                    Text(fanStrings.settingsCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(l10n.s.betaFeatureWarning)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    HStack(spacing: 6) {
+                        Text(fanStrings.title)
+                        Text(l10n.s.betaBadge)
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(Color.white)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(Color.accentColor))
+                    }
+                }
             }
             Section(l10n.s.monitorGraphsSection) {
                 if AppFeature.monitorCPU.isAvailable {
@@ -118,7 +142,9 @@ struct MonitorSettings: View {
                 }
                 if AppFeature.monitorPower.isAvailable {
                     Toggle(l10n.s.monitorShowPowerLabel, isOn: $graphPower)
-                    Toggle(l10n.s.batteryLabel, isOn: $graphBattery)
+                    if PowerSampler.hasInternalBattery {
+                        Toggle(l10n.s.batteryLabel, isOn: $graphBattery)
+                    }
                 }
                 Text(l10n.s.monitorGraphsCaption)
                     .font(.caption)
@@ -133,6 +159,7 @@ struct MonitorSettings: View {
             if TemperatureUnit(rawValue: temperatureUnit) == nil {
                 temperatureUnit = TemperatureUnit.celsius.rawValue
             }
+            memoryMetric = Defaults.sanitizedMonitorMemoryMetric(memoryMetric)
         }
         .onDisappear {
             SystemMonitor.shared.panelDidDisappear()
@@ -296,7 +323,7 @@ private struct MenuBarMetricOrderEditor: View {
     /// Metrics whose family left the hub keep their saved slot but stay out
     /// of the editor until they return.
     private var visibleOrder: [MenuBarMetric] {
-        order.filter { $0.feature.isAvailable }
+        order.filter { $0.feature.isAvailable && $0.isAvailableOnCurrentHardware }
     }
 }
 
@@ -432,11 +459,11 @@ private struct MenuBarMetricOrderDropDelegate: DropDelegate {
 /// which the live panel observes. A bounded, non-scrolling list so it sits inside
 /// the grouped Form without its own scroll area.
 /// Lives on the General page (the panel hosts more than monitoring); also
-/// consulted by the Monitor page for the fan beta toggle placement.
+/// consulted by the Monitor page for the Fan Control toggle placement.
 struct PanelOrderEditor: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
-    @AppStorage(DefaultsKey.monitorShowFanControlBeta) private var showFanControlBeta = false
+    @AppStorage(DefaultsKey.panelShowFanControl) private var showFanControl = true
     @State private var order: [PanelSectionID] = PanelLayout.order
     @State private var dragging: PanelSectionID?
     /// Bumped whenever a section is shown/hidden so the dimmed titles and the
@@ -468,7 +495,7 @@ struct PanelOrderEditor: View {
                                                                  order: $order,
                                                                  dragging: $dragging))
 
-                        // Fan Control is governed by its own beta toggle above, so
+                        // Fan Control is governed by its own toggle on Monitor, so
                         // it has no separate show/hide here.
                         if id != .fanControl {
                             SectionVisibilityEye(id: id,
@@ -486,11 +513,11 @@ struct PanelOrderEditor: View {
         }
         .padding(.vertical, 2)
         .onAppear { order = PanelLayout.order }
-        .onChange(of: showFanControlBeta) { _, _ in order = PanelLayout.order }
+        .onChange(of: showFanControl) { _, _ in order = PanelLayout.order }
     }
 
     private var editableOrder: [PanelSectionID] {
-        order.filter { ($0 != .fanControl || showFanControlBeta) && $0.isAvailable }
+        order.filter { ($0 != .fanControl || showFanControl) && $0.isAvailable }
     }
 
     private func isShown(_ id: PanelSectionID) -> Bool {

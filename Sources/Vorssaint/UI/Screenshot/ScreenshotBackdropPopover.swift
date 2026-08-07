@@ -8,9 +8,85 @@ import UniformTypeIdentifiers
 /// Mac's current wallpapers and any image from disk, plus a custom solid or
 /// gradient builder and the margin and corner sliders. Everything applies
 /// live; the save button keeps a custom look in the presets row.
-struct ScreenshotBackdropPopover: View {
-    @ObservedObject var model: ScreenshotEditorModel
+/// Values the picker shares across every editor that shows it. A generic view
+/// cannot hold stored statics, so they live here.
+enum BackdropPickerAssets {
+    static func previewColors(for style: ScreenshotSupport.BackdropStyle) -> [Color] {
+        let sanitized = style.sanitized()
+        switch sanitized.kind {
+        case .none:
+            return [.clear]
+        case .preset:
+            guard let id = sanitized.presetID,
+                  let preset = ScreenshotSupport.BackdropID(rawValue: id)
+            else { return [.clear] }
+            return preset.stops.map {
+                Color(.sRGB, red: $0.red, green: $0.green, blue: $0.blue, opacity: 1)
+            }
+        case .solid, .gradient:
+            let colors = (sanitized.colors ?? []).map { BackdropPickerAssets.color($0) }
+            return colors.isEmpty ? [.clear] : colors
+        case .image:
+            return [Color(.sRGB, white: 0.5, opacity: 1)]
+        }
+    }
+
+    static func color(_ components: [Double]) -> Color {
+        guard components.count == 3 else { return .clear }
+        return Color(.sRGB, red: components[0], green: components[1],
+                     blue: components[2], opacity: 1)
+    }
+
+
+    static func thumbnail(for url: URL) -> NSImage? {
+        let key = url.path as NSString
+        if let cached = BackdropPickerAssets.thumbnailCache.object(forKey: key) { return cached }
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceThumbnailMaxPixelSize: 220,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+        else { return nil }
+        let image = NSImage(cgImage: cgImage, size: .zero)
+        BackdropPickerAssets.thumbnailCache.setObject(image, forKey: key)
+        return image
+    }
+
+
+    /// The inline palette, so picking a color never leaves the popover.
+    static let palette: [[Double]] = [
+        [0.96, 0.26, 0.21], [1.00, 0.58, 0.00], [1.00, 0.80, 0.00], [0.55, 0.86, 0.25],
+        [0.20, 0.78, 0.35], [0.10, 0.74, 0.61], [0.15, 0.78, 0.85], [0.04, 0.52, 1.00],
+        [0.35, 0.34, 0.84], [0.69, 0.32, 0.87], [1.00, 0.45, 0.66], [0.91, 0.12, 0.39],
+        [0.55, 0.39, 0.29], [0.11, 0.16, 0.32], [0.05, 0.05, 0.06], [0.25, 0.25, 0.28],
+        [0.55, 0.55, 0.58], [0.85, 0.85, 0.87], [1.00, 1.00, 1.00], [0.99, 0.93, 0.85],
+    ]
+
+    /// Small cached thumbnails for wallpaper and saved-image swatches.
+    static let thumbnailCache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 24
+        return cache
+    }()
+}
+
+/// What the shared background picker needs from whichever editor is showing
+/// it. Both editors keep the same BackdropStyle and the same saved list, so a
+/// look built in one is a look the other already understands.
+protocol BackdropEditing: ObservableObject {
+    var backdropStyle: ScreenshotSupport.BackdropStyle { get set }
+    var backdropPresets: [ScreenshotSupport.BackdropStyle] { get }
+    var showsBackdrop: Bool { get }
+    func saveCurrentBackdropAsPreset()
+    func removeBackdropPreset(at index: Int)
+}
+
+struct ScreenshotBackdropPopover<Model: BackdropEditing>: View {
+    @ObservedObject var model: Model
     @ObservedObject private var l10n = L10n.shared
+    let showsAdjustments: Bool
 
     @State private var wallpapers: [URL] = []
     @State private var customIsGradient = false
@@ -21,14 +97,10 @@ struct ScreenshotBackdropPopover: View {
     /// 1 = gradient end.
     @State private var activeWell = 0
 
-    /// The inline palette, so picking a color never leaves the popover.
-    private static let palette: [[Double]] = [
-        [0.96, 0.26, 0.21], [1.00, 0.58, 0.00], [1.00, 0.80, 0.00], [0.55, 0.86, 0.25],
-        [0.20, 0.78, 0.35], [0.10, 0.74, 0.61], [0.15, 0.78, 0.85], [0.04, 0.52, 1.00],
-        [0.35, 0.34, 0.84], [0.69, 0.32, 0.87], [1.00, 0.45, 0.66], [0.91, 0.12, 0.39],
-        [0.55, 0.39, 0.29], [0.11, 0.16, 0.32], [0.05, 0.05, 0.06], [0.25, 0.25, 0.28],
-        [0.55, 0.55, 0.58], [0.85, 0.85, 0.87], [1.00, 1.00, 1.00], [0.99, 0.93, 0.85],
-    ]
+    init(model: Model, showsAdjustments: Bool = true) {
+        self.model = model
+        self.showsAdjustments = showsAdjustments
+    }
 
     private var strings: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(l10n.language)
@@ -39,8 +111,10 @@ struct ScreenshotBackdropPopover: View {
             swatchGrid
             Divider()
             customSection
-            Divider()
-            slidersSection
+            if showsAdjustments {
+                Divider()
+                slidersSection
+            }
         }
         .padding(14)
         .frame(width: 292)
@@ -68,7 +142,7 @@ struct ScreenshotBackdropPopover: View {
                 let style = ScreenshotSupport.BackdropStyle(kind: .preset,
                                                             presetID: preset.rawValue)
                 swatch(for: style, accessibility: strings.backdropLabel) {
-                    LinearGradient(colors: Self.previewColors(for: style),
+                    LinearGradient(colors: BackdropPickerAssets.previewColors(for: style),
                                    startPoint: .topLeading, endPoint: .bottomTrailing)
                 }
             }
@@ -106,12 +180,12 @@ struct ScreenshotBackdropPopover: View {
         swatch(for: preset, accessibility: strings.backdropCustomLabel) {
             Group {
                 if preset.kind == .image, let path = preset.imagePath,
-                   let thumbnail = Self.thumbnail(for: URL(fileURLWithPath: path)) {
+                   let thumbnail = BackdropPickerAssets.thumbnail(for: URL(fileURLWithPath: path)) {
                     Image(nsImage: thumbnail)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                 } else {
-                    LinearGradient(colors: Self.previewColors(for: preset),
+                    LinearGradient(colors: BackdropPickerAssets.previewColors(for: preset),
                                    startPoint: .topLeading, endPoint: .bottomTrailing)
                 }
             }
@@ -127,7 +201,7 @@ struct ScreenshotBackdropPopover: View {
         let style = ScreenshotSupport.BackdropStyle(kind: .image, imagePath: url.path)
         return swatch(for: style, accessibility: strings.backdropWallpaperLabel) {
             Group {
-                if let thumbnail = Self.thumbnail(for: url) {
+                if let thumbnail = BackdropPickerAssets.thumbnail(for: url) {
                     Image(nsImage: thumbnail)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
@@ -219,7 +293,7 @@ struct ScreenshotBackdropPopover: View {
             activeWell = index
         } label: {
             Circle()
-                .fill(Self.color(components))
+                .fill(BackdropPickerAssets.color(components))
                 .frame(width: 18, height: 18)
                 .overlay(Circle().strokeBorder(Color.primary.opacity(0.25), lineWidth: 0.5))
                 .overlay(
@@ -238,13 +312,13 @@ struct ScreenshotBackdropPopover: View {
     private var palette: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 5), count: 10),
                   spacing: 5) {
-            ForEach(Self.palette.indices, id: \.self) { index in
-                let components = Self.palette[index]
+            ForEach(BackdropPickerAssets.palette.indices, id: \.self) { index in
+                let components = BackdropPickerAssets.palette[index]
                 Button {
                     assignToActiveWell(components)
                 } label: {
                     Circle()
-                        .fill(Self.color(components))
+                        .fill(BackdropPickerAssets.color(components))
                         .frame(width: 17, height: 17)
                         .overlay(
                             Circle().strokeBorder(Color.primary.opacity(0.18), lineWidth: 0.5)
@@ -299,6 +373,15 @@ struct ScreenshotBackdropPopover: View {
                 Slider(value: cornerBinding, in: 0...1)
                     .controlSize(.small)
             }
+            HStack(spacing: 8) {
+                Text(strings.backdropBlurLabel)
+                    .font(.system(size: 12))
+                    .frame(width: 64, alignment: .leading)
+                    .foregroundStyle(model.showsBackdrop ? .secondary : .tertiary)
+                Slider(value: blurBinding, in: 0...1)
+                    .controlSize(.small)
+                    .disabled(!model.showsBackdrop)
+            }
         }
     }
 
@@ -318,6 +401,14 @@ struct ScreenshotBackdropPopover: View {
         }
     }
 
+    private var blurBinding: Binding<Double> {
+        Binding {
+            model.backdropStyle.blur
+        } set: { value in
+            model.backdropStyle.blur = value
+        }
+    }
+
     // MARK: - Actions
 
     /// Applies a look while keeping the user's slider positions.
@@ -325,6 +416,7 @@ struct ScreenshotBackdropPopover: View {
         var applied = style
         applied.padding = model.backdropStyle.padding
         applied.cornerRadius = model.backdropStyle.cornerRadius
+        applied.blur = model.backdropStyle.blur
         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
             model.backdropStyle = applied
         }
@@ -390,57 +482,9 @@ struct ScreenshotBackdropPopover: View {
                          _ rhs: ScreenshotSupport.BackdropStyle) -> Bool {
         var left = lhs.sanitized()
         var right = rhs.sanitized()
-        left.padding = 0; left.cornerRadius = 0
-        right.padding = 0; right.cornerRadius = 0
+        left.padding = 0; left.cornerRadius = 0; left.blur = 0
+        right.padding = 0; right.cornerRadius = 0; right.blur = 0
         return left == right
     }
 
-    static func previewColors(for style: ScreenshotSupport.BackdropStyle) -> [Color] {
-        let sanitized = style.sanitized()
-        switch sanitized.kind {
-        case .none:
-            return [.clear]
-        case .preset:
-            guard let id = sanitized.presetID,
-                  let preset = ScreenshotSupport.BackdropID(rawValue: id)
-            else { return [.clear] }
-            return preset.stops.map {
-                Color(.sRGB, red: $0.red, green: $0.green, blue: $0.blue, opacity: 1)
-            }
-        case .solid, .gradient:
-            let colors = (sanitized.colors ?? []).map { Self.color($0) }
-            return colors.isEmpty ? [.clear] : colors
-        case .image:
-            return [Color(.sRGB, white: 0.5, opacity: 1)]
-        }
-    }
-
-    static func color(_ components: [Double]) -> Color {
-        guard components.count == 3 else { return .clear }
-        return Color(.sRGB, red: components[0], green: components[1],
-                     blue: components[2], opacity: 1)
-    }
-
-    /// Small cached thumbnails for wallpaper and saved-image swatches.
-    private static let thumbnailCache: NSCache<NSString, NSImage> = {
-        let cache = NSCache<NSString, NSImage>()
-        cache.countLimit = 24
-        return cache
-    }()
-
-    static func thumbnail(for url: URL) -> NSImage? {
-        let key = url.path as NSString
-        if let cached = thumbnailCache.object(forKey: key) { return cached }
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
-        let options: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceThumbnailMaxPixelSize: 220,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-        ]
-        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
-        else { return nil }
-        let image = NSImage(cgImage: cgImage, size: .zero)
-        thumbnailCache.setObject(image, forKey: key)
-        return image
-    }
 }

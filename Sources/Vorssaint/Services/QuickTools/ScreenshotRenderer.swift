@@ -2,6 +2,8 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import CoreImage
+import ImageIO
 import UniformTypeIdentifiers
 
 /// Draws annotations into a CGContext. The editor canvas and the exporter
@@ -10,6 +12,7 @@ import UniformTypeIdentifiers
 /// capture's pixels per point, keeping stroke weights and text sizes visually
 /// constant across 1x and Retina captures.
 enum ScreenshotRenderer {
+    private static let blurContext = CIContext(options: [.cacheIntermediates: false])
 
     static func color(_ id: ScreenshotSupport.ColorID, alpha: CGFloat = 1) -> CGColor {
         let c = id.components
@@ -378,6 +381,7 @@ enum ScreenshotRenderer {
                                                 imageSize: imageSize,
                                                 paddingFactor: CGFloat(style.padding),
                                                 corner: corner,
+                                                blurFactor: CGFloat(style.blur),
                                                 scale: scale) {
             result = composed
         }
@@ -441,6 +445,7 @@ enum ScreenshotRenderer {
                                        imageSize: CGSize,
                                        paddingFactor: CGFloat,
                                        corner: CGFloat,
+                                       blurFactor: CGFloat,
                                        scale: CGFloat) -> CGImage? {
         let padding = ScreenshotSupport.backdropPadding(for: imageSize, factor: paddingFactor)
         let width = Int(imageSize.width + padding * 2)
@@ -455,6 +460,11 @@ enum ScreenshotRenderer {
         else { return nil }
 
         drawFill(fill, in: context, size: CGSize(width: width, height: height))
+        if blurFactor > 0, let background = context.makeImage() {
+            let blurred = blurredBackdrop(background, factor: blurFactor)
+            context.clear(CGRect(x: 0, y: 0, width: width, height: height))
+            context.draw(blurred, in: CGRect(x: 0, y: 0, width: width, height: height))
+        }
 
         let imageRect = CGRect(x: padding, y: padding,
                                width: imageSize.width, height: imageSize.height)
@@ -474,6 +484,20 @@ enum ScreenshotRenderer {
         context.draw(image, in: imageRect)
         context.restoreGState()
         return context.makeImage()
+    }
+
+    /// Blurs a finished background plate while extending its edge pixels, so
+    /// the effect never creates a transparent seam around the canvas.
+    static func blurredBackdrop(_ image: CGImage, factor: CGFloat) -> CGImage {
+        let radius = ScreenshotSupport.backdropBlurRadius(
+            for: CGSize(width: image.width, height: image.height),
+            factor: factor)
+        guard radius > 0 else { return image }
+        let input = CIImage(cgImage: image)
+        let filtered = input.clampedToExtent()
+            .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: radius])
+            .cropped(to: input.extent)
+        return blurContext.createCGImage(filtered, from: input.extent) ?? image
     }
 
     private static func drawFill(_ fill: BackdropFill, in context: CGContext, size: CGSize) {
@@ -531,12 +555,21 @@ enum ScreenshotRenderer {
 
     // MARK: - Encoding
 
-    static func pngData(from image: CGImage) -> Data? {
+    static func pngData(from image: CGImage, scale: CGFloat? = nil) -> Data? {
         let data = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(
             data, UTType.png.identifier as CFString, 1, nil)
         else { return nil }
-        CGImageDestinationAddImage(destination, image, nil)
+        let properties: CFDictionary?
+        if let scale {
+            properties = [
+                kCGImagePropertyDPIWidth: Double(scale) * 72,
+                kCGImagePropertyDPIHeight: Double(scale) * 72,
+            ] as CFDictionary
+        } else {
+            properties = nil
+        }
+        CGImageDestinationAddImage(destination, image, properties)
         guard CGImageDestinationFinalize(destination) else { return nil }
         return data as Data
     }

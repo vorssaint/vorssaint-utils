@@ -64,7 +64,10 @@ final class WindowPreviewProvider {
     func refreshPreviews(for items: [SwitcherItem],
                          maxPixelSize: CGFloat = defaultMaxPixelSize,
                          onUpdate: @escaping (CGWindowID, CGImage) -> Void) {
-        guard Permissions.shared.screenRecording else { return }
+        guard Permissions.shared.screenRecording, !Self.captureIsPaused else {
+            cancel()
+            return
+        }
 
         var seen = Set<CGWindowID>()
         let targets: [PreviewTarget] = items.compactMap { item in
@@ -99,6 +102,8 @@ final class WindowPreviewProvider {
             var pending: [PreviewTarget] = []
             for target in targets {
                 guard !Task.isCancelled else { return }
+                let captureIsPaused = await MainActor.run { Self.captureIsPaused }
+                guard !captureIsPaused else { return }
                 guard let image = Self.captureViaWindowServer(target.id) else {
                     pending.append(target)
                     continue
@@ -141,6 +146,9 @@ final class WindowPreviewProvider {
             }
             guard !pending.isEmpty else { return }
 
+            let captureIsPaused = await MainActor.run { Self.captureIsPaused }
+            guard !captureIsPaused else { return }
+
             guard let content = try? await SCShareableContent.excludingDesktopWindows(false,
                                                                                       onScreenWindowsOnly: false)
             else { return }
@@ -148,6 +156,8 @@ final class WindowPreviewProvider {
 
             for target in pending {
                 guard !Task.isCancelled else { return }
+                let captureIsPaused = await MainActor.run { Self.captureIsPaused }
+                guard !captureIsPaused else { return }
                 guard let scWindow = scWindows[target.id]
                     ?? Self.bestWindowMatch(for: target, in: content.windows) else { continue }
 
@@ -407,10 +417,14 @@ final class WindowPreviewProvider {
     /// Waits for the stage/space transition to settle, then captures the
     /// activated app's windows. Never prunes: warming only adds fresh entries.
     private func scheduleWarm(pid: pid_t) {
-        guard Permissions.shared.screenRecording else { return }
+        guard Permissions.shared.screenRecording, !Self.captureIsPaused else { return }
         pendingWarmPid = pid
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
-            guard let self, self.pendingWarmPid == pid, self.activationToken != nil else { return }
+            guard let self,
+                  self.pendingWarmPid == pid,
+                  self.activationToken != nil,
+                  !Self.captureIsPaused
+            else { return }
             self.pendingWarmPid = nil
             let items = WindowEnumerator.listWindows(for: pid)
             guard !items.isEmpty else { return }
@@ -419,6 +433,8 @@ final class WindowPreviewProvider {
                 guard let self else { return }
                 for item in items {
                     guard !Task.isCancelled, let id = item.previewWindowID else { continue }
+                    let captureIsPaused = await MainActor.run { Self.captureIsPaused }
+                    guard !captureIsPaused else { return }
                     guard let image = Self.captureViaWindowServer(id) else { continue }
                     if let grid = SwitcherSupport.alphaGrid(of: image),
                        SwitcherSupport.captureLooksTransformed(alphaGrid: grid) {
@@ -446,6 +462,14 @@ final class WindowPreviewProvider {
                 await MainActor.run { self.pruneCache(keeping: []) }
             }
         }
+    }
+
+    private static var captureIsPaused: Bool {
+        let excluded = Defaults.sanitizedBundleIdentifierList(
+            UserDefaults.standard.stringArray(forKey: DefaultsKey.windowPreviewExcludedApps) ?? [])
+        return SwitcherSupport.shouldPausePreviewCapture(
+            frontmostBundleIdentifier: NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
+            excludedBundleIdentifiers: excluded)
     }
 
     private struct PreviewTarget {

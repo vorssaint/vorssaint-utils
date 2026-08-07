@@ -110,8 +110,11 @@ enum CommandBarLinks {
         let normalizedQuery = CommandBarSearch.normalized(query)
         guard normalizedQuery.hasPrefix(normalizedName + " ") else { return nil }
         // The remainder comes from the ORIGINAL text: what someone searches for
-        // keeps its capitals and its accents.
-        let words = query.split(separator: " ", omittingEmptySubsequences: true)
+        // keeps its capitals and its accents. Splitting on any whitespace — not
+        // just the ASCII space — keeps a full-width space (U+3000), which some
+        // input methods produce, in step with the width-insensitive prefix check
+        // above.
+        let words = query.split(whereSeparator: \.isWhitespace)
         let nameWords = normalizedName.split(separator: " ").count
         guard words.count > nameWords else { return nil }
         return words.dropFirst(nameWords).joined(separator: " ")
@@ -142,4 +145,36 @@ enum CommandBarLinks {
             return URL(string: "https://" + trimmed)
         }
     }
+
+    /// A web address typed on its own, or nil when the text should remain a
+    /// search. The system detector keeps ordinary filenames, numbers and email
+    /// addresses out; parsing the result again rejects incomplete URLs.
+    static func typedURL(_ text: String) -> URL? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let linkDetector else { return nil }
+        let wholeValue = NSRange(location: 0, length: trimmed.utf16.count)
+        guard let match = linkDetector.firstMatch(in: trimmed, options: [], range: wholeValue),
+              match.range == wholeValue,
+              let detectedScheme = match.url?.scheme?.lowercased(),
+              detectedScheme == "http" || detectedScheme == "https"
+        else { return nil }
+
+        let url: URL?
+        if let explicit = URL(string: trimmed),
+           let scheme = explicit.scheme?.lowercased(),
+           scheme == "http" || scheme == "https" {
+            url = explicit
+        } else {
+            url = URL(string: "https://" + trimmed)
+        }
+        guard let url,
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              url.host?.isEmpty == false
+        else { return nil }
+        return url
+    }
+
+    private static let linkDetector = try? NSDataDetector(
+        types: NSTextCheckingResult.CheckingType.link.rawValue)
 }

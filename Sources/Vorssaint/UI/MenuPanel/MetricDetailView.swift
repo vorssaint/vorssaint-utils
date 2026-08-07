@@ -5,7 +5,7 @@ import AppKit
 import SwiftUI
 
 enum MetricDetailKind: String, Equatable, Identifiable {
-    case cpu, gpu, memory, network, disk, battery, power
+    case cpu, gpu, memory, network, disk, battery, power, fan
 
     var id: String { rawValue }
 
@@ -19,6 +19,8 @@ enum MetricDetailKind: String, Equatable, Identifiable {
             return .disk
         case .power:
             return .power
+        case .fan:
+            return .fanControl
         }
     }
 
@@ -31,6 +33,7 @@ enum MetricDetailKind: String, Equatable, Identifiable {
         case .disk: return "internaldrive"
         case .battery: return "battery.100"
         case .power: return "powerplug.fill"
+        case .fan: return "fanblades"
         }
     }
 
@@ -47,12 +50,17 @@ enum MetricDetailKind: String, Equatable, Identifiable {
         case .disk:
             return SystemMonitorPanelNeeds(disk: true)
         case .battery:
-            return SystemMonitorPanelNeeds(power: true,
-                                           battery: true,
-                                           peripheralBattery: true,
-                                           batteryTemperature: true)
+            if PowerSampler.hasInternalBattery {
+                return SystemMonitorPanelNeeds(power: true,
+                                               battery: true,
+                                               peripheralBattery: true,
+                                               batteryTemperature: true)
+            }
+            return SystemMonitorPanelNeeds(peripheralBattery: true)
         case .power:
             return SystemMonitorPanelNeeds(power: true)
+        case .fan:
+            return SystemMonitorPanelNeeds(fanSpeed: true)
         }
     }
 
@@ -65,6 +73,7 @@ enum MetricDetailKind: String, Equatable, Identifiable {
         case .disk: return s.diskSection
         case .battery: return s.batteryLabel
         case .power: return s.powerSection
+        case .fan: return FeatureStrings.fanControl(L10n.shared.language).menuBarTitle
         }
     }
 
@@ -75,7 +84,7 @@ enum MetricDetailKind: String, Equatable, Identifiable {
         case .memory: return .memory
         case .power: return .energy
         case .network: return .network
-        case .disk, .battery: return nil
+        case .disk, .battery, .fan: return nil
         }
     }
 }
@@ -97,7 +106,35 @@ extension MenuBarMetric {
             return .battery
         case .batteryTime, .power:
             return .power
+        case .fanSpeed:
+            return .fan
         }
+    }
+}
+
+struct ActivityMonitorButton: View {
+    @ObservedObject private var l10n = L10n.shared
+    @State private var isHovered = false
+
+    var body: some View {
+        Button {
+            let fallback = URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app")
+            let url = NSWorkspace.shared
+                .urlForApplication(withBundleIdentifier: "com.apple.ActivityMonitor") ?? fallback
+            NSWorkspace.shared.open(url)
+        } label: {
+            Image(systemName: "arrow.up.forward.app")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 18, height: 18)
+                .background(Circle().fill(Color.primary.opacity(isHovered ? 0.1 : 0)))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .help(l10n.s.monitorOpenActivityMonitor)
+        .accessibilityLabel(l10n.s.monitorOpenActivityMonitor)
+        .animation(.easeOut(duration: 0.12), value: isHovered)
     }
 }
 
@@ -180,15 +217,21 @@ struct MetricDetailView: View {
         case .gpu:
             historyGraph(monitor.snapshot.gpuHistory, color: summaryColor, maxValue: 1)
         case .memory:
-            historyGraph(monitor.snapshot.memoryHistory, color: summaryColor, maxValue: 1)
+            historyGraph(MonitorMemoryMetric.current.history(in: monitor.snapshot),
+                         color: summaryColor,
+                         maxValue: 1)
         case .network:
             networkGraph
         case .disk:
             diskGraph
         case .battery:
-            historyGraph(monitor.snapshot.batteryHistory, color: summaryColor, maxValue: 1)
+            if PowerSampler.hasInternalBattery {
+                historyGraph(monitor.snapshot.batteryHistory, color: summaryColor, maxValue: 1)
+            }
         case .power:
             historyGraph(monitor.snapshot.systemPowerHistory, color: summaryColor)
+        case .fan:
+            EmptyView()
         }
     }
 
@@ -292,6 +335,7 @@ struct MetricDetailView: View {
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.tertiary)
                 Spacer(minLength: 0)
+                ActivityMonitorButton()
             }
             if processRows.isEmpty {
                 Text(processRowsLoading ? l10n.s.breakdownMeasuring : emptyProcessText)
@@ -321,10 +365,12 @@ struct MetricDetailView: View {
                 row(l10n.s.temperatures, snapshot.gpuTemperature.map(formatTemperature) ?? l10n.s.monitorUnavailable),
             ]
         case .memory:
-            let used = snapshot.memoryUsed.map(formatMemory) ?? l10n.s.networkMeasuring
+            let metric = MonitorMemoryMetric.current
+            let memoryValue = metric.value(in: snapshot)
+            let used = memoryValue.map(formatMemory) ?? l10n.s.networkMeasuring
             let total = snapshot.memoryTotal.map(formatMemory) ?? "-"
             return [
-                row(l10n.s.memorySection, "\(used) / \(total)"),
+                row(metric.title(in: l10n.s), "\(used) / \(total)"),
                 row(l10n.s.memoryPressure, pressureText(snapshot.memoryPressure), showsPressure: true),
             ]
         case .network:
@@ -348,13 +394,16 @@ struct MetricDetailView: View {
             ]
         case .battery:
             let power = snapshot.power
-            var rows = [
-                row(l10n.s.batteryCharge, power?.chargePercent.map { "\($0)%" } ?? l10n.s.networkMeasuring),
-                row(l10n.s.powerBattery, batteryFlowText(power)),
-                row(l10n.s.temperatures, snapshot.batteryTemperature.map(formatTemperature) ?? l10n.s.monitorUnavailable),
-                row(l10n.s.powerHealth, power?.healthPercent.map { "\(Int($0.rounded()))%" } ?? "-"),
-                row(l10n.s.powerCycles, power?.cycleCount.map(String.init) ?? "-"),
-            ]
+            var rows: [MetricDetailRow] = []
+            if PowerSampler.hasInternalBattery {
+                rows.append(contentsOf: [
+                    row(l10n.s.batteryCharge, power?.chargePercent.map { "\($0)%" } ?? l10n.s.networkMeasuring),
+                    row(l10n.s.powerBattery, batteryFlowText(power)),
+                    row(l10n.s.temperatures, snapshot.batteryTemperature.map(formatTemperature) ?? l10n.s.monitorUnavailable),
+                    row(l10n.s.powerHealth, power?.healthPercent.map { "\(Int($0.rounded()))%" } ?? "-"),
+                    row(l10n.s.powerCycles, power?.cycleCount.map(String.init) ?? "-"),
+                ])
+            }
             if snapshot.peripheralBatteries.isEmpty {
                 rows.append(row(l10n.s.monitorShowPeripheralBattery,
                                 l10n.s.peripheralBatteryNoDevices,
@@ -370,16 +419,27 @@ struct MetricDetailView: View {
             var rows = [
                 row(l10n.s.powerSystem, power?.systemWatts.map(MetricFormat.watts) ?? l10n.s.networkMeasuring),
                 row(l10n.s.powerAdapter, adapterText(power)),
-                row(l10n.s.powerBattery, batteryFlowText(power)),
             ]
-            if let power, power.hasBattery,
-               !power.externalConnected, !power.isCharging {
-                let strings = FeatureStrings.batteryTime(l10n.language)
-                rows.append(row(strings.title,
-                                power.timeRemainingSeconds.flatMap(BatteryTimeSupport.formatted)
-                                    ?? strings.calculating))
+            if PowerSampler.hasInternalBattery {
+                rows.append(row(l10n.s.powerBattery, batteryFlowText(power)))
+                if let power, power.hasBattery,
+                   !power.externalConnected, !power.isCharging {
+                    let strings = FeatureStrings.batteryTime(l10n.language)
+                    rows.append(row(strings.title,
+                                    power.timeRemainingSeconds.flatMap(BatteryTimeSupport.formatted)
+                                        ?? strings.calculating))
+                }
             }
             return rows
+        case .fan:
+            let strings = FeatureStrings.fanControl(l10n.language)
+            guard !snapshot.fanSpeeds.isEmpty else {
+                return [row(strings.menuBarTitle, l10n.s.monitorUnavailable)]
+            }
+            return snapshot.fanSpeeds.enumerated().map { index, rpm in
+                row(String(format: strings.fanNameFormat, index + 1),
+                    String(format: strings.rpmFormat, Int(rpm.rounded())))
+            }
         }
     }
 
@@ -391,16 +451,25 @@ struct MetricDetailView: View {
         case .gpu:
             return snapshot.gpuUsage.map(MetricFormat.percent) ?? "-"
         case .memory:
-            guard let used = snapshot.memoryUsed, let total = snapshot.memoryTotal, total > 0 else { return "-" }
+            let memoryValue = MonitorMemoryMetric.current.value(in: snapshot)
+            guard let used = memoryValue, let total = snapshot.memoryTotal, total > 0 else { return "-" }
             return MetricFormat.percent(Double(used) / Double(total))
         case .network:
             return snapshot.netDownBytesPerSec.map(MetricFormat.bytesPerSecCompact) ?? "-"
         case .disk:
             return primaryDisk(from: snapshot.disk).map { MetricFormat.percent($0.usedFraction) } ?? "-"
         case .battery:
-            return snapshot.power?.chargePercent.map { "\($0)%" } ?? "-"
+            if PowerSampler.hasInternalBattery {
+                return snapshot.power?.chargePercent.map { "\($0)%" } ?? "-"
+            }
+            return PeripheralBatterySupport.sorted(snapshot.peripheralBatteries).first
+                .map { "\($0.percent)%" } ?? "-"
         case .power:
             return snapshot.power?.systemWatts.map(MetricFormat.wattsCompact) ?? "-"
+        case .fan:
+            let strings = FeatureStrings.fanControl(l10n.language)
+            guard let rpm = snapshot.fanSpeeds.first else { return "-" }
+            return String(format: strings.rpmFormat, Int(rpm.rounded()))
         }
     }
 
@@ -412,7 +481,8 @@ struct MetricDetailView: View {
         case .gpu:
             return snapshot.gpuTemperature.map(formatTemperature) ?? l10n.s.temperatures
         case .memory:
-            guard let used = snapshot.memoryUsed, let total = snapshot.memoryTotal else { return l10n.s.memoryPressure }
+            let memoryValue = MonitorMemoryMetric.current.value(in: snapshot)
+            guard let used = memoryValue, let total = snapshot.memoryTotal else { return l10n.s.memoryPressure }
             return "\(formatMemory(used)) / \(formatMemory(total))"
         case .network:
             return "\(l10n.s.networkUpload) \(snapshot.netUpBytesPerSec.map(MetricFormat.bytesPerSecCompact) ?? "-")"
@@ -420,9 +490,18 @@ struct MetricDetailView: View {
             guard let disk = primaryDisk(from: snapshot.disk) else { return l10n.s.diskNoDisks }
             return "\(MetricFormat.diskBytes(disk.freeBytes)) \(l10n.s.diskFree)"
         case .battery:
-            return (snapshot.power?.isCharging ?? false) ? l10n.s.powerCharging : l10n.s.powerOnBattery
+            if PowerSampler.hasInternalBattery {
+                return (snapshot.power?.isCharging ?? false) ? l10n.s.powerCharging : l10n.s.powerOnBattery
+            }
+            return PeripheralBatterySupport.sorted(snapshot.peripheralBatteries).first?.name
+                ?? l10n.s.peripheralBatteryNoDevices
         case .power:
             return powerSubtitle(snapshot.power)
+        case .fan:
+            let strings = FeatureStrings.fanControl(l10n.language)
+            return snapshot.fanSpeeds.isEmpty
+                ? strings.menuBarTitle
+                : String(format: strings.fanNameFormat, 1)
         }
     }
 
@@ -440,6 +519,8 @@ struct MetricDetailView: View {
             return PanelMetricColor.green(for: colorScheme)
         case .power:
             return PanelMetricColor.orange(for: colorScheme)
+        case .fan:
+            return PanelMetricColor.cyan(for: colorScheme)
         }
     }
 

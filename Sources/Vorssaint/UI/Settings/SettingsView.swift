@@ -127,6 +127,7 @@ struct SettingsView: View {
         case .clipboard: ClipboardSettings()
         case .quickTools: QuickToolsSettings()
         case .screenshot: ScreenshotSettings()
+        case .screenRecorder: ScreenRecorderSettings()
         case .windowLayout: WindowLayoutSettings()
         case .shelf: ShelfSettings()
         case .shortcuts: ShortcutsSettings()
@@ -148,11 +149,11 @@ struct GeneralSettings: View {
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
     @State private var loginError: String?
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
-    @AppStorage(DefaultsKey.showCountdown) private var showCountdown = false
     @AppStorage(DefaultsKey.musicBlockEnabled) private var musicBlockEnabled = false
     @AppStorage(DefaultsKey.musicBlockReplacementPath) private var musicBlockReplacementPath = ""
 
     private var appearanceStrings: AppearanceStrings { FeatureStrings.appearance(l10n.language) }
+    private var feedbackStrings: FeedbackStrings { FeatureStrings.feedback(l10n.language) }
 
     var body: some View {
         Form {
@@ -186,9 +187,6 @@ struct GeneralSettings: View {
                 .pickerStyle(.segmented)
             }
             Section(l10n.s.menuBarSection) {
-                if AppFeature.keepAwake.isAvailable {
-                    Toggle(l10n.s.showCountdown, isOn: $showCountdown)
-                }
                 Button(l10n.s.showMenuBarIcon) {
                     appDelegate()?.reshowStatusItem()
                 }
@@ -250,6 +248,15 @@ struct GeneralSettings: View {
                     }
                     SettingsCaptionText(l10n.s.musicBlockCaption)
                 }
+            }
+            Section(feedbackStrings.sectionTitle) {
+                Button {
+                    appDelegate()?.openFeedbackWindow()
+                } label: {
+                    Label(feedbackStrings.openButton,
+                          systemImage: "bubble.left.and.text.bubble.right")
+                }
+                SettingsCaptionText(feedbackStrings.sectionCaption)
             }
         }
         .formStyle(.grouped)
@@ -379,6 +386,8 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration = 0
     @AppStorage(DefaultsKey.batteryLimit) private var batteryLimit = 10
     @AppStorage(DefaultsKey.keepAwakeAutoStart) private var keepAwakeAutoStart = false
+    @AppStorage(DefaultsKey.keepAwakeRightClickToggle) private var keepAwakeRightClickToggle = false
+    @AppStorage(DefaultsKey.showCountdown) private var showCountdown = false
     @AppStorage(DefaultsKey.keepAwakeIconTint) private var keepAwakeIconTint = KeepAwakeIconTint.orange.rawValue
     @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleEnabled) private var keepAwakeMouseJiggle = false
@@ -400,20 +409,29 @@ struct EnergySettings: View {
                     SettingsToggleWithCaption(title: l10n.s.keepAwakeAutoStart,
                                               caption: l10n.s.keepAwakeAutoStartCaption,
                                               isOn: $keepAwakeAutoStart)
+                    SettingsToggleWithCaption(title: l10n.s.keepAwakeRightClickToggle,
+                                              caption: l10n.s.keepAwakeRightClickToggleCaption,
+                                              isOn: $keepAwakeRightClickToggle)
+                    // The countdown is a Keep Awake session readout, so it sits
+                    // with the session options. Under the General page's menu
+                    // bar section the label gave no clue which time it meant.
+                    Toggle(l10n.s.showCountdown, isOn: $showCountdown)
                 }
                 Section(automationStrings.automationSection) {
                     SettingsCaptionText(automationStrings.automationCaption)
                     KeepAwakeAutomationEditor()
                 }
-                Section(l10n.s.batteryProtectionSection) {
-                    Picker(l10n.s.batteryDisableBelow, selection: $batteryLimit) {
-                        Text(l10n.s.batteryNever).tag(0)
-                        Text("5%").tag(5)
-                        Text("10%").tag(10)
-                        Text("15%").tag(15)
-                        Text("20%").tag(20)
+                if PowerSampler.hasInternalBattery {
+                    Section(l10n.s.batteryProtectionSection) {
+                        Picker(l10n.s.batteryDisableBelow, selection: $batteryLimit) {
+                            Text(l10n.s.batteryNever).tag(0)
+                            Text("5%").tag(5)
+                            Text("10%").tag(10)
+                            Text("15%").tag(15)
+                            Text("20%").tag(20)
+                        }
+                        SettingsCaptionText(l10n.s.batteryProtectionCaption)
                     }
-                    SettingsCaptionText(l10n.s.batteryProtectionCaption)
                 }
                 Section(l10n.s.keepAwakeTitle) {
                     KeepAwakeIconPicker(iconValue: $keepAwakeActiveIcon,
@@ -749,6 +767,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.dockPreviewMediaControls) private var dockPreviewMediaControls = true
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var dockPreviewBackgroundOpacity = 1.0
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
+    @AppStorage(DefaultsKey.dockClickHide) private var dockClickHide = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
     @AppStorage(DefaultsKey.previewSize) private var previewSize = "normal"
 
@@ -823,6 +842,7 @@ struct SwitcherSettings: View {
                     Text(l10n.s.switcherWindowlessAppsCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    SwitcherAppRulesList()
                 }
             }
             if AppFeature.dockPreview.isAvailable || AppFeature.dockClick.isAvailable {
@@ -859,10 +879,19 @@ struct SwitcherSettings: View {
                     }
                     if AppFeature.dockClick.isAvailable {
                         Toggle(l10n.s.dockClickMinimize, isOn: $dockClickMinimize)
-                            .onChange(of: dockClickMinimize) { _, _ in
+                            .onChange(of: dockClickMinimize) { _, enabled in
+                                if enabled { dockClickHide = false }
                                 DockClickService.shared.syncWithPreferences()
                             }
                         Text(l10n.s.dockClickMinimizeCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Toggle(l10n.s.dockClickHide, isOn: $dockClickHide)
+                            .onChange(of: dockClickHide) { _, enabled in
+                                if enabled { dockClickMinimize = false }
+                                DockClickService.shared.syncWithPreferences()
+                            }
+                        Text(l10n.s.dockClickHideCaption)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Toggle(l10n.s.dockClickCycleWindows, isOn: $dockClickCycleWindows)
@@ -880,6 +909,7 @@ struct SwitcherSettings: View {
             if AppFeature.switcher.isAvailable || AppFeature.dockPreview.isAvailable {
                 Section {
                     Picker(l10n.s.previewSizeLabel, selection: $previewSize) {
+                        Text(l10n.s.previewSizeSmall).tag("small")
                         Text(l10n.s.previewSizeNormal).tag("normal")
                         Text(l10n.s.previewSizeLarge).tag("large")
                         Text(l10n.s.previewSizeXLarge).tag("xlarge")
@@ -888,8 +918,9 @@ struct SwitcherSettings: View {
                     .onChange(of: previewSize) { _, _ in
                         AppSwitcher.shared.syncWithPreferences()
                     }
+                    WindowPreviewExclusionsList()
                 } header: {
-                    Text(l10n.s.previewSizeLabel)
+                    Text(FeatureStrings.windowPreviewExclusions(l10n.language).sectionTitle)
                 }
             }
             if switcherEngaged || dockPreviewEngaged {
@@ -1256,6 +1287,7 @@ private struct SettingsToggleWithCaption: View {
 enum PermissionKind {
     case accessibility
     case screenRecording
+    case microphone
 }
 
 /// Status + actions for one TCC permission; shared by Settings and onboarding.
@@ -1265,11 +1297,20 @@ struct PermissionRow: View {
     let kind: PermissionKind
 
     private var granted: Bool {
-        kind == .accessibility ? permissions.accessibility : permissions.screenRecording
+        switch kind {
+        case .accessibility: return permissions.accessibility
+        case .screenRecording: return permissions.screenRecording
+        case .microphone: return permissions.microphone == .granted
+        }
     }
 
     private var name: String {
-        kind == .accessibility ? l10n.s.permissionAccessibility : l10n.s.permissionScreenRecording
+        switch kind {
+        case .accessibility: return l10n.s.permissionAccessibility
+        case .screenRecording: return l10n.s.permissionScreenRecording
+        case .microphone:
+            return FeatureStrings.recorder(l10n.language).microphonePermissionName
+        }
     }
 
     var body: some View {
@@ -1286,17 +1327,23 @@ struct PermissionRow: View {
             if !granted {
                 HStack(spacing: 8) {
                     Button(l10n.s.permissionRequest) {
-                        if kind == .accessibility {
+                        switch kind {
+                        case .accessibility:
                             permissions.requestAccessibility()
-                        } else {
+                        case .screenRecording:
                             permissions.requestScreenRecording()
+                        case .microphone:
+                            permissions.requestMicrophone()
                         }
                     }
                     Button(l10n.s.permissionOpenSettings) {
-                        if kind == .accessibility {
+                        switch kind {
+                        case .accessibility:
                             permissions.openAccessibilitySettings()
-                        } else {
+                        case .screenRecording:
                             permissions.openScreenRecordingSettings()
+                        case .microphone:
+                            permissions.openMicrophoneSettings()
                         }
                     }
                 }

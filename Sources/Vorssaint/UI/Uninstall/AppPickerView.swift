@@ -2,23 +2,28 @@
 // Copyright (C) 2026 Vorssaint
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct AppPickerView: View {
     @ObservedObject private var l10n = L10n.shared
     @State private var apps: [InstalledApps.InstalledApp] = []
     @State private var query = ""
     @State private var isLoading = false
+    @State private var isBrowsingApplications = false
 
     var compact = false
+    var canBrowseApplications = false
     var loadApps: () -> [InstalledApps.InstalledApp] = { InstalledApps.installedApplications() }
     var onCancel: () -> Void
     var onSelect: (URL) -> Void
 
     init(compact: Bool = false,
+         canBrowseApplications: Bool = false,
          onCancel: @escaping () -> Void,
          onSelect: @escaping (URL) -> Void,
          loadApps: @escaping () -> [InstalledApps.InstalledApp] = { InstalledApps.installedApplications() }) {
         self.compact = compact
+        self.canBrowseApplications = canBrowseApplications
         self.onCancel = onCancel
         self.onSelect = onSelect
         self.loadApps = loadApps
@@ -44,6 +49,11 @@ struct AppPickerView: View {
         .padding(compact ? 10 : 18)
         .frame(width: compact ? nil : 520, height: compact ? nil : 560)
         .onAppear { loadAppsIfNeeded() }
+        .fileImporter(isPresented: $isBrowsingApplications,
+                      allowedContentTypes: [.applicationBundle]) { result in
+            guard let url = try? result.get() else { return }
+            onSelect(url)
+        }
     }
 
     private var header: some View {
@@ -51,6 +61,14 @@ struct AppPickerView: View {
             Text(l10n.s.uninstallerPickerTitle)
                 .font(.system(size: compact ? 12 : 16, weight: .semibold))
             Spacer()
+            if canBrowseApplications {
+                Button {
+                    isBrowsingApplications = true
+                } label: {
+                    Label(l10n.s.uninstallerChoose, systemImage: "folder")
+                }
+                .controlSize(compact ? .small : .regular)
+            }
             Button(l10n.s.uninstallerCancel, action: onCancel)
                 .controlSize(compact ? .small : .regular)
         }

@@ -199,6 +199,8 @@ extension RadialMenuItem {
         case .tool:
             guard let tool else { return text.kindTool }
             return tool.feature.hubTitle(L10n.shared.s, hub: FeatureStrings.hub(L10n.shared.language))
+        case .quickToggle:
+            return quickToggle?.radialTitle ?? FeatureStrings.quickToggles(L10n.shared.language).pageTitle
         case .windowLayout:
             guard let windowLayoutAction else {
                 return FeatureStrings.windowLayout(L10n.shared.language).title
@@ -218,5 +220,23 @@ extension RadialMenuItem {
 
     var usesFileIcon: Bool {
         (kind == .app || kind == .file) && symbolName.isEmpty
+    }
+}
+
+extension RadialMenuQuickToggle {
+    var radialTitle: String {
+        let strings = FeatureStrings.quickToggles(L10n.shared.language)
+        let toggles = QuickTogglesService.shared
+        switch self {
+        case .darkMode:
+            return toggles.systemAppearanceIsDark == true ? strings.darkModeToLight : strings.darkModeToDark
+        case .emptyTrash: return strings.emptyTrashTitle
+        case .ejectDisks: return strings.ejectTitle
+        case .hiddenFiles: return toggles.hiddenFilesShown ? strings.hiddenFilesHide : strings.hiddenFilesShow
+        case .desktopIcons: return toggles.desktopIconsShown ? strings.desktopIconsHide : strings.desktopIconsShow
+        case .lockScreen: return strings.lockScreenTitle
+        case .displayOff: return strings.displayOffTitle
+        case .screenSaver: return strings.screenSaverTitle
+        }
     }
 }

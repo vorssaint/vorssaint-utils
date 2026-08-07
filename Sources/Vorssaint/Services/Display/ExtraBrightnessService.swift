@@ -181,10 +181,10 @@ final class ExtraBrightnessService: ObservableObject {
         screensAsleep = false
     }
 
-    /// Fullscreen windows live in their own Space. AppKit normally carries the
-    /// overlay pair into the active app's fullscreen set; keep that live pair
-    /// instead of tearing it down during the handoff. Rebuild only when either
-    /// window did not arrive or the built-in display actually changed.
+    /// The pair is resident on every Space, so a desktop or fullscreen change
+    /// normally needs nothing beyond a fresh present. Rebuilding stays as the
+    /// fallback for what can still move the ground under it: a different
+    /// built-in display, or AppKit reporting that a window is not there.
     private func handleActiveSpaceChange() {
         guard pollTimer != nil else { return }
         guard let screen = Self.builtInXDRScreen() else {
@@ -239,11 +239,15 @@ final class ExtraBrightnessService: ObservableObject {
         NSRect(x: screen.frame.maxX - 1, y: screen.frame.minY, width: 1, height: 1)
     }
 
-    /// Let the pair join the active app's fullscreen set without cloning it
-    /// across every Space. The observer above remains as a fallback when AppKit
-    /// reports that either live window did not make the transition.
+    /// The pair belongs to every Space and sits out Exposé. Bound to a single
+    /// Space it travelled with that Space: swiping to another desktop slid the
+    /// overlay off screen for the whole animation, taking the boost with it
+    /// until the transition ended and a rebuild brought it back (measured).
+    /// Resident everywhere there is no handoff at all, and the presents that
+    /// hold the panel's headroom never pause.
     private static let overlayCollectionBehavior: NSWindow.CollectionBehavior = [
         .ignoresCycle, .fullScreenAuxiliary, .canJoinAllApplications,
+        .canJoinAllSpaces, .stationary,
     ]
 
     // MARK: - Overlay

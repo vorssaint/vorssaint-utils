@@ -7,6 +7,7 @@ import Foundation
 enum DockClickAction: Equatable {
     case minimize
     case restore
+    case hide
     case cycleWindows
     case passThrough
 }
@@ -25,6 +26,13 @@ enum DockClickRepeatDecision: Equatable {
 }
 
 enum DockClickSupport {
+    /// Both local and published builds may be running during development.
+    /// Neither is ever a valid target for the other's global Dock click tap.
+    static func isOwnBundleIdentifier(_ bundleIdentifier: String?) -> Bool {
+        bundleIdentifier == "com.vorssaint.utils"
+            || bundleIdentifier == "com.vorssaint.utils.dev"
+    }
+
     /// The Option-Command-M chord is not unique to Minimize All. Only the
     /// standard menu action identifier proves that pressing it is safe.
     static func isVerifiedMinimizeAll(commandCharacter: String?,
@@ -127,19 +135,20 @@ enum DockClickSupport {
         switch lastAction {
         case .minimize: return .toggle(.restore)
         case .restore: return .toggle(.minimize)
-        case .cycleWindows: return .deriveFromState
+        case .hide, .cycleWindows: return .deriveFromState
         case .passThrough: return .deriveFromState
         }
     }
 
-    /// Taskbar-style Dock click. Minimize when the clicked app is frontmost
-    /// with windows on screen; restore when everything it has is minimized
+    /// Dock click actions for the active app. Hide works at app level, while
+    /// minimize acts on visible windows and restores them on the next click.
+    /// Restore when everything the app has is minimized
     /// (the Dock's native click would activate without unminimizing — Finder
     /// would even open a brand-new window). Modifier clicks always keep the
     /// Dock's native behaviors (⌘ reveals in Finder, ⌥ hides the previous
     /// app, ⌃ opens the menu). Fullscreen windows can't minimize, and restoring
     /// siblings from inside a fullscreen Space would yank the user to another
-    /// Space, so any fullscreen window means hands off.
+    /// Space, so fullscreen windows keep only the app-level hide action.
     /// Whether the click should treat the app as having windows to minimize.
     /// Apps with a busy or unresponsive accessibility server (Java and
     /// Eclipse apps like DBeaver, issue #200) answer the AX window list with
@@ -159,10 +168,15 @@ enum DockClickSupport {
                        hasFullscreenWindows: Bool,
                        hasModifiers: Bool,
                        minimizeEnabled: Bool = true,
+                       hideEnabled: Bool = false,
                        cycleWindowsEnabled: Bool = false,
                        unminimizedWindowCount: Int = 0) -> DockClickAction {
-        guard !hasModifiers, !hasFullscreenWindows else { return .passThrough }
-        if cycleWindowsEnabled, appIsFrontmost, unminimizedWindowCount > 1 { return .cycleWindows }
+        guard !hasModifiers else { return .passThrough }
+        if cycleWindowsEnabled, appIsFrontmost, !hasFullscreenWindows, unminimizedWindowCount > 1 {
+            return .cycleWindows
+        }
+        if hideEnabled, appIsFrontmost { return .hide }
+        guard !hasFullscreenWindows else { return .passThrough }
         if minimizeEnabled, appIsFrontmost, hasUnminimizedWindows { return .minimize }
         if minimizeEnabled, !hasUnminimizedWindows, hasMinimizedWindows { return .restore }
         return .passThrough

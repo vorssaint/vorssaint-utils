@@ -41,6 +41,13 @@ enum WindowActivator {
                 ? SwitcherAppActivationRetryState(targetPID: item.pid)
                 : nil
             activateApp(app, allWindows: activationPlan.activateAllWindows)
+            if let bundleURL = app.bundleURL {
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.activates = false
+                configuration.addsToRecentItems = false
+                configuration.promptsUserIfNeeded = false
+                NSWorkspace.shared.openApplication(at: bundleURL, configuration: configuration)
+            }
             if let retryState {
                 scheduleAppActivationRetries(targetPID: item.pid,
                                              sourcePID: sourcePID,
@@ -150,11 +157,8 @@ enum WindowActivator {
         windowMinimizedState(windowID: windowID, pid: pid) == true
     }
 
-    /// Three-state minimized check for guards that must fail closed: nil means
-    /// the window could not be resolved or asked, so the caller cannot assume
-    /// "not minimized" — hover peek treats that as hands-off, because peeking
-    /// an unverifiable window is how a stale panel yanks a just-minimized
-    /// window back out.
+    /// Three-state minimized check for callers that must distinguish a window
+    /// reported as restored from one that could not be resolved or queried.
     static func windowMinimizedState(windowID: CGWindowID, pid: pid_t) -> Bool? {
         guard Permissions.shared.accessibility else { return nil }
         let axApp = AXUIElementCreateApplication(pid)

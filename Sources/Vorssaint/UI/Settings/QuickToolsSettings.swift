@@ -23,6 +23,7 @@ struct QuickToolsSettings: View {
     @AppStorage(DefaultsKey.scratchpadShortcutEnabled) private var scratchpadShortcutEnabled = false
     @AppStorage(DefaultsKey.scratchpadRetention) private var scratchpadRetention = ScratchpadRetention.never.rawValue
     @AppStorage(DefaultsKey.scratchpadCloseOnClickOutside) private var scratchpadCloseOnClickOutside = true
+    @AppStorage(DefaultsKey.scratchpadBackgroundOpacity) private var scratchpadBackgroundOpacity = 0.0
     @AppStorage(DefaultsKey.colorPickerFormat) private var colorFormat = "hex"
     @AppStorage(DefaultsKey.colorPickerBareHex) private var colorBareHex = false
     @AppStorage(DefaultsKey.micMuteMenuBarIndicator) private var micMenuBarIndicator = false
@@ -247,6 +248,22 @@ struct QuickToolsSettings: View {
                         .foregroundStyle(.secondary)
                     Toggle(FeatureStrings.scratchpad(l10n.language).closeOnClickOutside,
                            isOn: $scratchpadCloseOnClickOutside)
+                        .onChange(of: scratchpadCloseOnClickOutside) { _, _ in
+                            ScratchpadService.shared.outsideClickPreferenceDidChange()
+                        }
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(FeatureStrings.scratchpad(l10n.language).backgroundOpacity)
+                        Slider(value: scratchpadBackgroundOpacityBinding,
+                               in: ScratchpadSupport.backgroundOpacityRange,
+                               step: 0.05)
+                        HStack {
+                            Text(FeatureStrings.scratchpad(l10n.language).backgroundTranslucent)
+                            Spacer()
+                            Text(FeatureStrings.scratchpad(l10n.language).backgroundOpaque)
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
                     Toggle(l10n.s.quickToolShortcutToggle, isOn: $scratchpadShortcutEnabled)
                         .onChange(of: scratchpadShortcutEnabled) { _, _ in
                             ScratchpadService.shared.syncWithPreferences()
@@ -266,6 +283,13 @@ struct QuickToolsSettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var scratchpadBackgroundOpacityBinding: Binding<Double> {
+        Binding(
+            get: { ScratchpadSupport.sanitizedBackgroundOpacity(scratchpadBackgroundOpacity) },
+            set: { scratchpadBackgroundOpacity = ScratchpadSupport.sanitizedBackgroundOpacity($0) }
+        )
     }
 }
 
