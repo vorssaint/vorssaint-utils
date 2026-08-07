@@ -9,8 +9,8 @@ All notable changes to this project are documented here. The format follows
 ### Summary
 Vorssaint 3.3.1 adds editable recording audio, one-click app installs, Fan Control,
 Switcher rules, edge snapping and tabbed Scratchpads. Scrolling screenshots, Cleaning
-Mode and app removal are more reliable, while Dock Preview titles are clearer and copied
-images open directly in the editor.
+Mode and app removal are more reliable, while Dock Preview titles and Simplified Chinese
+wording are clearer.
 
 ### Added
 - Screen recordings can capture Mac sound and microphone separately. Choose them while
@@ -34,6 +34,8 @@ images open directly in the editor.
   prominent line beneath its preview.
 - Display controls can turn the keyboard light on or off from Settings or the menu bar
   panel.
+- Simplified Chinese wording now follows system terms and uses native punctuation
+  throughout. Thanks to @xueyang-dev.
 - Clean URL can remove additional parameter names you choose under its Settings page.
   Thanks to @lmilojevicc.
 - Temporary screenshot links can be disabled under Screenshot, removing the sharing
