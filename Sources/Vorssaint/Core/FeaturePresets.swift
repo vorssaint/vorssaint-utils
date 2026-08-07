@@ -12,6 +12,20 @@ enum FeaturePreset: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// A clean install starts from the small Essential set before any feature
+    /// binding runs. Updates keep every existing availability choice, and an
+    /// interrupted setup keeps the selection already applied on its purpose
+    /// step.
+    static func prepareFirstRunAvailability(in defaults: UserDefaults = .standard) {
+        guard !defaults.bool(forKey: DefaultsKey.hasOnboarded),
+              defaults.integer(forKey: DefaultsKey.onboardingStep) == 0
+        else { return }
+        let selected = FeaturePreset.essential.features
+        for feature in AppFeature.allCases {
+            defaults.set(selected.contains(feature), forKey: feature.availabilityKey)
+        }
+    }
+
     /// The features the preset keeps installed.
     var features: Set<AppFeature> {
         switch self {
@@ -83,7 +97,9 @@ extension AppFeature {
         case .textSnippets, .autoQuit:
             return .inputs
         case .windowLayout:
-            return UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureEnabled) ? .pointer : .idle
+            return UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureEnabled)
+                || UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled)
+                ? .pointer : .idle
         case .radialMenu:
             // With a side button configured the trigger is a mouse tap;
             // shortcut-only costs nothing at rest.
@@ -97,7 +113,8 @@ extension AppFeature {
         case .pastePlain, .mixer, .soundOutputSwitcher, .micMute,
              .musicBlock, .keepAwake, .brightness, .quickLauncher, .quickToggles, .colorPicker,
              .screenOCR, .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew, .screenshot,
-             .cameraPreview, .scratchpad, .commandBar, .screenRecorder:
+             .cameraPreview, .scratchpad, .commandBar, .screenRecorder, .fanControl,
+             .diskImageInstaller:
             return .idle
         case .appUpdates:
             // The list is on demand; only a background schedule keeps a timer.

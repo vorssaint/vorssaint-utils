@@ -13,7 +13,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     let id: UUID
     /// The content for text entries; empty for images and files, whose display
     /// strings are derived so they never go stale in storage.
-    let text: String
+    var text: String
     var copiedAt: Date
     var pinnedAt: Date?
     let kind: ClipboardHistoryEntryKind
@@ -118,6 +118,22 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     }
 }
 
+enum ClipboardHistoryEditing {
+    static let maxCharacters = 20_000
+
+    static func storableText(_ text: String) -> String? {
+        guard text.count <= maxCharacters,
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return nil }
+        return text
+    }
+
+    static func canSave(original: String, draft: String) -> Bool {
+        guard let text = storableText(draft) else { return false }
+        return text != original
+    }
+}
+
 struct ClipboardHistorySearchCandidate {
     var index: Int
     var text: String
@@ -201,6 +217,16 @@ enum ClipboardHistorySelection {
     static func initialIndex(totalCount: Int) -> Int {
         guard totalCount > 0 else { return 0 }
         return 0
+    }
+
+    static func previewEntry(preferredID: UUID?,
+                             visibleEntries: [ClipboardHistoryEntry],
+                             selectedEntry: ClipboardHistoryEntry?) -> ClipboardHistoryEntry? {
+        if let preferredID,
+           let entry = visibleEntries.first(where: { $0.id == preferredID }) {
+            return entry
+        }
+        return selectedEntry
     }
 }
 

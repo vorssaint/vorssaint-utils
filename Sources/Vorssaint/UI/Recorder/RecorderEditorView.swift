@@ -217,6 +217,18 @@ struct RecorderEditorView: View {
                         .frame(height: 30)
                 }
             }
+            if model.hasAudio(.system) {
+                timelineRow(strings.systemAudioTrackLabel) {
+                    RecorderAudioLane(model: model, source: .system)
+                        .frame(height: 32)
+                }
+            }
+            if model.hasAudio(.microphone) {
+                timelineRow(strings.microphoneTrackLabel) {
+                    RecorderAudioLane(model: model, source: .microphone)
+                        .frame(height: 32)
+                }
+            }
             timelineRow(strings.editorTitle) {
                 Filmstrip(model: model).frame(height: 54)
             }
@@ -284,17 +296,6 @@ struct RecorderEditorView: View {
             }
 
             Spacer()
-
-            Button(action: model.toggleSound) {
-                Image(systemName: model.document.keepsSystemAudio
-                      ? "speaker.wave.2.fill" : "speaker.slash.fill")
-                    .frame(width: 22, height: 18)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.regular)
-            .tint(model.document.keepsSystemAudio ? .accentColor : nil)
-            .screenshotSafeHelp(strings.systemAudioToggle)
-            .accessibilityLabel(strings.systemAudioToggle)
 
             Menu {
                 Picker(strings.qualityLabel, selection: qualityBinding) {
@@ -401,6 +402,81 @@ struct RecorderEditorView: View {
         .screenshotSafeHelp(l10n.s.cleanerRevealInFinder)
         .onDrag { NSItemProvider(contentsOf: url) ?? NSItemProvider() }
         .transition(.opacity)
+    }
+}
+
+// MARK: - Audio timeline
+
+private struct RecorderAudioLane: View {
+    @ObservedObject var model: RecorderEditorModel
+    let source: RecorderAudioSource
+
+    private var strings: RecorderFeatureStrings {
+        FeatureStrings.recorder(L10n.shared.language)
+    }
+
+    private var isKept: Bool { model.keepsAudio(source) }
+    private var gain: Double { model.audioGain(source) }
+    private var tint: Color { source == .system ? .blue : .purple }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            waveform
+                .frame(maxWidth: .infinity)
+                .opacity(isKept ? 1 : 0.3)
+
+            Slider(value: Binding(get: { gain },
+                                  set: { model.setAudioGain($0, for: source) }),
+                   in: RecorderSupport.audioGainRange)
+                .frame(width: 92)
+                .disabled(!isKept)
+                .screenshotSafeHelp(strings.audioVolumeLabel)
+                .accessibilityLabel(strings.audioVolumeLabel)
+
+            Text("\(Int((gain * 100).rounded()))%")
+                .font(.system(size: 10, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .frame(width: 34, alignment: .trailing)
+
+            Button { model.toggleAudio(source) } label: {
+                Image(systemName: isKept ? "xmark" : "arrow.uturn.backward")
+                    .font(.system(size: 10, weight: .semibold))
+                    .frame(width: 18, height: 18)
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(isKept ? Color.secondary : tint)
+            .screenshotSafeHelp(isKept ? strings.removeAudio : strings.restoreAudio)
+            .accessibilityLabel(isKept ? strings.removeAudio : strings.restoreAudio)
+        }
+        .padding(.horizontal, 8)
+        .background(tint.opacity(isKept ? 0.11 : 0.04),
+                    in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(tint.opacity(isKept ? 0.28 : 0.1), lineWidth: 1)
+        }
+    }
+
+    private var waveform: some View {
+        let peaks = model.audioWaveforms[source] ?? []
+        return Canvas { context, size in
+            guard !peaks.isEmpty, size.width > 0 else {
+                let line = Path(CGRect(x: 0, y: size.height / 2, width: size.width, height: 1))
+                context.fill(line, with: .color(tint.opacity(0.35)))
+                return
+            }
+            let step = size.width / CGFloat(peaks.count)
+            for (index, peak) in peaks.enumerated() {
+                let height = max(1, CGFloat(peak) * (size.height - 8))
+                let rect = CGRect(x: CGFloat(index) * step,
+                                  y: (size.height - height) / 2,
+                                  width: max(1, step * 0.68),
+                                  height: height)
+                context.fill(Path(roundedRect: rect, cornerRadius: 0.7),
+                             with: .color(tint.opacity(0.8)))
+            }
+        }
     }
 }
 

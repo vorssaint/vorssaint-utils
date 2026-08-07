@@ -94,11 +94,13 @@ final class RecorderExporter {
         // The trim and the cuts become one continuous asset first, so the
         // reader never has to know that a piece was taken out of the middle.
         let ranges = document.keptRanges(duration: duration)
-        guard let timeline = await RecorderComposition.build(from: asset,
-                                                             ranges: ranges,
-                                                             includesAudio: document.keepsSystemAudio),
-              let timelineVideo = try? await timeline.loadTracks(withMediaType: .video).first
+        let keepsAnyAudio = document.keepsSystemAudio || document.keepsMicrophone
+        guard let result = await RecorderComposition.build(from: asset,
+                                                           ranges: ranges,
+                                                           includesAudio: keepsAnyAudio),
+              let timelineVideo = try? await result.asset.loadTracks(withMediaType: .video).first
         else { return .readFailed }
+        let timeline = result.asset
         let timelineDuration = (try? await timeline.load(.duration)) ?? .zero
 
         // The export preset is folded into the canvas the composer draws, so
@@ -137,7 +139,7 @@ final class RecorderExporter {
 
         let audioTracks = (try? await timeline.loadTracks(withMediaType: .audio)) ?? []
         var audioOutput: AVAssetReaderAudioMixOutput?
-        if document.keepsSystemAudio, !audioTracks.isEmpty {
+        if keepsAnyAudio, !audioTracks.isEmpty {
             let output = AVAssetReaderAudioMixOutput(
                 audioTracks: audioTracks,
                 audioSettings: [
@@ -147,6 +149,8 @@ final class RecorderExporter {
                     AVLinearPCMIsNonInterleaved: false,
                     AVLinearPCMIsBigEndianKey: false,
                 ])
+            output.audioMix = RecorderComposition.audioMix(trackIDs: result.audioTrackIDs,
+                                                           document: document)
             output.alwaysCopiesSampleData = false
             if reader.canAdd(output) {
                 reader.add(output)
@@ -224,9 +228,15 @@ final class RecorderExporter {
             try? FileManager.default.removeItem(at: destination)
             return .cancelled
         }
+        let readerStatus = reader.status
+        guard readerStatus == .completed else {
+            reader.cancelReading()
+            writer.cancelWriting()
+            try? FileManager.default.removeItem(at: destination)
+            return readerStatus == .failed ? .readFailed : .writeFailed
+        }
         progress(0.95)
         await writer.finishWriting()
-        reader.cancelReading()
         guard writer.status == .completed else {
             try? FileManager.default.removeItem(at: destination)
             return .writeFailed
@@ -323,11 +333,12 @@ final class RecorderExporter {
         // so a piece taken out of the middle is genuinely absent here too and
         // the composer is asked for frames on the clock it draws in.
         let ranges = document.keptRanges(duration: duration)
-        guard let timeline = await RecorderComposition.build(from: asset,
-                                                             ranges: ranges,
-                                                             includesAudio: false),
-              let timelineVideo = try? await timeline.loadTracks(withMediaType: .video).first
+        guard let result = await RecorderComposition.build(from: asset,
+                                                           ranges: ranges,
+                                                           includesAudio: false),
+              let timelineVideo = try? await result.asset.loadTracks(withMediaType: .video).first
         else { return .readFailed }
+        let timeline = result.asset
         let outputDuration = CMTimeGetSeconds((try? await timeline.load(.duration)) ?? .zero)
         guard RecorderSupport.gifFitsBudget(duration: outputDuration, fps: fps) else {
             return .tooLongForGIF

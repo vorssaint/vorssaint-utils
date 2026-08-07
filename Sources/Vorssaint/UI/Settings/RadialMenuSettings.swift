@@ -279,6 +279,7 @@ private struct RadialItemRow: View {
         case .url: return text.kindURL
         case .shortcut: return text.kindShortcut
         case .tool: return text.kindTool
+        case .quickToggle: return FeatureStrings.quickToggles(L10n.shared.language).pageTitle
         case .windowLayout: return FeatureStrings.windowLayout(L10n.shared.language).title
         case .media: return text.kindMedia
         case .submenu: return text.kindSubmenu
@@ -423,6 +424,10 @@ private struct RadialItemEditor: View {
         RadialMenuTool.allCases.filter { $0.isRunnable() }
     }
 
+    private var availableQuickToggles: [RadialMenuQuickToggle] {
+        AppFeature.quickToggles.isAvailable ? RadialMenuQuickToggle.allCases : []
+    }
+
     private var urlIsInvalid: Bool {
         item.kind == .url && RadialMenuSupport.normalizedURL(item.payload) == nil
     }
@@ -446,6 +451,10 @@ private struct RadialItemEditor: View {
                     Text(text.kindShortcut).tag(RadialMenuItem.Kind.shortcut)
                     if !availableTools.isEmpty {
                         Text(text.kindTool).tag(RadialMenuItem.Kind.tool)
+                    }
+                    if !availableQuickToggles.isEmpty {
+                        Text(FeatureStrings.quickToggles(l10n.language).pageTitle)
+                            .tag(RadialMenuItem.Kind.quickToggle)
                     }
                     if AppFeature.windowLayout.isAvailable {
                         Text(FeatureStrings.windowLayout(l10n.language).title)
@@ -517,6 +526,7 @@ private struct RadialItemEditor: View {
             shortcutMessage = nil
             switch kind {
             case .tool: item.payload = availableTools.first?.rawValue ?? ""
+            case .quickToggle: item.payload = availableQuickToggles.first?.rawValue ?? ""
             case .windowLayout: item.payload = WindowLayoutAction.leftHalf.rawValue
             case .media: item.payload = RadialMenuMediaKey.playPause.rawValue
             default: item.payload = ""
@@ -570,6 +580,14 @@ private struct RadialItemEditor: View {
                 ForEach(availableTools) { tool in
                     Text(tool.feature.hubTitle(l10n.s, hub: FeatureStrings.hub(l10n.language)))
                         .tag(tool.rawValue)
+                }
+            }
+        case .quickToggle:
+            let quickToggleText = FeatureStrings.quickToggles(l10n.language)
+            Picker(quickToggleText.pageTitle, selection: $item.payload) {
+                ForEach(availableQuickToggles) { action in
+                    Label(action.radialTitle, systemImage: action.symbolName)
+                        .tag(action.rawValue)
                 }
             }
         case .windowLayout:

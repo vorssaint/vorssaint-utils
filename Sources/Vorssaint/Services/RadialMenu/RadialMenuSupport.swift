@@ -9,7 +9,7 @@ import Foundation
 /// value. Submenus keep their actions in `children`.
 struct RadialMenuItem: Codable, Identifiable, Equatable {
     enum Kind: String, Codable, CaseIterable {
-        case app, file, url, shortcut, tool, windowLayout, media, submenu
+        case app, file, url, shortcut, tool, quickToggle, windowLayout, media, submenu
     }
 
     var id = UUID()
@@ -27,6 +27,10 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
         kind == .media ? RadialMenuMediaKey(rawValue: payload) : nil
     }
 
+    var quickToggle: RadialMenuQuickToggle? {
+        kind == .quickToggle ? RadialMenuQuickToggle(rawValue: payload) : nil
+    }
+
     var windowLayoutAction: WindowLayoutAction? {
         kind == .windowLayout ? WindowLayoutAction(rawValue: payload) : nil
     }
@@ -40,6 +44,7 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
         case .url: return "link"
         case .shortcut: return "command"
         case .tool: return tool?.symbolName ?? "wrench.and.screwdriver"
+        case .quickToggle: return quickToggle?.symbolName ?? "togglepower"
         case .windowLayout: return windowLayoutAction?.symbolName ?? AppFeature.windowLayout.symbolName
         case .media:
             switch mediaKey {
@@ -53,6 +58,28 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
 
     var effectiveSymbolName: String {
         symbolName.isEmpty ? defaultSymbolName : symbolName
+    }
+}
+
+/// Quick toggle actions a slice can trigger. Raw values persist inside the
+/// items blob; never rename them.
+enum RadialMenuQuickToggle: String, Codable, CaseIterable, Identifiable {
+    case darkMode, emptyTrash, ejectDisks, hiddenFiles, desktopIcons,
+         lockScreen, displayOff, screenSaver
+
+    var id: String { rawValue }
+
+    var symbolName: String {
+        switch self {
+        case .darkMode: return "moon.fill"
+        case .emptyTrash: return "trash"
+        case .ejectDisks: return "eject.fill"
+        case .hiddenFiles: return "eye"
+        case .desktopIcons: return "desktopcomputer"
+        case .lockScreen: return "lock.fill"
+        case .displayOff: return "display"
+        case .screenSaver: return "sparkles.tv"
+        }
     }
 }
 
@@ -227,6 +254,7 @@ enum RadialMenuSupport {
         case .url: return normalizedURL(item.payload) != nil
         case .shortcut: return GlobalShortcut(storageValue: item.payload) != nil
         case .tool: return item.tool != nil
+        case .quickToggle: return item.quickToggle != nil
         case .windowLayout: return item.windowLayoutAction != nil
         case .media: return item.mediaKey != nil
         case .submenu: return true

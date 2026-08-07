@@ -24,6 +24,13 @@ enum BrightnessSupport {
     static let retryAttempts = 4
     static let replyLength = 11
 
+    static let defaultKeyboardLightLevel: Float = 0.5
+
+    static func keyboardLightOnLevel(lastNonzero: Float?) -> Float {
+        guard let lastNonzero, lastNonzero > 0 else { return defaultKeyboardLightLevel }
+        return min(lastNonzero, 1)
+    }
+
     /// The DDC/CI standard also spaces whole commands apart: a host waits at
     /// least 50ms after one command before starting the next. The pauses
     /// above pace the steps inside a command; without this one, a slider

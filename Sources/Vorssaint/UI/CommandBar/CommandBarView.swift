@@ -10,7 +10,11 @@ import SwiftUI
 struct CommandBarView: View {
     /// Short enough to sit on one line, chosen to show three different things
     /// the bar can do that a list of commands would never reveal.
-    static let examples = ["100 km to mi", "2+2*3", "battery", "fire"]
+    static var examples: [String] {
+        ["100 km to mi", "2+2*3", "battery", "fire"].filter {
+            $0 != "battery" || PowerSampler.hasInternalBattery
+        }
+    }
     /// As tall as the list is ever allowed to be, so the panel never grows
     /// past what a laptop screen can show above the fold.
     static let listCeiling: CGFloat = 452
@@ -150,10 +154,12 @@ struct CommandBarView: View {
                         HStack(spacing: 10) {
                             Image(systemName: action.symbolName)
                                 .font(.system(size: 13.5, weight: .semibold))
-                                .foregroundStyle(Color.primary.opacity(0.85))
+                                .foregroundStyle(action.isDestructive
+                                                 ? Color.red : Color.primary.opacity(0.85))
                                 .frame(width: 30, height: 30)
                             Text(action.title)
                                 .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(action.isDestructive ? Color.red : Color.primary)
                             Spacer(minLength: 12)
                             Image(systemName: "return")
                                 .font(.system(size: 10, weight: .semibold))
@@ -166,7 +172,10 @@ struct CommandBarView: View {
                         .background(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
                                 .fill(index == service.actionIndex
-                                      ? Color.accentColor.opacity(0.14) : .clear)
+                                      ? (action.isDestructive
+                                         ? Color.red.opacity(0.12)
+                                         : Color.accentColor.opacity(0.14))
+                                      : .clear)
                         )
                     }
                     .buttonStyle(.plain)

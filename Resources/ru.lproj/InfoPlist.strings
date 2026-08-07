@@ -4,6 +4,9 @@
 /* macOS Screen & System Audio Recording permission prompt. */
 "NSAudioCaptureUsageDescription" = "Vorssaint обращается к звуку отдельных приложений только для того, чтобы регулировать их громкость в микшере. Ничего не записывается и не покидает ваш Mac.";
 
+/* macOS Microphone permission prompt. */
+"NSMicrophoneUsageDescription" = "Vorssaint записывает микрофон, только когда вы включаете его для записи экрана. Звук остаётся в этой записи на вашем Mac.";
+
 /* macOS Camera permission prompt. */
 "NSCameraUsageDescription" = "Vorssaint показывает вашу камеру только в открытом вами окне предпросмотра, чтобы вы могли проверить, как выглядите перед звонком. Ничего не записывается и не покидает ваш Mac.";
 

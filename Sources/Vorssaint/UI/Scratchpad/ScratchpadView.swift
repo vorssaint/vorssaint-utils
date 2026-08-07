@@ -4,13 +4,15 @@
 import AppKit
 import SwiftUI
 
-/// The scratchpad card: a slim header that drags the panel, the plain-text
-/// editor filling the middle, and a quiet footer with copy, export and clear.
+/// The scratchpad card: a slim header, named tabs, the plain-text editor and a
+/// quiet footer with copy, export and clear.
 struct ScratchpadView: View {
     @ObservedObject private var service = ScratchpadService.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.scratchpadBackgroundOpacity) private var backgroundOpacity = 0.0
     @State private var copied = false
+    @State private var dialog: ScratchpadDialog?
+    @State private var renameDraft = ""
 
     private var text: ScratchpadFeatureStrings { FeatureStrings.scratchpad(l10n.language) }
     private var isEmpty: Bool { service.text.isEmpty }
@@ -18,6 +20,7 @@ struct ScratchpadView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            tabBar
             editor
             footer
         }
@@ -33,6 +36,158 @@ struct ScratchpadView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
         )
+        .alert(dialogTitle, isPresented: dialogIsPresented) {
+            switch dialog {
+            case .rename(let pad):
+                TextField(pad.name, text: $renameDraft)
+                Button(text.cancel, role: .cancel) { dismissDialog() }
+                Button(text.saveName) {
+                    service.renamePad(pad.id, to: renameDraft)
+                    dismissDialog()
+                }
+            case .close(let pad):
+                Button(text.cancel, role: .cancel) { dismissDialog() }
+                Button(text.closePad, role: .destructive) {
+                    _ = service.closePad(pad.id)
+                    dismissDialog()
+                }
+            case nil:
+                EmptyView()
+            }
+        } message: {
+            if case .close(let pad) = dialog {
+                Text(String(format: text.deletePadMessageFormat, pad.name))
+            }
+        }
+    }
+
+    private var tabBar: some View {
+        HStack(spacing: 6) {
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 4) {
+                        ForEach(service.pads) { pad in
+                            tabButton(pad)
+                                .id(pad.id)
+                        }
+                    }
+                    .padding(.vertical, 3)
+                }
+                .onAppear {
+                    guard let selected = service.selectedPadID else { return }
+                    proxy.scrollTo(selected, anchor: .center)
+                }
+                .onChange(of: service.selectedPadID) { _, selected in
+                    guard let selected else { return }
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        proxy.scrollTo(selected, anchor: .center)
+                    }
+                }
+            }
+
+            Button {
+                service.createPad(defaultName: text.pageTitle)
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 22, height: 22)
+            }
+            .buttonStyle(.plain)
+            .disabled(!service.canCreatePad)
+            .help(service.canCreatePad
+                ? text.newPad
+                : String(format: text.padLimitFormat, ScratchpadDocument.maximumPadCount))
+            .accessibilityLabel(text.newPad)
+
+            Menu {
+                if let selectedPad {
+                    Button(text.renamePad) { presentRename(selectedPad) }
+                    Button(text.closePad, role: .destructive) { requestClose(selectedPad) }
+                        .disabled(!service.canClosePad)
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 22, height: 22)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .help(text.padActions)
+            .accessibilityLabel(text.padActions)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 32)
+        .overlay(alignment: .bottom) {
+            Divider().opacity(0.45)
+        }
+    }
+
+    private func tabButton(_ pad: ScratchpadPad) -> some View {
+        let selected = service.selectedPadID == pad.id
+        return Button {
+            service.selectPad(pad.id)
+        } label: {
+            Text(pad.name)
+                .font(.system(size: 11, weight: selected ? .semibold : .regular))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(minWidth: 46, maxWidth: 120)
+                .padding(.horizontal, 8)
+                .frame(height: 24)
+                .foregroundStyle(selected ? Color.primary : Color.secondary)
+                .background {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(selected ? Color.accentColor.opacity(0.16) : Color.clear)
+                }
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button(text.renamePad) { presentRename(pad) }
+            Button(text.closePad, role: .destructive) { requestClose(pad) }
+                .disabled(!service.canClosePad)
+        }
+        .accessibilityLabel(pad.name)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var selectedPad: ScratchpadPad? {
+        service.pads.first(where: { $0.id == service.selectedPadID })
+    }
+
+    private var dialogTitle: String {
+        switch dialog {
+        case .rename: return text.renamePad
+        case .close: return text.closePad
+        case nil: return ""
+        }
+    }
+
+    private var dialogIsPresented: Binding<Bool> {
+        Binding(
+            get: { dialog != nil },
+            set: { if !$0 { dismissDialog() } }
+        )
+    }
+
+    private func presentRename(_ pad: ScratchpadPad) {
+        renameDraft = pad.name
+        dialog = .rename(pad)
+        service.setModalInteractionActive(true)
+    }
+
+    private func requestClose(_ pad: ScratchpadPad) {
+        guard service.canClosePad else { return }
+        if !ScratchpadSupport.requiresCloseConfirmation(pad) {
+            _ = service.closePad(pad.id)
+        } else {
+            dialog = .close(pad)
+            service.setModalInteractionActive(true)
+        }
+    }
+
+    private func dismissDialog() {
+        dialog = nil
+        service.setModalInteractionActive(false)
     }
 
     private var header: some View {
@@ -98,7 +253,7 @@ struct ScratchpadView: View {
             }
             footerButton("square.and.arrow.down", text.exportAction) {
                 service.exportText(suggestedName:
-                    ScratchpadSupport.exportFileName(title: text.pageTitle, date: Date()))
+                    ScratchpadSupport.exportFileName(title: service.selectedPadName, date: Date()))
             }
             Spacer()
             footerButton("trash", text.clearAction) {
@@ -126,6 +281,11 @@ struct ScratchpadView: View {
         .help(label)
         .accessibilityLabel(label)
     }
+}
+
+private enum ScratchpadDialog {
+    case rename(ScratchpadPad)
+    case close(ScratchpadPad)
 }
 
 /// A transparent strip over the header that moves the whole panel when

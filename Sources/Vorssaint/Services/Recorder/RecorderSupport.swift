@@ -212,6 +212,7 @@ enum RecorderSupport {
 
     static let pointerSizeRange: ClosedRange<Double> = 0.5...2.0
     static let zoomAmountRange: ClosedRange<Double> = 1.2...3.0
+    static let audioGainRange: ClosedRange<Double> = 0...1
 
     static func sanitizedPointerSize(_ raw: Double) -> Double {
         guard raw.isFinite else { return 1 }
@@ -221,6 +222,11 @@ enum RecorderSupport {
     static func sanitizedZoomAmount(_ raw: Double) -> Double {
         guard raw.isFinite else { return 1.8 }
         return min(zoomAmountRange.upperBound, max(zoomAmountRange.lowerBound, raw))
+    }
+
+    static func sanitizedAudioGain(_ raw: Double) -> Double {
+        guard raw.isFinite else { return 1 }
+        return min(audioGainRange.upperBound, max(audioGainRange.lowerBound, raw))
     }
 
     /// How big the drawn pointer is in the recording's own pixels. Tied to the

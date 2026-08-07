@@ -8,6 +8,8 @@ struct ClipboardQuickPanelView: View {
     @ObservedObject private var history = ClipboardHistoryService.shared
     @FocusState private var searchFocused: Bool
     @State private var hoveredEntryID: UUID?
+    @State private var previewEntryID: UUID?
+    @State private var previewIsEditing = false
 
     private var text: ClipboardFeatureStrings {
         FeatureStrings.clipboard(l10n.language)
@@ -17,29 +19,53 @@ struct ClipboardQuickPanelView: View {
         history.filteredQuickEntries
     }
 
+    private var previewEntry: ClipboardHistoryEntry? {
+        ClipboardHistorySelection.previewEntry(preferredID: previewEntryID,
+                                               visibleEntries: filtered,
+                                               selectedEntry: history.selectedQuickEntry)
+    }
+
     private var canReorderEntries: Bool {
         history.quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-            search
-            content
-            footer
+        HStack(alignment: .top, spacing: 0) {
+            VStack(alignment: .leading, spacing: 12) {
+                header
+                search
+                content
+                footer
+            }
+            .padding(.trailing, 12)
+            Divider()
+            ClipboardEntryPreviewSidebar(text: text,
+                                         entry: previewEntry,
+                                         isEditing: $previewIsEditing)
+                .frame(width: 280)
         }
         .padding(16)
-        .frame(width: 520, height: 560, alignment: .topLeading)
+        .frame(width: 800, height: 560, alignment: .topLeading)
         .background(.regularMaterial)
         .onAppear {
             hoveredEntryID = nil
+            previewEntryID = history.selectedQuickEntryID
             DispatchQueue.main.async { searchFocused = true }
         }
         .onDisappear {
             hoveredEntryID = nil
+            previewEntryID = nil
+            previewIsEditing = false
+        }
+        .onChange(of: history.quickSelectionIndex) { _, _ in
+            previewEntryID = history.selectedQuickEntryID
+        }
+        .onChange(of: history.quickQuery) { _, _ in
+            previewEntryID = history.selectedQuickEntryID
         }
         .onChange(of: history.quickWindowPresentationID) { _, _ in
             hoveredEntryID = nil
+            previewEntryID = history.selectedQuickEntryID
         }
     }
 
@@ -272,6 +298,9 @@ struct ClipboardQuickPanelView: View {
             withAnimation(.easeOut(duration: 0.12)) {
                 hoveredEntryID = hovering ? entry.id : (hoveredEntryID == entry.id ? nil : hoveredEntryID)
             }
+            if hovering, !previewIsEditing {
+                previewEntryID = entry.id
+            }
         }
         .onTapGesture {
             // Finder muscle memory: ⌘-click and ⇧-click build a selection.
@@ -289,7 +318,6 @@ struct ClipboardQuickPanelView: View {
                 history.copyQuickEntry(entry)
             }
         }
-        .help(entry.preview)
     }
 
     @ViewBuilder
@@ -300,7 +328,6 @@ struct ClipboardQuickPanelView: View {
                 .font(.system(size: 11.5))
                 .lineLimit(3)
                 .truncationMode(.tail)
-                .help(entry.preview)
         case .image:
             HStack(alignment: .center, spacing: 8) {
                 if let name = entry.imageFile,

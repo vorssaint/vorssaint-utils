@@ -276,3 +276,253 @@ enum WindowGestureSupport {
                               edges: edges)
     }
 }
+
+enum WindowEdgeDragClassification: Equatable {
+    case waiting
+    case moving
+    case resizing
+    case unrelated
+}
+
+struct WindowEdgeSnapScreen: Equatable {
+    let frame: CGRect
+    let visibleFrame: CGRect
+}
+
+struct WindowEdgeSnapTarget: Equatable {
+    let action: WindowLayoutAction
+    let frame: CGRect
+    let visibleFrame: CGRect
+}
+
+enum WindowEdgeSnapSupport {
+    static let activationDistance: CGFloat = 12
+    static let resizeCornerDistance: CGFloat = 12
+    static let resizeEdgeDistance: CGFloat = 5
+    static let desktopAndDockSettingsURL = URL(
+        string: "x-apple.systempreferences:com.apple.Desktop-Settings.extension"
+    )!
+    private static let systemTilingKeys = [
+        "EnableTilingByEdgeDrag",
+        "EnableTilingOptionAccelerator",
+        "EnableTopTilingByEdgeDrag",
+    ]
+    private static let movementThreshold: CGFloat = 2
+    private static let sizeTolerance: CGFloat = 2
+
+    static var isSystemTilingEnabled: Bool {
+        guard #available(macOS 15.0, *),
+              let defaults = UserDefaults(suiteName: "com.apple.WindowManager") else { return false }
+        return systemTilingEnabled { key in
+            guard defaults.object(forKey: key) != nil else { return nil }
+            return defaults.bool(forKey: key)
+        }
+    }
+
+    /// The system's edge tiling choices arrive enabled when their preference
+    /// has never been written. Keeping this pure makes the conflict gate
+    /// testable without changing somebody's desktop settings.
+    static func systemTilingEnabled(valueFor: (String) -> Bool?) -> Bool {
+        systemTilingKeys.contains { valueFor($0) ?? true }
+    }
+
+    static var isSystemTopWindowOverviewDragEnabled: Bool {
+        guard #available(macOS 15.0, *) else { return true }
+        guard let defaults = UserDefaults(suiteName: "com.apple.dock") else { return true }
+        let key = "enterMissionControlByTopWindowDrag"
+        let value = defaults.object(forKey: key).map { _ in defaults.bool(forKey: key) }
+        return systemTopWindowOverviewDragEnabled(value: value)
+    }
+
+    /// The top-edge gesture also arrives enabled before its preference is
+    /// written. The event tap keeps a confirmed window drag away from the
+    /// physical top while edge snapping uses the menu bar's lower boundary.
+    static func systemTopWindowOverviewDragEnabled(value: Bool?) -> Bool {
+        value ?? true
+    }
+
+    /// Keeps a confirmed window drag one point inside the display while the
+    /// pointer is pressed against its top edge. The snap target still sees the
+    /// edge, but the system never receives the exact coordinate that opens its
+    /// window overview. Callers must only use this after proving that a window,
+    /// rather than content inside it, is moving.
+    static func locationAvoidingSystemTopDrag(_ point: CGPoint,
+                                              screenFrames: [CGRect]) -> CGPoint {
+        guard let screen = screenFrames.first(where: {
+            point.x >= $0.minX && point.x <= $0.maxX
+                && abs(point.y - $0.minY) < 0.5
+        }) else { return point }
+        return CGPoint(x: point.x, y: screen.minY + 1)
+    }
+
+    static func startsAtResizeHandle(_ point: CGPoint,
+                                     frame: CGRect) -> Bool {
+        guard point.x >= frame.minX - resizeCornerDistance,
+              point.x <= frame.maxX + resizeCornerDistance,
+              point.y >= frame.minY - resizeCornerDistance,
+              point.y <= frame.maxY + resizeCornerDistance else { return false }
+        let nearVerticalCorner = abs(point.x - frame.minX) <= resizeCornerDistance
+            || abs(point.x - frame.maxX) <= resizeCornerDistance
+        let nearHorizontalCorner = abs(point.y - frame.minY) <= resizeCornerDistance
+            || abs(point.y - frame.maxY) <= resizeCornerDistance
+        let nearEdge = abs(point.x - frame.minX) <= resizeEdgeDistance
+            || abs(point.x - frame.maxX) <= resizeEdgeDistance
+            || abs(point.y - frame.minY) <= resizeEdgeDistance
+            || abs(point.y - frame.maxY) <= resizeEdgeDistance
+        return nearEdge || (nearVerticalCorner && nearHorizontalCorner)
+    }
+
+    /// A pointer drag is only a window move after the same window follows it.
+    /// Content drags leave the frame still, while native resizing keeps at
+    /// least two frame edges anchored. Neither may turn into a placement just
+    /// because the pointer ends at a screen edge. A tiled window restoring its
+    /// old size while it starts moving is still a move.
+    static func classify(initialFrame: CGRect,
+                         currentFrame: CGRect,
+                         pointerStart: CGPoint,
+                         pointerNow: CGPoint) -> WindowEdgeDragClassification {
+        let sizeChanged = abs(currentFrame.width - initialFrame.width) > sizeTolerance
+            || abs(currentFrame.height - initialFrame.height) > sizeTolerance
+        if sizeChanged, sharesPerpendicularEdges(initialFrame, currentFrame) {
+            return .resizing
+        }
+
+        let windowDelta = CGPoint(x: currentFrame.minX - initialFrame.minX,
+                                  y: currentFrame.minY - initialFrame.minY)
+        let pointerDelta = CGPoint(x: pointerNow.x - pointerStart.x,
+                                   y: pointerNow.y - pointerStart.y)
+        let windowDistance = hypot(windowDelta.x, windowDelta.y)
+        guard windowDistance > movementThreshold else { return .waiting }
+
+        let pointerDistance = hypot(pointerDelta.x, pointerDelta.y)
+        guard pointerDistance > movementThreshold else { return .unrelated }
+        let alignment = (windowDelta.x * pointerDelta.x + windowDelta.y * pointerDelta.y)
+            / (windowDistance * pointerDistance)
+        let ratio = windowDistance / pointerDistance
+        return alignment >= 0.6 && ratio >= 0.2 && ratio <= 1.8 ? .moving : .unrelated
+    }
+
+    /// Resolves the hot zone under an AppKit-coordinate pointer. Screen frames
+    /// choose the reachable edge; visible frames keep the result clear of the
+    /// menu bar and Dock. A seam shared by two displays is not an edge, so a
+    /// window can cross it without being caught halfway through.
+    static func target(at point: CGPoint,
+                       screens: [WindowEdgeSnapScreen],
+                       distance: CGFloat = activationDistance) -> WindowEdgeSnapTarget? {
+        let ordered = screens.enumerated().sorted {
+            distanceSquared(from: point, to: $0.element.frame)
+                < distanceSquared(from: point, to: $1.element.frame)
+        }
+        for (index, screen) in ordered {
+            let frame = screen.frame
+            guard frame.width > 0, frame.height > 0,
+                  screen.visibleFrame.width > 0, screen.visibleFrame.height > 0,
+                  point.x >= frame.minX - distance,
+                  point.x <= frame.maxX + distance,
+                  point.y >= frame.minY - distance,
+                  point.y <= frame.maxY + distance
+            else { continue }
+
+            let otherFrames = screens.enumerated().compactMap { offset, value in
+                offset == index ? nil : value.frame
+            }
+            let nearLeft = abs(point.x - frame.minX) <= distance
+                && !hasNeighbor(beyond: .left, point: point, distance: distance, frames: otherFrames)
+            let nearRight = abs(point.x - frame.maxX) <= distance
+                && !hasNeighbor(beyond: .right, point: point, distance: distance, frames: otherFrames)
+            let visibleTop = min(max(screen.visibleFrame.maxY, frame.minY), frame.maxY)
+            let physicalTop = CGPoint(x: point.x, y: frame.maxY)
+            let nearTop = point.y >= visibleTop - distance
+                && point.y <= frame.maxY + distance
+                && !hasNeighbor(beyond: .top,
+                                point: physicalTop,
+                                distance: distance,
+                                frames: otherFrames)
+            let nearBottom = abs(point.y - frame.minY) <= distance
+                && !hasNeighbor(beyond: .bottom, point: point, distance: distance, frames: otherFrames)
+            guard nearLeft || nearRight || nearTop || nearBottom else { continue }
+
+            let horizontalCorner = min(max(frame.width * 0.18, 96), 180)
+            let verticalCorner = min(max(frame.height * 0.18, 80), 160)
+            let action: WindowLayoutAction
+            if nearTop {
+                if point.x <= frame.minX + horizontalCorner {
+                    action = .topLeft
+                } else if point.x >= frame.maxX - horizontalCorner {
+                    action = .topRight
+                } else {
+                    action = .topHalf
+                }
+            } else if nearBottom {
+                if point.x <= frame.minX + horizontalCorner {
+                    action = .bottomLeft
+                } else if point.x >= frame.maxX - horizontalCorner {
+                    action = .bottomRight
+                } else {
+                    action = .bottomHalf
+                }
+            } else if nearLeft {
+                if point.y >= frame.maxY - verticalCorner {
+                    action = .topLeft
+                } else if point.y <= frame.minY + verticalCorner {
+                    action = .bottomLeft
+                } else {
+                    action = .leftHalf
+                }
+            } else {
+                if point.y >= frame.maxY - verticalCorner {
+                    action = .topRight
+                } else if point.y <= frame.minY + verticalCorner {
+                    action = .bottomRight
+                } else {
+                    action = .rightHalf
+                }
+            }
+
+            let targetFrame = WindowLayoutGeometry.rect(for: action,
+                                                        current: screen.visibleFrame,
+                                                        visibleFrame: screen.visibleFrame)
+            return WindowEdgeSnapTarget(action: action,
+                                        frame: targetFrame.integral,
+                                        visibleFrame: screen.visibleFrame)
+        }
+        return nil
+    }
+
+    private enum Edge {
+        case left, right, top, bottom
+    }
+
+    private static func hasNeighbor(beyond edge: Edge,
+                                    point: CGPoint,
+                                    distance: CGFloat,
+                                    frames: [CGRect]) -> Bool {
+        var probe = point
+        switch edge {
+        case .left: probe.x -= distance + 1
+        case .right: probe.x += distance + 1
+        case .top: probe.y += distance + 1
+        case .bottom: probe.y -= distance + 1
+        }
+        return frames.contains { inclusiveContains($0, probe) }
+    }
+
+    private static func sharesPerpendicularEdges(_ lhs: CGRect, _ rhs: CGRect) -> Bool {
+        let sharesVerticalEdge = abs(lhs.minX - rhs.minX) <= sizeTolerance
+            || abs(lhs.maxX - rhs.maxX) <= sizeTolerance
+        let sharesHorizontalEdge = abs(lhs.minY - rhs.minY) <= sizeTolerance
+            || abs(lhs.maxY - rhs.maxY) <= sizeTolerance
+        return sharesVerticalEdge && sharesHorizontalEdge
+    }
+
+    private static func inclusiveContains(_ frame: CGRect, _ point: CGPoint) -> Bool {
+        point.x >= frame.minX && point.x <= frame.maxX
+            && point.y >= frame.minY && point.y <= frame.maxY
+    }
+
+    private static func distanceSquared(from point: CGPoint, to frame: CGRect) -> CGFloat {
+        let dx = max(frame.minX - point.x, 0, point.x - frame.maxX)
+        let dy = max(frame.minY - point.y, 0, point.y - frame.maxY)
+        return dx * dx + dy * dy
+    }
+}

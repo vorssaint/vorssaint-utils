@@ -335,21 +335,12 @@ private struct DockPreviewCard: View {
             .frame(width: DockPreviewSupport.cardWidth - 18,
                    height: DockPreviewSupport.cardHeight - 54)
 
-            VStack(spacing: 1) {
-                Text(window.displaySubtitle ?? window.displayTitle)
-                    .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .foregroundStyle(isSelected ? .primary : .secondary)
-                if window.displaySubtitle != nil {
-                    Text(window.displayTitle)
-                        .font(.system(size: 9.5, weight: .medium))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            .frame(height: 24, alignment: .top)
+            Text(window.displayTitle)
+                .font(.system(size: 12, weight: .semibold))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .foregroundStyle(.primary)
+                .frame(height: 24)
                 .frame(maxWidth: DockPreviewSupport.cardWidth - 22)
         }
         .padding(9)

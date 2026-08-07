@@ -188,6 +188,9 @@ struct GlobalShortcut: Equatable, Hashable {
     // E opens the latest capture in the editor, beside the capture shortcut.
     static let screenshotLastCaptureDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_E),
                                                              modifiers: [.control, .option, .command])
+    // P opens a copied image in the editor, beside the other screenshot tools.
+    static let screenshotClipboardDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_P),
+                                                           modifiers: [.control, .option, .command])
     // Space for the wheel, on the same free control-option-command layer.
     static let radialMenuDefault = GlobalShortcut(keyCode: Int64(kVK_Space),
                                                   modifiers: [.control, .option, .command])
@@ -528,6 +531,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case screenshot
     case screenshotFullScreen
     case screenshotLastCapture
+    case screenshotClipboard
     case cameraPreview
     case radialMenu
     case scratchpad
@@ -554,6 +558,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenshot: return DefaultsKey.screenshotShortcut
         case .screenshotFullScreen: return DefaultsKey.screenshotFullScreenShortcut
         case .screenshotLastCapture: return DefaultsKey.screenshotLastCaptureShortcut
+        case .screenshotClipboard: return DefaultsKey.screenshotClipboardShortcut
         case .cameraPreview: return DefaultsKey.cameraPreviewShortcut
         case .radialMenu: return DefaultsKey.radialMenuShortcut
         case .scratchpad: return DefaultsKey.scratchpadShortcut
@@ -580,6 +585,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenshot: return .screenshotDefault
         case .screenshotFullScreen: return .screenshotFullScreenDefault
         case .screenshotLastCapture: return .screenshotLastCaptureDefault
+        case .screenshotClipboard: return .screenshotClipboardDefault
         case .cameraPreview: return .cameraPreviewDefault
         case .radialMenu: return .radialMenuDefault
         case .scratchpad: return .scratchpadDefault
@@ -612,6 +618,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return FeatureStrings.screenshot(L10n.shared.language).fullScreenShortcutTitle
         case .screenshotLastCapture:
             return FeatureStrings.screenshot(L10n.shared.language).editLastCapture
+        case .screenshotClipboard:
+            return FeatureStrings.screenshot(L10n.shared.language).editClipboardImage
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
@@ -651,6 +659,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenshot: return [DefaultsKey.screenshotShortcutEnabled]
         case .screenshotFullScreen: return [DefaultsKey.screenshotFullScreenShortcutEnabled]
         case .screenshotLastCapture: return [DefaultsKey.screenshotLastCaptureShortcutEnabled]
+        case .screenshotClipboard: return [DefaultsKey.screenshotClipboardShortcutEnabled]
         case .cameraPreview: return [DefaultsKey.cameraPreviewShortcutEnabled]
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         case .scratchpad: return [DefaultsKey.scratchpadShortcutEnabled]
@@ -676,7 +685,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenOCR: return .screenOCR
         case .micMute: return .micMute
         case .quickLauncher: return .quickLauncher
-        case .screenshot, .screenshotFullScreen, .screenshotLastCapture: return .screenshot
+        case .screenshot, .screenshotFullScreen, .screenshotLastCapture, .screenshotClipboard:
+            return .screenshot
         case .cameraPreview: return .cameraPreview
         case .radialMenu: return .radialMenu
         case .scratchpad: return .scratchpad
@@ -709,4 +719,50 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             isAvailable(role.feature) && role.requiredEnableKeys.allSatisfy(isOn)
         }
     }
+}
+
+/// macOS answers its own shortcuts before an application hotkey ever sees the
+/// key, and it does not consume it, so a combination shared with the system
+/// fires both: the system screenshot picker opens and the app's own capture
+/// starts behind it. The system list is the only one that can be inspected —
+/// hotkeys other applications register are not published anywhere — so this
+/// catches the collisions it can and leaves the rest to the registration
+/// failure the shortcut rows already report.
+extension GlobalShortcut {
+    /// The system's shortcut list. Read fresh every time: it can change in
+    /// System Settings while a shortcut field is open.
+    static var systemSymbolicHotKeys: [String: Any]? {
+        UserDefaults(suiteName: "com.apple.symbolichotkeys")?
+            .dictionary(forKey: "AppleSymbolicHotKeys")
+    }
+
+    var conflictsWithSystemShortcut: Bool {
+        Self.matchesSystemShortcut(self, symbolicHotKeys: Self.systemSymbolicHotKeys)
+    }
+
+    /// Whether an enabled system shortcut uses exactly this combination. Entries
+    /// store `[character, key code, modifier mask]`, with the mask in
+    /// `NSEvent.ModifierFlags` bits, and a disabled entry is not in anyone's
+    /// way. Anything that does not parse is ignored rather than guessed at: a
+    /// wrong match would refuse a combination the user can legitimately take.
+    static func matchesSystemShortcut(_ shortcut: GlobalShortcut,
+                                      symbolicHotKeys: [String: Any]?) -> Bool {
+        guard let symbolicHotKeys else { return false }
+        return symbolicHotKeys.values.contains { entry in
+            guard let entry = entry as? [String: Any],
+                  (entry["enabled"] as? NSNumber)?.boolValue == true,
+                  let value = entry["value"] as? [String: Any],
+                  (value["type"] as? String) == "standard",
+                  let parameters = value["parameters"] as? [NSNumber],
+                  parameters.count >= 3
+            else { return false }
+            let keyCode = parameters[1].int64Value
+            guard keyCode == shortcut.keyCode, keyCode != Self.noKeyCode else { return false }
+            let flags = NSEvent.ModifierFlags(rawValue: UInt(parameters[2].uintValue))
+            return GlobalShortcutModifiers(eventFlags: flags) == shortcut.modifiers
+        }
+    }
+
+    /// The placeholder a system entry carries when it has no key assigned.
+    private static let noKeyCode: Int64 = 0xFFFF
 }

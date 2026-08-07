@@ -317,6 +317,7 @@ final class RadialMenuService: ObservableObject {
         items.compactMap { item in
             var item = item
             if let tool = item.tool, !tool.isRunnable() { return nil }
+            if item.kind == .quickToggle, !AppFeature.quickToggles.isAvailable { return nil }
             if item.kind == .windowLayout, !AppFeature.windowLayout.isAvailable { return nil }
             if item.kind == .submenu {
                 item.children = availableItems(item.children)
@@ -586,6 +587,8 @@ final class RadialMenuService: ObservableObject {
             }
         case .tool:
             if let tool = item.tool { run(tool) }
+        case .quickToggle:
+            if let action = item.quickToggle { run(action) }
         case .windowLayout:
             if let action = item.windowLayoutAction { run(action) }
         case .submenu:
@@ -610,6 +613,23 @@ final class RadialMenuService: ObservableObject {
             case .shelf: ShelfService.shared.summon()
             case .cleaningMode: CleaningModeManager.shared.activate()
             case .keepAwake: KeepAwakeManager.shared.toggle()
+            }
+        }
+    }
+
+    private func run(_ action: RadialMenuQuickToggle) {
+        guard AppFeature.quickToggles.isAvailable else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            let toggles = QuickTogglesService.shared
+            switch action {
+            case .darkMode: toggles.toggleDarkMode()
+            case .emptyTrash: toggles.emptyTrash()
+            case .ejectDisks: toggles.ejectAllDisks()
+            case .hiddenFiles: toggles.toggleHiddenFiles()
+            case .desktopIcons: toggles.toggleDesktopIcons()
+            case .lockScreen: toggles.lockScreen()
+            case .displayOff: toggles.turnDisplayOff()
+            case .screenSaver: toggles.startScreenSaver()
             }
         }
     }

@@ -4,19 +4,114 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [3.3.0]
+## [3.3.1]
 
 ### Summary
-Vorssaint 3.3.0 records the screen with automatic zooms, captures long scrolling
-pages and lets screenshot annotations move forward or backward. Finder gains
-image tools and shortcuts, Window Layout restores recent placements, and the
-menu bar gains better sound, process and display controls.
+Vorssaint 3.3.1 adds editable recording audio, one-click app installs, Fan Control,
+Switcher rules, edge snapping and tabbed Scratchpads. Scrolling screenshots, Cleaning
+Mode and app removal are more reliable, while Dock Preview titles are clearer and copied
+images open directly in the editor.
+
+### Added
+- Screen recordings can capture Mac sound and microphone separately. Choose them while
+  selecting, then adjust or remove each track in the editor.
+- A mounted disk image with one app can install it into Applications, eject itself and
+  move its download to the Trash. Off by default in Features.
+- A configurable shortcut opens a copied image directly in the screenshot editor.
+  Under Screenshot, off by default. Thanks to @neon443.
+- Window Layout can preview and place a window dragged to any screen edge or corner.
+  Off by default.
+- Per-app Switcher rules can include apps without windows, keep them window-only,
+  or hide them from the Switcher. Under Switcher. Thanks to @Yahddyyp.
+- Dock clicks can hide the active app instead of minimizing its windows, off by
+  default under Switcher. Thanks to @sidbena.
+- Screenshots can include ordinary Vorssaint windows, and recordings can select them
+  like other windows, while capture controls stay out. Off by default under Screenshot.
+  Thanks to @PathGao.
+
+### Changed
+- Dock Preview shows slightly larger thumbnails and gives every window title a clear,
+  prominent line beneath its preview.
+- Display controls can turn the keyboard light on or off from Settings or the menu bar
+  panel.
+- Clean URL can remove additional parameter names you choose under its Settings page.
+  Thanks to @lmilojevicc.
+- Temporary screenshot links can be disabled under Screenshot, removing the sharing
+  controls from the preview and editor.
+- The radial menu can run Quick toggle actions such as appearance, screen lock
+  and hidden files.
+- The Command Bar opens a web address typed directly into it. Thanks to @tingke.
+- Clipboard history shows each item in full beside the list. Text is selectable and
+  editable there. Thanks to @notdanna and @ghostman-git.
+- Memory readouts can focus on memory held by apps instead of total memory in use.
+  Under Monitor. Thanks to @WazZro.
+- Mouse feature exceptions can now choose apps from anywhere on the Mac.
+  Thanks to @kyteidev.
+- The optional Fan Control beta shows live fan speed in the panel and menu bar.
+  It can cool at maximum for 15 minutes, then returns to automatic control.
+- Window Layout can move the active window to the previous display, with an optional
+  shortcut. Thanks to @owen-vromans.
+- The screenshot preview can stay near the capture or appear in any screen corner.
+  Under Screenshot. Thanks to @lmilojevicc.
+- Keep Awake can optionally toggle with a right click on the menu bar icon.
+  Under Energy. Thanks to @yspreen.
+- The window shortcut now opens the switcher for the app in front, without
+  opening the app list first. Thanks to @mrevanzak.
+- The Uninstaller now finds more configuration, cache and helper files owned by
+  the selected app. Thanks to @lmilojevicc.
+- Scratchpad can keep several named notes in tabs, including their order and
+  current selection in Settings backups.
+- Clipboard History settings now follow its main switch, while saved items remain
+  searchable, reusable and clearable when new capture is off. Thanks to @PathGao.
+
+### Fixed
+- Scrolling screenshots accept a window with one click, wait for pages to settle
+  and keep capturing long pages without stopping early.
+- Copy text from screen retries with a different recognition path when the first
+  pass finds nothing.
+- Screen recording now freezes the display while an area is chosen. Escape cancels
+  selection even if another app took focus.
+- Cleaning Mode stays locked until you click Unlock or press Escape five times.
+  Trackpad gestures no longer move the screen while cleaning.
+- Windowless apps now keep their labels aligned in the App Switcher's Small size.
+  Thanks to @Yahddyyp.
+- Small app icons now keep the correct artwork in Finder. Thanks to @slrgt.
+- Adobe app windows now appear in App Switcher, Command Tab and Dock Preview.
+- Newly placed screenshot annotations can be moved, resized or edited immediately
+  while their selection remains active.
+- The menu bar panel no longer leaves a focus outline on a different section than
+  the one being shown.
+- The System panel no longer shows battery readings on Macs without a battery.
+- The package manager page and Settings sidebar now keep their tops visible and
+  scroll normally.
+- Apps listed under Apps to leave alone now also keep scrolling they generate
+  themselves.
+- Dock Preview cards now leave your current app in front while you browse.
+  A window opens only when you click its card.
+- Side-wheel directions can now carry separate mouse shortcuts. Thanks to @JoeMo-GenX.
+- Shortcut fields now reject combinations already used by macOS, avoiding both
+  actions running together. Thanks to @PathGao.
+- In-app updates now stop downloads that exceed the release's expected size.
+  Thanks to @PathGao.
+- The Uninstaller now stops an app's background parts before moving it to the Trash.
+  Thanks to @SeoliteQ.
+
+## [3.3.0] - 2026-08-04
+
+### Summary
+Vorssaint 3.3.0 records the screen, captures and shares screenshots, and improves
+annotation order. Finder and Window Layout gain new tools and refinements, while
+setup and the Command Bar make features, feedback and saved searches easier to use.
 
 ### Added
 - Screen recording with automatic zooms for clicks and typing, reusable presets,
   direct copy, and video or GIF export. Off by default.
-- Scrolling screenshots join long pages and documents into one image, from
-  Screenshot or the Command Bar. Thanks to @ruvelro.
+- Screenshots can create temporary links for 1, 6 or 24 hours from the preview or
+  editor, with clear privacy details.
+- Scrolling screenshots join long pages into one image and stop exactly where
+  you choose. From Screenshot or the Command Bar. Thanks to @ruvelro.
+- Bug reports and feature ideas can be sent from General or the Command Bar,
+  with optional technical details shown before sending.
 - A slider for how solid the Dock preview panel looks. Under Switcher, with
   Dock Preview on. Thanks to @ruvelro.
 - Window thumbnail capture can pause while chosen apps are in front. Under
@@ -33,6 +128,10 @@ menu bar gains better sound, process and display controls.
   Under Quick Tools. Thanks to @hash00.
 
 ### Changed
+- First setup now asks what you want before requesting only the permissions
+  those choices need. Features remain available later in Settings.
+- The Command Bar can quit, restart, force quit or send an app to the
+  Uninstaller. Newly installed apps appear when the bar reopens.
 - Screenshot annotations can move forward or backward through the drawing
   order, with undo support. Thanks to @hash00.
 - The System panel can open the Mac's full process inspector from its usage
@@ -56,6 +155,10 @@ menu bar gains better sound, process and display controls.
   under Energy. Thanks to @hash00.
 
 ### Fixed
+- Quit on close now protects every part of an excepted app, including windows
+  run through bundled components.
+- Window Layout shortcuts now arrange the active Settings window too. Thanks to
+  @vraravam.
 - Menu bar readings now dim with the rest of the bar on displays that are not
   active. Thanks to @JaffryGao.
 - The App Switcher's initial selection no longer loses part of its border when
@@ -90,6 +193,8 @@ menu bar gains better sound, process and display controls.
   everywhere, including the window shortcuts. Thanks to @hash00.
 - A saved search in the Command Bar stays in the list while you type what to
   look for after its name. Thanks to @tenbux.
+- Saved Command Bar searches now work with spaces produced by Chinese input
+  methods. Thanks to @tingke.
 
 ## [3.2.0] - 2026-07-31
 

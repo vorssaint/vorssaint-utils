@@ -58,6 +58,28 @@ enum AutoQuitSupport {
         return !hasUserFacingWindow
     }
 
+    /// An exception for an installed app also covers UI processes bundled
+    /// inside it. Some apps put their main windows in a nested application
+    /// with a different identifier, even though the user picked the outer app.
+    static func isExcepted(bundleIdentifier: String?,
+                           bundleURL: URL?,
+                           exceptions: [String]) -> Bool {
+        if let bundleIdentifier, exceptions.contains(bundleIdentifier) { return true }
+        guard var url = bundleURL?.standardizedFileURL.deletingLastPathComponent() else { return false }
+
+        while url.path != "/" {
+            if url.pathExtension.caseInsensitiveCompare("app") == .orderedSame,
+               let containingIdentifier = Bundle(url: url)?.bundleIdentifier,
+               exceptions.contains(containingIdentifier) {
+                return true
+            }
+            let parent = url.deletingLastPathComponent()
+            guard parent != url else { break }
+            url = parent
+        }
+        return false
+    }
+
     static func isCommandW(keyCode: Int64, command: Bool, control: Bool) -> Bool {
         keyCode == commandWKeyCode && command && !control
     }

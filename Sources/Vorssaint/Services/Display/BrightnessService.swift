@@ -3,6 +3,7 @@
 
 import AppKit
 import IOKit.graphics
+import ObjectiveC.runtime
 import os
 
 /// One display the brightness feature can talk to.
@@ -59,6 +60,7 @@ final class BrightnessService: ObservableObject {
     @Published private(set) var pendingDisplayIDs = Set<CGDirectDisplayID>()
     @Published private(set) var displayControlFailure: DisplayControlFailure?
     @Published private(set) var brightnessOSDSupported = false
+    @Published private(set) var keyboardLightEnabled: Bool?
 
     enum DisplayControlFailure: Equatable {
         case unavailable
@@ -195,10 +197,40 @@ final class BrightnessService: ObservableObject {
     /// last row so the panel still offers the button that brings it back.
     private var managedDisabledDisplays: [CGDirectDisplayID: BrightnessDisplay] = [:]
     private var running = false
+    private var keyboardLightLevel: Float?
+    private var lastKeyboardLightLevel: Float = BrightnessSupport.defaultKeyboardLightLevel
+    private lazy var keyboardLightBridge = KeyboardLightBridge()
     /// Stale rebuilds (an unplug mid-scan) must not overwrite fresh state.
     private var rebuildGeneration = 0
 
     private init() {}
+
+    func setKeyboardLightEnabled(_ enabled: Bool) {
+        guard keyboardLightEnabled != nil, let keyboardLightBridge else { return }
+        if !enabled, let level = keyboardLightLevel, level > 0 {
+            lastKeyboardLightLevel = level
+        }
+        let target = enabled
+            ? BrightnessSupport.keyboardLightOnLevel(lastNonzero: lastKeyboardLightLevel)
+            : 0
+        guard keyboardLightBridge.setBrightness(target) else {
+            refreshKeyboardLight()
+            return
+        }
+        keyboardLightLevel = target
+        keyboardLightEnabled = target > 0
+    }
+
+    private func refreshKeyboardLight() {
+        guard let level = keyboardLightBridge?.brightness(), level >= 0, level <= 1 else {
+            keyboardLightLevel = nil
+            keyboardLightEnabled = nil
+            return
+        }
+        keyboardLightLevel = level
+        if level > 0 { lastKeyboardLightLevel = level }
+        keyboardLightEnabled = level > 0
+    }
 
     func syncWithPreferences() {
         let wanted = AppFeature.brightness.isAvailable
@@ -243,6 +275,8 @@ final class BrightnessService: ObservableObject {
         pendingDisplayIDs = []
         displayControlFailure = nil
         brightnessOSDSupported = false
+        keyboardLightLevel = nil
+        keyboardLightEnabled = nil
         BrightnessOSD.teardown()
         if !displays.isEmpty { displays = [] }
         // Restore displays and gamma on the work queue, AFTER any operation
@@ -1228,6 +1262,7 @@ final class BrightnessService: ObservableObject {
             if self.brightnessOSDSupported != supportsBrightnessOSD {
                 self.brightnessOSDSupported = supportsBrightnessOSD
             }
+            self.refreshKeyboardLight()
             self.syncKeyTap()
         }
     }
@@ -1569,6 +1604,83 @@ private enum BrightnessBridge {
     private static func symbol<T>(_ handle: UnsafeMutableRawPointer?, _ name: String) -> T? {
         guard let handle, let pointer = dlsym(handle, name) else { return nil }
         return unsafeBitCast(pointer, to: T.self)
+    }
+}
+
+/// Keyboard backlighting has no public setter. Resolve the system client and
+/// its methods at runtime so unsupported hardware or a future removal simply
+/// hides the control instead of affecting launch.
+private final class KeyboardLightBridge {
+    private typealias CopyIDsFn = @convention(c) (NSObject, Selector) -> Unmanaged<AnyObject>
+    private typealias IsBuiltInFn = @convention(c) (NSObject, Selector, UInt64) -> ObjCBool
+    private typealias GetBrightnessFn = @convention(c) (NSObject, Selector, UInt64) -> Float
+    private typealias SetBrightnessFn = @convention(c)
+        (NSObject, Selector, Float, Int32, Bool, UInt64) -> ObjCBool
+    private typealias SuspendIdleDimmingFn = @convention(c)
+        (NSObject, Selector, Bool, UInt64) -> ObjCBool
+
+    private let client: NSObject
+    private let keyboardID: UInt64
+    private let getBrightness: GetBrightnessFn
+    private let setBrightnessValue: SetBrightnessFn
+    private let suspendIdleDimming: SuspendIdleDimmingFn
+    private let getSelector = NSSelectorFromString("brightnessForKeyboard:")
+    private let setSelector = NSSelectorFromString(
+        "setBrightness:fadeSpeed:commit:forKeyboard:")
+    private let suspendSelector = NSSelectorFromString("suspendIdleDimming:forKeyboard:")
+
+    init?() {
+        guard let framework = Bundle(
+            path: "/System/Library/PrivateFrameworks/CoreBrightness.framework"),
+              framework.load(),
+              let clientClass = NSClassFromString("KeyboardBrightnessClient") as? NSObject.Type
+        else { return nil }
+
+        let client = clientClass.init()
+        let copySelector = NSSelectorFromString("copyKeyboardBacklightIDs")
+        let builtInSelector = NSSelectorFromString("isKeyboardBuiltIn:")
+        guard let copyIDs: CopyIDsFn = Self.implementation(
+            client, selector: copySelector, as: CopyIDsFn.self),
+              let isBuiltIn: IsBuiltInFn = Self.implementation(
+                client, selector: builtInSelector, as: IsBuiltInFn.self),
+              let getBrightness: GetBrightnessFn = Self.implementation(
+                client, selector: getSelector, as: GetBrightnessFn.self),
+              let setBrightness: SetBrightnessFn = Self.implementation(
+                client, selector: setSelector, as: SetBrightnessFn.self),
+              let suspendIdleDimming: SuspendIdleDimmingFn = Self.implementation(
+                client, selector: suspendSelector, as: SuspendIdleDimmingFn.self),
+              let ids = copyIDs(client, copySelector).takeRetainedValue() as? [NSNumber],
+              let keyboardID = ids.map(\.uint64Value).first(where: {
+                  isBuiltIn(client, builtInSelector, $0).boolValue
+              })
+        else { return nil }
+
+        self.client = client
+        self.keyboardID = keyboardID
+        self.getBrightness = getBrightness
+        self.setBrightnessValue = setBrightness
+        self.suspendIdleDimming = suspendIdleDimming
+    }
+
+    func brightness() -> Float {
+        getBrightness(client, getSelector, keyboardID)
+    }
+
+    func setBrightness(_ value: Float) -> Bool {
+        _ = suspendIdleDimming(client, suspendSelector, true, keyboardID)
+        defer { _ = suspendIdleDimming(client, suspendSelector, false, keyboardID) }
+        return setBrightnessValue(client, setSelector, min(max(value, 0), 1), 350,
+                                  true, keyboardID).boolValue
+    }
+
+    private static func implementation<Function>(
+        _ object: NSObject,
+        selector: Selector,
+        as type: Function.Type
+    ) -> Function? {
+        guard let cls = object_getClass(object),
+              let method = class_getInstanceMethod(cls, selector) else { return nil }
+        return unsafeBitCast(method_getImplementation(method), to: type)
     }
 }
 
