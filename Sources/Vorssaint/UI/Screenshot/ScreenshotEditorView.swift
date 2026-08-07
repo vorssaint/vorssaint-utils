@@ -24,6 +24,7 @@ struct ScreenshotEditorView: View {
     @AppStorage(DefaultsKey.screenshotToolOrder) private var toolOrderRaw =
         ScreenshotSupport.Tool.defaultOrderStorage
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
+    @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
 
     private var strings: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(l10n.language)
@@ -191,9 +192,12 @@ struct ScreenshotEditorView: View {
         .onContinuousHover { phase in
             switch phase {
             case .active(let location):
-                if model.tool != .select {
+                let point = imagePoint(from: location, zoom: zoom)
+                if model.tool != .select, model.selectedAnnotationOwns(point) {
+                    NSCursor.openHand.set()
+                } else if model.tool != .select {
                     NSCursor.crosshair.set()
-                } else if model.wordIndex(at: imagePoint(from: location, zoom: zoom)) != nil {
+                } else if model.wordIndex(at: point) != nil {
                     // Recognized text under the cursor reads as text.
                     NSCursor.iBeam.set()
                 } else {
@@ -709,8 +713,10 @@ struct ScreenshotEditorView: View {
 
             Divider().frame(height: 16).padding(.horizontal, 3)
 
-            shareMenu
-            Divider().frame(height: 16).padding(.horizontal, 3)
+            if sharingEnabled {
+                shareMenu
+                Divider().frame(height: 16).padding(.horizontal, 3)
+            }
 
             Menu {
                 Button(strings.saveButton) {

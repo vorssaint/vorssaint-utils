@@ -54,9 +54,11 @@ final class ScrollInverter: ObservableObject {
 
     private func start() {
         guard tap == nil else {
+            MouseAppExceptions.shared.setSourceTracking(true, for: .scrollDirection)
             isRunning = true
             return
         }
+        MouseAppExceptions.shared.setSourceTracking(true, for: .scrollDirection)
         guard let tap = CGEvent.tapCreate(
             tap: .cghidEventTap,
             place: .tailAppendEventTap,
@@ -69,6 +71,7 @@ final class ScrollInverter: ObservableObject {
             },
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
+            MouseAppExceptions.shared.setSourceTracking(false, for: .scrollDirection)
             isRunning = false
             return
         }
@@ -82,6 +85,7 @@ final class ScrollInverter: ObservableObject {
     }
 
     private func stop() {
+        MouseAppExceptions.shared.setSourceTracking(false, for: .scrollDirection)
         if let tap {
             CGEvent.tapEnable(tap: tap, enable: false)
         }
@@ -105,8 +109,9 @@ final class ScrollInverter: ObservableObject {
         // that out and inverting would look broken while both are on. The
         // process id is checked too: the only scroll events this app posts
         // are those glide frames.
+        let sourceProcessID = event.getIntegerValueField(.eventSourceUnixProcessID)
         guard event.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.syntheticTag,
-              event.getIntegerValueField(.eventSourceUnixProcessID) != Self.ownProcessID else {
+              sourceProcessID != Self.ownProcessID else {
             return Unmanaged.passUnretained(event)
         }
 
@@ -126,7 +131,10 @@ final class ScrollInverter: ObservableObject {
 
         if ScrollWheelSupport.isMouseWheel(traits,
                                            secondsSinceLastGesturePhase: secondsSinceGesturePhase),
-           !MouseAppExceptions.shared.excludesPointerTarget(.scrollDirection, at: event.location) {
+           !MouseAppExceptions.shared.excludesPointerTarget(
+                .scrollDirection,
+                at: event.location,
+                sourceProcessID: sourceProcessID) {
             // All three deltas must be captured BEFORE any set: writing the
             // line delta makes the system rederive the point and fixed-point
             // fields from it, so negating a re-read value flips it back to

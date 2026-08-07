@@ -97,7 +97,9 @@ extension AppFeature {
         case .textSnippets, .autoQuit:
             return .inputs
         case .windowLayout:
-            return UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureEnabled) ? .pointer : .idle
+            return UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureEnabled)
+                || UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled)
+                ? .pointer : .idle
         case .radialMenu:
             // With a side button configured the trigger is a mouse tap;
             // shortcut-only costs nothing at rest.
@@ -114,7 +116,8 @@ extension AppFeature {
         case .pastePlain, .soundOutputSwitcher, .micMute,
              .musicBlock, .keepAwake, .brightness, .quickLauncher, .quickToggles, .colorPicker,
              .screenOCR, .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew, .screenshot,
-             .cameraPreview, .scratchpad, .commandBar, .screenRecorder:
+             .cameraPreview, .scratchpad, .commandBar, .screenRecorder, .fanControl,
+             .diskImageInstaller:
             return .idle
         case .appUpdates:
             // The list is on demand; only a background schedule keeps a timer.

@@ -67,6 +67,18 @@ final class RecorderTakeStore {
         try? manager.removeItem(at: take.folder)
     }
 
+    /// Turns a finished take into the file the person keeps. The take stays
+    /// intact if either step fails, so the editor can still recover it.
+    func saveDirectly(_ take: Take, to destination: URL) throws {
+        try manager.copyItem(at: take.videoURL, to: destination)
+        do {
+            try manager.removeItem(at: take.folder)
+        } catch {
+            try? manager.removeItem(at: destination)
+            throw error
+        }
+    }
+
     func takes() -> [Take] {
         guard let root,
               let names = try? manager.contentsOfDirectory(atPath: root.path)

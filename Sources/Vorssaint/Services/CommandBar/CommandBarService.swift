@@ -923,6 +923,9 @@ final class CommandBarService: ObservableObject {
         let answer = isEnabled(.calculator)
             ? CommandBarCatalog.answerEntry(for: trimmed, bar: bar)
             : nil
+        // A web address typed into the bar is opened, not searched: the row
+        // leads so Return opens it at once, the way a sum's answer does.
+        let openURL = CommandBarCatalog.openURLEntry(for: trimmed, bar: bar)
 
         // "brilho 40" is a command with a value; "code 1234" is a search for
         // something copied. The number is only taken off when a command that
@@ -1016,7 +1019,9 @@ final class CommandBarService: ObservableObject {
             .split(separator: " ").first.map(String.init) ?? ""
 
         var counts: [String: Int] = [:]
-        var result: [CommandBarEntry] = answer.map { [$0] } ?? []
+        var result: [CommandBarEntry] = []
+        if let answer { result.append(answer) }
+        if let openURL { result.append(openURL) }
         for index in ranked {
             let entry = pool[index]
             if entry.id.hasPrefix("answer."),
@@ -1698,7 +1703,7 @@ final class CommandBarService: ObservableObject {
         guard !windowsLoading else { return }
         windowsLoading = true
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let windows = WindowEnumerator.listWindows()
+            let windows = WindowEnumerator.listWindowsForCommandBar()
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.windowsLoading = false

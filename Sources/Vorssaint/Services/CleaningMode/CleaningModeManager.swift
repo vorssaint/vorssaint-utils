@@ -13,10 +13,9 @@ import SwiftUI
 /// The very same tap watches for the unlock gesture, so there is always a way
 /// back.
 ///
-/// Three independent escapes guarantee no one is ever stranded:
-///   1. press the same key five times in a row (deliberate, unlike random wiping),
-///   2. click Unlock on the overlay (the mouse is never locked),
-///   3. an automatic timeout after a minute.
+/// Two deliberate escapes guarantee no one is ever stranded:
+///   1. press Escape five times in a row,
+///   2. click Unlock on the overlay (pointer movement and clicks stay available).
 ///
 /// Requires Accessibility, like the app's other event taps. If it is missing the
 /// tap can't be created, so we never lock the keyboard with no way to unlock it.
@@ -24,29 +23,27 @@ final class CleaningModeManager: ObservableObject {
     static let shared = CleaningModeManager()
 
     private static let systemDefinedEventType = CGEventType(rawValue: CleaningSystemKeyEvent.systemDefinedEventTypeRawValue)!
+    private static let gestureEventType = CGEventType(rawValue: UInt32(NSEvent.EventType.gesture.rawValue))!
+    private static let escapeKeyCode: Int64 = 53
 
     @Published private(set) var isActive = false
-    /// Consecutive presses of the current key so far (0...unlockThreshold). The
+    /// Consecutive Escape presses so far (0...unlockThreshold). The
     /// overlay shows this as progress.
     @Published private(set) var unlockProgress = 0
 
-    /// Deliberate presses of one key needed to unlock. Random wiping hits many
-    /// different keys, which keeps resetting the count, so it won't unlock by
-    /// accident while the keyboard is being cleaned.
+    /// Deliberate Escape presses needed to unlock. Other keys reset the count so
+    /// wiping the keyboard cannot complete the gesture accidentally.
     let unlockThreshold = 5
-
-    /// Failsafe: the keyboard always comes back on its own after this long, even
-    /// if the overlay is somehow missed.
-    private let autoUnlockSeconds: TimeInterval = 60
 
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var overlays: [NSPanel] = []
     private var screenObserver: NSObjectProtocol?
-    private var autoUnlockTimer: Timer?
 
     /// The unlock-gesture state machine (pure, unit-tested separately).
-    private lazy var unlock = CleaningUnlockCounter(threshold: unlockThreshold, pressWindow: 2.0)
+    private lazy var unlock = CleaningUnlockCounter(requiredKeyCode: Self.escapeKeyCode,
+                                                    threshold: unlockThreshold,
+                                                    pressWindow: 2.0)
 
     private init() {}
 
@@ -82,21 +79,11 @@ final class CleaningModeManager: ObservableObject {
         isActive = true
         installScreenObserver()
         showOverlays()
-        // Add the failsafe to .common modes (not just the default mode) so it still
-        // fires while a tracking or modal run-loop is active — matching the tap's
-        // own run-loop source, so the 60 s "always unlocks" guarantee always holds.
-        let timer = Timer(timeInterval: autoUnlockSeconds, repeats: false) { [weak self] _ in
-            self?.deactivate()
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        autoUnlockTimer = timer
     }
 
     func deactivate() {
         guard isActive else { return }
         removeTap()
-        autoUnlockTimer?.invalidate()
-        autoUnlockTimer = nil
         removeScreenObserver()
         hideOverlays()
         unlock.reset()
@@ -116,7 +103,9 @@ final class CleaningModeManager: ObservableObject {
         let mask = (1 << CGEventType.keyDown.rawValue)
             | (1 << CGEventType.keyUp.rawValue)
             | (1 << CGEventType.flagsChanged.rawValue)
+            | (1 << CGEventType.scrollWheel.rawValue)
             | (1 << Self.systemDefinedEventType.rawValue)
+            | (1 << Self.gestureEventType.rawValue)
         guard let tap = CGEvent.tapCreate(
             tap: .cghidEventTap,
             place: .headInsertEventTap,
@@ -168,7 +157,8 @@ final class CleaningModeManager: ObservableObject {
             registerUnlockKeyDown(code: systemKey.code, isRepeat: systemKey.isRepeat)
         }
 
-        // Swallow every key event while the lock is on.
+        // Swallow keys, scrolling and trackpad gestures while the lock is on.
+        // Pointer movement and clicks remain available for the Unlock button.
         return nil
     }
 

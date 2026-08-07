@@ -134,6 +134,7 @@ struct CommandBarFeatureStrings {
     let forceQuitAppFormat: String
     let forceQuitAppConfirmFormat: String
     let uninstallAppFormat: String
+    let openInBrowser: String
 }
 
 extension FeatureStrings {
@@ -284,7 +285,8 @@ extension CommandBarFeatureStrings {
         restartAppFormat: "Restart %@",
         forceQuitAppFormat: "Force Quit %@…",
         forceQuitAppConfirmFormat: "Force quit %@? Unsaved changes will be lost.",
-        uninstallAppFormat: "Uninstall %@…")
+        uninstallAppFormat: "Uninstall %@…",
+        openInBrowser: "Open in browser")
 
     static let ptBR = CommandBarFeatureStrings(
         pageTitle: "Barra de comando",
@@ -413,7 +415,8 @@ extension CommandBarFeatureStrings {
         restartAppFormat: "Reiniciar %@",
         forceQuitAppFormat: "Forçar encerramento de %@…",
         forceQuitAppConfirmFormat: "Forçar o encerramento de %@? Alterações não salvas serão perdidas.",
-        uninstallAppFormat: "Desinstalar %@…")
+        uninstallAppFormat: "Desinstalar %@…",
+        openInBrowser: "Abrir no navegador")
 
     static let tr = CommandBarFeatureStrings(
         pageTitle: "Komut çubuğu",
@@ -542,7 +545,8 @@ extension CommandBarFeatureStrings {
         restartAppFormat: "%@ uygulamasını yeniden başlat",
         forceQuitAppFormat: "%@ uygulamasını zorla kapat…",
         forceQuitAppConfirmFormat: "%@ uygulaması zorla kapatılsın mı? Kaydedilmemiş değişiklikler kaybolacak.",
-        uninstallAppFormat: "%@ uygulamasını kaldır…")
+        uninstallAppFormat: "%@ uygulamasını kaldır…",
+        openInBrowser: "Tarayıcıda aç")
 
     static let ru = CommandBarFeatureStrings(
         pageTitle: "Командная панель",
@@ -671,7 +675,8 @@ extension CommandBarFeatureStrings {
         restartAppFormat: "Перезапустить %@",
         forceQuitAppFormat: "Завершить %@ принудительно…",
         forceQuitAppConfirmFormat: "Завершить %@ принудительно? Несохранённые изменения будут потеряны.",
-        uninstallAppFormat: "Удалить %@…")
+        uninstallAppFormat: "Удалить %@…",
+        openInBrowser: "Открыть в браузере")
 
     static let es = CommandBarFeatureStrings(
         pageTitle: "Barra de comandos",
@@ -800,7 +805,8 @@ extension CommandBarFeatureStrings {
         restartAppFormat: "Reiniciar %@",
         forceQuitAppFormat: "Forzar salida de %@…",
         forceQuitAppConfirmFormat: "¿Forzar la salida de %@? Se perderán los cambios no guardados.",
-        uninstallAppFormat: "Desinstalar %@…")
+        uninstallAppFormat: "Desinstalar %@…",
+        openInBrowser: "Abrir en el navegador")
 
     static let de = CommandBarFeatureStrings(
         pageTitle: "Befehlsleiste",
@@ -929,7 +935,8 @@ extension CommandBarFeatureStrings {
         restartAppFormat: "%@ neu starten",
         forceQuitAppFormat: "%@ sofort beenden…",
         forceQuitAppConfirmFormat: "%@ sofort beenden? Nicht gesicherte Änderungen gehen verloren.",
-        uninstallAppFormat: "%@ deinstallieren…")
+        uninstallAppFormat: "%@ deinstallieren…",
+        openInBrowser: "Im Browser öffnen")
 
     static let fr = CommandBarFeatureStrings(
         pageTitle: "Barre de commande",
@@ -1058,7 +1065,8 @@ extension CommandBarFeatureStrings {
         restartAppFormat: "Relancer %@",
         forceQuitAppFormat: "Forcer %@ à quitter…",
         forceQuitAppConfirmFormat: "Forcer %@ à quitter ? Les modifications non enregistrées seront perdues.",
-        uninstallAppFormat: "Désinstaller %@…")
+        uninstallAppFormat: "Désinstaller %@…",
+        openInBrowser: "Ouvrir dans le navigateur")
 
     static let it = CommandBarFeatureStrings(
         pageTitle: "Barra dei comandi",
@@ -1187,7 +1195,8 @@ extension CommandBarFeatureStrings {
         restartAppFormat: "Riavvia %@",
         forceQuitAppFormat: "Forza l’uscita da %@…",
         forceQuitAppConfirmFormat: "Forzare l’uscita da %@? Le modifiche non salvate andranno perse.",
-        uninstallAppFormat: "Disinstalla %@…")
+        uninstallAppFormat: "Disinstalla %@…",
+        openInBrowser: "Apri nel browser")
 
     static let ja = CommandBarFeatureStrings(
         pageTitle: "コマンドバー",
@@ -1316,7 +1325,8 @@ extension CommandBarFeatureStrings {
         restartAppFormat: "%@を再起動",
         forceQuitAppFormat: "%@を強制終了…",
         forceQuitAppConfirmFormat: "%@を強制終了しますか？保存していない変更内容は失われます。",
-        uninstallAppFormat: "%@をアンインストール…")
+        uninstallAppFormat: "%@をアンインストール…",
+        openInBrowser: "ブラウザで開く")
 
     static let ko = CommandBarFeatureStrings(
         pageTitle: "명령 막대",
@@ -1445,7 +1455,8 @@ extension CommandBarFeatureStrings {
         restartAppFormat: "%@ 재시작",
         forceQuitAppFormat: "%@ 강제 종료…",
         forceQuitAppConfirmFormat: "%@ 앱을 강제로 종료할까요? 저장하지 않은 변경 사항은 사라집니다.",
-        uninstallAppFormat: "%@ 제거…")
+        uninstallAppFormat: "%@ 제거…",
+        openInBrowser: "브라우저에서 열기")
 
     static let zhHans = CommandBarFeatureStrings(
         pageTitle: "命令栏",
@@ -1574,7 +1585,8 @@ extension CommandBarFeatureStrings {
         restartAppFormat: "重新启动%@",
         forceQuitAppFormat: "强制退出%@…",
         forceQuitAppConfirmFormat: "要强制退出%@吗？未保存的更改将会丢失。",
-        uninstallAppFormat: "卸载%@…")
+        uninstallAppFormat: "卸载%@…",
+        openInBrowser: "在浏览器中打开")
 
     static let zhTW = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -1703,7 +1715,8 @@ extension CommandBarFeatureStrings {
         restartAppFormat: "重新啟動%@",
         forceQuitAppFormat: "強制結束%@…",
         forceQuitAppConfirmFormat: "要強制結束%@嗎？未儲存的更改將會遺失。",
-        uninstallAppFormat: "解除安裝%@…")
+        uninstallAppFormat: "解除安裝%@…",
+        openInBrowser: "在瀏覽器中開啟")
 
     static let zhHK = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -1832,5 +1845,6 @@ extension CommandBarFeatureStrings {
         restartAppFormat: "重新啟動%@",
         forceQuitAppFormat: "強制結束%@…",
         forceQuitAppConfirmFormat: "要強制結束%@嗎？未儲存的更改將會遺失。",
-        uninstallAppFormat: "解除安裝%@…")
+        uninstallAppFormat: "解除安裝%@…",
+        openInBrowser: "在瀏覽器中開啟")
 }

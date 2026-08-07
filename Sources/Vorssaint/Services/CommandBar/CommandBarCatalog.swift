@@ -162,7 +162,7 @@ enum CommandBarCatalog {
         entries.append(contentsOf: actionEntries(s, language: language, bar: bar,
                                                  automationDenied: automationDenied))
         entries.append(contentsOf: toggleEntries(s, language: language, bar: bar))
-        entries.append(contentsOf: systemAnswerEntries(bar: bar))
+        entries.append(contentsOf: systemAnswerEntries(s, bar: bar))
         entries.append(contentsOf: settingsEntries(s, language: language, bar: bar))
         entries.append(contentsOf: snippetEntries(bar))
         entries.append(contentsOf: linkEntries(
@@ -304,13 +304,16 @@ enum CommandBarCatalog {
         if AppFeature.clipboardHistory.isAvailable {
             let clipboardTitle = FeatureStrings.clipboard(language).title
             let keepsHistory = UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryEnabled)
+            let canUseHistory = CommandBarClipboardAccess.canUseHistory(
+                captureEnabled: keepsHistory,
+                hasSavedItems: !ClipboardHistoryService.shared.entries.isEmpty)
             entries.append(CommandBarEntry(
                 id: "action.clipboardWindow",
                 title: clipboardTitle,
                 subtitle: area(.clipboardHistory, under: clipboardTitle),
                 icon: .symbol("doc.on.clipboard"),
                 shortcut: keepsHistory ? roleShortcut(.clipboard) : nil,
-                trouble: keepsHistory ? nil
+                trouble: canUseHistory ? nil
                     : .needsSetup(featureTitle: clipboardTitle, page: .clipboard),
                 run: { _ in afterBeat(0.1) { ClipboardHistoryService.shared.showHistoryWindow() } }))
         }
@@ -875,7 +878,8 @@ enum CommandBarCatalog {
 
     /// Facts the Mac can answer instantly, read on demand with public calls
     /// and no permission: nothing here polls or stays alive.
-    static func systemAnswerEntries(bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
+    static func systemAnswerEntries(_ s: Strings,
+                                    bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
         var entries: [CommandBarEntry] = []
 
         if let battery = SystemInfo.batterySnapshot() {
@@ -893,13 +897,19 @@ enum CommandBarCatalog {
                 run: { _ in copyAnswer(value) }))
         }
 
-        if let memory = SystemInfo.memoryUsage(), memory.total > 0 {
-            let used = MetricFormat.bytes(min(memory.used, memory.total))
+        if AppFeature.monitorMemory.isAvailable,
+           let memory = SystemInfo.memoryUsage(), memory.total > 0 {
+            let metric = Defaults.sanitizedMonitorMemoryMetric(
+                UserDefaults.standard.string(forKey: DefaultsKey.monitorMemoryMetric) ?? "")
+            let selected = MetricFormat.selectedMemory(used: memory.used,
+                                                       app: memory.appUsed,
+                                                       metric: metric)
+            let used = MetricFormat.bytes(min(selected, memory.total))
             let total = MetricFormat.bytes(memory.total)
-            let percent = Int((Double(memory.used) / Double(memory.total) * 100).rounded())
+            let percent = Int((Double(selected) / Double(memory.total) * 100).rounded())
             entries.append(CommandBarEntry(
                 id: "answer.memory",
-                title: bar.answerMemoryLabel,
+                title: metric == "app" ? s.memoryMetricApp : bar.answerMemoryLabel,
                 subtitle: String(format: bar.answerMemoryFormat, used, total),
                 icon: .symbol("memorychip"),
                 answerValue: "\(percent)%",
@@ -1229,6 +1239,21 @@ enum CommandBarCatalog {
         return nil
     }
 
+    /// A row that opens what was typed as a web address, offered only when the
+    /// text reads like one. It leads the list the way the calculator answer
+    /// does, so Return opens it at once.
+    static func openURLEntry(for query: String, bar: CommandBarFeatureStrings) -> CommandBarEntry? {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = CommandBarLinks.typedURL(trimmed) else { return nil }
+        return CommandBarEntry(
+            id: "action.openURL",
+            title: trimmed,
+            subtitle: bar.openInBrowser,
+            icon: .symbol("globe"),
+            countsUsage: false,
+            run: { _ in NSWorkspace.shared.open(url) })
+    }
+
     // MARK: - Clipboard history
 
     /// Rows for history items matching the query, capped so pasted text never
@@ -1239,10 +1264,13 @@ enum CommandBarCatalog {
                                  limit: Int = 4,
                                  paste: @escaping (ClipboardHistoryEntry) -> Void) -> [CommandBarEntry] {
         guard AppFeature.clipboardHistory.isAvailable,
-              UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryEnabled),
               !query.isEmpty else { return [] }
+        let history = ClipboardHistoryService.shared
+        guard CommandBarClipboardAccess.canUseHistory(
+            captureEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryEnabled),
+            hasSavedItems: !history.entries.isEmpty) else { return [] }
         let imageLabel = FeatureStrings.clipboard(L10n.shared.language).imageEntryLabel
-        return ClipboardHistoryService.shared.filteredEntries(matching: query)
+        return history.filteredEntries(matching: query)
             .prefix(limit)
             .map { clipboardRow($0, imageLabel: imageLabel, bar: bar, paste: paste) }
     }
@@ -1278,11 +1306,13 @@ enum CommandBarCatalog {
                                        bar: CommandBarFeatureStrings,
                                        paste: @escaping (ClipboardHistoryEntry) -> Void)
         -> [CommandBarEntry] {
-        guard AppFeature.clipboardHistory.isAvailable,
-              UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryEnabled)
-        else { return [] }
+        guard AppFeature.clipboardHistory.isAvailable else { return [] }
+        let history = ClipboardHistoryService.shared
+        guard CommandBarClipboardAccess.canUseHistory(
+            captureEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryEnabled),
+            hasSavedItems: !history.entries.isEmpty) else { return [] }
         let imageLabel = FeatureStrings.clipboard(L10n.shared.language).imageEntryLabel
-        return ClipboardHistoryService.shared.entries.prefix(limit).map { entry in
+        return history.entries.prefix(limit).map { entry in
             clipboardRow(entry, imageLabel: imageLabel, bar: bar, paste: paste)
         }
     }

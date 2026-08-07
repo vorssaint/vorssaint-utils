@@ -9,9 +9,11 @@ struct WindowLayoutSettings: View {
     @ObservedObject private var service = WindowLayoutService.shared
     @AppStorage(DefaultsKey.panelUtilityWindowLayout) private var showInPanel = true
     @AppStorage(DefaultsKey.windowLayoutShortcutsEnabled) private var shortcutsEnabled = true
+    @AppStorage(DefaultsKey.windowEdgeSnapEnabled) private var edgeSnapEnabled = false
     @AppStorage(DefaultsKey.windowGestureEnabled) private var gestureEnabled = false
     @AppStorage(DefaultsKey.windowGestureModifiers) private var gestureModifiers = WindowGestureSupport.defaultModifierStorageValue
     @AppStorage(DefaultsKey.windowGestureRaiseWindow) private var gestureRaiseWindow = false
+    @State private var systemTilingEnabled = WindowEdgeSnapSupport.isSystemTilingEnabled
     // Same preference the Switcher page exposes next to Dock Preview; it is
     // mirrored here because it is a window-juggling behavior people look for
     // on this page too.
@@ -40,6 +42,28 @@ struct WindowLayoutSettings: View {
             }
 
             Section(text.gestureSection) {
+                Toggle(text.edgeSnapEnable, isOn: $edgeSnapEnabled)
+                    .onChange(of: edgeSnapEnabled) { _, _ in
+                        WindowLayoutService.shared.syncWithPreferences()
+                    }
+                Text(text.edgeSnapCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if systemTilingEnabled {
+                    Label(text.edgeSnapSystemConflict, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    if edgeSnapEnabled {
+                        Text(text.edgeSnapWaitingForSystem)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Button(text.edgeSnapOpenSystemSettings) {
+                        NSWorkspace.shared.open(WindowEdgeSnapSupport.desktopAndDockSettingsURL)
+                    }
+                    .controlSize(.small)
+                }
+                Divider()
                 Toggle(text.gestureEnable, isOn: $gestureEnabled)
                     .onChange(of: gestureEnabled) { _, _ in
                         WindowLayoutService.shared.syncWithPreferences()
@@ -123,6 +147,7 @@ struct WindowLayoutSettings: View {
                 actionRow(.maximize)
                 actionRow(.fullScreen)
                 actionRow(.center)
+                actionRow(.previousDisplay)
                 actionRow(.nextDisplay)
                 actionRow(.restore)
                 if let message = resultMessage {
@@ -133,6 +158,16 @@ struct WindowLayoutSettings: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { refreshSystemTilingState() }
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshSystemTilingState()
+        }
+    }
+
+    private func refreshSystemTilingState() {
+        systemTilingEnabled = WindowEdgeSnapSupport.isSystemTilingEnabled
+        WindowLayoutService.shared.syncWithPreferences()
     }
 
     /// One row per action: try-it button on the left, the action's global
@@ -174,6 +209,7 @@ struct WindowLayoutSettings: View {
         case .maximize: return "arrow.up.left.and.arrow.down.right"
         case .fullScreen: return "rectangle.fill"
         case .center: return "scope"
+        case .previousDisplay: return "arrow.left.to.line"
         case .nextDisplay: return "arrow.right.to.line"
         case .restore: return "arrow.uturn.backward"
         }
@@ -282,6 +318,7 @@ private struct WindowLayoutActionRow: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .onChange(of: l10n.language) { _, _ in errorText = nil }
     }
 
     private var shortcut: GlobalShortcut? {
@@ -298,6 +335,10 @@ private struct WindowLayoutActionRow: View {
     private func save(_ shortcut: GlobalShortcut) {
         if let conflict = GlobalShortcutRole.conflict(for: shortcut, excluding: nil) {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict.title(l10n.s))
+            return
+        }
+        if shortcut.conflictsWithSystemShortcut {
+            errorText = String(format: l10n.s.shortcutConflictFormat, "macOS")
             return
         }
         if let conflict = WindowLayoutService.shared.shortcutConflictTitle(shortcut, excluding: action) {

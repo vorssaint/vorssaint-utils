@@ -26,10 +26,15 @@ done
 if (( DEV )); then
     APP_NAME="Vorssaint (Developer)"
     EXECUTABLE="VorssaintDeveloper"
+    APP_BUNDLE_ID="com.vorssaint.utils.dev"
+    BUILD_VARIANT_FLAGS=(-D VORSSAINT_DEVELOPMENT)
 else
     APP_NAME="Vorssaint"
     EXECUTABLE="Vorssaint"
+    APP_BUNDLE_ID="com.vorssaint.utils"
+    BUILD_VARIANT_FLAGS=()
 fi
+FAN_HELPER_ID="$APP_BUNDLE_ID.fan-control"
 TARGET="arm64-apple-macosx14.0"
 ENTITLEMENTS="Resources/Vorssaint.entitlements"
 LEGACY_IDENTITY="Vorssaint Utils Signing"
@@ -43,19 +48,27 @@ developer_id_identity() {
 
 finalize_installed_bundle_after_child() {
     local bundle="$1"
+    local helper="$bundle/Contents/Library/LaunchServices/$FAN_HELPER_ID"
     local devid
     devid="$(developer_id_identity)"
 
     echo "▸ Finalizing installed signature…"
     sleep 3
     if [[ -n "$devid" ]]; then
+        [[ -f "$helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
+            --options runtime --timestamp --identifier "$FAN_HELPER_ID" --sign "$devid" "$helper"
         /usr/bin/codesign --force --strip-disallowed-xattrs --options runtime --timestamp \
             --entitlements "$ENTITLEMENTS" --sign "$devid" "$bundle"
     elif security find-identity -p codesigning 2>/dev/null | grep -q "$LEGACY_IDENTITY"; then
+        [[ -f "$helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
+            --identifier "$FAN_HELPER_ID" --sign "$LEGACY_IDENTITY" "$helper"
         /usr/bin/codesign --force --strip-disallowed-xattrs --sign "$LEGACY_IDENTITY" "$bundle"
     else
+        [[ -f "$helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
+            --identifier "$FAN_HELPER_ID" --sign - "$helper"
         /usr/bin/codesign --force --strip-disallowed-xattrs --sign - "$bundle"
     fi
+    [[ -f "$helper" ]] && /usr/bin/codesign --verify --strict "$helper"
     /usr/bin/codesign --verify --deep --strict "$bundle"
     echo "✓ Signature ready: $bundle"
 }
@@ -116,10 +129,13 @@ if (( TEST )); then
         Sources/Vorssaint/Core/BatteryTimeStrings.swift \
         Sources/Vorssaint/Core/KeepAwakeStrings.swift \
         Sources/Vorssaint/Core/PermissionGuideStrings.swift \
+        Sources/Vorssaint/Core/FanControlStrings.swift \
+        Sources/Vorssaint/Services/FanControl/FanControlSupport.swift \
         Sources/Vorssaint/Services/Snippets/TextSnippetSupport.swift \
         Sources/Vorssaint/Services/RadialMenu/RadialMenuSupport.swift \
         Sources/Vorssaint/Services/QuickTools/ScratchpadSupport.swift \
         Sources/Vorssaint/Services/Recorder/RecorderSupport.swift \
+        Sources/Vorssaint/Services/Recorder/RecorderTakeStore.swift \
         Sources/Vorssaint/Services/Recorder/RecorderMotion.swift \
         Sources/Vorssaint/Services/Recorder/RecorderPointerTrack.swift \
         Sources/Vorssaint/Services/Recorder/RecorderTypingTrack.swift \
@@ -144,6 +160,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Homebrew/HomebrewSupport.swift \
         Sources/Vorssaint/Services/AppUpdates/AppUpdatesSupport.swift \
         Sources/Vorssaint/Core/AppUpdateStrings.swift \
+        Sources/Vorssaint/Core/DiskImageInstallerStrings.swift \
+        Sources/Vorssaint/Services/DiskImageInstaller/DiskImageInstallerSupport.swift \
         Sources/Vorssaint/Services/Clipboard/ClipboardHistorySupport.swift \
         Sources/Vorssaint/Services/AutoQuit/AutoQuitSupport.swift \
         Sources/Vorssaint/Services/Shelf/ShelfSupport.swift \
@@ -166,6 +184,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/MouseExceptionStrings.swift \
         Sources/Vorssaint/Core/ClipboardIgnoredAppsStrings.swift \
         Sources/Vorssaint/Core/WindowPreviewExclusionStrings.swift \
+        Sources/Vorssaint/Core/SwitcherAppRulesStrings.swift \
         Sources/Vorssaint/Services/QuickTools/QuickToolsSupport.swift \
         Sources/Vorssaint/Services/CommandBar/CommandBarSupport.swift \
         Sources/Vorssaint/Services/CommandBar/CommandBarPreferences.swift \
@@ -177,6 +196,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/CommandBar/CommandBarRowShortcuts.swift \
         Sources/Vorssaint/Services/QuickTools/MicMuteSupport.swift \
         Sources/Vorssaint/Services/QuickTools/QuickTogglesSupport.swift \
+        Sources/Vorssaint/Services/QuickTools/ScreenshotCapturePolicy.swift \
         Sources/Vorssaint/Services/QuickTools/ScreenshotSupport.swift \
         Sources/Vorssaint/Services/QuickTools/ScreenshotSharingSupport.swift \
         Sources/Vorssaint/Services/KeyboardDebounce/KeyboardDebounceSupport.swift \
@@ -207,6 +227,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Cleaner/CleanerSupport.swift \
         Sources/Vorssaint/Services/Cleaner/CleanerPolicy.swift \
         Sources/Vorssaint/Services/Cleaner/CleanerSchedule.swift \
+        Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift \
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift \
         Tests/MetricsTests.swift \
         -o build/metrics-tests
@@ -217,9 +238,19 @@ fi
 echo "▸ Compiling (release) against $(basename "$SDK")…"
 rm -rf build
 mkdir -p build
-swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
+swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
     Sources/Vorssaint/**/*.swift \
     -o "build/$EXECUTABLE"
+
+echo "▸ Compiling protected fan helper…"
+swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
+    Sources/Vorssaint/Services/FanControl/FanControlSupport.swift \
+    Sources/Vorssaint/Services/FanControl/FanControlXPC.swift \
+    Sources/Vorssaint/Services/SystemMonitor/SMCClient.swift \
+    Sources/Vorssaint/Services/FanControl/FanControlHardware.swift \
+    Sources/FanControlHelper/main.swift \
+    -o "build/$FAN_HELPER_ID"
+"build/$FAN_HELPER_ID" --selftest
 
 echo "▸ Generating app icon…"
 swift Tools/MakeIcon.swift build/AppIcon.iconset
@@ -227,8 +258,12 @@ xattr -c -r build/AppIcon.iconset build/AppIcon.icns build/MenuBarIcon.png build
 
 echo "▸ Assembling and signing bundle…"
 STAGE="$(mktemp -d)/$APP_NAME.app"
-mkdir -p "$STAGE/Contents/MacOS" "$STAGE/Contents/Resources"
+mkdir -p "$STAGE/Contents/MacOS" "$STAGE/Contents/Resources" \
+    "$STAGE/Contents/Library/LaunchDaemons" "$STAGE/Contents/Library/LaunchServices"
 cp "build/$EXECUTABLE" "$STAGE/Contents/MacOS/$EXECUTABLE"
+cp "build/$FAN_HELPER_ID" "$STAGE/Contents/Library/LaunchServices/$FAN_HELPER_ID"
+cp Resources/com.vorssaint.utils.fan-control.plist \
+    "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"
 cp CHANGELOG.md "$STAGE/Contents/Resources/CHANGELOG.md"
 for lproj in Resources/*.lproj(N); do
@@ -241,6 +276,11 @@ if (( DEV )); then
     /usr/libexec/PlistBuddy -c "Set :CFBundleName Vorssaint (Developer)" "$STAGE/Contents/Info.plist"
     /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Vorssaint (Developer)" "$STAGE/Contents/Info.plist"
     /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable $EXECUTABLE" "$STAGE/Contents/Info.plist"
+    FAN_PLIST="$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
+    /usr/libexec/PlistBuddy -c "Set :Label $FAN_HELPER_ID" "$FAN_PLIST"
+    /usr/libexec/PlistBuddy -c "Set :BundleProgram Contents/Library/LaunchServices/$FAN_HELPER_ID" "$FAN_PLIST"
+    /usr/libexec/PlistBuddy -c "Delete :MachServices:com.vorssaint.utils.fan-control" "$FAN_PLIST"
+    /usr/libexec/PlistBuddy -c "Add :MachServices:$FAN_HELPER_ID bool true" "$FAN_PLIST"
     # Stamp the source commit + build time so the running dev app shows (in About)
     # exactly which code it was compiled from. Lets you verify it matches HEAD before
     # testing, instead of unknowingly running a stale build. Dev-only; never shipped.
@@ -249,6 +289,13 @@ if (( DEV )); then
     /usr/libexec/PlistBuddy -c "Add :VorssaintBuildCommit string '$SHA · $(date '+%Y-%m-%d %H:%M')'" "$STAGE/Contents/Info.plist"
     echo "  stamped dev build: $SHA"
 fi
+FAN_HELPER_VERSION="$(/usr/bin/shasum -a 256 \
+    "$STAGE/Contents/Library/LaunchServices/$FAN_HELPER_ID" \
+    "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist" \
+    | /usr/bin/awk '{print $1}' | /usr/bin/shasum -a 256 \
+    | /usr/bin/awk '{print $1}')"
+/usr/libexec/PlistBuddy -c "Add :VorssaintFanControlHelperVersion string '$FAN_HELPER_VERSION'" \
+    "$STAGE/Contents/Info.plist"
 printf 'APPL????' > "$STAGE/Contents/PkgInfo"
 cp build/AppIcon.icns "$STAGE/Contents/Resources/AppIcon.icns"
 cp build/MenuBarIcon.png build/MenuBarIcon@2x.png build/BrandMark.png "$STAGE/Contents/Resources/"
@@ -273,7 +320,7 @@ xattr -c -r "$STAGE" 2>/dev/null || true
 #      designated requirement across their local builds.
 #   3. Ad-hoc — fresh clone with no identity at all.
 DEVID="$(developer_id_identity)"
-codesign_target() {
+codesign_app() {
     local target="$1"
     if [[ -n "$DEVID" ]]; then
         codesign --force --strip-disallowed-xattrs --options runtime --timestamp \
@@ -285,9 +332,23 @@ codesign_target() {
     fi
 }
 
+codesign_fan_helper() {
+    local target="$1"
+    if [[ -n "$DEVID" ]]; then
+        codesign --force --strip-disallowed-xattrs --options runtime --timestamp \
+            --identifier "$FAN_HELPER_ID" --sign "$DEVID" "$target"
+    elif security find-identity -p codesigning 2>/dev/null | grep -q "$LEGACY_IDENTITY"; then
+        codesign --force --strip-disallowed-xattrs --identifier "$FAN_HELPER_ID" \
+            --sign "$LEGACY_IDENTITY" "$target"
+    else
+        codesign --force --strip-disallowed-xattrs --identifier "$FAN_HELPER_ID" --sign - "$target"
+    fi
+}
+
 sign_bundle() {
     local bundle="$1"
     local executable="$bundle/Contents/MacOS/$EXECUTABLE"
+    local helper="$bundle/Contents/Library/LaunchServices/$FAN_HELPER_ID"
 
     if [[ -n "$DEVID" ]]; then
         echo "  signing with Developer ID (hardened runtime): $DEVID"
@@ -296,16 +357,19 @@ sign_bundle() {
     else
         echo "  signing ad-hoc (no identity installed — run Tools/setup-signing.sh)"
     fi
-    codesign_target "$bundle"
+    [[ -f "$helper" ]] && codesign_fan_helper "$helper"
+    codesign_app "$bundle"
 
     # If local filesystem metadata invalidates the first signature, sign once
     # more. The installed Developer bundle is signed again after the final copy.
     if ! codesign --verify --deep --strict "$bundle" >/dev/null 2>&1; then
         echo "  re-signing after filesystem metadata settled"
         xattr -c -r "$bundle" 2>/dev/null || true
-        codesign_target "$bundle"
+        [[ -f "$helper" ]] && codesign_fan_helper "$helper"
+        codesign_app "$bundle"
     fi
     [[ -f "$executable" ]] && codesign --verify --strict "$executable"
+    [[ -f "$helper" ]] && codesign --verify --strict "$helper"
     codesign --verify --deep --strict "$bundle"
 }
 

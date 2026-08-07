@@ -10,6 +10,7 @@ import SwiftUI
 enum QuickToolHUD {
     private static var panel: NSPanel?
     private static var scrollingPanel: NSPanel?
+    private static var scrollingModel: ScrollingCaptureHUDModel?
     private static var dismissWork: DispatchWorkItem?
     /// Bumped by every show(). A dismiss whose fade-out was overtaken by a
     /// newer show() must not order the panel out from its completion handler.
@@ -20,6 +21,13 @@ enum QuickToolHUD {
     static var currentWindowNumber: Int? {
         guard let panel, panel.isVisible else { return nil }
         return panel.windowNumber
+    }
+
+    /// The scrolling capture controls, when they are on screen. They belong to
+    /// the capture in progress and must stay out of its own pictures.
+    static var currentScrollingWindowNumber: Int? {
+        guard let scrollingPanel, scrollingPanel.isVisible else { return nil }
+        return scrollingPanel.windowNumber
     }
 
     static func show(icon: String, message: String, swatch: NSColor? = nil) {
@@ -94,23 +102,13 @@ enum QuickToolHUD {
             }
             return
         }
-        let content = HStack(spacing: 10) {
-            Image(systemName: "rectangle.stack.fill")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
-            Text(message)
-                .font(.system(size: 12, weight: .semibold))
-                .lineLimit(2)
-            Button(cancelTitle, action: onCancel)
-                .controlSize(.small)
-            Button(finishTitle, action: onFinish)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-
+        let model = ScrollingCaptureHUDModel(message: message)
+        scrollingModel = model
+        let content = ScrollingCaptureHUDView(model: model,
+                                              finishTitle: finishTitle,
+                                              cancelTitle: cancelTitle,
+                                              onFinish: onFinish,
+                                              onCancel: onCancel)
         let host = NSHostingController(rootView: AnyView(content))
         host.view.layoutSubtreeIfNeeded()
         let size = host.view.fittingSize
@@ -125,12 +123,21 @@ enum QuickToolHUD {
         panel.orderFrontRegardless()
     }
 
+    static func updateScrollingCapture(height: Int) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { updateScrollingCapture(height: height) }
+            return
+        }
+        scrollingModel?.height = height
+    }
+
     static func dismissScrollingCapture() {
         guard Thread.isMainThread else {
             DispatchQueue.main.async { dismissScrollingCapture() }
             return
         }
         scrollingPanel?.orderOut(nil)
+        scrollingModel = nil
     }
 
     private static func present(_ content: AnyView,
@@ -205,5 +212,47 @@ enum QuickToolHUD {
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
         return panel
+    }
+}
+
+private final class ScrollingCaptureHUDModel: ObservableObject {
+    let message: String
+    @Published var height = 0
+
+    init(message: String) {
+        self.message = message
+    }
+}
+
+private struct ScrollingCaptureHUDView: View {
+    @ObservedObject var model: ScrollingCaptureHUDModel
+    let finishTitle: String
+    let cancelTitle: String
+    let onFinish: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "rectangle.stack.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(model.message)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(2)
+                Text("\(model.height) px")
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            Button(cancelTitle, action: onCancel)
+                .controlSize(.small)
+            Button(finishTitle, action: onFinish)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }

@@ -25,6 +25,14 @@ struct ScratchpadFeatureStrings {
     let backgroundOpacity: String
     let backgroundTranslucent: String
     let backgroundOpaque: String
+    let newPad: String
+    let padActions: String
+    let renamePad: String
+    let closePad: String
+    let saveName: String
+    let cancel: String
+    let deletePadMessageFormat: String
+    let padLimitFormat: String
 }
 
 extension FeatureStrings {
@@ -50,8 +58,8 @@ extension FeatureStrings {
 extension ScratchpadFeatureStrings {
     static let enUS = ScratchpadFeatureStrings(
         pageTitle: "Scratchpad",
-        hubDescription: "A floating pad for short-lived notes",
-        panelCaption: "Quick notes that save themselves",
+        hubDescription: "Floating pads for short-lived notes",
+        panelCaption: "Quick notes in separate tabs",
         openButton: "Open scratchpad",
         placeholder: "Type anything. It saves by itself.",
         copyAll: "Copy all",
@@ -68,13 +76,21 @@ extension ScratchpadFeatureStrings {
         keepOpen: "Keep open",
         backgroundOpacity: "Pad background",
         backgroundTranslucent: "Translucent",
-        backgroundOpaque: "Opaque"
+        backgroundOpaque: "Opaque",
+        newPad: "New scratchpad",
+        padActions: "Scratchpad actions",
+        renamePad: "Rename scratchpad",
+        closePad: "Close scratchpad",
+        saveName: "Save",
+        cancel: "Cancel",
+        deletePadMessageFormat: "Delete “%@” and everything in it?",
+        padLimitFormat: "You can keep up to %d scratchpads"
     )
 
     static let ptBR = ScratchpadFeatureStrings(
         pageTitle: "Rascunho",
-        hubDescription: "Um bloco flutuante para anotações passageiras",
-        panelCaption: "Notas rápidas que se salvam sozinhas",
+        hubDescription: "Blocos flutuantes para anotações passageiras",
+        panelCaption: "Notas rápidas em abas separadas",
         openButton: "Abrir rascunho",
         placeholder: "Digite qualquer coisa. Salva sozinho.",
         copyAll: "Copiar tudo",
@@ -91,13 +107,21 @@ extension ScratchpadFeatureStrings {
         keepOpen: "Manter aberto",
         backgroundOpacity: "Fundo do bloco",
         backgroundTranslucent: "Translúcido",
-        backgroundOpaque: "Opaco"
+        backgroundOpaque: "Opaco",
+        newPad: "Novo rascunho",
+        padActions: "Ações do rascunho",
+        renamePad: "Renomear rascunho",
+        closePad: "Fechar rascunho",
+        saveName: "Salvar",
+        cancel: "Cancelar",
+        deletePadMessageFormat: "Apagar “%@” e todo o conteúdo?",
+        padLimitFormat: "Você pode manter até %d rascunhos"
     )
 
     static let tr = ScratchpadFeatureStrings(
         pageTitle: "Karalama defteri",
-        hubDescription: "Kısa ömürlü notlar için yüzen bir not alanı",
-        panelCaption: "Kendini kaydeden hızlı notlar",
+        hubDescription: "Kısa süreli notlar için sekmeli yüzen not alanları",
+        panelCaption: "Ayrı sekmelerde hızlı notlar",
         openButton: "Karalama defterini aç",
         placeholder: "Bir şeyler yazın. Kendiliğinden kaydedilir.",
         copyAll: "Tümünü kopyala",
@@ -114,13 +138,21 @@ extension ScratchpadFeatureStrings {
         keepOpen: "Açık tut",
         backgroundOpacity: "Defter arka planı",
         backgroundTranslucent: "Yarı saydam",
-        backgroundOpaque: "Opak"
+        backgroundOpaque: "Opak",
+        newPad: "Yeni karalama defteri",
+        padActions: "Karalama defteri işlemleri",
+        renamePad: "Karalama defterini yeniden adlandır",
+        closePad: "Karalama defterini kapat",
+        saveName: "Kaydet",
+        cancel: "Vazgeç",
+        deletePadMessageFormat: "“%@” ve içindeki her şey silinsin mi?",
+        padLimitFormat: "%d adede kadar karalama defteri tutabilirsiniz"
     )
 
     static let ru = ScratchpadFeatureStrings(
         pageTitle: "Черновик",
-        hubDescription: "Плавающий блокнот для коротких заметок",
-        panelCaption: "Быстрые заметки, которые сохраняются сами",
+        hubDescription: "Плавающие блокноты с вкладками для коротких заметок",
+        panelCaption: "Быстрые заметки в отдельных вкладках",
         openButton: "Открыть черновик",
         placeholder: "Напишите что угодно. Сохраняется само.",
         copyAll: "Скопировать всё",
@@ -137,13 +169,21 @@ extension ScratchpadFeatureStrings {
         keepOpen: "Оставить открытым",
         backgroundOpacity: "Фон черновика",
         backgroundTranslucent: "Полупрозрачный",
-        backgroundOpaque: "Непрозрачный"
+        backgroundOpaque: "Непрозрачный",
+        newPad: "Новый черновик",
+        padActions: "Действия с черновиком",
+        renamePad: "Переименовать черновик",
+        closePad: "Закрыть черновик",
+        saveName: "Сохранить",
+        cancel: "Отмена",
+        deletePadMessageFormat: "Удалить «%@» вместе со всем содержимым?",
+        padLimitFormat: "Можно хранить до %d черновиков"
     )
 
     static let es = ScratchpadFeatureStrings(
         pageTitle: "Borrador",
-        hubDescription: "Un bloc flotante para notas pasajeras",
-        panelCaption: "Notas rápidas que se guardan solas",
+        hubDescription: "Blocs flotantes con pestañas para notas pasajeras",
+        panelCaption: "Notas rápidas en pestañas separadas",
         openButton: "Abrir borrador",
         placeholder: "Escribe cualquier cosa. Se guarda solo.",
         copyAll: "Copiar todo",
@@ -160,13 +200,21 @@ extension ScratchpadFeatureStrings {
         keepOpen: "Mantener abierto",
         backgroundOpacity: "Fondo del borrador",
         backgroundTranslucent: "Translúcido",
-        backgroundOpaque: "Opaco"
+        backgroundOpaque: "Opaco",
+        newPad: "Nuevo borrador",
+        padActions: "Acciones del borrador",
+        renamePad: "Renombrar borrador",
+        closePad: "Cerrar borrador",
+        saveName: "Guardar",
+        cancel: "Cancelar",
+        deletePadMessageFormat: "¿Eliminar «%@» y todo su contenido?",
+        padLimitFormat: "Puedes guardar hasta %d borradores"
     )
 
     static let de = ScratchpadFeatureStrings(
         pageTitle: "Schmierzettel",
-        hubDescription: "Ein schwebender Zettel für kurzlebige Notizen",
-        panelCaption: "Schnelle Notizen, die sich selbst sichern",
+        hubDescription: "Schwebende Zettel mit Tabs für kurzlebige Notizen",
+        panelCaption: "Schnelle Notizen in eigenen Tabs",
         openButton: "Schmierzettel öffnen",
         placeholder: "Einfach lostippen. Wird von selbst gesichert.",
         copyAll: "Alles kopieren",
@@ -183,13 +231,21 @@ extension ScratchpadFeatureStrings {
         keepOpen: "Offen halten",
         backgroundOpacity: "Hintergrund des Zettels",
         backgroundTranslucent: "Durchscheinend",
-        backgroundOpaque: "Deckend"
+        backgroundOpaque: "Deckend",
+        newPad: "Neuer Schmierzettel",
+        padActions: "Schmierzettelaktionen",
+        renamePad: "Schmierzettel umbenennen",
+        closePad: "Schmierzettel schließen",
+        saveName: "Sichern",
+        cancel: "Abbrechen",
+        deletePadMessageFormat: "„%@“ und den gesamten Inhalt löschen?",
+        padLimitFormat: "Du kannst bis zu %d Schmierzettel behalten"
     )
 
     static let fr = ScratchpadFeatureStrings(
         pageTitle: "Brouillon",
-        hubDescription: "Un bloc flottant pour les notes éphémères",
-        panelCaption: "Des notes rapides qui s'enregistrent toutes seules",
+        hubDescription: "Des blocs flottants à onglets pour les notes éphémères",
+        panelCaption: "Des notes rapides dans des onglets séparés",
         openButton: "Ouvrir le brouillon",
         placeholder: "Écrivez ce que vous voulez. Tout s'enregistre tout seul.",
         copyAll: "Tout copier",
@@ -206,13 +262,21 @@ extension ScratchpadFeatureStrings {
         keepOpen: "Garder ouvert",
         backgroundOpacity: "Fond du brouillon",
         backgroundTranslucent: "Translucide",
-        backgroundOpaque: "Opaque"
+        backgroundOpaque: "Opaque",
+        newPad: "Nouveau brouillon",
+        padActions: "Actions du brouillon",
+        renamePad: "Renommer le brouillon",
+        closePad: "Fermer le brouillon",
+        saveName: "Enregistrer",
+        cancel: "Annuler",
+        deletePadMessageFormat: "Supprimer « %@ » et tout son contenu ?",
+        padLimitFormat: "Vous pouvez conserver jusqu’à %d brouillons"
     )
 
     static let it = ScratchpadFeatureStrings(
         pageTitle: "Bozza",
-        hubDescription: "Un blocco fluttuante per note usa e getta",
-        panelCaption: "Note rapide che si salvano da sole",
+        hubDescription: "Blocchi fluttuanti a schede per note usa e getta",
+        panelCaption: "Note rapide in schede separate",
         openButton: "Apri bozza",
         placeholder: "Scrivi qualsiasi cosa. Si salva da sola.",
         copyAll: "Copia tutto",
@@ -229,13 +293,21 @@ extension ScratchpadFeatureStrings {
         keepOpen: "Mantieni aperto",
         backgroundOpacity: "Sfondo della bozza",
         backgroundTranslucent: "Traslucido",
-        backgroundOpaque: "Opaco"
+        backgroundOpaque: "Opaco",
+        newPad: "Nuova bozza",
+        padActions: "Azioni della bozza",
+        renamePad: "Rinomina bozza",
+        closePad: "Chiudi bozza",
+        saveName: "Salva",
+        cancel: "Annulla",
+        deletePadMessageFormat: "Eliminare “%@” e tutto il contenuto?",
+        padLimitFormat: "Puoi conservare fino a %d bozze"
     )
 
     static let ja = ScratchpadFeatureStrings(
         pageTitle: "クイックメモ",
-        hubDescription: "一時的なメモのためのフローティングパッド",
-        panelCaption: "自動で保存されるクイックメモ",
+        hubDescription: "一時的なメモをタブで分けられるフローティングパッド",
+        panelCaption: "タブで分けて自動保存するクイックメモ",
         openButton: "クイックメモを開く",
         placeholder: "何でも入力してください。自動で保存されます。",
         copyAll: "すべてコピー",
@@ -252,13 +324,21 @@ extension ScratchpadFeatureStrings {
         keepOpen: "開いたままにする",
         backgroundOpacity: "メモの背景",
         backgroundTranslucent: "半透明",
-        backgroundOpaque: "不透明"
+        backgroundOpaque: "不透明",
+        newPad: "新しいクイックメモ",
+        padActions: "クイックメモの操作",
+        renamePad: "名前を変更",
+        closePad: "クイックメモを閉じる",
+        saveName: "保存",
+        cancel: "キャンセル",
+        deletePadMessageFormat: "「%@」とその内容をすべて削除しますか？",
+        padLimitFormat: "クイックメモは最大%d個まで作成できます"
     )
 
     static let ko = ScratchpadFeatureStrings(
         pageTitle: "빠른 메모",
-        hubDescription: "잠깐 쓰는 메모를 위한 떠 있는 메모판",
-        panelCaption: "자동으로 저장되는 빠른 메모",
+        hubDescription: "짧은 메모를 탭으로 나누는 플로팅 메모판",
+        panelCaption: "각 탭에 따로 저장되는 빠른 메모",
         openButton: "빠른 메모 열기",
         placeholder: "아무거나 입력하세요. 자동으로 저장됩니다.",
         copyAll: "전체 복사",
@@ -275,13 +355,21 @@ extension ScratchpadFeatureStrings {
         keepOpen: "열어 두기",
         backgroundOpacity: "메모 배경",
         backgroundTranslucent: "반투명",
-        backgroundOpaque: "불투명"
+        backgroundOpaque: "불투명",
+        newPad: "새 빠른 메모",
+        padActions: "빠른 메모 동작",
+        renamePad: "빠른 메모 이름 변경",
+        closePad: "빠른 메모 닫기",
+        saveName: "저장",
+        cancel: "취소",
+        deletePadMessageFormat: "“%@” 및 모든 내용을 삭제할까요?",
+        padLimitFormat: "빠른 메모는 최대 %d개까지 만들 수 있습니다"
     )
 
     static let zhHans = ScratchpadFeatureStrings(
         pageTitle: "草稿板",
-        hubDescription: "用于临时笔记的浮动便笺",
-        panelCaption: "自动保存的快速笔记",
+        hubDescription: "用标签页整理临时笔记的浮动记事板",
+        panelCaption: "在独立标签页中自动保存的速记",
         openButton: "打开草稿板",
         placeholder: "随便写点什么，会自动保存。",
         copyAll: "全部拷贝",
@@ -298,13 +386,21 @@ extension ScratchpadFeatureStrings {
         keepOpen: "保持打开",
         backgroundOpacity: "草稿板背景",
         backgroundTranslucent: "半透明",
-        backgroundOpaque: "不透明"
+        backgroundOpaque: "不透明",
+        newPad: "新建草稿板",
+        padActions: "草稿板操作",
+        renamePad: "重命名草稿板",
+        closePad: "关闭草稿板",
+        saveName: "存储",
+        cancel: "取消",
+        deletePadMessageFormat: "删除“%@”及其中的全部内容？",
+        padLimitFormat: "最多可保留 %d 个草稿板"
     )
 
     static let zhTW = ScratchpadFeatureStrings(
         pageTitle: "草稿板",
-        hubDescription: "存放臨時筆記的浮動便箋",
-        panelCaption: "自動儲存的快速筆記",
+        hubDescription: "用分頁整理臨時筆記的浮動記事板",
+        panelCaption: "在不同分頁中自動儲存的快速筆記",
         openButton: "打開草稿板",
         placeholder: "隨手寫點什麼，會自動儲存。",
         copyAll: "全部拷貝",
@@ -321,13 +417,21 @@ extension ScratchpadFeatureStrings {
         keepOpen: "保持開啟",
         backgroundOpacity: "草稿板背景",
         backgroundTranslucent: "半透明",
-        backgroundOpaque: "不透明"
+        backgroundOpaque: "不透明",
+        newPad: "新增草稿板",
+        padActions: "草稿板操作",
+        renamePad: "重新命名草稿板",
+        closePad: "關閉草稿板",
+        saveName: "儲存",
+        cancel: "取消",
+        deletePadMessageFormat: "刪除「%@」和其中的所有內容？",
+        padLimitFormat: "最多可保留 %d 個草稿板"
     )
 
     static let zhHK = ScratchpadFeatureStrings(
         pageTitle: "草稿板",
-        hubDescription: "存放臨時筆記的浮動便箋",
-        panelCaption: "自動儲存的快速筆記",
+        hubDescription: "用分頁整理臨時筆記的浮動記事板",
+        panelCaption: "在不同分頁中自動儲存的快速筆記",
         openButton: "開啟草稿板",
         placeholder: "隨手寫些什麼，會自動儲存。",
         copyAll: "全部拷貝",
@@ -344,6 +448,14 @@ extension ScratchpadFeatureStrings {
         keepOpen: "保持開啟",
         backgroundOpacity: "草稿板背景",
         backgroundTranslucent: "半透明",
-        backgroundOpaque: "不透明"
+        backgroundOpaque: "不透明",
+        newPad: "新增草稿板",
+        padActions: "草稿板操作",
+        renamePad: "重新命名草稿板",
+        closePad: "關閉草稿板",
+        saveName: "儲存",
+        cancel: "取消",
+        deletePadMessageFormat: "刪除「%@」及當中的所有內容？",
+        padLimitFormat: "最多可保留 %d 個草稿板"
     )
 }

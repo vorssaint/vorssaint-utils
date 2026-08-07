@@ -24,6 +24,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     /// over: a HUD naming a folder is not the same as giving somebody the file.
     @Published private(set) var lastExportedURL: URL?
     @Published private(set) var editPresets: [RecorderEditPreset] = []
+    @Published private(set) var audioWaveforms: [RecorderAudioSource: [Float]] = [:]
     @Published var document: RecorderEditDocument {
         didSet { documentDidChange(from: oldValue) }
     }
@@ -47,6 +48,8 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     @Published private(set) var outputDuration: Double = 0
     private(set) var sourceSize: CGSize = .zero
     private var sourceFrameRate = 60
+    private var audioTrackIDs: [RecorderAudioSource: CMPersistentTrackID] = [:]
+    private(set) var audioSources: Set<RecorderAudioSource> = []
     private(set) var pointerTrack = RecorderPointerTrack()
     private(set) var typingTrack = RecorderTypingTrack()
     /// True when the recording carries a pointer track at all. Without one the
@@ -82,7 +85,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
                 gifFrameRate: RecorderSupport.sanitizedGIFFrameRate(
                     defaults.integer(forKey: DefaultsKey.recorderGIFFrameRate)))
         }
-        player.isMuted = !document.keepsSystemAudio
+        player.isMuted = false
         pointerTrack = RecorderPointerTrack.decoded(try? Data(contentsOf: take.pointerURL))
         typingTrack = RecorderTypingTrack.decoded(try? Data(contentsOf: take.typingURL))
         loadEditPresets()
@@ -113,6 +116,9 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
                 let rate = (try? await track.load(.nominalFrameRate)) ?? 60
                 self.sourceFrameRate = RecorderSupport.sanitizedFrameRate(Int(rate.rounded()))
             }
+            let audioTracks = await RecorderAudioSource.tracks(in: self.sourceAsset)
+            self.audioSources = Set(audioTracks.keys)
+            self.loadAudioWaveforms(audioTracks)
             self.document = self.document.sanitized(duration: self.duration)
             self.generateZoomsIfNeeded()
             self.loadThumbnails()
@@ -129,16 +135,38 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         let ranges = document.keptRanges(duration: duration)
         let asset = sourceAsset
         compositionTask = Task { @MainActor [weak self] in
-            guard let timeline = await RecorderComposition.build(from: asset,
-                                                                 ranges: ranges,
-                                                                 includesAudio: true),
+            guard let result = await RecorderComposition.build(from: asset,
+                                                               ranges: ranges,
+                                                               includesAudio: true),
                   let self, !Task.isCancelled
             else { return }
-            let item = AVPlayerItem(asset: timeline)
+            let item = AVPlayerItem(asset: result.asset)
+            self.audioTrackIDs = result.audioTrackIDs
+            item.audioMix = RecorderComposition.audioMix(trackIDs: result.audioTrackIDs,
+                                                         document: self.document)
             self.player.replaceCurrentItem(with: item)
-            self.player.isMuted = !self.document.keepsSystemAudio
-            self.outputDuration = CMTimeGetSeconds((try? await timeline.load(.duration)) ?? .zero)
+            self.player.isMuted = false
+            self.outputDuration = CMTimeGetSeconds(
+                (try? await result.asset.load(.duration)) ?? .zero)
             self.rebuildPreview()
+        }
+    }
+
+    private func loadAudioWaveforms(_ tracks: [RecorderAudioSource: AVAssetTrack]) {
+        let duration = duration
+        let asset = sourceAsset
+        Task.detached(priority: .utility) { [weak self] in
+            var waveforms: [RecorderAudioSource: [Float]] = [:]
+            for source in RecorderAudioSource.allCases {
+                guard let track = tracks[source], !Task.isCancelled else { continue }
+                waveforms[source] = RecorderAudioWaveform.load(asset: asset,
+                                                               track: track,
+                                                               duration: duration,
+                                                               count: 220)
+            }
+            guard !Task.isCancelled else { return }
+            let result = waveforms
+            await MainActor.run { [weak self] in self?.audioWaveforms = result }
         }
     }
 
@@ -258,10 +286,48 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     }
 
     func toggleSound() {
+        toggleAudio(.system)
+    }
+
+    func toggleAudio(_ source: RecorderAudioSource) {
         var next = document
-        next.keepsSystemAudio.toggle()
+        switch source {
+        case .system: next.keepsSystemAudio.toggle()
+        case .microphone: next.keepsMicrophone.toggle()
+        }
         document = next
-        player.isMuted = !next.keepsSystemAudio
+    }
+
+    func setAudioGain(_ gain: Double, for source: RecorderAudioSource) {
+        var next = document
+        switch source {
+        case .system: next.systemAudioGain = RecorderSupport.sanitizedAudioGain(gain)
+        case .microphone: next.microphoneGain = RecorderSupport.sanitizedAudioGain(gain)
+        }
+        document = next
+    }
+
+    func keepsAudio(_ source: RecorderAudioSource) -> Bool {
+        switch source {
+        case .system: return document.keepsSystemAudio
+        case .microphone: return document.keepsMicrophone
+        }
+    }
+
+    func audioGain(_ source: RecorderAudioSource) -> Double {
+        switch source {
+        case .system: return document.systemAudioGain
+        case .microphone: return document.microphoneGain
+        }
+    }
+
+    func hasAudio(_ source: RecorderAudioSource) -> Bool {
+        audioSources.contains(source)
+    }
+
+    private func applyAudioMix() {
+        player.currentItem?.audioMix = RecorderComposition.audioMix(trackIDs: audioTrackIDs,
+                                                                    document: document)
     }
 
     private func documentDidChange(from previous: RecorderEditDocument) {
@@ -271,6 +337,8 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         persist()
         if previous.affectsTiming(document) {
             rebuildComposition()
+        } else if previous.affectsAudio(document) {
+            applyAudioMix()
         } else if previous.affectsPicture(document) {
             rebuildPreview()
         }
@@ -333,10 +401,12 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         suppressUndo = true
         document = next
         suppressUndo = false
-        player.isMuted = !next.keepsSystemAudio
+        player.isMuted = false
         persist()
         if previous.affectsTiming(next) {
             rebuildComposition()
+        } else if previous.affectsAudio(next) {
+            applyAudioMix()
         } else if previous.affectsPicture(next) {
             rebuildPreview()
         }

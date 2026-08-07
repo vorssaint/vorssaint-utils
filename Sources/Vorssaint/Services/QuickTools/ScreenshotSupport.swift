@@ -26,12 +26,26 @@ enum ScreenshotSupport {
     /// exhaust memory. Reaching a guard keeps the valid portion and explains
     /// why the capture stopped.
     static let scrollingCaptureMaximumDuration: TimeInterval = 30
-    static let scrollingCaptureMaximumFrames = 32
-    static let scrollingCaptureMaximumRawPixels = 48_000_000
+    static let scrollingCaptureMaximumFrames = 64
+    static let scrollingCaptureMaximumRetainedPixels = 60_000_000
     static let scrollingCaptureMaximumPixels = 60_000_000
+    static let scrollingCaptureMaximumScrollDelta: Int32 = 4
 
     static func scrollingCaptureStepPoints(regionHeight: CGFloat) -> CGFloat {
         min(max(regionHeight * 0.62, 60), 720)
+    }
+
+    /// Quartz expects small wheel values. Splitting a page-sized movement into
+    /// ordinary deltas lets each target apply its normal scrolling behavior.
+    static func scrollingCaptureScrollDeltas(points: CGFloat) -> [Int32] {
+        var remaining = max(1, Int((points / 10).rounded()))
+        var deltas: [Int32] = []
+        while remaining > 0 {
+            let delta = min(remaining, Int(scrollingCaptureMaximumScrollDelta))
+            deltas.append(-Int32(delta))
+            remaining -= delta
+        }
+        return deltas
     }
 
     struct ScrollingSample: Equatable {
@@ -50,33 +64,12 @@ enum ScreenshotSupport {
         case unmatched
     }
 
-    struct ScrollingStitchPiece: Equatable {
-        let sourceY: Int
-        let height: Int
-        let destinationY: Int
-    }
-
-    /// Exact crop and placement geometry for the final canvas. Core Graphics
-    /// only draws this plan, keeping the seam math independently testable.
-    static func scrollingStitchPieces(frameHeights: [Int],
-                                      topCrops: [Int]) -> [ScrollingStitchPiece]? {
-        guard !frameHeights.isEmpty, frameHeights.count == topCrops.count,
-              zip(frameHeights, topCrops).allSatisfy({ pair in
-                  pair.0 > 0 && pair.1 >= 0 && pair.1 < pair.0
-              })
-        else { return nil }
-        let pieceHeights = zip(frameHeights, topCrops).map { pair in
-            pair.0 - pair.1
-        }
-        var destinationY = pieceHeights.reduce(0, +)
-        var pieces: [ScrollingStitchPiece] = []
-        for index in frameHeights.indices {
-            destinationY -= pieceHeights[index]
-            pieces.append(ScrollingStitchPiece(sourceY: topCrops[index],
-                                               height: pieceHeights[index],
-                                               destinationY: destinationY))
-        }
-        return destinationY == 0 ? pieces : nil
+    static func scrollingSamplesAreStable(_ previous: ScrollingSample,
+                                          _ current: ScrollingSample) -> Bool {
+        previous.isValid && current.isValid
+            && previous.width == current.width
+            && previous.height == current.height
+            && scrollingDifference(previous, current) <= 1.5
     }
 
     /// Finds how many rows two successive views share. The calculation is
@@ -90,7 +83,7 @@ enum ScreenshotSupport {
               previous.height >= 24
         else { return .unmatched }
 
-        if scrollingDifference(previous, current) <= 1.5 {
+        if scrollingSamplesAreStable(previous, current) {
             return .end
         }
 
@@ -174,7 +167,7 @@ enum ScreenshotSupport {
         -> (longestRun: Int, matchingRows: Int, difference: Double)? {
         let width = previous.width
         let sideInset = max(1, width / 12)
-        let edgeInset = max(2, previous.height / 24)
+        let edgeInset = max(2, previous.height / 10)
         let lastRow = previous.height - advance - edgeInset
         guard lastRow > edgeInset, width - sideInset * 2 > 0 else { return nil }
 
@@ -214,6 +207,20 @@ enum ScreenshotSupport {
         let scale = dpi / 72
         guard (0.5...4).contains(scale) else { return nil }
         return CGFloat(scale)
+    }
+
+    /// Uses the logical size carried by a copied image when it describes one
+    /// consistent display scale. Imported files without that metadata edit at 1x.
+    static func clipboardImageScale(pixelSize: CGSize, pointSize: CGSize) -> CGFloat {
+        guard pixelSize.width > 0, pixelSize.height > 0,
+              pointSize.width > 0, pointSize.height > 0
+        else { return 1 }
+        let horizontal = pixelSize.width / pointSize.width
+        let vertical = pixelSize.height / pointSize.height
+        guard horizontal.isFinite, vertical.isFinite,
+              abs(horizontal - vertical) <= max(horizontal, vertical) * 0.05
+        else { return 1 }
+        return captureScale(fromDPI: Double((horizontal + vertical) / 2) * 72) ?? 1
     }
 
     // MARK: - Selection geometry
@@ -325,16 +332,72 @@ enum ScreenshotSupport {
 
     // MARK: - Quick preview placement
 
-    /// Places the capture preview beside the selection when possible, then
-    /// falls back near the pointer and clamps the whole panel to the display.
+    enum QuickPreviewPosition: String, CaseIterable {
+        case automatic = ""
+        case topLeft
+        case topRight
+        case bottomLeft
+        case bottomRight
+    }
+
+    /// Picks the display containing most of the capture. The pointer breaks
+    /// an exact tie and is also the fallback when a display was disconnected
+    /// or rearranged before the preview appears.
+    static func quickPreviewVisibleFrame(
+        anchor: CGRect,
+        pointer: CGPoint,
+        screens: [(frame: CGRect, visibleFrame: CGRect)],
+        fallback: CGRect
+    ) -> CGRect {
+        var selected: (frame: CGRect, visibleFrame: CGRect)?
+        var selectedArea: CGFloat = 0
+        for screen in screens {
+            let overlap = anchor.intersection(screen.frame)
+            let area = overlap.isNull ? 0 : max(0, overlap.width) * max(0, overlap.height)
+            let winsTie = area == selectedArea
+                && area > 0
+                && screen.frame.contains(pointer)
+                && !(selected?.frame.contains(pointer) ?? false)
+            if area > selectedArea || winsTie {
+                selected = screen
+                selectedArea = area
+            }
+        }
+        if let selected { return selected.visibleFrame }
+        return screens.first { $0.frame.contains(pointer) }?.visibleFrame ?? fallback
+    }
+
+    /// Places the capture preview beside the selection in automatic mode, or
+    /// in the selected display corner, and clamps it to the visible frame.
     static func quickPreviewFrame(size: CGSize,
                                   anchor: CGRect,
                                   pointer: CGPoint,
-                                  visibleFrame: CGRect) -> CGRect {
-        let gap: CGFloat = 14
-        let inset: CGFloat = 10
+                                  visibleFrame: CGRect,
+                                  position: QuickPreviewPosition = .automatic) -> CGRect {
+        let inset: CGFloat = position == .automatic ? 10 : 16
         let usable = visibleFrame.insetBy(dx: inset, dy: inset)
 
+        if position != .automatic {
+            let x: CGFloat
+            let y: CGFloat
+            switch position {
+            case .automatic, .bottomRight:
+                x = max(usable.minX, usable.maxX - size.width)
+                y = usable.minY
+            case .topLeft:
+                x = usable.minX
+                y = max(usable.minY, usable.maxY - size.height)
+            case .topRight:
+                x = max(usable.minX, usable.maxX - size.width)
+                y = max(usable.minY, usable.maxY - size.height)
+            case .bottomLeft:
+                x = usable.minX
+                y = usable.minY
+            }
+            return CGRect(origin: CGPoint(x: x, y: y), size: size)
+        }
+
+        let gap: CGFloat = 14
         var x = anchor.maxX + gap
         if x + size.width > usable.maxX {
             x = anchor.minX - size.width - gap
@@ -358,18 +421,6 @@ enum ScreenshotSupport {
 
         x = min(max(x, usable.minX), max(usable.minX, usable.maxX - size.width))
         y = min(max(y, usable.minY), max(usable.minY, usable.maxY - size.height))
-        return CGRect(origin: CGPoint(x: x, y: y), size: size)
-    }
-
-    /// A quieter, corner-anchored placement used when a default action is
-    /// configured — the HUD is now just a confirmation, not something the
-    /// person needs to act on, so it stays out of the way in the corner
-    /// instead of popping up next to the selection.
-    static func quickPreviewCornerFrame(size: CGSize, visibleFrame: CGRect) -> CGRect {
-        let inset: CGFloat = 16
-        let usable = visibleFrame.insetBy(dx: inset, dy: inset)
-        let x = max(usable.minX, usable.maxX - size.width)
-        let y = usable.minY
         return CGRect(origin: CGPoint(x: x, y: y), size: size)
     }
 

@@ -18,6 +18,10 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         didSet {
             UserDefaults.standard.set(tool.rawValue, forKey: DefaultsKey.screenshotLastTool)
             if tool != .select { clearTextSelection() }
+            if tool != oldValue, tool != .select {
+                selectedID = nil
+                editingTextID = nil
+            }
             if tool == .crop, oldValue != .crop {
                 selectedID = nil
                 cropDraft = CGRect(origin: .zero, size: imageSize)
@@ -115,6 +119,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     private var cropResizeOrigin: CGRect?
     private var cropMoveOrigin: CGRect?
     private var dragRegistered = false
+    private var editingSelectedAnnotation = false
     private var newTextID: UUID?
 
     var imageSize: CGSize {
@@ -463,6 +468,12 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     func beginDrag(at point: CGPoint) {
         dragStart = point
         dragRegistered = false
+        editingSelectedAnnotation = false
+        if tool != .select, tool != .crop, selectedAnnotationOwns(point) {
+            editingSelectedAnnotation = true
+            beginSelectDrag(at: point)
+            return
+        }
         switch tool {
         case .select:
             beginSelectDrag(at: point)
@@ -546,6 +557,10 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     }
 
     func continueDrag(to point: CGPoint) {
+        if editingSelectedAnnotation {
+            continueSelectDrag(to: point)
+            return
+        }
         switch tool {
         case .select:
             continueSelectDrag(to: point)
@@ -616,6 +631,11 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             cropMoveOrigin = nil
             cropLoupePoint = nil
             dragRegistered = false
+            editingSelectedAnnotation = false
+        }
+        if editingSelectedAnnotation {
+            finishSelectDrag(at: point, isTap: isTap)
+            return
         }
         switch tool {
         case .text:
@@ -669,21 +689,44 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 selectedID = draftID
             }
         case .select:
-            textSelectionAnchor = nil
-            if isTap, !dragRegistered {
-                selectedID = hitTest(point)
-                if let selectedID,
-                   let hit = annotations.first(where: { $0.id == selectedID }),
-                   hit.tool == .text {
-                    editingTextID = selectedID
-                } else if selectedID == nil, let word = wordIndex(at: point) {
-                    selectedWordIndexes = [word]
-                } else if selectedID == nil {
-                    clearTextSelection()
-                }
-            }
+            finishSelectDrag(at: point, isTap: isTap)
         case .crop:
             break
+        }
+    }
+
+    /// The visible selection remains directly editable after creation. A new
+    /// tool or a gesture outside it ends that priority and creates normally.
+    func selectedAnnotationOwns(_ point: CGPoint) -> Bool {
+        guard let selectedID,
+              let selected = annotations.first(where: { $0.id == selectedID })
+        else { return false }
+        let tolerance = 12 * scale
+        if selected.tool.resizesWithHandles,
+           ScreenshotSupport.handle(at: point, rect: selected.rect,
+                                    tolerance: tolerance) != nil {
+            return true
+        }
+        if selected.points.prefix(2).contains(where: {
+            hypot(point.x - $0.x, point.y - $0.y) < tolerance
+        }) {
+            return true
+        }
+        return hitTest(point) == selectedID
+    }
+
+    private func finishSelectDrag(at point: CGPoint, isTap: Bool) {
+        textSelectionAnchor = nil
+        guard isTap, !dragRegistered else { return }
+        selectedID = hitTest(point)
+        if let selectedID,
+           let hit = annotations.first(where: { $0.id == selectedID }),
+           hit.tool == .text {
+            editingTextID = selectedID
+        } else if selectedID == nil, let word = wordIndex(at: point) {
+            selectedWordIndexes = [word]
+        } else if selectedID == nil {
+            clearTextSelection()
         }
     }
 
@@ -907,6 +950,11 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private var keyMonitor: Any?
     private var scrollMonitor: Any?
+
+    var protectedWindowIDs: Set<CGWindowID> {
+        guard let window, window.isVisible, window.windowNumber > 0 else { return [] }
+        return [CGWindowID(window.windowNumber)]
+    }
     private var strings: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(L10n.shared.language)
     }

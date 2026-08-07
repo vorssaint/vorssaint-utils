@@ -110,13 +110,35 @@ enum InstalledApps {
                             isSystem: isSystemApplication(at: url))
     }
 
-    static func installedBundleApplications(excluding excludedBundleIDs: Set<String>) -> [InstalledApp] {
+    static func installedBundleApplications(excluding excludedBundleIDs: Set<String>,
+                                            includeRunningApplications: Bool = false) -> [InstalledApp] {
+        var apps = installedApplications(includeSystemApplications: true)
+        if includeRunningApplications {
+            apps += NSWorkspace.shared.runningApplications.compactMap { runningApp in
+                guard runningApp.activationPolicy == .regular,
+                      let bundleID = runningApp.bundleIdentifier,
+                      !bundleID.isEmpty,
+                      let url = runningApp.bundleURL,
+                      url.pathExtension.caseInsensitiveCompare("app") == .orderedSame else {
+                    return nil
+                }
+                let name = runningApp.localizedName ?? FileManager.default.displayName(atPath: url.path)
+                return InstalledApp(id: url.standardizedFileURL.path,
+                                    name: name,
+                                    bundleID: bundleID,
+                                    url: url,
+                                    isSystem: isSystemApplication(at: url))
+            }
+        }
+
         var seen = Set<String>()
-        return installedApplications(includeSystemApplications: true).filter { app in
+        return apps.filter { app in
             guard let bundleID = app.bundleID,
                   !excludedBundleIDs.contains(bundleID),
                   seen.insert(bundleID).inserted else { return false }
             return true
+        }.sorted {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
     }
 }

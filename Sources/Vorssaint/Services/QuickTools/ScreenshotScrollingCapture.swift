@@ -34,20 +34,24 @@ enum ScreenshotScrollingCapture {
         case failed
     }
 
-    private struct StitchSlice {
-        let image: CGImage
-        let topCrop: Int
-    }
-
     static func capture(region: RecorderSupport.Region,
                         includePointer: Bool,
+                        hideVorssaintWindows: Bool,
+                        protectedWindowIDs: Set<CGWindowID>,
                         finishSignal: FinishSignal,
-                        targetPID: pid_t) async -> Result {
+                        targetPID: pid_t,
+                        onProgress: @escaping @MainActor (Int) -> Void) async -> Result {
         do {
+            guard let targetApplication = NSRunningApplication(
+                processIdentifier: targetPID) else { return .failed }
+            _ = await MainActor.run { targetApplication.activate(options: []) }
             try await Task.sleep(nanoseconds: 140_000_000)
             try Task.checkCancellation()
 
-            guard let first = await capturedRegion(region, includePointer: includePointer)
+            guard let first = await capturedRegion(region,
+                                                   includePointer: includePointer,
+                                                   hideVorssaintWindows: hideVorssaintWindows,
+                                                   protectedWindowIDs: protectedWindowIDs)
             else { return .failed }
             try Task.checkCancellation()
             guard let firstSample = sample(first) else { return .failed }
@@ -55,10 +59,11 @@ enum ScreenshotScrollingCapture {
             let startedAt = ProcessInfo.processInfo.systemUptime
             let step = ScreenshotSupport.scrollingCaptureStepPoints(
                 regionHeight: region.anchorRect.height)
-            var slices = [StitchSlice(image: first, topCrop: 0)]
+            var slices = [first]
             var previousSample = firstSample
             var totalHeight = first.height
             var retainedPixels = first.width * first.height
+            await onProgress(totalHeight)
 
             while true {
                 try Task.checkCancellation()
@@ -70,39 +75,20 @@ enum ScreenshotScrollingCapture {
                     || slices.count >= ScreenshotSupport.scrollingCaptureMaximumFrames {
                     return completed(slices: slices, region: region, result: .limited)
                 }
-                guard postScrollDown(points: step,
-                                     anchorRect: region.anchorRect,
-                                     targetPID: targetPID) else {
+                guard try await postScrollDown(points: step,
+                                               anchorRect: region.anchorRect) else {
                     return .failed
                 }
-                try await Task.sleep(nanoseconds: 360_000_000)
-                try Task.checkCancellation()
-
-                guard var current = await capturedRegion(region, includePointer: includePointer)
+                guard let settled = try await capturedAfterScroll(
+                    region: region,
+                    includePointer: includePointer,
+                    hideVorssaintWindows: hideVorssaintWindows,
+                    protectedWindowIDs: protectedWindowIDs,
+                    previousSample: previousSample)
                 else { return .failed }
-                try Task.checkCancellation()
-                guard var currentSample = sample(current) else { return .failed }
-                var transition = ScreenshotSupport.scrollingTransition(
-                    previous: previousSample, current: currentSample)
-                try Task.checkCancellation()
-
-                // A target with animated or inertial scrolling may still be
-                // moving at the first capture. One settled retry avoids both a
-                // false seam and another scroll event.
-                if transition == .unmatched {
-                    try await Task.sleep(nanoseconds: 180_000_000)
-                    try Task.checkCancellation()
-                    guard let settled = await capturedRegion(region,
-                                                             includePointer: includePointer)
-                    else { return .failed }
-                    try Task.checkCancellation()
-                    guard let settledSample = sample(settled) else { return .failed }
-                    current = settled
-                    currentSample = settledSample
-                    transition = ScreenshotSupport.scrollingTransition(
-                        previous: previousSample, current: currentSample)
-                    try Task.checkCancellation()
-                }
+                let current = settled.image
+                let currentSample = settled.sample
+                let transition = settled.transition
 
                 switch transition {
                 case .end:
@@ -112,22 +98,30 @@ enum ScreenshotScrollingCapture {
                     let overlap = Int((CGFloat(sampleOverlap) / CGFloat(currentSample.height)
                         * CGFloat(current.height)).rounded())
                     guard overlap > 0, overlap < current.height else { return .failed }
-                    let nextHeight = totalHeight + current.height - overlap
+                    let stripHeight = current.height - overlap
+                    let nextHeight = totalHeight + stripHeight
                     guard current.width > 0,
                           nextHeight <= ScreenshotSupport.scrollingCaptureMaximumPixels
                             / current.width
                     else {
                         return completed(slices: slices, region: region, result: .limited)
                     }
-                    let currentPixels = current.width * current.height
-                    guard retainedPixels <= ScreenshotSupport.scrollingCaptureMaximumRawPixels
-                            - currentPixels else {
+                    guard let strip = copiedStrip(from: current, topCrop: overlap)
+                    else { return .failed }
+                    let stripPixels = strip.width * strip.height
+                    guard retainedPixels
+                            <= ScreenshotSupport.scrollingCaptureMaximumRetainedPixels
+                                - stripPixels else {
                         return completed(slices: slices, region: region, result: .limited)
                     }
-                    slices.append(StitchSlice(image: current, topCrop: overlap))
+                    // Keep only new pixels. Retaining every full frame made a
+                    // common Retina selection hit the memory guard after about
+                    // eleven scrolls even though the final image was still safe.
+                    slices.append(strip)
                     totalHeight = nextHeight
-                    retainedPixels += currentPixels
+                    retainedPixels += stripPixels
                     previousSample = currentSample
+                    await onProgress(totalHeight)
 
                 case .unmatched:
                     guard slices.count > 1 else { return .failed }
@@ -147,7 +141,7 @@ enum ScreenshotScrollingCapture {
         case limited
     }
 
-    private static func completed(slices: [StitchSlice],
+    private static func completed(slices: [CGImage],
                                   region: RecorderSupport.Region,
                                   result: CompletedResult) -> Result {
         guard !Task.isCancelled else { return .cancelled }
@@ -167,16 +161,68 @@ enum ScreenshotScrollingCapture {
     }
 
     private static func capturedRegion(_ region: RecorderSupport.Region,
-                                       includePointer: Bool) async -> CGImage? {
+                                       includePointer: Bool,
+                                       hideVorssaintWindows: Bool,
+                                       protectedWindowIDs: Set<CGWindowID>) async -> CGImage? {
         await ScreenshotCaptureEngine.captureDisplayRegion(
             displayID: region.displayID,
             pixelRect: region.pixelRect,
-            includePointer: includePointer)
+            includePointer: includePointer,
+            hideVorssaintWindows: hideVorssaintWindows,
+            protectedWindowIDs: protectedWindowIDs)
+    }
+
+    private struct SettledFrame {
+        let image: CGImage
+        let sample: ScreenshotSupport.ScrollingSample
+        let transition: ScreenshotSupport.ScrollingTransition
+    }
+
+    /// Captures until two consecutive views agree, while remembering the best
+    /// usable frame. This adapts to inertial scrolling and content that arrives
+    /// a little late without imposing the same fixed pause on every target.
+    private static func capturedAfterScroll(
+        region: RecorderSupport.Region,
+        includePointer: Bool,
+        hideVorssaintWindows: Bool,
+        protectedWindowIDs: Set<CGWindowID>,
+        previousSample: ScreenshotSupport.ScrollingSample
+    ) async throws -> SettledFrame? {
+        var lastSample: ScreenshotSupport.ScrollingSample?
+        var best: SettledFrame?
+
+        for attempt in 0..<7 {
+            try await Task.sleep(nanoseconds: attempt == 0 ? 120_000_000 : 90_000_000)
+            try Task.checkCancellation()
+            guard let image = await capturedRegion(
+                region,
+                includePointer: includePointer,
+                hideVorssaintWindows: hideVorssaintWindows,
+                protectedWindowIDs: protectedWindowIDs),
+                  let currentSample = sample(image)
+            else { return nil }
+            try Task.checkCancellation()
+
+            let transition = ScreenshotSupport.scrollingTransition(
+                previous: previousSample, current: currentSample)
+            let frame = SettledFrame(image: image,
+                                     sample: currentSample,
+                                     transition: transition)
+            if transition != .unmatched {
+                best = frame
+            }
+            if let lastSample,
+               ScreenshotSupport.scrollingSamplesAreStable(lastSample, currentSample) {
+                return transition == .unmatched ? best : frame
+            }
+            lastSample = currentSample
+        }
+        return best
     }
 
     /// Resolve the app beneath the chosen area before our progress HUD appears.
-    /// Scroll events can then go straight to that app without moving the real
-    /// pointer to the event's target coordinates.
+    /// Keeping that app in front lets marked global scroll events reach the
+    /// chosen content without moving the real pointer.
     static func targetPID(for region: RecorderSupport.Region) -> pid_t? {
         let options: CGWindowListOption
         let relativeTo: CGWindowID
@@ -212,23 +258,27 @@ enum ScreenshotScrollingCapture {
     }
 
     private static func postScrollDown(points: CGFloat,
-                                       anchorRect: CGRect,
-                                       targetPID: pid_t) -> Bool {
-        let pixels = Int32(clamping: Int(points.rounded()))
-        guard pixels > 0,
-              let event = CGEvent(scrollWheelEvent2Source: nil,
-                                  units: .pixel,
-                                  wheelCount: 1,
-                                  wheel1: -pixels,
-                                  wheel2: 0,
-                                  wheel3: 0)
-        else { return false }
+                                       anchorRect: CGRect) async throws -> Bool {
+        let deltas = ScreenshotSupport.scrollingCaptureScrollDeltas(points: points)
+        guard !deltas.isEmpty else { return false }
         let mainHeight = NSScreen.screens.first?.frame.height ?? 0
-        event.location = CGPoint(x: anchorRect.midX,
-                                 y: mainHeight - anchorRect.midY)
-        event.setIntegerValueField(.eventSourceUserData,
-                                   value: ScrollWheelSupport.syntheticTag)
-        event.postToPid(targetPID)
+        let location = CGPoint(x: anchorRect.midX,
+                               y: mainHeight - anchorRect.midY)
+        for delta in deltas {
+            try Task.checkCancellation()
+            guard let event = CGEvent(scrollWheelEvent2Source: nil,
+                                      units: .line,
+                                      wheelCount: 1,
+                                      wheel1: delta,
+                                      wheel2: 0,
+                                      wheel3: 0)
+            else { return false }
+            event.location = location
+            event.setIntegerValueField(.eventSourceUserData,
+                                       value: ScrollWheelSupport.syntheticTag)
+            event.post(tap: .cghidEventTap)
+            try await Task.sleep(nanoseconds: 4_000_000)
+        }
         return true
     }
 
@@ -255,16 +305,34 @@ enum ScreenshotScrollingCapture {
                                                  pixels: pixels)
     }
 
-    private static func stitch(_ slices: [StitchSlice]) -> CGImage? {
+    /// A cropped CGImage may keep its full source storage alive. Drawing the
+    /// new strip into its own bitmap makes the retained-pixel guard truthful.
+    private static func copiedStrip(from image: CGImage, topCrop: Int) -> CGImage? {
+        let height = image.height - topCrop
+        guard image.width > 0, height > 0,
+              let source = image.cropping(to: CGRect(x: 0,
+                                                     y: topCrop,
+                                                     width: image.width,
+                                                     height: height)),
+              let context = CGContext(data: nil,
+                                      width: image.width,
+                                      height: height,
+                                      bitsPerComponent: 8,
+                                      bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        context.interpolationQuality = .none
+        context.draw(source, in: CGRect(x: 0, y: 0, width: image.width, height: height))
+        return context.makeImage()
+    }
+
+    private static func stitch(_ slices: [CGImage]) -> CGImage? {
         guard !Task.isCancelled else { return nil }
         guard let first = slices.first else { return nil }
-        guard slices.count > 1 else { return first.image }
-        let width = slices.map(\.image.width).min() ?? first.image.width
-        guard let pieces = ScreenshotSupport.scrollingStitchPieces(
-            frameHeights: slices.map(\.image.height),
-            topCrops: slices.map(\.topCrop))
-        else { return nil }
-        let height = pieces.reduce(0) { $0 + $1.height }
+        guard slices.count > 1 else { return first }
+        let width = slices.map(\.width).min() ?? first.width
+        let height = slices.reduce(0) { $0 + $1.height }
         guard let context = CGContext(data: nil,
                                       width: width,
                                       height: height,
@@ -275,18 +343,19 @@ enum ScreenshotScrollingCapture {
         else { return nil }
         context.interpolationQuality = .none
 
-        for (slice, plan) in zip(slices, pieces) {
+        var destinationY = height
+        for slice in slices {
             guard !Task.isCancelled else { return nil }
-            guard plan.height > 0,
-                  let piece = slice.image.cropping(to: CGRect(x: 0,
-                                                              y: plan.sourceY,
-                                                              width: width,
-                                                              height: plan.height))
+            destinationY -= slice.height
+            guard let piece = slice.cropping(to: CGRect(x: 0,
+                                                        y: 0,
+                                                        width: width,
+                                                        height: slice.height))
             else { return nil }
-            context.draw(piece, in: CGRect(x: 0, y: plan.destinationY,
+            context.draw(piece, in: CGRect(x: 0, y: destinationY,
                                            width: piece.width, height: piece.height))
         }
-        guard !Task.isCancelled else { return nil }
+        guard !Task.isCancelled, destinationY == 0 else { return nil }
         return context.makeImage()
     }
 }

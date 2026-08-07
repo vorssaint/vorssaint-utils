@@ -16,6 +16,7 @@ struct ScreenRecorderSettings: View {
         RecorderSupport.Quality.balanced.rawValue
     @AppStorage(DefaultsKey.recorderFrameRate) private var frameRate = 60
     @AppStorage(DefaultsKey.recorderSystemAudio) private var systemAudio = true
+    @AppStorage(DefaultsKey.recorderMicrophone) private var microphone = false
     @AppStorage(DefaultsKey.recorderSaveFolder) private var saveFolder = ""
     @AppStorage(DefaultsKey.recorderOpenEditor) private var opensEditor = true
     @AppStorage(DefaultsKey.recorderGIFSize) private var gifSizeRaw =
@@ -81,6 +82,20 @@ struct ScreenRecorderSettings: View {
                     Text(strings.systemAudioCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle(strings.microphoneToggle, isOn: $microphone)
+                        .onChange(of: microphone) { _, enabled in
+                            if enabled, permissions.microphone == .undetermined {
+                                permissions.requestMicrophone()
+                            }
+                        }
+                    Text(strings.microphoneCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if microphone, permissions.microphone != .granted {
+                        PermissionRow(kind: .microphone)
+                    }
                 }
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle(strings.openEditorToggle, isOn: $opensEditor)
