@@ -6633,6 +6633,9 @@ struct MetricsTests {
         expect(HomebrewCommandBuilder.update(brewPath: brewPath).arguments
                == ["update"],
                "Homebrew update command refreshes Homebrew metadata")
+        expect(HomebrewCommandBuilder.cleanup(brewPath: brewPath).arguments
+               == ["cleanup"],
+               "Homebrew cleanup command removes stale Homebrew downloads and old package versions")
         expect(HomebrewCommandBuilder.install(brewPath: brewPath, package: cask).arguments
                == ["install", "--cask", "sample-tool"],
                "cask install command uses --cask")
@@ -6659,6 +6662,8 @@ struct MetricsTests {
                "Homebrew package update status uses an update icon")
         expect(HomebrewOperation.Action.updateHomebrew.runningSystemImage == "arrow.triangle.2.circlepath",
                "Homebrew metadata refresh status uses a refresh icon")
+        expect(HomebrewOperation.Action.cleanup.runningSystemImage == "trash.circle.fill",
+               "Homebrew cleanup status uses a cleanup icon")
         expect(HomebrewCommandBuilder.needsTerminalFallback(output: "sudo: a terminal is required to read the password"),
                "sudo terminal error triggers Homebrew terminal fallback")
         expect(HomebrewCommandBuilder.installerCommand == #"/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)""#,
@@ -6706,6 +6711,9 @@ struct MetricsTests {
         expect(HomebrewProgressParser.phase(in: "Already up-to-date.",
                                             action: .updateHomebrew) == .refreshing,
                "Homebrew progress parser detects metadata refresh")
+        expect(HomebrewProgressParser.phase(in: "Removing: /Users/test/Library/Caches/Homebrew/foo",
+                                            action: .cleanup) == .finalizing,
+               "Homebrew progress parser treats cleanup output as finalizing")
         expect(HomebrewProgressParser.activity(in: "\u{001B}[32m==> Moving App 'Sample.app'\u{001B}[0m")
                == "Moving App 'Sample.app'",
                "Homebrew progress parser cleans activity lines")
@@ -6886,6 +6894,7 @@ struct MetricsTests {
             expectFormat(strings.homebrewConfirmUpgradeBodyFormat, ["@"], "\(prefix) Homebrew upgrade format")
             expect(!strings.homebrewUpgradeAll.isEmpty, "\(prefix) Homebrew update all title is present")
             expect(!strings.homebrewUpdateHomebrew.isEmpty, "\(prefix) Homebrew update Homebrew title is present")
+            expect(!strings.homebrewCleanup.isEmpty, "\(prefix) Homebrew cleanup title is present")
             expect(!strings.switcherIconRowMode.isEmpty, "\(prefix) App Switcher icon-row title is present")
             expect(!strings.switcherIconRowModeCaption.isEmpty, "\(prefix) App Switcher icon-row caption is present")
             expect(!strings.switcherSimpleMode.isEmpty, "\(prefix) App Switcher simple-mode title is present")
@@ -6995,17 +7004,21 @@ struct MetricsTests {
             expect(!strings.homebrewConfirmUpgradeAllBody.isEmpty, "\(prefix) Homebrew update all confirmation body is present")
             expect(!strings.homebrewConfirmUpdateHomebrewTitle.isEmpty, "\(prefix) Homebrew update Homebrew confirmation title is present")
             expect(!strings.homebrewConfirmUpdateHomebrewBody.isEmpty, "\(prefix) Homebrew update Homebrew confirmation body is present")
+            expect(!strings.homebrewConfirmCleanupTitle.isEmpty, "\(prefix) Homebrew cleanup confirmation title is present")
+            expect(!strings.homebrewConfirmCleanupBody.isEmpty, "\(prefix) Homebrew cleanup confirmation body is present")
             expectFormat(strings.homebrewPopularityFormat, ["@", "@"], "\(prefix) Homebrew popularity format")
             expectFormat(strings.homebrewOperationInstallFormat, ["@"], "\(prefix) Homebrew operation install format")
             expectFormat(strings.homebrewOperationUninstallFormat, ["@"], "\(prefix) Homebrew operation uninstall format")
             expectFormat(strings.homebrewOperationUpgradeFormat, ["@"], "\(prefix) Homebrew operation upgrade format")
             expect(!strings.homebrewOperationUpgradeAll.isEmpty, "\(prefix) Homebrew operation update all is present")
             expect(!strings.homebrewOperationUpdateHomebrew.isEmpty, "\(prefix) Homebrew operation update Homebrew is present")
+            expect(!strings.homebrewOperationCleanup.isEmpty, "\(prefix) Homebrew operation cleanup is present")
             expectFormat(strings.homebrewOperationInstalledFormat, ["@"], "\(prefix) Homebrew operation installed format")
             expectFormat(strings.homebrewOperationUninstalledFormat, ["@"], "\(prefix) Homebrew operation uninstalled format")
             expectFormat(strings.homebrewOperationUpgradedFormat, ["@"], "\(prefix) Homebrew operation upgraded format")
             expect(!strings.homebrewOperationUpgradedAll.isEmpty, "\(prefix) Homebrew operation updated all is present")
             expect(!strings.homebrewOperationUpdatedHomebrew.isEmpty, "\(prefix) Homebrew operation updated Homebrew is present")
+            expect(!strings.homebrewOperationCleaned.isEmpty, "\(prefix) Homebrew operation cleaned is present")
             expectFormat(strings.homebrewOperationFailedFormat, ["@"], "\(prefix) Homebrew operation failed format")
             expectFormat(strings.homebrewOperationElapsedFormat, ["@"], "\(prefix) Homebrew operation elapsed format")
 
@@ -7603,6 +7616,10 @@ struct MetricsTests {
         expect(!activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled])
                 .contains(.brightness),
                "brightness sliders alone never use accessibility")
+        expect(activeSet(.accessibility, on: [DefaultsKey.preciseVolumeRollerEnabled]).contains(.mixer),
+               "mixer uses accessibility only for precise volume roller")
+        expect(!activeSet(.accessibility).contains(.mixer),
+               "mixer without precise volume roller does not use accessibility")
         expect(activeSet(.accessibility).contains(.screenRecorder),
                "the recorder uses accessibility for anonymous typing timing while active")
 
@@ -7779,7 +7796,7 @@ struct MetricsTests {
                    "no em-dash in visible menu bar appearance strings (\(language.rawValue))")
             let appUpdateValues = Mirror(reflecting: FeatureStrings.appUpdates(language)).children
                 .compactMap { $0.value as? String }
-            expect(appUpdateValues.count == 29 && appUpdateValues.allSatisfy { !$0.isEmpty },
+            expect(appUpdateValues.count == 35 && appUpdateValues.allSatisfy { !$0.isEmpty },
                    "every app update string is set for \(language.rawValue)")
             expect(appUpdateValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible app update strings (\(language.rawValue))")
@@ -10307,6 +10324,43 @@ struct MetricsTests {
                "text where a per-app rule dictionary belongs is dropped on import")
         expect(shapeChecked?[DefaultsKey.smoothScrollStep] as? Int == 60,
                "a value of the right shape still restores")
+        expect(Defaults.registeredDefaults[DefaultsKey.preciseVolumeRollerEnabled] as? Bool == false,
+               "precise volume roller is opt-in")
+
+        // MARK: Precise volume roller
+
+        var volumeGate = PreciseVolumeRollerGate()
+        expect(volumeGate.accepts(.up, at: 100.00),
+               "precise volume accepts the first wheel step")
+        expect(!volumeGate.accepts(.up, at: 100.01),
+               "precise volume drops repeats that arrive inside the spacing window")
+        expect(volumeGate.accepts(.up, at: 100.05),
+               "precise volume accepts a later step in the same direction")
+
+        var reversalGate = PreciseVolumeRollerGate()
+        expect(reversalGate.accepts(.up, at: 200.00),
+               "precise volume reversal setup accepts the initial direction")
+        expect(!reversalGate.accepts(.down, at: 200.08),
+               "precise volume ignores the first opposite pulse inside the reversal window")
+        expect(!reversalGate.accepts(.down, at: 200.16),
+               "precise volume waits for a stable opposite direction")
+        expect(reversalGate.accepts(.down, at: 200.24),
+               "precise volume accepts the confirmed opposite direction")
+
+        var oldDirectionGate = PreciseVolumeRollerGate()
+        expect(oldDirectionGate.accepts(.up, at: 300.00),
+               "precise volume accepts first old-direction step")
+        expect(oldDirectionGate.accepts(.down, at: 300.40),
+               "precise volume accepts an opposite step after the reversal window")
+        var fastStreamGate = PreciseVolumeRollerGate()
+        let fastAccepted = stride(from: 400.00, through: 400.10, by: 0.02)
+            .filter { fastStreamGate.accepts(.up, at: $0) }
+        expect(fastAccepted.count == 3,
+               "precise volume rate-limits sustained fast input instead of starving it")
+        expect(PreciseVolumeMediaKey.volumeUp.rollerDirection == .up
+                && PreciseVolumeMediaKey.volumeDown.rollerDirection == .down
+                && PreciseVolumeMediaKey.mute.rollerDirection == nil,
+               "precise volume only remaps volume up and down media keys")
         let switcherRulesBackup: [String: Any] = [
             SettingsBackupSupport.formatVersionKey: 1,
             SettingsBackupSupport.settingsKey: [
@@ -10368,7 +10422,7 @@ struct MetricsTests {
         // to 1.130: believing the receipt would offer an update that happened.
         let bundles = ["Editor.app": (name: "Editor", version: "1.130.0", path: "/Applications/Editor.app"),
                        "Chat.app": (name: "Chat", version: "0.0.401", path: "/Applications/Chat.app")]
-        let packageRows = AppUpdatesSupport.packageUpdates(
+        let packageRows = AppUpdatesSupport.homebrewCaskUpdates(
             outdated: [caskUpdate("editor", installed: "1.129.0", current: "1.130.0"),
                        caskUpdate("chat", installed: "0.0.374", current: "0.0.402"),
                        caskUpdate("installer", installed: "26.078", current: "26.119"),
@@ -10382,16 +10436,20 @@ struct MetricsTests {
                "the version the app reports wins over the package receipt")
         expect(packageRows.contains { $0.token == "installer" && $0.installedVersion == "26.078" },
                "without an app bundle to read, the package receipt is used")
+        expect(packageRows.allSatisfy { $0.source == .homebrewCask },
+               "Homebrew casks are marked as the Homebrew app source")
+        expect(packageRows.contains { $0.id == "packageManager:chat" },
+               "Homebrew casks keep their legacy notification identifier")
         // Packages that install through an installer declare no app, so the
         // catalog name is tried as a bundle name before giving up.
-        let namedRows = AppUpdatesSupport.packageUpdates(
+        let namedRows = AppUpdatesSupport.homebrewCaskUpdates(
             outdated: [caskUpdate("installer", installed: "26.078", current: "26.119")],
             installed: caskRecords,
             bundleVersion: { ["Installer.app": (name: "Installer", version: "26.084",
                                                 path: "/Applications/Installer.app")][$0] })
         expect(namedRows.first?.installedVersion == "26.084",
                "a package with no declared app is matched by its catalog name")
-        let alreadyCurrent = AppUpdatesSupport.packageUpdates(
+        let alreadyCurrent = AppUpdatesSupport.homebrewCaskUpdates(
             outdated: [caskUpdate("installer", installed: "26.078", current: "26.119")],
             installed: caskRecords,
             bundleVersion: { ["Installer.app": (name: "Installer", version: "26.200",
@@ -10403,13 +10461,31 @@ struct MetricsTests {
                "pinned packages and packages without a version stay out")
         expect(packageRows.allSatisfy { $0.canInstallInPlace },
                "package rows can be installed on the spot")
-        let ownPackageRows = AppUpdatesSupport.packageUpdates(
-            outdated: [caskUpdate("vorssaint", installed: "3.1.12", current: "3.2.0")],
-            installed: [],
+        let ownPackageRows = AppUpdatesSupport.homebrewCaskUpdates(
+            outdated: [caskUpdate("vorssaint", installed: "3.1.4", current: "3.2.0")],
+            installed: [HomebrewCaskRecord(token: "vorssaint", displayName: "Vorssaint",
+                                           installedVersion: "3.1.4", appFileNames: ["Vorssaint.app"])],
             ignoredTokens: ["vorssaint"],
             bundleVersion: { _ in nil })
         expect(ownPackageRows.isEmpty,
-               "the app update list never offers to replace Vorssaint through its own package")
+               "the app update list does not offer to replace Vorssaint through its own Homebrew cask")
+        let formulaRows = AppUpdatesSupport.homebrewFormulaUpdates(
+            outdated: [HomebrewPackageUpdate(kind: .formula, name: "swiftlint",
+                                             installedVersions: ["0.58.0"],
+                                             currentVersion: "0.59.0", isPinned: false),
+                       HomebrewPackageUpdate(kind: .formula, name: "pinned-cli",
+                                             installedVersions: ["1.0"],
+                                             currentVersion: "2.0", isPinned: true),
+                       HomebrewPackageUpdate(kind: .formula, name: "rolling-cli",
+                                             installedVersions: ["latest"],
+                                             currentVersion: "latest", isPinned: false),
+                       HomebrewPackageUpdate(kind: .formula, name: "current-cli",
+                                             installedVersions: ["2.0"],
+                                             currentVersion: "2.0", isPinned: false)],
+            ignoredTokens: ["ignored-cli"])
+        expect(formulaRows.count == 1 && formulaRows[0].source == .homebrewFormula
+                && formulaRows[0].token == "swiftlint" && formulaRows[0].canInstallInPlace,
+               "Homebrew formulae become CLI rows only when they have a real newer version")
 
         let storeApps = [
             AppUpdatesSupport.InstalledApp(name: "Blocker", bundleID: "net.example.blocker",
@@ -10448,16 +10524,18 @@ struct MetricsTests {
                 && !storeRows[0].canInstallInPlace,
                "a store app is listed only when its newer version runs on this macOS")
 
-        let mergedRows = AppUpdatesSupport.merged(storeRows, packageRows)
-        expect(mergedRows.count == packageRows.count + storeRows.count
+        let mergedRows = AppUpdatesSupport.merged(storeRows, packageRows, formulaRows)
+        expect(mergedRows.count == packageRows.count + storeRows.count + formulaRows.count
                 && mergedRows.first?.canInstallInPlace == true
                 && mergedRows.last?.canInstallInPlace == false,
                "the merged list puts what can be updated here first")
         let everything = Set(mergedRows.map(\.id))
-        expect(AppUpdatesSupport.tokens(in: mergedRows, selection: everything).count == packageRows.count
+        expect(AppUpdatesSupport.tokens(source: .homebrewCask, in: mergedRows, selection: everything).count == packageRows.count
+                && AppUpdatesSupport.tokens(source: .homebrewFormula, in: mergedRows, selection: everything) == ["swiftlint"]
                 && AppUpdatesSupport.hasStoreSelection(in: mergedRows, selection: everything),
                "the selection splits into package tokens and store hand-offs")
-        expect(AppUpdatesSupport.tokens(in: mergedRows, selection: []).isEmpty
+        expect(AppUpdatesSupport.tokens(source: .homebrewCask, in: mergedRows, selection: []).isEmpty
+                && AppUpdatesSupport.tokens(source: .homebrewFormula, in: mergedRows, selection: []).isEmpty
                 && !AppUpdatesSupport.hasStoreSelection(in: mergedRows, selection: []),
                "an empty selection asks for nothing")
 
@@ -10488,6 +10566,15 @@ struct MetricsTests {
                "the store answer is read back")
         expect(AppUpdatesSupport.parseStoreLookup(Data("not json".utf8)).isEmpty,
                "a broken store answer yields nothing instead of throwing")
+        let discoveredPaths = AppUpdatesSupport.applicationScanPaths(
+            folderPaths: ["/Applications/Editor.app",
+                          "/System/Applications/Mail.app",
+                          "/Applications/Editor.app"],
+            spotlightPaths: ["/Users/me/Tools/Side App.app",
+                             "/Library/Apple/System Helper.app",
+                             "/Users/me/Tools/not-an-app"])
+        expect(discoveredPaths == ["/Applications/Editor.app", "/Users/me/Tools/Side App.app"],
+               "app discovery merges Applications folders with Spotlight and filters system apps")
 
         let noon = Date(timeIntervalSince1970: 1_800_000_000)
         expect(AppUpdatesSupport.nextCheckDate(lastCheck: noon, frequency: .off, now: noon) == nil,
@@ -10528,6 +10615,14 @@ struct MetricsTests {
                                                    tokens: ["chat", "--force", "editor"])?.arguments
                 == ["upgrade", "--cask", "--greedy", "chat", "editor"],
                "only real package names reach the upgrade command")
+        expect(HomebrewCommandBuilder.outdatedFormulae(brewPath: "/opt/x/brew").arguments
+                == ["outdated", "--formula", "--json=v2"],
+               "the CLI update check asks Homebrew for formulae separately")
+        expect(HomebrewCommandBuilder.upgradeFormulaeAndCasks(brewPath: "/opt/x/brew",
+                                                             formulaTokens: ["swiftlint"],
+                                                             caskTokens: ["chat"])?.arguments
+                == ["-lc", "/opt/x/brew upgrade swiftlint && /opt/x/brew upgrade --cask --greedy chat"],
+               "mixed app updates run formulae and casks in one Homebrew operation")
         expect(HomebrewCommandBuilder.outdatedCasksIncludingSelfUpdating(brewPath: "/opt/x/brew").arguments
                 == ["outdated", "--cask", "--greedy", "--json=v2"],
                "the update check asks for the apps that carry their own updater too")
@@ -10553,7 +10648,9 @@ struct MetricsTests {
                "an empty saved order does not lose the entry")
         expect(Defaults.registeredDefaults[DefaultsKey.appUpdatesCheckFrequency] as? String == "off",
                "the background check starts off")
-        expect(Defaults.registeredDefaults[DefaultsKey.appUpdatesIncludeAppStore] as? Bool == true
+        expect(Defaults.registeredDefaults[DefaultsKey.appUpdatesIncludeHomebrewApps] as? Bool == true
+                && Defaults.registeredDefaults[DefaultsKey.appUpdatesIncludeAppStore] as? Bool == true
+                && Defaults.registeredDefaults[DefaultsKey.appUpdatesIncludeHomebrewCLI] as? Bool == false
                 && Defaults.registeredDefaults[DefaultsKey.appUpdatesNotify] as? Bool == true
                 && Defaults.registeredDefaults[DefaultsKey.panelUtilityAppUpdates] as? Bool == true,
                "the app update defaults are registered")

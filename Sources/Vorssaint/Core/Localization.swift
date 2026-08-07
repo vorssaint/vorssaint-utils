@@ -474,6 +474,7 @@ struct Strings {
     let homebrewUpgrade: String
     let homebrewUpgradeAll: String
     let homebrewUpdateHomebrew: String
+    let homebrewCleanup: String
     let homebrewAllPackages: String
     let homebrewOpenTerminal: String
     let homebrewCancelOperation: String
@@ -499,6 +500,8 @@ struct Strings {
     let homebrewConfirmUpgradeAllBody: String
     let homebrewConfirmUpdateHomebrewTitle: String
     let homebrewConfirmUpdateHomebrewBody: String
+    let homebrewConfirmCleanupTitle: String
+    let homebrewConfirmCleanupBody: String
     let homebrewTerminalFallback: String
     let homebrewLoading: String
     let homebrewSearchEmpty: String
@@ -512,6 +515,8 @@ struct Strings {
     let homebrewOperationUpgradedFormat: String
     let homebrewOperationUpgradedAll: String
     let homebrewOperationUpdatedHomebrew: String
+    let homebrewOperationCleanup: String
+    let homebrewOperationCleaned: String
     let homebrewOperationFailedFormat: String
     let homebrewOperationCancelled: String
     let homebrewOperationPreparing: String
@@ -646,6 +651,9 @@ struct Strings {
     let mixerLowerOnHeadphonesDisconnect: String
     let mixerLowerOnHeadphonesDisconnectCaption: String
     let mixerHeadphonesDisconnectVolume: String
+    let preciseVolumeRollerEnable: String
+    let preciseVolumeRollerCaption: String
+    let preciseVolumeRollerTapFailed: String
     let soundOutputSwitcherTitle: String
     let soundOutputSwitcherEnable: String
     let soundOutputSwitcherCaption: String
@@ -1392,6 +1400,7 @@ extension Strings {
         homebrewUpgrade: "Atualizar",
         homebrewUpgradeAll: "Atualizar tudo",
         homebrewUpdateHomebrew: "Atualizar Homebrew",
+        homebrewCleanup: "Limpar tudo",
         homebrewAllPackages: "pacotes",
         homebrewOpenTerminal: "Abrir Terminal",
         homebrewCancelOperation: "Cancelar",
@@ -1417,6 +1426,8 @@ extension Strings {
         homebrewConfirmUpgradeAllBody: "O Homebrew vai baixar e aplicar as versões mais recentes dos pacotes com atualização disponível. Dependências também podem ser atualizadas.",
         homebrewConfirmUpdateHomebrewTitle: "Atualizar Homebrew?",
         homebrewConfirmUpdateHomebrewBody: "O Homebrew vai buscar as informações mais recentes e depois recarregar seus pacotes.",
+        homebrewConfirmCleanupTitle: "Limpar com Homebrew?",
+        homebrewConfirmCleanupBody: "O Homebrew vai remover downloads obsoletos e versões antigas de pacotes instalados.",
         homebrewTerminalFallback: "Esta operação precisa do Terminal para pedir a senha de administrador. O Vorssaint não captura senhas.",
         homebrewLoading: "Carregando…",
         homebrewSearchEmpty: "Nenhum resultado",
@@ -1430,6 +1441,8 @@ extension Strings {
         homebrewOperationUpgradedFormat: "%@ atualizado.",
         homebrewOperationUpgradedAll: "Pacotes atualizados.",
         homebrewOperationUpdatedHomebrew: "Homebrew atualizado.",
+        homebrewOperationCleanup: "Limpando Homebrew",
+        homebrewOperationCleaned: "Homebrew limpo.",
         homebrewOperationFailedFormat: "Não foi possível concluir %@.",
         homebrewOperationCancelled: "Operação cancelada.",
         homebrewOperationPreparing: "Preparando...",
@@ -1560,6 +1573,9 @@ extension Strings {
         mixerLowerOnHeadphonesDisconnect: "Baixar volume ao desconectar fones",
         mixerLowerOnHeadphonesDisconnectCaption: "Ajusta a saída quando fones com fio ou Bluetooth desconectam.",
         mixerHeadphonesDisconnectVolume: "Volume ao desconectar",
+        preciseVolumeRollerEnable: "Volume mais preciso no controle",
+        preciseVolumeRollerCaption: "Transforma roletes e teclas de volume em passos menores.",
+        preciseVolumeRollerTapFailed: "Não foi possível ouvir as teclas de volume.",
         soundOutputSwitcherTitle: "Alternador de saída",
         soundOutputSwitcherEnable: "Alternar saídas por atalho",
         soundOutputSwitcherCaption: "Escolha as saídas e use o atalho para passar para a próxima disponível.",
@@ -2288,6 +2304,7 @@ extension Strings {
         homebrewUpgrade: "Update",
         homebrewUpgradeAll: "Update all",
         homebrewUpdateHomebrew: "Update Homebrew",
+        homebrewCleanup: "Clean up all",
         homebrewAllPackages: "packages",
         homebrewOpenTerminal: "Open Terminal",
         homebrewCancelOperation: "Cancel",
@@ -2313,6 +2330,8 @@ extension Strings {
         homebrewConfirmUpgradeAllBody: "Homebrew will download and apply the latest versions for packages with updates available. Dependencies may also be updated.",
         homebrewConfirmUpdateHomebrewTitle: "Update Homebrew?",
         homebrewConfirmUpdateHomebrewBody: "Homebrew will fetch the latest information and then reload your packages.",
+        homebrewConfirmCleanupTitle: "Clean up with Homebrew?",
+        homebrewConfirmCleanupBody: "Homebrew will remove stale downloads and old versions of installed packages.",
         homebrewTerminalFallback: "This operation needs Terminal to ask for the administrator password. Vorssaint does not capture passwords.",
         homebrewLoading: "Loading…",
         homebrewSearchEmpty: "No results",
@@ -2326,6 +2345,8 @@ extension Strings {
         homebrewOperationUpgradedFormat: "%@ updated.",
         homebrewOperationUpgradedAll: "Packages updated.",
         homebrewOperationUpdatedHomebrew: "Homebrew updated.",
+        homebrewOperationCleanup: "Cleaning up Homebrew",
+        homebrewOperationCleaned: "Homebrew cleaned up.",
         homebrewOperationFailedFormat: "Could not finish %@.",
         homebrewOperationCancelled: "Operation cancelled.",
         homebrewOperationPreparing: "Preparing...",
@@ -2456,6 +2477,9 @@ extension Strings {
         mixerLowerOnHeadphonesDisconnect: "Lower volume when headphones disconnect",
         mixerLowerOnHeadphonesDisconnectCaption: "Adjusts output when wired or Bluetooth headphones disconnect.",
         mixerHeadphonesDisconnectVolume: "Volume after disconnect",
+        preciseVolumeRollerEnable: "Use finer volume steps",
+        preciseVolumeRollerCaption: "Turns volume wheels and keys into smaller system volume steps.",
+        preciseVolumeRollerTapFailed: "Could not listen for volume keys.",
         soundOutputSwitcherTitle: "Output switcher",
         soundOutputSwitcherEnable: "Switch outputs with shortcut",
         soundOutputSwitcherCaption: "Choose outputs and use the shortcut to move to the next available one.",

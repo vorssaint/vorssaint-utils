@@ -61,7 +61,7 @@ struct PanelHomebrewView: View {
                             isPresented: confirmationPresented,
                             titleVisibility: .visible) {
             if let pendingAction {
-                Button(actionTitle(for: pendingAction), role: pendingAction.action == .uninstall ? .destructive : nil) {
+                Button(actionTitle(for: pendingAction), role: role(for: pendingAction)) {
                     run(pendingAction)
                 }
             }
@@ -222,31 +222,60 @@ struct PanelHomebrewView: View {
             .labelsHidden()
             .pickerStyle(.segmented)
 
-            HStack(spacing: 7) {
-                Button {
-                    homebrew.refreshInstalled()
-                } label: {
-                    Label(l10n.s.homebrewCheckPackages, systemImage: "arrow.clockwise")
-                        .font(.system(size: 10.5, weight: .medium))
-                        .lineLimit(1)
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 7) {
+                    Button {
+                        homebrew.refreshInstalled()
+                    } label: {
+                        Label(l10n.s.homebrewCheckPackages, systemImage: "arrow.clockwise")
+                            .font(.system(size: 10.5, weight: .medium))
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help(l10n.s.homebrewCheckPackages)
+                    .disabled(homebrew.isBusy)
+                    Button {
+                        pendingAction = HomebrewPendingAction(action: .updateHomebrew)
+                        keepPopoverOpen()
+                    } label: {
+                        Label(l10n.s.homebrewUpdateHomebrew, systemImage: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 10.5, weight: .medium))
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help(l10n.s.homebrewUpdateHomebrew)
+                    .disabled(homebrew.isBusy)
+                    Spacer(minLength: 0)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help(l10n.s.homebrewCheckPackages)
-                .disabled(homebrew.isBusy)
-                Button {
-                    pendingAction = HomebrewPendingAction(action: .updateHomebrew)
-                    keepPopoverOpen()
-                } label: {
-                    Label(l10n.s.homebrewUpdateHomebrew, systemImage: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 10.5, weight: .medium))
-                        .lineLimit(1)
+                HStack(spacing: 7) {
+                    Button {
+                        pendingAction = HomebrewPendingAction(action: .upgradeAll)
+                        keepPopoverOpen()
+                    } label: {
+                        Label(l10n.s.homebrewUpgradeAll, systemImage: "arrow.up.circle")
+                            .font(.system(size: 10.5, weight: .medium))
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help(l10n.s.homebrewUpgradeAll)
+                    .disabled(homebrew.isBusy || homebrew.outdatedCount == 0)
+                    Button {
+                        pendingAction = HomebrewPendingAction(action: .cleanup)
+                        keepPopoverOpen()
+                    } label: {
+                        Label(l10n.s.homebrewCleanup, systemImage: "trash")
+                            .font(.system(size: 10.5, weight: .medium))
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help(l10n.s.homebrewCleanup)
+                    .disabled(homebrew.isBusy)
+                    Spacer(minLength: 0)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help(l10n.s.homebrewUpdateHomebrew)
-                .disabled(homebrew.isBusy)
-                Spacer(minLength: 0)
             }
             outdatedSummary
         }
@@ -270,18 +299,6 @@ struct PanelHomebrewView: View {
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.orange)
                 Spacer(minLength: 0)
-                Button {
-                    pendingAction = HomebrewPendingAction(action: .upgradeAll)
-                    keepPopoverOpen()
-                } label: {
-                    Label(l10n.s.homebrewUpgradeAll, systemImage: "arrow.up.circle")
-                        .font(.system(size: 10.5, weight: .medium))
-                        .lineLimit(1)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help(l10n.s.homebrewUpgradeAll)
-                .disabled(homebrew.isBusy)
             }
         } else {
             Label("\(l10n.s.homebrewUpdates) 0", systemImage: "checkmark.circle.fill")
@@ -341,6 +358,7 @@ struct PanelHomebrewView: View {
     private func row(_ package: HomebrewPackage) -> some View {
         HStack(spacing: 8) {
             Button {
+                keepPopoverOpen()
                 homebrew.select(package)
             } label: {
                 HStack(spacing: 8) {
@@ -553,6 +571,7 @@ struct PanelHomebrewView: View {
             if package.update != nil {
                 VStack(alignment: .trailing, spacing: 6) {
                     Button {
+                        keepPopoverOpen()
                         pendingAction = HomebrewPendingAction(action: .upgrade, package: package)
                     } label: {
                         Label(l10n.s.homebrewUpgrade, systemImage: "arrow.up.circle")
@@ -560,6 +579,7 @@ struct PanelHomebrewView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     Button(role: .destructive) {
+                        keepPopoverOpen()
                         pendingAction = HomebrewPendingAction(action: .uninstall, package: package)
                     } label: {
                         Label(l10n.s.homebrewUninstall, systemImage: "trash")
@@ -569,6 +589,7 @@ struct PanelHomebrewView: View {
                 }
             } else {
                 Button(role: .destructive) {
+                    keepPopoverOpen()
                     pendingAction = HomebrewPendingAction(action: .uninstall, package: package)
                 } label: {
                     Label(l10n.s.homebrewUninstall, systemImage: "trash")
@@ -578,6 +599,7 @@ struct PanelHomebrewView: View {
             }
         } else {
             Button {
+                keepPopoverOpen()
                 pendingAction = HomebrewPendingAction(action: .install, package: package)
             } label: {
                 Label(l10n.s.homebrewInstall, systemImage: "arrow.down.circle")
@@ -672,6 +694,8 @@ struct PanelHomebrewView: View {
             return l10n.s.homebrewConfirmUpgradeAllTitle
         case .updateHomebrew:
             return l10n.s.homebrewConfirmUpdateHomebrewTitle
+        case .cleanup:
+            return l10n.s.homebrewConfirmCleanupTitle
         }
     }
 
@@ -681,6 +705,9 @@ struct PanelHomebrewView: View {
         }
         if action.action == .upgradeAll {
             return l10n.s.homebrewConfirmUpgradeAllBody
+        }
+        if action.action == .cleanup {
+            return l10n.s.homebrewConfirmCleanupBody
         }
         guard let package = action.package else { return "" }
         let format: String
@@ -695,8 +722,14 @@ struct PanelHomebrewView: View {
             return l10n.s.homebrewConfirmUpgradeAllBody
         case .updateHomebrew:
             return l10n.s.homebrewConfirmUpdateHomebrewBody
+        case .cleanup:
+            return l10n.s.homebrewConfirmCleanupBody
         }
         return String(format: format, package.displayName)
+    }
+
+    private func role(for action: HomebrewPendingAction) -> ButtonRole? {
+        action.action == .uninstall ? .destructive : nil
     }
 
     private func actionTitle(for action: HomebrewPendingAction) -> String {
@@ -706,6 +739,7 @@ struct PanelHomebrewView: View {
         case .upgrade: return l10n.s.homebrewUpgrade
         case .upgradeAll: return l10n.s.homebrewUpgradeAll
         case .updateHomebrew: return l10n.s.homebrewUpdateHomebrew
+        case .cleanup: return l10n.s.homebrewCleanup
         }
     }
 
@@ -722,6 +756,8 @@ struct PanelHomebrewView: View {
             homebrew.upgradeAll()
         case .updateHomebrew:
             homebrew.updateHomebrew()
+        case .cleanup:
+            homebrew.cleanup()
         }
     }
 
@@ -750,6 +786,7 @@ struct PanelHomebrewView: View {
         case .upgrade: return l10n.s.homebrewOperationUpgrading
         case .upgradeAll: return l10n.s.homebrewOperationUpgrading
         case .updateHomebrew: return l10n.s.homebrewOperationRefreshing
+        case .cleanup: return l10n.s.homebrewOperationFinalizing
         }
     }
 

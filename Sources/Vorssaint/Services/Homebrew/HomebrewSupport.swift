@@ -88,6 +88,7 @@ struct HomebrewOperation {
         case upgrade
         case upgradeAll
         case updateHomebrew
+        case cleanup
 
         var runningSystemImage: String {
             switch self {
@@ -99,6 +100,8 @@ struct HomebrewOperation {
                 return "arrow.up.circle.fill"
             case .updateHomebrew:
                 return "arrow.triangle.2.circlepath"
+            case .cleanup:
+                return "trash.circle.fill"
             }
         }
     }
@@ -169,10 +172,15 @@ enum HomebrewCommandBuilder {
     /// Casks the plain listing hides because they carry their own updater.
     /// Those are exactly the apps the update check is for, so it asks for
     /// them explicitly and then checks each app bundle before believing the
-    /// answer (see `AppUpdatesSupport.packageUpdates`).
+    /// answer (see `AppUpdatesSupport.homebrewCaskUpdates`).
     static func outdatedCasksIncludingSelfUpdating(brewPath: String) -> HomebrewCommand {
         HomebrewCommand(executable: brewPath,
                         arguments: ["outdated", "--cask", "--greedy", "--json=v2"])
+    }
+
+    static func outdatedFormulae(brewPath: String) -> HomebrewCommand {
+        HomebrewCommand(executable: brewPath,
+                        arguments: ["outdated", "--formula", "--json=v2"])
     }
 
     static func upgradeCasks(brewPath: String, tokens: [String]) -> HomebrewCommand? {
@@ -182,8 +190,30 @@ enum HomebrewCommandBuilder {
                                arguments: ["upgrade", "--cask", "--greedy"] + valid)
     }
 
+    static func upgradeFormulaeAndCasks(brewPath: String,
+                                        formulaTokens: [String],
+                                        caskTokens: [String]) -> HomebrewCommand? {
+        let formulae = formulaTokens.filter(isValidToken)
+        let casks = caskTokens.filter(isValidToken)
+        guard !formulae.isEmpty || !casks.isEmpty else { return nil }
+        let brew = shellQuote(brewPath)
+        var commands: [String] = []
+        if !formulae.isEmpty {
+            commands.append(([brew, "upgrade"] + formulae.map(shellQuote)).joined(separator: " "))
+        }
+        if !casks.isEmpty {
+            commands.append(([brew, "upgrade", "--cask", "--greedy"] + casks.map(shellQuote)).joined(separator: " "))
+        }
+        return HomebrewCommand(executable: "/bin/zsh",
+                               arguments: ["-lc", commands.joined(separator: " && ")])
+    }
+
     static func update(brewPath: String) -> HomebrewCommand {
         HomebrewCommand(executable: brewPath, arguments: ["update"])
+    }
+
+    static func cleanup(brewPath: String) -> HomebrewCommand {
+        HomebrewCommand(executable: brewPath, arguments: ["cleanup"])
     }
 
     static func search(brewPath: String, kind: HomebrewPackageKind, query: String) -> HomebrewCommand {
@@ -444,6 +474,10 @@ enum HomebrewProgressParser {
     static func phase(in output: String,
                       action: HomebrewOperation.Action) -> HomebrewOperationPhase? {
         let lower = stripANSI(output).lowercased()
+        if action == .cleanup,
+           !lower.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return .finalizing
+        }
         if lower.contains("downloading")
             || lower.contains("fetching")
             || lower.contains("downloaded") {
@@ -476,6 +510,8 @@ enum HomebrewProgressParser {
                 return .upgrading
             case .updateHomebrew:
                 return .refreshing
+            case .cleanup:
+                return .finalizing
             case .install:
                 return .installing
             }

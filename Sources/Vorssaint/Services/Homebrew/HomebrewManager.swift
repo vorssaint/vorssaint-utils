@@ -207,6 +207,21 @@ final class HomebrewManager: ObservableObject {
         perform(.upgradeAll, package: nil)
     }
 
+    /// Upgrades exactly the Homebrew packages asked for, through the same
+    /// single operation lane as every other Homebrew action, so the app never
+    /// runs two package commands at once. Used by the app update list, where
+    /// the person picks which apps and CLI tools to update.
+    func upgradeAppUpdatePackages(caskTokens: [String], formulaTokens: [String]) {
+        guard operation == nil,
+              let brewPath = brewPath ?? detectBrewPath(),
+              let command = HomebrewCommandBuilder.upgradeFormulaeAndCasks(brewPath: brewPath,
+                                                                           formulaTokens: formulaTokens,
+                                                                           caskTokens: caskTokens) else {
+            return
+        }
+        perform(.upgradeAll, package: nil, command: command)
+    }
+
     /// Upgrades exactly the casks asked for, through the same single
     /// operation lane as every other Homebrew action, so the app never runs
     /// two package commands at once. Used by the app update list, where the
@@ -222,6 +237,10 @@ final class HomebrewManager: ObservableObject {
 
     func updateHomebrew() {
         perform(.updateHomebrew, package: nil)
+    }
+
+    func cleanup() {
+        perform(.cleanup, package: nil)
     }
 
     func cancelOperation() {
@@ -325,8 +344,9 @@ final class HomebrewManager: ObservableObject {
                 self.activeProcess = nil
                 self.operation = nil
                 if status == 0 {
+                    let successPhase: HomebrewOperationPhase = action == .cleanup ? .finalizing : .refreshing
                     self.markOperationComplete(result: .succeeded,
-                                               phase: .refreshing,
+                                               phase: successPhase,
                                                activity: nil)
                     self.refreshInstalled()
                     if let package {
@@ -342,7 +362,9 @@ final class HomebrewManager: ObservableObject {
                                                phase: self.operationStatus?.phase ?? .finalizing,
                                                activity: HomebrewProgressParser.visibleError(from: output))
                 } else if let tap = HomebrewCommandBuilder.untrustedTapName(fromOutput: output) {
-                    self.presentUntrustedTap(tap) { [weak self] in self?.perform(action, package: package) }
+                    self.presentUntrustedTap(tap) { [weak self] in
+                        self?.perform(action, package: package, command: commandOverride)
+                    }
                     self.markOperationComplete(result: .failed,
                                                phase: self.operationStatus?.phase ?? .finalizing,
                                                activity: nil)
@@ -374,6 +396,8 @@ final class HomebrewManager: ObservableObject {
             return HomebrewCommandBuilder.upgradeAll(brewPath: brewPath)
         case .updateHomebrew:
             return HomebrewCommandBuilder.update(brewPath: brewPath)
+        case .cleanup:
+            return HomebrewCommandBuilder.cleanup(brewPath: brewPath)
         }
     }
 
@@ -395,6 +419,8 @@ final class HomebrewManager: ObservableObject {
         switch action {
         case .install, .upgrade, .upgradeAll, .updateHomebrew:
             return .preparing
+        case .cleanup:
+            return .finalizing
         case .uninstall:
             return .uninstalling
         }

@@ -12,11 +12,19 @@ enum AppUpdatesSupport {
     // MARK: - Model
 
     /// Where a pending update comes from, which is also what the app can do
-    /// about it: the package manager can install it right here, the store
-    /// can only be opened.
+    /// about it: Homebrew can install it right here, the store can only be
+    /// opened.
     enum Source: String, Hashable {
-        case packageManager
+        case homebrewCask
         case appStore
+        case homebrewFormula
+
+        var isHomebrew: Bool {
+            switch self {
+            case .homebrewCask, .homebrewFormula: return true
+            case .appStore: return false
+            }
+        }
     }
 
     struct Item: Identifiable, Hashable {
@@ -33,7 +41,7 @@ enum AppUpdatesSupport {
         /// Store page for this app, present only for store rows.
         let storePage: String?
 
-        var canInstallInPlace: Bool { source == .packageManager && token != nil }
+        var canInstallInPlace: Bool { source.isHomebrew && token != nil }
         var versionSummary: String { "\(installedVersion) → \(latestVersion)" }
     }
 
@@ -157,10 +165,10 @@ enum AppUpdatesSupport {
     /// 1.129, so the manager alone would have offered an update that had
     /// already happened. Whenever the app bundle can be read, the bundle is
     /// the truth and a row only survives if the app really is behind.
-    static func packageUpdates(outdated: [HomebrewPackageUpdate],
-                               installed: [HomebrewCaskRecord],
-                               ignoredTokens: Set<String> = [],
-                               bundleVersion: (String) -> (name: String, version: String, path: String)?)
+    static func homebrewCaskUpdates(outdated: [HomebrewPackageUpdate],
+                                    installed: [HomebrewCaskRecord],
+                                    ignoredTokens: Set<String> = [],
+                                    bundleVersion: (String) -> (name: String, version: String, path: String)?)
         -> [Item] {
         let recordsByToken = Dictionary(installed.map { ($0.token, $0) }, uniquingKeysWith: { first, _ in first })
         return outdated.compactMap { update -> Item? in
@@ -173,13 +181,33 @@ enum AppUpdatesSupport {
             let installedVersion = bundle?.version ?? versionCore(receipt)
             guard !installedVersion.isEmpty else { return nil }
             guard isNewer(update.currentVersion, than: installedVersion) else { return nil }
-            return Item(id: "\(Source.packageManager.rawValue):\(update.name)",
-                        source: .packageManager,
+            return Item(id: "packageManager:\(update.name)",
+                        source: .homebrewCask,
                         name: bundle?.name ?? record?.displayName ?? update.name,
                         installedVersion: installedVersion,
                         latestVersion: versionCore(update.currentVersion),
                         token: update.name,
                         bundlePath: bundle?.path,
+                        storePage: nil)
+        }
+    }
+
+    static func homebrewFormulaUpdates(outdated: [HomebrewPackageUpdate],
+                                       ignoredTokens: Set<String> = []) -> [Item] {
+        outdated.compactMap { update -> Item? in
+            guard update.kind == .formula, !update.isPinned else { return nil }
+            guard !ignoredTokens.contains(update.name) else { return nil }
+            guard !isUncomparable(update.currentVersion) else { return nil }
+            let installedVersion = versionCore(update.installedVersions.first ?? "")
+            guard !installedVersion.isEmpty else { return nil }
+            guard isNewer(update.currentVersion, than: installedVersion) else { return nil }
+            return Item(id: "\(Source.homebrewFormula.rawValue):\(update.name)",
+                        source: .homebrewFormula,
+                        name: update.name,
+                        installedVersion: installedVersion,
+                        latestVersion: versionCore(update.currentVersion),
+                        token: update.name,
+                        bundlePath: nil,
                         storePage: nil)
         }
     }
@@ -275,13 +303,35 @@ enum AppUpdatesSupport {
         }
     }
 
-    /// Package tokens for the rows the person ticked, in list order.
-    static func tokens(in items: [Item], selection: Set<String>) -> [String] {
-        items.filter { selection.contains($0.id) }.compactMap(\.token)
+    /// Package tokens for the Homebrew rows the person ticked, in list order.
+    static func tokens(source: Source, in items: [Item], selection: Set<String>) -> [String] {
+        items.filter { selection.contains($0.id) && $0.source == source }.compactMap(\.token)
     }
 
     static func hasStoreSelection(in items: [Item], selection: Set<String>) -> Bool {
         items.contains { selection.contains($0.id) && $0.source == .appStore }
+    }
+
+    // MARK: - Application discovery
+
+    static func applicationScanPaths(folderPaths: [String],
+                                     spotlightPaths: [String]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for path in folderPaths + spotlightPaths {
+            let normalized = URL(fileURLWithPath: path)
+                .resolvingSymlinksInPath()
+                .standardizedFileURL.path
+            guard normalized.hasSuffix(".app"),
+                  !isSystemApplicationPath(normalized),
+                  seen.insert(normalized).inserted else { continue }
+            result.append(normalized)
+        }
+        return result
+    }
+
+    static func isSystemApplicationPath(_ path: String) -> Bool {
+        path.hasPrefix("/System/") || path.hasPrefix("/Library/Apple/")
     }
 
     /// Selection kept honest against a list that just changed: rows that are

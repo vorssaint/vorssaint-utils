@@ -26,7 +26,7 @@ final class AppUpdatesService: ObservableObject {
     /// case is one click.
     @Published var selection: Set<String> = []
     /// The package manager is missing, so only the store half can answer.
-    @Published private(set) var packageManagerAvailable = false
+    @Published private(set) var homebrewAvailable = false
     /// A check finished in THIS process. The time of the last check survives
     /// relaunches, but its findings do not, so nothing may claim the Mac is
     /// up to date until a scan has actually run here.
@@ -119,14 +119,18 @@ final class AppUpdatesService: ObservableObject {
         lastError = nil
         scanGeneration += 1
         let generation = scanGeneration
+        let includeHomebrewApps = UserDefaults.standard.bool(forKey: DefaultsKey.appUpdatesIncludeHomebrewApps)
         let includeAppStore = UserDefaults.standard.bool(forKey: DefaultsKey.appUpdatesIncludeAppStore)
+        let includeHomebrewCLI = UserDefaults.standard.bool(forKey: DefaultsKey.appUpdatesIncludeHomebrewCLI)
         let country = Locale.current.region?.identifier
 
         workQueue.async { [weak self] in
             guard let self else { return }
             let apps = Self.scanInstalledApps()
-            let packageResult = self.packageManagerFindings(apps: apps)
-            let coveredPaths = Set(packageResult.items.compactMap(\.bundlePath))
+            let homebrewResult = self.homebrewFindings(apps: apps,
+                                                       includeCasks: includeHomebrewApps,
+                                                       includeFormulae: includeHomebrewCLI)
+            let coveredPaths = Set(homebrewResult.items.compactMap(\.bundlePath))
             let storeCandidates = includeAppStore
                 ? AppUpdatesSupport.appStoreCandidates(
                     apps: apps.map(\.record), coveredPaths: coveredPaths)
@@ -135,8 +139,8 @@ final class AppUpdatesService: ObservableObject {
             self.storeFindings(for: storeCandidates, country: country) { storeItems in
                 DispatchQueue.main.async {
                     guard generation == self.scanGeneration else { return }
-                    self.finishCheck(items: AppUpdatesSupport.merged(packageResult.items, storeItems),
-                                     packageManagerAvailable: packageResult.available,
+                    self.finishCheck(items: AppUpdatesSupport.merged(homebrewResult.items, storeItems),
+                                     homebrewAvailable: homebrewResult.available,
                                      automatic: automatic)
                 }
             }
@@ -144,7 +148,7 @@ final class AppUpdatesService: ObservableObject {
     }
 
     private func finishCheck(items newItems: [AppUpdatesSupport.Item],
-                             packageManagerAvailable available: Bool,
+                             homebrewAvailable available: Bool,
                              automatic: Bool) {
         // The feature can be switched off in the hub while a scan is in
         // flight; its findings belong to a surface that no longer exists.
@@ -163,7 +167,7 @@ final class AppUpdatesService: ObservableObject {
                                                           items: newItems)
         knownIDs = Set(newItems.map(\.id))
         items = newItems
-        packageManagerAvailable = available
+        homebrewAvailable = available
         hasCheckedThisSession = true
         isChecking = false
         let now = Date()
@@ -208,17 +212,30 @@ final class AppUpdatesService: ObservableObject {
         let available: Bool
     }
 
-    private func packageManagerFindings(apps: [ScannedApp]) -> PackageResult {
+    private func homebrewFindings(apps: [ScannedApp],
+                                  includeCasks: Bool,
+                                  includeFormulae: Bool) -> PackageResult {
+        guard includeCasks || includeFormulae else {
+            return PackageResult(items: [], available: true)
+        }
         guard let brewPath = HomebrewCommandBuilder.candidatePaths.first(where: {
             FileManager.default.isExecutableFile(atPath: $0)
         }) else {
             return PackageResult(items: [], available: false)
         }
-        let installedOutput = Self.runCommand(HomebrewCommandBuilder.installed(brewPath: brewPath))
-        let outdatedOutput = Self.runCommand(
-            HomebrewCommandBuilder.outdatedCasksIncludingSelfUpdating(brewPath: brewPath))
-        guard installedOutput.status == 0, outdatedOutput.status == 0 else {
-            let failure = [outdatedOutput, installedOutput].first { $0.status != 0 }
+        let installedOutput = includeCasks
+            ? Self.runCommand(HomebrewCommandBuilder.installed(brewPath: brewPath))
+            : (status: 0, output: "")
+        let caskOutdatedOutput = includeCasks
+            ? Self.runCommand(HomebrewCommandBuilder.outdatedCasksIncludingSelfUpdating(brewPath: brewPath))
+            : (status: 0, output: "")
+        let formulaOutdatedOutput = includeFormulae
+            ? Self.runCommand(HomebrewCommandBuilder.outdatedFormulae(brewPath: brewPath))
+            : (status: 0, output: "")
+        guard installedOutput.status == 0,
+              caskOutdatedOutput.status == 0,
+              formulaOutdatedOutput.status == 0 else {
+            let failure = [formulaOutdatedOutput, caskOutdatedOutput, installedOutput].first { $0.status != 0 }
             let message = failure.map { HomebrewProgressParser.visibleError(from: $0.output) } ?? ""
             DispatchQueue.main.async { [weak self] in
                 self?.lastError = message.isEmpty ? nil : message
@@ -226,16 +243,21 @@ final class AppUpdatesService: ObservableObject {
             return PackageResult(items: [], available: true)
         }
         let records = HomebrewParser.parseInstalledCaskRecords(installedOutput.output)
-        let updates = (try? HomebrewParser.parseOutdatedCommandOutput(outdatedOutput.output)) ?? [:]
+        let caskUpdates = (try? HomebrewParser.parseOutdatedCommandOutput(caskOutdatedOutput.output)) ?? [:]
+        let formulaUpdates = (try? HomebrewParser.parseOutdatedCommandOutput(formulaOutdatedOutput.output)) ?? [:]
         let byFileName = Dictionary(apps.map { ($0.fileName, $0) }, uniquingKeysWith: { first, _ in first })
-        let items = AppUpdatesSupport.packageUpdates(
-            outdated: Array(updates.values),
+        let caskItems = AppUpdatesSupport.homebrewCaskUpdates(
+            outdated: Array(caskUpdates.values),
             installed: records,
             ignoredTokens: Self.ownPackageTokens,
             bundleVersion: { fileName in
                 guard let app = byFileName[fileName], !app.record.version.isEmpty else { return nil }
                 return (name: app.record.name, version: app.record.version, path: app.record.path)
             })
+        let formulaItems = AppUpdatesSupport.homebrewFormulaUpdates(
+            outdated: Array(formulaUpdates.values),
+            ignoredTokens: Self.ownPackageTokens)
+        let items = AppUpdatesSupport.merged(caskItems, formulaItems)
         return PackageResult(items: items, available: true)
     }
 
@@ -301,9 +323,10 @@ final class AppUpdatesService: ObservableObject {
     /// in one command, and the store apps hand off to the App Store, which is
     /// as far as any app can go there.
     func updateSelected() {
-        let tokens = AppUpdatesSupport.tokens(in: items, selection: selection)
-        if !tokens.isEmpty {
-            startUpgrade(tokens)
+        let caskTokens = AppUpdatesSupport.tokens(source: .homebrewCask, in: items, selection: selection)
+        let formulaTokens = AppUpdatesSupport.tokens(source: .homebrewFormula, in: items, selection: selection)
+        if !caskTokens.isEmpty || !formulaTokens.isEmpty {
+            startUpgrade(caskTokens: caskTokens, formulaTokens: formulaTokens)
         }
         if AppUpdatesSupport.hasStoreSelection(in: items, selection: selection) {
             openAppStoreUpdates()
@@ -311,8 +334,10 @@ final class AppUpdatesService: ObservableObject {
     }
 
     func update(_ item: AppUpdatesSupport.Item) {
-        if let token = item.token {
-            startUpgrade([token])
+        if let token = item.token, item.source == .homebrewCask {
+            startUpgrade(caskTokens: [token], formulaTokens: [])
+        } else if let token = item.token, item.source == .homebrewFormula {
+            startUpgrade(caskTokens: [], formulaTokens: [token])
         } else if let page = item.storePage, let url = URL(string: page) {
             handOffToStore(url)
         } else {
@@ -336,7 +361,7 @@ final class AppUpdatesService: ObservableObject {
     /// Watches the upgrade to its end and re-reads the list, so a row leaves
     /// on its own instead of waiting for someone to press Check now. The
     /// observer lives only for that one operation.
-    private func startUpgrade(_ tokens: [String]) {
+    private func startUpgrade(caskTokens: [String], formulaTokens: [String]) {
         upgradeObserver = HomebrewManager.shared.$operationStatus
             .dropFirst()
             .receive(on: DispatchQueue.main)
@@ -346,7 +371,8 @@ final class AppUpdatesService: ObservableObject {
                 guard status.result == .succeeded else { return }
                 self?.check()
             }
-        HomebrewManager.shared.upgradeCasks(tokens)
+        HomebrewManager.shared.upgradeAppUpdatePackages(caskTokens: caskTokens,
+                                                        formulaTokens: formulaTokens)
     }
 
     func reveal(_ item: AppUpdatesSupport.Item) {
@@ -398,31 +424,40 @@ final class AppUpdatesService: ObservableObject {
     /// Reads the Applications folders directly instead of going through
     /// AppKit, so the whole scan can stay off the main thread.
     private static func scanInstalledApps() -> [ScannedApp] {
+        let folderPaths = folderApplicationPaths()
+        let spotlightPaths = spotlightApplicationPaths()
+        return AppUpdatesSupport.applicationScanPaths(folderPaths: folderPaths,
+                                                      spotlightPaths: spotlightPaths)
+            .compactMap { scannedApp(at: URL(fileURLWithPath: $0)) }
+    }
+
+    private static func folderApplicationPaths() -> [String] {
         let fm = FileManager.default
         let roots = [
             URL(fileURLWithPath: "/Applications", isDirectory: true),
             URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Applications",
                                                                           isDirectory: true),
         ]
-        var seen = Set<String>()
-        var apps: [ScannedApp] = []
+        var paths: [String] = []
         for root in roots where fm.fileExists(atPath: root.path) {
             guard let enumerator = fm.enumerator(at: root,
                                                  includingPropertiesForKeys: [.isDirectoryKey],
                                                  options: [.skipsPackageDescendants]) else { continue }
             for case let url as URL in enumerator {
                 guard url.pathExtension == "app" else { continue }
-                let resolved = url.resolvingSymlinksInPath().standardizedFileURL
-                // Apps that live on the system volume belong to macOS and are
-                // updated with it.
-                guard !resolved.path.hasPrefix("/System/"),
-                      !resolved.path.hasPrefix("/Library/Apple/"),
-                      seen.insert(resolved.path).inserted,
-                      let app = scannedApp(at: url) else { continue }
-                apps.append(app)
+                paths.append(url.path)
             }
         }
-        return apps
+        return paths
+    }
+
+    private static func spotlightApplicationPaths() -> [String] {
+        let result = runCommand(HomebrewCommand(executable: "/usr/bin/mdfind",
+                                               arguments: ["kMDItemContentType == 'com.apple.application-bundle'"]))
+        guard result.status == 0 else { return [] }
+        return result.output
+            .split(separator: "\n")
+            .map { String($0) }
     }
 
     private static func scannedApp(at url: URL) -> ScannedApp? {
@@ -457,7 +492,7 @@ final class AppUpdatesService: ObservableObject {
         bundleID == Bundle.main.bundleIdentifier || bundleID.hasPrefix("com.vorssaint")
     }
 
-    private static let ownPackageTokens: Set<String> = ["vorssaint"]
+    private static let ownPackageTokens: Set<String> = ["vorssaint", "vorssaint-utils"]
 
     /// The package manager refreshes its own catalog on the way, which can sit
     /// on a slow network. A ceiling keeps a stalled command from leaving the

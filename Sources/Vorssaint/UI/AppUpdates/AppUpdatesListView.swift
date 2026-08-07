@@ -103,7 +103,7 @@ struct AppUpdatesListView: View {
                 .font(.system(size: compact ? 9.5 : 11))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            if updates.hasCheckedThisSession, !updates.packageManagerAvailable {
+            if updates.hasCheckedThisSession, !updates.homebrewAvailable {
                 Text(text.packageMissing)
                     .font(.system(size: compact ? 9.5 : 11))
                     .foregroundStyle(.secondary)
@@ -176,8 +176,8 @@ struct AppUpdatesListView: View {
                         .font(.system(size: compact ? 11.5 : 12.5, weight: .medium))
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    if item.source == .appStore {
-                        Text(text.appStoreBadge)
+                    if !sourceBadge(item).isEmpty {
+                        Text(sourceBadge(item))
                             .font(.system(size: 8.5, weight: .semibold))
                             .foregroundStyle(Color.accentColor)
                             .padding(.horizontal, 5)
@@ -213,10 +213,21 @@ struct AppUpdatesListView: View {
     }
 
     private func icon(for item: AppUpdatesSupport.Item) -> NSImage {
+        if item.source == .homebrewFormula {
+            return NSWorkspace.shared.icon(forFile: "/System/Applications/Utilities/Terminal.app")
+        }
         guard let path = item.bundlePath, FileManager.default.fileExists(atPath: path) else {
             return NSWorkspace.shared.icon(for: .applicationBundle)
         }
         return NSWorkspace.shared.icon(forFile: path)
+    }
+
+    private func sourceBadge(_ item: AppUpdatesSupport.Item) -> String {
+        switch item.source {
+        case .homebrewCask: return text.homebrewBadge
+        case .appStore: return text.appStoreBadge
+        case .homebrewFormula: return text.cliBadge
+        }
     }
 
     // MARK: - Primary action

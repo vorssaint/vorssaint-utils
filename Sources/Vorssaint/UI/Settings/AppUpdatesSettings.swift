@@ -9,7 +9,9 @@ struct AppUpdatesSettings: View {
     @AppStorage(DefaultsKey.appUpdatesCheckFrequency)
     private var frequencyRaw = AppUpdatesSupport.CheckFrequency.off.rawValue
     @AppStorage(DefaultsKey.appUpdatesNotify) private var notify = true
+    @AppStorage(DefaultsKey.appUpdatesIncludeHomebrewApps) private var includeHomebrewApps = true
     @AppStorage(DefaultsKey.appUpdatesIncludeAppStore) private var includeAppStore = true
+    @AppStorage(DefaultsKey.appUpdatesIncludeHomebrewCLI) private var includeHomebrewCLI = false
     @AppStorage(DefaultsKey.panelUtilityAppUpdates) private var showInPanel = true
 
     private var text: AppUpdateStrings { FeatureStrings.appUpdates(l10n.language) }
@@ -45,11 +47,19 @@ struct AppUpdatesSettings: View {
                     }
             }
 
-            Section {
+            Section(text.sourcesTitle) {
+                Toggle(text.includeHomebrewToggle, isOn: $includeHomebrewApps)
                 Toggle(text.includeStoreToggle, isOn: $includeAppStore)
+                Toggle(text.includeCliToggle, isOn: $includeHomebrewCLI)
                 Text(text.includeStoreCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Text(text.includeCliCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
                 Toggle(text.showInPanel, isOn: $showInPanel)
             }
         }

@@ -13,10 +13,14 @@ struct MixerSection: View {
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var inputManager = AudioInputDeviceManager.shared
     @ObservedObject private var outputSwitcher = SoundOutputSwitcher.shared
+    @ObservedObject private var preciseVolumeRoller = PreciseVolumeRollerService.shared
+    @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect)
     private var lowerOnHeadphonesDisconnect = false
     @AppStorage(DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
     private var headphonesDisconnectVolumePercent = Defaults.defaultMixerHeadphonesDisconnectVolumePercent
+    @AppStorage(DefaultsKey.preciseVolumeRollerEnabled)
+    private var preciseVolumeRollerEnabled = false
     @AppStorage(DefaultsKey.soundOutputSwitcherEnabled)
     private var soundOutputSwitcherEnabled = false
     @State private var soundOutputSwitcherUIDs: [String] = []
@@ -31,6 +35,7 @@ struct MixerSection: View {
             VStack(alignment: .leading, spacing: 8) {
                 outputPickers
                 headphoneDisconnectProtectionToggle
+                preciseVolumeRollerToggle
                 if AppFeature.soundOutputSwitcher.isAvailable {
                     soundOutputSwitcherControls
                 }
@@ -268,6 +273,36 @@ struct MixerSection: View {
 
     private var headphonesDisconnectDisplayPercent: Int {
         Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(headphonesDisconnectVolumePercent)
+    }
+
+    private var preciseVolumeRollerToggle: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Toggle(l10n.s.preciseVolumeRollerEnable, isOn: $preciseVolumeRollerEnabled)
+                .toggleStyle(.checkbox)
+                .font(.system(size: 11.5, weight: .medium))
+                .onChange(of: preciseVolumeRollerEnabled) { _, enabled in
+                    if enabled { permissions.requestAccessibility() }
+                    PreciseVolumeRollerService.shared.syncWithPreferences()
+                }
+
+            Text(l10n.s.preciseVolumeRollerCaption)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if preciseVolumeRollerEnabled, !permissions.accessibility {
+                Button {
+                    Permissions.shared.openAccessibilitySettings()
+                } label: {
+                    Label(l10n.s.permissionOpenSettings, systemImage: "hand.raised")
+                }
+                .buttonStyle(.link)
+                .font(.system(size: 10.5, weight: .medium))
+            } else if preciseVolumeRoller.tapFailed {
+                inputMessage(l10n.s.preciseVolumeRollerTapFailed,
+                             systemImage: "exclamationmark.triangle")
+            }
+        }
     }
 
     private var soundOutputSwitcherControls: some View {
