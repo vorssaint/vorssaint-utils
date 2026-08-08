@@ -27,6 +27,7 @@ struct SwitcherSearchRecord: Equatable {
 enum SwitcherLetterAction: Equatable {
     case closeWindow
     case quitApp
+    case pinSearch
 }
 
 /// Whether a switcher session lists every app or only the frontmost app's windows.
@@ -825,25 +826,40 @@ enum SwitcherSupport {
         panelIsVisible && !panelFrame.contains(location)
     }
 
-    /// The two letters the panel acts on: W closes the highlighted window and
-    /// Q quits its app. A keyboard answers by the letter it types, so both keys
-    /// stay where they are printed even on layouts that move them (measured:
-    /// French and Italian put W elsewhere, Turkish moves both). Layouts that
-    /// type no Latin letter at all, like Cyrillic and Greek, go by the key's
-    /// position instead, which is exactly where macOS resolves their command
-    /// shortcuts (measured: with Command held both translate that key to "w").
-    static func letterAction(typedCharacter: String?, keyCode: Int64) -> SwitcherLetterAction? {
+    /// The letters the panel acts on: W closes the highlighted window, Q quits
+    /// its app, and, when `pinSearchEnabled`, S pins the search field open so
+    /// it no longer needs the session's modifier held to stay on screen — that
+    /// modifier is what turns some keys into special characters instead of
+    /// plain letters, e.g. ⌥S types "ß". S is opt-in: existing users who type it as
+    /// the first letter of a search keep filtering by "s" until they turn the
+    /// preference on. A keyboard answers by the letter it types, so all three
+    /// keys stay where they are printed even on layouts that move them
+    /// (measured: French and Italian put W elsewhere, Turkish moves both).
+    /// Layouts that type no Latin letter at all, like Cyrillic and Greek, go
+    /// by the key's position instead, which is exactly where macOS resolves
+    /// their command shortcuts (measured: with Command held both translate
+    /// that key to "w").
+    static func letterAction(typedCharacter: String?, keyCode: Int64, pinSearchEnabled: Bool) -> SwitcherLetterAction? {
         guard let letter = latinLetter(in: typedCharacter) else {
             switch keyCode {
             case USKeyPosition.w: return .closeWindow
             case USKeyPosition.q: return .quitApp
+            case USKeyPosition.s where pinSearchEnabled: return .pinSearch
             default: return nil
             }
         }
         switch letter {
         case "w": return .closeWindow
         case "q": return .quitApp
-        default: return nil
+        case "s" where pinSearchEnabled: return .pinSearch
+        default:
+            // ⌥ turns S into "ß", and adding Caps Lock on top turns it into
+            // "Í" instead — a real, differently-accented letter that folds to
+            // an unrelated "i" rather than failing to fold at all, so the S
+            // case above never sees it. Falling back to the key's position
+            // catches that combination too.
+            if pinSearchEnabled, keyCode == USKeyPosition.s { return .pinSearch }
+            return nil
         }
     }
 
@@ -852,6 +868,7 @@ enum SwitcherSupport {
     private enum USKeyPosition {
         static let q: Int64 = 12
         static let w: Int64 = 13
+        static let s: Int64 = 1
     }
 
     /// The plain letter a keystroke typed, when it typed one. Accents fold

@@ -6407,32 +6407,47 @@ struct MetricsTests {
                                               selectedIndex: 0,
                                               closingItemIDs: []) == nil,
                "App Switcher release activates nothing with an empty list")
-        expect(SwitcherSupport.letterAction(typedCharacter: "w", keyCode: 13) == .closeWindow
-               && SwitcherSupport.letterAction(typedCharacter: "q", keyCode: 12) == .quitApp,
+        expect(SwitcherSupport.letterAction(typedCharacter: "w", keyCode: 13, pinSearchEnabled: false) == .closeWindow
+               && SwitcherSupport.letterAction(typedCharacter: "q", keyCode: 12, pinSearchEnabled: false) == .quitApp,
                "App Switcher panel closes a window with W and quits an app with Q")
-        expect(SwitcherSupport.letterAction(typedCharacter: "W", keyCode: 13) == .closeWindow,
+        expect(SwitcherSupport.letterAction(typedCharacter: "W", keyCode: 13, pinSearchEnabled: false) == .closeWindow,
                "App Switcher panel treats the letter the same in either case")
-        expect(SwitcherSupport.letterAction(typedCharacter: "e", keyCode: 14) == nil
-               && SwitcherSupport.letterAction(typedCharacter: "1", keyCode: 18) == nil,
+        expect(SwitcherSupport.letterAction(typedCharacter: "e", keyCode: 14, pinSearchEnabled: false) == nil
+               && SwitcherSupport.letterAction(typedCharacter: "1", keyCode: 18, pinSearchEnabled: false) == nil,
                "App Switcher panel leaves every other key to the search field")
         // A French keyboard types z where the US one types w, and its own w
         // sits on another key: both answer by the letter, not the position.
-        expect(SwitcherSupport.letterAction(typedCharacter: "z", keyCode: 13) == nil
-               && SwitcherSupport.letterAction(typedCharacter: "w", keyCode: 6) == .closeWindow,
+        expect(SwitcherSupport.letterAction(typedCharacter: "z", keyCode: 13, pinSearchEnabled: false) == nil
+               && SwitcherSupport.letterAction(typedCharacter: "w", keyCode: 6, pinSearchEnabled: false) == .closeWindow,
                "App Switcher panel follows the letters printed on the keyboard")
-        expect(SwitcherSupport.letterAction(typedCharacter: "a", keyCode: 12) == nil
-               && SwitcherSupport.letterAction(typedCharacter: "q", keyCode: 0) == .quitApp,
+        expect(SwitcherSupport.letterAction(typedCharacter: "a", keyCode: 12, pinSearchEnabled: false) == nil
+               && SwitcherSupport.letterAction(typedCharacter: "q", keyCode: 0, pinSearchEnabled: false) == .quitApp,
                "App Switcher panel quits from the Q key wherever the layout puts it")
         // Cyrillic and Greek type no Latin letter at all, so the key position
         // stands in, the same place macOS puts their command shortcuts.
-        expect(SwitcherSupport.letterAction(typedCharacter: "ц", keyCode: 13) == .closeWindow
-               && SwitcherSupport.letterAction(typedCharacter: "й", keyCode: 12) == .quitApp,
+        expect(SwitcherSupport.letterAction(typedCharacter: "ц", keyCode: 13, pinSearchEnabled: false) == .closeWindow
+               && SwitcherSupport.letterAction(typedCharacter: "й", keyCode: 12, pinSearchEnabled: false) == .quitApp,
                "App Switcher panel falls back to the key position on non-Latin layouts")
-        expect(SwitcherSupport.letterAction(typedCharacter: nil, keyCode: 13) == .closeWindow
-               && SwitcherSupport.letterAction(typedCharacter: "", keyCode: 12) == .quitApp,
+        expect(SwitcherSupport.letterAction(typedCharacter: nil, keyCode: 13, pinSearchEnabled: false) == .closeWindow
+               && SwitcherSupport.letterAction(typedCharacter: "", keyCode: 12, pinSearchEnabled: false) == .quitApp,
                "App Switcher panel falls back to the key position when a key types nothing")
-        expect(SwitcherSupport.letterAction(typedCharacter: "ç", keyCode: 13) == nil,
+        expect(SwitcherSupport.letterAction(typedCharacter: "ç", keyCode: 13, pinSearchEnabled: false) == nil,
                "App Switcher panel counts an accented letter as a letter of its own")
+        // S only pins the search field once the opt-in preference is on, so
+        // existing users who search by typing "s" first see no change.
+        expect(SwitcherSupport.letterAction(typedCharacter: "s", keyCode: 1, pinSearchEnabled: false) == nil
+               && SwitcherSupport.letterAction(typedCharacter: "ß", keyCode: 1, pinSearchEnabled: false) == nil,
+               "App Switcher panel leaves S to the search field when the pin preference is off")
+        expect(SwitcherSupport.letterAction(typedCharacter: "s", keyCode: 1, pinSearchEnabled: true) == .pinSearch
+               && SwitcherSupport.letterAction(typedCharacter: "ß", keyCode: 1, pinSearchEnabled: true) == .pinSearch,
+               "App Switcher panel pins the search field from S once the preference is on, even when the modifier turns it into a special character")
+        // Caps Lock alongside the session's ⌥ turns S into "Í" instead of "ß" —
+        // an accented letter that folds cleanly to "i", an unrelated letter, so
+        // the pin must still fire from the key's position (issue: ⌥S + Caps Lock).
+        expect(SwitcherSupport.letterAction(typedCharacter: "Í", keyCode: 1, pinSearchEnabled: true) == .pinSearch,
+               "App Switcher panel pins the search field from S even when Caps Lock folds it to an unrelated letter")
+        expect(SwitcherSupport.letterAction(typedCharacter: "Í", keyCode: 1, pinSearchEnabled: false) == nil,
+               "App Switcher panel leaves S to the search field when the pin preference is off, even under Caps Lock")
         let switcherPanelFrame = CGRect(x: 400, y: 300, width: 600, height: 400)
         expect(SwitcherSupport.shouldDismissForClick(panelIsVisible: true,
                                                      panelFrame: switcherPanelFrame,

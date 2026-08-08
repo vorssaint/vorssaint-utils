@@ -205,6 +205,8 @@ extension Strings {
         switcherShortcutHintApps: "App",
         switcherShortcutHintWindows: "窗口",
         switcherWindowShortcutCaption: "打开最前应用的窗口切换器。应用切换器打开时，在所选应用的窗口之间跳转。",
+        switcherSearchPin: "按 S 固定搜索",
+        switcherSearchPinCaption: "浏览时按 S 启动搜索，固定切换器；避免自定义快捷键为 ⌥ 时打出特殊字符，以及 Q/W 开头误触发关闭/退出。",
         switcherMergeTabs: "每个 App 仅显示一项",
         switcherMergeTabsCaption: "将一个 App 的所有窗口合并为切换器中的一项，而不是每个窗口一项。",
         switcherWindowlessApps: "无打开窗口的 App",

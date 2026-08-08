@@ -107,18 +107,20 @@ struct SwitcherView: View {
 
     @ViewBuilder
     private var searchChip: some View {
-        if !switcher.searchQuery.isEmpty {
+        if !switcher.searchQuery.isEmpty || switcher.isSearchPinned {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 10, weight: .bold))
-                Text(switcher.searchQuery)
-                    .font(.system(size: 11, weight: .semibold))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .frame(maxWidth: 180)
-                Text("\(switcher.windows.count)/\(switcher.totalWindowCount)")
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                if !switcher.searchQuery.isEmpty {
+                    Text(switcher.searchQuery)
+                        .font(.system(size: 11, weight: .semibold))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(maxWidth: 180)
+                    Text("\(switcher.windows.count)/\(switcher.totalWindowCount)")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
             }
             .foregroundStyle(.primary)
             .padding(.horizontal, 9)
