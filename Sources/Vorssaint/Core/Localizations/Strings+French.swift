@@ -205,8 +205,6 @@ extension Strings {
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Fenêtres",
         switcherWindowShortcutCaption: "Ouvre un sélecteur pour les fenêtres de l’app au premier plan. Sélecteur d’apps ouvert, passe d’une fenêtre à l’autre de l’app sélectionnée.",
-        switcherSearchPin: "Épingler la recherche avec S",
-        switcherSearchPinCaption: "S lance une recherche et épingle le sélecteur ouvert : plus de caractères spéciaux tapés quand le raccourci utilise ⌥, et une recherche commençant par Q ou W ne ferme plus la fenêtre ni ne quitte l'app par erreur.",
         switcherMergeTabs: "Afficher une seule entrée par app",
         switcherMergeTabsCaption: "Regroupe toutes les fenêtres d’une app en une seule entrée dans le sélecteur, au lieu d’une entrée par fenêtre.",
         switcherWindowlessApps: "Apps sans fenêtre ouverte",
@@ -895,6 +893,8 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "Remplace le menu contextuel du clic droit.",
         urlCleanerCustomTitle: "Autres noms à retirer",
         urlCleanerCustomPlaceholder: "ref, source",
-        urlCleanerCustomCaption: "Séparez les noms des paramètres par des virgules. Ils seront retirés de chaque lien."
+        urlCleanerCustomCaption: "Séparez les noms des paramètres par des virgules. Ils seront retirés de chaque lien.",
+        switcherSearchPin: "Épingler la recherche avec S",
+        switcherSearchPinCaption: "S lance une recherche et épingle le sélecteur ouvert : plus de caractères spéciaux tapés quand le raccourci utilise ⌥, et une recherche commençant par Q ou W ne ferme plus la fenêtre ni ne quitte l'app par erreur."
     )
 }

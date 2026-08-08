@@ -206,8 +206,6 @@ extension Strings {
         switcherShortcutHintApps: "앱",
         switcherShortcutHintWindows: "윈도우",
         switcherWindowShortcutCaption: "맨 앞 앱의 윈도우 전환기를 엽니다. 앱 전환기가 열려 있으면 선택한 앱의 윈도우를 차례로 전환합니다.",
-        switcherSearchPin: "S로 검색창 고정",
-        switcherSearchPinCaption: "S를 누르면 검색을 시작하고 전환기를 고정합니다. 단축키가 ⌥를 사용할 때 특수 문자가 입력되는 문제와, Q나 W로 시작하는 검색이 창을 닫거나 앱을 종료시키는 문제를 모두 막아줍니다.",
         switcherMergeTabs: "앱별로 하나로 묶어 표시",
         switcherMergeTabsCaption: "전환기에서 앱의 모든 윈도우를 각각이 아닌 하나의 항목으로 묶습니다.",
         switcherWindowlessApps: "열린 윈도우가 없는 앱",
@@ -896,6 +894,8 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "오른쪽 클릭 메뉴를 대체합니다.",
         urlCleanerCustomTitle: "삭제할 이름 추가",
         urlCleanerCustomPlaceholder: "ref, source",
-        urlCleanerCustomCaption: "매개변수 이름을 쉼표로 구분하세요. 모든 링크에서 삭제됩니다."
+        urlCleanerCustomCaption: "매개변수 이름을 쉼표로 구분하세요. 모든 링크에서 삭제됩니다.",
+        switcherSearchPin: "S로 검색창 고정",
+        switcherSearchPinCaption: "S를 누르면 검색을 시작하고 전환기를 고정합니다. 단축키가 ⌥를 사용할 때 특수 문자가 입력되는 문제와, Q나 W로 시작하는 검색이 창을 닫거나 앱을 종료시키는 문제를 모두 막아줍니다."
     )
 }

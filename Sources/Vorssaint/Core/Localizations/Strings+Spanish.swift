@@ -205,8 +205,6 @@ extension Strings {
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Ventanas",
         switcherWindowShortcutCaption: "Abre un selector de las ventanas de la app en primer plano. Con el selector de apps abierto, salta entre las ventanas de la app seleccionada.",
-        switcherSearchPin: "Fijar búsqueda con S",
-        switcherSearchPinCaption: "S inicia una búsqueda y fija el selector abierto: al escribir ya no aparecen caracteres especiales cuando el atajo usa ⌥, y una búsqueda que empieza por Q o W ya no cierra la ventana ni cierra la app por error.",
         switcherMergeTabs: "Mostrar una entrada por app",
         switcherMergeTabsCaption: "Agrupa todas las ventanas de una app en una sola entrada del selector, en vez de una por ventana.",
         switcherWindowlessApps: "Apps sin ventanas abiertas",
@@ -895,6 +893,8 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "Sustituye el menú contextual del clic derecho.",
         urlCleanerCustomTitle: "Más nombres para eliminar",
         urlCleanerCustomPlaceholder: "ref, origen",
-        urlCleanerCustomCaption: "Separa los nombres de parámetros con comas. Se eliminarán de todos los enlaces."
+        urlCleanerCustomCaption: "Separa los nombres de parámetros con comas. Se eliminarán de todos los enlaces.",
+        switcherSearchPin: "Fijar búsqueda con S",
+        switcherSearchPinCaption: "S inicia una búsqueda y fija el selector abierto: al escribir ya no aparecen caracteres especiales cuando el atajo usa ⌥, y una búsqueda que empieza por Q o W ya no cierra la ventana ni cierra la app por error."
     )
 }

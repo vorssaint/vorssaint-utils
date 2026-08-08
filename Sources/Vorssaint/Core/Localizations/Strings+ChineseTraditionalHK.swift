@@ -206,8 +206,6 @@ extension Strings {
         switcherShortcutHintApps: "App",
         switcherShortcutHintWindows: "視窗",
         switcherWindowShortcutCaption: "開啟最前應用程式的視窗切換器。應用程式切換器開啟時，在所選應用程式的視窗之間跳轉。",
-        switcherSearchPin: "按 S 固定搜尋",
-        switcherSearchPinCaption: "瀏覽時按 S 啟動搜尋，固定切換器；避免自訂快捷鍵為 ⌥ 時打出特殊字符，以及 Q/W 開頭誤觸發關閉/結束。",
         switcherMergeTabs: "每個 App 僅顯示一項",
         switcherMergeTabsCaption: "將 App 的所有視窗合併為切換器中的一項，而不是每個視窗一項。",
         switcherWindowlessApps: "沒有開啟視窗的 App",
@@ -896,6 +894,8 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "會取代按右鍵選單。",
         urlCleanerCustomTitle: "加入要移除的名稱",
         urlCleanerCustomPlaceholder: "ref, source",
-        urlCleanerCustomCaption: "請用逗號分隔參數名稱。它們會從所有連結中移除。"
+        urlCleanerCustomCaption: "請用逗號分隔參數名稱。它們會從所有連結中移除。",
+        switcherSearchPin: "按 S 固定搜尋",
+        switcherSearchPinCaption: "瀏覽時按 S 啟動搜尋，固定切換器；避免自訂快捷鍵為 ⌥ 時打出特殊字符，以及 Q/W 開頭誤觸發關閉/結束。"
     )
 }

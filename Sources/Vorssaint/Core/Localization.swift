@@ -321,8 +321,6 @@ struct Strings {
     let switcherShortcutHintApps: String
     let switcherShortcutHintWindows: String
     let switcherWindowShortcutCaption: String
-    let switcherSearchPin: String
-    let switcherSearchPinCaption: String
     let switcherMergeTabs: String
     let switcherMergeTabsCaption: String
     let switcherWindowlessApps: String
@@ -1040,6 +1038,8 @@ struct Strings {
     let urlCleanerCustomTitle: String
     let urlCleanerCustomPlaceholder: String
     let urlCleanerCustomCaption: String
+    let switcherSearchPin: String
+    let switcherSearchPinCaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -1246,8 +1246,6 @@ extension Strings {
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Janelas",
         switcherWindowShortcutCaption: "Abre um seletor das janelas do app em primeiro plano. Com o seletor de apps aberto, pula entre as janelas do app selecionado.",
-        switcherSearchPin: "Fixar busca com S",
-        switcherSearchPinCaption: "S inicia uma busca e fixa o alternador aberto, assim digitar não produz mais caracteres especiais quando o atalho usa ⌥, e uma busca que comece com Q ou W não fecha a janela nem encerra o app por engano.",
         switcherMergeTabs: "Mostrar uma entrada por app",
         switcherMergeTabsCaption: "Junta todas as janelas de um app em uma só entrada no alternador, em vez de uma por janela.",
         switcherWindowlessApps: "Apps sem janela aberta",
@@ -1936,7 +1934,9 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "Substitui o menu de contexto do clique com o botão direito.",
         urlCleanerCustomTitle: "Mais nomes para remover",
         urlCleanerCustomPlaceholder: "ref, origem",
-        urlCleanerCustomCaption: "Separe os nomes dos parâmetros com vírgulas. Eles serão removidos de todos os links."
+        urlCleanerCustomCaption: "Separe os nomes dos parâmetros com vírgulas. Eles serão removidos de todos os links.",
+        switcherSearchPin: "Fixar busca com S",
+        switcherSearchPinCaption: "S inicia uma busca e fixa o alternador aberto, assim digitar não produz mais caracteres especiais quando o atalho usa ⌥, e uma busca que comece com Q ou W não fecha a janela nem encerra o app por engano."
     )
 }
 
@@ -2144,8 +2144,6 @@ extension Strings {
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Windows",
         switcherWindowShortcutCaption: "Opens a switcher for the frontmost app's windows. While the Apps switcher is open, jumps between the selected app's windows.",
-        switcherSearchPin: "Pin search with S",
-        switcherSearchPinCaption: "S starts a search and pins the switcher open, so typing no longer produces special characters when your shortcut uses ⌥, and a search starting with Q or W no longer closes the window or quits the app by mistake.",
         switcherMergeTabs: "Show one entry per app",
         switcherMergeTabsCaption: "Collapses all of an app's windows into one entry in the switcher, instead of one entry per window.",
         switcherWindowlessApps: "Apps with no open window",
@@ -2834,6 +2832,8 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "Replaces the right-click context menu.",
         urlCleanerCustomTitle: "More names to remove",
         urlCleanerCustomPlaceholder: "ref, source",
-        urlCleanerCustomCaption: "Separate parameter names with commas. They are removed from every link."
+        urlCleanerCustomCaption: "Separate parameter names with commas. They are removed from every link.",
+        switcherSearchPin: "Pin search with S",
+        switcherSearchPinCaption: "S starts a search and pins the switcher open, so typing no longer produces special characters when your shortcut uses ⌥, and a search starting with Q or W no longer closes the window or quits the app by mistake."
     )
 }

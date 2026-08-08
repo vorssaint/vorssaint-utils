@@ -111,16 +111,14 @@ struct SwitcherView: View {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 10, weight: .bold))
-                if !switcher.searchQuery.isEmpty {
-                    Text(switcher.searchQuery)
-                        .font(.system(size: 11, weight: .semibold))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .frame(maxWidth: 180)
-                    Text("\(switcher.windows.count)/\(switcher.totalWindowCount)")
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                }
+                Text(switcher.searchQuery.isEmpty ? l10n.s.switcherSearchPin : switcher.searchQuery)
+                    .font(.system(size: 11, weight: .semibold))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: 180)
+                Text("\(switcher.windows.count)/\(switcher.totalWindowCount)")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
             }
             .foregroundStyle(.primary)
             .padding(.horizontal, 9)
