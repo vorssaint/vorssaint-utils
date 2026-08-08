@@ -856,9 +856,15 @@ enum SwitcherSupport {
             // ⌥ turns S into "ß", and adding Caps Lock on top turns it into
             // "Í" instead — a real, differently-accented letter that folds to
             // an unrelated "i" rather than failing to fold at all, so the S
-            // case above never sees it. Falling back to the key's position
-            // catches that combination too.
-            if pinSearchEnabled, keyCode == USKeyPosition.s { return .pinSearch }
+            // case above never sees it. Fall back to the key position only when
+            // the original typed character is non-ASCII, to avoid triggering on
+            // remapped Latin layouts where the US-S key types another ASCII letter.
+            if pinSearchEnabled,
+               keyCode == USKeyPosition.s,
+               let typed = typedCharacter,
+               !typed.unicodeScalars.allSatisfy({ $0.isASCII }) {
+                return .pinSearch
+            }
             return nil
         }
     }
