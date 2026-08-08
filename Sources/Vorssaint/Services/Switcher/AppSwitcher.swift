@@ -17,9 +17,10 @@ private struct SwitcherSourceContext {
 
 /// The window switcher: a global event tap takes over the configured shortcut,
 /// and while its modifiers are held a non-activating panel cycles through real
-/// windows. Releasing commits, W closes the highlighted window, Q quits its
-/// app, S pins the search field open (so typing no longer needs the modifier
-/// held), Esc and a click outside cancel. The panel joins every Space and
+/// windows. Releasing commits, W closes the highlighted window, and Q quits
+/// its app. When the optional pin-search preference is enabled, S pins the
+/// search field open (so typing no longer needs the modifier held). Esc and a
+/// click outside cancel. The panel joins every Space and
 /// fullscreen app, so the switcher is available wherever the user is.
 final class AppSwitcher: ObservableObject {
     static let shared = AppSwitcher()
