@@ -27,20 +27,28 @@ final class SuperKeyService: ObservableObject {
 
     /// Read by the shortcut recording tap, which sits ahead of this one while a
     /// field is listening and would otherwise see the bare trigger key instead
-    /// of the combination it stands for. Main thread only, like both taps.
+    /// of the combination it stands for. Written and read on the main thread.
     private(set) static var isEngaged = false
 
     /// A held gesture can follow this virtual modifier. True means the key was
     /// released; false means the hold was cancelled by teardown or recovery.
     var onHoldEnded: ((_ released: Bool) -> Void)?
-    var isHeld: Bool { state.isHeld }
+    var isHeld: Bool { stateLock.withLock { state.isHeld } }
 
     private let hidutilPath = "/usr/bin/hidutil"
     /// Matches every keyboard, including one plugged in later.
     private let keyboardMatch = "keyboard"
 
+    // The active tap must answer every key before the window server can deliver
+    // it. A user-interactive run loop keeps that answer independent from UI,
+    // window enumeration and every other main-thread task.
+    private let lifecycleLock = NSLock()
     private var tap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
+    private var tapRunLoop: CFRunLoop?
+    private var tapThread: Thread?
+    private var shouldStopTapThread = false
+    private var pendingTapRestart = false
+    private let stateLock = NSLock()
     private var state = SuperKeySupport.State()
     private var soloAction: SuperKeySoloAction = .none
     private var wakeObserver: NSObjectProtocol?
@@ -72,7 +80,10 @@ final class SuperKeyService: ObservableObject {
 
     func syncWithPreferences() {
         let defaults = UserDefaults.standard
-        soloAction = SuperKeySoloAction.sanitized(defaults.string(forKey: DefaultsKey.superKeySoloAction))
+        let action = SuperKeySoloAction.sanitized(
+            defaults.string(forKey: DefaultsKey.superKeySoloAction)
+        )
+        stateLock.withLock { soloAction = action }
         let enabled = AppFeature.superKey.isAvailable
             && defaults.bool(forKey: DefaultsKey.superKeyEnabled)
         guard enabled else {
@@ -81,7 +92,7 @@ final class SuperKeyService: ObservableObject {
         }
         // A tap the system disabled (Accessibility revoked and granted again)
         // never revives on its own; rebuild it instead of keeping the corpse.
-        if let tap, !CGEvent.tapIsEnabled(tap: tap) {
+        if let tap = lifecycleLock.withLock({ tap }), !CGEvent.tapIsEnabled(tap: tap) {
             stop()
         }
         start()
@@ -94,11 +105,8 @@ final class SuperKeyService: ObservableObject {
     }
 
     private func start() {
-        guard tap == nil else {
-            isRunning = true
-            Self.isEngaged = true
-            return
-        }
+        let tapExists = lifecycleLock.withLock { tap != nil && !shouldStopTapThread }
+        guard !tapExists else { return }
         // Without Accessibility the tap cannot add the modifiers, and a
         // mapping alone would turn Caps Lock into a dead key. One left by a
         // run that was killed comes out here too: with the feature still
@@ -108,49 +116,42 @@ final class SuperKeyService: ObservableObject {
             isRunning = false
             return
         }
-        let mask = (CGEventMask(1) << CGEventType.keyDown.rawValue)
-            | (CGEventMask(1) << CGEventType.keyUp.rawValue)
-            | (CGEventMask(1) << CGEventType.flagsChanged.rawValue)
-        guard let tap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: mask,
-            callback: { _, type, event, userInfo in
-                guard let userInfo else { return Unmanaged.passUnretained(event) }
-                let service = Unmanaged<SuperKeyService>.fromOpaque(userInfo).takeUnretainedValue()
-                return service.handle(type: type, event: event)
-            },
-            userInfo: Unmanaged.passUnretained(self).toOpaque()
-        ) else {
-            clearLeftoverMapping()
-            isRunning = false
-            return
-        }
-        self.tap = tap
-        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        runLoopSource = source
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        CGEvent.tapEnable(tap: tap, enable: true)
         forgetHeldKey()
-        applyMapping(true)
-        // Caps Lock left on would have no way back once the key stops locking.
-        setCapsLock(false)
-        observeWake()
-        isRunning = true
-        Self.isEngaged = true
+        let thread = lifecycleLock.withLock { () -> Thread? in
+            if tapThread != nil {
+                if shouldStopTapThread { pendingTapRestart = true }
+                return nil
+            }
+            shouldStopTapThread = false
+            pendingTapRestart = false
+            let thread = Thread { [weak self] in self?.runEventTap() }
+            thread.name = "Vorssaint Super Key"
+            thread.qualityOfService = .userInteractive
+            tapThread = thread
+            return thread
+        }
+        thread?.start()
     }
 
     private func stop(synchronously: Bool = false) {
-        if let tap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-            CFMachPortInvalidate(tap)
+        let snapshot = lifecycleLock.withLock {
+            () -> (runLoop: CFRunLoop?, tap: CFMachPort?, threadExists: Bool) in
+            shouldStopTapThread = true
+            pendingTapRestart = false
+            return (tapRunLoop, tap, tapThread != nil)
         }
-        if let runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+        if let tap = snapshot.tap { CGEvent.tapEnable(tap: tap, enable: false) }
+        if let runLoop = snapshot.runLoop {
+            CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue) {
+                CFRunLoopStop(runLoop)
+            }
+            CFRunLoopWakeUp(runLoop)
+        } else if !snapshot.threadExists {
+            lifecycleLock.withLock {
+                shouldStopTapThread = false
+                tapThread = nil
+            }
         }
-        tap = nil
-        runLoopSource = nil
         forgetHeldKey()
         Self.isEngaged = false
         if let wakeObserver {
@@ -159,6 +160,93 @@ final class SuperKeyService: ObservableObject {
         }
         clearLeftoverMapping(synchronously: synchronously)
         isRunning = false
+    }
+
+    private func runEventTap() {
+        autoreleasepool {
+            let runLoop = CFRunLoopGetCurrent()
+            lifecycleLock.withLock { tapRunLoop = runLoop }
+            guard !lifecycleLock.withLock({ shouldStopTapThread }) else {
+                if clearEventTapThread() { startOnMain() }
+                return
+            }
+
+            let mask = (CGEventMask(1) << CGEventType.keyDown.rawValue)
+                | (CGEventMask(1) << CGEventType.keyUp.rawValue)
+                | (CGEventMask(1) << CGEventType.flagsChanged.rawValue)
+            guard let tap = CGEvent.tapCreate(
+                tap: .cgSessionEventTap,
+                place: .headInsertEventTap,
+                options: .defaultTap,
+                eventsOfInterest: mask,
+                callback: { _, type, event, userInfo in
+                    guard let userInfo else { return Unmanaged.passUnretained(event) }
+                    let service = Unmanaged<SuperKeyService>.fromOpaque(userInfo)
+                        .takeUnretainedValue()
+                    return service.handle(type: type, event: event)
+                },
+                userInfo: Unmanaged.passUnretained(self).toOpaque()
+            ) else {
+                _ = clearEventTapThread()
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    let stillStopped = self.lifecycleLock.withLock {
+                        self.tap == nil && self.tapThread == nil
+                    }
+                    guard stillStopped else { return }
+                    self.clearLeftoverMapping()
+                    self.isRunning = false
+                    Self.isEngaged = false
+                }
+                return
+            }
+
+            let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+            lifecycleLock.withLock { self.tap = tap }
+            CFRunLoopAddSource(runLoop, source, .commonModes)
+            CGEvent.tapEnable(tap: tap, enable: true)
+
+            DispatchQueue.main.async { [weak self] in self?.tapDidStart(tap) }
+            if lifecycleLock.withLock({ shouldStopTapThread }) {
+                CGEvent.tapEnable(tap: tap, enable: false)
+            } else {
+                CFRunLoopRun()
+            }
+
+            CGEvent.tapEnable(tap: tap, enable: false)
+            CFRunLoopRemoveSource(runLoop, source, .commonModes)
+            CFMachPortInvalidate(tap)
+            if clearEventTapThread() { startOnMain() }
+        }
+    }
+
+    private func clearEventTapThread() -> Bool {
+        lifecycleLock.withLock {
+            let shouldRestart = pendingTapRestart
+            tap = nil
+            tapRunLoop = nil
+            tapThread = nil
+            shouldStopTapThread = false
+            pendingTapRestart = false
+            return shouldRestart
+        }
+    }
+
+    private func startOnMain() {
+        DispatchQueue.main.async { [weak self] in self?.start() }
+    }
+
+    private func tapDidStart(_ startedTap: CFMachPort) {
+        let active = lifecycleLock.withLock {
+            tap === startedTap && !shouldStopTapThread
+        }
+        guard active else { return }
+        applyMapping(true)
+        // Caps Lock left on would have no way back once the key stops locking.
+        setCapsLock(false)
+        observeWake()
+        isRunning = true
+        Self.isEngaged = true
     }
 
     /// The mapping is cleared even when this service never applied it: an
@@ -180,7 +268,9 @@ final class SuperKeyService: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            guard let self, self.tap != nil else { return }
+            guard let self,
+                  self.lifecycleLock.withLock({ self.tap != nil && !self.shouldStopTapThread })
+            else { return }
             self.applyMapping(true)
         }
     }
@@ -188,7 +278,9 @@ final class SuperKeyService: ObservableObject {
     // MARK: - The key mapping
 
     private func applyMapping(_ enabled: Bool, synchronously: Bool = false) {
-        lastMappingAt = ProcessInfo.processInfo.systemUptime
+        stateLock.withLock {
+            lastMappingAt = ProcessInfo.processInfo.systemUptime
+        }
         UserDefaults.standard.set(enabled, forKey: DefaultsKey.superKeyMappingApplied)
         let work = { [hidutilPath, keyboardMatch] in
             let report = Shell.run(hidutilPath,
@@ -211,22 +303,28 @@ final class SuperKeyService: ObservableObject {
     /// every few seconds, so a keyboard that refuses the mapping cannot turn
     /// typing into a stream of commands.
     private func repairMappingIfStale() {
-        let now = ProcessInfo.processInfo.systemUptime
-        guard now - lastMappingAt >= mappingRepairInterval else { return }
-        applyMapping(true)
+        lifecycleLock.withLock {
+            guard tap != nil, !shouldStopTapThread else { return }
+            let now = ProcessInfo.processInfo.systemUptime
+            let shouldRepair = stateLock.withLock {
+                now - lastMappingAt >= mappingRepairInterval
+            }
+            if shouldRepair { applyMapping(true) }
+        }
     }
 
     // MARK: - The tap
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+            let currentTap = lifecycleLock.withLock { shouldStopTapThread ? nil : tap }
+            if let currentTap { CGEvent.tapEnable(tap: currentTap, enable: true) }
             forgetHeldKey()
             return Unmanaged.passUnretained(event)
         }
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         let event0 = SuperKeyService.classify(type: type, keyCode: keyCode, event: event)
-        let decision = state.decide(event0)
+        let decision = stateLock.withLock { state.decide(event0) }
         // Only the key's own events say it is still down: the first press and
         // the repeats the system sends while it is held. Keys pressed meanwhile
         // must NOT push the deadline out. Someone whose keyboard is stuck under
@@ -235,10 +333,20 @@ final class SuperKeyService: ObservableObject {
         // trying to get out of it.
         switch event0 {
         case .triggerDown:
-            armHeldKeyWatchdog()
+            DispatchQueue.main.async { [weak self] in
+                guard let self,
+                      self.lifecycleLock.withLock({
+                          self.tap != nil && !self.shouldStopTapThread
+                      }),
+                      self.stateLock.withLock({ self.state.isHeld })
+                else { return }
+                self.armHeldKeyWatchdog()
+            }
         case .triggerUp:
-            cancelHeldKeyWatchdog()
-            onHoldEnded?(true)
+            DispatchQueue.main.async { [weak self] in
+                self?.cancelHeldKeyWatchdog()
+                self?.onHoldEnded?(true)
+            }
         case .otherKey, .otherModifier, .capsLock:
             break
         }
@@ -251,7 +359,7 @@ final class SuperKeyService: ObservableObject {
             event.flags = event.flags.union(SuperKeyService.superFlags)
             return Unmanaged.passUnretained(event)
         case .soloTap:
-            performSoloAction()
+            DispatchQueue.main.async { [weak self] in self?.performSoloAction() }
             return nil
         case .remapNeeded:
             repairMappingIfStale()
@@ -273,12 +381,23 @@ final class SuperKeyService: ObservableObject {
         heldKeyWatchdog = nil
     }
 
-    /// Back to the key being up. Runs on the main thread, like the tap.
+    /// Back to the key being up. State resets synchronously; UI callbacks stay
+    /// on the main thread.
     private func forgetHeldKey() {
-        cancelHeldKeyWatchdog()
-        let wasHeld = state.isHeld
-        state.reset()
-        if wasHeld { onHoldEnded?(false) }
+        let wasHeld = stateLock.withLock { () -> Bool in
+            let held = state.isHeld
+            state.reset()
+            return held
+        }
+        let notify = { [weak self] in
+            self?.cancelHeldKeyWatchdog()
+            if wasHeld { self?.onHoldEnded?(false) }
+        }
+        if Thread.isMainThread {
+            notify()
+        } else {
+            DispatchQueue.main.async(execute: notify)
+        }
     }
 
     private static func classify(type: CGEventType, keyCode: Int64, event: CGEvent) -> SuperKeySupport.Event {
@@ -299,7 +418,8 @@ final class SuperKeyService: ObservableObject {
     // MARK: - Tapped on its own
 
     private func performSoloAction() {
-        switch soloAction {
+        let action = stateLock.withLock { soloAction }
+        switch action {
         case .none:
             return
         case .escape:

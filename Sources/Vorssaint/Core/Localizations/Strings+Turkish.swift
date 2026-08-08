@@ -895,6 +895,8 @@ extension Strings {
         urlCleanerCustomPlaceholder: "ref, kaynak",
         urlCleanerCustomCaption: "Parametre adlarını virgülle ayırın. Her bağlantıdan kaldırılırlar.",
         switcherSearchPin: "S ile aramayı sabitle",
-        switcherSearchPinCaption: "S, aramayı başlatır ve değiştiriciyi sabitler; kısayolun ⌥ kullanması durumunda özel karakter yazılmasını, Q veya W ile başlayan aramaların pencereyi kapatmasını veya uygulamadan çıkmasını önler."
+        switcherSearchPinCaption: "S, aramayı başlatır ve değiştiriciyi sabitler; kısayolun ⌥ kullanması durumunda özel karakter yazılmasını, Q veya W ile başlayan aramaların pencereyi kapatmasını veya uygulamadan çıkmasını önler.",
+        invertVerticalScroll: "Dikey kaydırmayı ters çevir",
+        invertHorizontalScroll: "Yatay kaydırmayı ters çevir"
     )
 }

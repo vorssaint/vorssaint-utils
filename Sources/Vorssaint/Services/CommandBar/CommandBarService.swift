@@ -200,6 +200,9 @@ final class CommandBarService: ObservableObject {
     func show() {
         guard AppFeature.commandBar.isAvailable else { return }
         let panel = ensurePanel()
+        if AppFeature.textSnippets.isAvailable {
+            TextSnippetService.shared.setCommandBarVisible(true)
+        }
         presentationID = UUID()
         mode = .search
         savedQuery = ""
@@ -233,6 +236,9 @@ final class CommandBarService: ObservableObject {
     }
 
     func hide() {
+        if AppFeature.textSnippets.isAvailable {
+            TextSnippetService.shared.setCommandBarVisible(false)
+        }
         // Closing while listening for a combination must give every global key
         // back, or the whole app would go quiet until the next relaunch.
         if case .capturingShortcut = mode { endCapturingShortcut() }
@@ -1926,13 +1932,17 @@ final class CommandBarService: ObservableObject {
                     self.run(at: index)
                     return nil
                 }
-                // ^N and ^P move the selection.
-                if event.modifierFlags.contains(.control) {
-                    switch Int(event.keyCode) {
-                    case kVK_ANSI_N:
+                let navigationModifiers = event.modifierFlags
+                    .intersection([.command, .option, .shift, .control])
+                if navigationModifiers == [.control],
+                   let key = event.charactersIgnoringModifiers?.lowercased() {
+                    // Match the typed letter so alternate keyboard layouts
+                    // follow the keys the person sees.
+                    switch key {
+                    case "n":
                         if case .actions = self.mode { self.moveActionSelection(1) } else { self.moveSelection(1) }
                         return nil
-                    case kVK_ANSI_P:
+                    case "p":
                         if case .actions = self.mode { self.moveActionSelection(-1) } else { self.moveSelection(-1) }
                         return nil
                     default:

@@ -1026,7 +1026,8 @@ struct QuickControlsSection: View {
     @ObservedObject private var keyDebounce = KeyboardDebounceService.shared
     @ObservedObject private var middleClick = MiddleClickService.shared
     @ObservedObject private var shelf = ShelfService.shared
-    @AppStorage(DefaultsKey.scrollInverterEnabled) private var scrollEnabled = false
+    @AppStorage(DefaultsKey.scrollInverterEnabled) private var invertVertical = false
+    @AppStorage(DefaultsKey.scrollInverterHorizontalEnabled) private var invertHorizontal = false
     @AppStorage(DefaultsKey.mouseNavigationEnabled) private var mouseNavigationEnabled = false
     @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
     @AppStorage(DefaultsKey.switcherIconRowMode) private var switcherIconRowMode = false
@@ -1162,7 +1163,7 @@ struct QuickControlsSection: View {
 
     private func isEnabled(_ item: ControlPanelItem) -> Bool {
         switch item {
-        case .mouseScroll: return scrollEnabled
+        case .mouseScroll: return scrollDirectionEnabled
         case .mouseNavigation: return mouseNavigationEnabled
         case .switcher: return switcherEnabled
         case .cutPaste: return cutPasteEnabled
@@ -1261,16 +1262,17 @@ struct QuickControlsSection: View {
         switch item {
         case .mouseScroll:
             PanelToggleRow(title: l10n.s.invertMouseScroll,
-                           caption: caption(l10n.s.invertMouseScrollCaption, needsAccessibility: scrollEnabled),
+                           caption: caption(l10n.s.invertMouseScrollCaption,
+                                            needsAccessibility: scrollDirectionEnabled),
                            systemImage: "computermouse",
-                           isOn: $scrollEnabled,
+                           isOn: scrollDirectionBinding,
                            isEditing: editing,
                            showsDragHandle: true,
                            visibility: $showScroll,
-                           needsAttention: scrollEnabled && !permissions.accessibility,
+                           needsAttention: scrollDirectionEnabled && !permissions.accessibility,
                            permissionButtonTitle: l10n.s.permissionRequest,
-                           permissionAction: accessibilityPermissionAction(scrollEnabled))
-                .onChange(of: scrollEnabled) { _, enabled in
+                           permissionAction: accessibilityPermissionAction(scrollDirectionEnabled))
+                .onChange(of: scrollDirectionEnabled) { _, enabled in
                     ScrollInverter.shared.syncWithPreferences()
                     requestAccessibilityIfNeeded(enabled)
                 }
@@ -1660,6 +1662,19 @@ struct QuickControlsSection: View {
         } set: { value in
             keyDebounceWindow = Defaults.sanitizedKeyboardDebounceWindow(value)
             KeyboardDebounceService.shared.syncWithPreferences()
+        }
+    }
+
+    private var scrollDirectionEnabled: Bool {
+        invertVertical || invertHorizontal
+    }
+
+    private var scrollDirectionBinding: Binding<Bool> {
+        Binding {
+            scrollDirectionEnabled
+        } set: { enabled in
+            invertVertical = enabled
+            invertHorizontal = enabled
         }
     }
 

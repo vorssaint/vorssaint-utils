@@ -704,7 +704,7 @@ struct CommandBarView: View {
                     .foregroundStyle(.tertiary)
                     .padding(.trailing, 4)
             }
-            Text(service.isShowingSuggestions && !service.categoryChips.isEmpty ? "^N ^P ↑↓ ←→" : "^N ^P ↑↓")
+            Text(service.isShowingSuggestions && !service.categoryChips.isEmpty ? "⌃P ⌃N ↑↓ ←→" : "⌃P ⌃N ↑↓")
                 .font(.system(size: 9, weight: .semibold, design: .rounded))
                 .foregroundStyle(.tertiary)
             Image(systemName: "return")

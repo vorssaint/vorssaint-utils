@@ -737,6 +737,36 @@ struct MetricsTests {
             ScrollWheelEventTraits(isContinuous: true, momentumPhase: 0, scrollPhase: 0, scrollCount: 2),
             secondsSinceLastGesturePhase: nil
         ), "counted wheel events classify as a wheel when no gesture was ever seen")
+        expect(ScrollWheelSupport.inversionPlan(
+            hasVerticalMovement: true, hasHorizontalMovement: false, shiftRedirectsVertical: false,
+            invertVertical: true, invertHorizontal: false
+        ) == ScrollWheelInversionPlan(vertical: true, horizontal: false),
+        "vertical wheel movement follows only the vertical direction setting")
+        expect(ScrollWheelSupport.inversionPlan(
+            hasVerticalMovement: false, hasHorizontalMovement: true, shiftRedirectsVertical: false,
+            invertVertical: true, invertHorizontal: false
+        ) == ScrollWheelInversionPlan(vertical: false, horizontal: false),
+        "a horizontal wheel stays unchanged when only vertical inversion is on")
+        expect(ScrollWheelSupport.inversionPlan(
+            hasVerticalMovement: true, hasHorizontalMovement: false, shiftRedirectsVertical: true,
+            invertVertical: true, invertHorizontal: false
+        ) == ScrollWheelInversionPlan(vertical: false, horizontal: false),
+        "Shift-directed wheel movement follows the horizontal setting")
+        expect(ScrollWheelSupport.inversionPlan(
+            hasVerticalMovement: true, hasHorizontalMovement: false, shiftRedirectsVertical: true,
+            invertVertical: false, invertHorizontal: true
+        ) == ScrollWheelInversionPlan(vertical: true, horizontal: false),
+        "horizontal inversion flips the vertical source tick while Shift redirects it")
+        expect(ScrollWheelSupport.inversionPlan(
+            hasVerticalMovement: true, hasHorizontalMovement: true, shiftRedirectsVertical: true,
+            invertVertical: true, invertHorizontal: false
+        ) == ScrollWheelInversionPlan(vertical: true, horizontal: false),
+        "a genuine two-axis event keeps each axis independent even with Shift held")
+        expect(ScrollWheelSupport.inversionPlan(
+            hasVerticalMovement: true, hasHorizontalMovement: false, shiftRedirectsVertical: false,
+            invertVertical: false, invertHorizontal: true
+        ) == ScrollWheelInversionPlan(vertical: false, horizontal: false),
+        "a continuous wheel stays vertical because Shift does not redirect that event type")
 
         expect(MouseNavigationSupport.direction(
             forButtonNumber: MouseNavigationSupport.backButtonNumber) == .back,
@@ -858,6 +888,10 @@ struct MetricsTests {
                "the step clamps to its range")
         expect(Defaults.registeredDefaults[DefaultsKey.smoothScrollEnabled] as? Bool == false,
                "smooth scrolling ships off by default")
+        expect(Defaults.registeredDefaults[DefaultsKey.scrollInverterHorizontalEnabled] as? Bool == false,
+               "horizontal scroll inversion ships off by default")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.scrollInverterHorizontalEnabled),
+               "horizontal scroll direction follows settings backups")
         expect(Defaults.registeredDefaults[DefaultsKey.smoothScrollStep] as? Int == 40,
                "smooth scrolling step registers its default")
 
@@ -1270,6 +1304,15 @@ struct MetricsTests {
             expect(migrationDefaults.string(forKey: DefaultsKey.switcherWindowShortcut)
                    == GlobalShortcut.switcherWindowDefault.storageValue,
                    "switcher window shortcut migrates the accidental Ctrl+Option+Cmd+Grave default back to Cmd+Grave")
+            migrationDefaults.removeObject(forKey: DefaultsKey.scrollInverterHorizontalEnabled)
+            migrationDefaults.set(true, forKey: DefaultsKey.scrollInverterEnabled)
+            Defaults.migrateScrollInverterAxes(in: migrationDefaults)
+            expect(migrationDefaults.bool(forKey: DefaultsKey.scrollInverterHorizontalEnabled),
+                   "the former combined scroll switch keeps both directions on after updating")
+            migrationDefaults.set(false, forKey: DefaultsKey.scrollInverterHorizontalEnabled)
+            Defaults.migrateScrollInverterAxes(in: migrationDefaults)
+            expect(!migrationDefaults.bool(forKey: DefaultsKey.scrollInverterHorizontalEnabled),
+                   "the direction migration preserves a newer horizontal choice")
             migrationDefaults.set("option:50", forKey: DefaultsKey.switcherWindowShortcut)
             Defaults.migrateLegacySwitcherWindowShortcut(in: migrationDefaults)
             expect(migrationDefaults.string(forKey: DefaultsKey.switcherWindowShortcut) == "option:50",
@@ -7657,6 +7700,12 @@ struct MetricsTests {
                "with nothing enabled only on-demand features use accessibility")
         expect(activeSet(.accessibility, on: [DefaultsKey.scrollInverterEnabled]).contains(.scrollInverter),
                "an enabled feature counts as using its permission")
+        expect(activeSet(.accessibility, on: [DefaultsKey.scrollInverterHorizontalEnabled])
+                .contains(.scrollInverter),
+               "horizontal-only inversion counts as using accessibility")
+        expect(AppFeature.scrollInverter.enabledKeys == [DefaultsKey.scrollInverterEnabled,
+                                                          DefaultsKey.scrollInverterHorizontalEnabled],
+               "the scroll direction feature tracks both independent axes")
         expect(activeSet(.accessibility, on: [DefaultsKey.finderRenameEnabled]).contains(.finderRename),
                "the enabled Finder rename shortcut uses accessibility")
         expect(!activeSet(.accessibility, available: [], on: [DefaultsKey.scrollInverterEnabled])
@@ -9181,6 +9230,19 @@ struct MetricsTests {
         expect(ScreenshotSupport.uniqueFileName("a.png",
                                                 exists: { $0 == "a.png" || $0 == "a 2.png" }) == "a 3.png",
                "numbering keeps walking until a free name")
+        let dragRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ScreenshotDragTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: dragRoot) }
+        let dragData = Data([0x89, 0x50, 0x4E, 0x47])
+        let firstDrag = try? ScreenshotSupport.temporaryDragFile(
+            data: dragData, name: "Capture.png", directory: dragRoot)
+        let secondDrag = try? ScreenshotSupport.temporaryDragFile(
+            data: dragData, name: "Capture.png", directory: dragRoot)
+        expect(firstDrag?.lastPathComponent == "Capture.png"
+                && firstDrag.flatMap { try? Data(contentsOf: $0) } == dragData,
+               "a screenshot drag writes the complete payload with its file name")
+        expect(firstDrag != nil && secondDrag != nil && firstDrag != secondDrag,
+               "simultaneous screenshot drags receive separate temporary files")
 
         var counterList = [
             ScreenshotSupport.Annotation(tool: .counter, number: 1),

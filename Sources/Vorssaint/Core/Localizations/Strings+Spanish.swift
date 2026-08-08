@@ -895,6 +895,8 @@ extension Strings {
         urlCleanerCustomPlaceholder: "ref, origen",
         urlCleanerCustomCaption: "Separa los nombres de parámetros con comas. Se eliminarán de todos los enlaces.",
         switcherSearchPin: "Fijar búsqueda con S",
-        switcherSearchPinCaption: "S inicia una búsqueda y fija el selector abierto: al escribir ya no aparecen caracteres especiales cuando el atajo usa ⌥, y una búsqueda que empieza por Q o W ya no cierra la ventana ni cierra la app por error."
+        switcherSearchPinCaption: "S inicia una búsqueda y fija el selector abierto: al escribir ya no aparecen caracteres especiales cuando el atajo usa ⌥, y una búsqueda que empieza por Q o W ya no cierra la ventana ni cierra la app por error.",
+        invertVerticalScroll: "Invertir el desplazamiento vertical",
+        invertHorizontalScroll: "Invertir el desplazamiento horizontal"
     )
 }

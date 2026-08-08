@@ -612,7 +612,8 @@ struct MouseSettings: View {
     @ObservedObject private var smoothScroll = SmoothScrollService.shared
     @ObservedObject private var mouseNavigation = MouseNavigationService.shared
     @ObservedObject private var middleClick = MiddleClickService.shared
-    @AppStorage(DefaultsKey.scrollInverterEnabled) private var inverterEnabled = false
+    @AppStorage(DefaultsKey.scrollInverterEnabled) private var invertVertical = false
+    @AppStorage(DefaultsKey.scrollInverterHorizontalEnabled) private var invertHorizontal = false
     @AppStorage(DefaultsKey.smoothScrollEnabled) private var smoothScrollEnabled = false
     @AppStorage(DefaultsKey.smoothScrollStep) private var smoothScrollStep = SmoothScrollSupport.defaultStep
     @AppStorage(DefaultsKey.mouseNavigationEnabled) private var mouseNavigationEnabled = false
@@ -624,11 +625,15 @@ struct MouseSettings: View {
         Form {
             if AppFeature.scrollInverter.isAvailable {
                 Section(l10n.s.scrollSection) {
-                    Toggle(l10n.s.invertMouseScroll, isOn: $inverterEnabled)
-                        .onChange(of: inverterEnabled) { _, _ in
+                    Toggle(l10n.s.invertVerticalScroll, isOn: $invertVertical)
+                        .onChange(of: invertVertical) { _, _ in
                             ScrollInverter.shared.syncWithPreferences()
                         }
-                    if inverterEnabled, inverter.isRunning {
+                    Toggle(l10n.s.invertHorizontalScroll, isOn: $invertHorizontal)
+                        .onChange(of: invertHorizontal) { _, _ in
+                            ScrollInverter.shared.syncWithPreferences()
+                        }
+                    if scrollDirectionEnabled, inverter.isRunning {
                         HStack(spacing: 6) {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(.green)
@@ -637,13 +642,10 @@ struct MouseSettings: View {
                                 .foregroundStyle(.green)
                         }
                     }
-                    Text(l10n.s.invertMouseScrollCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                     Text(l10n.s.scrollTrackpadNote)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    if inverterEnabled {
+                    if scrollDirectionEnabled {
                         MouseExceptionsList(scope: .scrollDirection)
                     }
                 }
@@ -742,12 +744,16 @@ struct MouseSettings: View {
     /// Only features that are on AND still available can ask for the
     /// permission note; a hub-disabled one no longer needs anything.
     private var accessibilityNoteVisible: Bool {
-        let anyEngaged = (inverterEnabled && AppFeature.scrollInverter.isAvailable)
+        let anyEngaged = (scrollDirectionEnabled && AppFeature.scrollInverter.isAvailable)
             || (smoothScrollEnabled && AppFeature.smoothScroll.isAvailable)
             || (mouseNavigationEnabled && AppFeature.mouseNavigation.isAvailable)
             || (mouseButtonShortcutsEnabled && AppFeature.mouseButtonShortcuts.isAvailable)
             || (middleClickEnabled && AppFeature.middleClick.isAvailable)
         return anyEngaged && !permissions.accessibility
+    }
+
+    private var scrollDirectionEnabled: Bool {
+        invertVertical || invertHorizontal
     }
 
     private var smoothScrollStepBinding: Binding<Double> {

@@ -896,6 +896,8 @@ extension Strings {
         urlCleanerCustomPlaceholder: "ref, source",
         urlCleanerCustomCaption: "請用逗號分隔參數名稱。它們會從所有連結中移除。",
         switcherSearchPin: "按 S 固定搜尋",
-        switcherSearchPinCaption: "瀏覽時按 S 啟動搜尋，固定切換器；避免自訂快捷鍵為 ⌥ 時打出特殊字符，以及 Q/W 開頭誤觸發關閉/結束。"
+        switcherSearchPinCaption: "瀏覽時按 S 啟動搜尋，固定切換器；避免自訂快捷鍵為 ⌥ 時打出特殊字符，以及 Q/W 開頭誤觸發關閉/結束。",
+        invertVerticalScroll: "反轉垂直捲動",
+        invertHorizontalScroll: "反轉水平捲動"
     )
 }

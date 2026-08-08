@@ -36,6 +36,7 @@ enum DefaultsKey {
     static let hasOnboarded = "hasOnboarded"
     static let sleepDisabledFlag = "vorssDisabledSleep"   // internal guard for pmset disablesleep
     static let scrollInverterEnabled = "scrollInverterEnabled"
+    static let scrollInverterHorizontalEnabled = "scrollInverterHorizontalEnabled"
     static let smoothScrollEnabled = "smoothScrollEnabled"
     static let smoothScrollStep = "smoothScrollStep"      // pixels per wheel tick
     static let mouseNavigationEnabled = "mouseNavigationEnabled" // side buttons trigger Back and Forward
@@ -675,6 +676,7 @@ enum Defaults {
         DefaultsKey.keepAwakeActiveIcon: KeepAwakeActiveIcon.vorssaint.rawValue,
         DefaultsKey.showCountdown: false,
         DefaultsKey.scrollInverterEnabled: false,
+        DefaultsKey.scrollInverterHorizontalEnabled: false,
         DefaultsKey.smoothScrollEnabled: false,
         DefaultsKey.smoothScrollStep: 40,
         DefaultsKey.mouseNavigationEnabled: false,
@@ -1065,6 +1067,7 @@ enum Defaults {
     static func register() {
         let defaults = UserDefaults.standard
         migrateFanControlVisibility(in: defaults)
+        migrateScrollInverterAxes(in: defaults)
         defaults.register(defaults: registeredDefaults)
         defaults.register(defaults: AppFeature.availabilityDefaults)
         migrateLegacyMenuBarTemperatureMetric(in: defaults)
@@ -1075,6 +1078,17 @@ enum Defaults {
         migrateScreenshotOpenEditorDirectly(in: defaults)
         migrateSilentHeadphonesDisconnectVolume(in: defaults)
         migrateSwitcherWindowlessFinder(in: defaults)
+    }
+
+    /// The former single switch also reversed vertical wheel events redirected
+    /// sideways with Shift. Mirror that choice once so updates and older
+    /// settings backups keep the same behavior until the user separates axes.
+    static func migrateScrollInverterAxes(in defaults: UserDefaults) {
+        guard defaults.object(forKey: DefaultsKey.scrollInverterHorizontalEnabled) == nil else {
+            return
+        }
+        defaults.set(defaults.bool(forKey: DefaultsKey.scrollInverterEnabled),
+                     forKey: DefaultsKey.scrollInverterHorizontalEnabled)
     }
 
     static func migrateFanControlVisibility(in defaults: UserDefaults) {

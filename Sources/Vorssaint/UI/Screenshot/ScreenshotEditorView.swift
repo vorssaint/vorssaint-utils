@@ -1165,17 +1165,11 @@ struct ScreenshotEditorView: View {
             .onDrag {
                 commitEditingTextIfNeeded()
                 guard let image = model.exportImage(),
-                      let data = ScreenshotRenderer.pngData(from: image)
+                      let provider = ScreenshotService.dragItemProvider(image: image,
+                                                                        strings: strings)
                 else { return NSItemProvider() }
-                let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
-                let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
-                do {
-                    try data.write(to: url, options: .atomic)
-                } catch {
-                    return NSItemProvider()
-                }
                 model.markExported()
-                return NSItemProvider(contentsOf: url) ?? NSItemProvider()
+                return provider
             }
             .screenshotSafeHelp(strings.editorTitle)
     }

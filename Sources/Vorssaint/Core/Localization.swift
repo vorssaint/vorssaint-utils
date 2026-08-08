@@ -1040,6 +1040,8 @@ struct Strings {
     let urlCleanerCustomCaption: String
     let switcherSearchPin: String
     let switcherSearchPinCaption: String
+    let invertVerticalScroll: String
+    let invertHorizontalScroll: String
 }
 
 // MARK: - Português (Brasil)
@@ -1936,7 +1938,9 @@ extension Strings {
         urlCleanerCustomPlaceholder: "ref, origem",
         urlCleanerCustomCaption: "Separe os nomes dos parâmetros com vírgulas. Eles serão removidos de todos os links.",
         switcherSearchPin: "Fixar busca com S",
-        switcherSearchPinCaption: "S inicia uma busca e fixa o alternador aberto, assim digitar não produz mais caracteres especiais quando o atalho usa ⌥, e uma busca que comece com Q ou W não fecha a janela nem encerra o app por engano."
+        switcherSearchPinCaption: "S inicia uma busca e fixa o alternador aberto, assim digitar não produz mais caracteres especiais quando o atalho usa ⌥, e uma busca que comece com Q ou W não fecha a janela nem encerra o app por engano.",
+        invertVerticalScroll: "Inverter rolagem vertical",
+        invertHorizontalScroll: "Inverter rolagem horizontal"
     )
 }
 
@@ -2834,6 +2838,8 @@ extension Strings {
         urlCleanerCustomPlaceholder: "ref, source",
         urlCleanerCustomCaption: "Separate parameter names with commas. They are removed from every link.",
         switcherSearchPin: "Pin search with S",
-        switcherSearchPinCaption: "S starts a search and pins the switcher open, so typing no longer produces special characters when your shortcut uses ⌥, and a search starting with Q or W no longer closes the window or quits the app by mistake."
+        switcherSearchPinCaption: "S starts a search and pins the switcher open, so typing no longer produces special characters when your shortcut uses ⌥, and a search starting with Q or W no longer closes the window or quits the app by mistake.",
+        invertVerticalScroll: "Invert vertical scrolling",
+        invertHorizontalScroll: "Invert horizontal scrolling"
     )
 }
