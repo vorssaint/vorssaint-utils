@@ -601,6 +601,11 @@ final class HomebrewManager: ObservableObject {
         }
     }
 
+    /// Timeout for read-only Homebrew commands (info, search, outdated).
+    /// These are normally fast, but a hung NFS share or locked database can
+    /// make them stall indefinitely.
+    private static let brewReadTimeout: TimeInterval = 30
+
     private func run(_ command: HomebrewCommand,
                      completion: @escaping (_ status: Int32, _ output: String) -> Void) {
         workQueue.async {
@@ -616,11 +621,35 @@ final class HomebrewManager: ObservableObject {
                 completion(-1, error.localizedDescription)
                 return
             }
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
+            // Drain the pipe on its own thread so a full buffer never
+            // deadlocks the timeout wait below.
+            var data = Data()
+            let drained = DispatchSemaphore(value: 0)
+            DispatchQueue.global(qos: .utility).async {
+                data = pipe.fileHandleForReading.readDataToEndOfFile()
+                drained.signal()
+            }
+            let finished = DispatchSemaphore(value: 0)
+            DispatchQueue.global(qos: .utility).async {
+                process.waitUntilExit()
+                finished.signal()
+            }
+            if finished.wait(timeout: .now() + Self.brewReadTimeout) == .timedOut {
+                process.terminate()
+                _ = finished.wait(timeout: .now() + 1)
+                _ = drained.wait(timeout: .now() + 1)
+                completion(-1, String(data: data, encoding: .utf8) ?? "")
+                return
+            }
+            _ = drained.wait(timeout: .now() + 1)
             completion(process.terminationStatus, String(data: data, encoding: .utf8) ?? "")
         }
     }
+
+    /// Long-running commands (install, upgrade) get a generous timeout.
+    /// The UI also offers a cancel button; this only catches a process that
+    /// hangs without producing output and without responding to terminate.
+    private static let brewStreamingTimeout: TimeInterval = 600
 
     private func runStreaming(_ command: HomebrewCommand,
                               onOutput: @escaping (String) -> Void,
@@ -652,7 +681,17 @@ final class HomebrewManager: ObservableObject {
                 return
             }
             DispatchQueue.main.async { self?.activeProcess = process }
-            process.waitUntilExit()
+            let finished = DispatchSemaphore(value: 0)
+            DispatchQueue.global(qos: .utility).async {
+                process.waitUntilExit()
+                finished.signal()
+            }
+            if finished.wait(timeout: .now() + Self.brewStreamingTimeout) == .timedOut {
+                process.terminate()
+            }
+            // Wait for the background waitUntilExit to settle (normal exit or
+            // SIGTERM), then collect the remainder safely.
+            _ = finished.wait(timeout: .now() + 2)
             pipe.fileHandleForReading.readabilityHandler = nil
             let remainder = pipe.fileHandleForReading.readDataToEndOfFile()
             if !remainder.isEmpty {
