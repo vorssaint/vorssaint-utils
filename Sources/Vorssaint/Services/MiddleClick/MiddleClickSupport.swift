@@ -20,15 +20,9 @@ enum MiddleClickSupport {
     /// trackpad, so anything older means the fingers already lifted.
     static let fingerFreshness: TimeInterval = 0.25
 
-    /// The three fingers must have been resting this long before the press:
-    /// a click that arrives together with the third finger's touchdown is a
-    /// synthesized tap-to-click, not a press (a real press needs the fingers
-    /// on the pad before the force builds up).
-    static let minimumSettle: TimeInterval = 0.04
-
     /// Window after a transformed click in which another qualifying click is
     /// treated as a synthesizer bounce and dropped.
-    static let repeatGuard: TimeInterval = 0.30
+    static let repeatGuard: TimeInterval = 0.09
 
     /// Decides what an incoming press becomes. Only real presses count
     /// (owner decision: taps, swipes and resting fingers must never click),
@@ -38,7 +32,6 @@ enum MiddleClickSupport {
     /// feature stands down entirely rather than firing falsely.
     static func actionForClick(fingerCount: Int,
                                frameAge: TimeInterval,
-                               settledFor: TimeInterval,
                                sinceLastTransformEnd: TimeInterval?,
                                systemDragGestureEnabled: Bool) -> MiddleClickClickAction {
         guard !systemDragGestureEnabled else { return .passThrough }
@@ -47,7 +40,6 @@ enum MiddleClickSupport {
            sinceLastTransformEnd < repeatGuard {
             return .swallow
         }
-        guard settledFor >= minimumSettle else { return .passThrough }
         return .transform
     }
 
