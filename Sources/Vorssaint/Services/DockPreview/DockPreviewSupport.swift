@@ -109,6 +109,8 @@ enum DockPreviewSupport {
     static var cardSpacing: CGFloat { 8 * PreviewSizing.scale }
     static var panelPadding: CGFloat { 12 * PreviewSizing.scale }
     static let panelHeaderHeight: CGFloat = 28
+    static var mediaPanelWidth: CGFloat { 330 * PreviewSizing.scale }
+    static var mediaPanelHeight: CGFloat { 174 * PreviewSizing.scale }
 
     /// How solid the panel's frosted background is drawn, as a fraction. The
     /// floor is not zero on purpose: the panel's title sits straight on the
@@ -207,6 +209,11 @@ enum DockPreviewSupport {
         let visibleCards = min(count, availableCards)
         let width = CGFloat(visibleCards) * cardWidth + CGFloat(max(0, visibleCards - 1)) * spacing + padding * 2
         return CGSize(width: min(width, maxWidth), height: cardHeight + padding * 2 + panelHeaderHeight)
+    }
+
+    static func mediaPanelSize(screenVisibleFrame: CGRect) -> CGSize {
+        CGSize(width: min(mediaPanelWidth, max(1, screenVisibleFrame.width - edgePadding * 2)),
+               height: min(mediaPanelHeight, max(1, screenVisibleFrame.height - edgePadding * 2)))
     }
 
     static func windowPositionText(selectedWindowID: CGWindowID?, windowIDs: [CGWindowID]) -> String? {

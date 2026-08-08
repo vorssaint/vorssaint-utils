@@ -14,6 +14,7 @@ struct DockPreviewPanelView: View {
             selectedWindowID: service.selectedWindowID,
             currentAppName: service.currentAppName,
             isPinned: service.isPinned,
+            mediaPlayer: service.mediaPlayer,
             onPreview: service.preview,
             onEndPreview: service.endPreview,
             onCommit: service.commit,
@@ -22,7 +23,8 @@ struct DockPreviewPanelView: View {
             onTogglePinned: service.togglePinned,
             onClosePanel: service.closePreviewPanel,
             onSelectPrevious: service.selectPreviousWindow,
-            onSelectNext: service.selectNextWindow
+            onSelectNext: service.selectNextWindow,
+            onMediaCommand: service.mediaCommand
         )
     }
 }
@@ -37,6 +39,7 @@ struct DockPreviewPinnedPanelView: View {
             selectedWindowID: panel.selectedWindowID,
             currentAppName: panel.currentAppName,
             isPinned: true,
+            mediaPlayer: nil,
             onPreview: panel.preview,
             onEndPreview: panel.endPreview,
             onCommit: panel.commit,
@@ -45,7 +48,8 @@ struct DockPreviewPinnedPanelView: View {
             onTogglePinned: panel.closePreviewPanel,
             onClosePanel: panel.closePreviewPanel,
             onSelectPrevious: panel.selectPreviousWindow,
-            onSelectNext: panel.selectNextWindow
+            onSelectNext: panel.selectNextWindow,
+            onMediaCommand: { _ in }
         )
     }
 }
@@ -56,6 +60,7 @@ private struct DockPreviewPanelContent: View {
     let selectedWindowID: CGWindowID?
     let currentAppName: String?
     let isPinned: Bool
+    let mediaPlayer: DockMediaPlayer?
     let onPreview: (SwitcherItem) -> Void
     let onEndPreview: (SwitcherItem) -> Void
     let onCommit: (SwitcherItem) -> Void
@@ -65,6 +70,7 @@ private struct DockPreviewPanelContent: View {
     let onClosePanel: () -> Void
     let onSelectPrevious: () -> Void
     let onSelectNext: () -> Void
+    let onMediaCommand: (DockMediaCommand) -> Void
 
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var backgroundOpacity = 1.0
@@ -72,50 +78,61 @@ private struct DockPreviewPanelContent: View {
     var body: some View {
         VStack(spacing: 0) {
             panelHeader
-            ScrollViewReader { proxy in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: DockPreviewSupport.cardSpacing) {
-                        ForEach(windows) { window in
-                            DockPreviewCard(
-                                window: window,
-                                preview: window.previewWindowID.flatMap { previews[$0] },
-                                isSelected: selectedWindowID == window.windowID,
-                                isPanelPinned: isPinned,
-                                onCommit: {
-                                    onCommit(window)
-                                },
-                                onClose: {
-                                    onCloseWindow(window)
-                                },
-                                onToggleMinimized: {
-                                    onToggleMinimized(window)
-                                }
-                            )
-                            .id(window.id)
-                            .onHover { hovering in
-                                if hovering {
-                                    onPreview(window)
-                                } else {
-                                    onEndPreview(window)
+            if let mediaPlayer {
+                DockMediaPlayerPanel(player: mediaPlayer,
+                                     onPrevious: { onMediaCommand(.previous) },
+                                     onPlayPause: { onMediaCommand(.playPause) },
+                                     onNext: { onMediaCommand(.next) })
+                    .padding(.horizontal, DockPreviewSupport.panelPadding)
+                    .padding(.bottom, DockPreviewSupport.panelPadding)
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: DockPreviewSupport.cardSpacing) {
+                            ForEach(windows) { window in
+                                DockPreviewCard(
+                                    window: window,
+                                    preview: window.previewWindowID.flatMap { previews[$0] },
+                                    isSelected: selectedWindowID == window.windowID,
+                                    isPanelPinned: isPinned,
+                                    onCommit: {
+                                        onCommit(window)
+                                    },
+                                    onClose: {
+                                        onCloseWindow(window)
+                                    },
+                                    onToggleMinimized: {
+                                        onToggleMinimized(window)
+                                    }
+                                )
+                                .id(window.id)
+                                .onHover { hovering in
+                                    if hovering {
+                                        onPreview(window)
+                                    } else {
+                                        onEndPreview(window)
+                                    }
                                 }
                             }
                         }
+                        .padding(.horizontal, DockPreviewSupport.panelPadding)
+                        .padding(.bottom, DockPreviewSupport.panelPadding)
                     }
-                    .padding(.horizontal, DockPreviewSupport.panelPadding)
-                    .padding(.bottom, DockPreviewSupport.panelPadding)
-                }
-                .onChange(of: selectedWindowID) { _, selectedWindowID in
-                    guard let selectedWindowID,
-                          let selected = windows.first(where: { $0.windowID == selectedWindowID })
-                    else { return }
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        proxy.scrollTo(selected.id, anchor: .center)
+                    .onChange(of: selectedWindowID) { _, selectedWindowID in
+                        guard let selectedWindowID,
+                              let selected = windows.first(where: { $0.windowID == selectedWindowID })
+                        else { return }
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            proxy.scrollTo(selected.id, anchor: .center)
+                        }
                     }
                 }
             }
         }
-        .frame(height: DockPreviewSupport.panelSize(itemCount: 1,
-                                                    screenVisibleFrame: CGRect(x: 0, y: 0, width: 500, height: 500)).height)
+        .frame(height: mediaPlayer == nil
+               ? DockPreviewSupport.panelSize(itemCount: 1,
+                                              screenVisibleFrame: CGRect(x: 0, y: 0, width: 500, height: 500)).height
+               : DockPreviewSupport.mediaPanelHeight)
         .background(HUDBackdrop(cornerRadius: 18,
                                 opacity: DockPreviewSupport.sanitizedBackgroundOpacity(backgroundOpacity)))
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -131,17 +148,19 @@ private struct DockPreviewPanelContent: View {
         HStack(spacing: 7) {
             dragTitleArea
             windowNavigationButtons
-            Button {
-                onTogglePinned()
-            } label: {
-                Image(systemName: isPinned ? "pin.slash.fill" : "pin.fill")
-                    .font(.system(size: 12, weight: .semibold))
-                    .frame(width: 22, height: 20)
+            if mediaPlayer == nil {
+                Button {
+                    onTogglePinned()
+                } label: {
+                    Image(systemName: isPinned ? "pin.slash.fill" : "pin.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 22, height: 20)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(isPinned ? Color.accentColor : Color.secondary)
+                .help(isPinned ? l10n.s.dockPreviewUnpinPanel : l10n.s.dockPreviewPinPanel)
+                .accessibilityLabel(isPinned ? l10n.s.dockPreviewUnpinPanel : l10n.s.dockPreviewPinPanel)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(isPinned ? Color.accentColor : Color.secondary)
-            .help(isPinned ? l10n.s.dockPreviewUnpinPanel : l10n.s.dockPreviewPinPanel)
-            .accessibilityLabel(isPinned ? l10n.s.dockPreviewUnpinPanel : l10n.s.dockPreviewPinPanel)
             Button {
                 onClosePanel()
             } label: {
@@ -166,7 +185,7 @@ private struct DockPreviewPanelContent: View {
             }
 
             HStack(spacing: 7) {
-                if let icon = windows.first?.appIcon {
+                if let icon = mediaPlayer?.appIcon ?? windows.first?.appIcon {
                     Image(nsImage: icon)
                         .resizable()
                         .frame(width: 16, height: 16)
@@ -260,6 +279,156 @@ private struct NativeWindowDragHandle: NSViewRepresentable {
             guard let window else { return }
             window.performDrag(with: event)
         }
+    }
+}
+
+private struct DockMediaPlayerPanel: View {
+    let player: DockMediaPlayer
+    let onPrevious: () -> Void
+    let onPlayPause: () -> Void
+    let onNext: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            artwork
+            VStack(alignment: .leading, spacing: 7) {
+                trackText
+                progressView
+                controls
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var artwork: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.white.opacity(0.08))
+            if let artwork = player.artwork {
+                Image(nsImage: artwork)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else if let icon = player.appIcon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .padding(20)
+            } else {
+                Image(systemName: "music.note")
+                    .font(.system(size: 32, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: 112, height: 112)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+        )
+    }
+
+    private var trackText: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(player.title)
+                .font(.system(size: 14, weight: .semibold))
+                .lineLimit(2)
+                .truncationMode(.tail)
+                .foregroundStyle(.primary)
+            if let artist = player.artist {
+                Text(artist)
+                    .font(.system(size: 12, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .foregroundStyle(.secondary)
+            }
+            if let album = player.album {
+                Text(album)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var progressView: some View {
+        VStack(spacing: 3) {
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.13))
+                    Capsule()
+                        .fill(Color.accentColor.opacity(0.9))
+                        .frame(width: proxy.size.width * CGFloat(player.progress ?? 0))
+                }
+            }
+            .frame(height: 4)
+
+            HStack {
+                Text(formatTime(player.position))
+                Spacer()
+                statusLabel
+                Spacer()
+                Text(formatTime(player.duration))
+            }
+            .font(.system(size: 9.5, weight: .medium, design: .rounded))
+            .monospacedDigit()
+            .foregroundStyle(.tertiary)
+        }
+    }
+
+    private var controls: some View {
+        HStack(spacing: 10) {
+            mediaButton(systemName: "backward.fill", action: onPrevious)
+            mediaButton(systemName: player.isPlaying ? "pause.fill" : "play.fill",
+                        size: 36,
+                        foreground: .primary,
+                        background: Color.white.opacity(0.16),
+                        action: onPlayPause)
+            mediaButton(systemName: "forward.fill", action: onNext)
+            Spacer(minLength: 0)
+            Text(player.appName)
+                .font(.system(size: 10, weight: .semibold))
+                .lineLimit(1)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var statusLabel: some View {
+        Text(player.state == .playing ? "Playing" : player.state == .paused ? "Paused" : "Stopped")
+    }
+
+    private var accessibilityText: String {
+        [player.title, player.artist, player.album, player.appName]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: ", ")
+    }
+
+    private func mediaButton(systemName: String,
+                             size: CGFloat = 28,
+                             foreground: Color = .secondary,
+                             background: Color = Color.white.opacity(0.10),
+                             action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: size == 36 ? 15 : 12, weight: .bold))
+                .frame(width: size, height: size)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(foreground)
+        .background(Circle().fill(background))
+    }
+
+    private func formatTime(_ value: TimeInterval?) -> String {
+        guard let value, value.isFinite, value >= 0 else { return "--:--" }
+        let total = Int(value.rounded())
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 }
 

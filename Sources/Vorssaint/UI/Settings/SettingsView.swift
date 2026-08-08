@@ -764,6 +764,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherWindowlessApps) private var switcherWindowlessApps = SwitcherWindowlessApps.fallback.rawValue
     @AppStorage(DefaultsKey.switcherCurrentSpaceOnly) private var switcherCurrentSpaceOnly = false
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
+    @AppStorage(DefaultsKey.dockPreviewMediaControls) private var dockPreviewMediaControls = true
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var dockPreviewBackgroundOpacity = 1.0
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
     @AppStorage(DefaultsKey.dockClickHide) private var dockClickHide = false
@@ -854,6 +855,14 @@ struct SwitcherSettings: View {
                         Text(dockPreviewCaption)
                             .font(.caption)
                             .foregroundStyle(dockPreviewWarning ? .orange : .secondary)
+                        Toggle(l10n.s.dockPreviewMediaControls, isOn: $dockPreviewMediaControls)
+                            .disabled(!dockPreviewEnabled)
+                            .onChange(of: dockPreviewMediaControls) { _, _ in
+                                DockPreviewService.shared.syncWithPreferences()
+                            }
+                        Text(l10n.s.dockPreviewMediaControlsCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                         if dockPreviewEnabled {
                             HStack {
                                 Text(l10n.s.dockPreviewBackgroundOpacity)
