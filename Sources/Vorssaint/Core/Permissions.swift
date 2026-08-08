@@ -183,6 +183,19 @@ final class Permissions: ObservableObject {
         }
     }
 
+    /// Protected directories gated by Full Disk Access, used both for probing
+    /// whether access is granted and for registering the app in TCC. One list,
+    /// so the two code paths never diverge.
+    private static let fdaGatedDirectories = [
+        "Library/Application Support/com.apple.TCC",
+        "Library/Safari",
+        "Library/Mail",
+        "Library/Messages",
+        "Library/Cookies",
+        "Library/Suggestions",
+        "Library/Application Support/MobileSync",
+    ]
+
     /// Detects Full Disk Access without a prompt. Reading the TCC database is the
     /// classic signal, but that file is absent on some macOS versions (so a
     /// missing file would read as "no access" forever, even once granted). The
@@ -203,14 +216,7 @@ final class Permissions: ObservableObject {
 
         // Works on every version: each of these is gated by Full Disk Access, so
         // a successful listing (even of an empty directory) means it is granted.
-        let gatedDirs = [
-            "Library/Safari",
-            "Library/Mail",
-            "Library/Messages",
-            "Library/Cookies",
-            "Library/Suggestions",
-            "Library/Application Support/MobileSync",
-        ].map { (home as NSString).appendingPathComponent($0) }
+        let gatedDirs = fdaGatedDirectories.map { (home as NSString).appendingPathComponent($0) }
         return gatedDirs.contains { (try? fm.contentsOfDirectory(atPath: $0)) != nil }
     }
 
@@ -269,15 +275,8 @@ final class Permissions: ObservableObject {
                 _ = try? handle.read(upToCount: 1)
                 try? handle.close()
             }
-            // A few more protected locations, harmless when absent.
-            let dirs = [
-                "Library/Application Support/com.apple.TCC",
-                "Library/Safari",
-                "Library/Mail",
-                "Library/Messages",
-                "Library/Cookies",
-                "Library/Application Support/MobileSync",
-            ].map { (home as NSString).appendingPathComponent($0) }
+            // Protected locations, harmless when absent.
+            let dirs = fdaGatedDirectories.map { (home as NSString).appendingPathComponent($0) }
             for path in dirs { _ = try? fm.contentsOfDirectory(atPath: path) }
 
             // Let tccd persist the denial before the pane loads its list.
