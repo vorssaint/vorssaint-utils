@@ -54,8 +54,6 @@ final class MiddleClickService: ObservableObject {
     private let stateLock = NSLock()
     private var fingerCount = 0
     private var lastFrameUptime: TimeInterval = 0
-    /// When the contact count last became exactly three.
-    private var threeFingersSince: TimeInterval?
 
     // Tap-to-middle-click (issue #161), all under `stateLock`. A candidate
     // starts when the chosen finger count lands, collects movement, and is
@@ -134,7 +132,7 @@ final class MiddleClickService: ObservableObject {
         guard Multitouch.available else { return }
 
         guard let tap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
+            tap: .cghidEventTap,
             place: .headInsertEventTap,
             options: .defaultTap,
             eventsOfInterest: CGEventMask(1 << CGEventType.leftMouseDown.rawValue)
@@ -180,7 +178,6 @@ final class MiddleClickService: ObservableObject {
         stateLock.lock()
         fingerCount = 0
         lastFrameUptime = 0
-        threeFingersSince = nil
         resetTapCandidateLocked()
         stateLock.unlock()
         isRunning = false
@@ -284,11 +281,6 @@ final class MiddleClickService: ObservableObject {
         let now = ProcessInfo.processInfo.systemUptime
         var fireTap = false
         stateLock.lock()
-        if count == 3 {
-            if fingerCount != 3 { threeFingersSince = now }
-        } else {
-            threeFingersSince = nil
-        }
         fingerCount = count
         lastFrameUptime = now
         if tapFingers > 0 {
@@ -426,12 +418,10 @@ final class MiddleClickService: ObservableObject {
             stateLock.lock()
             let count = fingerCount
             let age = now - lastFrameUptime
-            let settledFor = threeFingersSince.map { now - $0 } ?? 0
             stateLock.unlock()
             let action = MiddleClickSupport.actionForClick(
                 fingerCount: count,
                 frameAge: age,
-                settledFor: settledFor,
                 sinceLastTransformEnd: lastTransformEnd.map { now - $0 },
                 systemDragGestureEnabled: dragGestureEnabled(now: now)
             )

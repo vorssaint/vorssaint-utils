@@ -5712,39 +5712,39 @@ struct MetricsTests {
                                                   visibleFrame: CGRect(x: 0, y: 24, width: 1512, height: 958)),
                "dock strip falls back to an edge band when auto-hide reserves nothing")
 
-        expect(MiddleClickSupport.actionForClick(fingerCount: 3, frameAge: 0.05, settledFor: 0.2,
+        expect(MiddleClickSupport.actionForClick(fingerCount: 3, frameAge: 0.05,
                                                  sinceLastTransformEnd: nil,
                                                  systemDragGestureEnabled: false) == .transform,
-               "middle click transforms a settled three-finger press")
-        expect(MiddleClickSupport.actionForClick(fingerCount: 2, frameAge: 0.05, settledFor: 0.2,
+               "middle click transforms a live three-finger press")
+        expect(MiddleClickSupport.actionForClick(fingerCount: 2, frameAge: 0.05,
                                                  sinceLastTransformEnd: nil,
                                                  systemDragGestureEnabled: false) == .passThrough,
                "middle click leaves two-finger clicks alone")
-        expect(MiddleClickSupport.actionForClick(fingerCount: 4, frameAge: 0.05, settledFor: 0.2,
+        expect(MiddleClickSupport.actionForClick(fingerCount: 4, frameAge: 0.05,
                                                  sinceLastTransformEnd: nil,
                                                  systemDragGestureEnabled: false) == .passThrough,
                "middle click leaves four-finger clicks alone")
-        expect(MiddleClickSupport.actionForClick(fingerCount: 3, frameAge: 1.0, settledFor: 0.2,
+        expect(MiddleClickSupport.actionForClick(fingerCount: 3, frameAge: 1.0,
                                                  sinceLastTransformEnd: nil,
                                                  systemDragGestureEnabled: false) == .passThrough,
                "middle click ignores stale contact frames (fingers already lifted)")
-        expect(MiddleClickSupport.actionForClick(fingerCount: 3, frameAge: 0.05, settledFor: 0.01,
+        expect(MiddleClickSupport.actionForClick(fingerCount: 3, frameAge: 0,
                                                  sinceLastTransformEnd: nil,
-                                                 systemDragGestureEnabled: false) == .passThrough,
-               "middle click rejects a click arriving with the third finger's touchdown")
-        expect(MiddleClickSupport.actionForClick(fingerCount: 3, frameAge: 0.05, settledFor: 0.2,
-                                                 sinceLastTransformEnd: 0.1,
+                                                 systemDragGestureEnabled: false) == .transform,
+               "middle click accepts a quick press as soon as the third finger is live")
+        expect(MiddleClickSupport.actionForClick(fingerCount: 3, frameAge: 0.05,
+                                                 sinceLastTransformEnd: 0.05,
                                                  systemDragGestureEnabled: false) == .swallow,
                "middle click drops the tap-to-click bounce right after a transform")
-        expect(MiddleClickSupport.actionForClick(fingerCount: 3, frameAge: 0.05, settledFor: 0.2,
-                                                 sinceLastTransformEnd: 0.5,
+        expect(MiddleClickSupport.actionForClick(fingerCount: 3, frameAge: 0.05,
+                                                 sinceLastTransformEnd: 0.15,
                                                  systemDragGestureEnabled: false) == .transform,
                "middle click accepts a deliberate second press after the guard window")
-        expect(MiddleClickSupport.actionForClick(fingerCount: 1, frameAge: 0.05, settledFor: 0,
-                                                 sinceLastTransformEnd: 0.1,
+        expect(MiddleClickSupport.actionForClick(fingerCount: 1, frameAge: 0.05,
+                                                 sinceLastTransformEnd: 0.05,
                                                  systemDragGestureEnabled: false) == .passThrough,
                "middle click never swallows ordinary one-finger clicks")
-        expect(MiddleClickSupport.actionForClick(fingerCount: 3, frameAge: 0.05, settledFor: 0.2,
+        expect(MiddleClickSupport.actionForClick(fingerCount: 3, frameAge: 0.05,
                                                  sinceLastTransformEnd: nil,
                                                  systemDragGestureEnabled: true) == .passThrough,
                "middle click stands down while the system three-finger drag owns the gesture")
