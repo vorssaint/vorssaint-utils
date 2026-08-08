@@ -49,6 +49,7 @@ enum WindowEnumerator {
                            windowlessApps: windowlessApps,
                            appRules: appRules,
                            groupByApp: UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs),
+                           switchSettings: WindowSwitchSettings.load(),
                            currentSpaceOnly: UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly))
     }
 
@@ -68,6 +69,7 @@ enum WindowEnumerator {
                     windowlessApps: .off,
                     appRules: [:],
                     groupByApp: false,
+                    switchSettings: .init(),
                     currentSpaceOnly: false)
     }
 
@@ -76,6 +78,7 @@ enum WindowEnumerator {
                                     windowlessApps: SwitcherWindowlessApps,
                                     appRules: [String: SwitcherAppRule],
                                     groupByApp: Bool,
+                                    switchSettings: WindowSwitchSettings,
                                     currentSpaceOnly: Bool) -> [SwitcherItem] {
         let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
 
@@ -210,6 +213,7 @@ enum WindowEnumerator {
             guard let frame = switchableFrame(cgFrame, fallback: axWindow?.frame, isMinimized: isMinimized) else {
                 continue
             }
+            let isMaximized = !isFullscreen && frameLooksMaximized(frame)
 
             if let alpha = (info[kCGWindowAlpha as String] as? NSNumber)?.doubleValue, alpha == 0, !isMinimized {
                 continue
@@ -250,6 +254,7 @@ enum WindowEnumerator {
                                    windowOwnerPID: windowOwnerPID,
                                    isOnScreen: isOnScreen,
                                    isMinimized: isMinimized,
+                                   isMaximized: isMaximized,
                                    isFullscreen: isFullscreen,
                                    frame: frame))
         }
@@ -275,10 +280,17 @@ enum WindowEnumerator {
                              ownPID: pid_t(ownPid),
                              withheldPIDs: withheldPIDs,
                              appRules: appRules)
-        if groupByApp {
-            windows = groupWindowsByApp(windows)
-        }
-        let ordered = orderByUse(windows, frontToBack: frontToBack)
+        // collect -> filter
+        let filtered = WindowSwitchCandidatePipeline.filter(windows, settings: switchSettings)
+        // partition -> order (before grouping so minimized state is preserved per-window)
+        let partitioned = WindowSwitchCandidatePipeline.partition(filtered, settings: switchSettings)
+        let orderedPrimary = orderByUse(partitioned.primary, frontToBack: frontToBack)
+        let orderedDeferred = orderByUse(partitioned.deferred, frontToBack: frontToBack)
+        // group by app after partitioning so hidden states do not remove an app
+        // that still has another eligible window
+        let primary = groupByApp ? groupWindowsByApp(orderedPrimary) : orderedPrimary
+        let deferred = groupByApp ? groupWindowsByApp(orderedDeferred) : orderedDeferred
+        let ordered = WindowSwitchCandidatePipeline.merge(primary: primary, deferred: deferred)
         guard ordered.count > maximumCount else { return ordered }
         var trimmed = Array(ordered.prefix(maximumCount))
         // Asking for the desktop app alone names one entry, so that entry must
@@ -299,6 +311,7 @@ enum WindowEnumerator {
         let title: String
         let frame: CGRect?
         let isMinimized: Bool
+        let isMaximized: Bool
         let isFullscreen: Bool
     }
 
@@ -382,12 +395,13 @@ enum WindowEnumerator {
         for window in axWindows {
             if let id = AXWindowResolver.windowID(for: window) {
                 let frame = accessibilityFrame(for: window)
+                let fullscreen = isFullscreenWindow(window)
                 let snapshot = AccessibilityWindowSnapshot(title: accessibilityTitle(for: window),
                                                            frame: frame,
                                                            isMinimized: boolAttribute(window, kAXMinimizedAttribute as String),
-                                                           isFullscreen: isFullscreenWindow(window)
-                                                            || frameLooksFullscreen(frame,
-                                                                                    screenFrames: screenFrames))
+                                                           isMaximized: !fullscreen && frameLooksMaximized(frame),
+                                                           isFullscreen: fullscreen || frameLooksFullscreen(frame,
+                                                                                                            screenFrames: screenFrames))
                 byID[id] = snapshot
                 ordered.append((id, snapshot))
             }
@@ -451,6 +465,7 @@ enum WindowEnumerator {
                                        windowOwnerPID: windowOwnerPID,
                                        isOnScreen: false,
                                        isMinimized: entry.snapshot.isMinimized,
+                                       isMaximized: entry.snapshot.isMaximized,
                                        isFullscreen: entry.snapshot.isFullscreen,
                                        frame: frame))
             }
@@ -504,6 +519,16 @@ enum WindowEnumerator {
         return frames.contains { screenFrame in
             abs(frame.width - screenFrame.width) <= 2
                 && abs(frame.height - screenFrame.height) <= 2
+        }
+    }
+
+    private static func frameLooksMaximized(_ frame: CGRect?) -> Bool {
+        guard let frame else { return false }
+        return NSScreen.screens.contains { screen in
+            abs(frame.origin.x - screen.visibleFrame.origin.x) <= 2
+                && abs(frame.origin.y - screen.visibleFrame.origin.y) <= 2
+                && abs(frame.width - screen.visibleFrame.width) <= 6
+                && abs(frame.height - screen.visibleFrame.height) <= 6
         }
     }
 

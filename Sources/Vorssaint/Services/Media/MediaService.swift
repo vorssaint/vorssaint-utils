@@ -85,6 +85,10 @@ private final class MediaCancellationToken {
     }
 }
 
+private final class ResultBox<T> {
+    var value: Result<T, Error>?
+}
+
 final class MediaService: ObservableObject {
     static let shared = MediaService()
 
@@ -503,19 +507,19 @@ final class MediaService: ObservableObject {
 
     private func runAsync<T>(_ operation: @escaping () async throws -> T) throws -> T {
         let semaphore = DispatchSemaphore(value: 0)
-        var result: Result<T, Error>?
+        let resultBox = ResultBox<T>()
 
         Task {
             do {
-                result = .success(try await operation())
+                resultBox.value = .success(try await operation())
             } catch {
-                result = .failure(error)
+                resultBox.value = .failure(error)
             }
             semaphore.signal()
         }
 
         semaphore.wait()
-        guard let result else {
+        guard let result = resultBox.value else {
             throw MediaFailureBox(.failed("Video metadata unavailable."))
         }
         return try result.get()

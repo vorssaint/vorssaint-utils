@@ -59,6 +59,8 @@ enum DefaultsKey {
     static let switcherMergeTabs = "switcherMergeTabs"     // show one switcher entry per app (collapse all of an app's windows)
     static let switcherShowWindowlessFinder = "switcherShowWindowlessFinder" // replaced by switcherWindowlessApps, kept so the migration can read it
     static let switcherWindowlessApps = "switcherWindowlessApps" // SwitcherWindowlessApps raw value
+    static let switcherMinimizedPlacement = "switcherMinimizedPlacement"
+    static let switcherShowFullscreenWindows = "switcherShowFullscreenWindows"
     static let switcherAppRules = "switcherAppRules" // [bundle id: SwitcherAppRule raw value]
     static let switcherCurrentSpaceOnly = "switcherCurrentSpaceOnly" // list only windows on the desktop the user is in (issue #337)
     static let dockPreviewEnabled = "dockPreviewEnabled"
@@ -691,6 +693,8 @@ enum Defaults {
         DefaultsKey.switcherMergeTabs: false,
         DefaultsKey.switcherShowWindowlessFinder: true,
         DefaultsKey.switcherWindowlessApps: SwitcherWindowlessApps.fallback.rawValue,
+        DefaultsKey.switcherMinimizedPlacement: WindowSwitchMinimizedPlacement.normal.rawValue,
+        DefaultsKey.switcherShowFullscreenWindows: true,
         DefaultsKey.switcherAppRules: [String: String](),
         DefaultsKey.switcherCurrentSpaceOnly: false,
         DefaultsKey.dockPreviewEnabled: false,
