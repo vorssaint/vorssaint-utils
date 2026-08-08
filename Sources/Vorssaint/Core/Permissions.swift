@@ -276,7 +276,7 @@ final class Permissions: ObservableObject {
                 try? handle.close()
             }
             // Protected locations, harmless when absent.
-            let dirs = fdaGatedDirectories.map { (home as NSString).appendingPathComponent($0) }
+            let dirs = Self.fdaGatedDirectories.map { (home as NSString).appendingPathComponent($0) }
             for path in dirs { _ = try? fm.contentsOfDirectory(atPath: path) }
 
             // Let tccd persist the denial before the pane loads its list.
