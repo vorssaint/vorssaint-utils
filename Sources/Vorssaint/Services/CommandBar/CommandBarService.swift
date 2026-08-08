@@ -1926,6 +1926,19 @@ final class CommandBarService: ObservableObject {
                     self.run(at: index)
                     return nil
                 }
+                // ^N and ^P move the selection.
+                if event.modifierFlags.contains(.control) {
+                    switch Int(event.keyCode) {
+                    case kVK_ANSI_N:
+                        if case .actions = self.mode { self.moveActionSelection(1) } else { self.moveSelection(1) }
+                        return nil
+                    case kVK_ANSI_P:
+                        if case .actions = self.mode { self.moveActionSelection(-1) } else { self.moveSelection(-1) }
+                        return nil
+                    default:
+                        break
+                    }
+                }
                 // Typing while a confirmation is up takes the confirmation
                 // down. Otherwise a destructive Return stays armed behind
                 // what looks like an ordinary search.
