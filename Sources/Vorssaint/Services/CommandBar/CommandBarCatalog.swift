@@ -180,6 +180,7 @@ enum CommandBarCatalog {
         case .clipboardFiles: return hub.groupClipboardFiles
         case .sound: return hub.groupSound
         case .energyDisplay: return hub.groupEnergyDisplay
+        case .menuBar: return hub.groupTools
         case .tools: return hub.groupTools
         case .monitor: return hub.groupMonitor
         }

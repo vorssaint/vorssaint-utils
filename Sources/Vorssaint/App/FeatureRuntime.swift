@@ -166,6 +166,11 @@ final class FeatureRuntime: ObservableObject {
         },
         .brightness: { BrightnessService.shared.syncWithPreferences() },
         .extraBrightness: { ExtraBrightnessService.shared.syncWithPreferences() },
+        .menuBarOrganizer: {
+            MainActor.assumeIsolated {
+                MenuBarOrganizerService.shared.syncWithPreferences()
+            }
+        },
         .quickLauncher: { QuickLauncherService.shared.syncWithPreferences() },
         .colorPicker: { ColorSamplerService.shared.syncWithPreferences() },
         .screenOCR: { ScreenTextService.shared.syncWithPreferences() },

@@ -70,6 +70,25 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Network.** Live rates, session totals and a built in speed test.
 - **Alerts.** Optional notifications for sustained CPU load, high temperature, memory pressure, low disk space and low battery.
 
+### Menu bar
+
+- **Menu bar organizer.** Split status items into visible, hidden and
+  always-hidden sections, then reorder them from Settings with drag and
+  drop. Save fixed presets for work, home, presenting or a minimal setup,
+  add named presets for any other context, and collect related items into
+  fixed or custom quick groups with optional menu bar icons and automatic
+  hiding for grouped originals. Add draggable spacer items, style
+  the secondary/group bars, and apply saved presets automatically for low
+  battery, power, external displays or work hours. Reveal hidden items in
+  the real menu bar or a searchable secondary bar, with keyboard-first
+  search, optional hover, empty-space click, scroll and keyboard triggers,
+  plus an automatic notch mode that temporarily makes room for hidden items
+  when space is tight.
+  Accessibility enables automatic Command-drag; Screen Recording is only
+  used for exact previews. Inspired by
+  [Ice](https://github.com/jordanbaird/Ice) and implemented independently
+  for Vorssaint.
+
 ### Windows and the Dock
 
 - **App switcher.** A richer take on pressing ⌘Tab, with adjustable live window thumbnails, minimized windows included, and more than one window per app. Press the window shortcut directly to move between windows of the app in front. Set per-app rules to include windowless apps, keep them window-only or hide them. Choose apps where Vorssaint pauses both switcher and Dock thumbnail capture while they are in front.
@@ -168,8 +187,8 @@ Permissions get the same treatment. Every one is optional, the app explains each
 
 | Permission | Used by | Without it |
 |---|---|---|
-| Accessibility | Switcher, Dock features, window controls, mouse and keyboard features, snippets, cut and paste | Those features stay off |
-| Screen Recording | Switcher and Dock Preview thumbnails, copy text from screen | Previews fall back or stay off |
+| Accessibility | Switcher, Dock features, menu bar organizer, window controls, mouse and keyboard features, snippets, cut and paste | Automatic movement and the other affected features stay off |
+| Screen Recording | Switcher and Dock Preview thumbnails, menu bar item previews, copy text from screen | Previews fall back or stay off |
 | System Audio Recording | Per app volume and output routing | Apps stay on normal system audio |
 | Notifications | Keep awake, battery, monitor and update alerts | The app stays silent |
 | Full Disk Access, optional | Deeper cleaner and uninstaller scans | Only reachable places are scanned |

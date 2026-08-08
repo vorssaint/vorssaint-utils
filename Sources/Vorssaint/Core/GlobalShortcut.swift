@@ -201,6 +201,12 @@ struct GlobalShortcut: Equatable, Hashable {
     // same free control-option-command layer.
     static let snippetLibraryDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_L),
                                                       modifiers: [.control, .option, .command])
+    static let menuBarOrganizerToggleDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_B),
+                                                              modifiers: [.control, .option, .command])
+    static let menuBarOrganizerAlwaysDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_H),
+                                                              modifiers: [.control, .option, .command])
+    static let menuBarOrganizerSearchDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_F),
+                                                              modifiers: [.control, .option, .command])
     // Option-Space, the combination mature launchers settled on: one thumb
     // and one finger, mirroring the system search's Command-Space without
     // fighting it for the key. Registered as a hotkey it never types the
@@ -536,6 +542,9 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case radialMenu
     case scratchpad
     case snippetLibrary
+    case menuBarOrganizerToggle
+    case menuBarOrganizerAlways
+    case menuBarOrganizerSearch
     case commandBar
     case screenRecorder
 
@@ -563,6 +572,9 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .radialMenu: return DefaultsKey.radialMenuShortcut
         case .scratchpad: return DefaultsKey.scratchpadShortcut
         case .snippetLibrary: return DefaultsKey.snippetLibraryShortcut
+        case .menuBarOrganizerToggle: return DefaultsKey.menuBarOrganizerToggleShortcut
+        case .menuBarOrganizerAlways: return DefaultsKey.menuBarOrganizerAlwaysShortcut
+        case .menuBarOrganizerSearch: return DefaultsKey.menuBarOrganizerSearchShortcut
         case .commandBar: return DefaultsKey.commandBarShortcut
         case .screenRecorder: return DefaultsKey.recorderShortcut
         }
@@ -590,6 +602,9 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .radialMenu: return .radialMenuDefault
         case .scratchpad: return .scratchpadDefault
         case .snippetLibrary: return .snippetLibraryDefault
+        case .menuBarOrganizerToggle: return .menuBarOrganizerToggleDefault
+        case .menuBarOrganizerAlways: return .menuBarOrganizerAlwaysDefault
+        case .menuBarOrganizerSearch: return .menuBarOrganizerSearchDefault
         case .commandBar: return .commandBarDefault
         case .screenRecorder: return .screenRecorderDefault
         }
@@ -624,6 +639,12 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
         case .snippetLibrary: return FeatureStrings.snippets(L10n.shared.language).libraryTitle
+        case .menuBarOrganizerToggle:
+            return FeatureStrings.menuBarOrganizer(L10n.shared.language).toggleHiddenShortcut
+        case .menuBarOrganizerAlways:
+            return FeatureStrings.menuBarOrganizer(L10n.shared.language).toggleAlwaysShortcut
+        case .menuBarOrganizerSearch:
+            return FeatureStrings.menuBarOrganizer(L10n.shared.language).searchShortcut
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).pageTitle
         case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).pageTitle
         }
@@ -664,6 +685,16 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         case .scratchpad: return [DefaultsKey.scratchpadShortcutEnabled]
         case .snippetLibrary: return [DefaultsKey.snippetLibraryEnabled]
+        case .menuBarOrganizerToggle:
+            return [DefaultsKey.menuBarOrganizerEnabled,
+                    DefaultsKey.menuBarOrganizerToggleShortcutEnabled]
+        case .menuBarOrganizerAlways:
+            return [DefaultsKey.menuBarOrganizerEnabled,
+                    DefaultsKey.menuBarOrganizerAlwaysHiddenEnabled,
+                    DefaultsKey.menuBarOrganizerAlwaysShortcutEnabled]
+        case .menuBarOrganizerSearch:
+            return [DefaultsKey.menuBarOrganizerEnabled,
+                    DefaultsKey.menuBarOrganizerSearchShortcutEnabled]
         case .commandBar: return [DefaultsKey.commandBarShortcutEnabled]
         case .screenRecorder: return [DefaultsKey.recorderShortcutEnabled]
         }
@@ -691,6 +722,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .radialMenu: return .radialMenu
         case .scratchpad: return .scratchpad
         case .snippetLibrary: return .textSnippets
+        case .menuBarOrganizerToggle, .menuBarOrganizerAlways, .menuBarOrganizerSearch:
+            return .menuBarOrganizer
         case .commandBar: return .commandBar
         case .screenRecorder: return .screenRecorder
         }

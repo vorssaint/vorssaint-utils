@@ -170,6 +170,7 @@ enum DefaultsKey {
     static let panelUtilityMedia = "panelUtilityMedia"
     static let panelUtilityClipboard = "panelUtilityClipboard"
     static let panelUtilityWindowLayout = "panelUtilityWindowLayout"
+    static let panelUtilityMenuBarOrganizer = "panelUtilityMenuBarOrganizer"
     static let panelControlMouseScroll = "panelControlMouseScroll"
     static let panelControlMouseNavigation = "panelControlMouseNavigation"
     static let panelControlSwitcher = "panelControlSwitcher"
@@ -493,6 +494,47 @@ enum DefaultsKey {
     static let radialMenuActivationMode = "radialMenuActivationMode" // RadialMenuActivationMode.rawValue
     static let radialMenuItems = "radialMenuItems"        // Data: [RadialMenuItem] JSON
 
+    // Menu bar organizer: movable sections for third-party status items.
+    static let menuBarOrganizerEnabled = "menuBarOrganizerEnabled"
+    static let menuBarOrganizerSetupComplete = "menuBarOrganizerSetupComplete"
+    static let menuBarOrganizerAlwaysHiddenEnabled = "menuBarOrganizerAlwaysHiddenEnabled"
+    static let menuBarOrganizerShowDividers = "menuBarOrganizerShowDividers"
+    static let menuBarOrganizerCapturePreviews = "menuBarOrganizerCapturePreviews"
+    static let menuBarOrganizerPresentationMode = "menuBarOrganizerPresentationMode"
+    static let menuBarOrganizerRehideMode = "menuBarOrganizerRehideMode"
+    static let menuBarOrganizerRehideDelay = "menuBarOrganizerRehideDelay"
+    static let menuBarOrganizerShowOnHover = "menuBarOrganizerShowOnHover"
+    static let menuBarOrganizerShowOnEmptyClick = "menuBarOrganizerShowOnEmptyClick"
+    static let menuBarOrganizerShowOnScroll = "menuBarOrganizerShowOnScroll"
+    static let menuBarOrganizerSmartNotchMode = "menuBarOrganizerSmartNotchMode"
+    static let menuBarOrganizerPresets = "menuBarOrganizerPresets" // JSON string: [MenuBarOrganizerPreset]
+    static let menuBarOrganizerNamedPresets = "menuBarOrganizerNamedPresets" // JSON string: [MenuBarOrganizerNamedPreset]
+    static let menuBarOrganizerGroups = "menuBarOrganizerGroups" // JSON string: [MenuBarOrganizerGroup]
+    static let menuBarOrganizerCustomGroups = "menuBarOrganizerCustomGroups" // JSON string: [MenuBarOrganizerCustomGroup]
+    static let menuBarOrganizerGroupStatusItems = "menuBarOrganizerGroupStatusItems"
+    static let menuBarOrganizerAutoHideGroupedItems = "menuBarOrganizerAutoHideGroupedItems"
+    static let menuBarOrganizerSpacerCount = "menuBarOrganizerSpacerCount"
+    static let menuBarOrganizerSpacerWidth = "menuBarOrganizerSpacerWidth"
+    static let menuBarOrganizerBarStyle = "menuBarOrganizerBarStyle"
+    static let menuBarOrganizerTriggerLowBatteryEnabled = "menuBarOrganizerTriggerLowBatteryEnabled"
+    static let menuBarOrganizerTriggerLowBatteryThreshold = "menuBarOrganizerTriggerLowBatteryThreshold"
+    static let menuBarOrganizerTriggerLowBatteryPreset = "menuBarOrganizerTriggerLowBatteryPreset"
+    static let menuBarOrganizerTriggerChargingEnabled = "menuBarOrganizerTriggerChargingEnabled"
+    static let menuBarOrganizerTriggerChargingPreset = "menuBarOrganizerTriggerChargingPreset"
+    static let menuBarOrganizerTriggerExternalDisplayEnabled = "menuBarOrganizerTriggerExternalDisplayEnabled"
+    static let menuBarOrganizerTriggerExternalDisplayPreset = "menuBarOrganizerTriggerExternalDisplayPreset"
+    static let menuBarOrganizerTriggerWorkHoursEnabled = "menuBarOrganizerTriggerWorkHoursEnabled"
+    static let menuBarOrganizerTriggerWorkHoursPreset = "menuBarOrganizerTriggerWorkHoursPreset"
+    static let menuBarOrganizerTriggerWorkHoursStart = "menuBarOrganizerTriggerWorkHoursStart"
+    static let menuBarOrganizerTriggerWorkHoursEnd = "menuBarOrganizerTriggerWorkHoursEnd"
+    static let menuBarOrganizerTriggerWorkHoursWeekdaysOnly = "menuBarOrganizerTriggerWorkHoursWeekdaysOnly"
+    static let menuBarOrganizerToggleShortcutEnabled = "menuBarOrganizerToggleShortcutEnabled"
+    static let menuBarOrganizerToggleShortcut = "menuBarOrganizerToggleShortcut"
+    static let menuBarOrganizerAlwaysShortcutEnabled = "menuBarOrganizerAlwaysShortcutEnabled"
+    static let menuBarOrganizerAlwaysShortcut = "menuBarOrganizerAlwaysShortcut"
+    static let menuBarOrganizerSearchShortcutEnabled = "menuBarOrganizerSearchShortcutEnabled"
+    static let menuBarOrganizerSearchShortcut = "menuBarOrganizerSearchShortcut"
+
     // Dev-build only: force the "update available" UI for local testing.
     static let simulateUpdate = "simulateUpdate"
 
@@ -777,6 +819,45 @@ enum Defaults {
         DefaultsKey.radialMenuAtPointer: true,
         DefaultsKey.radialMenuMouseButton: RadialMenuMouseTrigger.off.rawValue,
         DefaultsKey.radialMenuActivationMode: RadialMenuActivationMode.pressOrHold.rawValue,
+        DefaultsKey.menuBarOrganizerEnabled: false,
+        DefaultsKey.menuBarOrganizerSetupComplete: false,
+        DefaultsKey.menuBarOrganizerAlwaysHiddenEnabled: false,
+        DefaultsKey.menuBarOrganizerShowDividers: false,
+        DefaultsKey.menuBarOrganizerCapturePreviews: true,
+        DefaultsKey.menuBarOrganizerPresentationMode: MenuBarOrganizerPresentationMode.menuBar.rawValue,
+        DefaultsKey.menuBarOrganizerRehideMode: MenuBarOrganizerRehideMode.afterDelay.rawValue,
+        DefaultsKey.menuBarOrganizerRehideDelay: 10,
+        DefaultsKey.menuBarOrganizerShowOnHover: false,
+        DefaultsKey.menuBarOrganizerShowOnEmptyClick: false,
+        DefaultsKey.menuBarOrganizerShowOnScroll: false,
+        DefaultsKey.menuBarOrganizerSmartNotchMode: true,
+        DefaultsKey.menuBarOrganizerPresets: "",
+        DefaultsKey.menuBarOrganizerNamedPresets: "",
+        DefaultsKey.menuBarOrganizerGroups: "",
+        DefaultsKey.menuBarOrganizerCustomGroups: "",
+        DefaultsKey.menuBarOrganizerGroupStatusItems: true,
+        DefaultsKey.menuBarOrganizerAutoHideGroupedItems: false,
+        DefaultsKey.menuBarOrganizerSpacerCount: 0,
+        DefaultsKey.menuBarOrganizerSpacerWidth: 16,
+        DefaultsKey.menuBarOrganizerBarStyle: MenuBarOrganizerBarStyle.system.rawValue,
+        DefaultsKey.menuBarOrganizerTriggerLowBatteryEnabled: false,
+        DefaultsKey.menuBarOrganizerTriggerLowBatteryThreshold: 25,
+        DefaultsKey.menuBarOrganizerTriggerLowBatteryPreset: MenuBarOrganizerPresetSlot.minimal.rawValue,
+        DefaultsKey.menuBarOrganizerTriggerChargingEnabled: false,
+        DefaultsKey.menuBarOrganizerTriggerChargingPreset: MenuBarOrganizerPresetSlot.home.rawValue,
+        DefaultsKey.menuBarOrganizerTriggerExternalDisplayEnabled: false,
+        DefaultsKey.menuBarOrganizerTriggerExternalDisplayPreset: MenuBarOrganizerPresetSlot.work.rawValue,
+        DefaultsKey.menuBarOrganizerTriggerWorkHoursEnabled: false,
+        DefaultsKey.menuBarOrganizerTriggerWorkHoursPreset: MenuBarOrganizerPresetSlot.work.rawValue,
+        DefaultsKey.menuBarOrganizerTriggerWorkHoursStart: 9,
+        DefaultsKey.menuBarOrganizerTriggerWorkHoursEnd: 17,
+        DefaultsKey.menuBarOrganizerTriggerWorkHoursWeekdaysOnly: true,
+        DefaultsKey.menuBarOrganizerToggleShortcutEnabled: false,
+        DefaultsKey.menuBarOrganizerToggleShortcut: GlobalShortcut.menuBarOrganizerToggleDefault.storageValue,
+        DefaultsKey.menuBarOrganizerAlwaysShortcutEnabled: false,
+        DefaultsKey.menuBarOrganizerAlwaysShortcut: GlobalShortcut.menuBarOrganizerAlwaysDefault.storageValue,
+        DefaultsKey.menuBarOrganizerSearchShortcutEnabled: false,
+        DefaultsKey.menuBarOrganizerSearchShortcut: GlobalShortcut.menuBarOrganizerSearchDefault.storageValue,
         DefaultsKey.windowMaximizeEnabled: false,
         DefaultsKey.keyboardDebounceEnabled: false,
         DefaultsKey.keyboardDebounceWindowMs: defaultKeyboardDebounceWindowMs,
@@ -798,6 +879,7 @@ enum Defaults {
         DefaultsKey.panelUtilityMedia: true,
         DefaultsKey.panelUtilityClipboard: true,
         DefaultsKey.panelUtilityWindowLayout: true,
+        DefaultsKey.panelUtilityMenuBarOrganizer: true,
         DefaultsKey.panelControlMouseScroll: true,
         DefaultsKey.panelControlMouseNavigation: true,
         DefaultsKey.panelControlSwitcher: true,

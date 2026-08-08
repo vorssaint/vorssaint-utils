@@ -223,6 +223,15 @@ on Caps Lock and mouse button shortcuts.
   default.
 - App updates. One list of the apps with a newer version, ticked the way you
   want, updated together. Under App updates.
+- A menu bar organizer with visible, hidden and always-hidden sections,
+  drag-and-drop arrangement from Settings, fixed and named presets, fixed
+  and custom quick groups with optional menu bar icons and automatic hiding
+  for grouped originals,
+  draggable spacers, styled secondary bars, preset automation for battery,
+  power, external displays and work hours, keyboard-first search, an
+  overflow-friendly secondary bar, reveal triggers, shortcuts and a smart
+  notch mode. It is inspired by Ice and implemented independently for
+  Vorssaint.
 - A snippet menu. A shortcut opens your snippets in a searchable list and
   picking one types it at the cursor. Under Text snippets.
 - A super key. Hold Caps Lock and it becomes Shift, Control, Option and

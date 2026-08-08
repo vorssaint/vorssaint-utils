@@ -112,6 +112,7 @@ struct SettingsView: View {
         case .commandBar: CommandBarSettings()
         case .energy: EnergySettings()
         case .monitor: MonitorSettings()
+        case .menuBarOrganizer: MenuBarOrganizerSettings()
         case .mouse: MouseSettings()
         case .switcher: SwitcherSettings()
         case .keyDebounce: KeyboardDebounceSettings()

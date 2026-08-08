@@ -7355,7 +7355,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 51, "feature catalog has 51 features")
+        expect(AppFeature.allCases.count == 52, "feature catalog has 52 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -7365,7 +7365,7 @@ struct MetricsTests {
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
             "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
-            "keepAwake", "brightness", "extraBrightness",
+            "keepAwake", "brightness", "extraBrightness", "menuBarOrganizer",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
             "radialMenu", "scratchpad", "commandBar", "screenRecorder",
@@ -7642,6 +7642,9 @@ struct MetricsTests {
         expect(!activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled])
                 .contains(.brightness),
                "brightness sliders alone never use accessibility")
+        expect(activeSet(.accessibility, on: [DefaultsKey.menuBarOrganizerEnabled])
+                .contains(.menuBarOrganizer),
+               "the enabled menu bar organizer uses accessibility for Command-drag")
         expect(activeSet(.accessibility).contains(.screenRecorder),
                "the recorder uses accessibility for anonymous typing timing while active")
 
@@ -7656,6 +7659,154 @@ struct MetricsTests {
                          on: [DefaultsKey.switcherSimpleMode, DefaultsKey.dockPreviewEnabled])
                 .contains(.dockPreview),
                "dock preview keeps screen recording in use regardless of switcher mode")
+        expect(activeSet(.screenRecording,
+                         on: [DefaultsKey.menuBarOrganizerEnabled,
+                              DefaultsKey.menuBarOrganizerCapturePreviews])
+                .contains(.menuBarOrganizer),
+               "exact menu bar previews opt into screen recording")
+        expect(!activeSet(.screenRecording, on: [DefaultsKey.menuBarOrganizerEnabled])
+                .contains(.menuBarOrganizer),
+               "the organizer works without screen recording when previews are off")
+
+        // MARK: Menu bar organizer
+
+        expect(MenuBarOrganizerPresentationMode.sanitized("secondaryBar") == .secondaryBar
+                && MenuBarOrganizerPresentationMode.sanitized("invalid") == .menuBar,
+               "menu bar presentation storage sanitizes to the basic inline fallback")
+        expect(MenuBarOrganizerRehideMode.sanitized("focusedApp") == .focusedApp
+                && MenuBarOrganizerRehideMode.sanitized(nil) == .afterDelay,
+               "rehide storage sanitizes to the default delay")
+        expect(MenuBarOrganizerBarStyle.sanitized("vibrant") == .vibrant
+                && MenuBarOrganizerBarStyle.sanitized("invalid") == .system,
+               "bar style storage sanitizes to the system fallback")
+        expect(MenuBarOrganizerSupport.sanitizedRehideDelay(11) == 10
+                && MenuBarOrganizerSupport.sanitizedRehideDelay(58) == 60,
+               "rehide delays snap to supported values")
+        expect(MenuBarOrganizerSupport.sanitizedSpacerCount(-1) == 0
+                && MenuBarOrganizerSupport.sanitizedSpacerCount(99) == 6
+                && MenuBarOrganizerSupport.sanitizedSpacerWidth(23) == 24,
+               "spacer preferences stay in the supported menu bar range")
+        expect(MenuBarOrganizerSupport.lowBatteryTriggerMatches(
+                    percent: 20, isOnBattery: true, threshold: 25)
+                && !MenuBarOrganizerSupport.lowBatteryTriggerMatches(
+                    percent: 20, isOnBattery: false, threshold: 25),
+               "low battery triggers only match while running from battery")
+        expect(MenuBarOrganizerSupport.workHoursTriggerMatches(
+                    hour: 10, weekday: 2, startHour: 9, endHour: 17, weekdaysOnly: true)
+                && MenuBarOrganizerSupport.workHoursTriggerMatches(
+                    hour: 23, weekday: 7, startHour: 22, endHour: 6, weekdaysOnly: false)
+                && !MenuBarOrganizerSupport.workHoursTriggerMatches(
+                    hour: 10, weekday: 1, startHour: 9, endHour: 17, weekdaysOnly: true),
+               "work-hour triggers handle weekdays and overnight ranges")
+        expect(MenuBarOrganizerSupport.usesExactPreviews(
+                    preferenceEnabled: true, screenRecordingGranted: true)
+                && !MenuBarOrganizerSupport.usesExactPreviews(
+                    preferenceEnabled: false, screenRecordingGranted: true)
+                && !MenuBarOrganizerSupport.usesExactPreviews(
+                    preferenceEnabled: true, screenRecordingGranted: false),
+               "exact previews require both the preference and current permission")
+        expect(MenuBarOrganizerSupport.shouldRegisterAlwaysHiddenShortcut(
+                    sectionEnabled: true, shortcutEnabled: true)
+                && !MenuBarOrganizerSupport.shouldRegisterAlwaysHiddenShortcut(
+                    sectionEnabled: false, shortcutEnabled: true)
+                && !MenuBarOrganizerSupport.shouldRegisterAlwaysHiddenShortcut(
+                    sectionEnabled: true, shortcutEnabled: false),
+               "the always-hidden hotkey never captures keys for a disabled section")
+        expect(MenuBarOrganizerSupport.collapsedLength(screenWidths: []) == 4_096
+                && MenuBarOrganizerSupport.collapsedLength(screenWidths: [1_440, 3_000]) == 6_000
+                && MenuBarOrganizerSupport.collapsedLength(screenWidths: [10_000]) == 16_384,
+               "collapsed dividers cover ordinary, multi-display and extreme layouts")
+        expect(MenuBarOrganizerSupport.section(itemMidX: 500,
+                                               hiddenDividerMidX: 400,
+                                               alwaysHiddenDividerMidX: 200) == .visible
+                && MenuBarOrganizerSupport.section(itemMidX: 300,
+                                                   hiddenDividerMidX: 400,
+                                                   alwaysHiddenDividerMidX: 200) == .hidden
+                && MenuBarOrganizerSupport.section(itemMidX: 100,
+                                                   hiddenDividerMidX: 400,
+                                                   alwaysHiddenDividerMidX: 200) == .alwaysHidden,
+               "divider boundaries classify all three menu bar sections")
+        expect(MenuBarOrganizerSupport.shouldUseSecondaryBar(
+                mode: .automatic, hiddenWidth: 600, availableWidth: 500, hasNotch: false)
+                && MenuBarOrganizerSupport.shouldUseSecondaryBar(
+                    mode: .automatic, hiddenWidth: 10, availableWidth: 500, hasNotch: true)
+                && !MenuBarOrganizerSupport.shouldUseSecondaryBar(
+                    mode: .menuBar, hiddenWidth: 900, availableWidth: 100, hasNotch: true),
+               "automatic presentation handles overflow and notches while explicit mode wins")
+        expect(MenuBarOrganizerSupport.shouldUseSmartNotchMode(
+                    mode: .automatic, enabled: true, hasNotch: true)
+                && !MenuBarOrganizerSupport.shouldUseSmartNotchMode(
+                    mode: .automatic, enabled: false, hasNotch: true)
+                && !MenuBarOrganizerSupport.shouldUseSmartNotchMode(
+                    mode: .secondaryBar, enabled: true, hasNotch: true),
+               "smart notch mode only takes over automatic notch presentation")
+        expect(MenuBarOrganizerSupport.visibleItemsToBorrowForNotch(
+                    visibleWidths: [80, 60, 40], hiddenWidth: 220, availableWidth: 120) == 2
+                && MenuBarOrganizerSupport.visibleItemsToBorrowForNotch(
+                    visibleWidths: [80], hiddenWidth: 220, availableWidth: 120) == 0,
+               "notch room borrowing keeps at least one visible item in place")
+        expect(MenuBarOrganizerSupport.searchScore(
+                    displayName: "Dropbox Sync", bundleIdentifier: "com.getdropbox.dropbox",
+                    ownerName: "Dropbox", title: "Sync", query: "drop") ?? 999
+                < (MenuBarOrganizerSupport.searchScore(
+                    displayName: "Cloud Drive", bundleIdentifier: "com.getdropbox.dropbox",
+                    ownerName: "Cloud Drive", title: "", query: "drop") ?? 999),
+               "quick search ranks visible names ahead of bundle-only matches")
+        let presetIdentity = MenuBarItemIdentity(bundleIdentifier: "com.example.app",
+                                                 title: "State",
+                                                 occurrence: 0)
+        let encodedPresets = MenuBarOrganizerSupport.encodePresets([
+            .work: MenuBarOrganizerPreset(slot: .work,
+                                          savedAt: Date(timeIntervalSince1970: 1),
+                                          visible: [presetIdentity],
+                                          hidden: [],
+                                          alwaysHidden: []),
+        ])
+        expect(MenuBarOrganizerSupport.decodePresets(encodedPresets)[.work]?.visible == [presetIdentity],
+               "menu bar presets round-trip through preference storage")
+        let namedPreset = MenuBarOrganizerNamedPreset(
+            id: "daily", name: "Daily", savedAt: Date(timeIntervalSince1970: 3),
+            visible: [presetIdentity], hidden: [], alwaysHidden: [])
+        let encodedNamedPresets = MenuBarOrganizerSupport.encodeNamedPresets([namedPreset])
+        expect(MenuBarOrganizerSupport.decodeNamedPresets(encodedNamedPresets).first?.name == "Daily",
+               "named menu bar presets round-trip through preference storage")
+        let encodedGroups = MenuBarOrganizerSupport.encodeGroups([
+            .cloud: MenuBarOrganizerSupport.group(slot: .cloud,
+                                                 items: [presetIdentity, presetIdentity],
+                                                 now: Date(timeIntervalSince1970: 2)),
+        ])
+        expect(MenuBarOrganizerSupport.decodeGroups(encodedGroups)[.cloud]?.items == [presetIdentity],
+               "menu bar groups round-trip through preference storage without duplicate items")
+        let customGroup = MenuBarOrganizerSupport.customGroup(
+            name: "Connections", symbolName: "network",
+            items: [presetIdentity, presetIdentity],
+            now: Date(timeIntervalSince1970: 4),
+            id: "connections")
+        let encodedCustomGroups = MenuBarOrganizerSupport.encodeCustomGroups([customGroup])
+        expect(MenuBarOrganizerSupport.decodeCustomGroups(encodedCustomGroups).first?.items == [presetIdentity]
+                && MenuBarOrganizerGroupReference(storageValue: "custom:connections")?.id
+                    == "custom:connections"
+                && MenuBarOrganizerGroupReference(storageValue: "slot:cloud")?.id == "slot:cloud",
+               "custom menu bar groups round-trip and address fixed or user-defined groups")
+        let duplicateMenuRecords = [
+            MenuBarOrganizerWindowRecord(windowID: 1, ownerPID: 1, ownerName: "App",
+                                         bundleIdentifier: "com.example.app", title: "State",
+                                         frame: CGRect(x: 40, y: 0, width: 20, height: 20),
+                                         layer: 0, alpha: 1),
+            MenuBarOrganizerWindowRecord(windowID: 2, ownerPID: 1, ownerName: "App",
+                                         bundleIdentifier: "com.example.app", title: "State",
+                                         frame: CGRect(x: 10, y: 0, width: 20, height: 20),
+                                         layer: 0, alpha: 1),
+        ]
+        let duplicateIdentities = MenuBarOrganizerSupport.identities(for: duplicateMenuRecords)
+        expect(duplicateIdentities[1]?.occurrence == 0
+                && duplicateIdentities[2]?.occurrence == 1,
+               "duplicate menu bar items keep stable identities while reordered")
+        expect(MenuBarOrganizerSupport.isSystemImmovable(
+                bundleIdentifier: "com.apple.controlcenter", title: "Clock")
+                && !MenuBarOrganizerSupport.isSystemImmovable(
+                    bundleIdentifier: "com.example.app", title: "Clock"),
+               "protected system items are not offered to automatic movement")
         expect(AppFeature.dockClick.enabledKeys == [DefaultsKey.dockClickMinimize,
                                                     DefaultsKey.dockClickHide,
                                                     DefaultsKey.dockClickCycleWindows],
@@ -7845,6 +7996,16 @@ struct MetricsTests {
                    "every appearance string is set for \(language.rawValue)")
             expect(appearanceValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible appearance strings (\(language.rawValue))")
+            let menuBarOrganizerValues = Mirror(
+                reflecting: FeatureStrings.menuBarOrganizer(language)).children
+                .compactMap { $0.value as? String }
+            expect(!menuBarOrganizerValues.isEmpty
+                    && menuBarOrganizerValues.allSatisfy { !$0.isEmpty },
+                   "every menu bar organizer string is set for \(language.rawValue)")
+            expect(menuBarOrganizerValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in menu bar organizer strings (\(language.rawValue))")
+            expect(FeatureStrings.menuBarOrganizer(language).delayFormat.contains("%d"),
+                   "the organizer delay keeps its numeric placeholder (\(language.rawValue))")
             let screenshotValues = Mirror(reflecting: FeatureStrings.screenshot(language)).children
                 .compactMap { $0.value as? String }
             expect(!screenshotValues.isEmpty && screenshotValues.allSatisfy { !$0.isEmpty },
@@ -8501,6 +8662,52 @@ struct MetricsTests {
         let roleDefaults = GlobalShortcutRole.allCases.map(\.defaultShortcut)
         expect(Set(roleDefaults).count == roleDefaults.count,
                "no two shortcut roles ship the same default combination")
+        expect(Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerEnabled] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerSetupComplete] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerAlwaysHiddenEnabled] as? Bool == false,
+               "the menu bar organizer and destructive hiding state ship off")
+        expect(Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerCapturePreviews] as? Bool == true
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerPresentationMode] as? String
+                    == MenuBarOrganizerPresentationMode.menuBar.rawValue
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerRehideMode] as? String
+                    == MenuBarOrganizerRehideMode.afterDelay.rawValue
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerRehideDelay] as? Int == 10,
+               "menu bar presentation defaults remain predictable")
+        expect(Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerSmartNotchMode] as? Bool == true
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerPresets] as? String == ""
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerNamedPresets] as? String == ""
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerGroups] as? String == ""
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerCustomGroups] as? String == ""
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerGroupStatusItems] as? Bool == true
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerAutoHideGroupedItems] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerSpacerCount] as? Int == 0
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerSpacerWidth] as? Int == 16
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerBarStyle] as? String
+                    == MenuBarOrganizerBarStyle.system.rawValue,
+               "smart notch mode, presets, groups, spacers and style have portable defaults")
+        expect(Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerTriggerLowBatteryEnabled] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerTriggerLowBatteryThreshold] as? Int == 25
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerTriggerLowBatteryPreset] as? String
+                    == MenuBarOrganizerPresetSlot.minimal.rawValue
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerTriggerChargingEnabled] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerTriggerExternalDisplayEnabled] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerTriggerWorkHoursEnabled] as? Bool == false,
+               "advanced organizer preset triggers are opt-in with safe presets")
+        expect(Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerToggleShortcut] as? String
+                    == GlobalShortcut.menuBarOrganizerToggleDefault.storageValue
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerAlwaysShortcut] as? String
+                    == GlobalShortcut.menuBarOrganizerAlwaysDefault.storageValue
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerSearchShortcut] as? String
+                    == GlobalShortcut.menuBarOrganizerSearchDefault.storageValue,
+               "the three organizer shortcuts persist their unique defaults")
+        expect(GlobalShortcutRole.menuBarOrganizerToggle.requiredEnableKeys
+                    == [DefaultsKey.menuBarOrganizerEnabled,
+                        DefaultsKey.menuBarOrganizerToggleShortcutEnabled]
+                && GlobalShortcutRole.menuBarOrganizerAlways.feature == .menuBarOrganizer
+                && GlobalShortcutRole.menuBarOrganizerSearch.feature == .menuBarOrganizer,
+               "organizer shortcut roles follow the feature and their own toggles")
+        expect(Defaults.registeredDefaults[DefaultsKey.panelUtilityMenuBarOrganizer] as? Bool == true,
+               "the menu panel organizer action ships visible")
 
         // MARK: Radial menu (issue #220)
 
