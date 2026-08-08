@@ -302,10 +302,10 @@ enum SwitcherSupport {
         return localizedName.hasPrefix("wine")
     }
 
-    /// Adobe's video and audio apps expose their main surface as a floating
+    /// Some professional media apps expose their main surface as a floating
     /// Accessibility window instead of a standard macOS window. Match bundle
     /// prefixes because recent releases append version or application suffixes.
-    static func isAdobeFloatingWindow(bundleIdentifier: String?, subrole: String?) -> Bool {
+    static func isSupportedMediaFloatingWindow(bundleIdentifier: String?, subrole: String?) -> Bool {
         guard subrole == "AXFloatingWindow", let bundleIdentifier else { return false }
         return bundleIdentifier.hasPrefix("com.adobe.Audition")
             || bundleIdentifier.hasPrefix("com.adobe.AfterEffects")

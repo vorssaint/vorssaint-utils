@@ -621,10 +621,25 @@ enum HomebrewParser {
         for artifact in (item["artifacts"] as? [Any] ?? []) {
             guard let entry = artifact as? [String: Any],
                   let apps = entry["app"] as? [Any] else { continue }
-            // A cask can rename the bundle it installs, in which case the
-            // entry is [source, {target: name}]; the first string is the
-            // name that lands in the Applications folder.
-            appFileNames += apps.compactMap { $0 as? String }.filter { $0.hasSuffix(".app") }
+            // A package can rename the bundle it installs. Prefer that target
+            // name, then keep the source name as a fallback for older output.
+            var targets: [String] = []
+            var sources: [String] = []
+            if let target = entry["target"] as? String { targets.append(target) }
+            for app in apps {
+                if let source = app as? String {
+                    sources.append(source)
+                } else if let mapping = app as? [String: Any],
+                          let target = mapping["target"] as? String {
+                    targets.append(target)
+                }
+            }
+            for candidate in targets.isEmpty ? sources : targets {
+                let fileName = URL(fileURLWithPath: candidate).lastPathComponent
+                if fileName.hasSuffix(".app"), !appFileNames.contains(fileName) {
+                    appFileNames.append(fileName)
+                }
+            }
         }
         return HomebrewCaskRecord(token: token,
                                   displayName: displayName,

@@ -166,7 +166,7 @@ extension Strings {
         middleClickTapThreeFingers: "3 Finger",
         middleClickTapFourFingers: "4 Finger",
         middleClickTapCaption: "Ein leichtes Tippen mit dieser Fingerzahl, ohne zu drücken, löst ebenfalls den Mittelklick aus. Wischen zählt nie. Ist das Dreifinger-Tippen von macOS mit Nachschlagen belegt, schalte es aus, damit nicht beides zugleich auslöst.",
-        quickToolsTab: "Schnellwerkzeuge",
+        quickToolsTab: "Schnellpanel",
         quickToolShortcutToggle: "Globaler Kurzbefehl",
         ocrName: "Text vom Bildschirm kopieren",
         ocrCaption: "Wähle einen Bildschirmbereich aus und der erkannte Text wird kopiert, bereit zum Einsetzen.",

@@ -9,6 +9,7 @@ struct ClipboardQuickPanelView: View {
     @FocusState private var searchFocused: Bool
     @State private var hoveredEntryID: UUID?
     @State private var previewEntryID: UUID?
+    @State private var previewIsEditing = false
 
     private var text: ClipboardFeatureStrings {
         FeatureStrings.clipboard(l10n.language)
@@ -38,7 +39,9 @@ struct ClipboardQuickPanelView: View {
             }
             .padding(.trailing, 12)
             Divider()
-            ClipboardEntryPreviewSidebar(text: text, entry: previewEntry)
+            ClipboardEntryPreviewSidebar(text: text,
+                                         entry: previewEntry,
+                                         isEditing: $previewIsEditing)
                 .frame(width: 280)
         }
         .padding(16)
@@ -52,6 +55,7 @@ struct ClipboardQuickPanelView: View {
         .onDisappear {
             hoveredEntryID = nil
             previewEntryID = nil
+            previewIsEditing = false
         }
         .onChange(of: history.quickSelectionIndex) { _, _ in
             previewEntryID = history.selectedQuickEntryID
@@ -294,7 +298,7 @@ struct ClipboardQuickPanelView: View {
             withAnimation(.easeOut(duration: 0.12)) {
                 hoveredEntryID = hovering ? entry.id : (hoveredEntryID == entry.id ? nil : hoveredEntryID)
             }
-            if hovering {
+            if hovering, !previewIsEditing {
                 previewEntryID = entry.id
             }
         }

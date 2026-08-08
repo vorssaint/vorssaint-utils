@@ -166,7 +166,7 @@ extension Strings {
         middleClickTapThreeFingers: "3 parmak",
         middleClickTapFourFingers: "4 parmak",
         middleClickTapCaption: "O sayıda parmakla hafifçe dokunmak, bastırmadan, orta tıklamayı da tetikler. Kaydırma asla sayılmaz. macOS üç parmak dokunuşu Araştır işlevine atanmışsa, ikisinin birlikte tetiklenmemesi için onu kapatın.",
-        quickToolsTab: "Hızlı araçlar",
+        quickToolsTab: "Hızlı panel",
         quickToolShortcutToggle: "Genel kısayol",
         ocrName: "Ekrandaki metni kopyala",
         ocrCaption: "Ekranda bir alan seçin; tanınan metin kopyalanır ve yapıştırmaya hazır olur.",

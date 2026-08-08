@@ -166,7 +166,7 @@ extension Strings {
         middleClickTapThreeFingers: "3 本指",
         middleClickTapFourFingers: "4 本指",
         middleClickTapCaption: "その本数の指で軽くタップ（押し込まずに）しても中クリックが発火します。スライドは対象外です。macOS の 3 本指タップが「調べる」に割り当てられている場合は、両方が同時に発火しないようオフにしてください。",
-        quickToolsTab: "クイックツール",
+        quickToolsTab: "クイックパネル",
         quickToolShortcutToggle: "グローバルショートカット",
         ocrName: "画面のテキストをコピー",
         ocrCaption: "画面の範囲を選択すると、認識されたテキストがコピーされ、すぐにペーストできます。",

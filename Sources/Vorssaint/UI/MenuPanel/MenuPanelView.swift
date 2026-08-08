@@ -81,7 +81,7 @@ struct MenuPanelView: View {
     @State private var navigableContentHeight: CGFloat = 0
     @State private var metricContentHeight: CGFloat = 0
     @State private var updateBannerHeight: CGFloat = 0
-    @State private var selectedSection: PanelSectionID = .keepAwake
+    @State private var selectedSection: PanelSectionID = PanelLayout.order.first ?? .keepAwake
     @State private var selectedMetric: MetricDetailKind?
     @FocusState private var focusedSection: PanelSectionID?
 
@@ -1846,7 +1846,8 @@ struct UtilityActionButton: View {
 }
 
 
-private struct PanelToggleRow: View {
+/// Shared switch row used by Quick Controls and Quick toggles.
+struct PanelToggleRow: View {
     let title: String
     let caption: String
     let systemImage: String

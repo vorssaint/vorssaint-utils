@@ -25,28 +25,10 @@ enum ScreenshotSupport {
     /// A failed scroll target must never keep the capture alive forever or
     /// exhaust memory. Reaching a guard keeps the valid portion and explains
     /// why the capture stopped.
-    static let scrollingCaptureMaximumDuration: TimeInterval = 30
-    static let scrollingCaptureMaximumFrames = 64
+    static let scrollingCaptureMaximumDuration: TimeInterval = 120
+    static let scrollingCaptureMaximumFrames = 512
     static let scrollingCaptureMaximumRetainedPixels = 60_000_000
     static let scrollingCaptureMaximumPixels = 60_000_000
-    static let scrollingCaptureMaximumScrollDelta: Int32 = 4
-
-    static func scrollingCaptureStepPoints(regionHeight: CGFloat) -> CGFloat {
-        min(max(regionHeight * 0.62, 60), 720)
-    }
-
-    /// Quartz expects small wheel values. Splitting a page-sized movement into
-    /// ordinary deltas lets each target apply its normal scrolling behavior.
-    static func scrollingCaptureScrollDeltas(points: CGFloat) -> [Int32] {
-        var remaining = max(1, Int((points / 10).rounded()))
-        var deltas: [Int32] = []
-        while remaining > 0 {
-            let delta = min(remaining, Int(scrollingCaptureMaximumScrollDelta))
-            deltas.append(-Int32(delta))
-            remaining -= delta
-        }
-        return deltas
-    }
 
     struct ScrollingSample: Equatable {
         let width: Int
@@ -58,9 +40,14 @@ enum ScreenshotSupport {
         }
     }
 
+    enum ScrollingDirection: Equatable {
+        case forward
+        case backward
+    }
+
     enum ScrollingTransition: Equatable {
         case end
-        case advanced(overlap: Int)
+        case advanced(overlap: Int, direction: ScrollingDirection)
         case unmatched
     }
 
@@ -140,7 +127,8 @@ enum ScreenshotSupport {
            rival.difference <= best.difference + 0.75 {
             return .unmatched
         }
-        return .advanced(overlap: height - best.advance)
+        return .advanced(overlap: height - best.advance,
+                         direction: best.reversed ? .backward : .forward)
     }
 
     private static func scrollingDifference(_ lhs: ScrollingSample,

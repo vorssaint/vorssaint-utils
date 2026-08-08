@@ -166,7 +166,7 @@ extension Strings {
         middleClickTapThreeFingers: "3 doigts",
         middleClickTapFourFingers: "4 doigts",
         middleClickTapCaption: "Un tapotement léger avec ce nombre de doigts, sans appuyer, déclenche aussi le clic du milieu. Glisser ne compte jamais. Si le tapotement à trois doigts de macOS est assigné à Rechercher, désactivez-le pour que les deux ne se déclenchent pas ensemble.",
-        quickToolsTab: "Outils rapides",
+        quickToolsTab: "Panneau rapide",
         quickToolShortcutToggle: "Raccourci global",
         ocrName: "Copier le texte à l'écran",
         ocrCaption: "Sélectionnez une zone de l'écran et le texte reconnu est copié, prêt à coller.",

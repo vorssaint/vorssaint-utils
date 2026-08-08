@@ -200,6 +200,7 @@ enum DefaultsKey {
     static let panelShowToggles = "panelShowToggles"
     // Quick toggles tab: per-action visibility (the order lives in panelToggleOrder).
     static let panelToggleDarkMode = "panelToggleDarkMode"
+    static let panelToggleKeyboardLight = "panelToggleKeyboardLight"
     // Keep the existing storage key so moving the row preserves its visibility choice.
     static let panelToggleMicMute = "panelUtilityMicMute"
     static let panelToggleEmptyTrash = "panelToggleEmptyTrash"
@@ -461,6 +462,7 @@ enum DefaultsKey {
     static let windowLayoutShortcutBottomLeft = "windowLayoutShortcutBottomLeft"
     static let windowLayoutShortcutBottomRight = "windowLayoutShortcutBottomRight"
     static let windowLayoutShortcutMaximize = "windowLayoutShortcutMaximize"
+    static let windowLayoutShortcutMarginMaximize = "windowLayoutShortcutMarginMaximize"
     static let windowLayoutShortcutCenter = "windowLayoutShortcutCenter"
     static let windowLayoutShortcutRestore = "windowLayoutShortcutRestore"
     static let windowLayoutShortcutLeftThird = "windowLayoutShortcutLeftThird"
@@ -516,7 +518,7 @@ enum UpdateHighlightsInfo {
     /// The single release whose first launch shows the tour; any other
     /// version never shows it. Bump deliberately for releases with headline
     /// features worth a tour.
-    static let releaseVersion = "3.3.0"
+    static let releaseVersion = "3.3.1"
 
     static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
         appVersion == releaseVersion && lastSeenVersion != releaseVersion
@@ -824,6 +826,7 @@ enum Defaults {
         DefaultsKey.panelShowControls: true,
         DefaultsKey.panelShowToggles: true,
         DefaultsKey.panelToggleDarkMode: true,
+        DefaultsKey.panelToggleKeyboardLight: true,
         DefaultsKey.panelToggleMicMute: true,
         DefaultsKey.panelToggleEmptyTrash: true,
         DefaultsKey.panelToggleEjectDisks: true,
@@ -1038,6 +1041,7 @@ enum Defaults {
         DefaultsKey.windowLayoutShortcutBottomLeft: GlobalShortcut.windowLayoutBottomLeftDefault.storageValue,
         DefaultsKey.windowLayoutShortcutBottomRight: GlobalShortcut.windowLayoutBottomRightDefault.storageValue,
         DefaultsKey.windowLayoutShortcutMaximize: GlobalShortcut.windowLayoutMaximizeDefault.storageValue,
+        DefaultsKey.windowLayoutShortcutMarginMaximize: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutCenter: GlobalShortcut.windowLayoutCenterDefault.storageValue,
         DefaultsKey.windowLayoutShortcutRestore: GlobalShortcut.windowLayoutRestoreDefault.storageValue,
         DefaultsKey.windowLayoutShortcutLeftThird: GlobalShortcut.windowLayoutLeftThirdDefault.storageValue,

@@ -166,7 +166,7 @@ extension Strings {
         middleClickTapThreeFingers: "3 dedos",
         middleClickTapFourFingers: "4 dedos",
         middleClickTapCaption: "Un toque ligero con ese número de dedos, sin presionar, también dispara el clic central. Deslizar nunca cuenta. Si el toque con tres dedos de macOS está asignado a Consultar, desactívalo para que no se disparen juntos.",
-        quickToolsTab: "Herramientas rápidas",
+        quickToolsTab: "Panel rápido",
         quickToolShortcutToggle: "Atajo global",
         ocrName: "Copiar texto de la pantalla",
         ocrCaption: "Selecciona un área de la pantalla y el texto reconocido se copia, listo para pegar.",

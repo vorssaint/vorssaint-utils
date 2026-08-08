@@ -38,7 +38,7 @@ struct PanelWindowLayoutView: View {
             ])
             actionGroup(title: text.corners, actions: [.topLeft, .topRight, .bottomLeft, .bottomRight])
             actionGroup(title: text.other, actions: [
-                .maximize, .fullScreen, .center, .previousDisplay, .nextDisplay, .restore,
+                .maximize, .marginMaximize, .fullScreen, .center, .previousDisplay, .nextDisplay, .restore,
             ])
             if let message = resultMessage {
                 Label(message, systemImage: resultSymbol)

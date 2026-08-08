@@ -14,6 +14,7 @@ struct QuickToolsSettings: View {
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var cameraPreview = CameraPreviewService.shared
     @ObservedObject private var scratchpad = ScratchpadService.shared
+    @ObservedObject private var brightness = BrightnessService.shared
     @AppStorage(DefaultsKey.quickLauncherShortcutEnabled) private var launcherShortcutEnabled = true
     @AppStorage(DefaultsKey.screenOCRShortcutEnabled) private var ocrShortcutEnabled = false
     @AppStorage(DefaultsKey.screenOCRDetectQRCodes) private var ocrDetectQRCodes = true
@@ -71,12 +72,22 @@ struct QuickToolsSettings: View {
                                 : FeatureStrings.quickToggles(l10n.language).darkModeToDark,
                               systemImage: colorScheme == .dark ? "sun.max.fill" : "moon.fill")
                     }
+                    if brightness.keyboardLightEnabled != nil {
+                        Toggle(isOn: Binding(
+                            get: { brightness.keyboardLightEnabled ?? false },
+                            set: { brightness.setKeyboardLightEnabled($0) }
+                        )) {
+                            Label(FeatureStrings.brightness(l10n.language).keyboardLight,
+                                  systemImage: "keyboard")
+                        }
+                    }
                     Text(FeatureStrings.quickToggles(l10n.language).panelCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } header: {
                     Text(FeatureStrings.quickToggles(l10n.language).pageTitle)
                 }
+                .onAppear { brightness.refreshKeyboardLight() }
             }
 
             if AppFeature.screenOCR.isAvailable {

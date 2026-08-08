@@ -83,14 +83,7 @@ final class AppSwitcher: ObservableObject {
     /// quick ⌘Tab flick switches with no UI at all, which is what makes rapid
     /// toggling feel instant instead of flashing a window.
     private static let appearanceDelay: TimeInterval = 0.1
-    /// Clicks that dismiss the panel when they land anywhere else.
-    private static let dismissingClicks: NSEvent.EventTypeMask = [.leftMouseDown,
-                                                                  .rightMouseDown,
-                                                                  .otherMouseDown]
     private var pendingShow: DispatchWorkItem?
-    /// Click watchers, alive only while the panel is on screen.
-    private var localClickMonitor: Any?
-    private var outsideClickMonitor: Any?
     /// True once the user moved the selection themselves.
     private var userNavigated = false
     /// Mouse position when the panel appeared; hover is inert until it moves.
@@ -234,6 +227,9 @@ final class AppSwitcher: ObservableObject {
 
             let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
                 | CGEventMask(1 << CGEventType.flagsChanged.rawValue)
+                | CGEventMask(1 << CGEventType.leftMouseDown.rawValue)
+                | CGEventMask(1 << CGEventType.rightMouseDown.rawValue)
+                | CGEventMask(1 << CGEventType.otherMouseDown.rawValue)
             guard let tap = CGEvent.tapCreate(
                 tap: .cgSessionEventTap,
                 place: .headInsertEventTap,
@@ -353,6 +349,9 @@ final class AppSwitcher: ObservableObject {
                     return nil
                 }
             }
+            return Unmanaged.passUnretained(event)
+        case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+            dismissForClickOutsidePanel()
             return Unmanaged.passUnretained(event)
         default:
             return Unmanaged.passUnretained(event)
@@ -919,7 +918,6 @@ final class AppSwitcher: ObservableObject {
         sessionActive = false
         pendingShow?.cancel()
         pendingShow = nil
-        removeDismissMonitors()
         WindowPreviewProvider.shared.cancel()
         panel?.orderOut(nil)
         sessionItems = []
@@ -965,29 +963,12 @@ final class AppSwitcher: ObservableObject {
         panel.animationBehavior = .none
         panel.orderFrontRegardless()
         panel.animationBehavior = animationBehavior
-        installDismissMonitors()
     }
 
-    /// Watches for a click anywhere but the panel, which ends the session. The
-    /// panel floats above every app and never takes the keyboard, so letting go
-    /// of the shortcut cannot be the only way out: opened by a tool that sends
-    /// the shortcut without holding a key, there is no release coming at all
-    /// and the panel would sit there swallowing every keystroke until Esc
-    /// (issue #384). The click is only observed, never eaten, so it still does
-    /// what it was aimed at. Both monitors live with the panel and die with the
-    /// session, so a flick that never shows anything costs nothing.
-    private func installDismissMonitors() {
-        removeDismissMonitors()
-        localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: Self.dismissingClicks) { [weak self] event in
-            guard let self, event.window !== self.panel else { return event }
-            self.dismissForClickOutsidePanel()
-            return event
-        }
-        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: Self.dismissingClicks) { [weak self] _ in
-            self?.dismissForClickOutsidePanel()
-        }
-    }
-
+    /// A click outside cancels before the event continues through the session
+    /// tap. This preserves the click and prevents a nearly simultaneous Command
+    /// release from committing the highlighted window first (issues #384 and
+    /// #539).
     private func dismissForClickOutsidePanel() {
         guard sessionActive, let panel else { return }
         guard SwitcherSupport.shouldDismissForClick(panelIsVisible: panel.isVisible,
@@ -995,17 +976,6 @@ final class AppSwitcher: ObservableObject {
                                                     location: NSEvent.mouseLocation)
         else { return }
         cancelSession()
-    }
-
-    private func removeDismissMonitors() {
-        if let localClickMonitor {
-            NSEvent.removeMonitor(localClickMonitor)
-            self.localClickMonitor = nil
-        }
-        if let outsideClickMonitor {
-            NSEvent.removeMonitor(outsideClickMonitor)
-            self.outsideClickMonitor = nil
-        }
     }
 
     /// Re-fits the panel after the grid changed mid-session (e.g. an app quit

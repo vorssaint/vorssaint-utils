@@ -166,7 +166,7 @@ extension Strings {
         middleClickTapThreeFingers: "세 손가락",
         middleClickTapFourFingers: "네 손가락",
         middleClickTapCaption: "해당 개수의 손가락으로 가볍게 탭하기만 해도(누르지 않아도) 가운데 클릭이 실행됩니다. 쓸어 넘기기는 포함되지 않습니다. macOS의 세 손가락 탭에 ‘찾아보기’가 지정되어 있다면 두 동작이 함께 실행되지 않도록 끄세요.",
-        quickToolsTab: "빠른 도구",
+        quickToolsTab: "빠른 패널",
         quickToolShortcutToggle: "전역 단축키",
         ocrName: "화면의 텍스트 복사",
         ocrCaption: "화면 영역을 선택하면 인식한 텍스트를 복사해 즉시 붙여넣을 수 있습니다.",

@@ -166,7 +166,7 @@ extension Strings {
         middleClickTapThreeFingers: "3 根手指",
         middleClickTapFourFingers: "4 根手指",
         middleClickTapCaption: "用該數量的手指輕點（無需按壓）也會觸發中鍵點按。滑動不會觸發。如果 macOS 的三指輕點被指定為「查詢」，請將其關閉以免兩者同時觸發。",
-        quickToolsTab: "快速工具",
+        quickToolsTab: "快速面板",
         quickToolShortcutToggle: "全域快速鍵",
         ocrName: "拷貝螢幕文字",
         ocrCaption: "選擇螢幕上的一塊區域，識別出的文字會被拷貝，隨時可以貼上。",

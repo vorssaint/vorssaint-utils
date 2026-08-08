@@ -190,10 +190,6 @@ final class ScreenshotService: ObservableObject {
             Permissions.shared.requestScreenRecording()
             return
         }
-        if mode == .scrolling, !Permissions.shared.accessibility {
-            Permissions.shared.requestAccessibility()
-            return
-        }
         let delay = ScreenshotSupport.sanitizedDelay(
             UserDefaults.standard.integer(forKey: DefaultsKey.screenshotDelay))
         if delay > 0 {
@@ -245,7 +241,7 @@ final class ScreenshotService: ObservableObject {
             protectedWindowIDs: { [weak self] in self?.protectedWindowIDs ?? [] },
             purpose: mode == .scrolling ? strings.scrollingCaptureTitle : nil,
             mode: mode == .scrolling ? .geometry : .image,
-            supportsScrollingCapture: mode == .standard && Permissions.shared.accessibility)
+            supportsScrollingCapture: mode == .standard)
         session = controller
         controller.begin { [weak self] outcome in
             guard let self else { return }
@@ -306,14 +302,6 @@ final class ScreenshotService: ObservableObject {
 
     private func captureScrolling(_ region: RecorderSupport.Region) {
         guard scrollingTask == nil else { return }
-        guard Permissions.shared.accessibility else {
-            Permissions.shared.requestAccessibility()
-            return
-        }
-        guard let targetPID = ScreenshotScrollingCapture.targetPID(for: region) else {
-            QuickToolHUD.show(icon: "camera.viewfinder", message: strings.captureFailed)
-            return
-        }
         let finishSignal = ScreenshotScrollingCapture.FinishSignal()
         scrollingFinishSignal = finishSignal
         QuickToolHUD.showScrollingCapture(
@@ -336,7 +324,6 @@ final class ScreenshotService: ObservableObject {
                 hideVorssaintWindows: hideWindows,
                 protectedWindowIDs: protectedIDs,
                 finishSignal: finishSignal,
-                targetPID: targetPID,
                 onProgress: { height in
                     QuickToolHUD.updateScrollingCapture(height: height)
                 })

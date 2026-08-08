@@ -166,7 +166,7 @@ extension Strings {
         middleClickTapThreeFingers: "3 dita",
         middleClickTapFourFingers: "4 dita",
         middleClickTapCaption: "Un tocco leggero con quel numero di dita, senza premere, attiva anche il clic centrale. Scorrere non conta mai. Se il tocco a tre dita di macOS è assegnato a Cerca, disattivalo perché i due non si attivino insieme.",
-        quickToolsTab: "Strumenti rapidi",
+        quickToolsTab: "Pannello rapido",
         quickToolShortcutToggle: "Abbreviazione globale",
         ocrName: "Copia testo dallo schermo",
         ocrCaption: "Seleziona un'area dello schermo e il testo riconosciuto viene copiato, pronto da incollare.",
