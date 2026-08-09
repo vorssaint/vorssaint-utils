@@ -183,11 +183,10 @@ final class Permissions: ObservableObject {
         }
     }
 
-    /// Protected directories gated by Full Disk Access, used both for probing
-    /// whether access is granted and for registering the app in TCC. One list,
-    /// so the two code paths never diverge.
+    /// Protected directories safe to use both as access probes and as
+    /// registration attempts. Request-only paths stay separate because every
+    /// entry here must remain a reliable signal that access was granted.
     private static let fdaGatedDirectories = [
-        "Library/Application Support/com.apple.TCC",
         "Library/Safari",
         "Library/Mail",
         "Library/Messages",
@@ -275,8 +274,10 @@ final class Permissions: ObservableObject {
                 _ = try? handle.read(upToCount: 1)
                 try? handle.close()
             }
-            // Protected locations, harmless when absent.
-            let dirs = Self.fdaGatedDirectories.map { (home as NSString).appendingPathComponent($0) }
+            // Protected locations, harmless when absent. The TCC directory is
+            // useful for registration but is not part of the access probe.
+            let dirs = (["Library/Application Support/com.apple.TCC"] + Self.fdaGatedDirectories)
+                .map { (home as NSString).appendingPathComponent($0) }
             for path in dirs { _ = try? fm.contentsOfDirectory(atPath: path) }
 
             // Let tccd persist the denial before the pane loads its list.

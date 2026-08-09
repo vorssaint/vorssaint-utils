@@ -166,7 +166,7 @@ extension Strings {
         middleClickTapThreeFingers: "3 parmak",
         middleClickTapFourFingers: "4 parmak",
         middleClickTapCaption: "O sayıda parmakla hafifçe dokunmak, bastırmadan, orta tıklamayı da tetikler. Kaydırma asla sayılmaz. macOS üç parmak dokunuşu Araştır işlevine atanmışsa, ikisinin birlikte tetiklenmemesi için onu kapatın.",
-        quickToolsTab: "Hızlı araçlar",
+        quickToolsTab: "Hızlı panel",
         quickToolShortcutToggle: "Genel kısayol",
         ocrName: "Ekrandaki metni kopyala",
         ocrCaption: "Ekranda bir alan seçin; tanınan metin kopyalanır ve yapıştırmaya hazır olur.",
@@ -768,7 +768,7 @@ extension Strings {
         cleaningNeedsAxBody: "Klavyeyi güvenle kilitlemek için Vorssaint'in Erişilebilirlik iznine ihtiyacı var. Sistem Ayarları'ndan izin ver ve tekrar dene.",
 
         tabSupport: "Destek",
-        shortcutsPageCaption: "Uygulamada şu anda etkin olan tüm genel kısayollar. Her biri kendi özelliğinin sayfasında ayarlanır.",
+        shortcutsPageCaption: "Bu Mac'te yüklü özelliklerin tüm genel kısayollarını burada düzenleyin. Etkin olmayan kısayollar kayıtlı kalır ancak çalışmaz.",
         shortcutsPageTitle: "Klavye kısayolları",
         settingsSearchPlaceholder: "Ayarlarda ara",
         donateHeading: "Vorssaint'i destekle",
@@ -893,6 +893,12 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "Sağ tık bağlam menüsünün yerini alır.",
         urlCleanerCustomTitle: "Kaldırılacak diğer adlar",
         urlCleanerCustomPlaceholder: "ref, kaynak",
-        urlCleanerCustomCaption: "Parametre adlarını virgülle ayırın. Her bağlantıdan kaldırılırlar."
+        urlCleanerCustomCaption: "Parametre adlarını virgülle ayırın. Her bağlantıdan kaldırılırlar.",
+        switcherSearchPin: "S ile aramayı sabitle",
+        switcherSearchPinCaption: "S, aramayı başlatır ve değiştiriciyi sabitler; kısayolun ⌥ kullanması durumunda özel karakter yazılmasını, Q veya W ile başlayan aramaların pencereyi kapatmasını veya uygulamadan çıkmasını önler.",
+        invertVerticalScroll: "Dikey kaydırmayı ters çevir",
+        invertHorizontalScroll: "Yatay kaydırmayı ters çevir",
+        switcherShowShortcutHints: "Kısayol ipuçlarını göster",
+        switcherShowShortcutHintsCaption: "Simge sırasının altında uygulama ve pencere kısayollarını gösterir."
     )
 }

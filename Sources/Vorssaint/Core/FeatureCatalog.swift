@@ -149,7 +149,8 @@ extension AppFeature {
                                  DefaultsKey.dockClickCycleWindows]
         case .windowMaximizer: return [DefaultsKey.windowMaximizeEnabled]
         case .autoQuit: return [DefaultsKey.autoQuitEnabled]
-        case .scrollInverter: return [DefaultsKey.scrollInverterEnabled]
+        case .scrollInverter: return [DefaultsKey.scrollInverterEnabled,
+                                      DefaultsKey.scrollInverterHorizontalEnabled]
         case .smoothScroll: return [DefaultsKey.smoothScrollEnabled]
         case .mouseNavigation: return [DefaultsKey.mouseNavigationEnabled]
         case .mouseButtonShortcuts: return [DefaultsKey.mouseButtonShortcutsEnabled]

@@ -166,7 +166,7 @@ extension Strings {
         middleClickTapThreeFingers: "3 本指",
         middleClickTapFourFingers: "4 本指",
         middleClickTapCaption: "その本数の指で軽くタップ（押し込まずに）しても中クリックが発火します。スライドは対象外です。macOS の 3 本指タップが「調べる」に割り当てられている場合は、両方が同時に発火しないようオフにしてください。",
-        quickToolsTab: "クイックツール",
+        quickToolsTab: "クイックパネル",
         quickToolShortcutToggle: "グローバルショートカット",
         ocrName: "画面のテキストをコピー",
         ocrCaption: "画面の範囲を選択すると、認識されたテキストがコピーされ、すぐにペーストできます。",
@@ -768,7 +768,7 @@ extension Strings {
         cleaningNeedsAxBody: "キーボードを安全にロックするには、Vorssaint にアクセシビリティのアクセス権が必要です。システム設定で許可して、もう一度お試しください。",
 
         tabSupport: "支援",
-        shortcutsPageCaption: "アプリで現在有効なグローバルショートカットの一覧。各ショートカットは各機能のページで設定します。",
+        shortcutsPageCaption: "このMacにインストールされている機能のグローバルショートカットをすべてここで編集できます。無効なものも保存されますが、動作はしません。",
         shortcutsPageTitle: "キーボードショートカット",
         settingsSearchPlaceholder: "設定を検索",
         donateHeading: "Vorssaint を支援する",
@@ -893,6 +893,12 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "右クリックのコンテキストメニューを置き換えます。",
         urlCleanerCustomTitle: "削除する名前を追加",
         urlCleanerCustomPlaceholder: "ref, source",
-        urlCleanerCustomCaption: "パラメータ名をカンマで区切って入力します。すべてのリンクから削除されます。"
+        urlCleanerCustomCaption: "パラメータ名をカンマで区切って入力します。すべてのリンクから削除されます。",
+        switcherSearchPin: "S で検索欄を固定",
+        switcherSearchPinCaption: "S を押すと検索を開始して切り替え画面を固定表示にします。ショートカットが ⌥ を使う場合の特殊文字入力も、Q や W で始める検索によるウインドウを閉じる/アプリを終了する誤動作も防げます。",
+        invertVerticalScroll: "縦スクロールを反転",
+        invertHorizontalScroll: "横スクロールを反転",
+        switcherShowShortcutHints: "ショートカットのヒントを表示",
+        switcherShowShortcutHintsCaption: "アイコンの下にアプリとウインドウのショートカットを表示します。"
     )
 }

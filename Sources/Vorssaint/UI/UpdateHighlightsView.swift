@@ -24,6 +24,12 @@ struct UpdateHighlightsView: View {
     private var windowLayout: WindowLayoutFeatureStrings {
         FeatureStrings.windowLayout(l10n.language)
     }
+    private var recorderShare: RecorderShareStrings {
+        FeatureStrings.recorderShare(l10n.language)
+    }
+    private var screenshot: ScreenshotFeatureStrings {
+        FeatureStrings.screenshot(l10n.language)
+    }
 
     private enum Layout {
         static let width: CGFloat = 600
@@ -44,6 +50,14 @@ struct UpdateHighlightsView: View {
 
     private var highlights: [Highlight] {
         var pages = [
+            Highlight(
+                id: "recording-links",
+                kind: .recordingLink,
+                symbol: "video",
+                title: screenshot.shareSectionTitle,
+                caption: recorderShare.tourCaption,
+                actionLabel: s.highlightsConfigure,
+                action: { openSettings(.screenRecorder) }),
             Highlight(
                 id: "disk-image-installer",
                 kind: .installer(diskInstaller, cancelTitle: s.uninstallerCancel),
@@ -191,6 +205,7 @@ struct UpdateHighlightsView: View {
 
 private struct UpdateHighlightArtwork: View {
     enum Kind {
+        case recordingLink
         case installer(DiskImageInstallerStrings, cancelTitle: String)
         case edgeSnap
         case fanControl
@@ -214,6 +229,7 @@ private struct UpdateHighlightArtwork: View {
                 endPoint: .bottomTrailing)
 
             switch kind {
+            case .recordingLink: recordingLink
             case let .installer(strings, cancelTitle):
                 installer(strings: strings, cancelTitle: cancelTitle)
             case .edgeSnap: edgeSnap
@@ -221,6 +237,65 @@ private struct UpdateHighlightArtwork: View {
             case let .commandLinks(strings): commandLinks(strings: strings)
             }
         }
+    }
+
+    private var recordingLink: some View {
+        ZStack(alignment: .bottomTrailing) {
+            VStack(spacing: 0) {
+                ZStack {
+                    LinearGradient(
+                        colors: [Color.indigo.opacity(0.78), Color.purple.opacity(0.55)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing)
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 30, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 62, height: 62)
+                        .background(Circle().fill(.black.opacity(0.32)))
+                }
+                .frame(height: 154)
+
+                HStack(spacing: 9) {
+                    Capsule()
+                        .fill(Color.accentColor)
+                        .frame(width: 164, height: 5)
+                    Capsule()
+                        .fill(Color.primary.opacity(0.12))
+                        .frame(width: 88, height: 5)
+                    Spacer()
+                    Text("00:30")
+                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 15)
+                .frame(height: 42)
+            }
+            .frame(width: 370, height: 196)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.11), lineWidth: 1)
+            }
+            .shadow(color: .black.opacity(0.16), radius: 12, y: 6)
+
+            HStack(spacing: 8) {
+                Image(systemName: "link")
+                    .font(.system(size: 13, weight: .semibold))
+                Text("1h")
+                    .font(.system(size: 13, weight: .semibold).monospacedDigit())
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.green)
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 38)
+            .background(.regularMaterial, in: Capsule())
+            .overlay { Capsule().strokeBorder(Color.primary.opacity(0.10), lineWidth: 1) }
+            .shadow(color: .black.opacity(0.13), radius: 8, y: 3)
+            .offset(x: 16, y: 13)
+        }
+        .frame(width: 420, height: 220)
     }
 
     private func installer(strings: DiskImageInstallerStrings,

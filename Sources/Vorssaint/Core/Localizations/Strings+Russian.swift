@@ -166,7 +166,7 @@ extension Strings {
         middleClickTapThreeFingers: "3 пальца",
         middleClickTapFourFingers: "4 пальца",
         middleClickTapCaption: "Лёгкое касание таким числом пальцев, без нажатия, тоже срабатывает как средний клик. Скольжение не считается. Если в macOS касание тремя пальцами назначено на «Поиск», отключите его, чтобы оба не срабатывали вместе.",
-        quickToolsTab: "Быстрые инструменты",
+        quickToolsTab: "Быстрая панель",
         quickToolShortcutToggle: "Глобальное сочетание",
         ocrName: "Скопировать текст с экрана",
         ocrCaption: "Выделите область экрана, и распознанный текст будет скопирован и готов к вставке.",
@@ -769,7 +769,7 @@ extension Strings {
         cleaningNeedsAxBody: "Чтобы безопасно блокировать клавиатуру, Vorssaint нужен доступ к Универсальному доступу. Выдайте его в Системных настройках и попробуйте снова.",
 
         tabSupport: "Поддержка",
-        shortcutsPageCaption: "Все активные глобальные сочетания приложения. Каждое настраивается на странице своей функции.",
+        shortcutsPageCaption: "Изменяйте здесь все глобальные сочетания установленных на этом Mac функций. Неактивные сочетания сохраняются, но не срабатывают.",
         shortcutsPageTitle: "Сочетания клавиш",
         settingsSearchPlaceholder: "Поиск в настройках",
         donateHeading: "Поддержать Vorssaint",
@@ -894,6 +894,12 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "Заменяет контекстное меню правой кнопки мыши.",
         urlCleanerCustomTitle: "Другие названия для удаления",
         urlCleanerCustomPlaceholder: "ref, source",
-        urlCleanerCustomCaption: "Разделяйте названия параметров запятыми. Они будут удаляться из всех ссылок."
+        urlCleanerCustomCaption: "Разделяйте названия параметров запятыми. Они будут удаляться из всех ссылок.",
+        switcherSearchPin: "Закрепить поиск по S",
+        switcherSearchPinCaption: "S запускает поиск и закрепляет переключатель открытым. Печать больше не даёт специальные символы, если сочетание использует ⌥, а поиск, начинающийся с Q или W, больше не закрывает окно и не завершает приложение по ошибке.",
+        invertVerticalScroll: "Инвертировать вертикальную прокрутку",
+        invertHorizontalScroll: "Инвертировать горизонтальную прокрутку",
+        switcherShowShortcutHints: "Показывать подсказки сочетаний клавиш",
+        switcherShowShortcutHintsCaption: "Показывает сочетания клавиш для приложений и окон под значками."
     )
 }

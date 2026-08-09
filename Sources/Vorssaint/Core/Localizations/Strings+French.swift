@@ -166,7 +166,7 @@ extension Strings {
         middleClickTapThreeFingers: "3 doigts",
         middleClickTapFourFingers: "4 doigts",
         middleClickTapCaption: "Un tapotement léger avec ce nombre de doigts, sans appuyer, déclenche aussi le clic du milieu. Glisser ne compte jamais. Si le tapotement à trois doigts de macOS est assigné à Rechercher, désactivez-le pour que les deux ne se déclenchent pas ensemble.",
-        quickToolsTab: "Outils rapides",
+        quickToolsTab: "Panneau rapide",
         quickToolShortcutToggle: "Raccourci global",
         ocrName: "Copier le texte à l'écran",
         ocrCaption: "Sélectionnez une zone de l'écran et le texte reconnu est copié, prêt à coller.",
@@ -768,7 +768,7 @@ extension Strings {
         cleaningNeedsAxBody: "Pour verrouiller le clavier en toute sécurité, Vorssaint a besoin de l’autorisation Accessibilité. Accordez-la dans les Réglages Système et réessayez.",
 
         tabSupport: "Soutenir",
-        shortcutsPageCaption: "Tous les raccourcis globaux actifs dans l'app. Chacun se configure sur la page de sa fonction.",
+        shortcutsPageCaption: "Modifiez ici tous les raccourcis globaux des fonctions installées sur ce Mac. Les raccourcis inactifs restent enregistrés sans se déclencher.",
         shortcutsPageTitle: "Raccourcis clavier",
         settingsSearchPlaceholder: "Rechercher dans les réglages",
         donateHeading: "Soutenir Vorssaint",
@@ -893,6 +893,12 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "Remplace le menu contextuel du clic droit.",
         urlCleanerCustomTitle: "Autres noms à retirer",
         urlCleanerCustomPlaceholder: "ref, source",
-        urlCleanerCustomCaption: "Séparez les noms des paramètres par des virgules. Ils seront retirés de chaque lien."
+        urlCleanerCustomCaption: "Séparez les noms des paramètres par des virgules. Ils seront retirés de chaque lien.",
+        switcherSearchPin: "Épingler la recherche avec S",
+        switcherSearchPinCaption: "S lance une recherche et épingle le sélecteur ouvert : plus de caractères spéciaux tapés quand le raccourci utilise ⌥, et une recherche commençant par Q ou W ne ferme plus la fenêtre ni ne quitte l'app par erreur.",
+        invertVerticalScroll: "Inverser le défilement vertical",
+        invertHorizontalScroll: "Inverser le défilement horizontal",
+        switcherShowShortcutHints: "Afficher les raccourcis",
+        switcherShowShortcutHintsCaption: "Affiche les raccourcis des apps et des fenêtres sous les icônes."
     )
 }

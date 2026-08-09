@@ -21,6 +21,7 @@ enum DefaultsKey {
     static let batteryLimit = "batteryLimitPercent"       // 0 = never
     static let keepAwakeAutoStart = "keepAwakeAutoStart"  // start Keep Awake when the app launches
     static let keepAwakeRightClickToggle = "keepAwakeRightClickToggle"
+    static let keepAwakeAllowDisplaySleep = "keepAwakeAllowDisplaySleep"
     static let keepAwakeExternalDisplay = "keepAwakeExternalDisplay"
     static let keepAwakeConnectedToPower = "keepAwakeConnectedToPower"
     static let keepAwakeMouseJiggleEnabled = "keepAwakeMouseJiggleEnabled"
@@ -35,6 +36,7 @@ enum DefaultsKey {
     static let hasOnboarded = "hasOnboarded"
     static let sleepDisabledFlag = "vorssDisabledSleep"   // internal guard for pmset disablesleep
     static let scrollInverterEnabled = "scrollInverterEnabled"
+    static let scrollInverterHorizontalEnabled = "scrollInverterHorizontalEnabled"
     static let smoothScrollEnabled = "smoothScrollEnabled"
     static let smoothScrollStep = "smoothScrollStep"      // pixels per wheel tick
     static let mouseNavigationEnabled = "mouseNavigationEnabled" // side buttons trigger Back and Forward
@@ -61,6 +63,8 @@ enum DefaultsKey {
     static let switcherWindowlessApps = "switcherWindowlessApps" // SwitcherWindowlessApps raw value
     static let switcherAppRules = "switcherAppRules" // [bundle id: SwitcherAppRule raw value]
     static let switcherCurrentSpaceOnly = "switcherCurrentSpaceOnly" // list only windows on the desktop the user is in (issue #337)
+    static let switcherSearchPinEnabled = "switcherSearchPinEnabled" // S pins the search field open, off by default so existing users typing S as a search letter see no change
+    static let switcherShowShortcutHints = "switcherShowShortcutHints" // show the shortcut bar under the large-icon switcher
     static let dockPreviewEnabled = "dockPreviewEnabled"
     static let dockPreviewBackgroundOpacity = "dockPreviewBackgroundOpacity" // how solid the preview panel's material is drawn (DockPreviewSupport.backgroundOpacityRange)
     static let dockClickMinimize = "dockClickMinimize"    // click the active app's Dock icon to minimize its windows
@@ -199,6 +203,7 @@ enum DefaultsKey {
     static let panelShowToggles = "panelShowToggles"
     // Quick toggles tab: per-action visibility (the order lives in panelToggleOrder).
     static let panelToggleDarkMode = "panelToggleDarkMode"
+    static let panelToggleKeyboardLight = "panelToggleKeyboardLight"
     // Keep the existing storage key so moving the row preserves its visibility choice.
     static let panelToggleMicMute = "panelUtilityMicMute"
     static let panelToggleEmptyTrash = "panelToggleEmptyTrash"
@@ -443,6 +448,7 @@ enum DefaultsKey {
     static let recorderGIFSize = "recorderGIFSize"
     static let recorderGIFFrameRate = "recorderGIFFrameRate"
     static let recorderEditorPresets = "recorderEditorPresets"
+    static let recorderSharingEnabled = "recorderSharingEnabled"
     static let panelUtilityScreenRecorder = "panelUtilityScreenRecorder"
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
@@ -660,6 +666,7 @@ enum Defaults {
         DefaultsKey.batteryLimit: 10,
         DefaultsKey.keepAwakeAutoStart: false,
         DefaultsKey.keepAwakeRightClickToggle: false,
+        DefaultsKey.keepAwakeAllowDisplaySleep: false,
         DefaultsKey.keepAwakeExternalDisplay: false,
         DefaultsKey.keepAwakeConnectedToPower: false,
         DefaultsKey.keepAwakeMouseJiggleEnabled: false,
@@ -671,6 +678,7 @@ enum Defaults {
         DefaultsKey.keepAwakeActiveIcon: KeepAwakeActiveIcon.vorssaint.rawValue,
         DefaultsKey.showCountdown: false,
         DefaultsKey.scrollInverterEnabled: false,
+        DefaultsKey.scrollInverterHorizontalEnabled: false,
         DefaultsKey.smoothScrollEnabled: false,
         DefaultsKey.smoothScrollStep: 40,
         DefaultsKey.mouseNavigationEnabled: false,
@@ -678,11 +686,11 @@ enum Defaults {
         DefaultsKey.mouseButtonShortcuts: [String: String](),
         DefaultsKey.superKeyEnabled: false,
         DefaultsKey.superKeySoloAction: SuperKeySoloAction.none.rawValue,
-        DefaultsKey.smoothScrollExceptions: [],
-        DefaultsKey.scrollInverterExceptions: [],
-        DefaultsKey.mouseNavigationExceptions: [],
-        DefaultsKey.mouseButtonExceptions: [],
-        DefaultsKey.middleClickExceptions: [],
+        DefaultsKey.smoothScrollExceptions: [String](),
+        DefaultsKey.scrollInverterExceptions: [String](),
+        DefaultsKey.mouseNavigationExceptions: [String](),
+        DefaultsKey.mouseButtonExceptions: [String](),
+        DefaultsKey.middleClickExceptions: [String](),
         DefaultsKey.switcherEnabled: true,
         DefaultsKey.switcherShortcut: "command:48",
         DefaultsKey.switcherWindowShortcut: GlobalShortcut.switcherWindowDefault.storageValue,
@@ -693,6 +701,8 @@ enum Defaults {
         DefaultsKey.switcherWindowlessApps: SwitcherWindowlessApps.fallback.rawValue,
         DefaultsKey.switcherAppRules: [String: String](),
         DefaultsKey.switcherCurrentSpaceOnly: false,
+        DefaultsKey.switcherSearchPinEnabled: false,
+        DefaultsKey.switcherShowShortcutHints: true,
         DefaultsKey.dockPreviewEnabled: false,
         DefaultsKey.dockPreviewBackgroundOpacity: 1.0,
         DefaultsKey.dockClickMinimize: false,
@@ -725,7 +735,7 @@ enum Defaults {
         // keeps the value shipped releases always had.
         DefaultsKey.shelfCloseAfterDrop: false,
         DefaultsKey.shelfRemoveAfterDrop: true,
-        DefaultsKey.shelfAutomaticExclusions: [],
+        DefaultsKey.shelfAutomaticExclusions: [String](),
         DefaultsKey.extraBrightnessEnabled: false,
         DefaultsKey.extraBrightnessLevel: 100,
         DefaultsKey.brightnessControlEnabled: false,
@@ -752,7 +762,7 @@ enum Defaults {
         DefaultsKey.whatsAppDownloadsLastCleanupBytes: 0,
         DefaultsKey.whatsAppDownloadsLastCleanupFailed: 0,
         DefaultsKey.whatsAppDownloadsLastCleanupAutomatic: false,
-        DefaultsKey.whatsAppDownloadsExclusions: [],
+        DefaultsKey.whatsAppDownloadsExclusions: [String](),
         DefaultsKey.whatsAppDownloadsAccessConfirmed: false,
         DefaultsKey.whatsAppOrganizerEnabled: false,
         DefaultsKey.whatsAppOrganizerDestinationPath: "",
@@ -793,7 +803,7 @@ enum Defaults {
         DefaultsKey.appUpdatesNotify: true,
         DefaultsKey.appUpdatesLastCheck: 0.0,
         DefaultsKey.appUpdatesLastCount: 0,
-        DefaultsKey.appUpdatesNotifiedIDs: [],
+        DefaultsKey.appUpdatesNotifiedIDs: [String](),
         DefaultsKey.panelUtilityMedia: true,
         DefaultsKey.panelUtilityClipboard: true,
         DefaultsKey.panelUtilityWindowLayout: true,
@@ -823,6 +833,7 @@ enum Defaults {
         DefaultsKey.panelShowControls: true,
         DefaultsKey.panelShowToggles: true,
         DefaultsKey.panelToggleDarkMode: true,
+        DefaultsKey.panelToggleKeyboardLight: true,
         DefaultsKey.panelToggleMicMute: true,
         DefaultsKey.panelToggleEmptyTrash: true,
         DefaultsKey.panelToggleEjectDisks: true,
@@ -988,6 +999,7 @@ enum Defaults {
         DefaultsKey.recorderGIFSize: RecorderSupport.GIFSize.medium.rawValue,
         DefaultsKey.recorderGIFFrameRate: 12,
         DefaultsKey.recorderEditorPresets: Data(),
+        DefaultsKey.recorderSharingEnabled: true,
         DefaultsKey.panelUtilityScreenRecorder: true,
         DefaultsKey.screenshotShortcutEnabled: false,
         DefaultsKey.screenshotShortcut: GlobalShortcut.screenshotDefault.storageValue,
@@ -1059,6 +1071,7 @@ enum Defaults {
     static func register() {
         let defaults = UserDefaults.standard
         migrateFanControlVisibility(in: defaults)
+        migrateScrollInverterAxes(in: defaults)
         defaults.register(defaults: registeredDefaults)
         defaults.register(defaults: AppFeature.availabilityDefaults)
         migrateLegacyMenuBarTemperatureMetric(in: defaults)
@@ -1069,6 +1082,17 @@ enum Defaults {
         migrateScreenshotOpenEditorDirectly(in: defaults)
         migrateSilentHeadphonesDisconnectVolume(in: defaults)
         migrateSwitcherWindowlessFinder(in: defaults)
+    }
+
+    /// The former single switch also reversed vertical wheel events redirected
+    /// sideways with Shift. Mirror that choice once so updates and older
+    /// settings backups keep the same behavior until the user separates axes.
+    static func migrateScrollInverterAxes(in defaults: UserDefaults) {
+        guard defaults.object(forKey: DefaultsKey.scrollInverterHorizontalEnabled) == nil else {
+            return
+        }
+        defaults.set(defaults.bool(forKey: DefaultsKey.scrollInverterEnabled),
+                     forKey: DefaultsKey.scrollInverterHorizontalEnabled)
     }
 
     static func migrateFanControlVisibility(in defaults: UserDefaults) {

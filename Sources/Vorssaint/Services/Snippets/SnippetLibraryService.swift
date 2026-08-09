@@ -94,6 +94,7 @@ final class SnippetLibraryService: ObservableObject {
     func show() {
         reloadSnippets()
         let panel = ensurePanel()
+        TextSnippetService.shared.setLibraryVisible(true)
         presentationID = UUID()
         query = ""
         selectedID = rows.first?.id
@@ -111,6 +112,7 @@ final class SnippetLibraryService: ObservableObject {
     func hide() {
         removeMonitors()
         panel?.orderOut(nil)
+        TextSnippetService.shared.setLibraryVisible(false)
     }
 
     // MARK: - Selection

@@ -11,6 +11,18 @@ import UniformTypeIdentifiers
 /// What the editor view watches. Holds the document, the player and the
 /// filmstrip; every change goes through here so undo has one thing to record.
 final class RecorderEditorModel: ObservableObject, BackdropEditing {
+    enum ExportPhase: Equatable {
+        case saving
+        case compressing
+        case uploading
+    }
+
+    enum ShareFailure: Error {
+        case tooLarge
+        case failed
+        case cancelled
+    }
+
     let take: RecorderTakeStore.Take
     let player: AVPlayer
 
@@ -20,6 +32,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     @Published private(set) var thumbnails: [CGImage] = []
     @Published private(set) var isExporting = false
     @Published private(set) var exportProgress: Double = 0
+    @Published private(set) var exportPhase: ExportPhase = .saving
     /// The last file this recording produced. Kept so the editor can hand it
     /// over: a HUD naming a folder is not the same as giving somebody the file.
     @Published private(set) var lastExportedURL: URL?
@@ -971,6 +984,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     // MARK: - Export
 
     private var exporter: RecorderExporter?
+    private var shareTask: Task<Void, Never>?
 
     func export(_ output: RecorderExporter.Output,
                 to destination: URL,
@@ -980,6 +994,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         pause()
         isExporting = true
         exportProgress = 0
+        exportPhase = .saving
         let exporter = RecorderExporter()
         self.exporter = exporter
         let document = document
@@ -1001,8 +1016,76 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         }
     }
 
+    func share(_ duration: RecordingShareDuration,
+               completion: @escaping (Result<RecordingShareRecord, ShareFailure>) -> Void) {
+        guard !isExporting else { return }
+        pause()
+        isExporting = true
+        exportProgress = 0
+        exportPhase = .compressing
+        let exporter = RecorderExporter()
+        self.exporter = exporter
+        let document = document
+        let take = take
+        shareTask = Task { @MainActor [weak self] in
+            let result = await exporter.exportForSharing(
+                take: take,
+                document: document) { value in
+                    DispatchQueue.main.async { [weak self] in
+                        self?.exportProgress = value
+                    }
+                }
+            guard let self else {
+                result.artifact?.discard()
+                return
+            }
+            if let failure = result.failure {
+                self.finishSharing()
+                switch failure {
+                case .cancelled:
+                    completion(.failure(.cancelled))
+                case .tooLargeForSharing:
+                    completion(.failure(.tooLarge))
+                default:
+                    completion(.failure(.failed))
+                }
+                return
+            }
+            guard let artifact = result.artifact else {
+                self.finishSharing()
+                completion(.failure(.failed))
+                return
+            }
+            if Task.isCancelled {
+                artifact.discard()
+                self.finishSharing()
+                completion(.failure(.cancelled))
+                return
+            }
+            self.exportPhase = .uploading
+            self.exportProgress = 1
+            do {
+                let record = try await RecordingShareService.shared.createLink(
+                    artifact: artifact,
+                    duration: duration)
+                self.finishSharing()
+                completion(.success(record))
+            } catch {
+                self.finishSharing()
+                completion(.failure(Task.isCancelled ? .cancelled : .failed))
+            }
+        }
+    }
+
+    private func finishSharing() {
+        isExporting = false
+        exporter = nil
+        shareTask = nil
+    }
+
     func cancelExport() {
         exporter?.cancel()
+        shareTask?.cancel()
     }
 }
 
@@ -1025,6 +1108,10 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
 
     private var strings: RecorderFeatureStrings {
         FeatureStrings.recorder(L10n.shared.language)
+    }
+
+    private var shareStrings: RecorderShareStrings {
+        FeatureStrings.recorderShare(L10n.shared.language)
     }
 
     init(take: RecorderTakeStore.Take) {
@@ -1113,6 +1200,25 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
 
     func copyAndDelete() {
         copyVideoAndDelete(true)
+    }
+
+    func share(_ duration: RecordingShareDuration,
+               completion: @escaping (RecordingShareRecord) -> Void) {
+        model.share(duration) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case let .success(record):
+                completion(record)
+            case .failure(.cancelled):
+                break
+            case .failure(.tooLarge):
+                NSSound.beep()
+                QuickToolHUD.show(icon: "link", message: self.shareStrings.tooLarge)
+            case .failure(.failed):
+                NSSound.beep()
+                QuickToolHUD.show(icon: "link", message: self.shareStrings.failed)
+            }
+        }
     }
 
     private func copyVideoAndDelete(_ deletesRecording: Bool) {

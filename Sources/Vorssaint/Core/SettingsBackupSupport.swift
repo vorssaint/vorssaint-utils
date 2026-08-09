@@ -156,48 +156,36 @@ enum SettingsBackupSupport {
             return true
         }
         switch expected {
-        case is Bool: return value is Bool
-        case is Int: return value is Int
-        case is Double: return (value is Double) || (value is Int)
+        case is Bool: return isBoolean(value)
+        case is Int: return isInteger(value)
+        case is Double: return isNumber(value)
         case is String: return value is String
-        case is [Any]:
-            guard let arr = value as? [Any] else { return false }
-            return arrayElementsMatch(arr, against: expected as? [Any])
-        case is [String: Any]:
-            guard let dict = value as? [String: Any] else { return false }
-            return dictValuesMatch(dict, against: expected as? [String: Any])
+        case is [String]: return value is [String]
+        case is [String: String]: return value is [String: String]
+        case is [Any]: return value is [Any]
+        case is [String: Any]: return value is [String: Any]
         default: return true
         }
     }
 
-    /// When the registered default carries a concrete element, the incoming
-    /// array's elements must match its type. An empty default (most collection
-    /// keys) skips the check since there is nothing to compare against.
-    private static func arrayElementsMatch(_ value: [Any], against expected: [Any]?) -> Bool {
-        guard let expected, let first = expected.first else { return true }
-        let elementCheck: (Any) -> Bool
-        if first is String {
-            elementCheck = { $0 is String }
-        } else if first is NSNumber {
-            elementCheck = { $0 is NSNumber }
-        } else {
-            return true
-        }
-        return value.allSatisfy(elementCheck)
+    private static func number(_ value: Any) -> NSNumber? {
+        value as? NSNumber
     }
 
-    /// Same for dictionaries: when the default has at least one entry, each
-    /// incoming value must match the type of the first value in the default.
-    private static func dictValuesMatch(_ value: [String: Any], against expected: [String: Any]?) -> Bool {
-        guard let expected, let first = expected.first else { return true }
-        let valueCheck: (Any) -> Bool
-        if first.value is String {
-            valueCheck = { $0 is String }
-        } else if first.value is NSNumber {
-            valueCheck = { $0 is NSNumber }
-        } else {
-            return true
+    private static func isBoolean(_ value: Any) -> Bool {
+        guard let value = number(value) else { return false }
+        return CFGetTypeID(value) == CFBooleanGetTypeID()
+    }
+
+    private static func isInteger(_ value: Any) -> Bool {
+        guard let value = number(value), CFGetTypeID(value) != CFBooleanGetTypeID() else {
+            return false
         }
-        return value.values.allSatisfy(valueCheck)
+        return !CFNumberIsFloatType(unsafeBitCast(value, to: CFNumber.self))
+    }
+
+    private static func isNumber(_ value: Any) -> Bool {
+        guard let value = number(value) else { return false }
+        return CFGetTypeID(value) != CFBooleanGetTypeID()
     }
 }

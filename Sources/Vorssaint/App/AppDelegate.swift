@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import Carbon.HIToolbox
 import os.log
 import Combine
 import SwiftUI
@@ -774,6 +775,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func handlePopoverKeyDown(_ event: NSEvent) -> NSEvent? {
+        if popover.isShown, event.keyCode == UInt16(kVK_Escape) {
+            closePopover()
+            return nil
+        }
+
         guard popover.isShown,
               PanelInteractionState.shared.keepsPopoverOpen,
               isPlainPopoverHoldKey(event),

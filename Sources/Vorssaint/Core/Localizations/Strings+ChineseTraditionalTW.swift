@@ -166,7 +166,7 @@ extension Strings {
         middleClickTapThreeFingers: "3 根手指",
         middleClickTapFourFingers: "4 根手指",
         middleClickTapCaption: "用該數量的手指輕點（無需按壓）也會觸發中鍵點按。滑動不會觸發。如果 macOS 的三指輕點被指定為「查詢」，請將其關閉以免兩者同時觸發。",
-        quickToolsTab: "快速工具",
+        quickToolsTab: "快速面板",
         quickToolShortcutToggle: "全域快速鍵",
         ocrName: "拷貝螢幕文字",
         ocrCaption: "選擇螢幕上的一塊區域，識別出的文字會被拷貝，隨時可以貼上。",
@@ -769,7 +769,7 @@ extension Strings {
         cleaningNeedsAxBody: "為了安全鎖定鍵盤，Vorssaint 需要輔助使用權限。請在「系統設定」中允許後重試。",
 
         tabSupport: "支援",
-        shortcutsPageCaption: "App 目前啟用的所有全域快速鍵。每個快速鍵在其功能頁面中設定。",
+        shortcutsPageCaption: "在這裡編輯此 Mac 已安裝功能的所有全域快速鍵。未啟用的快速鍵仍會保留，但不會執行。",
         shortcutsPageTitle: "鍵盤快速鍵",
         settingsSearchPlaceholder: "搜尋設定",
         donateHeading: "支援 Vorssaint",
@@ -894,6 +894,12 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "會取代按右鍵選單。",
         urlCleanerCustomTitle: "加入要移除的名稱",
         urlCleanerCustomPlaceholder: "ref, source",
-        urlCleanerCustomCaption: "請用逗號分隔參數名稱。它們會從所有連結中移除。"
+        urlCleanerCustomCaption: "請用逗號分隔參數名稱。它們會從所有連結中移除。",
+        switcherSearchPin: "按 S 固定搜尋",
+        switcherSearchPinCaption: "瀏覽時按 S 啟動搜尋，固定切換器；避免自訂快捷鍵為 ⌥ 時打出特殊字元，以及 Q/W 開頭誤觸發關閉/結束。",
+        invertVerticalScroll: "反轉垂直捲動",
+        invertHorizontalScroll: "反轉水平捲動",
+        switcherShowShortcutHints: "顯示快速鍵提示",
+        switcherShowShortcutHintsCaption: "在圖示下方顯示 App 和視窗快速鍵。"
     )
 }

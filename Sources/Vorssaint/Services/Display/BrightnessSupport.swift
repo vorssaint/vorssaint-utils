@@ -7,6 +7,24 @@ import Foundation
 /// reply parsing, value scaling and the display-to-service match score. No
 /// IOKit here so the unit tests cover every byte.
 enum BrightnessSupport {
+    struct DisplayTopology: Equatable {
+        let online: Set<UInt32>
+        let active: Set<UInt32>
+    }
+
+    /// Opening the panel while a display scan is already running should use
+    /// that scan instead of queuing the same slow DDC work again. A changed
+    /// topology and the wake path still require a fresh rebuild.
+    static func shouldQueueRebuild(topology: DisplayTopology,
+                                   pending: DisplayTopology?,
+                                   force: Bool = false) -> Bool {
+        force || pending != topology
+    }
+
+    static func brightnessAfterRebuild(probed: Double, pending: Double?) -> Double {
+        pending ?? probed
+    }
+
     /// VCP code for luminance in the DDC/CI standard.
     static let luminanceCode: UInt8 = 0x10
     /// 7-bit I2C address DDC displays listen on.

@@ -166,7 +166,7 @@ extension Strings {
         middleClickTapThreeFingers: "3 dedos",
         middleClickTapFourFingers: "4 dedos",
         middleClickTapCaption: "Un toque ligero con ese número de dedos, sin presionar, también dispara el clic central. Deslizar nunca cuenta. Si el toque con tres dedos de macOS está asignado a Consultar, desactívalo para que no se disparen juntos.",
-        quickToolsTab: "Herramientas rápidas",
+        quickToolsTab: "Panel rápido",
         quickToolShortcutToggle: "Atajo global",
         ocrName: "Copiar texto de la pantalla",
         ocrCaption: "Selecciona un área de la pantalla y el texto reconocido se copia, listo para pegar.",
@@ -768,7 +768,7 @@ extension Strings {
         cleaningNeedsAxBody: "Para bloquear el teclado de forma segura, Vorssaint necesita el permiso de Accesibilidad. Concédelo en Ajustes del Sistema e inténtalo de nuevo.",
 
         tabSupport: "Apoyar",
-        shortcutsPageCaption: "Todos los atajos globales activos en la app ahora mismo. Cada uno se configura en la página de su función.",
+        shortcutsPageCaption: "Edita aquí todos los atajos globales de las funciones instaladas en este Mac. Los inactivos se guardan, pero no se ejecutan.",
         shortcutsPageTitle: "Atajos de teclado",
         settingsSearchPlaceholder: "Buscar en ajustes",
         donateHeading: "Apoya a Vorssaint",
@@ -893,6 +893,12 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "Sustituye el menú contextual del clic derecho.",
         urlCleanerCustomTitle: "Más nombres para eliminar",
         urlCleanerCustomPlaceholder: "ref, origen",
-        urlCleanerCustomCaption: "Separa los nombres de parámetros con comas. Se eliminarán de todos los enlaces."
+        urlCleanerCustomCaption: "Separa los nombres de parámetros con comas. Se eliminarán de todos los enlaces.",
+        switcherSearchPin: "Fijar búsqueda con S",
+        switcherSearchPinCaption: "S inicia una búsqueda y fija el selector abierto: al escribir ya no aparecen caracteres especiales cuando el atajo usa ⌥, y una búsqueda que empieza por Q o W ya no cierra la ventana ni cierra la app por error.",
+        invertVerticalScroll: "Invertir el desplazamiento vertical",
+        invertHorizontalScroll: "Invertir el desplazamiento horizontal",
+        switcherShowShortcutHints: "Mostrar indicaciones de atajos",
+        switcherShowShortcutHintsCaption: "Muestra los atajos de apps y ventanas debajo de los iconos."
     )
 }

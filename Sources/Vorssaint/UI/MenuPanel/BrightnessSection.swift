@@ -27,24 +27,6 @@ struct BrightnessSection: View {
                         row(display)
                     }
                 }
-                if service.keyboardLightEnabled != nil {
-                    Divider()
-                    Toggle(isOn: Binding(
-                        get: { service.keyboardLightEnabled ?? false },
-                        set: { service.setKeyboardLightEnabled($0) }
-                    )) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "keyboard")
-                                .font(.system(size: 10.5, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 16)
-                            Text(strings.keyboardLight)
-                                .font(.system(size: 11.5, weight: .medium))
-                        }
-                    }
-                    .toggleStyle(.switch)
-                    .controlSize(.mini)
-                }
                 if let failure = service.displayControlFailure {
                     Text(displayControlFailureText(failure, strings: strings))
                         .font(.system(size: 10.5))

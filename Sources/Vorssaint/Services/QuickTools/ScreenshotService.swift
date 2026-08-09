@@ -630,6 +630,20 @@ final class ScreenshotService: ObservableObject {
             downscaleTo1x: downscaleTo1x)
     }
 
+    /// Vends a full-resolution PNG for dragging into a folder or another app.
+    /// The temporary write begins only when the person starts the drag.
+    static func dragItemProvider(image: CGImage,
+                                 strings: ScreenshotFeatureStrings) -> NSItemProvider? {
+        guard let data = ScreenshotRenderer.pngData(from: image) else {
+            return nil
+        }
+        let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
+        guard let url = try? ScreenshotSupport.temporaryDragFile(data: data, name: name) else {
+            return nil
+        }
+        return NSItemProvider(contentsOf: url)
+    }
+
     // MARK: - Save location
 
     /// The configured folder when it still exists, otherwise the Desktop,

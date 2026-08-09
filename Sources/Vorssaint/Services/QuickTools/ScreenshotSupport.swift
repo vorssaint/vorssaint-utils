@@ -476,6 +476,19 @@ enum ScreenshotSupport {
         return "\(prefix) \(formatter.string(from: date)).\(fileExtension)"
     }
 
+    /// Writes one drag payload into its own temporary directory. Separate
+    /// directories keep captures made in the same second from replacing each
+    /// other while either drag is still in flight.
+    static func temporaryDragFile(data: Data, name: String,
+                                  directory: URL = FileManager.default.temporaryDirectory) throws -> URL {
+        let folder = directory.appendingPathComponent("ScreenshotDrag-\(UUID().uuidString)",
+                                                       isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent((name as NSString).lastPathComponent)
+        try data.write(to: url, options: .atomic)
+        return url
+    }
+
     /// Expands a date-token pattern into a relative subfolder path, e.g.
     /// "%y-%mo" becomes "24-03" and "%year/%month" becomes "2024/March".
     /// Slashes in the pattern become nested folders. The result never

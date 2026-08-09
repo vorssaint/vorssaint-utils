@@ -166,7 +166,7 @@ extension Strings {
         middleClickTapThreeFingers: "3 Finger",
         middleClickTapFourFingers: "4 Finger",
         middleClickTapCaption: "Ein leichtes Tippen mit dieser Fingerzahl, ohne zu drücken, löst ebenfalls den Mittelklick aus. Wischen zählt nie. Ist das Dreifinger-Tippen von macOS mit Nachschlagen belegt, schalte es aus, damit nicht beides zugleich auslöst.",
-        quickToolsTab: "Schnellwerkzeuge",
+        quickToolsTab: "Schnellpanel",
         quickToolShortcutToggle: "Globaler Kurzbefehl",
         ocrName: "Text vom Bildschirm kopieren",
         ocrCaption: "Wähle einen Bildschirmbereich aus und der erkannte Text wird kopiert, bereit zum Einsetzen.",
@@ -768,7 +768,7 @@ extension Strings {
         cleaningNeedsAxBody: "Um die Tastatur sicher zu sperren, benötigt Vorssaint die Berechtigung für Bedienungshilfen. Erteile sie in den Systemeinstellungen und versuche es erneut.",
 
         tabSupport: "Unterstützen",
-        shortcutsPageCaption: "Alle derzeit aktiven globalen Kurzbefehle der App. Jeder wird auf der Seite seiner Funktion eingestellt.",
+        shortcutsPageCaption: "Bearbeite hier alle globalen Kurzbefehle der auf diesem Mac installierten Funktionen. Inaktive Kurzbefehle bleiben gespeichert, werden aber nicht ausgeführt.",
         shortcutsPageTitle: "Tastaturkurzbefehle",
         settingsSearchPlaceholder: "Einstellungen durchsuchen",
         donateHeading: "Vorssaint unterstützen",
@@ -893,6 +893,12 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "Ersetzt das Kontextmenü beim Rechtsklick.",
         urlCleanerCustomTitle: "Weitere Namen zum Entfernen",
         urlCleanerCustomPlaceholder: "ref, quelle",
-        urlCleanerCustomCaption: "Trenne Parameternamen durch Kommas. Sie werden aus jedem Link entfernt."
+        urlCleanerCustomCaption: "Trenne Parameternamen durch Kommas. Sie werden aus jedem Link entfernt.",
+        switcherSearchPin: "Suche mit S anpinnen",
+        switcherSearchPinCaption: "S startet die Suche und pinnt den Umschalter an – so tippst du keine Sonderzeichen mehr, wenn dein Kurzbefehl ⌥ nutzt, und eine Suche, die mit Q oder W beginnt, schließt das Fenster oder die App nicht mehr versehentlich.",
+        invertVerticalScroll: "Vertikales Scrollen umkehren",
+        invertHorizontalScroll: "Horizontales Scrollen umkehren",
+        switcherShowShortcutHints: "Kurzbefehlhinweise anzeigen",
+        switcherShowShortcutHintsCaption: "Zeigt die Kurzbefehle für Apps und Fenster unter den Symbolen."
     )
 }

@@ -7,13 +7,15 @@ All notable changes to this project are documented here. The format follows
 ## [3.3.1]
 
 ### Summary
-Vorssaint 3.3.1 adds editable recording audio, one-click app installs, Fan Control
-and smarter window tools. App updates, captures, cleaning, app removal and the menu
-bar panel are more reliable, and Quit on close better protects open apps.
+Vorssaint 3.3.1 adds editable recording audio, temporary recording links, one-click app installs,
+Fan Control and more configurable window tools. It also expands Keep Awake, makes mouse controls
+more flexible and improves keyboard, menu bar, Switcher, display, update, capture, cleaning and app removal workflows.
 
 ### Added
 - Screen recordings can capture Mac sound and microphone separately. Choose them while
   selecting, then adjust or remove each track in the editor.
+- Finished recordings can create 1-hour or 6-hour links after local compression to under
+  100 MB. Disable under Screen recording.
 - A mounted disk image with one app can install it into Applications, eject itself and
   move its download to the Trash. Off by default in Features.
 - A configurable shortcut opens a copied image directly in the screenshot editor.
@@ -29,9 +31,19 @@ bar panel are more reliable, and Quit on close better protects open apps.
   Thanks to @PathGao.
 
 ### Changed
+- The App Switcher can hide the shortcut hints below its large icon row.
+  Under Switcher.
+- Screenshot previews can be dragged directly into folders or other apps as
+  full-resolution PNG files.
+- Mouse wheel direction can now be inverted separately for vertical and horizontal
+  scrolling, including horizontal scrolling with Shift. Thanks to @Jadens-arc.
+- Keyboard Shortcuts now groups installed features, shows which shortcuts are active
+  and edits them in place, including Super key alternatives.
+- App Switcher search can stay open after pressing S, letting you release the shortcut
+  while typing. Off by default under Switcher. Thanks to @liuxxxu.
 - Dock Preview shows slightly larger thumbnails and gives every window title a clear,
   prominent line beneath its preview.
-- Display controls can turn the keyboard light on or off from Settings or the menu bar
+- Quick toggles can turn the keyboard light on or off from Settings or the menu bar
   panel.
 - Simplified Chinese wording now follows system terms and uses native punctuation
   throughout. Thanks to @xueyang-dev.
@@ -48,6 +60,8 @@ bar panel are more reliable, and Quit on close better protects open apps.
   Under Monitor. Thanks to @WazZro.
 - Mouse feature exceptions can now choose apps from anywhere on the Mac.
   Thanks to @kyteidev.
+- The radial menu can now open from any extra mouse button, not only Back and Forward.
+  Thanks to @MineraleYT.
 - The optional Fan Control beta shows live fan speed in the panel and menu bar.
   It can cool at maximum for 15 minutes, then returns to automatic control.
 - Window Layout can move the active window to the previous display, with an optional
@@ -56,6 +70,8 @@ bar panel are more reliable, and Quit on close better protects open apps.
   shortcut. Thanks to @UnbrokenMango21.
 - The screenshot preview can stay near the capture or appear in any screen corner.
   Under Screenshot. Thanks to @lmilojevicc.
+- Keep Awake can let displays sleep while the Mac stays awake.
+  Under Energy and Options. Thanks to @wenujacodes.
 - Keep Awake can optionally toggle with a right click on the menu bar icon.
   Under Energy. Thanks to @yspreen.
 - The window shortcut now opens the switcher for the app in front, without
@@ -68,6 +84,13 @@ bar panel are more reliable, and Quit on close better protects open apps.
   searchable, reusable and clearable when new capture is off. Thanks to @PathGao.
 
 ### Fixed
+- The menu bar panel now closes when you press Escape.
+- The App Switcher can change windows while the screenshot or screen recording editor is open.
+- Keyboard input stays responsive in demanding apps when file shortcuts, text
+  snippets or Super key are enabled.
+- Quick panel is now named consistently in Settings. Thanks to @lgfmartins.
+- Newly connected monitors now appear promptly in Displays while their brightness
+  controls finish getting ready.
 - Quit on close now keeps browser-hosted apps open while their window remains.
   Thanks to @ChaotikTiger.
 - App updates no longer lists command-line packages or records left behind after

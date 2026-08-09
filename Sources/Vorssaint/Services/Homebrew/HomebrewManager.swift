@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import Combine
+import Darwin
 import Foundation
 
 final class HomebrewManager: ObservableObject {
@@ -227,7 +228,9 @@ final class HomebrewManager: ObservableObject {
     func cancelOperation() {
         guard operation != nil else { return }
         cancelRequested = true
-        activeProcess?.terminate()
+        if let activeProcess {
+            Self.stop(activeProcess)
+        }
         appendLog("\nCancelled.\n")
     }
 
@@ -605,6 +608,27 @@ final class HomebrewManager: ObservableObject {
     /// These are normally fast, but a hung NFS share or locked database can
     /// make them stall indefinitely.
     private static let brewReadTimeout: TimeInterval = 30
+    private static let processTerminationGrace: TimeInterval = 2
+
+    /// SIGTERM is cooperative. Escalate only when a command ignores it so a
+    /// cancelled or timed-out operation cannot keep the serial queue forever.
+    private static func stop(_ process: Process, finished: DispatchSemaphore? = nil) {
+        guard process.isRunning else { return }
+        process.terminate()
+        if let finished {
+            if finished.wait(timeout: .now() + processTerminationGrace) == .timedOut,
+               process.isRunning {
+                kill(process.processIdentifier, SIGKILL)
+                _ = finished.wait(timeout: .now() + processTerminationGrace)
+            }
+            return
+        }
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + processTerminationGrace) {
+            if process.isRunning {
+                kill(process.processIdentifier, SIGKILL)
+            }
+        }
+    }
 
     private func run(_ command: HomebrewCommand,
                      completion: @escaping (_ status: Int32, _ output: String) -> Void) {
@@ -615,41 +639,40 @@ final class HomebrewManager: ObservableObject {
             let pipe = Pipe()
             process.standardOutput = pipe
             process.standardError = pipe
+            var data = Data()
+            let lock = NSLock()
+            let drained = DispatchSemaphore(value: 0)
+            pipe.fileHandleForReading.readabilityHandler = { handle in
+                let chunk = handle.availableData
+                guard !chunk.isEmpty else {
+                    drained.signal()
+                    return
+                }
+                lock.lock()
+                data.append(chunk)
+                lock.unlock()
+            }
+            let finished = DispatchSemaphore(value: 0)
+            process.terminationHandler = { _ in finished.signal() }
             do {
                 try process.run()
             } catch {
+                pipe.fileHandleForReading.readabilityHandler = nil
                 completion(-1, error.localizedDescription)
                 return
             }
-            // Drain the pipe on its own thread so a full buffer never
-            // deadlocks the timeout wait below.
-            var data = Data()
-            let drained = DispatchSemaphore(value: 0)
-            DispatchQueue.global(qos: .utility).async {
-                data = pipe.fileHandleForReading.readDataToEndOfFile()
-                drained.signal()
-            }
-            let finished = DispatchSemaphore(value: 0)
-            DispatchQueue.global(qos: .utility).async {
-                process.waitUntilExit()
-                finished.signal()
-            }
             if finished.wait(timeout: .now() + Self.brewReadTimeout) == .timedOut {
-                process.terminate()
-                _ = finished.wait(timeout: .now() + 1)
-                _ = drained.wait(timeout: .now() + 1)
-                completion(-1, String(data: data, encoding: .utf8) ?? "")
-                return
+                Self.stop(process, finished: finished)
             }
             _ = drained.wait(timeout: .now() + 1)
-            completion(process.terminationStatus, String(data: data, encoding: .utf8) ?? "")
+            pipe.fileHandleForReading.readabilityHandler = nil
+            try? pipe.fileHandleForReading.close()
+            lock.lock()
+            let output = String(data: data, encoding: .utf8) ?? ""
+            lock.unlock()
+            completion(process.isRunning ? -1 : process.terminationStatus, output)
         }
     }
-
-    /// Long-running commands (install, upgrade) get a generous timeout.
-    /// The UI also offers a cancel button; this only catches a process that
-    /// hangs without producing output and without responding to terminate.
-    private static let brewStreamingTimeout: TimeInterval = 600
 
     private func runStreaming(_ command: HomebrewCommand,
                               onOutput: @escaping (String) -> Void,
@@ -663,9 +686,13 @@ final class HomebrewManager: ObservableObject {
             process.standardError = pipe
             var output = Data()
             let lock = NSLock()
+            let drained = DispatchSemaphore(value: 0)
             pipe.fileHandleForReading.readabilityHandler = { handle in
                 let data = handle.availableData
-                guard !data.isEmpty else { return }
+                guard !data.isEmpty else {
+                    drained.signal()
+                    return
+                }
                 lock.lock()
                 output.append(data)
                 lock.unlock()
@@ -681,24 +708,10 @@ final class HomebrewManager: ObservableObject {
                 return
             }
             DispatchQueue.main.async { self?.activeProcess = process }
-            let finished = DispatchSemaphore(value: 0)
-            DispatchQueue.global(qos: .utility).async {
-                process.waitUntilExit()
-                finished.signal()
-            }
-            if finished.wait(timeout: .now() + Self.brewStreamingTimeout) == .timedOut {
-                process.terminate()
-            }
-            // Wait for the background waitUntilExit to settle (normal exit or
-            // SIGTERM), then collect the remainder safely.
-            _ = finished.wait(timeout: .now() + 2)
+            process.waitUntilExit()
+            _ = drained.wait(timeout: .now() + 1)
             pipe.fileHandleForReading.readabilityHandler = nil
-            let remainder = pipe.fileHandleForReading.readDataToEndOfFile()
-            if !remainder.isEmpty {
-                lock.lock()
-                output.append(remainder)
-                lock.unlock()
-            }
+            try? pipe.fileHandleForReading.close()
             lock.lock()
             let finalOutput = String(data: output, encoding: .utf8) ?? ""
             lock.unlock()

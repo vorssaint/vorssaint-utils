@@ -69,6 +69,12 @@ final class ScreenshotQuickPreviewController {
             strings: strings,
             model: model,
             perform: { [weak self] action in self?.perform(action) },
+            dragItem: { [weak self] in
+                guard let self else { return NSItemProvider() }
+                return ScreenshotService.dragItemProvider(image: self.capture.image,
+                                                          strings: self.strings)
+                    ?? NSItemProvider()
+            },
             share: { [weak self] duration in self?.performShare(duration) },
             copySharedLink: { [weak self] in self?.copySharedLink() },
             deleteSharedLink: { [weak self] in self?.deleteSharedLink() },
@@ -370,6 +376,7 @@ private struct ScreenshotQuickPreviewView: View {
     let strings: ScreenshotFeatureStrings
     @ObservedObject var model: ScreenshotQuickPreviewModel
     let perform: (ScreenshotQuickPreviewController.Action) -> Void
+    let dragItem: () -> NSItemProvider
     let share: (ScreenshotShareDuration) -> Void
     let copySharedLink: () -> Void
     let deleteSharedLink: () -> Void
@@ -396,6 +403,7 @@ private struct ScreenshotQuickPreviewView: View {
                     )
             }
             .buttonStyle(.plain)
+            .onDrag(dragItem)
             .screenshotSafeHelp(strings.editButton)
             .accessibilityLabel(strings.editButton)
 
