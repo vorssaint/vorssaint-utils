@@ -8,8 +8,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Summary
 Vorssaint 3.3.1 adds editable recording audio, temporary recording links, one-click app installs,
-Fan Control and more configurable window tools. It also expands Keep Awake, makes mouse controls
-more flexible and improves keyboard, menu bar, Switcher, display, update, capture, cleaning and app removal workflows.
+Fan Control and more configurable window tools. It also improves Settings backups, Keep Awake,
+input controls, the menu bar, Switcher, displays, app management, capture and cleaning.
 
 ### Added
 - Screen recordings can capture Mac sound and microphone separately. Choose them while
@@ -119,6 +119,10 @@ more flexible and improves keyboard, menu bar, Switcher, display, update, captur
 - The System panel no longer shows battery readings on Macs without a battery.
 - The package manager page and Settings sidebar now keep their tops visible and
   scroll normally.
+- Package manager actions now stop cleanly if an underlying command becomes
+  unresponsive. Thanks to @PathGao.
+- Settings backup imports now reject values of the wrong type instead of applying
+  them to unrelated options. Thanks to @PathGao.
 - Apps listed under Apps to leave alone now also keep scrolling they generate
   themselves.
 - Dock Preview cards now leave your current app in front while you browse.
