@@ -231,6 +231,17 @@ enum AppUpdatesSupport {
               let results = root["results"] as? [[String: Any]] else { return [:] }
         var entries: [String: StoreEntry] = [:]
         for result in results {
+            // Asked by bundle identifier, the lookup ignores `entity` and
+            // answers with whichever title owns the identifier. An app that
+            // ships for iPhone and for Mac under one identifier answers with
+            // the iPhone one, whose version belongs to a different binary.
+            // Measured on a real Mac: a file transfer app read 1.17.0 on disk
+            // against 1.17.1 in the answer, and a menu bar app read 5.3.0
+            // against 5.2.0 — newer on disk than "the latest". Its
+            // minimumOsVersion is an iOS number too (12.0, 16.0), so the macOS
+            // check below waves it through. Only a Mac record describes the
+            // app that is actually installed here.
+            guard result["kind"] as? String == "mac-software" else { continue }
             guard let bundleID = result["bundleId"] as? String,
                   let version = result["version"] as? String,
                   !version.isEmpty else { continue }

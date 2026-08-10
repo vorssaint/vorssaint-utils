@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [3.3.2]
+
+### Summary
+Vorssaint 3.3.2 stops App updates from offering store updates that do not exist for the Mac.
+
+### Fixed
+- App updates no longer offers an iPhone app's version for a Mac app that shares its
+  bundle identifier. Those updates never appeared in the App Store because they were
+  never for this app. Thanks to @PathGao.
+
 ## [3.3.1] - 2026-08-09
 
 ### Summary
