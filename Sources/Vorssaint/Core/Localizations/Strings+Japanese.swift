@@ -198,7 +198,7 @@ extension Strings {
         switcherEnableCaption: "アプリやウインドウを切り替えます。最小化したウインドウや同じアプリの複数ウインドウにも対応します。",
         switcherUsageHint: "ショートカットを押したまま移動し、放すとウインドウがアクティブになります。Shift または ← で戻る、W でウインドウを閉じ、Q でアプリを終了、Esc でキャンセルします。",
         switcherNoWindows: "開いているウインドウはありません",
-        switcherIconRowMode: "⌘Tab を大きなアイコンで表示",
+        switcherIconRowMode: "%@ を大きなアイコンで表示",
         switcherIconRowModeCaption: "アプリごとに1つのアイコンを表示し、その上にそのアプリのウインドウプレビューを表示します。",
         switcherSimpleMode: "シンプルなアプリスイッチャー",
         switcherSimpleModeCaption: "プレビューやスイッチャーによる画面収録を使わず、アプリのアイコンとウインドウのタイトルを表示します。",
