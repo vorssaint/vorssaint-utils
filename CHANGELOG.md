@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [3.3.2]
+
+### Changed
+- The Full Disk Access note in Cleaning and the Uninstaller now says what to do once
+  System Settings opens, which only the Uninstaller page used to mention. Thanks to
+  @PathGao.
+
 ## [3.3.1] - 2026-08-09
 
 ### Summary
