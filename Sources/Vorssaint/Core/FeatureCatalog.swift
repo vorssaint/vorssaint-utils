@@ -149,7 +149,8 @@ extension AppFeature {
                                  DefaultsKey.dockClickCycleWindows]
         case .windowMaximizer: return [DefaultsKey.windowMaximizeEnabled]
         case .autoQuit: return [DefaultsKey.autoQuitEnabled]
-        case .scrollInverter: return [DefaultsKey.scrollInverterEnabled]
+        case .scrollInverter: return [DefaultsKey.scrollInverterEnabled,
+                                      DefaultsKey.scrollInverterHorizontalEnabled]
         case .smoothScroll: return [DefaultsKey.smoothScrollEnabled]
         case .mouseNavigation: return [DefaultsKey.mouseNavigationEnabled]
         case .mouseButtonShortcuts: return [DefaultsKey.mouseButtonShortcutsEnabled]
@@ -200,7 +201,7 @@ extension AppFeature {
         case .switcher: return [.accessibility, .screenRecording]
         case .dockPreview: return [.accessibility, .screenRecording]
         case .screenOCR: return [.screenRecording]
-        case .screenshot: return [.screenRecording, .accessibility]
+        case .screenshot: return [.screenRecording]
         // The sound of the Mac rides the same grant the pixels do. Microphone
         // access stays contextual, and Accessibility only keeps typing timing.
         case .screenRecorder: return [.screenRecording, .accessibility, .microphone]
@@ -231,10 +232,6 @@ extension AppFeature {
              .uninstaller, .homebrew, .appUpdates, .mixer, .cameraPreview,
              .micMute:
             return []
-        case .screenshot:
-            // Accessibility is only needed by scrolling capture. The regular
-            // screenshot flow should not ask for it during first setup.
-            return [.screenRecording]
         default:
             return permissions.filter { $0 == .accessibility || $0 == .screenRecording }
         }

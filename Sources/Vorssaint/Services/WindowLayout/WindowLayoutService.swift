@@ -503,7 +503,7 @@ final class WindowLayoutService: ObservableObject {
                 .leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds,
                 .topLeftSixth, .topCenterSixth, .topRightSixth,
                 .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
-                .topLeft, .topRight, .bottomLeft, .bottomRight:
+                .topLeft, .topRight, .bottomLeft, .bottomRight, .marginMaximize:
             return true
         default:
             return false

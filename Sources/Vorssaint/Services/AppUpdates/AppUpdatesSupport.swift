@@ -150,13 +150,10 @@ enum AppUpdatesSupport {
 
     /// Turns what the package manager reports into rows a person can act on.
     ///
-    /// The reported "installed" version is the receipt written when the
-    /// package manager last touched the app, and plenty of apps update
-    /// themselves afterwards, leaving the receipt behind. Measured on a real
-    /// Mac: an editor sat at 1.130 on disk while the receipt still said
-    /// 1.129, so the manager alone would have offered an update that had
-    /// already happened. Whenever the app bundle can be read, the bundle is
-    /// the truth and a row only survives if the app really is behind.
+    /// Package receipts can outlive an app that was removed by hand, and
+    /// plenty of apps update themselves without refreshing that receipt.
+    /// A row therefore only survives when its app bundle is still on disk,
+    /// and the version from that bundle is the truth.
     static func packageUpdates(outdated: [HomebrewPackageUpdate],
                                installed: [HomebrewCaskRecord],
                                ignoredTokens: Set<String> = [],
@@ -168,28 +165,28 @@ enum AppUpdatesSupport {
             guard !ignoredTokens.contains(update.name) else { return nil }
             guard !isUncomparable(update.currentVersion) else { return nil }
             let record = recordsByToken[update.name]
-            let bundle = candidateBundleNames(for: record).lazy.compactMap(bundleVersion).first
-            let receipt = update.installedVersions.first ?? record?.installedVersion ?? ""
-            let installedVersion = bundle?.version ?? versionCore(receipt)
+            guard let bundle = candidateBundleNames(for: record).lazy.compactMap(bundleVersion).first else {
+                return nil
+            }
+            let installedVersion = bundle.version
             guard !installedVersion.isEmpty else { return nil }
             guard isNewer(update.currentVersion, than: installedVersion) else { return nil }
             return Item(id: "\(Source.packageManager.rawValue):\(update.name)",
                         source: .packageManager,
-                        name: bundle?.name ?? record?.displayName ?? update.name,
+                        name: bundle.name,
                         installedVersion: installedVersion,
                         latestVersion: versionCore(update.currentVersion),
                         token: update.name,
-                        bundlePath: bundle?.path,
+                        bundlePath: bundle.path,
                         storePage: nil)
         }
     }
 
     /// App bundles a package might have put in place. Some packages install
     /// through an installer instead of dropping a bundle, so they declare no
-    /// app at all; for those the catalog name is tried as a bundle name,
-    /// which is how apps like a cloud drive client get matched. A name that
-    /// matches nothing simply falls back to the package receipt, so the
-    /// guess can only ever help.
+    /// app at all; for those the catalog name is tried as a bundle name.
+    /// A name that matches nothing is left out because there is no installed
+    /// app to update.
     private static func candidateBundleNames(for record: HomebrewCaskRecord?) -> [String] {
         guard let record else { return [] }
         guard record.appFileNames.isEmpty else { return record.appFileNames }

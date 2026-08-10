@@ -8,7 +8,7 @@ import AppKit
 enum QuickToggleAction: String, PanelOrderItem, Identifiable {
     // Case order is the default panel order: the appearance switch leads
     // because it is the tab's headline action (issue request).
-    case darkMode, micMute, emptyTrash, ejectDisks, hiddenFiles, desktopIcons,
+    case darkMode, keyboardLight, micMute, emptyTrash, ejectDisks, hiddenFiles, desktopIcons,
          lockScreen, displayOff, screenSaver
 
     var id: String { rawValue }

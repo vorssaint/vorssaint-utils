@@ -5,7 +5,7 @@
 "NSAudioCaptureUsageDescription" = "Vorssaint greift nur auf den Ton einzelner Apps zu, um deren Lautstärke im Mixer anzupassen. Es wird nichts aufgezeichnet und nichts verlässt deinen Mac.";
 
 /* macOS Microphone permission prompt. */
-"NSMicrophoneUsageDescription" = "Vorssaint nimmt dein Mikrofon nur auf, wenn du es für eine Bildschirmaufnahme einschaltest. Der Ton bleibt in dieser Aufnahme auf deinem Mac.";
+"NSMicrophoneUsageDescription" = "Vorssaint nimmt dein Mikrofon nur auf, wenn du es für eine Bildschirmaufnahme einschaltest. Der Ton bleibt auf deinem Mac, außer du erstellst einen temporären Link.";
 
 /* macOS Camera permission prompt. */
 "NSCameraUsageDescription" = "Vorssaint zeigt deine Kamera nur im Vorschaufenster, das du öffnest, damit du vor einem Anruf prüfen kannst, wie du aussiehst. Es wird nichts aufgezeichnet und nichts verlässt deinen Mac.";

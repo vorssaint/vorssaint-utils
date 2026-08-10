@@ -27,6 +27,7 @@ struct SwitcherSearchRecord: Equatable {
 enum SwitcherLetterAction: Equatable {
     case closeWindow
     case quitApp
+    case pinSearch
 }
 
 /// Whether a switcher session lists every app or only the frontmost app's windows.
@@ -120,6 +121,7 @@ struct SwitcherIconRowLayout: Equatable {
     let previewContentWidth: CGFloat
     let previewSurfaceWidth: CGFloat
     let panelSize: CGSize
+    let showsShortcutHints: Bool
 
     static var scale: CGFloat { min(PreviewSizing.scale, 1.15) }
     static var iconSize: CGFloat { 68 * scale }
@@ -144,13 +146,18 @@ struct SwitcherIconRowLayout: Equatable {
     static var simpleTitleGap: CGFloat { 10 * scale }
     static var simpleTitleChipMaxWidth: CGFloat { 180 * scale }
 
-    /// App-only mode keeps the same icon and shortcut surfaces, but removes
-    /// the entire preview area so no blank space remains where captures were.
+    /// App-only mode keeps the same icon row and shortcut preference, but
+    /// removes the entire preview area so no blank space remains where captures were.
     var simplePanelSize: CGSize {
-        CGSize(width: max(appRowSurfaceWidth, Self.hintBarWidth) + Self.padding * 2,
+        CGSize(width: max(appRowSurfaceWidth,
+                          showsShortcutHints ? Self.hintBarWidth : 0) + Self.padding * 2,
                height: Self.simpleTitleHeight + Self.simpleTitleGap
-                        + Self.rowHeight + Self.hintGap + Self.hintHeight
+                        + Self.rowHeight + shortcutHintHeight
                         + Self.padding * 2)
+    }
+
+    private var shortcutHintHeight: CGFloat {
+        showsShortcutHints ? Self.hintGap + Self.hintHeight : 0
     }
 
     static let empty = SwitcherIconRowLayout(visibleIconCount: 1,
@@ -158,11 +165,13 @@ struct SwitcherIconRowLayout: Equatable {
                                              appRowSurfaceWidth: 0,
                                              previewContentWidth: 0,
                                              previewSurfaceWidth: 0,
-                                             panelSize: .zero)
+                                             panelSize: .zero,
+                                             showsShortcutHints: true)
 
     static func compute(appCount rawAppCount: Int,
                         selectedWindowCount rawWindowCount: Int,
-                        screenVisibleFrame: CGRect) -> SwitcherIconRowLayout {
+                        screenVisibleFrame: CGRect,
+                        showsShortcutHints: Bool = true) -> SwitcherIconRowLayout {
         let appCount = max(1, rawAppCount)
         let windowCount = max(1, rawWindowCount)
         let usableWidth = max(320, screenVisibleFrame.width * 0.96)
@@ -176,16 +185,19 @@ struct SwitcherIconRowLayout: Equatable {
         let appRowSurfaceWidth = min(appRowWidth + rowHorizontalPadding * 2, maxContentWidth)
         let previewWidth = min(max(previewCardWidth, naturalPreviewWidth), maxPreviewContentWidth)
         let previewSurfaceWidth = min(previewWidth + previewPanelPadding * 2, maxContentWidth)
-        let contentWidth = min(max(appRowSurfaceWidth, previewSurfaceWidth, min(hintBarWidth, maxContentWidth)), maxContentWidth)
+        let hintWidth = showsShortcutHints ? min(hintBarWidth, maxContentWidth) : 0
+        let contentWidth = min(max(appRowSurfaceWidth, previewSurfaceWidth, hintWidth), maxContentWidth)
         let visibleIconCount = max(1, min(appCount, Int((maxAppContentWidth + spacing) / (appTileWidth + spacing))))
         let width = contentWidth + padding * 2
-        let height = previewHeight + previewGap + rowHeight + hintGap + hintHeight + padding * 2
+        let shortcutHintHeight = showsShortcutHints ? hintGap + hintHeight : 0
+        let height = previewHeight + previewGap + rowHeight + shortcutHintHeight + padding * 2
         return SwitcherIconRowLayout(visibleIconCount: visibleIconCount,
                                      appRowContentWidth: appRowWidth,
                                      appRowSurfaceWidth: appRowSurfaceWidth,
                                      previewContentWidth: previewWidth,
                                      previewSurfaceWidth: previewSurfaceWidth,
-                                     panelSize: CGSize(width: width, height: height))
+                                     panelSize: CGSize(width: width, height: height),
+                                     showsShortcutHints: showsShortcutHints)
     }
 
     static func compute(count rawCount: Int, screenVisibleFrame: CGRect) -> SwitcherIconRowLayout {
@@ -301,10 +313,10 @@ enum SwitcherSupport {
         return localizedName.hasPrefix("wine")
     }
 
-    /// Adobe's video and audio apps expose their main surface as a floating
+    /// Some professional media apps expose their main surface as a floating
     /// Accessibility window instead of a standard macOS window. Match bundle
     /// prefixes because recent releases append version or application suffixes.
-    static func isAdobeFloatingWindow(bundleIdentifier: String?, subrole: String?) -> Bool {
+    static func isSupportedMediaFloatingWindow(bundleIdentifier: String?, subrole: String?) -> Bool {
         guard subrole == "AXFloatingWindow", let bundleIdentifier else { return false }
         return bundleIdentifier.hasPrefix("com.adobe.Audition")
             || bundleIdentifier.hasPrefix("com.adobe.AfterEffects")
@@ -725,9 +737,11 @@ enum SwitcherSupport {
 
     static func shouldStageSourceBehindTarget(targetPID: pid_t,
                                               sourcePID: pid_t?,
-                                              sourceWindowID: UInt32?) -> Bool {
+                                              sourceWindowID: UInt32?,
+                                              ownPID: pid_t = ProcessInfo.processInfo.processIdentifier) -> Bool {
         guard let sourcePID,
               sourcePID != targetPID,
+              sourcePID != ownPID,
               sourceWindowID != nil else { return false }
         return true
     }
@@ -825,25 +839,46 @@ enum SwitcherSupport {
         panelIsVisible && !panelFrame.contains(location)
     }
 
-    /// The two letters the panel acts on: W closes the highlighted window and
-    /// Q quits its app. A keyboard answers by the letter it types, so both keys
-    /// stay where they are printed even on layouts that move them (measured:
-    /// French and Italian put W elsewhere, Turkish moves both). Layouts that
-    /// type no Latin letter at all, like Cyrillic and Greek, go by the key's
-    /// position instead, which is exactly where macOS resolves their command
-    /// shortcuts (measured: with Command held both translate that key to "w").
-    static func letterAction(typedCharacter: String?, keyCode: Int64) -> SwitcherLetterAction? {
+    /// The letters the panel acts on: W closes the highlighted window, Q quits
+    /// its app, and, when `pinSearchEnabled`, S pins the search field open so
+    /// it no longer needs the session's modifier held to stay on screen — that
+    /// modifier is what turns some keys into special characters instead of
+    /// plain letters, e.g. ⌥S types "ß". S is opt-in: existing users who type it as
+    /// the first letter of a search keep filtering by "s" until they turn the
+    /// preference on. A keyboard answers by the letter it types, so all three
+    /// keys stay where they are printed even on layouts that move them
+    /// (measured: French and Italian put W elsewhere, Turkish moves both).
+    /// Layouts that type no Latin letter at all, like Cyrillic and Greek, go
+    /// by the key's position instead, which is exactly where macOS resolves
+    /// their command shortcuts (measured: with Command held both translate
+    /// that key to "w").
+    static func letterAction(typedCharacter: String?, keyCode: Int64, pinSearchEnabled: Bool) -> SwitcherLetterAction? {
         guard let letter = latinLetter(in: typedCharacter) else {
             switch keyCode {
             case USKeyPosition.w: return .closeWindow
             case USKeyPosition.q: return .quitApp
+            case USKeyPosition.s where pinSearchEnabled: return .pinSearch
             default: return nil
             }
         }
         switch letter {
         case "w": return .closeWindow
         case "q": return .quitApp
-        default: return nil
+        case "s" where pinSearchEnabled: return .pinSearch
+        default:
+            // ⌥ turns S into "ß", and adding Caps Lock on top turns it into
+            // "Í" instead — a real, differently-accented letter that folds to
+            // an unrelated "i" rather than failing to fold at all, so the S
+            // case above never sees it. Fall back to the key position only when
+            // the original typed character is non-ASCII, to avoid triggering on
+            // remapped Latin layouts where the US-S key types another ASCII letter.
+            if pinSearchEnabled,
+               keyCode == USKeyPosition.s,
+               let typed = typedCharacter,
+               !typed.unicodeScalars.allSatisfy({ $0.isASCII }) {
+                return .pinSearch
+            }
+            return nil
         }
     }
 
@@ -852,6 +887,7 @@ enum SwitcherSupport {
     private enum USKeyPosition {
         static let q: Int64 = 12
         static let w: Int64 = 13
+        static let s: Int64 = 1
     }
 
     /// The plain letter a keystroke typed, when it typed one. Accents fold

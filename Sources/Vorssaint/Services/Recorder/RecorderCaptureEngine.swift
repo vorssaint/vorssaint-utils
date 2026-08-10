@@ -53,8 +53,8 @@ final class RecorderCaptureEngine: NSObject {
 
     // MARK: - Lifecycle
 
-    /// Builds the filter and starts the stream. Only capture-time chrome is
-    /// excluded, so ordinary Vorssaint windows can still be recorded.
+    /// Builds the filter and starts the stream. Existing ordinary Vorssaint
+    /// windows remain recordable, while new app chrome stays excluded.
     func start(region: RecorderSupport.Region,
                frameRate: Int,
                capturesSystemAudio: Bool,
@@ -147,14 +147,19 @@ final class RecorderCaptureEngine: NSObject {
         }
         guard let display = content.displays.first(where: { $0.displayID == region.displayID })
         else { return nil }
-        // Only this recording's own chrome is left out, and it is named window
-        // by window. Excluding the whole application would be simpler, and it
-        // was wrong: it also removed the menu panel, the settings and the
-        // command bar, which are exactly the things somebody records when they
-        // want to show what the app does.
         let excluded = Set(windowNumbers.map { CGWindowID($0) })
-        let chrome = content.windows.filter { excluded.contains($0.windowID) }
-        return SCContentFilter(display: display, excludingWindows: chrome)
+        let ownPID = NSRunningApplication.current.processIdentifier
+        let ownWindows = content.windows.filter { $0.owningApplication?.processID == ownPID }
+        guard let ownApplication = content.applications.first(where: { $0.processID == ownPID })
+                ?? ownWindows.compactMap(\.owningApplication).first else { return nil }
+        let exceptedIDs = RecorderSupport.exceptedOwnWindowIDs(
+            ownWindowIDs: Set(ownWindows.map(\.windowID)),
+            protectedWindowIDs: excluded
+        )
+        let ordinaryWindows = ownWindows.filter { exceptedIDs.contains($0.windowID) }
+        return SCContentFilter(display: display,
+                               excludingApplications: [ownApplication],
+                               exceptingWindows: ordinaryWindows)
     }
 
     /// The recorded area inside the display, in points with a top-left origin,

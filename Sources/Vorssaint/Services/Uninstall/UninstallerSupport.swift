@@ -22,6 +22,13 @@ enum UninstallerSupport {
         return rawValue
     }
 
+    static func isNestedBundle(_ candidateURL: URL?, in appURL: URL) -> Bool {
+        guard let candidateURL else { return false }
+        let appPath = appURL.standardizedFileURL.path
+        let candidatePath = candidateURL.standardizedFileURL.path
+        return candidatePath.hasPrefix(appPath + "/")
+    }
+
     static func exactDeepCandidates(home: URL,
                                     bundleIDs: Set<String>,
                                     darwinCache: URL?,

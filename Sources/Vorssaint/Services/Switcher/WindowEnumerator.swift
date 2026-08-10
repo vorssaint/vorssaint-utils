@@ -22,6 +22,13 @@ enum WindowEnumerator {
     private static let minimumSize = CGSize(width: 80, height: 60)
     /// Hard cap to keep the switcher readable and captures cheap.
     private static let maximumCount = 24
+    /// AX calls normally return in a few milliseconds. A process that cannot
+    /// answer within this ceiling must not hold the switcher behind it.
+    private static let messagingTimeout: Float = 0.2
+    /// The app normally owns about twenty threads. This keeps a large helper
+    /// tree within the process thread budget while collapsing it into a few
+    /// bounded AX batches.
+    private static let maximumConcurrentQueries = 24
 
     static func listWindows() -> [SwitcherItem] {
         listWindows(appRules: SwitcherAppRule.rules(
@@ -316,7 +323,7 @@ enum WindowEnumerator {
         // bound keeps a helper-heavy app from creating an unbounded thread burst.
         let queryQueue = OperationQueue()
         queryQueue.qualityOfService = .userInteractive
-        queryQueue.maxConcurrentOperationCount = min(8, orderedPIDs.count)
+        queryQueue.maxConcurrentOperationCount = min(maximumConcurrentQueries, orderedPIDs.count)
         for pid in orderedPIDs {
             queryQueue.addOperation {
                 guard let windows = accessibilityWindows(
@@ -343,7 +350,7 @@ enum WindowEnumerator {
         // an app that is not servicing its run loop would hold every AX call
         // for the 6 second default timeout, and a blocked main thread stalls
         // the event taps with it, freezing typing system wide (issue #189).
-        AXUIElementSetMessagingTimeout(app, 0.35)
+        AXUIElementSetMessagingTimeout(app, messagingTimeout)
         var axWindows: [AXUIElement] = []
         var value: CFTypeRef?
         let windowsResult = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value)
@@ -510,8 +517,8 @@ enum WindowEnumerator {
         }
         if let subrole = stringAttribute(window, kAXSubroleAttribute as String) {
             if subrole == "AXStandardWindow" || subrole == "AXFullScreenWindow" { return true }
-            if SwitcherSupport.isAdobeFloatingWindow(bundleIdentifier: bundleIdentifier,
-                                                     subrole: subrole) { return true }
+            if SwitcherSupport.isSupportedMediaFloatingWindow(bundleIdentifier: bundleIdentifier,
+                                                              subrole: subrole) { return true }
             // Compatibility-layer processes draw their own window chrome on
             // borderless surfaces, which Accessibility reports as AXUnknown;
             // for them the window role is the real signal.

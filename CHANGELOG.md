@@ -4,16 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [3.3.1]
+## [3.3.1] - 2026-08-09
 
 ### Summary
-Vorssaint 3.3.1 adds editable recording audio, one-click app installs, Fan Control,
-Switcher rules, edge snapping and tabbed Scratchpads. Scrolling screenshots and Cleaning
-Mode are more reliable, while copied images can open directly in the editor.
+Vorssaint 3.3.1 adds editable recording audio, temporary recording links, one-click app installs,
+Fan Control and more configurable window tools. It also improves Settings backups, Keep Awake,
+input controls, the menu bar, Switcher, displays, app management, capture, the file shelf and cleaning.
 
 ### Added
 - Screen recordings can capture Mac sound and microphone separately. Choose them while
   selecting, then adjust or remove each track in the editor.
+- Finished recordings can create 1-hour or 6-hour links after local compression to under
+  100 MB. Disable under Screen recording.
 - A mounted disk image with one app can install it into Applications, eject itself and
   move its download to the Trash. Off by default in Features.
 - A configurable shortcut opens a copied image directly in the screenshot editor.
@@ -29,6 +31,22 @@ Mode are more reliable, while copied images can open directly in the editor.
   Thanks to @PathGao.
 
 ### Changed
+- The App Switcher can hide the shortcut hints below its large icon row.
+  Under Switcher.
+- Screenshot previews can be dragged directly into folders or other apps as
+  full-resolution PNG files.
+- Mouse wheel direction can now be inverted separately for vertical and horizontal
+  scrolling, including horizontal scrolling with Shift. Thanks to @Jadens-arc.
+- Keyboard Shortcuts now groups installed features, shows which shortcuts are active
+  and edits them in place, including Super key alternatives.
+- App Switcher search can stay open after pressing S, letting you release the shortcut
+  while typing. Off by default under Switcher. Thanks to @liuxxxu.
+- Dock Preview shows slightly larger thumbnails and gives every window title a clear,
+  prominent line beneath its preview.
+- Quick toggles can turn the keyboard light on or off from Settings or the menu bar
+  panel.
+- Simplified Chinese wording now follows system terms and uses native punctuation
+  throughout. Thanks to @xueyang-dev.
 - Clean URL can remove additional parameter names you choose under its Settings page.
   Thanks to @lmilojevicc.
 - Temporary screenshot links can be disabled under Screenshot, removing the sharing
@@ -36,18 +54,24 @@ Mode are more reliable, while copied images can open directly in the editor.
 - The radial menu can run Quick toggle actions such as appearance, screen lock
   and hidden files.
 - The Command Bar opens a web address typed directly into it. Thanks to @tingke.
-- Clipboard history keeps the full selected text, image or file paths visible beside
-  the list. Thanks to @notdanna.
+- Clipboard history shows each item in full beside the list. Text is selectable and
+  editable there. Thanks to @notdanna and @ghostman-git.
 - Memory readouts can focus on memory held by apps instead of total memory in use.
   Under Monitor. Thanks to @WazZro.
 - Mouse feature exceptions can now choose apps from anywhere on the Mac.
   Thanks to @kyteidev.
+- The radial menu can now open from any extra mouse button, not only Back and Forward.
+  Thanks to @MineraleYT.
 - The optional Fan Control beta shows live fan speed in the panel and menu bar.
   It can cool at maximum for 15 minutes, then returns to automatic control.
 - Window Layout can move the active window to the previous display, with an optional
   shortcut. Thanks to @owen-vromans.
+- Window Layout can maximize with a 5% margin around the usable screen, with an optional
+  shortcut. Thanks to @UnbrokenMango21.
 - The screenshot preview can stay near the capture or appear in any screen corner.
   Under Screenshot. Thanks to @lmilojevicc.
+- Keep Awake can let displays sleep while the Mac stays awake.
+  Under Energy and Options. Thanks to @wenujacodes.
 - Keep Awake can optionally toggle with a right click on the menu bar icon.
   Under Energy. Thanks to @yspreen.
 - The window shortcut now opens the switcher for the app in front, without
@@ -60,8 +84,22 @@ Mode are more reliable, while copied images can open directly in the editor.
   searchable, reusable and clearable when new capture is off. Thanks to @PathGao.
 
 ### Fixed
-- Scrolling screenshots accept a window with one click, wait for pages to settle
-  and keep capturing long pages without stopping early.
+- The Shelf drop zone now disappears after a drag finishes in another app.
+- The menu bar panel now closes when you press Escape.
+- The App Switcher can change windows while the screenshot or screen recording editor is open.
+- Keyboard input stays responsive in demanding apps when file shortcuts, text
+  snippets or Super key are enabled.
+- Quick panel is now named consistently in Settings. Thanks to @lgfmartins.
+- Newly connected monitors now appear promptly in Displays while their brightness
+  controls finish getting ready.
+- Quit on close now keeps browser-hosted apps open while their window remains.
+  Thanks to @ChaotikTiger.
+- App update checks no longer list command-line packages or records left behind after
+  their apps have been removed.
+- The App Switcher opens quickly when apps run many helper processes. Clicking another
+  app now cancels the switch cleanly.
+- Scrolling screenshots now let you scroll the chosen area yourself, then finish
+  with Enter or Done.
 - Copy text from screen retries with a different recognition path when the first
   pass finds nothing.
 - Screen recording now freezes the display while an area is chosen. Escape cancels
@@ -71,14 +109,21 @@ Mode are more reliable, while copied images can open directly in the editor.
 - Windowless apps now keep their labels aligned in the App Switcher's Small size.
   Thanks to @Yahddyyp.
 - Small app icons now keep the correct artwork in Finder. Thanks to @slrgt.
-- Adobe app windows now appear in App Switcher, Command Tab and Dock Preview.
+- Main windows from supported professional media apps now appear in App Switcher,
+  Command Tab and Dock Preview.
 - Newly placed screenshot annotations can be moved, resized or edited immediately
   while their selection remains active.
 - The menu bar panel no longer leaves a focus outline on a different section than
   the one being shown.
+- The menu bar panel now opens on the first visible section in your chosen order
+  after Vorssaint starts.
 - The System panel no longer shows battery readings on Macs without a battery.
 - The package manager page and Settings sidebar now keep their tops visible and
   scroll normally.
+- Package manager actions now stop cleanly if an underlying command becomes
+  unresponsive. Thanks to @PathGao.
+- Settings backup imports now reject values of the wrong type instead of applying
+  them to unrelated options. Thanks to @PathGao.
 - Apps listed under Apps to leave alone now also keep scrolling they generate
   themselves.
 - Dock Preview cards now leave your current app in front while you browse.
@@ -88,6 +133,8 @@ Mode are more reliable, while copied images can open directly in the editor.
   actions running together. Thanks to @PathGao.
 - In-app updates now stop downloads that exceed the release's expected size.
   Thanks to @PathGao.
+- The Uninstaller now stops an app's background parts before moving it to the Trash.
+  Thanks to @SeoliteQ.
 
 ## [3.3.0] - 2026-08-04
 

@@ -221,6 +221,7 @@ final class FanControlService: ObservableObject {
         connection.remoteObjectInterface = NSXPCInterface(with: FanControlXPCProtocol.self)
         connection.setCodeSigningRequirement(FanControlIdentifiers.helperCodeRequirement)
         let semaphore = DispatchSemaphore(value: 0)
+        let resultLock = NSLock()
         var restored = false
         connection.activate()
         let proxy = connection.remoteObjectProxyWithErrorHandler { _ in semaphore.signal() }
@@ -231,13 +232,15 @@ final class FanControlService: ObservableObject {
         }
         proxy.restoreAutomatic { data in
             if let response = FanControlIPC.decode(data) {
-                restored = response.succeeded && !response.snapshot.isCooling
+                resultLock.withLock {
+                    restored = response.succeeded && !response.snapshot.isCooling
+                }
             }
             semaphore.signal()
         }
         _ = semaphore.wait(timeout: .now() + 20)
         connection.invalidate()
-        if restored { try? service.unregister() }
+        if resultLock.withLock({ restored }) { try? service.unregister() }
     }
 
     // MARK: - Requests
@@ -272,10 +275,12 @@ final class FanControlService: ObservableObject {
                 completion(response)
             }
         }
-        guard let proxy = proxy(errorHandler: { [weak self] in
+        guard let proxy = proxy(errorHandler: { [weak self] failedConnection in
             DispatchQueue.main.async {
-                self?.connection?.invalidate()
-                self?.connection = nil
+                if self?.connection === failedConnection {
+                    failedConnection.invalidate()
+                    self?.connection = nil
+                }
                 finish(nil)
             }
         }) else {
@@ -287,13 +292,19 @@ final class FanControlService: ObservableObject {
         }
     }
 
-    private func proxy(errorHandler: @escaping () -> Void) -> FanControlXPCProtocol? {
+    private func proxy(errorHandler: @escaping (NSXPCConnection) -> Void) -> FanControlXPCProtocol? {
         if connection == nil {
             let connection = NSXPCConnection(machServiceName: FanControlIdentifiers.helperID,
                                              options: .privileged)
             connection.remoteObjectInterface = NSXPCInterface(with: FanControlXPCProtocol.self)
             connection.setCodeSigningRequirement(FanControlIdentifiers.helperCodeRequirement)
-            connection.interruptionHandler = errorHandler
+            connection.interruptionHandler = { [weak self, weak connection] in
+                DispatchQueue.main.async {
+                    guard let connection, self?.connection === connection else { return }
+                    connection.invalidate()
+                    self?.connection = nil
+                }
+            }
             connection.invalidationHandler = { [weak self, weak connection] in
                 DispatchQueue.main.async {
                     guard let connection else { return }
@@ -303,7 +314,8 @@ final class FanControlService: ObservableObject {
             connection.activate()
             self.connection = connection
         }
-        return connection?.remoteObjectProxyWithErrorHandler { _ in errorHandler() }
+        guard let connection else { return nil }
+        return connection.remoteObjectProxyWithErrorHandler { _ in errorHandler(connection) }
             as? FanControlXPCProtocol
     }
 

@@ -200,6 +200,9 @@ final class CommandBarService: ObservableObject {
     func show() {
         guard AppFeature.commandBar.isAvailable else { return }
         let panel = ensurePanel()
+        if AppFeature.textSnippets.isAvailable {
+            TextSnippetService.shared.setCommandBarVisible(true)
+        }
         presentationID = UUID()
         mode = .search
         savedQuery = ""
@@ -233,6 +236,9 @@ final class CommandBarService: ObservableObject {
     }
 
     func hide() {
+        if AppFeature.textSnippets.isAvailable {
+            TextSnippetService.shared.setCommandBarVisible(false)
+        }
         // Closing while listening for a combination must give every global key
         // back, or the whole app would go quiet until the next relaunch.
         if case .capturingShortcut = mode { endCapturingShortcut() }

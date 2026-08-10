@@ -156,13 +156,36 @@ enum SettingsBackupSupport {
             return true
         }
         switch expected {
-        case is Bool: return value is Bool
-        case is Int: return value is Int
-        case is Double: return (value is Double) || (value is Int)
+        case is Bool: return isBoolean(value)
+        case is Int: return isInteger(value)
+        case is Double: return isNumber(value)
         case is String: return value is String
+        case is [String]: return value is [String]
+        case is [String: String]: return value is [String: String]
         case is [Any]: return value is [Any]
         case is [String: Any]: return value is [String: Any]
         default: return true
         }
+    }
+
+    private static func number(_ value: Any) -> NSNumber? {
+        value as? NSNumber
+    }
+
+    private static func isBoolean(_ value: Any) -> Bool {
+        guard let value = number(value) else { return false }
+        return CFGetTypeID(value) == CFBooleanGetTypeID()
+    }
+
+    private static func isInteger(_ value: Any) -> Bool {
+        guard let value = number(value), CFGetTypeID(value) != CFBooleanGetTypeID() else {
+            return false
+        }
+        return !CFNumberIsFloatType(unsafeBitCast(value, to: CFNumber.self))
+    }
+
+    private static func isNumber(_ value: Any) -> Bool {
+        guard let value = number(value) else { return false }
+        return CFGetTypeID(value) != CFBooleanGetTypeID()
     }
 }

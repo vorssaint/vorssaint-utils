@@ -1396,7 +1396,7 @@ extension RecorderFeatureStrings {
         shapeWide: "宽屏",
         shapeSquare: "方形",
         shapeVertical: "竖屏",
-        noPointerNote: "这段录制没有跟踪指针，所以没有可以平滑或放大的内容。",
+        noPointerNote: "这段录制没有跟踪指针，所以没有可以平滑的内容。手动放置的缩放仍然有效。",
         zoomLaneEmptyHint: "点按此处添加缩放",
         removeZoom: "移除",
         thisZoomLabel: "当前缩放",

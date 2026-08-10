@@ -248,6 +248,13 @@ struct GlobalShortcut: Equatable, Hashable {
         modifiers.keyCaps + [keyLabel ?? "Key \(keyCode)"]
     }
 
+    /// The shorter way to press a four-modifier shortcut while the Super key
+    /// is running. Shortcuts with any other modifier set have no equivalent.
+    func superKeyAlternative(capsLockLabel: String) -> String? {
+        guard modifiers == .validMask, let key = keyCaps.last else { return nil }
+        return "\(capsLockLabel) + \(key)"
+    }
+
     var carbonKeyCode: UInt32 {
         UInt32(exactly: keyCode) ?? 0
     }
@@ -605,7 +612,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .shelf: return strings.shelfName
         case .switcher: return strings.switcherSection
         case .switcherWindow: return strings.switcherShortcutHintWindows
-        case .clipboard: return "Clipboard"
+        case .clipboard: return FeatureStrings.clipboard(L10n.shared.language).title
         case .soundOutputSwitcher: return strings.soundOutputSwitcherTitle
         case .pastePlain: return strings.pastePlainName
         case .finderRename: return FeatureStrings.finderRename(L10n.shared.language).hubTitle
@@ -632,8 +639,12 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     static func conflict(for shortcut: GlobalShortcut,
                          excluding role: GlobalShortcutRole?,
                          isOn: (String) -> Bool = { UserDefaults.standard.bool(forKey: $0) },
-                         isAvailable: (AppFeature) -> Bool = { $0.isAvailable }) -> GlobalShortcutRole? {
-        activeRoles(isOn: isOn, isAvailable: isAvailable).first { candidate in
+                         isAvailable: (AppFeature) -> Bool = { $0.isAvailable },
+                         includeInactive: Bool = false) -> GlobalShortcutRole? {
+        let candidates = includeInactive
+            ? availableRoles(isAvailable: isAvailable)
+            : activeRoles(isOn: isOn, isAvailable: isAvailable)
+        return candidates.first { candidate in
             candidate != role && candidate.savedShortcut == shortcut
         }
     }
@@ -718,6 +729,14 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         allCases.filter { role in
             isAvailable(role.feature) && role.requiredEnableKeys.allSatisfy(isOn)
         }
+    }
+
+    /// Every shortcut belonging to an installed feature, including choices
+    /// that are currently switched off but can still be edited and kept for
+    /// later on the central shortcuts page.
+    static func availableRoles(isAvailable: (AppFeature) -> Bool = { $0.isAvailable })
+        -> [GlobalShortcutRole] {
+        allCases.filter { isAvailable($0.feature) }
     }
 }
 

@@ -74,7 +74,7 @@ final class FanControlHardware {
 
     func startMaximumCooling() throws -> [FanControlFanReading] {
         let fans = try discoverControlledFans()
-        guard try fans.allSatisfy({ try modeValue($0.mode) == 0 }) else {
+        guard try fans.allSatisfy({ try FanControlPolicy.isAutomaticMode(modeValue($0.mode)) }) else {
             throw FanControlHardwareError.alreadyControlled
         }
         if let forceTest = forceTestKey(), try byteValue(forceTest) != 0 {
@@ -95,8 +95,9 @@ final class FanControlHardware {
             guard let forceTest = forceTestKey(), setByte(1, for: forceTest, attempts: 20) else {
                 throw FanControlHardwareError.operationFailed
             }
+            let deadline = ProcessInfo.processInfo.systemUptime + 10
             Thread.sleep(forTimeInterval: 3)
-            guard fans.allSatisfy({ setMode(1, for: $0, attempts: 30) }) else {
+            guard fans.allSatisfy({ setMode(1, for: $0, untilUptime: deadline) }) else {
                 throw FanControlHardwareError.operationFailed
             }
         }
@@ -114,7 +115,7 @@ final class FanControlHardware {
 
     func validateAutomaticControl() throws {
         let fans = try discoverControlledFans()
-        guard try fans.allSatisfy({ try modeValue($0.mode) == 0 }) else {
+        guard try fans.allSatisfy({ try FanControlPolicy.isAutomaticMode(modeValue($0.mode)) }) else {
             throw FanControlHardwareError.alreadyControlled
         }
         if let forceTest = forceTestKey() {
@@ -139,7 +140,7 @@ final class FanControlHardware {
             _ = setByte(0, for: forceTest, attempts: 20)
         }
         let automatic = fans.allSatisfy { fan in
-            (try? modeValue(fan.mode)) == 0
+            (try? modeValue(fan.mode)).map(FanControlPolicy.isAutomaticMode) == true
         }
         let forceTestOff = forceTestKey().map { (try? byteValue($0)) == 0 } ?? true
         return automatic && forceTestOff
@@ -245,7 +246,9 @@ final class FanControlHardware {
                                         minimumRPM: minimum,
                                         maximumRPM: maximum,
                                         targetRPM: max(0, target),
-                                        isManuallyControlled: try modeValue(fan.mode) != 0)
+                                        isManuallyControlled: try !FanControlPolicy.isAutomaticMode(
+                                            modeValue(fan.mode)
+                                        ))
         }
     }
 
@@ -271,6 +274,16 @@ final class FanControlHardware {
     private func setMode(_ value: UInt8, for fan: Fan, attempts: Int) -> Bool {
         guard setByte(value, for: fan.mode, attempts: attempts) else { return false }
         return (try? modeValue(fan.mode)) == value
+    }
+
+    private func setMode(_ value: UInt8, for fan: Fan, untilUptime deadline: TimeInterval) -> Bool {
+        repeat {
+            if setMode(value, for: fan, attempts: 1) { return true }
+            let remaining = deadline - ProcessInfo.processInfo.systemUptime
+            if remaining <= 0 { return false }
+            Thread.sleep(forTimeInterval: min(0.1, remaining))
+        } while ProcessInfo.processInfo.systemUptime < deadline
+        return false
     }
 
     private func setByte(_ value: UInt8, for key: SMCClient.Key, attempts: Int) -> Bool {

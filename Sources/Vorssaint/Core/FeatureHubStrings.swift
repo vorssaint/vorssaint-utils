@@ -1283,7 +1283,7 @@ extension FeatureHubStrings {
         openSystemSettings: "打开系统设置",
         permAccessibility: "辅助功能",
         permScreenRecording: "屏幕录制",
-        permFullDisk: "完全磁盘访问",
+        permFullDisk: "完全磁盘访问权限",
         permFilesAndFolders: "文件与文件夹",
         permNotifications: "通知",
         permAutomationFinder: "访达自动化",

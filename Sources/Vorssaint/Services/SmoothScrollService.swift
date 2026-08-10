@@ -195,7 +195,11 @@ final class SmoothScrollService: ObservableObject {
                 .scrollDirection,
                 at: event.location,
                 sourceProcessID: sourceProcessID)
-        let invert = invertHere ? -1.0 : 1.0
+        let defaults = UserDefaults.standard
+        let invertVertical = invertHere
+            && defaults.bool(forKey: DefaultsKey.scrollInverterEnabled) ? -1.0 : 1.0
+        let invertHorizontal = invertHere
+            && defaults.bool(forKey: DefaultsKey.scrollInverterHorizontalEnabled) ? -1.0 : 1.0
         let shiftPressed = event.flags.contains(.maskShift)
         let vertical: Double
         let horizontal: Double
@@ -211,11 +215,11 @@ final class SmoothScrollService: ObservableObject {
             vertical = SmoothScrollSupport.continuousDistance(
                 fixedPointDelta: event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1),
                 pointDelta: Double(event.getIntegerValueField(.scrollWheelEventPointDeltaAxis1)),
-                step: userStep) * invert
+                step: userStep) * invertVertical
             horizontal = SmoothScrollSupport.continuousDistance(
                 fixedPointDelta: event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2),
                 pointDelta: Double(event.getIntegerValueField(.scrollWheelEventPointDeltaAxis2)),
-                step: userStep)
+                step: userStep) * invertHorizontal
             // The distance is already in pixels; the budget must not scale it
             // a second time.
             step = 1
@@ -225,14 +229,14 @@ final class SmoothScrollService: ObservableObject {
             let axes = SmoothScrollSupport.axes(
                 vertical: SmoothScrollSupport.ticks(
                     line: Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis1)),
-                    fixedPoint: event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1)) * invert,
+                    fixedPoint: event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1)),
                 horizontal: SmoothScrollSupport.ticks(
                     line: Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis2)),
                     fixedPoint: event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2)),
                 shiftPressed: shiftPressed
             )
-            vertical = axes.vertical
-            horizontal = axes.horizontal
+            vertical = axes.vertical * invertVertical
+            horizontal = axes.horizontal * invertHorizontal
             step = Double(SmoothScrollSupport.sanitizedStep(
                 UserDefaults.standard.integer(forKey: DefaultsKey.smoothScrollStep)))
         }

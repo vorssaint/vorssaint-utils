@@ -11,6 +11,11 @@ enum RecorderSupport {
 
     // MARK: - What is being recorded
 
+    static func exceptedOwnWindowIDs(ownWindowIDs: Set<CGWindowID>,
+                                     protectedWindowIDs: Set<CGWindowID>) -> Set<CGWindowID> {
+        ownWindowIDs.subtracting(protectedWindowIDs)
+    }
+
     /// The area a recording covers, resolved once when the person confirms it
     /// and never recomputed: a window that moves keeps recording the region it
     /// was picked in, which is what the pointer track and the zoom assume.

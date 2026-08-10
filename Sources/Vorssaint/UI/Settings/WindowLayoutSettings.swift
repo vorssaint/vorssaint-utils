@@ -145,6 +145,7 @@ struct WindowLayoutSettings: View {
 
             Section(text.other) {
                 actionRow(.maximize)
+                actionRow(.marginMaximize)
                 actionRow(.fullScreen)
                 actionRow(.center)
                 actionRow(.previousDisplay)
@@ -207,6 +208,7 @@ struct WindowLayoutSettings: View {
         case .bottomLeft: return "arrow.down.left"
         case .bottomRight: return "arrow.down.right"
         case .maximize: return "arrow.up.left.and.arrow.down.right"
+        case .marginMaximize: return "rectangle.inset.filled"
         case .fullScreen: return "rectangle.fill"
         case .center: return "scope"
         case .previousDisplay: return "arrow.left.to.line"

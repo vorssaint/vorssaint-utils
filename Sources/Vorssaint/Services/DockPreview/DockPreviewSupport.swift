@@ -104,8 +104,8 @@ enum DockPreviewSupport {
     /// cursor still keeps the session, while neighbouring Dock icons (one tile
     /// width away) stay clear of the corridor.
     static let corridorMargin: CGFloat = 12
-    static var cardWidth: CGFloat { 190 * PreviewSizing.scale }
-    static var cardHeight: CGFloat { 142 * PreviewSizing.scale }
+    static var cardWidth: CGFloat { 204 * PreviewSizing.scale }
+    static var cardHeight: CGFloat { 152 * PreviewSizing.scale }
     static var cardSpacing: CGFloat { 8 * PreviewSizing.scale }
     static var panelPadding: CGFloat { 12 * PreviewSizing.scale }
     static let panelHeaderHeight: CGFloat = 28

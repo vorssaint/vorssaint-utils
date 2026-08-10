@@ -263,6 +263,12 @@ struct ShortcutPreferenceRow: View {
     private let role: GlobalShortcutRole
     private let isEnabled: Bool
     private let label: String?
+    private let symbolName: String?
+    private let contextLabel: String?
+    private let statusText: String?
+    private let statusIsActive: Bool
+    private let showsSuperKeyAlternative: Bool
+    private let includeInactiveConflicts: Bool
     private let onChange: () -> Void
     private let additionalConflict: (GlobalShortcut) -> String?
     @AppStorage private var rawValue: String
@@ -272,11 +278,23 @@ struct ShortcutPreferenceRow: View {
     init(role: GlobalShortcutRole,
          isEnabled: Bool = true,
          label: String? = nil,
+         symbolName: String? = nil,
+         contextLabel: String? = nil,
+         statusText: String? = nil,
+         statusIsActive: Bool = false,
+         showsSuperKeyAlternative: Bool = false,
+         includeInactiveConflicts: Bool = false,
          additionalConflict: @escaping (GlobalShortcut) -> String? = { _ in nil },
          onChange: @escaping () -> Void) {
         self.role = role
         self.isEnabled = isEnabled
         self.label = label
+        self.symbolName = symbolName
+        self.contextLabel = contextLabel
+        self.statusText = statusText
+        self.statusIsActive = statusIsActive
+        self.showsSuperKeyAlternative = showsSuperKeyAlternative
+        self.includeInactiveConflicts = includeInactiveConflicts
         self.additionalConflict = additionalConflict
         self.onChange = onChange
         _rawValue = AppStorage(wrappedValue: role.defaultShortcut.storageValue, role.storageKey)
@@ -284,29 +302,44 @@ struct ShortcutPreferenceRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 8) {
-                Text(label ?? l10n.s.shelfHotkeyLabel)
+            HStack(alignment: .top, spacing: 8) {
+                ShortcutRowLabel(title: label ?? l10n.s.shelfHotkeyLabel,
+                                 symbolName: symbolName,
+                                 contextLabel: contextLabel,
+                                 statusText: statusText,
+                                 statusIsActive: statusIsActive)
                 Spacer()
-                ShortcutRecorderButton(shortcut: shortcut,
-                                       isEnabled: isEnabled,
-                                       waitingTitle: l10n.s.shortcutPressKeys,
-                                       notCapturedAction: { errorText = l10n.s.shortcutNotCaptured },
-                                       recordingChanged: { recording in
-                                           isRecording = recording
-                                           if recording { errorText = nil }
-                                       },
-                                       invalidAction: {
-                                           errorText = l10n.s.shortcutInvalid
-                                       },
-                                       captureAction: save)
-                    .frame(width: 108)
-                    .disabled(!isEnabled)
-                Button(l10n.s.shortcutReset) {
-                    rawValue = role.defaultShortcut.storageValue
-                    errorText = nil
-                    onChange()
+                VStack(alignment: .trailing, spacing: 4) {
+                    HStack(spacing: 8) {
+                        ShortcutRecorderButton(shortcut: shortcut,
+                                               isEnabled: isEnabled,
+                                               waitingTitle: l10n.s.shortcutPressKeys,
+                                               notCapturedAction: { errorText = l10n.s.shortcutNotCaptured },
+                                               recordingChanged: { recording in
+                                                   isRecording = recording
+                                                   if recording { errorText = nil }
+                                               },
+                                               invalidAction: {
+                                                   errorText = l10n.s.shortcutInvalid
+                                               },
+                                               captureAction: save)
+                            .frame(width: 108)
+                            .disabled(!isEnabled)
+                        Button(l10n.s.shortcutReset) {
+                            rawValue = role.defaultShortcut.storageValue
+                            errorText = nil
+                            onChange()
+                        }
+                        .disabled(!isEnabled || shortcut == role.defaultShortcut)
+                    }
+                    if let alternative = superKeyAlternative {
+                        Text(String(format: FeatureStrings.shortcuts(l10n.language)
+                            .superKeyAlternativeFormat, alternative))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel(alternative)
+                    }
                 }
-                .disabled(!isEnabled || shortcut == role.defaultShortcut)
             }
 
             if let errorText {
@@ -326,8 +359,16 @@ struct ShortcutPreferenceRow: View {
         GlobalShortcut(storageValue: rawValue) ?? role.defaultShortcut
     }
 
+    private var superKeyAlternative: String? {
+        guard showsSuperKeyAlternative else { return nil }
+        return shortcut.superKeyAlternative(
+            capsLockLabel: FeatureStrings.superKey(l10n.language).capsLockKey)
+    }
+
     private func save(_ shortcut: GlobalShortcut) {
-        if let conflict = GlobalShortcutRole.conflict(for: shortcut, excluding: role) {
+        if let conflict = GlobalShortcutRole.conflict(for: shortcut,
+                                                      excluding: role,
+                                                      includeInactive: includeInactiveConflicts) {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict.title(l10n.s))
             return
         }
@@ -342,5 +383,44 @@ struct ShortcutPreferenceRow: View {
         rawValue = shortcut.storageValue
         errorText = nil
         onChange()
+    }
+}
+
+struct ShortcutRowLabel: View {
+    let title: String
+    let symbolName: String?
+    let contextLabel: String?
+    let statusText: String?
+    let statusIsActive: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 7) {
+            if let symbolName {
+                Image(systemName: symbolName)
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 18)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                if contextLabel != nil || statusText != nil {
+                    HStack(spacing: 5) {
+                        if let contextLabel {
+                            Text(contextLabel)
+                        }
+                        if contextLabel != nil, statusText != nil {
+                            Text("•")
+                        }
+                        if let statusText {
+                            Circle()
+                                .fill(statusIsActive ? Color.green : Color.secondary)
+                                .frame(width: 5, height: 5)
+                            Text(statusText)
+                        }
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+            }
+        }
     }
 }

@@ -46,7 +46,9 @@ enum SettingsDirectory {
                                                  FeatureStrings.brightness(language).osdToggle,
                                                  FeatureStrings.keepAwakeAutomation(language)
                                                      .externalDisplayToggle,
-                                                 FeatureStrings.keepAwakeAutomation(language).powerToggle]),
+                                                 FeatureStrings.keepAwakeAutomation(language).powerToggle,
+                                                 FeatureStrings.keepAwakeDisplaySleep(language)
+                                                     .allowDisplaySleep]),
                 SettingsDirectoryItem(page: .monitor, title: s.tabMonitor, icon: "chart.line.uptrend.xyaxis",
                                       keywords: [s.menuBarSpacingLabel, s.menuBarHideIconToggle,
                                                  s.monitorMemoryPressureDot,
@@ -54,7 +56,8 @@ enum SettingsDirectory {
             ]),
             (categories.windowsControls, [
                 SettingsDirectoryItem(page: .mouse, title: s.tabMouse, icon: "computermouse",
-                                      keywords: [s.invertMouseScroll, s.middleClickTapPicker,
+                                      keywords: [s.invertMouseScroll, s.invertVerticalScroll,
+                                                 s.invertHorizontalScroll, s.middleClickTapPicker,
                                                  s.smoothScrollName, s.mouseNavigationEnable,
                                                  FeatureStrings.mouseButtons(language).pageTitle,
                                                  FeatureStrings.mouseButtons(language).sideWheelLeftName,
@@ -63,6 +66,7 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .switcher, title: s.tabSwitcher, icon: "rectangle.on.rectangle",
                                       keywords: [s.switcherEnable, s.dockClickMinimize, s.dockClickHide,
                                                  s.dockClickCycleWindows, s.switcherWindowlessApps,
+                                                 s.switcherShowShortcutHints,
                                                  FeatureStrings.switcherAppRules(language).listTitle,
                                                  FeatureStrings.switcherAppRules(language).showWithoutWindows,
                                                  FeatureStrings.switcherAppRules(language).windowsOnly,

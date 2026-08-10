@@ -9,13 +9,21 @@ import SwiftUI
 struct ClipboardEntryPreviewSidebar: View {
     var text: ClipboardFeatureStrings
     var entry: ClipboardHistoryEntry?
+    @Binding var isEditing: Bool
+    @State private var draft = ""
+    @State private var editingEntryID: UUID?
+    @FocusState private var editorFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             sidebarHeader
             Divider()
             if let entry {
-                contentScrollView(entry)
+                if editingEntryID == entry.id {
+                    textEditor(entry)
+                } else {
+                    contentScrollView(entry)
+                }
                 Divider()
                 sidebarFooter(entry)
             } else {
@@ -23,6 +31,12 @@ struct ClipboardEntryPreviewSidebar: View {
             }
         }
         .padding(.leading, 12)
+        .onChange(of: entry?.id) { _, newID in
+            if editingEntryID != nil, editingEntryID != newID {
+                cancelEditing()
+            }
+        }
+        .onDisappear { cancelEditing() }
     }
 
     // MARK: – Header
@@ -45,6 +59,27 @@ struct ClipboardEntryPreviewSidebar: View {
                 .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .frame(maxHeight: .infinity)
+    }
+
+    private func textEditor(_ entry: ClipboardHistoryEntry) -> some View {
+        TextEditor(text: $draft)
+            .font(.system(size: 11))
+            .lineSpacing(2)
+            .scrollContentBackground(.hidden)
+            .padding(7)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(Color.primary.opacity(0.045))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .strokeBorder(Color.accentColor.opacity(0.45), lineWidth: 1)
+            )
+            .padding(.vertical, 10)
+            .padding(.trailing, 4)
+            .focused($editorFocused)
+            .onExitCommand { cancelEditing() }
+            .accessibilityLabel(text.edit)
     }
 
     @ViewBuilder
@@ -114,13 +149,48 @@ struct ClipboardEntryPreviewSidebar: View {
                 .font(.system(size: 9.5))
                 .foregroundStyle(.tertiary)
             Spacer()
-            Button(text.copy) {
-                ClipboardHistoryService.shared.copyOnlyQuickEntry(entry)
+            if editingEntryID == entry.id {
+                Button(text.cancel) {
+                    cancelEditing()
+                }
+                Button(text.save) {
+                    saveEditing(entry)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!ClipboardHistoryEditing.canSave(original: entry.text, draft: draft))
+            } else {
+                if entry.kind == .text {
+                    Button(text.edit) {
+                        beginEditing(entry)
+                    }
+                }
+                Button(text.copy) {
+                    ClipboardHistoryService.shared.copyOnlyQuickEntry(entry)
+                }
+                .buttonStyle(.borderedProminent)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.mini)
         }
+        .controlSize(.mini)
         .padding(.vertical, 8)
         .padding(.trailing, 4)
+    }
+
+    private func beginEditing(_ entry: ClipboardHistoryEntry) {
+        draft = entry.text
+        editingEntryID = entry.id
+        isEditing = true
+        DispatchQueue.main.async { editorFocused = true }
+    }
+
+    private func cancelEditing() {
+        editorFocused = false
+        editingEntryID = nil
+        draft = ""
+        isEditing = false
+    }
+
+    private func saveEditing(_ entry: ClipboardHistoryEntry) {
+        guard ClipboardHistoryService.shared.updateText(entry, to: draft) else { return }
+        cancelEditing()
     }
 }

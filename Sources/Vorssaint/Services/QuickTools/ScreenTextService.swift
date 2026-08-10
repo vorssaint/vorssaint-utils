@@ -20,6 +20,7 @@ final class ScreenTextService: ObservableObject {
 
     private let hotkey = QuickToolHotkey(id: 13)
     private var session: ScreenshotSelectionController?
+    private var recognitionGeneration = 0
 
     private var captureStrings: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(L10n.shared.language)
@@ -48,6 +49,7 @@ final class ScreenTextService: ObservableObject {
     }
 
     private func cancelSession() {
+        recognitionGeneration += 1
         session?.cancel()
         session = nil
     }
@@ -58,6 +60,7 @@ final class ScreenTextService: ObservableObject {
             Permissions.shared.requestScreenRecording()
             return
         }
+        recognitionGeneration += 1
         // The screen is always photographed first here: text has to hold
         // still while it is being framed, and a still also keeps a menu or a
         // tooltip on screen instead of closing it under the pointer.
@@ -93,13 +96,15 @@ final class ScreenTextService: ObservableObject {
     }
 
     private func recognize(_ image: CGImage) {
+        let generation = recognitionGeneration
         let detectQRCodes = UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRDetectQRCodes)
         let fallbackLanguages = MediaSupport.recognitionLanguages(for: L10n.shared.language.rawValue)
-        DispatchQueue.global(qos: .userInitiated).async {
-            let outcome = Self.outcome(for: image,
-                                       detectQRCodes: detectQRCodes,
-                                       fallbackLanguages: fallbackLanguages)
-            DispatchQueue.main.async {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let outcome = ScreenTextService.outcome(for: image,
+                                                    detectQRCodes: detectQRCodes,
+                                                    fallbackLanguages: fallbackLanguages)
+            DispatchQueue.main.async { [weak self] in
+                guard self?.recognitionGeneration == generation else { return }
                 let strings = L10n.shared.s
                 switch outcome {
                 case .qr(let reading):

@@ -115,10 +115,12 @@ final class AppUninstaller: ObservableObject {
         guard !chosen.isEmpty else { return }
         phase = .removing
 
-        // Quit a running copy first so its files aren't busy; terminate() still
-        // lets it prompt to save.
-        if let bundleID = target?.bundleID {
-            for app in NSRunningApplication.runningApplications(withBundleIdentifier: bundleID) {
+        // Quit the app and any background app embedded inside it before the
+        // bundle moves. Embedded helpers do not always share the main bundle ID.
+        if let bundleID = target?.bundleID, let targetURL = target?.url {
+            for app in NSWorkspace.shared.runningApplications where
+                app.bundleIdentifier == bundleID
+                || UninstallerSupport.isNestedBundle(app.bundleURL, in: targetURL) {
                 app.terminate()
             }
         }

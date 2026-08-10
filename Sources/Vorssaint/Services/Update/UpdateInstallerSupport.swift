@@ -31,8 +31,28 @@ enum UpdateInstallerSupport {
         # promotes it to the real marker. The app may relaunch while this
         # script is still mid-install, and a transient step must not be
         # reported as a failure.
-        note() { /bin/echo "$1" > "$RESULT.progress" 2>/dev/null; }
-        finalize() { /bin/mv -f "$RESULT.progress" "$RESULT" 2>/dev/null; }
+        running_as_root() { [ "$(/usr/bin/id -u)" = "0" ]; }
+        note() {
+            if running_as_root; then
+                [ -n "$ASUSER" ] || return 1
+                # The marker directory belongs to the user. Drop privileges
+                # before opening it so a replaced path cannot make root follow
+                # a symlink while the administrator prompt is on screen.
+                /usr/bin/sudo -n -u "#$ASUSER" /bin/sh -c \
+                    '/bin/echo "$1" > "$2.progress"' marker "$1" "$RESULT" 2>/dev/null
+                return
+            fi
+            /bin/echo "$1" > "$RESULT.progress" 2>/dev/null
+        }
+        finalize() {
+            if running_as_root; then
+                [ -n "$ASUSER" ] || return 1
+                /usr/bin/sudo -n -u "#$ASUSER" /bin/mv -f \
+                    "$RESULT.progress" "$RESULT" 2>/dev/null
+                return
+            fi
+            /bin/mv -f "$RESULT.progress" "$RESULT" 2>/dev/null
+        }
         cleanup_script() { case "$SCRIPT" in /*) /bin/rm -f "$SCRIPT";; esac; }
         relaunch() {
             if [ -n "$ASUSER" ] && [ "$(/usr/bin/id -u)" = "0" ]; then

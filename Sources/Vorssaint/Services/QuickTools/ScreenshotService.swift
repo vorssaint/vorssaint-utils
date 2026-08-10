@@ -67,6 +67,9 @@ final class ScreenshotService: ObservableObject {
     }
 
     private init() {
+        DispatchQueue.global(qos: .utility).async {
+            ScreenshotSupport.removeTemporaryDragDirectories()
+        }
         hotkey.onPress = { [weak self] in self?.capture() }
         fullScreenHotkey.onPress = { [weak self] in self?.captureFullScreen() }
         lastCaptureHotkey.onPress = { [weak self] in self?.openLastCapture() }
@@ -190,10 +193,6 @@ final class ScreenshotService: ObservableObject {
             Permissions.shared.requestScreenRecording()
             return
         }
-        if mode == .scrolling, !Permissions.shared.accessibility {
-            Permissions.shared.requestAccessibility()
-            return
-        }
         let delay = ScreenshotSupport.sanitizedDelay(
             UserDefaults.standard.integer(forKey: DefaultsKey.screenshotDelay))
         if delay > 0 {
@@ -245,7 +244,7 @@ final class ScreenshotService: ObservableObject {
             protectedWindowIDs: { [weak self] in self?.protectedWindowIDs ?? [] },
             purpose: mode == .scrolling ? strings.scrollingCaptureTitle : nil,
             mode: mode == .scrolling ? .geometry : .image,
-            supportsScrollingCapture: mode == .standard && Permissions.shared.accessibility)
+            supportsScrollingCapture: mode == .standard)
         session = controller
         controller.begin { [weak self] outcome in
             guard let self else { return }
@@ -306,14 +305,6 @@ final class ScreenshotService: ObservableObject {
 
     private func captureScrolling(_ region: RecorderSupport.Region) {
         guard scrollingTask == nil else { return }
-        guard Permissions.shared.accessibility else {
-            Permissions.shared.requestAccessibility()
-            return
-        }
-        guard let targetPID = ScreenshotScrollingCapture.targetPID(for: region) else {
-            QuickToolHUD.show(icon: "camera.viewfinder", message: strings.captureFailed)
-            return
-        }
         let finishSignal = ScreenshotScrollingCapture.FinishSignal()
         scrollingFinishSignal = finishSignal
         QuickToolHUD.showScrollingCapture(
@@ -336,7 +327,6 @@ final class ScreenshotService: ObservableObject {
                 hideVorssaintWindows: hideWindows,
                 protectedWindowIDs: protectedIDs,
                 finishSignal: finishSignal,
-                targetPID: targetPID,
                 onProgress: { height in
                     QuickToolHUD.updateScrollingCapture(height: height)
                 })
@@ -641,6 +631,28 @@ final class ScreenshotService: ObservableObject {
             style: ScreenshotSupport.BackdropStyle(kind: .none, cornerRadius: 0),
             fill: .none,
             downscaleTo1x: downscaleTo1x)
+    }
+
+    /// Vends a full-resolution PNG for dragging into a folder or another app.
+    /// The temporary write begins only when the person starts the drag.
+    static func dragItemProvider(image: CGImage,
+                                 strings: ScreenshotFeatureStrings) -> NSItemProvider? {
+        guard let data = ScreenshotRenderer.pngData(from: image) else {
+            return nil
+        }
+        let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
+        guard let url = try? ScreenshotSupport.temporaryDragFile(data: data, name: name) else {
+            return nil
+        }
+        guard let provider = NSItemProvider(contentsOf: url) else {
+            try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
+            return nil
+        }
+        let folder = url.deletingLastPathComponent()
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 60 * 60) {
+            try? FileManager.default.removeItem(at: folder)
+        }
+        return provider
     }
 
     // MARK: - Save location
