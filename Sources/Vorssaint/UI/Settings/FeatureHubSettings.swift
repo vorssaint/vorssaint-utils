@@ -243,6 +243,42 @@ private struct FeatureHubRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
+            if installed, feature.hasNavigableSettingsDestination {
+                Button {
+                    SettingsRouter.shared.request(feature.settingsDestination)
+                } label: {
+                    rowContent(showsChevron: true)
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(accessibilityTitle). \(feature.hubDescription(hub))")
+                .accessibilityAddTraits(.isLink)
+                .accessibilityRemoveTraits(.isButton)
+            } else {
+                rowContent(showsChevron: false)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("\(accessibilityTitle). \(feature.hubDescription(hub))")
+            }
+            if working {
+                ProgressView()
+                    .controlSize(.small)
+            } else if installed {
+                Button(hub.uninstallButton) { flip(to: false) }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .accessibilityLabel("\(hub.uninstallButton) \(accessibilityTitle)")
+            } else {
+                Button(hub.installButton) { flip(to: true) }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .accessibilityLabel("\(hub.installButton) \(accessibilityTitle)")
+            }
+        }
+        .padding(.vertical, 1)
+    }
+
+    private func rowContent(showsChevron: Bool) -> some View {
+        HStack(spacing: 10) {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(installed
                         ? AnyShapeStyle(Theme.spaceGradient)
@@ -287,23 +323,15 @@ private struct FeatureHubRow: View {
                     .foregroundStyle(installed ? Color.secondary : Color.secondary.opacity(0.6))
             }
             Spacer(minLength: 8)
-            if working {
-                ProgressView()
-                    .controlSize(.small)
-            } else if installed {
-                Button(hub.uninstallButton) { flip(to: false) }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-            } else {
-                Button(hub.installButton) { flip(to: true) }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
+            if showsChevron {
+                Image(systemName: "chevron.forward")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
         }
-        .padding(.vertical, 1)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityTitle)
-        .accessibilityValue(installed ? "1" : "0")
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 
     /// A quick, honest beat of feedback: the spinner shows the action landed,
