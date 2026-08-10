@@ -8,13 +8,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Summary
 Vorssaint 3.3.2 prevents a Switcher shortcut crash and keeps its labels in sync.
-It also removes false App Updates listings, improves feature setup and clarifies Full Disk Access.
+It also removes false App Updates listings, improves feature setup, clarifies Full Disk Access
+and shows which options a main switch turns off.
 
 ### Changed
 - Installed Features rows open their Settings page and highlight the relevant
   controls. Thanks to @dorlugasigal.
 - Cleaning and the Uninstaller now explain how to grant Full Disk Access and
   that the app must reopen. Thanks to @PathGao.
+- Quit on close exceptions are no longer editable while the feature is off, since
+  nothing reads them there. Thanks to @PathGao.
+- Showing Clipboard in the panel now sits on its own in Settings, since it keeps
+  working while history capture is off. Thanks to @PathGao.
 
 ### Fixed
 - App Updates no longer offers store updates that belong to a different app.

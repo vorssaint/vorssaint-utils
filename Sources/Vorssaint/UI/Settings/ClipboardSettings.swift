@@ -65,6 +65,13 @@ struct ClipboardSettings: View {
                         }
                     }
                     .disabled(!enabled)
+                }
+
+                // Its own section because it is the one setting here that keeps
+                // working with capture off: the panel entry stays, saying so,
+                // and still opens the saved items. Sitting among the disabled
+                // rows it read as one that had been missed.
+                Section {
                     Toggle(text.showInPanel, isOn: $showInPanel)
                 }
             }
