@@ -44,6 +44,7 @@ struct CutPasteSettings: View {
                             .foregroundStyle(.green)
                     }
                 }
+                .settingsSectionAnchor(.finderCutPaste)
 
                 Section(l10n.s.cutPasteHowTitle) {
                     howRow(keys: ["⌘", "X"], text: l10n.s.cutPasteStep1)
@@ -99,6 +100,7 @@ struct CutPasteSettings: View {
                 } header: {
                     Text(renameText.hubTitle)
                 }
+                .settingsSectionAnchor(.finderRename)
             }
 
             if needsAccessibility, !permissions.accessibility {

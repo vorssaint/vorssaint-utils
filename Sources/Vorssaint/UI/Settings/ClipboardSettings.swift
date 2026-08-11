@@ -42,6 +42,7 @@ struct ClipboardSettings: View {
                             .foregroundStyle(.green)
                     }
                 }
+                .settingsSectionAnchor(.clipboardHistory)
 
                 clipboardShortcutSection
 
@@ -107,6 +108,7 @@ struct ClipboardSettings: View {
                 } header: {
                     Text(l10n.s.pastePlainName)
                 }
+                .settingsSectionAnchor(.pastePlain)
             }
 
             if AppFeature.clipboardHistory.isAvailable {
