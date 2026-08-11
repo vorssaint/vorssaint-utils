@@ -82,7 +82,7 @@ struct PanelUninstallerView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if !permissions.fullDiskAccess {
-                fdaNote
+                FullDiskAccessNote(compact: true)
             }
         }
         .panelCard()
@@ -122,34 +122,6 @@ struct PanelUninstallerView: View {
                 .padding(.horizontal, 12)
             )
             .animation(.easeOut(duration: 0.15), value: dropTargeted)
-    }
-
-    private var fdaNote: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .top, spacing: 7) {
-                Image(systemName: "info.circle")
-                    .foregroundStyle(.secondary)
-                Text(l10n.s.uninstallerFDANote)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            HStack(spacing: 7) {
-                Button(l10n.s.uninstallerFDAGrant) {
-                    permissions.requestFullDiskAccess()
-                }
-                Button(l10n.s.uninstallerFDARelaunch) {
-                    appDelegate()?.relaunchApp()
-                }
-            }
-            .controlSize(.small)
-            .font(.system(size: 10.5))
-        }
-        .padding(9)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.primary.opacity(0.045))
-        )
     }
 
     private func busyState(_ message: String) -> some View {

@@ -60,6 +60,7 @@ struct QuickToolsSettings: View {
                 } header: {
                     Text(l10n.s.launcherName)
                 }
+                .settingsSectionAnchor(.quickLauncher)
             }
 
             if AppFeature.quickToggles.isAvailable {
@@ -87,6 +88,7 @@ struct QuickToolsSettings: View {
                 } header: {
                     Text(FeatureStrings.quickToggles(l10n.language).pageTitle)
                 }
+                .settingsSectionAnchor(.quickToggles)
                 .onAppear { brightness.refreshKeyboardLight() }
             }
 
@@ -123,6 +125,7 @@ struct QuickToolsSettings: View {
                 } header: {
                     Text(l10n.s.ocrName)
                 }
+                .settingsSectionAnchor(.screenOCR)
             }
 
             if AppFeature.colorPicker.isAvailable {
@@ -160,6 +163,7 @@ struct QuickToolsSettings: View {
                 } header: {
                     Text(l10n.s.colorPickerName)
                 }
+                .settingsSectionAnchor(.colorPicker)
             }
 
             if AppFeature.micMute.isAvailable {
@@ -198,6 +202,7 @@ struct QuickToolsSettings: View {
                 } header: {
                     Text(l10n.s.micMuteName)
                 }
+                .settingsSectionAnchor(.micMute)
             }
 
             if AppFeature.cameraPreview.isAvailable {
@@ -230,6 +235,7 @@ struct QuickToolsSettings: View {
                 } header: {
                     Text(FeatureStrings.cameraPreview(l10n.language).pageTitle)
                 }
+                .settingsSectionAnchor(.cameraPreview)
             }
 
             if AppFeature.scratchpad.isAvailable {
@@ -291,6 +297,7 @@ struct QuickToolsSettings: View {
                 } header: {
                     Text(FeatureStrings.scratchpad(l10n.language).pageTitle)
                 }
+                .settingsSectionAnchor(.scratchpad)
             }
         }
         .formStyle(.grouped)

@@ -57,6 +57,7 @@ struct MouseButtonShortcutsSection: View {
                 MouseExceptionsList(scope: .buttonShortcuts)
             }
         }
+        .settingsSectionAnchor(.mouseButtonShortcuts)
         .onDisappear {
             stopCapture()
         }
