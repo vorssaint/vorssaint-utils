@@ -15,6 +15,10 @@ Vorssaint 3.3.2 makes installed features easier to configure and Full Disk Acces
 - Cleaning and the Uninstaller now explain how to grant Full Disk Access and
   that the app must reopen. Thanks to @PathGao.
 
+### Fixed
+- The app no longer quits while typing when the Switcher's Windows shortcut uses a
+  key whose label comes from the keyboard layout. Thanks to @eioz.
+
 ## [3.3.1] - 2026-08-09
 
 ### Summary

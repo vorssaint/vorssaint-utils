@@ -336,15 +336,16 @@ struct GlobalShortcut: Equatable, Hashable {
     /// signal the switcher's search uses, so dead keys resolve identically.
     func matchesByCharacter(event: CGEvent,
                             tolerating extra: GlobalShortcutModifiers = []) -> Bool {
-        guard let label = keyLabel, label.count == 1 else { return false }
         let actual = GlobalShortcutModifiers(cgFlags: event.flags)
         // The shortcut's own modifiers must be down; Shift or Option on top is
         // tolerated because many layouts need them to produce the character,
-        // and the caller may tolerate more (a session's held modifiers).
+        // and the caller may tolerate more (a session's held modifiers). Asked
+        // before the label, since this runs for every key the tap sees.
         guard actual.intersection(modifiers) == modifiers,
               actual.subtracting(modifiers).subtracting([.shift, .option])
                   .subtracting(extra).isEmpty
         else { return false }
+        guard let label = keyLabel, label.count == 1 else { return false }
         var length = 0
         var chars = [UniChar](repeating: 0, count: 4)
         event.keyboardGetUnicodeString(maxStringLength: chars.count,
@@ -483,8 +484,46 @@ struct GlobalShortcut: Equatable, Hashable {
     /// The character the current keyboard layout prints for a key, uppercased,
     /// so keys the static table does not know (ISO and JIS extras) still get a
     /// real cap. Returns nil for anything unprintable, keeping those invalid.
+    ///
+    /// Answered from the cache: deriving a label asks Text Input Services,
+    /// which traps the process off the main thread, and the Switcher's tap
+    /// asks for one on every key from its own (issue #578).
     private static func layoutKeyLabel(for keyCode: Int64) -> String? {
-        guard let code = UInt16(exactly: keyCode),
+        if let cached = layoutLabelLock.withLock({ layoutLabels[keyCode] }) { return cached }
+        guard let label = derivedLayoutKeyLabel(for: keyCode) else { return nil }
+        layoutLabelLock.withLock { layoutLabels[keyCode] = label }
+        return label
+    }
+
+    private static let layoutLabelLock = NSLock()
+    private static var layoutLabels: [Int64: String] = [:]
+
+    /// Fills the label cache and keeps it current. Call once from startup, on
+    /// the main thread, before any tap exists.
+    static func startObservingKeyboardLayout() {
+        refreshLayoutLabels()
+        guard layoutObserver == nil else { return }
+        layoutObserver = DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String),
+            object: nil,
+            queue: .main
+        ) { _ in refreshLayoutLabels() }
+    }
+
+    private static var layoutObserver: NSObjectProtocol?
+
+    private static func refreshLayoutLabels() {
+        // The range a keyboard can send; anything above it stays lazy.
+        var labels: [Int64: String] = [:]
+        for keyCode in Int64(0)...127 {
+            if let label = derivedLayoutKeyLabel(for: keyCode) { labels[keyCode] = label }
+        }
+        layoutLabelLock.withLock { layoutLabels = labels }
+    }
+
+    private static func derivedLayoutKeyLabel(for keyCode: Int64) -> String? {
+        guard Thread.isMainThread,
+              let code = UInt16(exactly: keyCode),
               let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
               let layoutData = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData)
         else { return nil }
