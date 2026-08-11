@@ -21,9 +21,11 @@ private struct SettingsSectionAnchorModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .id(anchor)
-            .listRowBackground(
-                Color.accentColor.opacity(focusedAnchor == anchor ? 0.14 : 0)
-            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(Color.accentColor.opacity(focusedAnchor == anchor ? 0.10 : 0))
+                    .allowsHitTesting(false)
+            }
     }
 }
 
