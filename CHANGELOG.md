@@ -7,13 +7,18 @@ All notable changes to this project are documented here. The format follows
 ## [3.3.2]
 
 ### Summary
-Vorssaint 3.3.2 makes installed features easier to configure and Full Disk Access setup clearer.
+Vorssaint 3.3.2 makes installed features easier to configure, clarifies Full Disk Access
+setup and keeps Switcher labels in sync with custom shortcuts.
 
 ### Changed
 - Installed Features rows open their Settings page and highlight the relevant
   controls. Thanks to @dorlugasigal.
 - Cleaning and the Uninstaller now explain how to grant Full Disk Access and
   that the app must reopen. Thanks to @PathGao.
+
+### Fixed
+- The App Switcher now shows its configured shortcut in the large icon mode label.
+  Thanks to @liuxxxu.
 
 ## [3.3.1] - 2026-08-09
 
