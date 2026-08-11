@@ -37,15 +37,6 @@ struct ShortcutCaps: View {
     }
 }
 
-/// The note shown wherever a scan is limited without Full Disk Access: the
-/// Cleaner and Uninstaller pages and the Uninstaller in the panel.
-///
-/// The three used to be hand-written copies and had drifted apart. Only one of
-/// them carried the hint that says what to do once System Settings opens, which
-/// is the part that is hard to guess, so the other two sent people to a list
-/// where Vorssaint may not even be listed yet.
-///
-/// `compact` is the panel's type scale, matching the other panel cards.
 struct FullDiskAccessNote: View {
     var compact = false
 
@@ -64,7 +55,7 @@ struct FullDiskAccessNote: View {
             }
             Text(l10n.s.uninstallerFDAHint)
                 .font(compact ? .system(size: 9) : .caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: compact ? 7 : 8) {
                 Button(l10n.s.uninstallerFDAGrant) { permissions.requestFullDiskAccess() }
