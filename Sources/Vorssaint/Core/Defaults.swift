@@ -64,6 +64,7 @@ enum DefaultsKey {
     static let switcherAppRules = "switcherAppRules" // [bundle id: SwitcherAppRule raw value]
     static let switcherCurrentSpaceOnly = "switcherCurrentSpaceOnly" // list only windows on the desktop the user is in (issue #337)
     static let switcherSearchPinEnabled = "switcherSearchPinEnabled" // S pins the search field open, off by default so existing users typing S as a search letter see no change
+    static let switcherShowShortcutHints = "switcherShowShortcutHints" // show the shortcut bar under the large-icon switcher
     static let dockPreviewEnabled = "dockPreviewEnabled"
     static let dockPreviewBackgroundOpacity = "dockPreviewBackgroundOpacity" // how solid the preview panel's material is drawn (DockPreviewSupport.backgroundOpacityRange)
     static let dockClickMinimize = "dockClickMinimize"    // click the active app's Dock icon to minimize its windows
@@ -447,6 +448,7 @@ enum DefaultsKey {
     static let recorderGIFSize = "recorderGIFSize"
     static let recorderGIFFrameRate = "recorderGIFFrameRate"
     static let recorderEditorPresets = "recorderEditorPresets"
+    static let recorderSharingEnabled = "recorderSharingEnabled"
     static let panelUtilityScreenRecorder = "panelUtilityScreenRecorder"
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
@@ -684,11 +686,11 @@ enum Defaults {
         DefaultsKey.mouseButtonShortcuts: [String: String](),
         DefaultsKey.superKeyEnabled: false,
         DefaultsKey.superKeySoloAction: SuperKeySoloAction.none.rawValue,
-        DefaultsKey.smoothScrollExceptions: [],
-        DefaultsKey.scrollInverterExceptions: [],
-        DefaultsKey.mouseNavigationExceptions: [],
-        DefaultsKey.mouseButtonExceptions: [],
-        DefaultsKey.middleClickExceptions: [],
+        DefaultsKey.smoothScrollExceptions: [String](),
+        DefaultsKey.scrollInverterExceptions: [String](),
+        DefaultsKey.mouseNavigationExceptions: [String](),
+        DefaultsKey.mouseButtonExceptions: [String](),
+        DefaultsKey.middleClickExceptions: [String](),
         DefaultsKey.switcherEnabled: true,
         DefaultsKey.switcherShortcut: "command:48",
         DefaultsKey.switcherWindowShortcut: GlobalShortcut.switcherWindowDefault.storageValue,
@@ -700,6 +702,7 @@ enum Defaults {
         DefaultsKey.switcherAppRules: [String: String](),
         DefaultsKey.switcherCurrentSpaceOnly: false,
         DefaultsKey.switcherSearchPinEnabled: false,
+        DefaultsKey.switcherShowShortcutHints: true,
         DefaultsKey.dockPreviewEnabled: false,
         DefaultsKey.dockPreviewBackgroundOpacity: 1.0,
         DefaultsKey.dockClickMinimize: false,
@@ -732,7 +735,7 @@ enum Defaults {
         // keeps the value shipped releases always had.
         DefaultsKey.shelfCloseAfterDrop: false,
         DefaultsKey.shelfRemoveAfterDrop: true,
-        DefaultsKey.shelfAutomaticExclusions: [],
+        DefaultsKey.shelfAutomaticExclusions: [String](),
         DefaultsKey.extraBrightnessEnabled: false,
         DefaultsKey.extraBrightnessLevel: 100,
         DefaultsKey.brightnessControlEnabled: false,
@@ -759,7 +762,7 @@ enum Defaults {
         DefaultsKey.whatsAppDownloadsLastCleanupBytes: 0,
         DefaultsKey.whatsAppDownloadsLastCleanupFailed: 0,
         DefaultsKey.whatsAppDownloadsLastCleanupAutomatic: false,
-        DefaultsKey.whatsAppDownloadsExclusions: [],
+        DefaultsKey.whatsAppDownloadsExclusions: [String](),
         DefaultsKey.whatsAppDownloadsAccessConfirmed: false,
         DefaultsKey.whatsAppOrganizerEnabled: false,
         DefaultsKey.whatsAppOrganizerDestinationPath: "",
@@ -800,7 +803,7 @@ enum Defaults {
         DefaultsKey.appUpdatesNotify: true,
         DefaultsKey.appUpdatesLastCheck: 0.0,
         DefaultsKey.appUpdatesLastCount: 0,
-        DefaultsKey.appUpdatesNotifiedIDs: [],
+        DefaultsKey.appUpdatesNotifiedIDs: [String](),
         DefaultsKey.panelUtilityMedia: true,
         DefaultsKey.panelUtilityClipboard: true,
         DefaultsKey.panelUtilityWindowLayout: true,
@@ -996,6 +999,7 @@ enum Defaults {
         DefaultsKey.recorderGIFSize: RecorderSupport.GIFSize.medium.rawValue,
         DefaultsKey.recorderGIFFrameRate: 12,
         DefaultsKey.recorderEditorPresets: Data(),
+        DefaultsKey.recorderSharingEnabled: true,
         DefaultsKey.panelUtilityScreenRecorder: true,
         DefaultsKey.screenshotShortcutEnabled: false,
         DefaultsKey.screenshotShortcut: GlobalShortcut.screenshotDefault.storageValue,

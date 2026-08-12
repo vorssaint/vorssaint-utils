@@ -68,8 +68,10 @@ struct RadialMenuSettings: View {
                     .foregroundStyle(.secondary)
                 Picker(text.mouseTriggerLabel, selection: $mouseTriggerRaw) {
                     Text(text.mouseTriggerOff).tag(RadialMenuMouseTrigger.off.rawValue)
-                    Text(text.mouseTriggerBack).tag(RadialMenuMouseTrigger.back.rawValue)
-                    Text(text.mouseTriggerForward).tag(RadialMenuMouseTrigger.forward.rawValue)
+                    ForEach(Array(MouseButtonShortcutSupport.buttonRange), id: \.self) { button in
+                        Text(mouseTriggerName(for: button))
+                            .tag(RadialMenuMouseTrigger.button(button).rawValue)
+                    }
                 }
                 .disabled(!enabled)
                 .onChange(of: mouseTriggerRaw) { _, raw in
@@ -79,9 +81,13 @@ struct RadialMenuSettings: View {
                     }
                 }
                 if RadialMenuMouseTrigger.sanitized(mouseTriggerRaw) != .off {
-                    Text(text.mouseTriggerWarning)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if let button = RadialMenuMouseTrigger.sanitized(mouseTriggerRaw).buttonNumber,
+                       button == MouseButtonShortcutSupport.backButtonNumber
+                        || button == MouseButtonShortcutSupport.forwardButtonNumber {
+                        Text(text.mouseTriggerWarning)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     // A button the mouse's own software has turned into
                     // something else never reaches any app, and from the
                     // outside that looks exactly like a wrong setting. This
@@ -226,6 +232,16 @@ struct RadialMenuSettings: View {
     private func requestAccessibilityIfNeeded(_ on: Bool) {
         guard on, RadialMenuSupport.needsAccessibility(items), !permissions.accessibility else { return }
         permissions.requestAccessibility()
+    }
+
+    private func mouseTriggerName(for button: Int64) -> String {
+        switch button {
+        case MouseButtonShortcutSupport.backButtonNumber: return text.mouseTriggerBack
+        case MouseButtonShortcutSupport.forwardButtonNumber: return text.mouseTriggerForward
+        default:
+            return MouseButtonShortcutSupport.buttonName(
+                for: button, strings: FeatureStrings.mouseButtons(l10n.language))
+        }
     }
 
     private var buttonTestRow: some View {

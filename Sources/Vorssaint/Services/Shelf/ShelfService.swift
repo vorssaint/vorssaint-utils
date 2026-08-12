@@ -571,7 +571,7 @@ final class ShelfService: ObservableObject {
                 self.dockedWatchdog = nil
                 return
             }
-            if NSEvent.pressedMouseButtons & 1 == 0 {
+            if !CGEventSource.buttonState(.combinedSessionState, button: .left) {
                 self.closeDragGesture()
                 self.endDockedDrag()
             }

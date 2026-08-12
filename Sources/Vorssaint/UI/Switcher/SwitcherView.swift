@@ -36,6 +36,7 @@ struct SwitcherView: View {
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.switcherIconRowMode) private var iconRowMode = false
     @AppStorage(DefaultsKey.switcherSimpleMode) private var simpleMode = false
+    @AppStorage(DefaultsKey.switcherShowShortcutHints) private var showsShortcutHints = true
     @AppStorage(DefaultsKey.switcherShortcut) private var switcherShortcutStorage = GlobalShortcut.switcherDefault.storageValue
     @AppStorage(DefaultsKey.switcherWindowShortcut) private var switcherWindowShortcutStorage = GlobalShortcut.switcherWindowDefault.storageValue
 
@@ -180,9 +181,11 @@ struct SwitcherView: View {
                     .frame(height: SwitcherIconRowLayout.previewGap)
             }
             iconRowSurface
-            Spacer()
-                .frame(height: SwitcherIconRowLayout.hintGap)
-            shortcutHintBar
+            if showsShortcutHints {
+                Spacer()
+                    .frame(height: SwitcherIconRowLayout.hintGap)
+                shortcutHintBar
+            }
         }
         .padding(SwitcherIconRowLayout.padding)
     }

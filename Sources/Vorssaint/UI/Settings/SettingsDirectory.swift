@@ -66,6 +66,7 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .switcher, title: s.tabSwitcher, icon: "rectangle.on.rectangle",
                                       keywords: [s.switcherEnable, s.dockClickMinimize, s.dockClickHide,
                                                  s.dockClickCycleWindows, s.switcherWindowlessApps,
+                                                 s.switcherShowShortcutHints,
                                                  FeatureStrings.switcherAppRules(language).listTitle,
                                                  FeatureStrings.switcherAppRules(language).showWithoutWindows,
                                                  FeatureStrings.switcherAppRules(language).windowsOnly,

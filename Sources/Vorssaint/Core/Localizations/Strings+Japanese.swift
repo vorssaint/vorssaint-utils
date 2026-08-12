@@ -198,7 +198,7 @@ extension Strings {
         switcherEnableCaption: "アプリやウインドウを切り替えます。最小化したウインドウや同じアプリの複数ウインドウにも対応します。",
         switcherUsageHint: "ショートカットを押したまま移動し、放すとウインドウがアクティブになります。Shift または ← で戻る、W でウインドウを閉じ、Q でアプリを終了、Esc でキャンセルします。",
         switcherNoWindows: "開いているウインドウはありません",
-        switcherIconRowMode: "⌘Tab を大きなアイコンで表示",
+        switcherIconRowMode: "%@ を大きなアイコンで表示",
         switcherIconRowModeCaption: "アプリごとに1つのアイコンを表示し、その上にそのアプリのウインドウプレビューを表示します。",
         switcherSimpleMode: "シンプルなアプリスイッチャー",
         switcherSimpleModeCaption: "プレビューやスイッチャーによる画面収録を使わず、アプリのアイコンとウインドウのタイトルを表示します。",
@@ -897,6 +897,8 @@ extension Strings {
         switcherSearchPin: "S で検索欄を固定",
         switcherSearchPinCaption: "S を押すと検索を開始して切り替え画面を固定表示にします。ショートカットが ⌥ を使う場合の特殊文字入力も、Q や W で始める検索によるウインドウを閉じる/アプリを終了する誤動作も防げます。",
         invertVerticalScroll: "縦スクロールを反転",
-        invertHorizontalScroll: "横スクロールを反転"
+        invertHorizontalScroll: "横スクロールを反転",
+        switcherShowShortcutHints: "ショートカットのヒントを表示",
+        switcherShowShortcutHintsCaption: "アイコンの下にアプリとウインドウのショートカットを表示します。"
     )
 }

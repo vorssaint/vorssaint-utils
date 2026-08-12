@@ -5,7 +5,7 @@
 "NSAudioCaptureUsageDescription" = "Vorssaint accede al audio de cada app solo para ajustar su volumen individual en el mezclador. No se graba nada ni nada sale de tu Mac.";
 
 /* macOS Microphone permission prompt. */
-"NSMicrophoneUsageDescription" = "Vorssaint graba tu micrófono solo cuando lo activas para una grabación de pantalla. El audio queda en esa grabación, en tu Mac.";
+"NSMicrophoneUsageDescription" = "Vorssaint graba tu micrófono solo cuando lo activas para una grabación de pantalla. El audio se queda en tu Mac salvo que elijas crear un enlace temporal.";
 
 /* macOS Camera permission prompt. */
 "NSCameraUsageDescription" = "Vorssaint muestra tu cámara solo en la ventana de vista previa que abres, para que compruebes cómo te ves antes de una llamada. No se graba nada ni nada sale de tu Mac.";

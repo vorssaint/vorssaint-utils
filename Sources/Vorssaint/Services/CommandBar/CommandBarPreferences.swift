@@ -74,6 +74,9 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
 /// offer, the names they gave things, and what they pinned. Pure, so the
 /// rules are pinned by tests and the service only has to read them.
 enum CommandBarPreferences {
+    /// Row shortcuts persist ids, so this one must never drift.
+    static let emojiBrowserRowID = "emoji.browse"
+
     // MARK: - Sources
 
     static func disabledSources(from raw: String) -> Set<CommandBarSource> {

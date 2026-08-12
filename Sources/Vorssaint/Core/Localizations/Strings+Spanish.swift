@@ -198,7 +198,7 @@ extension Strings {
         switcherEnableCaption: "Cambia entre apps y ventanas, incluidas las minimizadas y varias ventanas de la misma app.",
         switcherUsageHint: "Mantén el atajo para navegar; suelta para activar la ventana. Mayúsculas o ← retrocede; W cierra la ventana; Q cierra la app; Esc cancela.",
         switcherNoWindows: "No hay ventanas abiertas",
-        switcherIconRowMode: "Mostrar ⌘Tab con iconos grandes",
+        switcherIconRowMode: "Mostrar %@ con iconos grandes",
         switcherIconRowModeCaption: "Muestra un icono por app con las vistas previas de sus ventanas arriba.",
         switcherSimpleMode: "Selector de apps sencillo",
         switcherSimpleModeCaption: "Muestra iconos de apps y títulos de ventanas, sin vistas previas ni captura de pantalla por el selector.",
@@ -897,6 +897,8 @@ extension Strings {
         switcherSearchPin: "Fijar búsqueda con S",
         switcherSearchPinCaption: "S inicia una búsqueda y fija el selector abierto: al escribir ya no aparecen caracteres especiales cuando el atajo usa ⌥, y una búsqueda que empieza por Q o W ya no cierra la ventana ni cierra la app por error.",
         invertVerticalScroll: "Invertir el desplazamiento vertical",
-        invertHorizontalScroll: "Invertir el desplazamiento horizontal"
+        invertHorizontalScroll: "Invertir el desplazamiento horizontal",
+        switcherShowShortcutHints: "Mostrar indicaciones de atajos",
+        switcherShowShortcutHintsCaption: "Muestra los atajos de apps y ventanas debajo de los iconos."
     )
 }

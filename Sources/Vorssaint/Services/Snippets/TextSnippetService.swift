@@ -298,9 +298,13 @@ final class TextSnippetService {
             return match
         }
         if let matched {
-            // The final trigger character passes through (it is on screen by
-            // the time the deletes land), so it counts toward the deletes.
-            expand(matched, deleteCount: matched.trigger.count, trailingKeyCode: nil, trailingFlags: [])
+            // Suppress the final trigger event. The replacement is posted
+            // before this callback returns, so later typing cannot overtake it.
+            expand(matched,
+                   deleteCount: max(0, matched.trigger.count - typed.count),
+                   trailingKeyCode: nil,
+                   trailingFlags: [])
+            return nil
         }
         return Unmanaged.passUnretained(event)
     }
@@ -311,9 +315,7 @@ final class TextSnippetService {
                         deleteCount: Int,
                         trailingKeyCode: CGKeyCode?,
                         trailingFlags: CGEventFlags) {
-        // Outside the tap callback: posting from inside it would reorder the
-        // synthetic events around the one still in flight.
-        DispatchQueue.main.async {
+        let post = {
             let text = TextSnippetSupport.expand(
                 snippet.replacement,
                 date: Date(),
@@ -323,6 +325,11 @@ final class TextSnippetService {
                                text: text,
                                trailingKeyCode: trailingKeyCode,
                                trailingFlags: trailingFlags)
+        }
+        if Thread.isMainThread {
+            post()
+        } else {
+            DispatchQueue.main.sync(execute: post)
         }
     }
 

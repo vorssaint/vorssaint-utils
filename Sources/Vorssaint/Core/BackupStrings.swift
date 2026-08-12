@@ -41,7 +41,7 @@ extension FeatureStrings {
 extension BackupFeatureStrings {
     static let ko = BackupFeatureStrings(
         title: "백업",
-        description: "설정을 다른 Mac으로 옮기세요. 모든 환경설정을 파일로 내보낸 뒤 그곳에서 가져올 수 있습니다. 클립보드 기록, 선반 항목 및 시스템 권한은 이 Mac 밖으로 나가지 않습니다.",
+        description: "설정을 다른 Mac으로 옮기세요. 모든 환경설정을 파일로 내보낸 뒤 그곳에서 가져올 수 있습니다. 빠른 메모의 텍스트도 파일에 포함됩니다. 클립보드 기록, 선반 항목 및 시스템 권한은 이 Mac 밖으로 나가지 않습니다.",
         exportButton: "설정 내보내기…",
         importButton: "설정 가져오기…",
         exported: "백업을 저장했습니다",
@@ -55,7 +55,7 @@ extension BackupFeatureStrings {
 extension BackupFeatureStrings {
     static let enUS = BackupFeatureStrings(
         title: "Backup",
-        description: "Take your setup to another Mac: export every preference to a file and import it there. Clipboard history, Shelf items and system permissions never leave this Mac.",
+        description: "Take your setup to another Mac: export every preference to a file and import it there. The file includes the text from your Scratchpad notes. Clipboard history, Shelf items and system permissions never leave this Mac.",
         exportButton: "Export settings…",
         importButton: "Import settings…",
         exported: "Backup saved",
@@ -67,7 +67,7 @@ extension BackupFeatureStrings {
 
     static let ptBR = BackupFeatureStrings(
         title: "Backup",
-        description: "Leve sua configuração para outro Mac: exporte todas as preferências para um arquivo e importe lá. Histórico da área de transferência, itens da área temporária e permissões do sistema nunca saem deste Mac.",
+        description: "Leve sua configuração para outro Mac: exporte todas as preferências para um arquivo e importe lá. O texto das suas notas no Rascunho entra no arquivo. Histórico da área de transferência, itens da área temporária e permissões do sistema nunca saem deste Mac.",
         exportButton: "Exportar configurações…",
         importButton: "Importar configurações…",
         exported: "Backup salvo",
@@ -79,7 +79,7 @@ extension BackupFeatureStrings {
 
     static let tr = BackupFeatureStrings(
         title: "Yedek",
-        description: "Kurulumunuzu başka bir Mac'e taşıyın: tüm tercihleri bir dosyaya aktarın ve orada içe aktarın. Pano geçmişi, raf öğeleri ve sistem izinleri bu Mac'ten asla çıkmaz.",
+        description: "Kurulumunuzu başka bir Mac'e taşıyın: tüm tercihleri bir dosyaya aktarın ve orada içe aktarın. Karalama defteri notlarınızın metni dosyaya dahil edilir. Pano geçmişi, raf öğeleri ve sistem izinleri bu Mac'ten asla çıkmaz.",
         exportButton: "Ayarları dışa aktar…",
         importButton: "Ayarları içe aktar…",
         exported: "Yedek kaydedildi",
@@ -91,7 +91,7 @@ extension BackupFeatureStrings {
 
     static let ru = BackupFeatureStrings(
         title: "Резервная копия",
-        description: "Перенесите настройки на другой Mac: экспортируйте все параметры в файл и импортируйте его там. История буфера обмена, объекты полки и системные разрешения никогда не покидают этот Mac.",
+        description: "Перенесите настройки на другой Mac: экспортируйте все параметры в файл и импортируйте его там. Текст заметок в Черновике включается в файл. История буфера обмена, объекты полки и системные разрешения никогда не покидают этот Mac.",
         exportButton: "Экспортировать настройки…",
         importButton: "Импортировать настройки…",
         exported: "Копия сохранена",
@@ -103,7 +103,7 @@ extension BackupFeatureStrings {
 
     static let es = BackupFeatureStrings(
         title: "Copia de seguridad",
-        description: "Lleva tu configuración a otro Mac: exporta todas las preferencias a un archivo e impórtalo allí. El historial del portapapeles, los elementos del estante y los permisos del sistema nunca salen de este Mac.",
+        description: "Lleva tu configuración a otro Mac: exporta todas las preferencias a un archivo e impórtalo allí. El archivo incluye el texto de las notas de Borrador. El historial del portapapeles, los elementos del estante y los permisos del sistema nunca salen de este Mac.",
         exportButton: "Exportar ajustes…",
         importButton: "Importar ajustes…",
         exported: "Copia guardada",
@@ -115,7 +115,7 @@ extension BackupFeatureStrings {
 
     static let de = BackupFeatureStrings(
         title: "Backup",
-        description: "Nimm deine Einrichtung mit auf einen anderen Mac: exportiere alle Einstellungen in eine Datei und importiere sie dort. Zwischenablage-Verlauf, Ablage-Objekte und Systemberechtigungen verlassen diesen Mac nie.",
+        description: "Nimm deine Einrichtung mit auf einen anderen Mac: exportiere alle Einstellungen in eine Datei und importiere sie dort. Die Datei enthält den Text deiner Notizen im Schmierzettel. Zwischenablage-Verlauf, Ablage-Objekte und Systemberechtigungen verlassen diesen Mac nie.",
         exportButton: "Einstellungen exportieren…",
         importButton: "Einstellungen importieren…",
         exported: "Backup gesichert",
@@ -127,7 +127,7 @@ extension BackupFeatureStrings {
 
     static let fr = BackupFeatureStrings(
         title: "Sauvegarde",
-        description: "Emportez votre configuration sur un autre Mac : exportez toutes les préférences dans un fichier et importez-le là-bas. L'historique du presse-papiers, les éléments de l'étagère et les autorisations système ne quittent jamais ce Mac.",
+        description: "Emportez votre configuration sur un autre Mac : exportez toutes les préférences dans un fichier et importez-le là-bas. Le fichier inclut le texte de vos notes dans Brouillon. L'historique du presse-papiers, les éléments de l'étagère et les autorisations système ne quittent jamais ce Mac.",
         exportButton: "Exporter les réglages…",
         importButton: "Importer les réglages…",
         exported: "Sauvegarde enregistrée",
@@ -139,7 +139,7 @@ extension BackupFeatureStrings {
 
     static let it = BackupFeatureStrings(
         title: "Backup",
-        description: "Porta la tua configurazione su un altro Mac: esporta tutte le preferenze in un file e importalo lì. Cronologia degli appunti, elementi della mensola e permessi di sistema non lasciano mai questo Mac.",
+        description: "Porta la tua configurazione su un altro Mac: esporta tutte le preferenze in un file e importalo lì. Il file include il testo delle note in Bozza. Cronologia degli appunti, elementi della mensola e permessi di sistema non lasciano mai questo Mac.",
         exportButton: "Esporta impostazioni…",
         importButton: "Importa impostazioni…",
         exported: "Backup salvato",
@@ -151,7 +151,7 @@ extension BackupFeatureStrings {
 
     static let ja = BackupFeatureStrings(
         title: "バックアップ",
-        description: "設定を別のMacへ。すべての環境設定をファイルに書き出し、そちらで読み込みます。クリップボード履歴、シェルフの項目、システム権限がこのMacの外に出ることはありません。",
+        description: "設定を別のMacへ。すべての環境設定をファイルに書き出し、そちらで読み込みます。ファイルにはクイックメモの本文も含まれます。クリップボード履歴、シェルフの項目、システム権限がこのMacの外に出ることはありません。",
         exportButton: "設定を書き出す…",
         importButton: "設定を読み込む…",
         exported: "バックアップを保存しました",
@@ -163,7 +163,7 @@ extension BackupFeatureStrings {
 
     static let zhHans = BackupFeatureStrings(
         title: "备份",
-        description: "把你的配置带到另一台 Mac：将所有偏好设置导出为文件并在那里导入。剪贴板历史、暂存架项目和系统权限永远不会离开这台 Mac。",
+        description: "把你的配置带到另一台 Mac：将所有偏好设置导出为文件并在那里导入。文件中也包含草稿板里的笔记文本。剪贴板历史、暂存架项目和系统权限永远不会离开这台 Mac。",
         exportButton: "导出设置…",
         importButton: "导入设置…",
         exported: "备份已保存",
@@ -175,7 +175,7 @@ extension BackupFeatureStrings {
 
     static let zhTW = BackupFeatureStrings(
         title: "備份",
-        description: "把你的設定帶到另一台 Mac:將所有偏好設定匯出為檔案並在那裡匯入。剪貼板歷史、暫存架項目和系統權限永遠不會離開這台 Mac。",
+        description: "把你的設定帶到另一台 Mac:將所有偏好設定匯出為檔案並在那裡匯入。檔案也包含草稿板中的筆記文字。剪貼板歷史、暫存架項目和系統權限永遠不會離開這台 Mac。",
         exportButton: "匯出設定…",
         importButton: "匯入設定…",
         exported: "備份已儲存",
@@ -187,7 +187,7 @@ extension BackupFeatureStrings {
 
     static let zhHK = BackupFeatureStrings(
         title: "備份",
-        description: "把你的設定帶到另一台 Mac:將所有偏好設定匯出為檔案並在那裡匯入。剪貼板歷史、暫存架項目和系統權限永遠不會離開這台 Mac。",
+        description: "把你的設定帶到另一台 Mac:將所有偏好設定匯出為檔案並在那裡匯入。檔案亦包含草稿板入面嘅筆記文字。剪貼板歷史、暫存架項目和系統權限永遠不會離開這台 Mac。",
         exportButton: "匯出設定…",
         importButton: "匯入設定…",
         exported: "備份已儲存",

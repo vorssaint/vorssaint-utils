@@ -63,7 +63,9 @@ struct UninstallerView: View {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
 
-            if !permissions.fullDiskAccess { fullDiskAccessNote }
+            if !permissions.fullDiskAccess {
+                FullDiskAccessNote().frame(width: 360)
+            }
             Spacer()
         }
         .padding(28)
@@ -80,31 +82,6 @@ struct UninstallerView: View {
             uninstaller.select(appURL: app)
             return true
         } isTargeted: { dropTargeted = $0 }
-    }
-
-    private var fullDiskAccessNote: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "info.circle").foregroundStyle(.secondary)
-                Text(l10n.s.uninstallerFDANote)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Text(l10n.s.uninstallerFDAHint)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 8) {
-                Button(l10n.s.uninstallerFDAGrant) { permissions.requestFullDiskAccess() }
-                // Shown alongside because access only takes effect on relaunch.
-                Button(l10n.s.uninstallerFDARelaunch) { appDelegate()?.relaunchApp() }
-            }
-            .controlSize(.small)
-        }
-        .padding(11)
-        .frame(width: 360)
-        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(0.05)))
     }
 
     // MARK: Busy

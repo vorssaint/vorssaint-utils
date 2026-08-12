@@ -37,6 +37,42 @@ struct ShortcutCaps: View {
     }
 }
 
+struct FullDiskAccessNote: View {
+    var compact = false
+
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var permissions = Permissions.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .top, spacing: compact ? 7 : 8) {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(.secondary)
+                Text(l10n.s.uninstallerFDANote)
+                    .font(compact ? .system(size: 10) : .caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Text(l10n.s.uninstallerFDAHint)
+                .font(compact ? .system(size: 9) : .caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: compact ? 7 : 8) {
+                Button(l10n.s.uninstallerFDAGrant) { permissions.requestFullDiskAccess() }
+                // Shown alongside because access only takes effect on relaunch.
+                Button(l10n.s.uninstallerFDARelaunch) { appDelegate()?.relaunchApp() }
+            }
+            .controlSize(.small)
+            .font(compact ? .system(size: 10.5) : nil)
+        }
+        .padding(compact ? 9 : 11)
+        .background(
+            RoundedRectangle(cornerRadius: compact ? 8 : 9, style: .continuous)
+                .fill(Color.primary.opacity(compact ? 0.045 : 0.05))
+        )
+    }
+}
+
 /// Translucent HUD material behind floating panels (the shelf, the switcher, the
 /// cut-feedback HUD). Mirrors the switcher's backdrop so every floating surface
 /// matches.

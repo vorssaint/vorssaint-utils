@@ -121,6 +121,7 @@ struct SwitcherIconRowLayout: Equatable {
     let previewContentWidth: CGFloat
     let previewSurfaceWidth: CGFloat
     let panelSize: CGSize
+    let showsShortcutHints: Bool
 
     static var scale: CGFloat { min(PreviewSizing.scale, 1.15) }
     static var iconSize: CGFloat { 68 * scale }
@@ -145,13 +146,18 @@ struct SwitcherIconRowLayout: Equatable {
     static var simpleTitleGap: CGFloat { 10 * scale }
     static var simpleTitleChipMaxWidth: CGFloat { 180 * scale }
 
-    /// App-only mode keeps the same icon and shortcut surfaces, but removes
-    /// the entire preview area so no blank space remains where captures were.
+    /// App-only mode keeps the same icon row and shortcut preference, but
+    /// removes the entire preview area so no blank space remains where captures were.
     var simplePanelSize: CGSize {
-        CGSize(width: max(appRowSurfaceWidth, Self.hintBarWidth) + Self.padding * 2,
+        CGSize(width: max(appRowSurfaceWidth,
+                          showsShortcutHints ? Self.hintBarWidth : 0) + Self.padding * 2,
                height: Self.simpleTitleHeight + Self.simpleTitleGap
-                        + Self.rowHeight + Self.hintGap + Self.hintHeight
+                        + Self.rowHeight + shortcutHintHeight
                         + Self.padding * 2)
+    }
+
+    private var shortcutHintHeight: CGFloat {
+        showsShortcutHints ? Self.hintGap + Self.hintHeight : 0
     }
 
     static let empty = SwitcherIconRowLayout(visibleIconCount: 1,
@@ -159,11 +165,13 @@ struct SwitcherIconRowLayout: Equatable {
                                              appRowSurfaceWidth: 0,
                                              previewContentWidth: 0,
                                              previewSurfaceWidth: 0,
-                                             panelSize: .zero)
+                                             panelSize: .zero,
+                                             showsShortcutHints: true)
 
     static func compute(appCount rawAppCount: Int,
                         selectedWindowCount rawWindowCount: Int,
-                        screenVisibleFrame: CGRect) -> SwitcherIconRowLayout {
+                        screenVisibleFrame: CGRect,
+                        showsShortcutHints: Bool = true) -> SwitcherIconRowLayout {
         let appCount = max(1, rawAppCount)
         let windowCount = max(1, rawWindowCount)
         let usableWidth = max(320, screenVisibleFrame.width * 0.96)
@@ -177,16 +185,19 @@ struct SwitcherIconRowLayout: Equatable {
         let appRowSurfaceWidth = min(appRowWidth + rowHorizontalPadding * 2, maxContentWidth)
         let previewWidth = min(max(previewCardWidth, naturalPreviewWidth), maxPreviewContentWidth)
         let previewSurfaceWidth = min(previewWidth + previewPanelPadding * 2, maxContentWidth)
-        let contentWidth = min(max(appRowSurfaceWidth, previewSurfaceWidth, min(hintBarWidth, maxContentWidth)), maxContentWidth)
+        let hintWidth = showsShortcutHints ? min(hintBarWidth, maxContentWidth) : 0
+        let contentWidth = min(max(appRowSurfaceWidth, previewSurfaceWidth, hintWidth), maxContentWidth)
         let visibleIconCount = max(1, min(appCount, Int((maxAppContentWidth + spacing) / (appTileWidth + spacing))))
         let width = contentWidth + padding * 2
-        let height = previewHeight + previewGap + rowHeight + hintGap + hintHeight + padding * 2
+        let shortcutHintHeight = showsShortcutHints ? hintGap + hintHeight : 0
+        let height = previewHeight + previewGap + rowHeight + shortcutHintHeight + padding * 2
         return SwitcherIconRowLayout(visibleIconCount: visibleIconCount,
                                      appRowContentWidth: appRowWidth,
                                      appRowSurfaceWidth: appRowSurfaceWidth,
                                      previewContentWidth: previewWidth,
                                      previewSurfaceWidth: previewSurfaceWidth,
-                                     panelSize: CGSize(width: width, height: height))
+                                     panelSize: CGSize(width: width, height: height),
+                                     showsShortcutHints: showsShortcutHints)
     }
 
     static func compute(count rawCount: Int, screenVisibleFrame: CGRect) -> SwitcherIconRowLayout {
@@ -726,9 +737,11 @@ enum SwitcherSupport {
 
     static func shouldStageSourceBehindTarget(targetPID: pid_t,
                                               sourcePID: pid_t?,
-                                              sourceWindowID: UInt32?) -> Bool {
+                                              sourceWindowID: UInt32?,
+                                              ownPID: pid_t = ProcessInfo.processInfo.processIdentifier) -> Bool {
         guard let sourcePID,
               sourcePID != targetPID,
+              sourcePID != ownPID,
               sourceWindowID != nil else { return false }
         return true
     }

@@ -198,7 +198,7 @@ extension Strings {
         switcherEnableCaption: "Passez d’une app ou fenêtre à l’autre, y compris les fenêtres minimisées et plusieurs fenêtres d’une même app.",
         switcherUsageHint: "Maintenez le raccourci pour naviguer ; relâchez pour activer la fenêtre. Maj ou ← revient en arrière ; W ferme la fenêtre ; Q quitte l’app ; Échap annule.",
         switcherNoWindows: "Aucune fenêtre ouverte",
-        switcherIconRowMode: "Afficher ⌘Tab avec de grandes icônes",
+        switcherIconRowMode: "Afficher %@ avec de grandes icônes",
         switcherIconRowModeCaption: "Affiche une icône par app avec les aperçus de ses fenêtres au-dessus.",
         switcherSimpleMode: "Sélecteur d’apps simple",
         switcherSimpleModeCaption: "Affiche les icônes des apps et les titres des fenêtres, sans aperçu ni capture d’écran par le sélecteur.",
@@ -897,6 +897,8 @@ extension Strings {
         switcherSearchPin: "Épingler la recherche avec S",
         switcherSearchPinCaption: "S lance une recherche et épingle le sélecteur ouvert : plus de caractères spéciaux tapés quand le raccourci utilise ⌥, et une recherche commençant par Q ou W ne ferme plus la fenêtre ni ne quitte l'app par erreur.",
         invertVerticalScroll: "Inverser le défilement vertical",
-        invertHorizontalScroll: "Inverser le défilement horizontal"
+        invertHorizontalScroll: "Inverser le défilement horizontal",
+        switcherShowShortcutHints: "Afficher les raccourcis",
+        switcherShowShortcutHintsCaption: "Affiche les raccourcis des apps et des fenêtres sous les icônes."
     )
 }

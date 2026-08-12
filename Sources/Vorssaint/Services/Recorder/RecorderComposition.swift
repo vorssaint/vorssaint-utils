@@ -168,6 +168,10 @@ enum RecorderAudioWaveform {
 
         var peaks = Array(repeating: Float.zero, count: count)
         while let sample = output.copyNextSampleBuffer() {
+            if Task.isCancelled {
+                reader.cancelReading()
+                return []
+            }
             guard let block = CMSampleBufferGetDataBuffer(sample),
                   let format = CMSampleBufferGetFormatDescription(sample),
                   let description = CMAudioFormatDescriptionGetStreamBasicDescription(format)

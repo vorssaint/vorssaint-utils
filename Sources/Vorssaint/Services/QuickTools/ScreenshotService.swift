@@ -67,6 +67,9 @@ final class ScreenshotService: ObservableObject {
     }
 
     private init() {
+        DispatchQueue.global(qos: .utility).async {
+            ScreenshotSupport.removeTemporaryDragDirectories()
+        }
         hotkey.onPress = { [weak self] in self?.capture() }
         fullScreenHotkey.onPress = { [weak self] in self?.captureFullScreen() }
         lastCaptureHotkey.onPress = { [weak self] in self?.openLastCapture() }
@@ -641,7 +644,15 @@ final class ScreenshotService: ObservableObject {
         guard let url = try? ScreenshotSupport.temporaryDragFile(data: data, name: name) else {
             return nil
         }
-        return NSItemProvider(contentsOf: url)
+        guard let provider = NSItemProvider(contentsOf: url) else {
+            try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
+            return nil
+        }
+        let folder = url.deletingLastPathComponent()
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 60 * 60) {
+            try? FileManager.default.removeItem(at: folder)
+        }
+        return provider
     }
 
     // MARK: - Save location

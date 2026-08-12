@@ -14,16 +14,30 @@ import UniformTypeIdentifiers
 /// pixel buffer pool recycles instead of growing with the length of the clip.
 final class RecorderExporter {
 
+    final class ShareArtifact {
+        let fileURL: URL
+
+        fileprivate init(fileURL: URL) {
+            self.fileURL = fileURL
+        }
+
+        func discard() {
+            try? FileManager.default.removeItem(at: fileURL)
+        }
+    }
+
     enum Output {
         case video
         case gif
     }
 
-    enum Failure: Equatable {
+    enum Failure: Error, Equatable {
         case noVideo
         case readFailed
         case writeFailed
         case tooLongForGIF
+        case tooLargeForSharing
+        case invalidShareArtifact
         case cancelled
     }
 
@@ -78,6 +92,71 @@ final class RecorderExporter {
         }
     }
 
+    /// Produces the only artifact the sharing service accepts. There is no
+    /// file picker or generic URL entry point: this file can only come from a
+    /// take owned by the recorder and the current edit document.
+    func exportForSharing(take: RecorderTakeStore.Take,
+                          document: RecorderEditDocument,
+                          progress: @escaping (Double) -> Void) async
+        -> (artifact: ShareArtifact?, failure: Failure?) {
+        guard RecorderTakeStore.shared.owns(take) else {
+            return (nil, .invalidShareArtifact)
+        }
+        let asset = AVURLAsset(url: take.videoURL)
+        guard let videoTrack = try? await asset.loadTracks(withMediaType: .video).first,
+              let durationTime = try? await asset.load(.duration)
+        else { return (nil, .noVideo) }
+
+        let duration = CMTimeGetSeconds(durationTime)
+        let trim = document.trim(duration: duration)
+        guard trim.duration > 0 else { return (nil, .noVideo) }
+        let sourceSize = (try? await videoTrack.load(.naturalSize)) ?? .zero
+        guard sourceSize.width > 0, sourceSize.height > 0 else {
+            return (nil, .noVideo)
+        }
+        let frameRate = RecorderSupport.sanitizedFrameRate(
+            Int(((try? await videoTrack.load(.nominalFrameRate)) ?? 60).rounded()))
+        guard let directory = Self.shareDirectory() else { return (nil, .writeFailed) }
+        let destination = directory
+            .appendingPathComponent(UUID().uuidString, isDirectory: false)
+            .appendingPathExtension("mp4")
+
+        var bitRateScale = 1.0
+        for _ in 0..<3 {
+            try? FileManager.default.removeItem(at: destination)
+            let failure = await exportVideo(asset: asset,
+                                            videoTrack: videoTrack,
+                                            pointerURL: take.pointerURL,
+                                            document: document,
+                                            trim: trim,
+                                            sourceSize: sourceSize,
+                                            frameRate: frameRate,
+                                            sharingBitRateScale: bitRateScale,
+                                            to: destination,
+                                            progress: progress)
+            if let failure {
+                try? FileManager.default.removeItem(at: destination)
+                return (nil, failure)
+            }
+            let bytes = (try? destination.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            if bytes <= RecordingSharingSupport.maximumUploadBytes {
+                guard await Self.isValidShareArtifact(destination, in: directory) else {
+                    try? FileManager.default.removeItem(at: destination)
+                    return (nil, .invalidShareArtifact)
+                }
+                progress(1)
+                return (ShareArtifact(fileURL: destination), nil)
+            }
+            guard let retry = RecordingSharingSupport.retryScale(current: bitRateScale,
+                                                                  actualBytes: bytes) else {
+                break
+            }
+            bitRateScale = retry
+        }
+        try? FileManager.default.removeItem(at: destination)
+        return (nil, .tooLargeForSharing)
+    }
+
     // MARK: - Video
 
     private func exportVideo(asset: AVURLAsset,
@@ -87,6 +166,7 @@ final class RecorderExporter {
                              trim: RecorderSupport.Trim,
                              sourceSize: CGSize,
                              frameRate: Int,
+                             sharingBitRateScale: Double? = nil,
                              to destination: URL,
                              progress: @escaping (Double) -> Void) async -> Failure? {
         let duration = CMTimeGetSeconds((try? await asset.load(.duration)) ?? .zero)
@@ -102,6 +182,33 @@ final class RecorderExporter {
         else { return .readFailed }
         let timeline = result.asset
         let timelineDuration = (try? await timeline.load(.duration)) ?? .zero
+        let audioTracks = (try? await timeline.loadTracks(withMediaType: .audio)) ?? []
+
+        let style = document.resolvedBackdrop
+        let padding = style.kind == .none ? 0 : style.padding * 0.18
+        let fullCanvas = RecorderSupport.canvasSize(source: sourceSize,
+                                                    padding: padding,
+                                                    aspect: document.resolvedAspect)
+        let regularSize = RecorderSupport.evenSize(CGSize(
+            width: fullCanvas.width * document.resolvedQuality.outputScale,
+            height: fullCanvas.height * document.resolvedQuality.outputScale))
+        let sharingPlan = sharingBitRateScale.flatMap {
+            RecordingSharingSupport.encodingPlan(
+                duration: timelineDuration.seconds,
+                baseSize: regularSize,
+                sourceFrameRate: frameRate,
+                hasAudio: keepsAnyAudio && !audioTracks.isEmpty,
+                bitRateScale: $0)
+        }
+        if sharingBitRateScale != nil, sharingPlan == nil { return .tooLargeForSharing }
+        let outputFrameRate = sharingPlan?.frameRate ?? frameRate
+        let outputScale: CGFloat
+        if let sharingPlan {
+            outputScale = min(1, min(sharingPlan.size.width / max(1, fullCanvas.width),
+                                     sharingPlan.size.height / max(1, fullCanvas.height)))
+        } else {
+            outputScale = document.resolvedQuality.outputScale
+        }
 
         // The export preset is folded into the canvas the composer draws, so
         // the background is rendered at the size it ships at instead of being
@@ -109,18 +216,19 @@ final class RecorderExporter {
         let plan = RecorderComposer.makePlan(document: document,
                                              track: track,
                                              sourceSize: sourceSize,
-                                             frameRate: frameRate,
+                                             frameRate: outputFrameRate,
                                              duration: duration,
-                                             outputScale: document.resolvedQuality.outputScale)
+                                             outputScale: outputScale)
         let composer = plan.map { RecorderComposer(plan: $0) }
         let outputSize = composer?.canvasSize
+            ?? sharingPlan?.size
             ?? RecorderSupport.outputSize(source: RecorderSupport.evenSize(sourceSize),
                                           quality: document.resolvedQuality)
         let composition = await RecorderComposer.videoComposition(
             track: timelineVideo,
             asset: timeline,
             duration: timelineDuration,
-            frameRate: frameRate,
+            frameRate: outputFrameRate,
             composer: composer,
             sourceSize: sourceSize,
             outputSize: outputSize)
@@ -128,6 +236,7 @@ final class RecorderExporter {
         guard let reader = try? AVAssetReader(asset: timeline),
               let writer = try? AVAssetWriter(outputURL: destination, fileType: .mp4)
         else { return .readFailed }
+        writer.shouldOptimizeForNetworkUse = sharingPlan != nil
 
         let videoOutput = AVAssetReaderVideoCompositionOutput(
             videoTracks: [timelineVideo],
@@ -137,7 +246,6 @@ final class RecorderExporter {
         guard reader.canAdd(videoOutput) else { return .readFailed }
         reader.add(videoOutput)
 
-        let audioTracks = (try? await timeline.loadTracks(withMediaType: .audio)) ?? []
         var audioOutput: AVAssetReaderAudioMixOutput?
         if keepsAnyAudio, !audioTracks.isEmpty {
             let output = AVAssetReaderAudioMixOutput(
@@ -158,16 +266,23 @@ final class RecorderExporter {
             }
         }
 
-        let videoSettings = Self.videoSettings(size: outputSize,
-                                               frameRate: frameRate,
+        let resolved: [String: Any]
+        if let sharingPlan {
+            resolved = Self.sharingVideoSettings(size: outputSize,
+                                                 frameRate: outputFrameRate,
+                                                 bitRate: sharingPlan.videoBitRate)
+        } else {
+            let preferred = Self.videoSettings(size: outputSize,
+                                               frameRate: outputFrameRate,
                                                quality: document.resolvedQuality,
                                                codec: .hevc)
-        let resolved = writer.canApply(outputSettings: videoSettings, forMediaType: .video)
-            ? videoSettings
-            : Self.videoSettings(size: outputSize,
-                                 frameRate: frameRate,
-                                 quality: document.resolvedQuality,
-                                 codec: .h264)
+            resolved = writer.canApply(outputSettings: preferred, forMediaType: .video)
+                ? preferred
+                : Self.videoSettings(size: outputSize,
+                                     frameRate: outputFrameRate,
+                                     quality: document.resolvedQuality,
+                                     codec: .h264)
+        }
         guard writer.canApply(outputSettings: resolved, forMediaType: .video) else {
             return .writeFailed
         }
@@ -182,7 +297,7 @@ final class RecorderExporter {
                 AVFormatIDKey: kAudioFormatMPEG4AAC,
                 AVSampleRateKey: 48_000,
                 AVNumberOfChannelsKey: 2,
-                AVEncoderBitRateKey: 160_000,
+                AVEncoderBitRateKey: sharingPlan?.audioBitRate ?? 160_000,
             ])
             input.expectsMediaDataInRealTime = false
             if writer.canAdd(input) {
@@ -194,7 +309,8 @@ final class RecorderExporter {
         guard reader.startReading(), writer.startWriting() else { return .writeFailed }
         writer.startSession(atSourceTime: .zero)
 
-        let expectedFrames = max(1, Int((timelineDuration.seconds * Double(frameRate)).rounded()))
+        let expectedFrames = max(1, Int((timelineDuration.seconds
+            * Double(outputFrameRate)).rounded()))
         let counter = FrameCounter()
 
         await withTaskGroup(of: Void.self) { group in
@@ -311,6 +427,90 @@ final class RecorderExporter {
             AVVideoHeightKey: height,
             AVVideoCompressionPropertiesKey: compression,
         ]
+    }
+
+    private static func sharingVideoSettings(size: CGSize,
+                                             frameRate: Int,
+                                             bitRate: Int) -> [String: Any] {
+        [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: Int(size.width),
+            AVVideoHeightKey: Int(size.height),
+            AVVideoCompressionPropertiesKey: [
+                AVVideoAverageBitRateKey: bitRate,
+                AVVideoExpectedSourceFrameRateKey: frameRate,
+                AVVideoMaxKeyFrameIntervalDurationKey: 4,
+                AVVideoAllowFrameReorderingKey: true,
+                AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
+            ],
+        ]
+    }
+
+    private static func shareDirectory() -> URL? {
+        let manager = FileManager.default
+        guard let cache = manager.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        let directory = cache
+            .appendingPathComponent(Bundle.main.bundleIdentifier ?? "com.vorssaint.utils",
+                                    isDirectory: true)
+            .appendingPathComponent("Temporary Recording Uploads", isDirectory: true)
+        do {
+            try manager.createDirectory(at: directory,
+                                        withIntermediateDirectories: true,
+                                        attributes: [.posixPermissions: 0o700])
+            try manager.setAttributes([.posixPermissions: 0o700],
+                                      ofItemAtPath: directory.path)
+            let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
+            let files = try manager.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
+                options: [.skipsHiddenFiles])
+            for file in files {
+                let values = try? file.resourceValues(
+                    forKeys: [.contentModificationDateKey, .isRegularFileKey])
+                if values?.isRegularFile == true,
+                   (values?.contentModificationDate ?? .distantFuture) < cutoff {
+                    try? manager.removeItem(at: file)
+                }
+            }
+            return directory
+        } catch {
+            return nil
+        }
+    }
+
+    private static func isValidShareArtifact(_ url: URL, in directory: URL) async -> Bool {
+        guard url.standardizedFileURL.deletingLastPathComponent() == directory.standardizedFileURL,
+              let values = try? url.resourceValues(
+                forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
+              values.isRegularFile == true,
+              values.isSymbolicLink != true,
+              let bytes = values.fileSize,
+              bytes > 0,
+              bytes <= RecordingSharingSupport.maximumUploadBytes
+        else { return false }
+
+        let asset = AVURLAsset(url: url)
+        guard let tracks = try? await asset.load(.tracks),
+              tracks.allSatisfy({ $0.mediaType == .video || $0.mediaType == .audio })
+        else { return false }
+        let video = tracks.filter { $0.mediaType == .video }
+        let audio = tracks.filter { $0.mediaType == .audio }
+        guard video.count == 1, audio.count <= 1,
+              let videoFormats = try? await video[0].load(.formatDescriptions),
+              !videoFormats.isEmpty,
+              videoFormats.allSatisfy({ CMFormatDescriptionGetMediaSubType($0)
+                == kCMVideoCodecType_H264 })
+        else { return false }
+        if let audioTrack = audio.first {
+            guard let audioFormats = try? await audioTrack.load(.formatDescriptions),
+                  !audioFormats.isEmpty,
+                  audioFormats.allSatisfy({ CMFormatDescriptionGetMediaSubType($0)
+                    == kAudioFormatMPEG4AAC })
+            else { return false }
+        }
+        return true
     }
 
     // MARK: - GIF

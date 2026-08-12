@@ -198,7 +198,7 @@ extension Strings {
         switcherEnableCaption: "在 App 和窗口之间切换，包括最小化窗口和同一 App 的多个窗口。",
         switcherUsageHint: "按住快捷键进行浏览；松开即可激活窗口。Shift 或 ← 返回；W 关闭窗口；Q 退出 App；Esc 取消。",
         switcherNoWindows: "没有打开的窗口",
-        switcherIconRowMode: "用大图标显示 ⌘Tab",
+        switcherIconRowMode: "用大图标显示 %@",
         switcherIconRowModeCaption: "每个 App 显示一个图标，并在上方显示该 App 的窗口预览。",
         switcherSimpleMode: "简洁 App 切换器",
         switcherSimpleModeCaption: "显示 App 图标和窗口标题，不显示预览，也不会由切换器捕捉屏幕。",
@@ -897,6 +897,8 @@ extension Strings {
         switcherSearchPin: "按 S 固定搜索",
         switcherSearchPinCaption: "浏览时按 S 启动搜索，固定切换器；避免自定义快捷键为 ⌥ 时打出特殊字符，以及 Q/W 开头误触发关闭/退出。",
         invertVerticalScroll: "反转垂直滚动",
-        invertHorizontalScroll: "反转水平滚动"
+        invertHorizontalScroll: "反转水平滚动",
+        switcherShowShortcutHints: "显示快捷键提示",
+        switcherShowShortcutHintsCaption: "在图标下方显示 App 和窗口快捷键。"
     )
 }

@@ -489,6 +489,28 @@ enum ScreenshotSupport {
         return url
     }
 
+    static func removeTemporaryDragDirectories(
+        directory: URL = FileManager.default.temporaryDirectory
+    ) {
+        let manager = FileManager.default
+        guard let children = try? manager.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+            options: [.skipsHiddenFiles]
+        ) else { return }
+        let prefix = "ScreenshotDrag-"
+        for child in children {
+            let name = child.lastPathComponent
+            guard name.hasPrefix(prefix),
+                  UUID(uuidString: String(name.dropFirst(prefix.count))) != nil,
+                  let values = try? child.resourceValues(
+                    forKeys: [.isDirectoryKey, .isSymbolicLinkKey]),
+                  values.isDirectory == true,
+                  values.isSymbolicLink != true else { continue }
+            try? manager.removeItem(at: child)
+        }
+    }
+
     /// Expands a date-token pattern into a relative subfolder path, e.g.
     /// "%y-%mo" becomes "24-03" and "%year/%month" becomes "2024/March".
     /// Slashes in the pattern become nested folders. The result never

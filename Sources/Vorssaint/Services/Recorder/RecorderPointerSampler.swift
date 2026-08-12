@@ -31,6 +31,7 @@ final class RecorderPointerSampler {
     private let cursors = RecorderCursorCatalog()
     private var startedAt: CFTimeInterval = 0
     private var running = false
+    private var generation = 0
     private var lastSeed: Int32?
     private var currentIdentity: UInt64 = 0
     private let displayScale: Double
@@ -49,25 +50,32 @@ final class RecorderPointerSampler {
 
     func start() {
         guard thread == nil else { return }
-        startedAt = CACurrentMediaTime()
-        running = true
-        samples.removeAll(keepingCapacity: true)
-        samples.reserveCapacity(Int(Self.sampleRate) * 60)
-        identities.removeAll(keepingCapacity: true)
-        identities.reserveCapacity(Int(Self.sampleRate) * 60)
-        lastSeed = nil
-        currentIdentity = 0
-        clicks.removeAll(keepingCapacity: true)
+        let startedAt = CACurrentMediaTime()
+        let generation = lock.withLock { () -> Int in
+            self.startedAt = startedAt
+            self.generation += 1
+            running = true
+            samples.removeAll(keepingCapacity: true)
+            samples.reserveCapacity(Int(Self.sampleRate) * 60)
+            identities.removeAll(keepingCapacity: true)
+            identities.reserveCapacity(Int(Self.sampleRate) * 60)
+            lastSeed = nil
+            currentIdentity = 0
+            clicks.removeAll(keepingCapacity: true)
+            return self.generation
+        }
 
         // Mouse-only monitors need no Accessibility grant, and a press is
         // never coalesced the way a move is, so these timestamps are exact.
         clickMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp]
         ) { [weak self] event in
-            self?.record(event)
+            self?.record(event, generation: generation)
         }
 
-        let thread = Thread { [weak self] in self?.loop() }
+        let thread = Thread { [weak self] in
+            self?.loop(generation: generation, startedAt: startedAt)
+        }
         thread.qualityOfService = .userInteractive
         thread.name = "com.vorssaint.recorder.pointer"
         self.thread = thread
@@ -76,49 +84,52 @@ final class RecorderPointerSampler {
 
     /// Stops sampling and hands over what was collected.
     func stop() -> RecorderPointerTrack {
-        running = false
         thread = nil
         if let clickMonitor {
             NSEvent.removeMonitor(clickMonitor)
             self.clickMonitor = nil
         }
-        lock.lock()
-        let track = RecorderPointerTrack.packing(samples: samples,
-                                                 identities: identities,
-                                                 clicks: clicks,
-                                                 catalog: cursors.collected(),
-                                                 systemScale: cursors.systemScale,
-                                                 displayScale: displayScale)
-        samples.removeAll()
-        identities.removeAll()
-        clicks.removeAll()
-        lock.unlock()
-        return track
+        return lock.withLock {
+            running = false
+            let track = RecorderPointerTrack.packing(samples: samples,
+                                                     identities: identities,
+                                                     clicks: clicks,
+                                                     catalog: cursors.collected(),
+                                                     systemScale: cursors.systemScale,
+                                                     displayScale: displayScale)
+            samples.removeAll()
+            identities.removeAll()
+            clicks.removeAll()
+            return track
+        }
     }
 
     // MARK: - Sampling
 
-    private func loop() {
+    private func loop(generation: Int, startedAt: CFTimeInterval) {
         let interval = 1.0 / Self.sampleRate
-        while running {
+        while lock.withLock({ running && self.generation == generation }) {
             let now = CACurrentMediaTime()
             if let point = normalizedPointerLocation() {
                 // Two nanoseconds to ask whether the pointer changed, twenty
                 // two microseconds to read the new one. So the question rides
                 // every sample and the answer is fetched only on a change.
-                let seed = cursors.currentSeed()
-                if seed != lastSeed {
-                    lastSeed = seed
-                    let identity = cursors.captureCurrentShape()
-                    if identity != 0 { currentIdentity = identity }
+                lock.withLock {
+                    guard running, self.generation == generation else { return }
+                    let seed = cursors.currentSeed()
+                    if seed != lastSeed {
+                        lastSeed = seed
+                        let identity = cursors.captureCurrentShape()
+                        if identity != 0 { currentIdentity = identity }
+                    }
+                    let sample = RecorderMotion.Sample(
+                        time: now - startedAt,
+                        point: point,
+                        isPointerVisible: cursors.isPointerVisible()
+                    )
+                    samples.append(sample)
+                    identities.append(currentIdentity)
                 }
-                let sample = RecorderMotion.Sample(time: now - startedAt,
-                                                   point: point,
-                                                   isPointerVisible: cursors.isPointerVisible())
-                lock.lock()
-                samples.append(sample)
-                identities.append(currentIdentity)
-                lock.unlock()
             }
             let elapsed = CACurrentMediaTime() - now
             if elapsed < interval {
@@ -145,12 +156,14 @@ final class RecorderPointerSampler {
                        y: (location.y - originY) / height)
     }
 
-    private func record(_ event: NSEvent) {
-        let isDown = event.type == .leftMouseDown || event.type == .rightMouseDown
-        let click = RecorderMotion.Click(time: CACurrentMediaTime() - startedAt, isDown: isDown)
-        lock.lock()
-        clicks.append(click)
-        lock.unlock()
+    private func record(_ event: NSEvent, generation: Int) {
+        lock.withLock {
+            guard running, self.generation == generation else { return }
+            let isDown = event.type == .leftMouseDown || event.type == .rightMouseDown
+            let click = RecorderMotion.Click(time: CACurrentMediaTime() - startedAt,
+                                             isDown: isDown)
+            clicks.append(click)
+        }
     }
 
 }

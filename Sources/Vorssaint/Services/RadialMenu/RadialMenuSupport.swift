@@ -149,24 +149,44 @@ enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-/// The optional second summoner: a spare side mouse button. Raw values are
-/// persisted; button numbers follow the HID convention the side buttons
-/// report (3 back, 4 forward).
-enum RadialMenuMouseTrigger: String, CaseIterable, Identifiable {
-    case off, back, forward
+/// The optional second summoner: any extra mouse button. The original raw
+/// values stay stable for existing settings; newer buttons use their
+/// CoreGraphics number, which follows USB order from 3 through 31.
+enum RadialMenuMouseTrigger: Equatable, Identifiable {
+    case off
+    case button(Int64)
+
+    static let back = button(MouseButtonShortcutSupport.backButtonNumber)
+    static let forward = button(MouseButtonShortcutSupport.forwardButtonNumber)
 
     var id: String { rawValue }
 
-    var buttonNumber: Int64? {
+    var rawValue: String {
         switch self {
-        case .off: return nil
-        case .back: return 3
-        case .forward: return 4
+        case .off: return "off"
+        case .button(let number):
+            if number == MouseButtonShortcutSupport.backButtonNumber { return "back" }
+            if number == MouseButtonShortcutSupport.forwardButtonNumber { return "forward" }
+            return "button:\(number)"
         }
     }
 
+    var buttonNumber: Int64? {
+        guard case .button(let number) = self else { return nil }
+        return number
+    }
+
     static func sanitized(_ raw: String?) -> RadialMenuMouseTrigger {
-        RadialMenuMouseTrigger(rawValue: raw ?? "") ?? .off
+        switch raw {
+        case "back": return .back
+        case "forward": return .forward
+        case let value?:
+            guard value.hasPrefix("button:"),
+                  let number = Int64(value.dropFirst("button:".count)),
+                  MouseButtonShortcutSupport.buttonRange.contains(number) else { return .off }
+            return .button(number)
+        default: return .off
+        }
     }
 }
 
@@ -211,7 +231,7 @@ extension RadialMenuSupport {
         modifiersHeld || superKeyHeld
     }
 
-    /// Whether the radial menu currently owns this side button as its
+    /// Whether the radial menu currently owns this extra button as its
     /// summoner. Mouse navigation asks this from its own tap and lets a
     /// claimed button through; pure defaults reads, so asking never wakes
     /// the radial menu service.

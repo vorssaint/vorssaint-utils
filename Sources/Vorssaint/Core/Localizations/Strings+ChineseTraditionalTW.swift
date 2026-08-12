@@ -199,7 +199,7 @@ extension Strings {
         switcherEnableCaption: "在 App 和視窗之間切換，包括已最小化的視窗和同一 App 的多個視窗。",
         switcherUsageHint: "按住快速鍵瀏覽；放開即可切換到視窗。Shift 或 ← 返回；W 關閉視窗；Q 結束 App；Esc 取消。",
         switcherNoWindows: "沒有開啟的視窗",
-        switcherIconRowMode: "用大圖示顯示 ⌘Tab",
+        switcherIconRowMode: "用大圖示顯示 %@",
         switcherIconRowModeCaption: "每個 App 顯示一個圖示，並在上方顯示該 App 的視窗預覽。",
         switcherSimpleMode: "簡潔 App 切換器",
         switcherSimpleModeCaption: "顯示 App 圖示和視窗標題，不顯示預覽，也不會由切換器擷取螢幕。",
@@ -898,6 +898,8 @@ extension Strings {
         switcherSearchPin: "按 S 固定搜尋",
         switcherSearchPinCaption: "瀏覽時按 S 啟動搜尋，固定切換器；避免自訂快捷鍵為 ⌥ 時打出特殊字元，以及 Q/W 開頭誤觸發關閉/結束。",
         invertVerticalScroll: "反轉垂直捲動",
-        invertHorizontalScroll: "反轉水平捲動"
+        invertHorizontalScroll: "反轉水平捲動",
+        switcherShowShortcutHints: "顯示快速鍵提示",
+        switcherShowShortcutHintsCaption: "在圖示下方顯示 App 和視窗快速鍵。"
     )
 }

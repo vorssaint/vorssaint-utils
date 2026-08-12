@@ -231,6 +231,10 @@ enum AppUpdatesSupport {
               let results = root["results"] as? [[String: Any]] else { return [:] }
         var entries: [String: StoreEntry] = [:]
         for result in results {
+            // A bundle-ID lookup can ignore `entity` and return another
+            // platform's listing. Its version and minimum OS then describe
+            // a different binary, so only accept records identified as Mac.
+            guard result["kind"] as? String == "mac-software" else { continue }
             guard let bundleID = result["bundleId"] as? String,
                   let version = result["version"] as? String,
                   !version.isEmpty else { continue }

@@ -64,6 +64,10 @@ enum FanControlPolicy {
     static let maximumFanCount = 8
     static let maximumSaneRPM = 20_000.0
 
+    static func isAutomaticMode(_ mode: UInt8) -> Bool {
+        mode == 0 || mode == 3
+    }
+
     static func fanCount(from value: Double) -> Int? {
         guard value.isFinite else { return nil }
         let rounded = value.rounded()

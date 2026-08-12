@@ -20,7 +20,7 @@ final class RadialMenuService: ObservableObject {
     /// Names of the submenus that were descended into, for the hub's back hint.
     @Published private(set) var trail: [String] = []
     @Published private(set) var highlightedIndex: Int?
-    /// True while a hold-capable session still owns its shortcut or side
+    /// True while a hold-capable session still owns its shortcut or mouse
     /// button; release behavior is determined by `sessionActivationMode`.
     @Published private(set) var holdPhase = false
     /// True when macOS refused the shortcut (taken by another app).
@@ -60,7 +60,7 @@ final class RadialMenuService: ObservableObject {
     private var sessionActivationMode = RadialMenuActivationMode.pressOrHold
     private var sessionUsesSuperKey = false
     private var sessionID = 0
-    /// Set while a session was summoned by the side button and it is still
+    /// Set while a session was summoned by a mouse button and it is still
     /// down; releasing it runs the pointed slice, mirroring the chord.
     private var holdButton: Int64?
     private var mouseTrigger = RadialMenuMouseTrigger.off
@@ -111,9 +111,9 @@ final class RadialMenuService: ObservableObject {
         panel = nil
     }
 
-    // MARK: - Side button trigger (a tap so the click never doubles as
-    // back/forward in the app under the pointer; alive only while a button
-    // is configured, torn down with the feature)
+    // MARK: - Mouse button trigger (a tap so the click never also reaches the
+    // app under the pointer; alive only while a button is configured, torn
+    // down with the feature)
 
     private func syncMouseTap() {
         guard mouseTrigger.buttonNumber != nil else {
