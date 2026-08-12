@@ -198,7 +198,7 @@ extension Strings {
         switcherEnableCaption: "Küçültülmüş pencereler ve aynı uygulamanın birden çok penceresi dahil, uygulamalar ve pencereler arasında geçiş yap.",
         switcherUsageHint: "Gezinmek için kısayolu basılı tut; pencereyi etkinleştirmek için bırak. Shift veya ← geri gider; W pencereyi kapatır; Q uygulamadan çıkar; Esc iptal eder.",
         switcherNoWindows: "Açık pencere yok",
-        switcherIconRowMode: "⌘Tab'i büyük simgelerle göster",
+        switcherIconRowMode: "%@'i büyük simgelerle göster",
         switcherIconRowModeCaption: "Her uygulama için bir simge ve üstünde o uygulamanın pencere önizlemelerini gösterir.",
         switcherSimpleMode: "Basit uygulama değiştirici",
         switcherSimpleModeCaption: "Uygulama simgelerini ve pencere başlıklarını gösterir; önizleme veya değiştirici tarafından ekran yakalama kullanmaz.",

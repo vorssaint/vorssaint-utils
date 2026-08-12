@@ -123,6 +123,7 @@ struct MonitorSettings: View {
                             .background(Capsule().fill(Color.accentColor))
                     }
                 }
+                .settingsSectionAnchor(.fanControl)
             }
             Section(l10n.s.monitorGraphsSection) {
                 if AppFeature.monitorCPU.isAvailable {

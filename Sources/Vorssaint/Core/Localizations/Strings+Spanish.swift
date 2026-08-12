@@ -198,7 +198,7 @@ extension Strings {
         switcherEnableCaption: "Cambia entre apps y ventanas, incluidas las minimizadas y varias ventanas de la misma app.",
         switcherUsageHint: "Mantén el atajo para navegar; suelta para activar la ventana. Mayúsculas o ← retrocede; W cierra la ventana; Q cierra la app; Esc cancela.",
         switcherNoWindows: "No hay ventanas abiertas",
-        switcherIconRowMode: "Mostrar ⌘Tab con iconos grandes",
+        switcherIconRowMode: "Mostrar %@ con iconos grandes",
         switcherIconRowModeCaption: "Muestra un icono por app con las vistas previas de sus ventanas arriba.",
         switcherSimpleMode: "Selector de apps sencillo",
         switcherSimpleModeCaption: "Muestra iconos de apps y títulos de ventanas, sin vistas previas ni captura de pantalla por el selector.",

@@ -37,7 +37,12 @@ struct ShortcutsSettings: View {
             ForEach(visibleGroups, id: \.self) { group in
                 Section(groupTitle(group)) {
                     ForEach(featuresWithShortcuts(in: group), id: \.self) { feature in
-                        featureRows(feature)
+                        if feature == .soundOutputSwitcher {
+                            featureRows(feature)
+                                .settingsSectionAnchor(.soundOutputSwitcher)
+                        } else {
+                            featureRows(feature)
+                        }
                     }
                 }
             }

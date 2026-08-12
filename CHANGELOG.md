@@ -7,12 +7,22 @@ All notable changes to this project are documented here. The format follows
 ## [3.3.2]
 
 ### Summary
-Vorssaint 3.3.2 stops App updates from offering store updates that do not exist for the Mac.
+Vorssaint 3.3.2 prevents a Switcher shortcut crash and keeps its labels in sync.
+It also removes false App Updates listings, improves feature setup and clarifies Full Disk Access.
+
+### Changed
+- Installed Features rows open their Settings page and highlight the relevant
+  controls. Thanks to @dorlugasigal.
+- Cleaning and the Uninstaller now explain how to grant Full Disk Access and
+  that the app must reopen. Thanks to @PathGao.
 
 ### Fixed
-- App updates no longer offers an iPhone app's version for a Mac app that shares its
-  bundle identifier. Those updates never appeared in the App Store because they were
-  never for this app. Thanks to @PathGao.
+- App Updates no longer offers store updates that belong to a different app.
+  Thanks to @PathGao.
+- The App Switcher now shows its configured shortcut in the large icon mode label.
+  Thanks to @liuxxxu.
+- The app no longer quits while typing when the Switcher's Windows shortcut uses a
+  key whose label comes from the keyboard layout. Thanks to @eioz.
 
 ## [3.3.1] - 2026-08-09
 

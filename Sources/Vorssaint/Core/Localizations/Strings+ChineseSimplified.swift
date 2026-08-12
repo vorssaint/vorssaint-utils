@@ -198,7 +198,7 @@ extension Strings {
         switcherEnableCaption: "在 App 和窗口之间切换，包括最小化窗口和同一 App 的多个窗口。",
         switcherUsageHint: "按住快捷键进行浏览；松开即可激活窗口。Shift 或 ← 返回；W 关闭窗口；Q 退出 App；Esc 取消。",
         switcherNoWindows: "没有打开的窗口",
-        switcherIconRowMode: "用大图标显示 ⌘Tab",
+        switcherIconRowMode: "用大图标显示 %@",
         switcherIconRowModeCaption: "每个 App 显示一个图标，并在上方显示该 App 的窗口预览。",
         switcherSimpleMode: "简洁 App 切换器",
         switcherSimpleModeCaption: "显示 App 图标和窗口标题，不显示预览，也不会由切换器捕捉屏幕。",
