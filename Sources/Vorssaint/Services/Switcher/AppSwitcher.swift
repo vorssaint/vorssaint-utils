@@ -3,6 +3,7 @@
 
 import AppKit
 import ApplicationServices
+import Carbon.HIToolbox
 import Combine
 import CoreGraphics
 import SwiftUI
@@ -70,6 +71,8 @@ final class AppSwitcher: ObservableObject {
     private var tapThread: Thread?
     private var shouldStopTapThread = false
     private var pendingStartAfterStop = false
+    /// Alive only while the Switcher's tap needs layout labels off main.
+    private var keyboardLayoutObserver: NSObjectProtocol?
 
     /// The little state the tap thread needs to route an event without
     /// touching the main thread; mutated only under `routeLock`.
@@ -134,6 +137,7 @@ final class AppSwitcher: ObservableObject {
         let enabled = AppFeature.switcher.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.switcherEnabled)
         if enabled, Permissions.shared.accessibility {
+            startObservingKeyboardLayout()
             installTap()
             // Build the panel and its SwiftUI tree now: the first hosting-view
             // render costs hundreds of milliseconds, far too slow to pay on
@@ -146,6 +150,7 @@ final class AppSwitcher: ObservableObject {
                 WindowPreviewProvider.shared.startWarming()
             }
         } else {
+            stopObservingKeyboardLayout()
             removeTap()
             WindowPreviewProvider.shared.stopWarming()
         }
@@ -167,6 +172,23 @@ final class AppSwitcher: ObservableObject {
     }
 
     // MARK: - Event tap
+
+    private func startObservingKeyboardLayout() {
+        GlobalShortcut.refreshLayoutLabels()
+        guard keyboardLayoutObserver == nil else { return }
+        keyboardLayoutObserver = DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String),
+            object: nil,
+            queue: .main
+        ) { _ in GlobalShortcut.refreshLayoutLabels() }
+    }
+
+    private func stopObservingKeyboardLayout() {
+        if let keyboardLayoutObserver {
+            DistributedNotificationCenter.default().removeObserver(keyboardLayoutObserver)
+        }
+        keyboardLayoutObserver = nil
+    }
 
     private func installTap() {
         // Thread creation and the tapThread assignment share one critical

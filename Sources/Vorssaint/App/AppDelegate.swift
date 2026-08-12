@@ -52,10 +52,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // quitting to relaunch under the new name, so skip the rest of startup.
         if BundleMigration.run() { return }
 
-        // Some shortcut labels come from the keyboard layout, which the system
-        // only reads out on the main thread. Take them before any tap exists.
-        GlobalShortcut.startObservingKeyboardLayout()
-
         // Shape a clean install before any feature can create a listener,
         // timer or shortcut. The onboarding can replace this set after the
         // person chooses what they actually want.

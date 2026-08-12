@@ -2312,6 +2312,13 @@ struct MetricsTests {
         expect(GlobalShortcut(keyCode: Int64(kVK_ISO_Section),
                               modifiers: [.control, .option, .command]).isValid,
                "the extra ISO key (paragraph/caret above Tab) is recordable as a shortcut")
+        GlobalShortcut.refreshLayoutLabels()
+        let backgroundISOKeyIsValid = DispatchQueue.global().sync {
+            GlobalShortcut(keyCode: Int64(kVK_ISO_Section),
+                           modifiers: [.control, .option, .command]).isValid
+        }
+        expect(backgroundISOKeyIsValid,
+               "layout-dependent shortcut labels are safe to read off the main thread")
 
         // The native full screen action, wired like the sixths: real strings,
         // a stable id, and no system-wide key claimed until someone asks.
@@ -7028,7 +7035,7 @@ struct MetricsTests {
             expectFormat(strings.homebrewConfirmUpgradeBodyFormat, ["@"], "\(prefix) Homebrew upgrade format")
             expect(!strings.homebrewUpgradeAll.isEmpty, "\(prefix) Homebrew update all title is present")
             expect(!strings.homebrewUpdateHomebrew.isEmpty, "\(prefix) Homebrew update Homebrew title is present")
-            expect(!strings.switcherIconRowMode.isEmpty, "\(prefix) App Switcher icon-row title is present")
+            expectFormat(strings.switcherIconRowMode, ["@"], "\(prefix) App Switcher icon-row title format")
             expect(!strings.switcherIconRowModeCaption.isEmpty, "\(prefix) App Switcher icon-row caption is present")
             expect(!strings.switcherSimpleMode.isEmpty, "\(prefix) App Switcher simple-mode title is present")
             expect(!strings.switcherSimpleModeCaption.isEmpty, "\(prefix) App Switcher simple-mode caption is present")

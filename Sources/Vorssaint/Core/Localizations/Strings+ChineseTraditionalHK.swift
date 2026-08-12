@@ -199,7 +199,7 @@ extension Strings {
         switcherEnableCaption: "在 App 和視窗之間切換，包括已最小化的視窗和同一 App 的多個視窗。",
         switcherUsageHint: "按住快捷鍵瀏覽；放開即可切換至視窗。Shift 或 ← 返回；W 關閉視窗；Q 結束 App；Esc 取消。",
         switcherNoWindows: "沒有開啟的視窗",
-        switcherIconRowMode: "用大圖示顯示 ⌘Tab",
+        switcherIconRowMode: "用大圖示顯示 %@",
         switcherIconRowModeCaption: "每個 App 顯示一個圖示，並在上方顯示該 App 的視窗預覽。",
         switcherSimpleMode: "簡潔 App 切換器",
         switcherSimpleModeCaption: "顯示 App 圖示和視窗標題，不顯示預覽，也不會由切換器擷取螢幕。",

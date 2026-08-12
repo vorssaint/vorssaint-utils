@@ -489,49 +489,54 @@ struct GlobalShortcut: Equatable, Hashable {
     /// which traps the process off the main thread, and the Switcher's tap
     /// asks for one on every key from its own (issue #578).
     private static func layoutKeyLabel(for keyCode: Int64) -> String? {
-        if let cached = layoutLabelLock.withLock({ layoutLabels[keyCode] }) { return cached }
-        guard let label = derivedLayoutKeyLabel(for: keyCode) else { return nil }
-        layoutLabelLock.withLock { layoutLabels[keyCode] = label }
-        return label
+        if Thread.isMainThread {
+            let label = derivedLayoutKeyLabel(for: keyCode)
+            layoutLabelLock.withLock { layoutLabels[keyCode] = label }
+            return label
+        }
+        return layoutLabelLock.withLock { layoutLabels[keyCode] }
     }
 
     private static let layoutLabelLock = NSLock()
     private static var layoutLabels: [Int64: String] = [:]
 
-    /// Fills the label cache and keeps it current. Call once from startup, on
-    /// the main thread, before any tap exists.
-    static func startObservingKeyboardLayout() {
-        refreshLayoutLabels()
-        guard layoutObserver == nil else { return }
-        layoutObserver = DistributedNotificationCenter.default().addObserver(
-            forName: NSNotification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String),
-            object: nil,
-            queue: .main
-        ) { _ in refreshLayoutLabels() }
-    }
-
-    private static var layoutObserver: NSObjectProtocol?
-
-    private static func refreshLayoutLabels() {
-        // The range a keyboard can send; anything above it stays lazy.
+    /// Fills the cache before the Switcher's tap starts or after the layout
+    /// changes. The service owns the observer so it exists only with the tap.
+    static func refreshLayoutLabels() {
+        guard let layoutData = currentLayoutData() else {
+            layoutLabelLock.withLock { layoutLabels.removeAll() }
+            return
+        }
         var labels: [Int64: String] = [:]
-        for keyCode in Int64(0)...127 {
-            if let label = derivedLayoutKeyLabel(for: keyCode) { labels[keyCode] = label }
+        for keyCode in UInt16(0)...127 {
+            if let label = derivedLayoutKeyLabel(for: keyCode, layoutData: layoutData) {
+                labels[Int64(keyCode)] = label
+            }
         }
         layoutLabelLock.withLock { layoutLabels = labels }
     }
 
     private static func derivedLayoutKeyLabel(for keyCode: Int64) -> String? {
+        guard let code = UInt16(exactly: keyCode),
+              let layoutData = currentLayoutData()
+        else { return nil }
+        return derivedLayoutKeyLabel(for: code, layoutData: layoutData)
+    }
+
+    private static func currentLayoutData() -> Data? {
         guard Thread.isMainThread,
-              let code = UInt16(exactly: keyCode),
               let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
               let layoutData = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData)
         else { return nil }
-        let data = Unmanaged<CFData>.fromOpaque(layoutData).takeUnretainedValue() as Data
+        return Unmanaged<CFData>.fromOpaque(layoutData).takeUnretainedValue() as Data
+    }
+
+    private static func derivedLayoutKeyLabel(for code: UInt16,
+                                              layoutData: Data) -> String? {
         var deadKeyState: UInt32 = 0
         var chars = [UniChar](repeating: 0, count: 4)
         var length = 0
-        let status = data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) -> OSStatus in
+        let status = layoutData.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) -> OSStatus in
             guard let layout = bytes.bindMemory(to: UCKeyboardLayout.self).baseAddress
             else { return OSStatus(paramErr) }
             return UCKeyTranslate(layout, code, UInt16(kUCKeyActionDisplay), 0,

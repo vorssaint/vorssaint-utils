@@ -198,7 +198,7 @@ extension Strings {
         switcherEnableCaption: "Wechselt zwischen Apps und Fenstern, einschließlich minimierter und mehrerer Fenster derselben App.",
         switcherUsageHint: "Halte den Kurzbefehl zum Navigieren; loslassen, um das Fenster zu aktivieren. Umschalt oder ← geht zurück; W schließt das Fenster; Q beendet die App; Esc bricht ab.",
         switcherNoWindows: "Keine geöffneten Fenster",
-        switcherIconRowMode: "⌘Tab mit großen Symbolen anzeigen",
+        switcherIconRowMode: "%@ mit großen Symbolen anzeigen",
         switcherIconRowModeCaption: "Zeigt ein Symbol pro App und darüber die Fenstervorschauen dieser App.",
         switcherSimpleMode: "Einfacher App-Umschalter",
         switcherSimpleModeCaption: "Zeigt App-Symbole und Fenstertitel, ohne Vorschauen oder Bildschirmaufnahme durch den Umschalter.",

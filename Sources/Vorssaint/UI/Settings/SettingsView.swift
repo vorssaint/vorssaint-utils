@@ -769,6 +769,7 @@ struct SwitcherSettings: View {
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var dockPreview = DockPreviewService.shared
     @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
+    @AppStorage(DefaultsKey.switcherShortcut) private var switcherShortcutStorage = GlobalShortcut.switcherDefault.storageValue
     @AppStorage(DefaultsKey.switcherIconRowMode) private var switcherIconRowMode = false
     @AppStorage(DefaultsKey.switcherSimpleMode) private var switcherSimpleMode = false
     @AppStorage(DefaultsKey.switcherMergeTabs) private var switcherMergeTabs = false
@@ -785,6 +786,9 @@ struct SwitcherSettings: View {
 
     private var switcherEngaged: Bool { switcherEnabled && AppFeature.switcher.isAvailable }
     private var dockPreviewEngaged: Bool { dockPreviewEnabled && AppFeature.dockPreview.isAvailable }
+    private var switcherShortcutDisplayString: String {
+        (GlobalShortcut(storageValue: switcherShortcutStorage) ?? .switcherDefault).displayString
+    }
 
     var body: some View {
         Form {
@@ -830,7 +834,8 @@ struct SwitcherSettings: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    Toggle(l10n.s.switcherIconRowMode, isOn: $switcherIconRowMode)
+                    Toggle(String(format: l10n.s.switcherIconRowMode, switcherShortcutDisplayString),
+                           isOn: $switcherIconRowMode)
                         .disabled(!switcherEnabled || switcherSimpleMode)
                         .onChange(of: switcherIconRowMode) { _, _ in
                             AppSwitcher.shared.syncWithPreferences()

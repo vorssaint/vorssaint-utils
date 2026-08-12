@@ -7,7 +7,8 @@ All notable changes to this project are documented here. The format follows
 ## [3.3.2]
 
 ### Summary
-Vorssaint 3.3.2 makes installed features easier to configure and Full Disk Access setup clearer.
+Vorssaint 3.3.2 prevents a Switcher shortcut crash and keeps its labels in sync.
+It also makes installed features easier to configure and clarifies Full Disk Access setup.
 
 ### Changed
 - Installed Features rows open their Settings page and highlight the relevant
@@ -16,6 +17,8 @@ Vorssaint 3.3.2 makes installed features easier to configure and Full Disk Acces
   that the app must reopen. Thanks to @PathGao.
 
 ### Fixed
+- The App Switcher now shows its configured shortcut in the large icon mode label.
+  Thanks to @liuxxxu.
 - The app no longer quits while typing when the Switcher's Windows shortcut uses a
   key whose label comes from the keyboard layout. Thanks to @eioz.
 
