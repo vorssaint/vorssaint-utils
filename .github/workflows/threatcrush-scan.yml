@@ -1,0 +1,305 @@
+name: threatcrush security scan
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  scan:
+    name: Scan for credentials and vulnerable patterns
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # persist-credentials: false because nothing here pushes. Left at the
+      # default, checkout leaves a credential in .git/config for the rest of
+      # the job — and the rest of this job runs a scanner installed from the
+      # network over the contents of a pull request. A token that no step
+      # needs should not be sitting in the working tree while that happens.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # An unretried `npm i -g` is a network call to a registry that decides
+      # whether a security gate runs at all. Retry before giving up; a
+      # transient registry blip is not a security signal and should not read
+      # like one.
+      #
+      # --ignore-scripts because a lifecycle script is arbitrary code from the
+      # dependency tree, and this job holds `pull-requests: write` and
+      # `security-events: write`. The CLI does not need them: it declares no
+      # install hook of its own, and `scan` was verified to run correctly from
+      # an --ignore-scripts install. A security gate that opens a shell for
+      # its own supply chain is not a gate.
+      - name: Install ThreatCrush
+        run: |
+          for attempt in 1 2 3; do
+            if npm install -g --ignore-scripts "@profullstack/threatcrush@0.11.0"; then
+              exit 0
+            fi
+            delay=$((attempt * 10))
+            echo "::warning::ThreatCrush install attempt ${attempt}/3 failed; retrying in ${delay}s"
+            sleep "${delay}"
+          done
+          echo "::error::ThreatCrush install failed after 3 attempts"
+          exit 1
+
+      # Recorded into every run log so a release that changes the interface
+      # shows up immediately, rather than silently scoring zero.
+      - name: Record the CLI interface
+        run: |
+          threatcrush --version || true
+          threatcrush scan --help || true
+
+      # Which interface does the installed CLI actually have?
+      #
+      # Determined up front rather than inferred from an exit code, because
+      # exit codes cannot tell the two failures apart. `0.2.2` has no
+      # `--format`: the scan died with `error: unknown option '--format'` and
+      # commander exited 1 — the same code the CLI uses for "findings at or
+      # above --fail-on". Read as a result, that produced a green check and a
+      # "0 findings" comment on a repository nothing had scanned.
+      - name: Detect the CLI output interface
+        id: iface
+        run: |
+          if threatcrush scan --help 2>&1 | grep -q -- '--format'; then
+            echo "native=true" >> "$GITHUB_OUTPUT"
+            echo "Native SARIF output available."
+          else
+            echo "native=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::CLI $(threatcrush --version 2>/dev/null || echo unknown) predates --format; converting terminal output instead."
+          fi
+
+      - name: Scan
+        id: scan
+        run: |
+          set -o pipefail
+          FAIL_ON=""
+          SCAN_PATH="."
+          code=0
+
+          if [ "${{ steps.iface.outputs.native }}" = "true" ]; then
+            ARGS=(scan "$SCAN_PATH" --format sarif --output threatcrush.sarif)
+            if [ -n "$FAIL_ON" ]; then
+              ARGS+=(--fail-on "$FAIL_ON")
+            fi
+            threatcrush "${ARGS[@]}" || code=$?
+          else
+            # Compatibility path for CLIs older than native SARIF. The
+            # converter fails closed: if it cannot recognise the output it
+            # exits non-zero and writes nothing, so an unparseable scan can
+            # never arrive downstream looking like a clean one.
+            threatcrush scan "$SCAN_PATH" 2>&1 | tee threatcrush-output.txt || true
+            PREFIX=""
+            if [ "$SCAN_PATH" != "." ]; then
+              # Paths in terminal output are relative to the scan root. Left
+              # unprefixed they resolve to nothing in the repository view, and
+              # every finding reads as out-of-scope.
+              PREFIX="$SCAN_PATH"
+            fi
+            python3 .github/scripts/threatcrush-to-sarif.py \
+              --input threatcrush-output.txt \
+              --output threatcrush.sarif \
+              --path-prefix "$PREFIX" \
+              --tool-version "$(threatcrush --version 2>/dev/null || echo unknown)" \
+              --fail-on "$FAIL_ON" || code=$?
+          fi
+
+          # The SARIF file is the evidence that a scan happened, and it is the
+          # only evidence worth trusting. An exit code says what the process
+          # thought; the file says what it produced. Absent the file there is
+          # nothing to report, and reporting nothing as "no findings" is the
+          # failure this whole workflow is arranged to avoid.
+          if [ ! -s threatcrush.sarif ]; then
+            echo "status=error" >> "$GITHUB_OUTPUT"
+            echo "::error::ThreatCrush produced no SARIF (exit ${code}) — this diff was NOT scanned"
+            exit 1
+          fi
+
+          case "$code" in
+            0) echo "status=clean" >> "$GITHUB_OUTPUT" ;;
+            # Exit 1 *with* a SARIF file is the documented "findings at or
+            # above --fail-on" result. Without one it was caught above. The CLI
+            # only returns 1 when --fail-on was passed, so propagate it: a gate
+            # that records the finding and then lets the job pass is not a gate.
+            1)
+              echo "status=findings" >> "$GITHUB_OUTPUT"
+              exit 1
+              ;;
+            *)
+              echo "status=error" >> "$GITHUB_OUTPUT"
+              echo "::error::ThreatCrush scan failed with exit code ${code} — results may be incomplete"
+              exit "$code"
+              ;;
+          esac
+
+      # Reached only when the scan step already failed the job. The empty run
+      # exists so the upload does not error on a missing file and bury the real
+      # cause; it is not a result. The scan step has already set status=error,
+      # so the report says NOT RUN rather than rendering this as a clean scan.
+      - name: Ensure SARIF exists
+        if: always()
+        run: |
+          if [ ! -f threatcrush.sarif ]; then
+            cat > threatcrush.sarif <<'JSON'
+          {
+            "version": "2.1.0",
+            "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+            "runs": [{ "tool": { "driver": { "name": "ThreatCrush", "rules": [] } }, "results": [] }]
+          }
+          JSON
+          fi
+
+      - name: Upload to the Security tab
+        if: always() && 'true' == 'true'
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: threatcrush.sarif
+          category: threatcrush
+
+      - name: Build the report
+        if: always()
+        run: |
+          python3 << 'PYEOF'
+          import json, os
+
+          status = os.environ.get("SCAN_STATUS", "")
+          try:
+              with open("threatcrush.sarif") as handle:
+                  results = json.load(handle)["runs"][0]["results"]
+          except Exception as err:
+              results = None
+              print(f"::warning::could not read SARIF: {err}")
+
+          lines = ["## ThreatCrush Security Scan", ""]
+
+          # Fail closed: render findings only on positive evidence that a scan
+          # completed. Testing for `status == "error"` was fail-open and got
+          # caught immediately — when the capability check failed, the scan
+          # step was *skipped*, so `status` was the empty string rather than
+          # "error", and the comment cheerfully reported "0 findings" for a
+          # scan that never started. Any state that is not a known-good
+          # outcome is NOT RUN.
+          if status not in ("clean", "findings") or results is None:
+              # Never render "no issues found" for a scan that did not finish.
+              # An unexamined diff is not a clean one, and the two are
+              # indistinguishable to whoever reads the comment.
+              lines += [
+                  "**NOT RUN** — the scan did not complete, so this diff was not examined.",
+                  "This is not a clean result. See the job log.",
+              ]
+          else:
+              counts = {"error": 0, "warning": 0, "note": 0}
+              for result in results:
+                  level = result.get("level", "warning")
+                  if level in counts:
+                      counts[level] += 1
+
+              lines.append(f"**{len(results)}** finding(s)")
+              lines.append("")
+
+              if results:
+                  badges = []
+                  if counts["error"]:
+                      badges.append(f"**HIGH/CRITICAL**: {counts['error']}")
+                  if counts["warning"]:
+                      badges.append(f"**MEDIUM**: {counts['warning']}")
+                  if counts["note"]:
+                      badges.append(f"**LOW**: {counts['note']}")
+                  if badges:
+                      lines += [" | ".join(badges), ""]
+
+                  lines += ["| Severity | Rule | Location |", "|---|---|---|"]
+                  for result in results[:50]:
+                      location = result["locations"][0]["physicalLocation"]
+                      uri = location["artifactLocation"]["uri"]
+                      line_no = location.get("region", {}).get("startLine", 1)
+                      label = {"error": "HIGH", "warning": "MEDIUM", "note": "LOW"}.get(
+                          result.get("level", "warning"), "INFO"
+                      )
+                      lines.append(f"| {label} | `{result.get('ruleId','?')}` | `{uri}`:{line_no} |")
+                  if len(results) > 50:
+                      # Say so. A silent truncation reads as "that was everything".
+                      lines += ["", f"_…and {len(results) - 50} more. Full results in the Security tab._"]
+                  lines += ["", "Snippets are redacted; ThreatCrush never prints matched credential material."]
+              else:
+                  lines.append("No findings.")
+
+          with open(os.environ["RUNNER_TEMP"] + "/threatcrush-comment.md", "w") as handle:
+              handle.write("\n".join(lines) + "\n")
+          PYEOF
+        env:
+          SCAN_STATUS: ${{ steps.scan.outputs.status }}
+
+      - name: Write report to job summary
+        if: always()
+        run: cat "$RUNNER_TEMP/threatcrush-comment.md" >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+
+      - name: Upload SARIF artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: threatcrush-sarif
+          path: threatcrush.sarif
+          retention-days: 30
+
+      # Best-effort. `pull_request` gives fork PRs a read-only token, so this
+      # 403s on fork submissions — the report is in the job summary either way,
+      # and the scan's pass/fail is decided by the scan step, not by whether a
+      # comment posted. Deliberately NOT switching to pull_request_target to
+      # get a writable token: that event runs with repository secrets in scope
+      # against a checkout of untrusted contributor code.
+      - name: Comment on PR
+        if: always() && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body;
+            try {
+              body = fs.readFileSync(`${process.env.RUNNER_TEMP}/threatcrush-comment.md`, 'utf8');
+            } catch {
+              body = '## ThreatCrush Security Scan\n\nScan completed but the report could not be read.';
+            }
+
+            try {
+              const { data: comments } = await github.rest.issues.listComments({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+              });
+              const existing = comments.find(
+                (c) => c.user.type === 'Bot' && c.body.includes('ThreatCrush Security Scan'),
+              );
+
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  comment_id: existing.id,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body,
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body,
+                });
+              }
+            } catch (err) {
+              core.warning(
+                `Could not post PR comment (status ${err.status ?? 'unknown'}): ${err.message}. ` +
+                  'Findings are in the job summary.',
+              );
+            }
