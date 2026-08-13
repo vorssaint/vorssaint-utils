@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import CoreGraphics
 import SwiftUI
 
 /// System-Settings-style window: a sidebar of pages on the left, the selected
@@ -368,6 +369,7 @@ struct EnergySettings: View {
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var extraBrightness = ExtraBrightnessService.shared
     @ObservedObject private var brightness = BrightnessService.shared
+    @ObservedObject private var displayManagement = DisplayManagementService.shared
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
@@ -383,6 +385,12 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleEnabled) private var keepAwakeMouseJiggle = false
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleInterval) private var keepAwakeMouseJiggleInterval = 5
+    @State private var newDisplayPresetName = ""
+    @State private var expandedDisplayManagementIDs = Set<CGDirectDisplayID>()
+
+    private var displayStrings: DisplayManagementStrings {
+        FeatureStrings.displayManagement(l10n.language)
+    }
 
     var body: some View {
         Form {
@@ -506,6 +514,107 @@ struct EnergySettings: View {
                 }
                 .settingsSectionAnchor(.brightness)
             }
+            if AppFeature.brightness.isAvailable {
+                Section(displayStrings.section) {
+                    if displayManagement.displays.isEmpty {
+                        SettingsCaptionText(displayStrings.empty)
+                    } else {
+                        ForEach(displayManagement.displays) { display in
+                            displayManagementRow(display)
+                        }
+                    }
+                    if let error = displayManagement.lastError {
+                        SettingsCaptionText(error)
+                            .foregroundStyle(.red)
+                    }
+                }
+                if displayManagement.displays.count > 1 {
+                    Section(displayStrings.arrangement) {
+                        DisplayArrangementCanvas(displays: displayManagement.displays) { display, x, y in
+                            displayManagement.setDisplayPosition(display, x: x, y: y)
+                        }
+                    }
+                }
+                Section(displayStrings.presets) {
+                    HStack {
+                        TextField(displayStrings.presetName, text: $newDisplayPresetName)
+                        Button {
+                            displayManagement.savePreset(named: newDisplayPresetName)
+                            newDisplayPresetName = ""
+                        } label: {
+                            Label(displayStrings.save, systemImage: "plus")
+                        }
+                        .disabled(newDisplayPresetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    if displayManagement.presets.isEmpty {
+                        SettingsCaptionText(displayStrings.emptyPresets)
+                    } else {
+                        ForEach(displayManagement.presets) { preset in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    TextField(displayStrings.presetName, text: Binding(
+                                        get: { preset.name },
+                                        set: { displayManagement.renamePreset(preset, to: $0) }))
+                                    Text(displayCountLabel(preset.entries.count))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button {
+                                    displayManagement.applyPreset(preset)
+                                } label: {
+                                    Label(displayStrings.apply, systemImage: "play.fill")
+                                }
+                                Button {
+                                    displayManagement.updatePresetFromCurrentDisplays(preset)
+                                } label: {
+                                    Image(systemName: "arrow.clockwise")
+                                }
+                                .buttonStyle(.plain)
+                                .help(displayStrings.updatePreset)
+                                Button {
+                                    displayManagement.deletePreset(preset)
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.secondary)
+                                .help(displayStrings.deletePreset)
+                            }
+                        }
+                    }
+                }
+                if displayManagement.autoBrightnessAvailable {
+                    Section(displayStrings.autoBrightness) {
+                        SettingsToggleWithCaption(title: displayStrings.autoBrightness,
+                                                  caption: displayStrings.autoBrightnessCaption,
+                                                  isOn: $displayManagement.autoBrightnessEnabled)
+                        HStack {
+                            Text(displayStrings.sensitivity)
+                            Slider(value: $displayManagement.autoBrightnessSensitivity, in: 0.5...1.5, step: 0.05)
+                            Text("\(Int((displayManagement.autoBrightnessSensitivity * 100).rounded()))%")
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 52, alignment: .trailing)
+                        }
+                    }
+                }
+                if displayManagement.nightShiftAvailable || displayManagement.trueToneAvailable {
+                    Section(displayStrings.effects) {
+                        if displayManagement.nightShiftAvailable {
+                            Toggle("Night Shift", isOn: Binding(
+                                get: { displayManagement.nightShiftEnabled },
+                                set: { displayManagement.setNightShift($0) }))
+                        }
+                        if displayManagement.trueToneAvailable {
+                            Toggle("True Tone", isOn: Binding(
+                                get: { displayManagement.trueToneEnabled },
+                                set: { displayManagement.setTrueTone($0) }))
+                        }
+                        SettingsCaptionText(displayStrings.effectsCaption)
+                    }
+                }
+            }
             if AppFeature.extraBrightness.isAvailable {
                 Section(l10n.s.extraBrightnessName) {
                     if extraBrightness.supported {
@@ -543,6 +652,177 @@ struct EnergySettings: View {
             // re-check so the section never shows a stale availability.
             ExtraBrightnessService.shared.syncWithPreferences()
             BrightnessService.shared.refresh()
+            DisplayManagementService.shared.refresh()
+        }
+    }
+
+    @ViewBuilder
+    private func displayManagementRow(_ display: ManagedDisplay) -> some View {
+        DisclosureGroup(isExpanded: Binding(
+            get: { expandedDisplayManagementIDs.contains(display.id) },
+            set: { expanded in
+                if expanded {
+                    expandedDisplayManagementIDs.insert(display.id)
+                } else {
+                    expandedDisplayManagementIDs.remove(display.id)
+                }
+            })) {
+            VStack(alignment: .leading, spacing: 10) {
+                Picker(displayStrings.resolution, selection: Binding(
+                    get: { display.currentModeID ?? 0 },
+                    set: { modeID in
+                        guard let mode = display.modes.first(where: { $0.id == modeID }) else { return }
+                        displayManagement.setMode(mode, for: display)
+                    })) {
+                    ForEach(display.modes) { mode in
+                        Text(mode.label).tag(mode.id)
+                    }
+                }
+                .disabled(display.modes.isEmpty)
+
+                HStack {
+                    Text(displayStrings.scale)
+                    Spacer()
+                    Button(displayStrings.native) {
+                        displayManagement.setScale(.native, for: display)
+                    }
+                    .disabled(display.nativeMode == nil)
+                    Button("HiDPI") {
+                        displayManagement.setScale(.hiDPI, for: display)
+                    }
+                    .disabled(display.bestHiDPIMode == nil)
+                }
+
+                if display.hdrSupported {
+                    Toggle("HDR", isOn: Binding(
+                        get: { display.hdrEnabled },
+                        set: { displayManagement.setHDR($0, for: display) }))
+                        .disabled(!display.hdrMutable)
+                    if !display.hdrMutable {
+                        SettingsCaptionText(displayStrings.hdrUnavailable)
+                    }
+                }
+
+                if !display.isBuiltIn {
+                    HStack {
+                        Text(displayStrings.hiDPIOverride)
+                        Spacer()
+                        Button(display.hiDPIOverrideInstalled ? displayStrings.removeHiDPI : displayStrings.installHiDPI) {
+                            if display.hiDPIOverrideInstalled {
+                                displayManagement.removeHiDPIOverride(for: display)
+                            } else {
+                                displayManagement.installHiDPIOverride(for: display)
+                            }
+                        }
+                    }
+                }
+
+                Picker(displayStrings.colorProfile, selection: Binding(
+                    get: { displayManagement.activeProfileByDisplayID[display.id]?.path ?? "" },
+                    set: { path in
+                        if path.isEmpty {
+                            displayManagement.resetColorProfile(for: display)
+                        } else if let profile = displayManagement.colorProfiles.first(where: { $0.path.path == path }) {
+                            displayManagement.setColorProfile(profile, for: display)
+                        }
+                    })) {
+                    Text(displayStrings.systemDefault).tag("")
+                    ForEach(displayManagement.colorProfiles) { profile in
+                        Text(profile.name).tag(profile.path.path)
+                    }
+                }
+                .disabled(displayManagement.colorProfiles.isEmpty)
+
+                if !display.isMain {
+                    Button {
+                        displayManagement.setMainDisplay(display)
+                    } label: {
+                        Label(displayStrings.makeMain, systemImage: "menubar.rectangle")
+                    }
+                }
+
+                imageAdjustmentControls(for: display)
+            }
+            .padding(.top, 6)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: display.isBuiltIn ? "laptopcomputer" : "display")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(display.name)
+                    Text(display.currentModeLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if display.isMain {
+                    Text(displayStrings.main)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func displayCountLabel(_ count: Int) -> String {
+        count == 1 ? displayStrings.displayCountSingular
+            : String(format: displayStrings.displayCountPlural, count)
+    }
+
+    private func imageAdjustmentControls(for display: ManagedDisplay) -> some View {
+        let adjustment = displayManagement.imageAdjustments[display.id] ?? DisplayImageAdjustment()
+        return DisclosureGroup(displayStrings.imageAdjustments) {
+            VStack(alignment: .leading, spacing: 8) {
+                imageSlider(displayStrings.contrast, value: adjustment.contrast, display: display) {
+                    var next = adjustment; next.contrast = $0; return next
+                }
+                imageSlider(displayStrings.gamma, value: adjustment.gamma, display: display) {
+                    var next = adjustment; next.gamma = $0; return next
+                }
+                imageSlider(displayStrings.gain, value: adjustment.gain, display: display) {
+                    var next = adjustment; next.gain = $0; return next
+                }
+                imageSlider(displayStrings.warmth, value: adjustment.warmth, display: display) {
+                    var next = adjustment; next.warmth = $0; return next
+                }
+                Toggle(displayStrings.invertColors, isOn: Binding(
+                    get: { adjustment.inverted },
+                    set: {
+                        var next = adjustment
+                        next.inverted = $0
+                        displayManagement.setImageAdjustment(next, for: display)
+                    }))
+                Toggle(displayStrings.pauseAdjustments, isOn: Binding(
+                    get: { adjustment.paused },
+                    set: {
+                        var next = adjustment
+                        next.paused = $0
+                        displayManagement.setImageAdjustment(next, for: display)
+                    }))
+                Button(displayStrings.reset) {
+                    displayManagement.resetImageAdjustment(for: display)
+                }
+            }
+            .padding(.top, 4)
+        }
+    }
+
+    private func imageSlider(_ title: String,
+                             value: Double,
+                             display: ManagedDisplay,
+                             update: @escaping (Double) -> DisplayImageAdjustment) -> some View {
+        HStack {
+            Text(title)
+            Slider(value: Binding(
+                get: { value },
+                set: { displayManagement.setImageAdjustment(update($0), for: display) }),
+                   in: -100...100,
+                   step: 1)
+            Text("\(Int(value.rounded()))")
+                .font(.system(.body, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .frame(width: 44, alignment: .trailing)
         }
     }
 
@@ -592,6 +872,99 @@ struct EnergySettings: View {
 
     private var displaySleepStrings: KeepAwakeDisplaySleepStrings {
         FeatureStrings.keepAwakeDisplaySleep(l10n.language)
+    }
+}
+
+private struct DisplayArrangementCanvas: View {
+    let displays: [ManagedDisplay]
+    let onMove: (ManagedDisplay, Int, Int) -> Void
+    @State private var activeDrag: (displayID: CGDirectDisplayID, offset: CGSize)?
+
+    var body: some View {
+        GeometryReader { geometry in
+            let layout = arrangementLayout(in: geometry.size)
+
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color.secondary.opacity(0.18))
+
+                ForEach(displays) { display in
+                    if let frame = layout.frames[display.id] {
+                        displayTile(display, frame: frame, scale: layout.scale)
+                    }
+                }
+            }
+        }
+        .frame(minHeight: 180)
+    }
+
+    private func displayTile(_ display: ManagedDisplay, frame: CGRect, scale: CGFloat) -> some View {
+        let dragOffset = activeDrag?.displayID == display.id ? activeDrag?.offset ?? .zero : .zero
+
+        return RoundedRectangle(cornerRadius: 6, style: .continuous)
+            .fill(display.isMain ? Color.accentColor.opacity(0.24) : Color.secondary.opacity(0.13))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(display.isMain ? Color.accentColor : Color.secondary.opacity(0.35), lineWidth: 1)
+            )
+            .overlay(
+                VStack(spacing: 4) {
+                    Image(systemName: display.isBuiltIn ? "laptopcomputer" : "display")
+                    Text(display.name)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Text("\(display.pixelWidth)x\(display.pixelHeight)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(8)
+            )
+            .frame(width: frame.width, height: frame.height)
+            .position(x: frame.midX + dragOffset.width, y: frame.midY + dragOffset.height)
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        activeDrag = (display.id, value.translation)
+                    }
+                    .onEnded { value in
+                        activeDrag = nil
+                        let nextX = display.originX + Int((value.translation.width / scale).rounded())
+                        let nextY = display.originY + Int((value.translation.height / scale).rounded())
+                        onMove(display, nextX, nextY)
+                    }
+            )
+    }
+
+    private func arrangementLayout(in size: CGSize) -> (frames: [CGDirectDisplayID: CGRect], scale: CGFloat) {
+        guard !displays.isEmpty else { return ([:], 1) }
+
+        let minX = displays.map(\.originX).min() ?? 0
+        let minY = displays.map(\.originY).min() ?? 0
+        let maxX = displays.map { $0.originX + $0.pointWidth }.max() ?? 1
+        let maxY = displays.map { $0.originY + $0.pointHeight }.max() ?? 1
+        let canvasInset: CGFloat = 16
+        let contentWidth = max(CGFloat(maxX - minX), 1)
+        let contentHeight = max(CGFloat(maxY - minY), 1)
+        let availableWidth = max(size.width - canvasInset * 2, 1)
+        let availableHeight = max(size.height - canvasInset * 2, 1)
+        let scale = min(availableWidth / contentWidth, availableHeight / contentHeight)
+        let scaledWidth = contentWidth * scale
+        let scaledHeight = contentHeight * scale
+        let xOffset = (size.width - scaledWidth) / 2
+        let yOffset = (size.height - scaledHeight) / 2
+
+        let frames = Dictionary(uniqueKeysWithValues: displays.map { display in
+            let x = CGFloat(display.originX - minX) * scale + xOffset
+            let y = CGFloat(display.originY - minY) * scale + yOffset
+            let width = max(CGFloat(display.pointWidth) * scale, 72)
+            let height = max(CGFloat(display.pointHeight) * scale, 44)
+            return (display.id, CGRect(x: x, y: y, width: width, height: height))
+        })
+
+        return (frames, max(scale, 0.0001))
     }
 }
 
