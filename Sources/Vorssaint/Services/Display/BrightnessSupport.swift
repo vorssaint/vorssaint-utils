@@ -138,6 +138,22 @@ enum BrightnessSupport {
         activeDisplayIDs.contains(target) && activeDisplayIDs.count > 1
     }
 
+    /// The check above only holds at the moment the switch is thrown: the
+    /// display that justified switching another one off can leave later.
+    /// Unplugging the last external monitor while the built-in panel is
+    /// switched off takes the picture with it, and the row that would switch
+    /// the panel back on is on the screen that just went away. Nothing
+    /// outside this app can undo it either, so once nothing is drawing,
+    /// everything switched off here has to come back.
+    ///
+    /// Drawable means a display a person can actually read: the active list
+    /// on its own also counts the virtual devices macOS keeps around, which
+    /// answer for a screen nobody is looking at.
+    static func shouldRecoverStrandedDisplays(drawableDisplayIDs: Set<UInt32>,
+                                              managedDisabledIDs: Set<UInt32>) -> Bool {
+        drawableDisplayIDs.isEmpty && !managedDisabledIDs.isEmpty
+    }
+
     // MARK: - Software dimming (gamma curve)
 
     /// Displays with no DDC channel are dimmed in the video pipeline instead:

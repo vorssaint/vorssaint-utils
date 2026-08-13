@@ -452,6 +452,98 @@ final class BrightnessService: ObservableObject {
         }
     }
 
+    /// Displays actually putting a picture in front of someone. The active
+    /// list alone is not that: it also answers for the virtual devices macOS
+    /// keeps around, and for a display mirroring another one.
+    private static func drawableDisplayIDs(online: [CGDirectDisplayID],
+                                           active: Set<CGDirectDisplayID>) -> Set<CGDirectDisplayID> {
+        var drawable = Set<CGDirectDisplayID>()
+        for id in online where active.contains(id) {
+            guard CGDisplayMirrorsDisplay(id) == 0 else { continue }
+            let info = displayInfoDictionary(id)
+            if let info,
+               (info["kCGDisplayIsVirtualDevice"] as? Bool ?? false)
+                || (info["kCGDisplayIsAirPlay"] as? Bool ?? false) {
+                continue
+            }
+            drawable.insert(id)
+        }
+        return drawable
+    }
+
+    /// Switches back on everything this app switched off once nothing is left
+    /// drawing, and reports whether it did. Unplugging the last external
+    /// monitor while the built-in panel is switched off is the way there: the
+    /// Mac stays awake with no picture at all, and the only way back was to
+    /// plug the monitor in again (issue #623). Runs on the work queue.
+    private func recoverStrandedDisplays(online: [CGDirectDisplayID],
+                                         active: Set<CGDirectDisplayID>) -> Bool {
+        let drawable = Self.drawableDisplayIDs(online: online, active: active)
+        stateLock.lock()
+        let stranded = managedDisabledIDs
+        stateLock.unlock()
+        guard BrightnessSupport.shouldRecoverStrandedDisplays(drawableDisplayIDs: drawable,
+                                                              managedDisabledIDs: stranded) else {
+            return false
+        }
+        Self.log.log("nothing left drawing; restoring displays switched off here (\(stranded.sorted().map(String.init).joined(separator: ","), privacy: .public))")
+
+        // Not by display number: switching a display off renumbers what is
+        // left behind it, so the numbers written down when the switch was
+        // thrown no longer address the panel that has to come back (the
+        // built-in went off as display 1 and the machine came back up
+        // numbering it 11). Restoring the saved configuration undoes this
+        // process's app-only transaction whatever the numbers now are.
+        CGRestorePermanentDisplayConfiguration()
+
+        // The restore is the whole recovery when it works. Anything still
+        // dark gets switched on by hand, by its current number.
+        var repaired = Self.drawableDisplayIDs(online: Self.onlineDisplayIDs(),
+                                               active: Self.activeDisplayIDs())
+        if repaired.isEmpty {
+            let onlineNow = Self.onlineDisplayIDs()
+            let activeNow = Self.activeDisplayIDs()
+            for id in onlineNow where !activeNow.contains(id) {
+                let switched = Self.configureDisplay(id, enabled: true)
+                Self.log.log("switching stranded display \(id) back on: \(switched ? "ok" : "failed", privacy: .public)")
+            }
+            for id in stranded where !onlineNow.contains(id) {
+                let switched = Self.configureDisplay(id, enabled: true)
+                Self.log.log("switching remembered display \(id) back on: \(switched ? "ok" : "failed", privacy: .public)")
+            }
+            repaired = Self.drawableDisplayIDs(online: Self.onlineDisplayIDs(),
+                                               active: Self.activeDisplayIDs())
+        }
+        Self.log.log("recovery left \(repaired.count) display(s) drawing")
+
+        // Whatever the outcome, this app is no longer holding any display
+        // off: the transaction that did is gone. Keeping the ids would leave
+        // the panel offering to switch on a display that is already on, and
+        // would strand the machine again on the next quit.
+        stateLock.lock()
+        managedDisabledIDs = []
+        managedDisabledDisplays = [:]
+        // The topology this rebuild was queued for no longer describes the
+        // machine, and the rebuild queued below must not be discarded as a
+        // repeat of it.
+        rebuildingTopology = nil
+        stateLock.unlock()
+        Self.forgetDisplaysSwitchedOff()
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.running else { return }
+            self.refresh(force: true)
+        }
+        return true
+    }
+
+    private static func onlineDisplayIDs() -> [CGDirectDisplayID] {
+        var ids = [CGDirectDisplayID](repeating: 0, count: 16)
+        var count: UInt32 = 0
+        guard CGGetOnlineDisplayList(16, &ids, &count) == .success else { return [] }
+        return Array(ids.prefix(Int(count)))
+    }
+
     private static func configureDisplay(_ id: CGDirectDisplayID, enabled: Bool) -> Bool {
         guard let configure = DisplayConfigurationBridge.configureEnabled else { return false }
         var reference: CGDisplayConfigRef?
@@ -1054,6 +1146,13 @@ final class BrightnessService: ObservableObject {
 
         let seenTopology = Set(onlineIDs)
         let activeTopology = Self.activeDisplayIDs()
+        stateLock.lock()
+        let disabledHere = managedDisabledIDs
+        stateLock.unlock()
+        Self.log.log("rebuild: online \(onlineIDs.sorted().map(String.init).joined(separator: ","), privacy: .public); active \(activeTopology.sorted().map(String.init).joined(separator: ","), privacy: .public); switched off here \(disabledHere.sorted().map(String.init).joined(separator: ","), privacy: .public)")
+        // Before reading anything: a Mac with no picture left cannot wait for
+        // a monitor probe to finish.
+        if recoverStrandedDisplays(online: onlineIDs, active: activeTopology) { return }
         var built: [BrightnessDisplay] = []
         var newRoutes: [CGDirectDisplayID: Route] = [:]
         var ddcCandidates: [(index: Int, identity: BrightnessSupport.DisplayIdentity)] = []

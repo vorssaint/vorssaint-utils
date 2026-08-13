@@ -8457,6 +8457,15 @@ struct MetricsTests {
                "the final active display can never be disabled")
         expect(!BrightnessSupport.canDisableDisplay(activeDisplayIDs: [1, 3], target: 8),
                "an inactive display cannot enter the disable path")
+        expect(BrightnessSupport.shouldRecoverStrandedDisplays(drawableDisplayIDs: [],
+                                                               managedDisabledIDs: [1]),
+               "unplugging the last monitor switches the built-in panel back on")
+        expect(!BrightnessSupport.shouldRecoverStrandedDisplays(drawableDisplayIDs: [3],
+                                                                managedDisabledIDs: [1]),
+               "a display switched off stays off while another one still draws")
+        expect(!BrightnessSupport.shouldRecoverStrandedDisplays(drawableDisplayIDs: [],
+                                                                managedDisabledIDs: []),
+               "a dark machine this app did not switch off is left alone")
 
         expect(BrightnessSupport.ddcCommandDelay(nowMicroseconds: 1_000_000,
                                                  lastCommandEndMicroseconds: nil) == 0,
