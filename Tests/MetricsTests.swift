@@ -273,9 +273,16 @@ struct MetricsTests {
                "clipboard editing preserves intentional outer spacing")
         expect(ClipboardHistoryEditing.storableText(" \n\t ") == nil,
                "clipboard editing rejects an empty text item")
+        let largeClipboardText = String(repeating: "long copied text ", count: 10_000)
+        expect(ClipboardHistoryEditing.storableText(largeClipboardText) == largeClipboardText,
+               "clipboard history keeps copied documents larger than the old short-text bound")
         expect(ClipboardHistoryEditing.storableText(
             String(repeating: "a", count: ClipboardHistoryEditing.maxCharacters + 1)) == nil,
                "clipboard editing keeps the history text size bound")
+        let largeClipboardPreview = ClipboardHistoryEntry(text: largeClipboardText).preview
+        expect(largeClipboardPreview.hasSuffix("…")
+                && largeClipboardPreview.count <= ClipboardHistoryEditing.previewCharacters + 1,
+               "clipboard rows keep very large text previews bounded")
         let previewID = UUID(uuidString: "00000000-0000-0000-0000-000000000101")!
         let nextPreviewID = UUID(uuidString: "00000000-0000-0000-0000-000000000102")!
         let updatedPreview = ClipboardHistoryEntry(id: previewID, text: "updated")
@@ -2412,6 +2419,11 @@ struct MetricsTests {
         expect(WindowLayoutGeometry.accepts(actualRect: .zero, targetRect: .zero,
                                             action: .fullScreen, anchorTolerance: 10) == false,
                "full screen never joins the frame-based gesture acceptance")
+        expect(WindowLayoutAction.center.targetCapability == .position
+                && WindowLayoutAction.fullScreen.targetCapability == .fullScreen
+                && WindowLayoutAction.maximize.targetCapability == .frame
+                && WindowLayoutAction.restore.targetCapability == .frame,
+               "window layout targets only the attributes each action changes")
 
         // MARK: Editing, navigation and upper function keys as shortcuts (#308)
 
@@ -9479,6 +9491,20 @@ struct MetricsTests {
                                                        fromCenter: true)
         expect(centered == CGRect(x: 30, y: 40, width: 40, height: 20),
                "option grows the selection from the center")
+        let cropBounds = CGRect(x: 0, y: 0, width: 800, height: 600)
+        let cropDraft = CGRect(x: 120, y: 90, width: 400, height: 300)
+        expect(ScreenshotSupport.startsNewCropSelection(
+                    at: CGPoint(x: 300, y: 250), draft: cropBounds, within: cropBounds),
+               "dragging inside the initial full-image crop starts a new selection")
+        expect(!ScreenshotSupport.startsNewCropSelection(
+                    at: CGPoint(x: 300, y: 250), draft: cropDraft, within: cropBounds),
+               "dragging inside an adjusted crop keeps moving it")
+        expect(ScreenshotSupport.startsNewCropSelection(
+                    at: CGPoint(x: 700, y: 500), draft: cropDraft, within: cropBounds),
+               "dragging elsewhere in the image replaces an adjusted crop")
+        expect(!ScreenshotSupport.startsNewCropSelection(
+                    at: CGPoint(x: 900, y: 700), draft: cropDraft, within: cropBounds),
+               "a drag outside the image cannot start a crop")
         expect(ScreenshotSupport.isClick(from: CGPoint(x: 5, y: 5), to: CGPoint(x: 7, y: 8))
                 && !ScreenshotSupport.isClick(from: .zero, to: CGPoint(x: 12, y: 0)),
                "a tiny drag is a click, a real drag is not")

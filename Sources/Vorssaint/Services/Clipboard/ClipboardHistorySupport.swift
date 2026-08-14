@@ -65,11 +65,13 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     var preview: String {
         switch kind {
         case .text:
-            let collapsed = text
+            let prefix = text.prefix(ClipboardHistoryEditing.previewCharacters)
+            let collapsed = prefix
                 .replacingOccurrences(of: "\n", with: " ")
                 .replacingOccurrences(of: "\t", with: " ")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            return collapsed.isEmpty ? text : collapsed
+            let visible = collapsed.isEmpty ? String(prefix) : collapsed
+            return prefix.endIndex == text.endIndex ? visible : visible + "…"
         case .image:
             return imageDimensionsLabel
         case .files:
@@ -119,7 +121,13 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
 }
 
 enum ClipboardHistoryEditing {
-    static let maxCharacters = 20_000
+    /// A copied document should stay available, while a pathological
+    /// pasteboard payload still has a firm in-memory and on-disk bound.
+    static let maxCharacters = 1_000_000
+    /// Rows only need enough text to fill their three visible lines. Keeping
+    /// this bounded prevents a very large saved document from being copied
+    /// again merely to draw its list preview.
+    static let previewCharacters = 2_000
 
     static func storableText(_ text: String) -> String? {
         guard text.count <= maxCharacters,

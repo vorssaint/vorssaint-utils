@@ -8,7 +8,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Summary
 Vorssaint 3.3.2 improves app discovery in the Command Bar, recording, Switcher,
-screenshots, screen text recognition, Cleaning Mode, Scratchpad, audio and display safety. It also refines app
+screenshot editing, clipboard history, screen text recognition, Window Layout, Cleaning Mode, Scratchpad, audio and display safety. It also refines app
 management, feedback, feature setup, Fan Control, Quit on close, network monitoring, power
 and peripheral battery readings, panel behavior and keyboard controls.
 
@@ -31,11 +31,18 @@ and peripheral battery readings, panel behavior and keyboard controls.
   Thanks to @theafox.
 
 ### Fixed
+- The screenshot editor now lets you draw a new crop directly over the image.
+- Clipboard history now keeps large copied documents instead of silently
+  dropping text after 20,000 characters.
+- Window Layout now centers fixed-size windows and stops pending placements from
+  undoing Full Screen.
 - The feedback text cursor now lines up with the empty-field hint.
 - The recording countdown ring now drains smoothly instead of staying still
   while only the number changes.
 - The Command Bar now finds installed apps kept outside the standard Applications
   folders.
+- Keyboard light is now searchable from Settings and the Command Bar.
+  Thanks to @PathGao.
 - Copy text from screen now prioritizes the interface language, preventing Chinese
   text from being returned as unreadable characters.
 - A disabled built-in display now turns back on when the last external screen
@@ -65,6 +72,7 @@ and peripheral battery readings, panel behavior and keyboard controls.
   Thanks to @PathGao.
 - The App Switcher now shows its configured shortcut in the large icon mode label.
   Thanks to @liuxxxu.
+- The App Switcher now keeps its shortcut working after your Mac wakes from sleep.
 - The App Switcher now restores minimized windows when selected.
 - The app no longer quits while typing when the Switcher's Windows shortcut uses a
   key whose label comes from the keyboard layout. Thanks to @eioz.

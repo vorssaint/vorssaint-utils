@@ -73,6 +73,8 @@ final class AppSwitcher: ObservableObject {
     private var pendingStartAfterStop = false
     /// Alive only while the Switcher's tap needs layout labels off main.
     private var keyboardLayoutObserver: NSObjectProtocol?
+    private var wakeObserver: NSObjectProtocol?
+    private var wakeRetry: DispatchWorkItem?
 
     /// The little state the tap thread needs to route an event without
     /// touching the main thread; mutated only under `routeLock`.
@@ -138,6 +140,7 @@ final class AppSwitcher: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.switcherEnabled)
         if enabled, Permissions.shared.accessibility {
             startObservingKeyboardLayout()
+            startObservingWake()
             installTap()
             // Build the panel and its SwiftUI tree now: the first hosting-view
             // render costs hundreds of milliseconds, far too slow to pay on
@@ -151,6 +154,7 @@ final class AppSwitcher: ObservableObject {
             }
         } else {
             stopObservingKeyboardLayout()
+            stopObservingWake()
             removeTap()
             WindowPreviewProvider.shared.stopWarming()
         }
@@ -159,7 +163,10 @@ final class AppSwitcher: ObservableObject {
     /// Force-stops the tap regardless of the preference. Used before the app
     /// resets its own permissions, so a revoked Accessibility grant can never
     /// leave a live tap behind.
-    func suspend() { removeTap() }
+    func suspend() {
+        stopObservingWake()
+        removeTap()
+    }
 
     /// While a shortcut field is listening, every key has to reach it, even
     /// the switcher's own combination. This is a flag the routing reads, not a
@@ -188,6 +195,48 @@ final class AppSwitcher: ObservableObject {
             DistributedNotificationCenter.default().removeObserver(keyboardLayoutObserver)
         }
         keyboardLayoutObserver = nil
+    }
+
+    private func startObservingWake() {
+        guard wakeObserver == nil else { return }
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in self?.recoverTapAfterWake() }
+    }
+
+    private func stopObservingWake() {
+        if let wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+        }
+        wakeObserver = nil
+        wakeRetry?.cancel()
+        wakeRetry = nil
+    }
+
+    private func recoverTapAfterWake() {
+        recoverTapIfNeeded()
+        wakeRetry?.cancel()
+        // Input services can settle after the workspace wake itself. Recheck
+        // once so a tap disabled during that window never stays silent.
+        let retry = DispatchWorkItem { [weak self] in self?.recoverTapIfNeeded() }
+        wakeRetry = retry
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: retry)
+    }
+
+    private func recoverTapIfNeeded() {
+        guard AppFeature.switcher.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.switcherEnabled),
+              Permissions.shared.accessibility else { return }
+        let needsRecovery = lifecycleLock.withLock {
+            guard !shouldStopTapThread else { return false }
+            guard let tap else { return true }
+            return !CFMachPortIsValid(tap) || !CGEvent.tapIsEnabled(tap: tap)
+        }
+        guard needsRecovery else { return }
+        removeTap()
+        installTap()
     }
 
     private func installTap() {

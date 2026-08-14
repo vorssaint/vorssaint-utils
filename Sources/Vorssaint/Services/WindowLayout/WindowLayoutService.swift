@@ -129,7 +129,7 @@ final class WindowLayoutService: ObservableObject {
         guard AXIsProcessTrusted() else {
             return finish(.failure(.missingAccessibility))
         }
-        guard let target = focusedTarget() else {
+        guard let target = focusedTarget(for: action) else {
             return finish(.failure(.noWindow))
         }
         pruneWindowState(keeping: target.key)
@@ -148,6 +148,10 @@ final class WindowLayoutService: ObservableObject {
         }
 
         if action == .fullScreen {
+            // A placement still settling must never write its old frame over
+            // the native full-screen transition that replaces it.
+            cancelSettle(for: target.windowID)
+            assistiveModeSuspensions.removeValue(forKey: target.windowID)?.resume()
             // The native full screen the green button gives, toggled through
             // the same attribute the button writes. The system owns the frame
             // from here, so nothing is remembered for restore.
@@ -161,7 +165,13 @@ final class WindowLayoutService: ObservableObject {
             // Remembered like any other placement, or the "same half twice
             // means maximize" rule would still be looking at whatever the
             // window did before it went full screen.
-            if applied { lastActions[target.key] = .fullScreen }
+            if applied {
+                if isFullScreen {
+                    lastActions.removeValue(forKey: target.key)
+                } else {
+                    lastActions[target.key] = .fullScreen
+                }
+            }
             return applied ? finish(.success(restored: false)) : finish(.failure(.failed))
         }
         let screens = NSScreen.screens
@@ -234,7 +244,7 @@ final class WindowLayoutService: ObservableObject {
         return finish(.failure(.failed))
     }
 
-    private func focusedTarget() -> WindowLayoutTarget? {
+    private func focusedTarget(for action: WindowLayoutAction) -> WindowLayoutTarget? {
         let ownBundleID = Bundle.main.bundleIdentifier
         let ownPID = ProcessInfo.processInfo.processIdentifier
         let ownKeyWindow = NSApp.keyWindow
@@ -264,14 +274,16 @@ final class WindowLayoutService: ObservableObject {
                 if let window = windowAttribute(axApp, attribute as String),
                    let target = target(from: window,
                                        app: app,
-                                       onScreenWindowIDs: onScreenWindowIDs) {
+                                       onScreenWindowIDs: onScreenWindowIDs,
+                                       capability: action.targetCapability) {
                     return target
                 }
             }
             if let windows = windowsAttribute(axApp),
                let first = windows.compactMap({ target(from: $0,
                                                         app: app,
-                                                        onScreenWindowIDs: onScreenWindowIDs) }).first {
+                                                        onScreenWindowIDs: onScreenWindowIDs,
+                                                        capability: action.targetCapability) }).first {
                 return first
             }
         }
@@ -280,18 +292,29 @@ final class WindowLayoutService: ObservableObject {
 
     private func target(from window: AXUIElement,
                         app: NSRunningApplication,
-                        onScreenWindowIDs: Set<CGWindowID>) -> WindowLayoutTarget? {
+                        onScreenWindowIDs: Set<CGWindowID>,
+                        capability: WindowLayoutTargetCapability) -> WindowLayoutTarget? {
         guard role(of: window) == (kAXWindowRole as String),
-              !boolAttribute(window, "AXFullScreen"),
               !boolAttribute(window, kAXMinimizedAttribute as String),
               stringAttribute(window, kAXSubroleAttribute as String) != "AXFloatingWindow",
-              canSetFrame(on: window),
               let windowID = AXWindowResolver.windowID(for: window),
               onScreenWindowIDs.contains(windowID),
               let frame = frame(of: window),
               frame.size.width > 80,
               frame.size.height > 80
         else { return nil }
+        let isFullScreen = boolAttribute(window, "AXFullScreen")
+        guard capability == .fullScreen || !isFullScreen else { return nil }
+        let hasRequiredCapability: Bool
+        switch capability {
+        case .position:
+            hasRequiredCapability = canSetPosition(on: window)
+        case .frame:
+            hasRequiredCapability = canSetFrame(on: window)
+        case .fullScreen:
+            hasRequiredCapability = canSetFullScreen(on: window)
+        }
+        guard hasRequiredCapability else { return nil }
         let key = WindowLayoutWindowKey(
             processID: app.processIdentifier,
             processLaunchTime: app.launchDate?.timeIntervalSinceReferenceDate ?? 0,
@@ -854,7 +877,8 @@ final class WindowLayoutService: ObservableObject {
         guard let onScreenWindowIDs = onScreenWindowIDs(),
               let target = target(from: window,
                                   app: app,
-                                  onScreenWindowIDs: onScreenWindowIDs) else { return nil }
+                                  onScreenWindowIDs: onScreenWindowIDs,
+                                  capability: .frame) else { return nil }
         return WindowEdgeSnapDrag(window: target.window,
                                   key: target.key,
                                   initialFrame: pressCandidate.frame,
@@ -1431,6 +1455,14 @@ final class WindowLayoutService: ObservableObject {
                                               kAXSizeAttribute as CFString,
                                               &sizeSettable) == .success
             && sizeSettable.boolValue
+    }
+
+    private func canSetFullScreen(on window: AXUIElement) -> Bool {
+        var fullScreenSettable = DarwinBoolean(false)
+        return AXUIElementIsAttributeSettable(window,
+                                              "AXFullScreen" as CFString,
+                                              &fullScreenSettable) == .success
+            && fullScreenSettable.boolValue
     }
 
     private func setPosition(_ point: CGPoint, on element: AXUIElement) -> Bool {

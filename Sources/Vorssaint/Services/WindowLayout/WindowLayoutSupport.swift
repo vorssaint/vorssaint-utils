@@ -4,6 +4,12 @@
 import CoreGraphics
 import Foundation
 
+enum WindowLayoutTargetCapability: Equatable {
+    case position
+    case frame
+    case fullScreen
+}
+
 enum WindowLayoutAction: String, CaseIterable, Identifiable {
     case leftHalf, rightHalf, topHalf, bottomHalf
     case leftThird, centerThird, rightThird, leftTwoThirds, rightTwoThirds
@@ -25,6 +31,17 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
 
     var supportsShortcut: Bool {
         Self.shortcutActions.contains(self)
+    }
+
+    var targetCapability: WindowLayoutTargetCapability {
+        switch self {
+        case .center:
+            return .position
+        case .fullScreen:
+            return .fullScreen
+        default:
+            return .frame
+        }
     }
 
     var shortcutID: UInt32 {

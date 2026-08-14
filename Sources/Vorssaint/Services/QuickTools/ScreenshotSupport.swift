@@ -246,6 +246,15 @@ enum ScreenshotSupport {
                       width: abs(dx), height: abs(dy))
     }
 
+    /// A full-image crop cannot move, so an interior drag must start a new
+    /// selection. Dragging outside an existing crop replaces it as well.
+    static func startsNewCropSelection(at point: CGPoint,
+                                       draft: CGRect,
+                                       within bounds: CGRect) -> Bool {
+        bounds.contains(point)
+            && (draft.standardized == bounds.standardized || !draft.contains(point))
+    }
+
     static func clamp(_ rect: CGRect, to bounds: CGRect) -> CGRect {
         var result = rect.intersection(bounds)
         if result.isNull { result = .zero }
