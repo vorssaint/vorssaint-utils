@@ -11612,6 +11612,17 @@ struct MetricsTests {
                 .map { abs($0.value - 150) < 0.001 } == true,
                "a comma decimal converts where that is the custom")
 
+        expect(units("180 cm to ft") == "5ft 11in",
+               "a length converting to feet reads as feet and inches, not decimal feet")
+        expect(units("6 ft to ft") == "6ft",
+               "a whole number of feet has no leftover inches shown")
+        expect(units("1.825752 m to ft") == "6ft",
+               "inches that round up to twelve carry into the next whole foot")
+        expect(units("1 cm to ft") != nil && units("1 cm to ft") != "0ft",
+               "a sub-inch length falls back to decimal instead of misleadingly reading zero feet")
+        expect(units("180 cm to in") == "70.87 in",
+               "converting to inches specifically stays a plain decimal, unaffected by the feet formatting")
+
         // MARK: Command bar emoji
 
         expect(CommandBarEmoji.emoji.count > 150, "the curated emoji set is there")

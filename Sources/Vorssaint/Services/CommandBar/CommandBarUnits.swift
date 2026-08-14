@@ -5,7 +5,8 @@ import Foundation
 
 /// Unit conversion for the command bar: "100 km to mi", "20c to f",
 /// "5 gb to mb". Foundation does the arithmetic and writes the result in the
-/// person's own language; this file only decides what the words mean.
+/// person's own language (exception: feet+inches conversions use fixed English
+/// labels "ft" and "in"); this file only decides what the words mean.
 ///
 /// Deliberately strict. A conversion needs a number, a unit it knows, one of
 /// the little words that mean "to", and another unit of the SAME family.
@@ -119,7 +120,8 @@ enum CommandBarUnits {
             let measurement = Measurement(value: source.value, unit: source.unit.unit)
             let converted = measurement.converted(to: target.unit)
             guard converted.value.isFinite else { continue }
-            return Result(formatted: format(converted, locale: locale), value: converted.value)
+            let formatted = feetAndInches(converted) ?? format(converted, locale: locale)
+            return Result(formatted: formatted, value: converted.value)
         }
         return nil
     }
@@ -168,6 +170,26 @@ enum CommandBarUnits {
               normalized.allSatisfy({ $0.isNumber || $0 == "." || $0 == "-" })
         else { return nil }
         return Double(normalized)
+    }
+
+    /// "5ft 11in" instead of "5.91 ft": people read height and other
+    /// human-scale lengths in feet and inches, not decimal feet. Returns nil
+    /// for non-feet targets, negative values, magnitudes too large for Int, and
+    /// nonzero sub-inch measurements, so the caller falls back to the plain
+    /// decimal format for those.
+    private static func feetAndInches(_ measurement: Measurement<Dimension>) -> String? {
+        guard measurement.unit.symbol == UnitLength.feet.symbol, measurement.value >= 0
+        else { return nil }
+        guard var wholeFeet = Int(exactly: measurement.value.rounded(.down)) else { return nil }
+        var inches = Int(((measurement.value - Double(wholeFeet)) * 12).rounded())
+        if inches == 12 {
+            wholeFeet += 1
+            inches = 0
+        }
+        if wholeFeet == 0 && inches == 0 && measurement.value != 0 {
+            return nil
+        }
+        return inches == 0 ? "\(wholeFeet)ft" : "\(wholeFeet)ft \(inches)in"
     }
 
     private static func format(_ measurement: Measurement<Dimension>, locale: Locale) -> String {
