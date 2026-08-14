@@ -8,9 +8,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Summary
 Vorssaint 3.3.2 improves app discovery in the Command Bar, recording, Switcher,
-screenshot editing, clipboard history, screen text recognition, Window Layout, Cleaning Mode, Scratchpad, audio and display safety. It also refines app
-management, feedback, feature setup, Fan Control, Quit on close, network monitoring, power
-and peripheral battery readings, panel behavior and keyboard controls.
+screenshot editing, clipboard history, screen text recognition, Window Layout,
+Cleaning Mode, Scratchpad, audio and display safety. It also standardizes app
+lists in Settings and refines feedback, feature setup, Fan Control, Quit on close,
+network monitoring, power, peripheral battery readings, panel behavior and keyboard controls.
 
 ### Added
 - Emoji can open directly from a shortcut assigned to its Command Bar row.
