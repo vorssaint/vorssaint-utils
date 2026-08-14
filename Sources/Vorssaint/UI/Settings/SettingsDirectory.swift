@@ -130,6 +130,7 @@ enum SettingsDirectory {
                                                  FeatureStrings.quickToggles(language).pageTitle,
                                                  FeatureStrings.quickToggles(language).darkModeToDark,
                                                  FeatureStrings.quickToggles(language).emptyTrashTitle,
+                                                 FeatureStrings.brightness(language).keyboardLight,
                                                  FeatureStrings.cameraPreview(language).pageTitle,
                                                  FeatureStrings.scratchpad(language).pageTitle]),
                 SettingsDirectoryItem(page: .screenshot,
