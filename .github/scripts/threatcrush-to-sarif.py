@@ -41,7 +41,9 @@ INFO_LINE = re.compile(r"^\s*Info:\s*(.+?)\s*$")
 
 # Proof that a scan ran to completion. Without one of these we are looking at a
 # crash, a help screen, or an unrecognised release — never at a clean result.
-FOOTER = re.compile(r"^\s*(?:\d+\s+issue\(s\)\s+found|.*No security issues found)")
+FOOTER = re.compile(
+    r"^\s*(?:(?P<count>\d+)\s+issue\(s\)\s+found|.*No security issues found)"
+)
 
 LEVELS = {"CRITICAL": "error", "HIGH": "error", "MEDIUM": "warning", "LOW": "note", "INFO": "none"}
 SECURITY_SEVERITY = {"CRITICAL": "9.0", "HIGH": "7.0", "MEDIUM": "5.0", "LOW": "3.0", "INFO": "1.0"}
@@ -65,8 +67,11 @@ def rule_id(title: str) -> str:
 
 def parse(text: str) -> list[dict]:
     lines = ANSI.sub("", text).splitlines()
-    if not any(FOOTER.match(line) for line in lines):
+    footer = next((m for line in lines if (m := FOOTER.match(line))), None)
+    if footer is None:
         raise Unrecognised("no scan-completion footer found")
+    # "No security issues found" has no number; that branch means zero.
+    expected = int(footer.group("count") or 0)
 
     findings: list[dict] = []
     pending: dict | None = None
@@ -93,6 +98,21 @@ def parse(text: str) -> list[dict]:
             findings.append(pending)
             pending = None
 
+    # Fail closed on anything left half-read.
+    #
+    # A footer proves the scan finished. It does not prove this converter
+    # understood what the scan printed. A finding whose Info: line moved, or
+    # whose block gained a field, is dropped silently here — the next severity
+    # line overwrites `pending` and nobody hears about it. The workflow then
+    # reports a clean or under-counted scan, which is the failure this file
+    # exists to prevent rather than cause.
+    #
+    # Raised by CodeRabbit on ShadowSafin/AndroLLM#7.
+    if pending is not None:
+        raise Unrecognised(f"incomplete finding block: {pending.get('title', 'untitled')!r}")
+    if len(findings) != expected:
+        raise Unrecognised(f"footer reported {expected} finding(s), parsed {len(findings)}")
+
     return findings
 
 
@@ -117,7 +137,12 @@ def to_sarif(findings: list[dict], prefix: str, version: str) -> dict:
             },
         )
 
-        uri = finding["file"].lstrip("./")
+        # removeprefix, not lstrip. lstrip takes a *set* of characters, so
+        # lstrip("./") eats every leading dot and slash: `.github/workflows/x.yml`
+        # became `github/workflows/x.yml` and `.env` became `env`. Both then point
+        # at a path that does not exist, and `.env` is exactly the sort of file a
+        # credential scanner has findings in.
+        uri = finding["file"].removeprefix("./")
         if prefix:
             uri = f"{prefix.strip('/')}/{uri}"
 
