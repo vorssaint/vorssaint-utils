@@ -11201,6 +11201,22 @@ struct MetricsTests {
         expect(AppUpdatesSupport.tokens(in: mergedRows, selection: []).isEmpty
                 && !AppUpdatesSupport.hasStoreSelection(in: mergedRows, selection: []),
                "an empty selection asks for nothing")
+        expect(AppUpdatesSupport.singleStorePage(in: mergedRows, selection: everything)
+                == "https://apps.apple.com/app",
+               "one ticked store row hands off to its own page, where its own button goes")
+        let secondStoreRow = AppUpdatesSupport.Item(id: "store:com.example.notes",
+                                                    source: .appStore,
+                                                    name: "Notes",
+                                                    installedVersion: "1.0",
+                                                    latestVersion: "2.0",
+                                                    token: nil,
+                                                    bundlePath: nil,
+                                                    storePage: "https://apps.apple.com/notes")
+        let twoStoreRows = mergedRows + [secondStoreRow]
+        expect(AppUpdatesSupport.singleStorePage(in: twoStoreRows,
+                                                 selection: Set(twoStoreRows.map(\.id))) == nil
+                && AppUpdatesSupport.singleStorePage(in: mergedRows, selection: []) == nil,
+               "two store rows, or none, have no single page to land on")
 
         let keptSelection = AppUpdatesSupport.reconciledSelection(
             previous: [mergedRows[0].id, "gone:row"],

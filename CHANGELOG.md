@@ -7,10 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [3.3.2]
 
 ### Summary
-Vorssaint 3.3.2 improves app discovery in the Command Bar, recording, Switcher,
-screenshot editing, clipboard history, screen text recognition, Window Layout,
-Cleaning Mode, Scratchpad, audio and display safety. It also standardizes app
-lists in Settings and refines feedback, feature setup, Fan Control, Quit on close,
+Vorssaint 3.3.2 improves app discovery in the Command Bar, App Updates, recording,
+Switcher, screenshot editing, clipboard history, screen text recognition, Window
+Layout, Cleaning Mode, Scratchpad, audio and display safety. It also standardizes
+app lists in Settings and refines feedback, feature setup, Fan Control, Quit on close,
 network monitoring, power, peripheral battery readings, panel behavior and keyboard controls.
 
 ### Added
@@ -18,8 +18,9 @@ network monitoring, power, peripheral battery readings, panel behavior and keybo
   Thanks to @MaximilianMauroner.
 
 ### Changed
-- App Updates now searches more places on your Mac and lets each source be turned
-  on or off. Thanks to @ruvelro.
+- App Updates now searches more places, offers source controls and opens the
+  product page for a lone selected store update.
+  Thanks to @ruvelro and @PathGao.
 - Installed Features rows open their Settings page and highlight the relevant
   controls. Thanks to @dorlugasigal.
 - Cleaning and the Uninstaller now explain how to grant Full Disk Access and
