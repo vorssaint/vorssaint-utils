@@ -7,7 +7,8 @@ All notable changes to this project are documented here. The format follows
 ## [3.3.2]
 
 ### Summary
-Vorssaint 3.3.2 improves app discovery in the Command Bar, App Updates, recording,
+Vorssaint 3.3.2 improves app discovery and unit conversions in the Command Bar,
+App Updates, recording,
 Switcher, screenshot editing, clipboard history, screen text recognition, Window
 Layout, Cleaning Mode, Scratchpad, audio and display safety. It also standardizes
 app lists in Settings and refines feedback, feature setup, Fan Control, Quit on close,
@@ -33,6 +34,8 @@ network monitoring, power, peripheral battery readings, panel behavior and keybo
   consistently. Thanks to @PathGao.
 - The Command Bar now accepts Control-P and Control-N to move through results.
   Thanks to @theafox.
+- Foot conversions in the Command Bar now show localized feet and inches while
+  keeping small measurements precise. Thanks to @tenbux.
 
 ### Fixed
 - The screenshot editor now lets you draw a new crop directly over the image.

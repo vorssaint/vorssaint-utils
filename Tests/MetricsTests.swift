@@ -11628,16 +11628,26 @@ struct MetricsTests {
                 .map { abs($0.value - 150) < 0.001 } == true,
                "a comma decimal converts where that is the custom")
 
-        expect(units("180 cm to ft") == "5ft 11in",
-               "a length converting to feet reads as feet and inches, not decimal feet")
-        expect(units("6 ft to ft") == "6ft",
+        expect(units("180 cm to ft") == "5 ft 10.87 in",
+               "a length converting to feet keeps precise feet and inches")
+        expect(units("1.75 m to ft") == "5 ft 8.9 in",
+               "a decimal length keeps its fractional inches")
+        expect(units("6 ft to ft") == "6 ft",
                "a whole number of feet has no leftover inches shown")
-        expect(units("1.825752 m to ft") == "6ft",
+        expect(units("5.9999 ft to ft") == "6 ft",
                "inches that round up to twelve carry into the next whole foot")
-        expect(units("1 cm to ft") != nil && units("1 cm to ft") != "0ft",
-               "a sub-inch length falls back to decimal instead of misleadingly reading zero feet")
+        expect(units("2 cm to ft") == "0.0656 ft",
+               "a length below one foot stays precise instead of rounding to inches")
+        expect(units("-180 cm to ft") == "-5.91 ft",
+               "a negative length keeps the existing decimal format")
         expect(units("180 cm to in") == "70.87 in",
                "converting to inches specifically stays a plain decimal, unaffected by the feet formatting")
+        expect(CommandBarUnits.convert("180 cm para pes",
+                                       decimalSeparator: ",",
+                                       groupingSeparator: ".",
+                                       locale: Locale(identifier: "pt_BR"))?.formatted
+                == "5 ft 10,87 pol.",
+               "feet and inches follow the person's number and unit language")
 
         // MARK: Command bar emoji
 
