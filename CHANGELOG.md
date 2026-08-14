@@ -41,6 +41,8 @@ and peripheral battery readings, panel behavior and keyboard controls.
   while only the number changes.
 - The Command Bar now finds installed apps kept outside the standard Applications
   folders.
+- Keyboard light is now searchable from Settings and the Command Bar.
+  Thanks to @PathGao.
 - Copy text from screen now prioritizes the interface language, preventing Chinese
   text from being returned as unreadable characters.
 - A disabled built-in display now turns back on when the last external screen
