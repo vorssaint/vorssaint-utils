@@ -7,6 +7,7 @@ import Carbon.HIToolbox
 import Combine
 import Darwin
 import Foundation
+import ImageIO
 
 // Standalone unit tests for pure helpers. Compiled without IOKit or UI by
 // `./build.sh --test`, so they run fast and deterministically on any machine.
@@ -2979,6 +2980,18 @@ struct MetricsTests {
                "Media video codec defaults to H.264")
         expect(registeredDefaults[DefaultsKey.mediaImageFormat] as? String == MediaImageFormat.jpeg.rawValue,
                "Media image format defaults to JPEG")
+        expect(registeredDefaults[DefaultsKey.mediaImageResizeKind] as? String == MediaImageResizeKind.maxDimension.rawValue,
+               "Media image resize defaults to max side")
+        expect(registeredDefaults[DefaultsKey.mediaImageExactResizeMode] as? String == MediaImageExactResizeMode.stretch.rawValue,
+               "Media image exact resize defaults to stretch for existing behavior")
+        expect(registeredDefaults[DefaultsKey.mediaImageWatermarkKind] as? String == MediaImageWatermarkKind.off.rawValue,
+               "Media image watermark starts off")
+        expect(registeredDefaults[DefaultsKey.mediaImageBackground] as? String == MediaImageBackground.transparent.rawValue,
+               "Media image background starts transparent")
+        expect(registeredDefaults[DefaultsKey.mediaImagePreserveModificationDate] as? Bool == false,
+               "Media image conversion does not preserve modification dates by default")
+        expect(registeredDefaults[DefaultsKey.mediaImageProfiles] as? String == "[]",
+               "Media image profiles start empty")
         expect((registeredDefaults[DefaultsKey.autoQuitExceptions] as? [String]) == Defaults.mandatoryAutoQuitExceptionBundleIDs,
                "Finder stays in the default auto-quit exception list")
         expect(registeredDefaults[DefaultsKey.panelCollapsedSections] == nil,
@@ -3848,6 +3861,158 @@ struct MetricsTests {
                "PDF output uses the pdf file extension")
         expect(MediaImageFormat.sanitized("bmp") == .jpeg,
                "Unknown image format falls back to JPEG")
+        expect(MediaImageResizeKind.sanitized("height") == .height,
+               "Image resize mode accepts height")
+        expect(MediaImageResizeKind.sanitized("wild") == .maxDimension,
+               "Unknown image resize mode falls back to max side")
+        expect(MediaImageExactResizeMode.sanitized("fill") == .fill
+               && MediaImageExactResizeMode.sanitized("wild") == .stretch,
+               "Image exact resize mode accepts fill and falls back to stretch")
+        expect(MediaImageBackground.sanitized("black") == .black
+               && MediaImageBackground.sanitized("mystery") == .transparent,
+               "Image backgrounds sanitize known values and fall back to transparent")
+        expect(MediaImageResizeMode.none.targetSize(for: CGSize(width: 123, height: 45))
+               == CGSize(width: 123, height: 45),
+               "Image resize can preserve source dimensions")
+        expect(MediaImageResizeMode.maxDimension(1000).targetSize(for: CGSize(width: 1920, height: 1080))
+               == CGSize(width: 1000, height: 563),
+               "Image max-side resize keeps aspect ratio")
+        expect(MediaImageResizeMode.width(800).targetSize(for: CGSize(width: 1600, height: 1200))
+               == CGSize(width: 800, height: 600),
+               "Image width resize calculates proportional height")
+        expect(MediaImageResizeMode.height(500).targetSize(for: CGSize(width: 1600, height: 1200))
+               == CGSize(width: 667, height: 500),
+               "Image height resize calculates proportional width")
+        expect(MediaImageResizeMode.exact(width: 321, height: 123).targetSize(for: CGSize(width: 1600, height: 1200))
+               == CGSize(width: 321, height: 123),
+               "Image exact resize uses custom dimensions")
+        let exactFill = MediaImageResizeMode.exact(width: 320, height: 180, mode: .fill)
+        expect(exactFill.exactMode == .fill
+               && exactFill.targetSize(for: CGSize(width: 1600, height: 1200)) == CGSize(width: 320, height: 180),
+               "Image exact resize stores fit/fill behavior without changing the target canvas")
+        expect(MediaSupport.imageRenderSizeIsSafe(CGSize(width: 9_000, height: 100)),
+               "Image render safety accepts a wide image without changing its dimensions")
+        expect(!MediaSupport.imageRenderSizeIsSafe(CGSize(width: 9_000, height: 9_000)),
+               "Image render safety rejects an allocation above the pixel budget")
+        expect(!MediaSupport.imageRenderSizeIsSafe(CGSize(width: 20_001, height: 1)),
+               "Image render safety rejects dimensions above the supported bound")
+        let rotatedImageProperties: [CFString: Any] = [
+            kCGImagePropertyPixelWidth: 640,
+            kCGImagePropertyPixelHeight: 480,
+            kCGImagePropertyOrientation: 6,
+        ]
+        expect(MediaSupport.imageDisplaySize(properties: rotatedImageProperties)
+               == CGSize(width: 480, height: 640),
+               "Image dimensions follow the source orientation used by the renderer")
+        let renameDate = Date(timeIntervalSince1970: 1_704_067_200) // 2024-01-01 UTC
+        let renamePattern = MediaImageRenamePattern("{name}-{counter:03}-{date}-{time}-{width}x{height}-{ext}")
+        expect(renamePattern.outputBaseName(for: URL(fileURLWithPath: "/tmp/Photo One.tiff"),
+                                            index: 7,
+                                            date: renameDate,
+                                            size: CGSize(width: 800, height: 600),
+                                            format: .png)
+               == "Photo One-007-20240101-000000-800x600-png",
+               "Image rename pattern expands date, time, extension and padded counter tokens")
+        expect(MediaImageRenamePattern("{datetime}-{index}").outputBaseName(for: URL(fileURLWithPath: "/tmp/a.jpg"),
+                                                                            index: 2,
+                                                                            date: renameDate,
+                                                                            size: CGSize(width: 1, height: 1),
+                                                                            format: .jpeg)
+               == "20240101-000000-2",
+               "Image rename pattern expands datetime")
+        expect(MediaImageRenamePattern("../bad/name").outputBaseName(for: URL(fileURLWithPath: "/tmp/a.jpg"),
+                                                                     index: 1,
+                                                                     size: CGSize(width: 1, height: 1),
+                                                                     format: .jpeg)
+               == "bad-name",
+               "Image rename pattern removes path separators")
+        let emojiName = MediaSupport.sanitizedFileBaseName(String(repeating: "🙂", count: 120),
+                                                           fileExtension: "png",
+                                                           uniquenessSuffixByteReservation: 4)
+        expect(emojiName.utf8.count <= 247,
+               "Image rename pattern output is capped by filesystem bytes, not character count")
+        let profileOptions = MediaImageOptions(quality: 0.8,
+                                               maxDimension: 1400,
+                                               format: .png,
+                                               stripMetadata: false,
+                                               resizeMode: .exact(width: 900, height: 600, mode: .fit),
+                                               watermark: MediaImageWatermark(kind: .text,
+                                                                              text: "Sample",
+                                                                              opacity: 0.5),
+                                               renamePattern: MediaImageRenamePattern("{name}-{index}"))
+        let encodedProfile = try? JSONEncoder().encode([MediaImageProfile(id: "profile-1",
+                                                                           name: "PNG web",
+                                                                           options: profileOptions)])
+        let decodedProfile = encodedProfile.flatMap { try? JSONDecoder().decode([MediaImageProfile].self, from: $0) }
+        expect(decodedProfile?.first?.options == profileOptions,
+               "Image profiles round-trip converter options")
+        let legacyResizeJSON = #"{"kind":"exact","maxDimension":1600,"width":320,"height":180}"#
+        let legacyResize = legacyResizeJSON.data(using: .utf8).flatMap { try? JSONDecoder().decode(MediaImageResizeMode.self, from: $0) }
+        expect(legacyResize?.exactMode == .stretch,
+               "Image resize profiles created before exact fit/fill decode with stretch")
+        let sanitizedProfiles = MediaSupport.sanitizedImageProfiles([
+            MediaImageProfile(id: "same", name: "  ", options: profileOptions),
+            MediaImageProfile(id: "same", name: " Work ", options: profileOptions),
+        ])
+        expect(sanitizedProfiles.count == 2
+               && sanitizedProfiles[0].name == "Profile 1"
+               && sanitizedProfiles[1].name == "Work"
+               && sanitizedProfiles[0].id != sanitizedProfiles[1].id,
+               "Image profiles sanitize empty names and duplicate IDs")
+        let uniqueDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-media-unique-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: uniqueDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: uniqueDir) }
+        let firstImageOutput = MediaSupport.uniqueOutputURL(in: uniqueDir, baseName: "Export", fileExtension: "png")
+        FileManager.default.createFile(atPath: firstImageOutput.path, contents: Data([1]), attributes: nil)
+        expect(MediaSupport.uniqueOutputURL(in: uniqueDir, baseName: "Export", fileExtension: "png").lastPathComponent
+               == "Export 2.png",
+               "Image batch output names avoid overwriting existing files")
+        let reservedURL = MediaSupport.uniqueOutputURL(in: uniqueDir,
+                                                       baseName: "Reserved",
+                                                       fileExtension: "png",
+                                                       reservedPaths: [uniqueDir.appendingPathComponent("Reserved.png").standardizedFileURL.path])
+        expect(reservedURL.lastPathComponent == "Reserved 2.png",
+               "Image batch output names avoid paths already reserved in the current run")
+        let renamedOptions = MediaImageOptions(quality: 0.8,
+                                               maxDimension: 1600,
+                                               format: .png,
+                                               stripMetadata: true,
+                                               resizeMode: MediaImageResizeMode.none,
+                                               renamePattern: MediaImageRenamePattern("{name}-{index:02}"))
+        let renamedSingle = MediaSupport.imageOutputURL(
+            for: uniqueDir.appendingPathComponent("First.jpg"),
+            outputDirectory: uniqueDir,
+            options: renamedOptions,
+            index: 1,
+            outputSize: CGSize(width: 9000, height: 100))
+        let renamedBatch = MediaSupport.imageOutputURL(
+            for: uniqueDir.appendingPathComponent("Second.jpg"),
+            outputDirectory: uniqueDir,
+            options: renamedOptions,
+            index: 2,
+            outputSize: CGSize(width: 320, height: 200))
+        expect(renamedSingle.lastPathComponent == "First-01.png"
+               && renamedBatch.lastPathComponent == "Second-02.png",
+               "Image rename patterns apply to both single and batch outputs")
+
+        for language in AppLanguage.allCases {
+            let strings = MediaImageConverterStrings.localized(language)
+            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
+            expect(values.count == 56 && values.allSatisfy { !$0.isEmpty },
+                   "every image converter string is set for \(language.rawValue)")
+            expect(values.allSatisfy { !$0.contains("—") },
+                   "no em-dash in visible image converter strings (\(language.rawValue))")
+            expect(strings.filesSelectedFormat.contains("%d")
+                   && strings.profileDefaultNameFormat.contains("%d")
+                   && strings.savedBytesFormat.contains("%@")
+                   && strings.grewBytesFormat.contains("%@")
+                   && strings.batchSavedFormat.contains("%d")
+                   && strings.batchPartialFormat.filter { $0 == "%" }.count == 2
+                   && strings.batchSummaryHeaderFormat.filter { $0 == "%" }.count == 2
+                   && strings.batchSummaryItemFormat.filter { $0 == "%" }.count == 2,
+                   "image converter formats keep their arguments in \(language.rawValue)")
+        }
 
         let trim = MediaSupport.sanitizedTrim(start: -5, end: 3, assetDuration: 10)
         expect(trim == MediaTrimRange(start: 0, end: 3),
@@ -10828,6 +10993,25 @@ struct MetricsTests {
                "the launch at login choice travels with the settings backup")
         expect(backupKeys.contains(DefaultsKey.appearance),
                "the light or dark choice travels with the settings backup")
+        expect(Set([
+            DefaultsKey.mediaImageResizeKind,
+            DefaultsKey.mediaImageResizeWidth,
+            DefaultsKey.mediaImageResizeHeight,
+            DefaultsKey.mediaImageExactResizeMode,
+            DefaultsKey.mediaImageWatermarkKind,
+            DefaultsKey.mediaImageWatermarkText,
+            DefaultsKey.mediaImageWatermarkLogoPath,
+            DefaultsKey.mediaImageWatermarkPosition,
+            DefaultsKey.mediaImageWatermarkOpacity,
+            DefaultsKey.mediaImageWatermarkMargin,
+            DefaultsKey.mediaImageWatermarkScale,
+            DefaultsKey.mediaImageRenamePattern,
+            DefaultsKey.mediaImageBackground,
+            DefaultsKey.mediaImagePreserveModificationDate,
+            DefaultsKey.mediaImageProfiles,
+            DefaultsKey.mediaImageSelectedProfileID,
+        ]).isSubset(of: backupKeys),
+               "image converter choices and profiles travel with the settings backup")
         expect(backupKeys.contains(DefaultsKey.dockClickHide)
                 && backupKeys.contains(DefaultsKey.panelControlDockClickHide),
                "Dock hiding and its panel visibility travel with the settings backup")

@@ -409,7 +409,7 @@ extension Strings {
         homebrewOperationProgressUnknown: "Homebrew가 아직 진행률을 보고하지 않았습니다.",
 
         mediaName: "미디어",
-        mediaEnableCaption: "동영상과 이미지를 압축하고, GIF를 만들고, 텍스트를 로컬에서 추출합니다.",
+        mediaEnableCaption: "동영상을 압축하고 이미지를 변환 및 처리하며, GIF를 만들고 텍스트를 로컬에서 추출합니다.",
         mediaLocalNote: "로컬 처리. 네트워크 없음.",
         mediaToolVideo: "동영상",
         mediaToolGIF: "GIF",
@@ -422,7 +422,7 @@ extension Strings {
         mediaChooseOutput: "저장 위치",
         mediaStartVideo: "동영상 압축",
         mediaStartGIF: "GIF 만들기",
-        mediaStartImage: "이미지 압축",
+        mediaStartImage: "이미지 처리",
         mediaStartConvertPDF: "PDF로 변환",
         mediaStartText: "텍스트 추출",
         mediaCancel: "취소",

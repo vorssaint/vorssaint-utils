@@ -409,7 +409,7 @@ extension Strings {
         homebrewOperationProgressUnknown: "Homebrew 尚未回報百分比。",
 
         mediaName: "媒體",
-        mediaEnableCaption: "在本機壓縮影片與圖片、製作 GIF，並從圖片擷取文字。",
+        mediaEnableCaption: "在本機壓縮影片、轉換和處理圖片、製作 GIF，並從圖片擷取文字。",
         mediaLocalNote: "本機。不使用網路。",
         mediaToolVideo: "影片",
         mediaToolGIF: "GIF",
@@ -422,7 +422,7 @@ extension Strings {
         mediaChooseOutput: "目標位置",
         mediaStartVideo: "壓縮影片",
         mediaStartGIF: "製作 GIF",
-        mediaStartImage: "壓縮圖片",
+        mediaStartImage: "處理圖片",
         mediaStartConvertPDF: "轉換為 PDF",
         mediaStartText: "擷取文字",
         mediaCancel: "取消",

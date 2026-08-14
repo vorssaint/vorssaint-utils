@@ -408,7 +408,7 @@ extension Strings {
         homebrewOperationProgressUnknown: "Homebrew aún no informó un porcentaje.",
 
         mediaName: "Media",
-        mediaEnableCaption: "Comprime videos e imágenes, crea GIFs y extrae texto localmente.",
+        mediaEnableCaption: "Comprime videos, convierte y procesa imágenes, crea GIFs y extrae texto localmente.",
         mediaLocalNote: "Local. Sin red.",
         mediaToolVideo: "Video",
         mediaToolGIF: "GIF",
@@ -421,7 +421,7 @@ extension Strings {
         mediaChooseOutput: "Destino",
         mediaStartVideo: "Comprimir video",
         mediaStartGIF: "Crear GIF",
-        mediaStartImage: "Comprimir imagen",
+        mediaStartImage: "Procesar imagen",
         mediaStartConvertPDF: "Convertir a PDF",
         mediaStartText: "Extraer texto",
         mediaCancel: "Cancelar",

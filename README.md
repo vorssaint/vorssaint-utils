@@ -122,7 +122,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Cleaner.** Sweeps app leftovers, caches and logs, by hand or on a schedule.
 - **Messaging downloads.** The Cleaner can also tidy the media a messaging app saves into Downloads, confirmed by macOS metadata and only ever moved to the Trash, with a review list, retention rules and an optional organizer that files new ones into a folder of your choice.
 - **Uninstaller.** Drop an app in and take its verified caches, preferences, helpers and other leftovers to the Trash with it.
-- **Media tools.** Compress videos and images, make GIFs and extract text, all locally.
+- **Media tools.** Compress videos, convert images one at a time or in batches with resizing, watermarks and reusable profiles, make GIFs and extract text, all locally.
 - **Homebrew manager.** Search, install and remove formulae and casks without opening a terminal.
 - **Cleaning Mode.** Locks the keyboard and blacks out every display while you clean.
 

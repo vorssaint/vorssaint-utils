@@ -409,7 +409,7 @@ extension Strings {
         homebrewOperationProgressUnknown: "Homebrew ещё не сообщил процент выполнения.",
 
         mediaName: "Медиа",
-        mediaEnableCaption: "Сжимайте видео и изображения, создавайте GIF и извлекайте текст локально.",
+        mediaEnableCaption: "Сжимайте видео, преобразуйте и обрабатывайте изображения, создавайте GIF и извлекайте текст локально.",
         mediaLocalNote: "Локально. Без сети.",
         mediaToolVideo: "Видео",
         mediaToolGIF: "GIF",
@@ -422,7 +422,7 @@ extension Strings {
         mediaChooseOutput: "Папка назначения",
         mediaStartVideo: "Сжать видео",
         mediaStartGIF: "Создать GIF",
-        mediaStartImage: "Сжать изображение",
+        mediaStartImage: "Обработать изображение",
         mediaStartConvertPDF: "Конвертировать в PDF",
         mediaStartText: "Извлечь текст",
         mediaCancel: "Отмена",

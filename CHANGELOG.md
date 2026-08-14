@@ -7,14 +7,13 @@ All notable changes to this project are documented here. The format follows
 ## [3.3.2]
 
 ### Summary
-Vorssaint 3.3.2 improves app discovery and unit conversions in the Command Bar,
-App Updates, recording,
-Switcher, screenshot editing, clipboard history, screen text recognition, Window
-Layout, Cleaning Mode, Scratchpad, audio and display safety. It also standardizes
-app lists in Settings and refines feedback, feature setup, Fan Control, Quit on close,
-network monitoring, power, peripheral battery readings, panel behavior and keyboard controls.
+Vorssaint 3.3.2 adds batch image conversion and improves app discovery and unit
+conversions in the Command Bar. It also strengthens recording, screenshots,
+clipboard, Window Layout, audio, display safety and Settings.
 
 ### Added
+- Media now converts images in batches with resizing, watermarks, renaming and
+  reusable profiles. Thanks to @ruvelro.
 - Emoji can open directly from a shortcut assigned to its Command Bar row.
   Thanks to @MaximilianMauroner.
 

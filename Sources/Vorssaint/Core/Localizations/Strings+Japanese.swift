@@ -408,7 +408,7 @@ extension Strings {
         homebrewOperationProgressUnknown: "Homebrew はまだ割合を報告していません。",
 
         mediaName: "メディア",
-        mediaEnableCaption: "動画と画像を圧縮し、GIF を作成し、テキストをローカルで抽出します。",
+        mediaEnableCaption: "動画を圧縮し、画像の変換と加工、GIF の作成、テキストの抽出をローカルで行います。",
         mediaLocalNote: "ローカル。ネットワークなし。",
         mediaToolVideo: "動画",
         mediaToolGIF: "GIF",
@@ -421,7 +421,7 @@ extension Strings {
         mediaChooseOutput: "保存先",
         mediaStartVideo: "動画を圧縮",
         mediaStartGIF: "GIF を作成",
-        mediaStartImage: "画像を圧縮",
+        mediaStartImage: "画像を加工",
         mediaStartConvertPDF: "PDFに変換",
         mediaStartText: "テキストを抽出",
         mediaCancel: "キャンセル",

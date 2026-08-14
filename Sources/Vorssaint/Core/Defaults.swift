@@ -343,6 +343,22 @@ enum DefaultsKey {
     static let mediaImageMaxDimension = "mediaImageMaxDimension"
     static let mediaImageFormat = "mediaImageFormat"
     static let mediaImageStripMetadata = "mediaImageStripMetadata"
+    static let mediaImageResizeKind = "mediaImageResizeKind"
+    static let mediaImageResizeWidth = "mediaImageResizeWidth"
+    static let mediaImageResizeHeight = "mediaImageResizeHeight"
+    static let mediaImageExactResizeMode = "mediaImageExactResizeMode"
+    static let mediaImageWatermarkKind = "mediaImageWatermarkKind"
+    static let mediaImageWatermarkText = "mediaImageWatermarkText"
+    static let mediaImageWatermarkLogoPath = "mediaImageWatermarkLogoPath"
+    static let mediaImageWatermarkPosition = "mediaImageWatermarkPosition"
+    static let mediaImageWatermarkOpacity = "mediaImageWatermarkOpacity"
+    static let mediaImageWatermarkMargin = "mediaImageWatermarkMargin"
+    static let mediaImageWatermarkScale = "mediaImageWatermarkScale"
+    static let mediaImageRenamePattern = "mediaImageRenamePattern"
+    static let mediaImageBackground = "mediaImageBackground"
+    static let mediaImagePreserveModificationDate = "mediaImagePreserveModificationDate"
+    static let mediaImageProfiles = "mediaImageProfiles"
+    static let mediaImageSelectedProfileID = "mediaImageSelectedProfileID"
     static let mediaTextAccurate = "mediaTextAccurate"
     static let mediaTextLanguageCorrection = "mediaTextLanguageCorrection"
 
@@ -944,6 +960,22 @@ enum Defaults {
         DefaultsKey.mediaImageMaxDimension: 1600,
         DefaultsKey.mediaImageFormat: MediaImageFormat.jpeg.rawValue,
         DefaultsKey.mediaImageStripMetadata: true,
+        DefaultsKey.mediaImageResizeKind: MediaImageResizeKind.maxDimension.rawValue,
+        DefaultsKey.mediaImageResizeWidth: 1600,
+        DefaultsKey.mediaImageResizeHeight: 1200,
+        DefaultsKey.mediaImageExactResizeMode: MediaImageExactResizeMode.stretch.rawValue,
+        DefaultsKey.mediaImageWatermarkKind: MediaImageWatermarkKind.off.rawValue,
+        DefaultsKey.mediaImageWatermarkText: "",
+        DefaultsKey.mediaImageWatermarkLogoPath: "",
+        DefaultsKey.mediaImageWatermarkPosition: MediaImageWatermarkPosition.bottomRight.rawValue,
+        DefaultsKey.mediaImageWatermarkOpacity: 0.45,
+        DefaultsKey.mediaImageWatermarkMargin: 32,
+        DefaultsKey.mediaImageWatermarkScale: 0.18,
+        DefaultsKey.mediaImageRenamePattern: "",
+        DefaultsKey.mediaImageBackground: MediaImageBackground.transparent.rawValue,
+        DefaultsKey.mediaImagePreserveModificationDate: false,
+        DefaultsKey.mediaImageProfiles: "[]",
+        DefaultsKey.mediaImageSelectedProfileID: "",
         DefaultsKey.mediaTextAccurate: true,
         DefaultsKey.mediaTextLanguageCorrection: true,
         DefaultsKey.clipboardHistoryEnabled: false,
