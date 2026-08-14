@@ -16,11 +16,15 @@ struct CommandBarLink: Codable, Identifiable, Equatable {
         case link
         /// A folder or a file on this Mac.
         case place
+        /// A local executable, run with whatever follows the name as its one
+        /// argument.
+        case script
 
         var symbolName: String {
             switch self {
             case .link: return "link"
             case .place: return "folder"
+            case .script: return "terminal"
             }
         }
     }
@@ -35,6 +39,13 @@ struct CommandBarLink: Codable, Identifiable, Equatable {
     /// which is what turns a link into a search.
     var takesQuery: Bool {
         destination.contains(CommandBarLinkPlaceholder.query.token)
+    }
+
+    /// True for anything that reads whatever follows its name: every query
+    /// link, and every script, which always takes its argument implicitly
+    /// rather than through a destination placeholder.
+    var takesArgument: Bool {
+        kind == .script || takesQuery
     }
 }
 
@@ -131,6 +142,27 @@ enum CommandBarLinks {
         trailingArgument(query: query, name: name) != nil ? query : name
     }
 
+    /// The first script-kind link the query names, with what follows its
+    /// name as the argument, or nil when nothing matches. Only a link with
+    /// something typed after it matches: the bare name alone has nothing to
+    /// run yet.
+    static func matchingScriptLink(in links: [CommandBarLink],
+                                   query: String) -> (link: CommandBarLink, argument: String)? {
+        for link in links where link.kind == .script {
+            if let argument = trailingArgument(query: query, name: link.name) {
+                return (link, argument)
+            }
+        }
+        return nil
+    }
+
+    /// What a script printed, reduced to what the answer row shows: no
+    /// wrapping whitespace, and empty output means nothing is ready yet.
+    static func resultText(_ output: String) -> String? {
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     /// The URL a link opens, or nil when what was saved cannot be opened. A
     /// destination without a scheme is treated as a site, which is what people
     /// mean when they paste one in.
@@ -143,6 +175,9 @@ enum CommandBarLinks {
         case .link:
             if let url = URL(string: trimmed), url.scheme != nil { return url }
             return URL(string: "https://" + trimmed)
+        case .script:
+            // A script runs; it does not open anything.
+            return nil
         }
     }
 

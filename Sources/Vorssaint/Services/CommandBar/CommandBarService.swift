@@ -94,6 +94,7 @@ final class CommandBarService: ObservableObject {
     private var activationObserver: NSObjectProtocol?
 
     private var catalog: [CommandBarEntry] = []
+    let scriptRunner = CommandBarScriptRunner()
     private var entriesByID: [String: CommandBarEntry] = [:]
     private var normalizedByID: [String: (title: String, keywords: String)] = [:]
     private var entriesByStableKey: [String: CommandBarEntry] = [:]
@@ -148,6 +149,7 @@ final class CommandBarService: ObservableObject {
 
     private init() {
         hotkey.onPress = { [weak self] in self?.toggle() }
+        scriptRunner.onResult = { [weak self] in self?.refreshResults() }
     }
 
     // MARK: - Lifecycle
@@ -1016,6 +1018,27 @@ final class CommandBarService: ObservableObject {
         // leads so Return opens it at once, the way a sum's answer does.
         let openURL = CommandBarCatalog.openURLEntry(for: trimmed, bar: bar)
 
+        // A saved script answers the same way a sum does, once it has run:
+        // the row leads, and Return copies what it printed. Same as any
+        // other saved link, it stays quiet while the Links source is off or
+        // that one link is hidden - a switched-off source must not still
+        // spawn a process behind it.
+        let savedLinks = CommandBarLinks.decode(
+            UserDefaults.standard.data(forKey: DefaultsKey.commandBarLinks))
+        let scriptMatch = isEnabled(.links)
+            ? CommandBarLinks.matchingScriptLink(in: savedLinks, query: trimmed)
+            : nil
+        var scriptAnswer: CommandBarEntry?
+        if let scriptMatch, !hiddenKeys.contains("link.\(scriptMatch.link.id.uuidString)") {
+            if let result = scriptRunner.cachedResult(linkID: scriptMatch.link.id,
+                                                       argument: scriptMatch.argument) {
+                scriptAnswer = CommandBarCatalog.scriptAnswerEntry(link: scriptMatch.link,
+                                                                   result: result, bar: bar)
+            } else {
+                scriptRunner.schedule(link: scriptMatch.link, argument: scriptMatch.argument)
+            }
+        }
+
         // "brilho 40" is a command with a value; "code 1234" is a search for
         // something copied. The number is only taken off when a command that
         // actually takes one answers to what is left.
@@ -1042,6 +1065,11 @@ final class CommandBarService: ObservableObject {
         // What is selected comes first, so a tie goes to the thing the person
         // is already looking at.
         var pool = selectionEntries + catalog + appEntries + windowEntries
+        // The plain row for this link is redundant once its answer leads
+        // the list; without this, the same saved name would show twice.
+        if scriptAnswer != nil, let scriptMatch {
+            pool.removeAll { $0.id == "link.\(scriptMatch.link.id.uuidString)" }
+        }
         // Quitting an app is a rare, heavy verb: its rows only join the list
         // when the person actually asked to quit something, so they never
         // double the length of an ordinary app search.
@@ -1111,6 +1139,7 @@ final class CommandBarService: ObservableObject {
         var result: [CommandBarEntry] = []
         if let answer { result.append(answer) }
         if let openURL { result.append(openURL) }
+        if let scriptAnswer { result.append(scriptAnswer) }
         for index in ranked {
             let entry = pool[index]
             if entry.id.hasPrefix("answer."),

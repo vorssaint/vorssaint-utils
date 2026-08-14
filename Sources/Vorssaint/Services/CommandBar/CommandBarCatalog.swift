@@ -1068,16 +1068,22 @@ enum CommandBarCatalog {
             CommandBarEntry(
                 id: "link.\(link.id.uuidString)",
                 title: link.name,
-                subtitle: link.takesQuery ? bar.linkSearchHint : bar.kindLink,
+                subtitle: link.takesArgument ? bar.linkSearchHint : bar.kindLink,
                 keywords: bar.kindLink,
                 icon: .symbol(link.kind.symbolName),
-                // A saved search may still need to be told what to look for,
-                // and it cannot ask from behind a closed panel.
-                keepsBarOpen: link.takesQuery,
-                // Only a search reads the words that follow its name; a plain
-                // site or folder opens the same either way.
-                takesArgument: link.takesQuery,
-                run: { _ in open(link) })
+                // A saved search, or a script, may still need to be told what
+                // to look for, and it cannot ask from behind a closed panel.
+                keepsBarOpen: link.takesArgument,
+                // Only a search or a script reads the words that follow its
+                // name; a plain site or folder opens the same either way.
+                takesArgument: link.takesArgument,
+                run: { _ in
+                    if link.kind == .script {
+                        runScript(link)
+                    } else {
+                        open(link)
+                    }
+                })
         }
     }
 
@@ -1118,6 +1124,40 @@ enum CommandBarCatalog {
             return
         }
         NSWorkspace.shared.open(url)
+    }
+
+    /// Return pressed before a script's debounced run has answered yet: runs
+    /// at once instead of waiting, and leaves the bar open the way a search
+    /// does, since there is nothing to copy until the row shows an answer.
+    private static func runScript(_ link: CommandBarLink) {
+        let service = CommandBarService.shared
+        let typed = service.queryWhenRun.trimmingCharacters(in: .whitespaces)
+        let argument = CommandBarLinks.trailingArgument(query: typed, name: link.name) ?? ""
+        if argument.isEmpty {
+            service.prefill(link.name + " ")
+            return
+        }
+        if let cached = service.scriptRunner.cachedResult(linkID: link.id, argument: argument) {
+            copyAnswer(cached.text)
+            service.hide()
+            return
+        }
+        service.scriptRunner.runNow(link: link, argument: argument)
+    }
+
+    /// The row a saved script shows once it has answered: the same shape as
+    /// the calculator's own answer, so Return copies it the same way.
+    static func scriptAnswerEntry(link: CommandBarLink,
+                                  result: CommandBarScriptRunner.Result,
+                                  bar: CommandBarFeatureStrings) -> CommandBarEntry {
+        CommandBarEntry(
+            id: "link.\(link.id.uuidString)",
+            title: result.text,
+            subtitle: bar.copyHint,
+            icon: .symbol(link.kind.symbolName),
+            isAnswer: true,
+            countsUsage: false,
+            run: { _ in copyAnswer(result.text) })
     }
 
     // MARK: - What is selected right now

@@ -373,6 +373,7 @@ private struct CommandBarLinkEditor: View {
             Picker("", selection: $draft.kind) {
                 Text(text.linkKindLink).tag(CommandBarLink.Kind.link)
                 Text(text.linkKindPlace).tag(CommandBarLink.Kind.place)
+                Text(text.linkKindScript).tag(CommandBarLink.Kind.script)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -392,35 +393,39 @@ private struct CommandBarLinkEditor: View {
                 HStack(spacing: 6) {
                     TextField("", text: $draft.destination)
                         .textFieldStyle(.roundedBorder)
-                    if draft.kind == .place {
+                    if draft.kind == .place || draft.kind == .script {
                         // Typing a path by hand is how people get it wrong.
-                        Button(FeatureStrings.radialMenu(l10n.language).chooseButton) { choosePlace() }
+                        Button(FeatureStrings.radialMenu(l10n.language).chooseButton) {
+                            chooseDestination()
+                        }
                     }
                 }
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(text.linkPlaceholdersHint)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                HStack(spacing: 6) {
-                    ForEach(CommandBarLinkPlaceholder.allCases) { placeholder in
-                        Button {
-                            draft.destination += placeholder.token
-                        } label: {
-                            VStack(spacing: 1) {
-                                Text(placeholder.token)
-                                    .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-                                Text(meaning(of: placeholder))
-                                    .font(.system(size: 9))
-                                    .foregroundStyle(.secondary)
+            if draft.kind != .script {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(text.linkPlaceholdersHint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: 6) {
+                        ForEach(CommandBarLinkPlaceholder.allCases) { placeholder in
+                            Button {
+                                draft.destination += placeholder.token
+                            } label: {
+                                VStack(spacing: 1) {
+                                    Text(placeholder.token)
+                                        .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                                    Text(meaning(of: placeholder))
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Capsule().fill(Color.primary.opacity(0.06)))
                             }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Capsule().fill(Color.primary.opacity(0.06)))
+                            .buttonStyle(.plain)
+                            .help(meaning(of: placeholder))
                         }
-                        .buttonStyle(.plain)
-                        .help(meaning(of: placeholder))
                     }
                 }
             }
@@ -451,10 +456,11 @@ private struct CommandBarLinkEditor: View {
         }
     }
 
-    private func choosePlace() {
+    private func chooseDestination() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
-        panel.canChooseDirectories = true
+        // A script is a file, never a folder; a place can be either.
+        panel.canChooseDirectories = draft.kind == .place
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
         draft.destination = url.path

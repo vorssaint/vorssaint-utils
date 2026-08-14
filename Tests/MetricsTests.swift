@@ -12627,7 +12627,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let commandBarValues = Mirror(reflecting: FeatureStrings.commandBar(language)).children
                 .compactMap { $0.value as? String }
-            expect(commandBarValues.count == 128 && commandBarValues.allSatisfy { !$0.isEmpty },
+            expect(commandBarValues.count == 129 && commandBarValues.allSatisfy { !$0.isEmpty },
                    "every command bar string is set for \(language.rawValue)")
             expect(commandBarValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible command bar strings (\(language.rawValue))")
@@ -12931,6 +12931,33 @@ struct MetricsTests {
                     title: CommandBarLinks.rankingTitle(name: "gh", query: "gh vorssaint utils"),
                     keywords: "Link", query: "gh vorssaint utils") != nil,
                "a saved search stays in the list while what to look for is typed")
+
+        expect(CommandBarLink.Kind.script.symbolName == "terminal",
+               "a script link gets its own icon")
+        expect(CommandBarLink(name: "cur", kind: .script, destination: "/tmp/x").takesArgument
+                && !CommandBarLink(name: "a", kind: .place, destination: "/tmp").takesArgument,
+               "a script always takes its argument; a plain place or link does not")
+        expect(CommandBarLink(name: "gh", kind: .link, destination: "https://x/{query}").takesArgument,
+               "a query link still takes its argument through the existing placeholder check")
+        expect(CommandBarLinks.url(for: CommandBarLink(name: "cur", kind: .script,
+                                                        destination: "/tmp/x"),
+                                   expanded: "/tmp/x") == nil,
+               "a script has nothing to open")
+        let scriptLinks = [
+            CommandBarLink(name: "a", kind: .link, destination: "https://x"),
+            CommandBarLink(name: "cur", kind: .script, destination: "/tmp/currency-convert.sh"),
+        ]
+        expect(CommandBarLinks.matchingScriptLink(in: scriptLinks, query: "cur 100 usd eur")?.argument
+                == "100 usd eur",
+               "a script link matches once something follows its name")
+        expect(CommandBarLinks.matchingScriptLink(in: scriptLinks, query: "cur") == nil,
+               "the bare name alone has nothing to run yet")
+        expect(CommandBarLinks.matchingScriptLink(in: scriptLinks, query: "a 100 usd eur") == nil,
+               "a non-script link never matches, even with an argument")
+        expect(CommandBarLinks.resultText("  100 USD = 86.70 EUR\n") == "100 USD = 86.70 EUR",
+               "a script's output loses its wrapping whitespace")
+        expect(CommandBarLinks.resultText("   \n") == nil,
+               "empty output means nothing is ready yet")
 
         // MARK: Open what was typed as a URL
         for address in ["example.com", "example.com/x", "https://example.com",
