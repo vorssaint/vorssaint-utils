@@ -27,6 +27,8 @@ and peripheral battery readings, panel behavior and keyboard controls.
   nothing reads them there. Thanks to @PathGao.
 - Showing Clipboard in the panel now sits on its own in Settings, since it keeps
   working while history capture is off. Thanks to @PathGao.
+- App lists in Settings now keep names on one line and align their add controls
+  consistently. Thanks to @PathGao.
 - The Command Bar now accepts Control-P and Control-N to move through results.
   Thanks to @theafox.
 
