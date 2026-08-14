@@ -1709,6 +1709,42 @@ struct MetricsTests {
             bundleIdentifier: "com.example.editor",
             subrole: "AXFloatingWindow"),
                "App Switcher keeps floating windows from unrelated apps filtered")
+        expect(SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXWindow",
+            subrole: "AXUnknown",
+            fillsScreen: true,
+            acceptsUndescribedSubroles: false),
+               "App Switcher accepts a screen-sized window with a nonstandard subrole")
+        expect(SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXWindow",
+            subrole: "AXFloatingWindow",
+            fillsScreen: true,
+            acceptsUndescribedSubroles: false),
+               "App Switcher accepts a screen-sized floating playback surface")
+        expect(!SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXWindow",
+            subrole: "AXUnknown",
+            fillsScreen: false,
+            acceptsUndescribedSubroles: false),
+               "App Switcher filters a smaller window with a nonstandard subrole")
+        expect(!SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXGroup",
+            subrole: "AXUnknown",
+            fillsScreen: true,
+            acceptsUndescribedSubroles: false),
+               "App Switcher requires a real window role for a full-screen surface")
+        expect(!SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXWindow",
+            subrole: "AXDialog",
+            fillsScreen: true,
+            acceptsUndescribedSubroles: false),
+               "App Switcher does not turn a screen-sized dialog into a playback window")
+        expect(SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXWindow",
+            subrole: "AXUnknown",
+            fillsScreen: false,
+            acceptsUndescribedSubroles: true),
+               "App Switcher preserves hosted windows with custom chrome")
         expect(SwitcherSupport.sessionSourceItem(frontmostPID: nil,
                                                  focusedWindowID: nil,
                                                  items: [embeddedWindow]) == nil,

@@ -323,6 +323,19 @@ enum SwitcherSupport {
             || bundleIdentifier.hasPrefix("com.adobe.PremierePro")
     }
 
+    /// Some full-screen playback surfaces keep a nonstandard Accessibility
+    /// subrole. A screen-sized AX window is still a real switch target, while
+    /// smaller utility surfaces remain filtered. Compatibility-hosted windows
+    /// retain their existing role-based exception at every size.
+    static func isSwitchableNonstandardWindow(role: String?,
+                                              subrole: String?,
+                                              fillsScreen: Bool,
+                                              acceptsUndescribedSubroles: Bool) -> Bool {
+        guard role == "AXWindow" else { return false }
+        if acceptsUndescribedSubroles && subrole == "AXUnknown" { return true }
+        return fillsScreen && (subrole == "AXUnknown" || subrole == "AXFloatingWindow")
+    }
+
     /// Finds the regular app that contains an accessory helper bundle.
     static func embeddedHostPID(helperBundlePath: String,
                                 regularBundlePaths: [pid_t: String]) -> pid_t? {

@@ -7,9 +7,9 @@ All notable changes to this project are documented here. The format follows
 ## [3.3.2]
 
 ### Summary
-Vorssaint 3.3.2 adds batch image conversion and improves app discovery and unit
-conversions in the Command Bar. It also makes recording more flexible and strengthens
-screenshots, clipboard, Window Layout, audio, display safety and Settings.
+Vorssaint 3.3.2 adds batch image conversion and improves app discovery, unit conversions
+and full-screen switching. It also makes recording more flexible and strengthens screenshots,
+clipboard, Window Layout, audio, display safety and Settings.
 
 ### Added
 - Media now converts images in batches with resizing, watermarks, renaming and
@@ -82,6 +82,7 @@ screenshots, clipboard, Window Layout, audio, display safety and Settings.
   Thanks to @liuxxxu.
 - The App Switcher now keeps its shortcut working after your Mac wakes from sleep.
 - The App Switcher now restores minimized windows when selected.
+- Full-screen video windows now remain available in App Switcher and Dock Preview.
 - The app no longer quits while typing when the Switcher's Windows shortcut uses a
   key whose label comes from the keyboard layout. Thanks to @eioz.
 - The Super key now works when Caps Lock is set to do nothing.

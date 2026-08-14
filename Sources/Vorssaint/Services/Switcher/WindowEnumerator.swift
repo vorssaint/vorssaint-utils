@@ -361,7 +361,8 @@ enum WindowEnumerator {
                 AXUIElementSetMessagingTimeout(window, 0.35)
                 if isUserFacingWindow(window,
                                       bundleIdentifier: bundleIdentifier,
-                                      acceptsUndescribedSubroles: acceptsUndescribedSubroles) {
+                                      acceptsUndescribedSubroles: acceptsUndescribedSubroles,
+                                      screenFrames: screenFrames) {
                     appendUnique(window, to: &axWindows)
                 }
             }
@@ -371,7 +372,8 @@ enum WindowEnumerator {
                 AXUIElementSetMessagingTimeout(window, 0.35)
                 if isUserFacingWindow(window,
                                       bundleIdentifier: bundleIdentifier,
-                                      acceptsUndescribedSubroles: acceptsUndescribedSubroles) {
+                                      acceptsUndescribedSubroles: acceptsUndescribedSubroles,
+                                      screenFrames: screenFrames) {
                     appendUnique(window, to: &axWindows)
                 }
             }
@@ -509,7 +511,8 @@ enum WindowEnumerator {
 
     private static func isUserFacingWindow(_ window: AXUIElement,
                                            bundleIdentifier: String? = nil,
-                                           acceptsUndescribedSubroles: Bool = false) -> Bool {
+                                           acceptsUndescribedSubroles: Bool = false,
+                                           screenFrames: [CGRect]) -> Bool {
         if isFullscreenWindow(window) { return true }
         if boolAttribute(window, kAXMinimizedAttribute as String),
            stringAttribute(window, kAXRoleAttribute as String) == (kAXWindowRole as String) {
@@ -519,12 +522,20 @@ enum WindowEnumerator {
             if subrole == "AXStandardWindow" || subrole == "AXFullScreenWindow" { return true }
             if SwitcherSupport.isSupportedMediaFloatingWindow(bundleIdentifier: bundleIdentifier,
                                                               subrole: subrole) { return true }
+            let role = stringAttribute(window, kAXRoleAttribute as String)
+            let canBePlaybackSurface = subrole == "AXUnknown" || subrole == "AXFloatingWindow"
+            let fillsScreen = canBePlaybackSurface
+                && frameLooksFullscreen(accessibilityFrame(for: window), screenFrames: screenFrames)
             // Compatibility-layer processes draw their own window chrome on
             // borderless surfaces, which Accessibility reports as AXUnknown;
             // for them the window role is the real signal.
-            return acceptsUndescribedSubroles
-                && subrole == "AXUnknown"
-                && stringAttribute(window, kAXRoleAttribute as String) == (kAXWindowRole as String)
+            // Other apps can expose full-screen playback the same way. The
+            // screen-sized frame keeps ordinary utility windows filtered.
+            return SwitcherSupport.isSwitchableNonstandardWindow(
+                role: role,
+                subrole: subrole,
+                fillsScreen: fillsScreen,
+                acceptsUndescribedSubroles: acceptsUndescribedSubroles)
         }
         return stringAttribute(window, kAXRoleAttribute as String) == "AXWindow"
     }
