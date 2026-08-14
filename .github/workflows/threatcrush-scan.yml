@@ -131,13 +131,19 @@ jobs:
 
       - name: Scan
         id: scan
+        # Through env rather than expanded into the script. The value comes from
+        # our own iface step so it is not attacker-controlled, but "a workflow
+        # expression interpolated into a shell body" is the shape of a template
+        # injection and static analysis reads the shape, not the provenance.
+        env:
+          NATIVE: ${{ steps.iface.outputs.native }}
         run: |
           set -o pipefail
           FAIL_ON=""
           SCAN_PATH="."
           code=0
 
-          if [ "${{ steps.iface.outputs.native }}" = "true" ]; then
+          if [ "$NATIVE" = "true" ]; then
             ARGS=(scan "$SCAN_PATH" --format sarif --output threatcrush.sarif)
             if [ -n "$FAIL_ON" ]; then
               ARGS+=(--fail-on "$FAIL_ON")
@@ -271,8 +277,15 @@ jobs:
 
                   lines += ["| Severity | Rule | Location |", "|---|---|---|"]
                   for result in results[:50]:
-                      location = result["locations"][0]["physicalLocation"]
-                      uri = location["artifactLocation"]["uri"]
+                      # SARIF permits a result with no locations, and the native
+                      # --format sarif path is written by the CLI rather than by
+                      # the converter beside this file. Indexing [0] there threw
+                      # out of the enclosing try, so the report file was never
+                      # written and the comment fell back to "could not be read"
+                      # — a message that hides real findings behind a wrong one.
+                      locations = result.get("locations") or []
+                      location = (locations[0] if locations else {}).get("physicalLocation", {})
+                      uri = location.get("artifactLocation", {}).get("uri", "(no location)")
                       line_no = location.get("region", {}).get("startLine", 1)
                       label = {"error": "HIGH", "warning": "MEDIUM", "note": "LOW"}.get(
                           result.get("level", "warning"), "INFO"
