@@ -9,7 +9,7 @@ All notable changes to this project are documented here. The format follows
 ### Summary
 Vorssaint 3.3.2 adds batch image conversion, local Command Bar scripts, recent captures and
 desktop window controls. It also improves app discovery, conversions and capture control while
-preventing launch failures across window tools.
+making Shelf selection faster and preventing launch failures across window tools.
 
 ### Added
 - Media now converts images in batches with resizing, watermarks, renaming and
@@ -48,6 +48,8 @@ preventing launch failures across window tools.
   consistently. Thanks to @PathGao.
 - The Command Bar now accepts Control-P and Control-N to move through results.
   Thanks to @theafox.
+- Shelf now supports Shift-click ranges, Command-A to select every visible item
+  and Escape to clear the selection. Thanks to @cimu233.
 - Foot conversions in the Command Bar now show localized feet and inches while
   keeping small measurements precise. Thanks to @tenbux.
 

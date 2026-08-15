@@ -626,7 +626,6 @@ final class ShelfService: ObservableObject {
         if itemCount == 0 { dockedForcedOpen = true }
         dockedCollapsed = false
         scheduleDockedSync()
-        DispatchQueue.main.async { [weak self] in self?.dockedPanel?.makeKey() }
     }
 
     func collapseDocked() {
@@ -723,6 +722,7 @@ final class ShelfService: ObservableObject {
         panel.level = .floating
         panel.isOpaque = false
         panel.backgroundColor = .clear
+        panel.becomesKeyOnlyIfNeeded = true
         panel.hasShadow = false
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
@@ -1691,7 +1691,6 @@ final class ShelfService: ObservableObject {
         position(panel)
         panel.alphaValue = 1
         panel.orderFrontRegardless()
-        panel.makeKey()
         updatePointerInsidePanel()
         scheduleAutoHideIfIdle()
         scheduleDockedSync()
@@ -1877,6 +1876,7 @@ final class ShelfService: ObservableObject {
         panel.level = .floating
         panel.isOpaque = false
         panel.backgroundColor = .clear
+        panel.becomesKeyOnlyIfNeeded = true
         panel.hasShadow = false
         // Not movable by background: dragging a tile must start an item drag,
         // not move the whole panel.
