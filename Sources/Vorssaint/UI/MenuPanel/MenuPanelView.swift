@@ -507,6 +507,7 @@ struct UtilitiesSection: View {
     @State private var showAppUpdatesPanel = false
     @State private var showMediaPanel = false
     @State private var showClipboardPanel = false
+    @State private var showRecentCapturesPanel = false
     @State private var showWindowLayoutPanel = false
     @AppStorage(DefaultsKey.panelUtilityCleaning) private var showCleaning = true
     @AppStorage(DefaultsKey.panelUtilityURLCleaner) private var showCleanURL = true
@@ -564,6 +565,11 @@ struct UtilitiesSection: View {
                     PanelInteractionState.shared.keepsPopoverOpen = false
                     showClipboardPanel = false
                 }
+            } else if showRecentCapturesPanel {
+                PanelRecentCapturesView {
+                    PanelInteractionState.shared.keepsPopoverOpen = false
+                    showRecentCapturesPanel = false
+                }
             } else if showWindowLayoutPanel {
                 PanelWindowLayoutView {
                     PanelInteractionState.shared.keepsPopoverOpen = false
@@ -602,7 +608,8 @@ struct UtilitiesSection: View {
     /// elsewhere in the app must not dismiss it.
     private var isHostingUtility: Bool {
         showUninstaller || showCleanerPanel || showURLCleaner || showHomebrewPanel
-            || showMediaPanel || showClipboardPanel || showWindowLayoutPanel || showAppUpdatesPanel
+            || showMediaPanel || showClipboardPanel || showRecentCapturesPanel
+            || showWindowLayoutPanel || showAppUpdatesPanel
     }
 
     private var cleaningNeedsAccessibility: Bool {
@@ -787,6 +794,9 @@ struct UtilitiesSection: View {
                                 permissionButtonTitle: l10n.s.permissionRequest,
                                 permissionAction: permissions.screenRecording ? nil : grantScreenRecordingPermission,
                                 shortcutHint: shortcutHint(.screenshot),
+                                accessoryTitle: FeatureStrings.recentCaptures(l10n.language).title,
+                                accessorySystemImage: "clock.arrow.circlepath",
+                                accessoryAction: showRecentCaptures,
                                 action: {
                                     appDelegate()?.closePopover()
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
@@ -804,6 +814,11 @@ struct UtilitiesSection: View {
                                 permissionButtonTitle: l10n.s.permissionRequest,
                                 permissionAction: permissions.screenRecording ? nil : grantScreenRecordingPermission,
                                 shortcutHint: shortcutHint(.screenRecorder),
+                                accessoryTitle: recorder.isRecording
+                                    ? nil
+                                    : FeatureStrings.recentCaptures(l10n.language).title,
+                                accessorySystemImage: "clock.arrow.circlepath",
+                                accessoryAction: recorder.isRecording ? nil : showRecentCaptures,
                                 action: {
                                     appDelegate()?.closePopover()
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
@@ -935,6 +950,11 @@ struct UtilitiesSection: View {
 
     private func grantScreenRecordingPermission() {
         Permissions.shared.requestScreenRecording()
+    }
+
+    private func showRecentCaptures() {
+        PanelInteractionState.shared.keepsPopoverOpen = true
+        showRecentCapturesPanel = true
     }
 
     private func resetPanelDefaults() {
@@ -1764,6 +1784,9 @@ struct UtilityActionButton: View {
     /// The feature's enabled global shortcut, shown as a quiet key hint so
     /// the panel row doubles as a reminder that the keyboard path exists.
     var shortcutHint: String? = nil
+    var accessoryTitle: String? = nil
+    var accessorySystemImage: String? = nil
+    var accessoryAction: (() -> Void)? = nil
     let action: () -> Void
 
     var body: some View {
@@ -1771,10 +1794,15 @@ struct UtilityActionButton: View {
             if isEditing {
                 rowContent(showChevron: false)
                     .panelCard()
-            } else if permissionAction != nil {
+            } else if permissionAction != nil || accessoryAction != nil {
                 VStack(alignment: .leading, spacing: 7) {
-                    rowContent(showChevron: false)
-                    permissionButton
+                    if permissionAction != nil {
+                        rowContent(showChevron: false)
+                        permissionButton
+                    } else {
+                        mainButton
+                    }
+                    accessoryButton
                 }
                 .panelCard()
             } else {
@@ -1784,6 +1812,27 @@ struct UtilityActionButton: View {
                 }
                 .buttonStyle(.plain)
             }
+        }
+    }
+
+    private var mainButton: some View {
+        Button(action: action) {
+            rowContent(showChevron: true)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var accessoryButton: some View {
+        if let accessoryTitle, let accessoryAction {
+            Button(action: accessoryAction) {
+                Label(accessoryTitle, systemImage: accessorySystemImage ?? "clock")
+                    .font(.system(size: 9.5, weight: .semibold))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.mini)
+            .padding(.leading, 31)
         }
     }
 

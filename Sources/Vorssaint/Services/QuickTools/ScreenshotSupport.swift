@@ -12,6 +12,28 @@ enum ScreenshotSupport {
 
     // MARK: - Preferences
 
+    static let recentCaptureLimit = 12
+    static let recentCaptureMaximumBytes: Int64 = 256 * 1024 * 1024
+
+    static func cappedRecentCaptureIDs(_ ids: [UUID],
+                                       screenshotBytes: [UUID: Int64] = [:]) -> [UUID] {
+        var kept: [UUID] = []
+        var bytes: Int64 = 0
+        var keptScreenshot = false
+        for id in ids.prefix(recentCaptureLimit) {
+            guard let size = screenshotBytes[id] else {
+                kept.append(id)
+                continue
+            }
+            let safeSize = max(0, size)
+            if keptScreenshot, bytes + safeSize > recentCaptureMaximumBytes { continue }
+            kept.append(id)
+            keptScreenshot = true
+            bytes += safeSize
+        }
+        return kept
+    }
+
     /// Optional countdown before the capture starts, so menus, tooltips and
     /// hover states can be staged first.
     static let allowedDelays = [0, 3, 5, 10]

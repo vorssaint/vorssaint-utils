@@ -174,6 +174,12 @@ final class WindowLayoutService: ObservableObject {
             }
             return applied ? finish(.success(restored: false)) : finish(.failure(.failed))
         }
+        if action == .previousSpace || action == .nextSpace {
+            let direction: WindowSpaceMoveDirection = action == .nextSpace ? .next : .previous
+            let moved = SpaceWindowBridge.moveWindow(target.windowID, direction: direction)
+            if moved { lastActions.removeValue(forKey: target.key) }
+            return finish(moved ? .success(restored: false) : .failure(.failed))
+        }
         let screens = NSScreen.screens
         guard let screen = bestScreen(for: target.frame, screens: screens) else {
             return finish(.failure(.failed))

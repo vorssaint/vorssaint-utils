@@ -118,6 +118,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/MediaImageStrings.swift \
         Sources/Vorssaint/Core/QuickToggleStrings.swift \
         Sources/Vorssaint/Core/ScreenshotStrings.swift \
+        Sources/Vorssaint/Core/RecentCaptureStrings.swift \
         Sources/Vorssaint/Core/RecorderStrings.swift \
         Sources/Vorssaint/Core/RecorderShareStrings.swift \
         Sources/Vorssaint/Core/CameraPreviewStrings.swift \

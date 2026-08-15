@@ -372,6 +372,7 @@ final class ScreenshotService: ObservableObject {
     /// exists to reach for.
     private func route(_ capture: ScreenshotSelectionController.Capture) {
         preview?.close()
+        RecentCaptureService.shared.recordScreenshot(capture)
         if UserDefaults.standard.bool(
             forKey: DefaultsKey.screenshotLastCaptureShortcutEnabled) {
             ScreenshotLastCaptureStore.save(capture)
@@ -383,10 +384,23 @@ final class ScreenshotService: ObservableObject {
             openEditor(with: capture)
             return
         }
+        presentPreview(capture, defaultAction: ScreenshotDefaultAction.current)
+    }
+
+    /// A history item returns to the same floating preview without repeating
+    /// automatic copy or save actions that already ran when it was captured.
+    func restorePreview(_ capture: ScreenshotSelectionController.Capture) {
+        preview?.close()
+        presentPreview(capture, defaultAction: .none)
+    }
+
+    private func presentPreview(_ capture: ScreenshotSelectionController.Capture,
+                                defaultAction: ScreenshotDefaultAction) {
         var saved: SaveOutcome?
         let controller = ScreenshotQuickPreviewController(
             capture: capture,
             strings: strings,
+            defaultAction: defaultAction,
             action: { [weak self] action in
                 guard let self else { return [] }
                 switch action {

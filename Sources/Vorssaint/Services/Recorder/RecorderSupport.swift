@@ -4,6 +4,112 @@
 import CoreGraphics
 import Foundation
 
+/// Removes pauses from the recording's clock without stopping and rebuilding
+/// the capture stream. Samples inside a pause are discarded; everything after
+/// it moves back by exactly the time that was left out.
+struct RecorderPauseTimeline {
+    private struct Interval {
+        let start: Double
+        let end: Double
+    }
+
+    private var intervals: [Interval] = []
+    private var pauseStart: Double?
+
+    var isPaused: Bool { pauseStart != nil }
+
+    @discardableResult
+    mutating func pause(at time: Double) -> Bool {
+        guard time.isFinite, pauseStart == nil else { return false }
+        pauseStart = time
+        return true
+    }
+
+    @discardableResult
+    mutating func resume(at time: Double) -> Bool {
+        guard time.isFinite, let start = pauseStart else { return false }
+        intervals.append(Interval(start: start, end: max(start, time)))
+        pauseStart = nil
+        return true
+    }
+
+    /// Time on the finished recording. While a pause is open this stays fixed
+    /// at the instant the pause began.
+    func elapsed(since origin: Double, at time: Double) -> Double {
+        guard origin.isFinite, time.isFinite, time > origin else { return 0 }
+        return max(0, time - origin - excludedDuration(from: origin, to: time))
+    }
+
+    /// Maps a captured sample onto the compact recording timeline. An audio
+    /// buffer that crosses a pause boundary is dropped whole, avoiding overlap
+    /// with the first buffer after recording resumes.
+    func sampleTime(start: Double, duration: Double, since origin: Double) -> Double? {
+        guard start.isFinite, duration.isFinite, origin.isFinite, start >= origin else { return nil }
+        let end = start + max(0, duration)
+        guard !overlapsPause(from: start, to: end) else { return nil }
+        return elapsed(since: origin, at: start)
+    }
+
+    /// Maps pointer and typing events. Events that happened while paused do
+    /// not become edits, clicks or typing zooms later.
+    func eventTime(_ time: Double, since origin: Double) -> Double? {
+        guard time.isFinite, origin.isFinite,
+              !overlapsPause(from: time, to: time)
+        else { return nil }
+        return elapsed(since: origin, at: time)
+    }
+
+    private func excludedDuration(from lower: Double, to upper: Double) -> Double {
+        let closed = intervals.reduce(0.0) { total, interval in
+            total + max(0, min(upper, interval.end) - max(lower, interval.start))
+        }
+        guard let pauseStart else { return closed }
+        return closed + max(0, upper - max(lower, pauseStart))
+    }
+
+    private func overlapsPause(from start: Double, to end: Double) -> Bool {
+        let isInstant = end <= start
+        let overlaps: (Double, Double) -> Bool = { pauseStart, pauseEnd in
+            if isInstant { return start >= pauseStart && start < pauseEnd }
+            return start < pauseEnd && end > pauseStart
+        }
+        if intervals.contains(where: { overlaps($0.start, $0.end) }) { return true }
+        guard let pauseStart else { return false }
+        return isInstant ? start >= pauseStart : end > pauseStart
+    }
+}
+
+/// Thread-safe shared pause state for the writer and the two event samplers.
+/// It exists only for the lifetime of one recording.
+final class RecorderPauseClock {
+    private let lock = NSLock()
+    private var timeline = RecorderPauseTimeline()
+
+    var isPaused: Bool { lock.withLock { timeline.isPaused } }
+
+    @discardableResult
+    func pause(at time: Double) -> Bool {
+        lock.withLock { timeline.pause(at: time) }
+    }
+
+    @discardableResult
+    func resume(at time: Double) -> Bool {
+        lock.withLock { timeline.resume(at: time) }
+    }
+
+    func elapsed(since origin: Double, at time: Double) -> Double {
+        lock.withLock { timeline.elapsed(since: origin, at: time) }
+    }
+
+    func sampleTime(start: Double, duration: Double, since origin: Double) -> Double? {
+        lock.withLock { timeline.sampleTime(start: start, duration: duration, since: origin) }
+    }
+
+    func eventTime(_ time: Double, since origin: Double) -> Double? {
+        lock.withLock { timeline.eventTime(time, since: origin) }
+    }
+}
+
 /// Pure policy and geometry for the screen recorder: everything that can be
 /// decided without a stream, a writer or a window, so it can be reasoned about
 /// and tested on its own.
