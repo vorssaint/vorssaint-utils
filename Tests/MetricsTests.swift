@@ -5176,6 +5176,82 @@ struct MetricsTests {
             hasDroppableContent: { fatalError("droppable check must stay lazy") }),
                "an unchanged pasteboard outside the Dock skips the content inspection")
 
+        let singleScreen = [ShelfEdgeScreen(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+                                            visibleFrame: CGRect(x: 0, y: 0, width: 1920, height: 1080))]
+        expect(ShelfEdgeDragSupport.match(at: CGPoint(x: 10, y: 500), screens: singleScreen,
+                                          distance: 24)?.edge == .left,
+               "a point near the left edge of the only screen is a left-edge match")
+        expect(ShelfEdgeDragSupport.match(at: CGPoint(x: 1910, y: 500), screens: singleScreen,
+                                          distance: 24)?.edge == .right,
+               "a point near the right edge of the only screen is a right-edge match")
+        expect(ShelfEdgeDragSupport.match(at: CGPoint(x: 960, y: 500), screens: singleScreen,
+                                          distance: 24) == nil,
+               "a point in the middle of the screen matches no edge")
+
+        let sideBySide = [ShelfEdgeScreen(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+                                          visibleFrame: CGRect(x: 0, y: 0, width: 1920, height: 1080)),
+                          ShelfEdgeScreen(frame: CGRect(x: 1920, y: 0, width: 1920, height: 1080),
+                                          visibleFrame: CGRect(x: 1920, y: 0, width: 1920, height: 1080))]
+        expect(ShelfEdgeDragSupport.match(at: CGPoint(x: 1918, y: 500), screens: sideBySide,
+                                          distance: 24) == nil,
+               "a seam shared by two adjacent screens counts as neither screen's own edge")
+        expect(ShelfEdgeDragSupport.match(at: CGPoint(x: 10, y: 500), screens: sideBySide,
+                                          distance: 24)?.edge == .left,
+               "the true outer left edge of the first screen still matches with a second screen present")
+        expect(ShelfEdgeDragSupport.match(at: CGPoint(x: 3830, y: 500), screens: sideBySide,
+                                          distance: 24)?.edge == .right,
+               "the true outer right edge of the second screen still matches")
+
+        let leftDockScreen = [ShelfEdgeScreen(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+                                              visibleFrame: CGRect(x: 70, y: 0, width: 1850, height: 1080))]
+        expect(ShelfEdgeDragSupport.match(at: CGPoint(x: 30, y: 500), screens: leftDockScreen,
+                                          distance: 200) == nil,
+               "a point resting inside a left-mounted Dock's reserved margin does not trigger a peek")
+        expect(ShelfEdgeDragSupport.match(at: CGPoint(x: 150, y: 500), screens: leftDockScreen,
+                                          distance: 200)?.edge == .left,
+               "a point past the Dock's margin, still within the trigger distance, matches normally")
+        let rightDockScreen = [ShelfEdgeScreen(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+                                               visibleFrame: CGRect(x: 0, y: 0, width: 1850, height: 1080))]
+        expect(ShelfEdgeDragSupport.match(at: CGPoint(x: 1890, y: 500), screens: rightDockScreen,
+                                          distance: 200) == nil,
+               "a point resting inside a right-mounted Dock's reserved margin does not trigger a peek")
+        expect(ShelfEdgeDragSupport.match(at: CGPoint(x: 1770, y: 500), screens: rightDockScreen,
+                                          distance: 200)?.edge == .right,
+               "a point past the right Dock's margin, still within the trigger distance, matches normally")
+        let noDockScreen = [ShelfEdgeScreen(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+                                            visibleFrame: CGRect(x: 0, y: 40, width: 1920, height: 1040))]
+        expect(ShelfEdgeDragSupport.match(at: CGPoint(x: 10, y: 500), screens: noDockScreen,
+                                          distance: 200)?.edge == .left,
+               "a Dock or menu bar that only narrows the visible frame vertically (bottom Dock, menu bar) leaves left/right matching unaffected")
+
+        let leftMatch = ShelfEdgeMatch(edge: .left, screen: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+        expect(ShelfEdgeDragSupport.stillNear(leftMatch, point: CGPoint(x: 30, y: 500), distance: 40),
+               "a point within the wider retreat distance of the peeking edge is still near it")
+        expect(!ShelfEdgeDragSupport.stillNear(leftMatch, point: CGPoint(x: 960, y: 500), distance: 40),
+               "a point back in the middle of the screen is no longer near the peeking edge")
+        expect(!ShelfEdgeDragSupport.stillNear(leftMatch, point: CGPoint(x: 1910, y: 500), distance: 40),
+               "a point near the right side of the same screen does not count as still near a left-edge peek")
+
+        expect(ShelfEdgeDragSupport.hasDwelled(since: 100.0, now: 100.16, required: 0.15),
+               "a dwell longer than the required duration counts as sustained")
+        expect(!ShelfEdgeDragSupport.hasDwelled(since: 100.0, now: 100.05, required: 0.15),
+               "a dwell shorter than the required duration does not count yet")
+
+        expect(ShelfEdgeDragSupport.triggerDistance == 200 && ShelfEdgeDragSupport.retreatDistance == 330
+               && ShelfEdgeDragSupport.dwell == 0.15,
+               "the shipped trigger distance, retreat distance, and dwell are pinned, so a future retune has to update this test")
+        expect(ShelfEdgeDragSupport.match(at: CGPoint(x: 1918, y: 500), screens: sideBySide,
+                                          distance: ShelfEdgeDragSupport.triggerDistance) == nil,
+               "the seam stays safe at the shipped trigger distance, not just the smaller distance the earlier cases use")
+        let shippedLeftMatch = ShelfEdgeMatch(edge: .left, screen: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+        // x: 100 sits safely inside the peeking panel's own on-screen strip
+        // (ShelfView.panelWidth / 3, rounded: 304 / 3 ≈ 101), which the
+        // retreat check relies on covering instead of a separate panel-frame
+        // check.
+        expect(ShelfEdgeDragSupport.stillNear(shippedLeftMatch, point: CGPoint(x: 100, y: 500),
+                                              distance: ShelfEdgeDragSupport.retreatDistance),
+               "the shipped retreat distance comfortably covers the peeking panel's own on-screen strip")
+
         let shelfFile = ShelfPersistedItem(id: UUID(), kind: .file, title: "notes.pdf",
                                            path: "/tmp/notes.pdf")
         let shelfText = ShelfPersistedItem(id: UUID(), kind: .text, title: "Hello", text: "Hello world")

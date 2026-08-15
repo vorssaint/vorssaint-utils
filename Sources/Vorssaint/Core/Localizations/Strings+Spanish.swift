@@ -470,6 +470,8 @@ extension Strings {
         shelfShakeCaption: "Agita el puntero rápidamente mientras sostienes un ítem para que aparezca cerca del cursor.",
         shelfDropZoneToggle: "Mantener en la barra de menús los archivos arrastrados",
         shelfDropZoneCaption: "Mientras arrastras un archivo, el estante aparece debajo del icono de la barra de menús. Lo que sueltes se guarda ahí mismo, en un botón que contraes y abres con un clic y que desaparece cuando el estante se vacía.",
+        shelfEdgeToggle: "Abrir cerca de un borde de la pantalla",
+        shelfEdgeCaption: "Arrastra un archivo hacia el borde de la pantalla para que el estante asome. Suéltalo ahí, o retíralo y el estante se repliega.",
         shelfDropZoneLabel: "Suelta aquí",
         shelfCollapse: "Contraer",
         shelfBehaviorTitle: "Después de usar",

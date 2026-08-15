@@ -96,6 +96,7 @@ enum DefaultsKey {
     static let shelfShortcut = "shelfShortcut"            // GlobalShortcut storage value
     static let shelfShakeToOpen = "shelfShakeToOpen"
     static let shelfDropZoneEnabled = "shelfDropZoneEnabled"
+    static let shelfEdgeDragEnabled = "shelfEdgeDragEnabled"
     static let shelfCloseAfterDrop = "shelfCloseAfterDrop"
     static let shelfRemoveAfterDrop = "shelfRemoveAfterDrop"
     static let shelfAutomaticExclusions = "shelfAutomaticExclusions" // [bundle id] blocks automatic opening only
@@ -754,6 +755,10 @@ enum Defaults {
         // On by default (owner's call): it costs nothing until the shelf itself
         // is on, and then the shelf lives handily under the menu bar icon.
         DefaultsKey.shelfDropZoneEnabled: true,
+        // Same reasoning as the drop zone: costs nothing until the shelf
+        // itself is on, and it is one more way to reach for a familiar
+        // target while both hands are full with a drag.
+        DefaultsKey.shelfEdgeDragEnabled: true,
         // Closing after a drop is new behavior, so it arrives OFF for people
         // who already rely on the panel staying put; removing after a drop
         // keeps the value shipped releases always had.

@@ -471,6 +471,8 @@ extension Strings {
         shelfShakeCaption: "항목을 잡은 채 포인터를 빠르게 흔들면 커서 근처에서 열 수 있습니다.",
         shelfDropZoneToggle: "드래그한 파일을 메뉴 막대에 보관",
         shelfDropZoneCaption: "파일을 드래그하면 메뉴 막대 아이콘 아래에 선반이 나타납니다. 놓은 항목은 그대로 보관되고 클릭해 열고 닫을 수 있는 버튼에 들어가며, 선반이 비면 사라집니다.",
+        shelfEdgeToggle: "화면 가장자리 근처에서 열기",
+        shelfEdgeCaption: "파일을 화면 가장자리 쪽으로 드래그하면 선반이 살짝 나타납니다. 그 자리에 놓거나, 다시 뒤로 당기면 선반이 들어갑니다.",
         shelfDropZoneLabel: "여기에 놓기",
         shelfCollapse: "접기",
         shelfBehaviorTitle: "사용 후",

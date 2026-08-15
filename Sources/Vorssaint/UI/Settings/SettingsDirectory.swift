@@ -95,7 +95,7 @@ enum SettingsDirectory {
                                       keywords: [s.cutPasteEnable,
                                                  FeatureStrings.finderRename(language).enableLabel]),
                 SettingsDirectoryItem(page: .shelf, title: s.shelfName, icon: "tray.full",
-                                      keywords: [s.shelfEnable, s.shelfDropZoneToggle]),
+                                      keywords: [s.shelfEnable, s.shelfDropZoneToggle, s.shelfEdgeToggle]),
                 SettingsDirectoryItem(page: .media, title: s.mediaName, icon: "photo.on.rectangle.angled",
                                       keywords: ["PDF", "GIF", "PNG", "JPEG", "convert", "resize", "watermark",
                                                  "rename", "profile", "fit", "fill", "crop",

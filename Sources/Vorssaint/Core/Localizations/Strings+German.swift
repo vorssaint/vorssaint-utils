@@ -470,6 +470,8 @@ extension Strings {
         shelfShakeCaption: "Schüttle den Zeiger schnell, während du ein Objekt hältst, um die Ablage beim Cursor erscheinen zu lassen.",
         shelfDropZoneToggle: "Gezogene Dateien in der Menüleiste behalten",
         shelfDropZoneCaption: "Während du eine Datei ziehst, erscheint die Ablage unter dem Menüleistensymbol. Was du ablegst, bleibt gleich dort, in einer Taste, die du mit einem Klick ein- und ausklappst und die verschwindet, sobald die Ablage leer ist.",
+        shelfEdgeToggle: "In der Nähe eines Bildschirmrands öffnen",
+        shelfEdgeCaption: "Ziehe eine Datei in Richtung Bildschirmrand, damit die Ablage kurz hervorschaut. Lass sie dort los, oder zieh zurück, und die Ablage verschwindet wieder.",
         shelfDropZoneLabel: "Hier loslassen",
         shelfCollapse: "Einklappen",
         shelfBehaviorTitle: "Nach der Verwendung",

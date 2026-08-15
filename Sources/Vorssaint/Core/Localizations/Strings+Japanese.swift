@@ -470,6 +470,8 @@ extension Strings {
         shelfShakeCaption: "項目を持ったままポインタをすばやく振ると、カーソルの近くに呼び出せます。",
         shelfDropZoneToggle: "ドラッグしたファイルをメニューバーに残す",
         shelfDropZoneCaption: "ファイルをドラッグすると、メニューバーのアイコンの下にシェルフが表示されます。ドロップしたものはそのままそこに保存され、クリックで開閉できるボタンに収まり、シェルフが空になると消えます。",
+        shelfEdgeToggle: "画面の端に近づけたら開く",
+        shelfEdgeCaption: "ファイルを画面の端に向けてドラッグすると、シェルフが少しだけ現れます。そこでドロップするか、手を戻すとシェルフは引っ込みます。",
         shelfDropZoneLabel: "ここにドロップ",
         shelfCollapse: "折りたたむ",
         shelfBehaviorTitle: "使用後",

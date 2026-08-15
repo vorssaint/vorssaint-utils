@@ -123,6 +123,15 @@ final class ShelfService: ObservableObject {
     /// shows even with nothing in it yet. Items keep it up on their own.
     private var dockedForcedOpen = false
     private let autoHideDelay: TimeInterval = 5
+    /// A shorter delay used whenever the idle timer arms while the shelf is
+    /// empty, rather than the full delay a shelf with items gets. Most
+    /// removal paths dismiss an emptied shelf immediately and never reach
+    /// this timer at all (see `dismissIfEmptied`); the cases that still do
+    /// are opening an empty shelf on purpose (the shortcut, shake, or
+    /// Settings' "Open now") and un-pinning one that's already empty.
+    /// Either way, something with nothing in it shouldn't sit at the full
+    /// idle delay before it goes away.
+    private let emptyAutoHideDelay: TimeInterval = 2.5
     private let autoHideFadeDuration: TimeInterval = 0.22
     private var autoHideTimer: Timer?
     private var autoHideFadeTimer: Timer?
@@ -148,6 +157,20 @@ final class ShelfService: ObservableObject {
     private var dragSourceBundleIdentifier: String?
     private var activeInternalDragIDs: [UUID] = []
     private var internalDragWasMerged = false
+    /// The edge (and screen) a drag is currently dwelling near, before it has
+    /// dwelled long enough to trigger a peek. Reset whenever the pointer
+    /// leaves every edge's hot zone, so a fresh dwell always starts from
+    /// zero. Keeping the whole match, not just the edge, matters on a
+    /// vertically stacked multi-monitor setup: two screens can both have a
+    /// left edge, and crossing from one to the other should restart the
+    /// dwell rather than carry it over.
+    private var edgeDwellMatch: ShelfEdgeMatch?
+    private var edgeDwellStart: TimeInterval?
+    /// Set while the panel is showing because of an edge-drag peek, so its
+    /// own retreat rule can be told apart from an ordinary shake/shortcut
+    /// opening (which uses the ordinary idle-timer auto-hide instead).
+    private var edgePeekMatch: ShelfEdgeMatch?
+    private var edgePeekEndWork: DispatchWorkItem?
 
     private let tempDir: URL = {
         let id = Bundle.main.bundleIdentifier ?? "com.vorssaint.utils"
@@ -255,7 +278,8 @@ final class ShelfService: ObservableObject {
         let defaults = UserDefaults.standard
         let wanted = defaults.bool(forKey: DefaultsKey.shelfEnabled)
             && (defaults.bool(forKey: DefaultsKey.shelfShakeToOpen)
-                || defaults.bool(forKey: DefaultsKey.shelfDropZoneEnabled))
+                || defaults.bool(forKey: DefaultsKey.shelfDropZoneEnabled)
+                || defaults.bool(forKey: DefaultsKey.shelfEdgeDragEnabled))
         if wanted { startDragMonitor() } else { stopDragMonitor() }
         syncDockedShelf()
     }
@@ -335,6 +359,7 @@ final class ShelfService: ObservableObject {
             case .leftMouseUp:
                 self.closeDragGesture()
                 self.endDockedDrag()
+                self.endEdgePeekDrag()
             default:
                 if !self.sawGestureStart {
                     self.beginDragGesture(with: event)
@@ -346,6 +371,9 @@ final class ShelfService: ObservableObject {
                 }
                 if defaults.bool(forKey: DefaultsKey.shelfDropZoneEnabled) {
                     self.handleDragForDock()
+                }
+                if defaults.bool(forKey: DefaultsKey.shelfEdgeDragEnabled) {
+                    self.handleDragForEdge(event)
                 }
                 // Every open gesture gets the button watchdog, not just one
                 // that engaged the drop zone: a mouse-up swallowed by the
@@ -368,6 +396,9 @@ final class ShelfService: ObservableObject {
         dockedEndWork = nil
         dockedDragActive = false
         dockedProximate = false
+        edgeDwellMatch = nil
+        edgeDwellStart = nil
+        retractEdgePeek()
     }
 
     /// Detects a back-and-forth shake of the pointer during a drag: enough
@@ -518,11 +549,18 @@ final class ShelfService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.shelfDropZoneEnabled)
     }
 
+    private var edgeFeatureOn: Bool {
+        AppFeature.shelf.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
+            && UserDefaults.standard.bool(forKey: DefaultsKey.shelfEdgeDragEnabled)
+    }
+
     /// A qualifying drag is in flight: keep the pill under the icon as a small,
     /// minimized target, and let the card open only while the pointer is near
-    /// it. It never hides mid drag. With the classic shelf panel already on
-    /// screen (shake or shortcut), that panel is the target and the docked one
-    /// stays out of the way.
+    /// it. It never hides mid drag on its own account. If the classic shelf
+    /// panel comes up instead (shake, shortcut, or now an edge peek), that
+    /// panel is the target and `syncDockedShelf` steps the docked one aside
+    /// for as long as the classic panel is visible, one shelf at a time.
     private func handleDragForDock() {
         guard dockedFeatureOn, automaticOpenAllowed, !isVisible,
               !isInternalDragActive, isContentDragActive() else { return }
@@ -576,9 +614,156 @@ final class ShelfService: ObservableObject {
             if !CGEventSource.buttonState(.combinedSessionState, button: .left) {
                 self.closeDragGesture()
                 self.endDockedDrag()
+                self.endEdgePeekDrag()
             }
         }
         dockedWatchdog?.tolerance = 0.05
+    }
+
+    /// A qualifying drag held near a screen's left or right edge for a short
+    /// dwell peeks the classic panel in from that side, offset mostly off
+    /// screen. Once peeking, this same function checks retreat on every
+    /// later drag event instead of considering a new trigger, since by then
+    /// `isVisible` is already true and would otherwise block the check.
+    private func handleDragForEdge(_ event: NSEvent) {
+        guard edgeFeatureOn, automaticOpenAllowed, !isInternalDragActive, isContentDragActive()
+        else { return }
+        let mouse = NSEvent.mouseLocation
+        let now = event.timestamp
+        if let edgePeekMatch {
+            // The panel's own on-screen strip sits well within retreatDistance
+            // of the edge by construction (its width is a fraction of the
+            // panel's full width, which is itself far smaller than
+            // retreatDistance), so `stillNear` alone already covers hovering
+            // over the visible panel; no separate frame check is needed.
+            guard !ShelfEdgeDragSupport.stillNear(edgePeekMatch, point: mouse,
+                                                  distance: ShelfEdgeDragSupport.retreatDistance)
+            else { return }
+            retractEdgePeek()
+            return
+        }
+        guard !isVisible else { return }
+        let screens = NSScreen.screens.map { ShelfEdgeScreen(frame: $0.frame, visibleFrame: $0.visibleFrame) }
+        guard let matched = ShelfEdgeDragSupport.match(at: mouse, screens: screens,
+                                                       distance: ShelfEdgeDragSupport.triggerDistance)
+        else {
+            edgeDwellMatch = nil
+            edgeDwellStart = nil
+            return
+        }
+        if edgeDwellMatch != matched {
+            edgeDwellMatch = matched
+            edgeDwellStart = now
+        }
+        guard let edgeDwellStart, ShelfEdgeDragSupport.hasDwelled(since: edgeDwellStart, now: now)
+        else { return }
+        summonEdgePeek(matched, mouse: mouse)
+    }
+
+    /// Opens the classic panel peeking in from a screen edge, mostly off
+    /// screen. Unlike `summon()`, this does not schedule the idle-timer
+    /// auto-hide: the drag itself, not idleness, decides when it goes away,
+    /// until a drop lands and `noteInteraction()` hands it back to the
+    /// ordinary auto-hide behavior. `shouldHoldOpen` also treats a live
+    /// `edgePeekMatch` as its own reason to hold open, so even a stray
+    /// idle-timer reschedule during the peek (a drop-target or hover
+    /// callback firing mid-drag, say) can't fade the panel out from under a
+    /// still-live drag.
+    private func summonEdgePeek(_ match: ShelfEdgeMatch, mouse: CGPoint) {
+        guard AppFeature.shelf.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) else { return }
+        edgePeekMatch = match
+        edgeDwellMatch = nil
+        edgeDwellStart = nil
+        let panel = ensurePanel()
+        cancelAutoHide()
+        positionEdgePeek(panel, match: match, mouse: mouse)
+        panel.alphaValue = 1
+        panel.orderFrontRegardless()
+        updatePointerInsidePanel()
+        scheduleDockedSync()
+    }
+
+    /// Places the panel against the triggered edge's usable space (past a
+    /// side-mounted Dock, if one sits there), vertically centered on the
+    /// cursor, offset so only its inner third sits on screen and the rest
+    /// extends past the boundary. Unlike `position(_:)`, this deliberately
+    /// does not clamp fully on screen: going partly off it is the point.
+    /// Both the horizontal offset and the vertical clamp measure from the
+    /// visible frame, matching `revealEdgePeek`, so the peek and its later
+    /// reveal never disagree about where the usable edge actually is.
+    private func positionEdgePeek(_ panel: NSPanel, match: ShelfEdgeMatch, mouse: CGPoint) {
+        let view = panel.contentViewController!.view
+        view.layoutSubtreeIfNeeded()
+        let size = view.fittingSize
+        let visible = visibleFrame(for: match.screen)
+        let onScreenWidth = (size.width / 3).rounded()
+        let x: CGFloat
+        switch match.edge {
+        case .left: x = visible.minX - size.width + onScreenWidth
+        case .right: x = visible.maxX - onScreenWidth
+        }
+        var y = mouse.y - size.height / 2
+        y = min(max(visible.minY + 8, y), visible.maxY - size.height - 8)
+        panel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: true)
+    }
+
+    /// Slides a peek that just caught a drop the rest of the way onto
+    /// screen, flush against the usable area of the edge it peeked in from
+    /// (clear of the Dock, if one sits there), keeping its current vertical
+    /// position. Animated on purpose: unlike the panel's other frame
+    /// changes, this slide is the whole point of the "drop it and it opens
+    /// up" behavior, not an incidental resize. Called once, right as
+    /// `noteInteraction()` graduates the peek to an ordinary panel.
+    private func revealEdgePeek(_ panel: NSPanel, match: ShelfEdgeMatch) {
+        let size = panel.frame.size
+        let visible = visibleFrame(for: match.screen)
+        let x: CGFloat
+        switch match.edge {
+        case .left: x = visible.minX + 8
+        case .right: x = visible.maxX - size.width - 8
+        }
+        let y = min(max(visible.minY + 8, panel.frame.minY), visible.maxY - size.height - 8)
+        panel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: true, animate: true)
+    }
+
+    /// The visible frame (excluding the menu bar and Dock) of the screen a
+    /// `ShelfEdgeDragSupport` match resolved, so the edge-peek positioning
+    /// stays clear of both instead of comparing against the full physical
+    /// frame the way the trigger geometry itself needs to.
+    private func visibleFrame(for screenFrame: CGRect) -> CGRect {
+        NSScreen.screens.first { $0.frame == screenFrame }?.visibleFrame ?? screenFrame
+    }
+
+    /// Ends an edge peek from a drag that finished, with the same short
+    /// grace window the docked shelf's own drag-end path uses, so a drop
+    /// that is still landing on the panel gets to claim it (clearing
+    /// `edgePeekMatch` via `noteInteraction()`) before this fires.
+    private func endEdgePeekDrag() {
+        guard edgePeekMatch != nil, edgePeekEndWork == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.edgePeekEndWork = nil
+            self.retractEdgePeek()
+        }
+        edgePeekEndWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+    }
+
+    /// Ends an edge peek: hides the panel and drops the tracked match. A
+    /// no-op once a drop has already landed, since `noteInteraction()`
+    /// clears `edgePeekMatch` the moment that happens, so a freshly caught
+    /// item is never yanked away. Routes through `resetAutoHide()`, the same
+    /// as `hide()` does, so `dropTargeted`/`pointerInsidePanel`/
+    /// `interactionDepth` can't be left stale from mid-drag callbacks and
+    /// silently hold every future opening of the classic panel open forever.
+    private func retractEdgePeek() {
+        edgePeekEndWork?.cancel()
+        edgePeekEndWork = nil
+        guard edgePeekMatch != nil else { return }
+        resetAutoHide()
+        panel?.orderOut(nil)
+        scheduleDockedSync()
     }
 
     /// True when the pointer is close enough to the docked shelf to open it. It
@@ -817,10 +1002,13 @@ final class ShelfService: ObservableObject {
         cleanSelectionState()
         retireOwnedPayloads(in: removed)
         noteInteraction()
+        dismissIfEmptied()
     }
 
-    /// Removes several items at once — used after a successful drag-out so the
-    /// tiles you dropped elsewhere leave the shelf.
+    /// Removes several items at once, used after a successful drag-out (the
+    /// tiles you dropped elsewhere leave the shelf) and by explicit
+    /// multi-select deletion. Either way, emptying the shelf dismisses it
+    /// right away; see `dismissIfEmptied`.
     func removeItems(_ ids: [UUID]) {
         let set = Set(ids)
         var removed: [Item] = []
@@ -828,6 +1016,7 @@ final class ShelfService: ObservableObject {
         cleanSelectionState()
         retireOwnedPayloads(in: removed)
         noteInteraction()
+        dismissIfEmptied()
     }
 
     func clear() {
@@ -838,6 +1027,16 @@ final class ShelfService: ObservableObject {
         expandedBatches = []
         retireOwnedPayloads(in: removed)
         noteInteraction()
+        dismissIfEmptied()
+    }
+
+    /// Dismisses the classic panel right away once nothing is left in it,
+    /// instead of waiting out the normal idle delay, so it's immediately
+    /// ready to be triggered again. Pinning still wins, same as every other
+    /// close path.
+    private func dismissIfEmptied() {
+        guard items.isEmpty, !isPinned, panel?.isVisible == true else { return }
+        hide()
     }
 
     func toggleSelection(_ id: UUID) {
@@ -1706,6 +1905,19 @@ final class ShelfService: ObservableObject {
     func noteInteraction() {
         guard panel?.isVisible == true else { return }
         cancelAutoHideFade()
+        edgePeekEndWork?.cancel()
+        edgePeekEndWork = nil
+        // Anything landing during an edge peek (a drop, a paste, any other
+        // addition that reaches here) graduates it to an ordinary panel,
+        // clearing `edgePeekMatch` (which `shouldHoldOpen` also checks)
+        // before the idle timer below is armed, so the timer evaluates the
+        // post-graduation state, not the peek's own hold. It also slides
+        // the rest of the way onto screen, so a caught item does not sit
+        // two-thirds off screen for the whole auto-hide delay.
+        if let match = edgePeekMatch, let panel {
+            edgePeekMatch = nil
+            revealEdgePeek(panel, match: match)
+        }
         scheduleAutoHideIfIdle()
     }
 
@@ -1743,6 +1955,13 @@ final class ShelfService: ObservableObject {
         pointerInsidePanel = false
         dropTargeted = false
         interactionDepth = 0
+        // A peek can be dismissed by paths other than its own retreat rule
+        // (an explicit hide, a settings toggle turning the feature off mid
+        // peek); clearing its state here too keeps the panel from being
+        // stranded in its off-screen peek position with no way back.
+        edgePeekEndWork?.cancel()
+        edgePeekEndWork = nil
+        edgePeekMatch = nil
     }
 
     private func cancelAutoHide() {
@@ -1760,6 +1979,7 @@ final class ShelfService: ObservableObject {
 
     private var shouldHoldOpen: Bool {
         isPinned || !items.isEmpty || pointerInsidePanel || dropTargeted || interactionDepth > 0
+            || edgePeekMatch != nil
     }
 
     private func scheduleAutoHideIfIdle() {
@@ -1767,7 +1987,8 @@ final class ShelfService: ObservableObject {
         autoHideTimer = nil
         guard panel?.isVisible == true, !shouldHoldOpen else { return }
 
-        autoHideTimer = Timer.scheduledTimer(withTimeInterval: autoHideDelay, repeats: false) { [weak self] _ in
+        let delay = items.isEmpty ? emptyAutoHideDelay : autoHideDelay
+        autoHideTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             self?.autoHideIfIdle()
         }
         autoHideTimer?.tolerance = 0.5
@@ -1825,6 +2046,9 @@ final class ShelfService: ObservableObject {
             self.pointerInsidePanel = false
             self.dropTargeted = false
             self.interactionDepth = 0
+            self.edgePeekEndWork?.cancel()
+            self.edgePeekEndWork = nil
+            self.edgePeekMatch = nil
             // The classic panel leaving is the docked shelf's cue to return.
             self.scheduleDockedSync()
         }

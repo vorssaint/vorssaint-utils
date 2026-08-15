@@ -470,6 +470,8 @@ extension Strings {
         shelfShakeCaption: "Bir öğeyi tutarken imleci hızlıca sallarsan raf imlecin yanında belirir.",
         shelfDropZoneToggle: "Sürüklenen dosyaları menü çubuğunda tut",
         shelfDropZoneCaption: "Bir dosyayı sürüklerken raf, menü çubuğu simgesinin altında belirir. Bıraktıkların tam orada, tek tıkla daraltıp açtığın bir düğmede kalır ve raf boşaldığında kaybolur.",
+        shelfEdgeToggle: "Ekran kenarına yaklaşınca aç",
+        shelfEdgeCaption: "Bir dosyayı ekran kenarına doğru sürüklediğinde raf belirmeye başlar. Bıraktığın yerde kalır, ya da geri çekersen raf da geri çekilir.",
         shelfDropZoneLabel: "Buraya bırak",
         shelfCollapse: "Daralt",
         shelfBehaviorTitle: "Kullanımdan sonra",

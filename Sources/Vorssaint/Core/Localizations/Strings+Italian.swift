@@ -470,6 +470,8 @@ extension Strings {
         shelfShakeCaption: "Scuoti rapidamente il puntatore mentre tieni un elemento per richiamarlo vicino al cursore.",
         shelfDropZoneToggle: "Tieni nella barra dei menu i file trascinati",
         shelfDropZoneCaption: "Mentre trascini un file, il ripiano appare sotto l’icona della barra dei menu. Quello che rilasci resta lì, in un pulsante che riduci e apri con un clic e che scompare quando il ripiano è vuoto.",
+        shelfEdgeToggle: "Apri vicino a un bordo dello schermo",
+        shelfEdgeCaption: "Trascina un file verso il bordo dello schermo per far intravedere il ripiano. Rilascialo lì, oppure torna indietro e si ritira.",
         shelfDropZoneLabel: "Rilascia qui",
         shelfCollapse: "Riduci",
         shelfBehaviorTitle: "Dopo l’uso",
