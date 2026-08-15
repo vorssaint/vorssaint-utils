@@ -146,7 +146,13 @@ final class FeatureRuntime: ObservableObject {
             TextSnippetService.shared.syncWithPreferences()
             SnippetLibraryService.shared.syncWithPreferences()
         },
-        .clipboardHistory: { ClipboardHistoryService.shared.syncWithPreferences() },
+        .clipboardHistory: {
+            ClipboardHistoryService.shared.syncWithPreferences()
+            // Auto clear rides the clipboard feature's availability but not its
+            // capture toggle: uninstalling the feature stops it, turning history
+            // off does not.
+            ClipboardAutoClearService.shared.syncWithPreferences()
+        },
         .pastePlain: { PastePlainService.shared.syncWithPreferences() },
         .finderCutPaste: { FinderCutPaste.shared.syncWithPreferences() },
         .finderRename: { FinderRenameService.shared.syncWithPreferences() },
