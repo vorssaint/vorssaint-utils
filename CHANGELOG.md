@@ -23,6 +23,11 @@ preventing launch failures across window tools.
   Thanks to @MaximilianMauroner.
 
 ### Changed
+- The menu bar icon now matches the size of neighbouring menu bar icons instead
+  of rendering noticeably shorter than them.
+- Keep Awake active icons are now all drawn at the same size, so switching
+  between the coffee cup, eye, moon and lightbulb no longer changes how large
+  the menu bar icon looks.
 - Area recordings now keep the chosen region visible with a dimmed guide until
   recording stops. Thanks to @lmilojevicc.
 - Copied screenshots now work as image files, so tools that expect a file path

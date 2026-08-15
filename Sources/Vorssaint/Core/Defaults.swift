@@ -625,6 +625,17 @@ enum KeepAwakeActiveIcon: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Nudge down the menu bar canvas, in points. Symbols carrying their mass
+    /// above the shape's middle — steam over a cup, a bulb over its base — read
+    /// as sitting high when their ink is centered geometrically.
+    var menuBarDrop: CGFloat {
+        switch self {
+        case .coffee: return 1
+        case .light: return 0.5
+        case .vorssaint, .eye, .moon: return 0
+        }
+    }
+
     func title(_ strings: Strings) -> String {
         switch self {
         case .vorssaint: return strings.keepAwakeActiveIconVorssaint
