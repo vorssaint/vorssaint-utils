@@ -4,9 +4,10 @@
 import AppKit
 import Foundation
 
-/// Wipes the system pasteboard a set time after the last copy. Opt-in, and
-/// independent of clipboard history: someone who keeps no history at all is
-/// exactly the person who wants a copied password gone a few seconds later.
+/// Wipes the system pasteboard on four independent, opt-in triggers: a delay
+/// after the last copy, computer sleep, display sleep, and screen lock.
+/// Independent of clipboard history: someone who keeps no history at all is
+/// exactly the person who wants a copied password gone.
 ///
 /// Saved history entries are never touched, only the pasteboard.
 final class ClipboardAutoClearService {
@@ -29,14 +30,52 @@ final class ClipboardAutoClearService {
     /// can be abandoned without a stale completion ever landing.
     private var readGeneration = 0
 
+    private var sleepObserver: NSObjectProtocol?
+    private var displaySleepObserver: NSObjectProtocol?
+    private var screenLockObserver: NSObjectProtocol?
+    /// The app is not sandboxed, so the lock notification is delivered. There is
+    /// no AppKit constant for it.
+    private static let screenLockNotification = Notification.Name("com.apple.screenIsLocked")
+
     private init() {}
 
     func syncWithPreferences() {
-        if AppFeature.clipboardHistory.isAvailable,
-           UserDefaults.standard.bool(forKey: DefaultsKey.clipboardAutoClearOnDelay) {
+        let defaults = UserDefaults.standard
+        let isAvailable = AppFeature.clipboardHistory.isAvailable
+        if isAvailable, defaults.bool(forKey: DefaultsKey.clipboardAutoClearOnDelay) {
             startTimer()
         } else {
             stopTimer()
+        }
+        let workspaceCenter = NSWorkspace.shared.notificationCenter
+        syncObserver(&sleepObserver,
+                     isWanted: isAvailable && defaults.bool(forKey: DefaultsKey.clipboardAutoClearOnSleep),
+                     name: NSWorkspace.willSleepNotification,
+                     center: workspaceCenter)
+        syncObserver(&displaySleepObserver,
+                     isWanted: isAvailable && defaults.bool(forKey: DefaultsKey.clipboardAutoClearOnDisplaySleep),
+                     name: NSWorkspace.screensDidSleepNotification,
+                     center: workspaceCenter)
+        syncObserver(&screenLockObserver,
+                     isWanted: isAvailable && defaults.bool(forKey: DefaultsKey.clipboardAutoClearOnScreenLock),
+                     name: Self.screenLockNotification,
+                     center: DistributedNotificationCenter.default())
+    }
+
+    /// Each trigger holds its own observer, so it works with the others (and
+    /// with the delay) switched off.
+    private func syncObserver(_ token: inout NSObjectProtocol?,
+                              isWanted: Bool,
+                              name: Notification.Name,
+                              center: NotificationCenter) {
+        if isWanted {
+            guard token == nil else { return }
+            token = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                self?.clearNow()
+            }
+        } else if let existing = token {
+            center.removeObserver(existing)
+            token = nil
         }
     }
 
