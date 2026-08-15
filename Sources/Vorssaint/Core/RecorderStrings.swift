@@ -262,7 +262,7 @@ extension RecorderFeatureStrings {
         microphonePermissionName: "Microphone",
         microphonePermissionExplain: "Lets screen recordings include your voice when you turn it on.",
         automaticZoomToggle: "Add zooms automatically",
-        automaticZoomCaption: "Turn this off to start new recordings without zooms. You can still add them in the editor.",
+        automaticZoomCaption: "Turn this off to start new recordings without zooms. You can still add them in the editor."
     )
 
     static let ptBR = RecorderFeatureStrings(
@@ -382,7 +382,7 @@ extension RecorderFeatureStrings {
         microphonePermissionName: "Microfone",
         microphonePermissionExplain: "Permite incluir sua voz nas gravações de tela quando você ativar.",
         automaticZoomToggle: "Adicionar zooms automaticamente",
-        automaticZoomCaption: "Desative para começar novas gravações sem zooms. Você ainda pode adicioná-los no editor.",
+        automaticZoomCaption: "Desative para começar novas gravações sem zooms. Você ainda pode adicioná-los no editor."
     )
 
     static let tr = RecorderFeatureStrings(
@@ -502,7 +502,7 @@ extension RecorderFeatureStrings {
         microphonePermissionName: "Mikrofon",
         microphonePermissionExplain: "Açtığınızda ekran kayıtlarına sesinizi ekler.",
         automaticZoomToggle: "Yakınlaştırmaları otomatik ekle",
-        automaticZoomCaption: "Yeni kayıtları yakınlaştırmasız başlatmak için kapatın. Düzenleyicide yine ekleyebilirsiniz.",
+        automaticZoomCaption: "Yeni kayıtları yakınlaştırmasız başlatmak için kapatın. Düzenleyicide yine ekleyebilirsiniz."
     )
 
     static let ru = RecorderFeatureStrings(
@@ -622,7 +622,7 @@ extension RecorderFeatureStrings {
         microphonePermissionName: "Микрофон",
         microphonePermissionExplain: "Добавляет ваш голос в запись экрана, когда вы это включаете.",
         automaticZoomToggle: "Добавлять масштабирование автоматически",
-        automaticZoomCaption: "Отключите, чтобы новые записи начинались без масштабирования. Его можно добавить в редакторе.",
+        automaticZoomCaption: "Отключите, чтобы новые записи начинались без масштабирования. Его можно добавить в редакторе."
     )
 
     static let es = RecorderFeatureStrings(
@@ -742,7 +742,7 @@ extension RecorderFeatureStrings {
         microphonePermissionName: "Micrófono",
         microphonePermissionExplain: "Permite incluir tu voz en las grabaciones de pantalla al activarlo.",
         automaticZoomToggle: "Añadir zooms automáticamente",
-        automaticZoomCaption: "Desactívalo para iniciar nuevas grabaciones sin zooms. Aún puedes añadirlos en el editor.",
+        automaticZoomCaption: "Desactívalo para iniciar nuevas grabaciones sin zooms. Aún puedes añadirlos en el editor."
     )
 
     static let de = RecorderFeatureStrings(
@@ -862,7 +862,7 @@ extension RecorderFeatureStrings {
         microphonePermissionName: "Mikrofon",
         microphonePermissionExplain: "Nimmt deine Stimme auf Wunsch in Bildschirmaufnahmen auf.",
         automaticZoomToggle: "Zooms automatisch hinzufügen",
-        automaticZoomCaption: "Deaktivieren, um neue Aufnahmen ohne Zooms zu beginnen. Im Editor kannst du sie weiterhin hinzufügen.",
+        automaticZoomCaption: "Deaktivieren, um neue Aufnahmen ohne Zooms zu beginnen. Im Editor kannst du sie weiterhin hinzufügen."
     )
 
     static let fr = RecorderFeatureStrings(
@@ -982,7 +982,7 @@ extension RecorderFeatureStrings {
         microphonePermissionName: "Microphone",
         microphonePermissionExplain: "Permet d’ajouter votre voix aux enregistrements d’écran si vous l’activez.",
         automaticZoomToggle: "Ajouter les zooms automatiquement",
-        automaticZoomCaption: "Désactivez cette option pour commencer sans zoom. Vous pourrez toujours en ajouter dans l’éditeur.",
+        automaticZoomCaption: "Désactivez cette option pour commencer sans zoom. Vous pourrez toujours en ajouter dans l’éditeur."
     )
 
     static let it = RecorderFeatureStrings(
@@ -1102,7 +1102,7 @@ extension RecorderFeatureStrings {
         microphonePermissionName: "Microfono",
         microphonePermissionExplain: "Include la tua voce nelle registrazioni dello schermo quando lo attivi.",
         automaticZoomToggle: "Aggiungi zoom automaticamente",
-        automaticZoomCaption: "Disattiva per iniziare le nuove registrazioni senza zoom. Puoi comunque aggiungerli nell’editor.",
+        automaticZoomCaption: "Disattiva per iniziare le nuove registrazioni senza zoom. Puoi comunque aggiungerli nell’editor."
     )
 
     static let ja = RecorderFeatureStrings(
@@ -1222,7 +1222,7 @@ extension RecorderFeatureStrings {
         microphonePermissionName: "マイク",
         microphonePermissionExplain: "オンにすると画面収録に声を含められます。",
         automaticZoomToggle: "ズームを自動的に追加",
-        automaticZoomCaption: "オフにすると、新しい収録はズームなしで始まります。エディタで後から追加できます。",
+        automaticZoomCaption: "オフにすると、新しい収録はズームなしで始まります。エディタで後から追加できます。"
     )
 
     static let ko = RecorderFeatureStrings(
@@ -1342,7 +1342,7 @@ extension RecorderFeatureStrings {
         microphonePermissionName: "마이크",
         microphonePermissionExplain: "켜면 화면 녹화에 음성을 포함합니다.",
         automaticZoomToggle: "확대 효과 자동 추가",
-        automaticZoomCaption: "끄면 새 화면 기록이 확대 효과 없이 시작됩니다. 편집기에서 나중에 추가할 수 있습니다.",
+        automaticZoomCaption: "끄면 새 화면 기록이 확대 효과 없이 시작됩니다. 편집기에서 나중에 추가할 수 있습니다."
     )
 
     static let zhHans = RecorderFeatureStrings(
@@ -1462,7 +1462,7 @@ extension RecorderFeatureStrings {
         microphonePermissionName: "麦克风",
         microphonePermissionExplain: "开启后可在屏幕录制中加入你的声音。",
         automaticZoomToggle: "自动添加缩放",
-        automaticZoomCaption: "关闭后，新录制将不带缩放。你仍可在编辑器中添加缩放。",
+        automaticZoomCaption: "关闭后，新录制将不带缩放。你仍可在编辑器中添加缩放。"
     )
 
     static let zhTW = RecorderFeatureStrings(
@@ -1582,7 +1582,7 @@ extension RecorderFeatureStrings {
         microphonePermissionName: "咪高風",
         microphonePermissionExplain: "開啟後可在螢幕錄製中加入你的聲音。",
         automaticZoomToggle: "自動加入縮放",
-        automaticZoomCaption: "關閉後，新錄影將不含縮放。你仍可在編輯器中加入縮放。",
+        automaticZoomCaption: "關閉後，新錄影將不含縮放。你仍可在編輯器中加入縮放。"
     )
 
     static let zhHK = RecorderFeatureStrings(
@@ -1702,6 +1702,6 @@ extension RecorderFeatureStrings {
         microphonePermissionName: "咪高風",
         microphonePermissionExplain: "開啟後可在螢幕錄製加入你的聲音。",
         automaticZoomToggle: "自動加入縮放",
-        automaticZoomCaption: "關閉後，新錄影將不含縮放。你仍可在編輯器中加入縮放。",
+        automaticZoomCaption: "關閉後，新錄影將不含縮放。你仍可在編輯器中加入縮放。"
     )
 }

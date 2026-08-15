@@ -293,10 +293,10 @@ if (( DEV )); then
     /usr/libexec/PlistBuddy -c "Add :VorssaintBuildCommit string '$SHA · $(date '+%Y-%m-%d %H:%M')'" "$STAGE/Contents/Info.plist"
     echo "  stamped dev build: $SHA"
 fi
-FAN_HELPER_VERSION="$(/usr/bin/shasum -a 256 \
+FAN_HELPER_VERSION="$(LC_ALL=C /usr/bin/shasum -a 256 \
     "$STAGE/Contents/Library/LaunchServices/$FAN_HELPER_ID" \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist" \
-    | /usr/bin/awk '{print $1}' | /usr/bin/shasum -a 256 \
+    | /usr/bin/awk '{print $1}' | LC_ALL=C /usr/bin/shasum -a 256 \
     | /usr/bin/awk '{print $1}')"
 /usr/libexec/PlistBuddy -c "Add :VorssaintFanControlHelperVersion string '$FAN_HELPER_VERSION'" \
     "$STAGE/Contents/Info.plist"
