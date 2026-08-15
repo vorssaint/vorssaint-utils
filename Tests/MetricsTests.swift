@@ -281,6 +281,13 @@ struct MetricsTests {
                          "\(language.rawValue) paste-selected button format")
             expectFormat(clipboardStrings.copySelectedFormat, ["d"],
                          "\(language.rawValue) copy-selected button format")
+            expect(!clipboardStrings.autoClearEnable.isEmpty
+                   && !clipboardStrings.autoClearSecondsSuffix.isEmpty
+                   && !clipboardStrings.autoClearOnSleep.isEmpty
+                   && !clipboardStrings.autoClearOnDisplaySleep.isEmpty
+                   && !clipboardStrings.autoClearOnScreenLock.isEmpty
+                   && !clipboardStrings.autoClearCaption.isEmpty,
+                   "\(language.rawValue) clipboard auto clear labels are localized")
             let layoutStrings = FeatureStrings.windowLayout(language)
             expect(!layoutStrings.sixths.isEmpty
                    && !layoutStrings.topLeftSixth.isEmpty
@@ -8521,7 +8528,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let values = Mirror(reflecting: FeatureStrings.clipboard(language)).children
                 .compactMap { $0.value as? String }
-            expect(values.count == 46 && values.allSatisfy { !$0.isEmpty },
+            expect(values.count == 52 && values.allSatisfy { !$0.isEmpty },
                    "every clipboard string is set for \(language.rawValue)")
             expect(values.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible clipboard strings (\(language.rawValue))")

@@ -88,6 +88,7 @@ enum SettingsDirectory {
                                       keywords: [FeatureStrings.clipboard(language).limit,
                                                  FeatureStrings.clipboard(language).skipSensitive,
                                                  FeatureStrings.clipboard(language).pasteImageAsFile,
+                                                 FeatureStrings.clipboard(language).autoClearEnable,
                                                  FeatureStrings.clipboardIgnoredApps(language).listTitle]),
                 SettingsDirectoryItem(page: .cutPaste,
                                       title: FeatureStrings.finderRename(language).pageTitle,
