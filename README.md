@@ -17,7 +17,9 @@
   <a href="#install">Install</a> ·
   <a href="#everything-it-does">Features</a> ·
   <a href="#private-by-default">Privacy</a> ·
-  <a href="CHANGELOG.md">Changelog</a>
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="mailto:hello@vorssaint.com">Contact</a> ·
+  <a href="https://github.com/sponsors/vorssaint">Sponsor</a>
 </p>
 
 <p align="center">
@@ -29,7 +31,14 @@
 </p>
 
 <p align="center">
-  <a href="https://trendshift.io/repositories/53716"><img src="https://img.shields.io/badge/Trendshift-%231%20Swift%20Repository%20of%20the%20Day-e8663d?labelColor=2b2b2b" alt="Number 1 Swift repository of the day on Trendshift"></a>
+  For partnerships, sponsorships, or anything worth building together,
+  <a href="mailto:hello@vorssaint.com"><strong>hello@vorssaint.com</strong></a>
+</p>
+
+<p align="center">
+  <a href="https://trendshift.io/repositories/53716?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-53716" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/53716/daily?language=Swift" alt="vorssaint/vorssaint-utils | Trendshift daily ranking" width="250" height="55"></a>
+  &nbsp;&nbsp;
+  <a href="https://trendshift.io/repositories/53716?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-53716" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/53716/weekly?language=Swift" alt="vorssaint/vorssaint-utils | Trendshift weekly ranking" width="250" height="55"></a>
 </p>
 
 <p align="center">
