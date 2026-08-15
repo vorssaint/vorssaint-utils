@@ -114,7 +114,6 @@ struct CommandBarFeatureStrings {
     let linkDestinationLabel: String
     let linkKindLink: String
     let linkKindPlace: String
-    let linkKindScript: String
     let linkPlaceholdersHint: String
     let placeholderQuery: String
     let placeholderClipboard: String
@@ -136,6 +135,11 @@ struct CommandBarFeatureStrings {
     let forceQuitAppConfirmFormat: String
     let uninstallAppFormat: String
     let openInBrowser: String
+    let linkKindScript: String
+    let scriptHint: String
+    let scriptRunFailed: String
+    let scriptSearchHint: String
+    let linkAddButton: String
 }
 
 extension FeatureStrings {
@@ -263,11 +267,10 @@ extension CommandBarFeatureStrings {
         kindLink: "Your shortcut",
         linkSearchHint: "Type what to look for after the name",
         linksTitle: "Your shortcuts",
-        linksEmpty: "Nothing saved yet. Add a site, a folder or a search you open every day.",
+        linksEmpty: "Nothing saved yet. Add a site, folder, search or script you use every day.",
         linkDestinationLabel: "Where it goes",
         linkKindLink: "Site or link",
         linkKindPlace: "Folder or file",
-        linkKindScript: "Script",
         linkPlaceholdersHint: "Drop one of these in and it gets filled in when it opens",
         placeholderQuery: "what you type",
         placeholderClipboard: "what you copied",
@@ -288,7 +291,12 @@ extension CommandBarFeatureStrings {
         forceQuitAppFormat: "Force Quit %@…",
         forceQuitAppConfirmFormat: "Force quit %@? Unsaved changes will be lost.",
         uninstallAppFormat: "Uninstall %@…",
-        openInBrowser: "Open in browser")
+        openInBrowser: "Open in browser",
+        linkKindScript: "Script",
+        scriptHint: "Choose an executable file. Type its name followed by what you want to send. It runs when you pause and shows the result here.",
+        scriptRunFailed: "Couldn’t run this file",
+        scriptSearchHint: "Type what to send after the name",
+        linkAddButton: "Add shortcut")
 
     static let ptBR = CommandBarFeatureStrings(
         pageTitle: "Barra de comando",
@@ -394,11 +402,10 @@ extension CommandBarFeatureStrings {
         kindLink: "Seu atalho",
         linkSearchHint: "Digite o que procurar depois do nome",
         linksTitle: "Seus atalhos",
-        linksEmpty: "Nada salvo ainda. Adicione um site, uma pasta ou uma busca que você abre todo dia.",
+        linksEmpty: "Nada salvo ainda. Adicione um site, pasta, busca ou script que você usa todo dia.",
         linkDestinationLabel: "Para onde vai",
         linkKindLink: "Site ou link",
         linkKindPlace: "Pasta ou arquivo",
-        linkKindScript: "Script",
         linkPlaceholdersHint: "Coloque um destes e ele é preenchido na hora de abrir",
         placeholderQuery: "o que você digitar",
         placeholderClipboard: "o que você copiou",
@@ -419,7 +426,12 @@ extension CommandBarFeatureStrings {
         forceQuitAppFormat: "Forçar encerramento de %@…",
         forceQuitAppConfirmFormat: "Forçar o encerramento de %@? Alterações não salvas serão perdidas.",
         uninstallAppFormat: "Desinstalar %@…",
-        openInBrowser: "Abrir no navegador")
+        openInBrowser: "Abrir no navegador",
+        linkKindScript: "Script",
+        scriptHint: "Escolha um arquivo executável. Digite o nome seguido do que deseja enviar. Ele roda quando você para e mostra o resultado aqui.",
+        scriptRunFailed: "Não foi possível executar este arquivo",
+        scriptSearchHint: "Digite o que enviar depois do nome",
+        linkAddButton: "Adicionar atalho")
 
     static let tr = CommandBarFeatureStrings(
         pageTitle: "Komut çubuğu",
@@ -525,11 +537,10 @@ extension CommandBarFeatureStrings {
         kindLink: "Kısayolunuz",
         linkSearchHint: "Adın ardına aranacak şeyi yazın",
         linksTitle: "Kısayollarınız",
-        linksEmpty: "Henüz bir şey yok. Her gün açtığınız bir siteyi, klasörü ya da aramayı ekleyin.",
+        linksEmpty: "Henüz bir şey yok. Her gün kullandığınız bir site, klasör, arama veya betik ekleyin.",
         linkDestinationLabel: "Nereye gider",
         linkKindLink: "Site veya bağlantı",
         linkKindPlace: "Klasör veya dosya",
-        linkKindScript: "Betik",
         linkPlaceholdersHint: "Bunlardan birini koyun, açılırken doldurulur",
         placeholderQuery: "yazdığınız şey",
         placeholderClipboard: "kopyaladığınız şey",
@@ -550,7 +561,12 @@ extension CommandBarFeatureStrings {
         forceQuitAppFormat: "%@ uygulamasını zorla kapat…",
         forceQuitAppConfirmFormat: "%@ uygulaması zorla kapatılsın mı? Kaydedilmemiş değişiklikler kaybolacak.",
         uninstallAppFormat: "%@ uygulamasını kaldır…",
-        openInBrowser: "Tarayıcıda aç")
+        openInBrowser: "Tarayıcıda aç",
+        linkKindScript: "Betik",
+        scriptHint: "Çalıştırılabilir bir dosya seçin. Adını ve ardından göndermek istediğiniz metni yazın. Durduğunuzda çalışır ve sonucu burada gösterir.",
+        scriptRunFailed: "Bu dosya çalıştırılamadı",
+        scriptSearchHint: "Addan sonra göndermek istediğinizi yazın",
+        linkAddButton: "Kısayol ekle")
 
     static let ru = CommandBarFeatureStrings(
         pageTitle: "Командная панель",
@@ -656,11 +672,10 @@ extension CommandBarFeatureStrings {
         kindLink: "Ваш ярлык",
         linkSearchHint: "Введите после имени то, что нужно найти",
         linksTitle: "Ваши ярлыки",
-        linksEmpty: "Пока пусто. Добавьте сайт, папку или поиск, которые открываете каждый день.",
+        linksEmpty: "Пока пусто. Добавьте сайт, папку, поиск или скрипт, которыми пользуетесь каждый день.",
         linkDestinationLabel: "Куда ведёт",
         linkKindLink: "Сайт или ссылка",
         linkKindPlace: "Папка или файл",
-        linkKindScript: "Скрипт",
         linkPlaceholdersHint: "Вставьте одно из этих, и оно подставится при открытии",
         placeholderQuery: "то, что вы введёте",
         placeholderClipboard: "то, что вы скопировали",
@@ -681,7 +696,12 @@ extension CommandBarFeatureStrings {
         forceQuitAppFormat: "Завершить %@ принудительно…",
         forceQuitAppConfirmFormat: "Завершить %@ принудительно? Несохранённые изменения будут потеряны.",
         uninstallAppFormat: "Удалить %@…",
-        openInBrowser: "Открыть в браузере")
+        openInBrowser: "Открыть в браузере",
+        linkKindScript: "Скрипт",
+        scriptHint: "Выберите исполняемый файл. Введите имя и затем то, что хотите передать. После паузы файл запустится и покажет результат здесь.",
+        scriptRunFailed: "Не удалось запустить этот файл",
+        scriptSearchHint: "После имени введите то, что нужно передать",
+        linkAddButton: "Добавить ярлык")
 
     static let es = CommandBarFeatureStrings(
         pageTitle: "Barra de comandos",
@@ -787,11 +807,10 @@ extension CommandBarFeatureStrings {
         kindLink: "Tu atajo",
         linkSearchHint: "Escribe qué buscar después del nombre",
         linksTitle: "Tus atajos",
-        linksEmpty: "Nada guardado aún. Añade un sitio, una carpeta o una búsqueda que abras a diario.",
+        linksEmpty: "Nada guardado aún. Añade un sitio, carpeta, búsqueda o script que uses a diario.",
         linkDestinationLabel: "Adónde va",
         linkKindLink: "Sitio o enlace",
         linkKindPlace: "Carpeta o archivo",
-        linkKindScript: "Script",
         linkPlaceholdersHint: "Pon uno de estos y se rellena al abrir",
         placeholderQuery: "lo que escribas",
         placeholderClipboard: "lo que copiaste",
@@ -812,7 +831,12 @@ extension CommandBarFeatureStrings {
         forceQuitAppFormat: "Forzar salida de %@…",
         forceQuitAppConfirmFormat: "¿Forzar la salida de %@? Se perderán los cambios no guardados.",
         uninstallAppFormat: "Desinstalar %@…",
-        openInBrowser: "Abrir en el navegador")
+        openInBrowser: "Abrir en el navegador",
+        linkKindScript: "Script",
+        scriptHint: "Elige un archivo ejecutable. Escribe su nombre seguido de lo que quieras enviar. Se ejecuta al hacer una pausa y muestra el resultado aquí.",
+        scriptRunFailed: "No se pudo ejecutar este archivo",
+        scriptSearchHint: "Escribe lo que quieras enviar después del nombre",
+        linkAddButton: "Añadir atajo")
 
     static let de = CommandBarFeatureStrings(
         pageTitle: "Befehlsleiste",
@@ -918,11 +942,10 @@ extension CommandBarFeatureStrings {
         kindLink: "Ihr Kurzbefehl",
         linkSearchHint: "Nach dem Namen eingeben, wonach gesucht wird",
         linksTitle: "Ihre Kurzbefehle",
-        linksEmpty: "Noch nichts gespeichert. Fügen Sie eine Seite, einen Ordner oder eine Suche hinzu, die Sie täglich öffnen.",
+        linksEmpty: "Noch nichts gespeichert. Fügen Sie eine Seite, einen Ordner, eine Suche oder ein Skript hinzu, das Sie täglich verwenden.",
         linkDestinationLabel: "Wohin es führt",
         linkKindLink: "Seite oder Link",
         linkKindPlace: "Ordner oder Datei",
-        linkKindScript: "Skript",
         linkPlaceholdersHint: "Eines davon einsetzen, es wird beim Öffnen ausgefüllt",
         placeholderQuery: "was Sie eingeben",
         placeholderClipboard: "was Sie kopiert haben",
@@ -943,7 +966,12 @@ extension CommandBarFeatureStrings {
         forceQuitAppFormat: "%@ sofort beenden…",
         forceQuitAppConfirmFormat: "%@ sofort beenden? Nicht gesicherte Änderungen gehen verloren.",
         uninstallAppFormat: "%@ deinstallieren…",
-        openInBrowser: "Im Browser öffnen")
+        openInBrowser: "Im Browser öffnen",
+        linkKindScript: "Skript",
+        scriptHint: "Wählen Sie eine ausführbare Datei. Geben Sie den Namen und danach den gewünschten Text ein. Nach einer Pause wird das Ergebnis hier angezeigt.",
+        scriptRunFailed: "Diese Datei konnte nicht ausgeführt werden",
+        scriptSearchHint: "Geben Sie nach dem Namen ein, was gesendet werden soll",
+        linkAddButton: "Kurzbefehl hinzufügen")
 
     static let fr = CommandBarFeatureStrings(
         pageTitle: "Barre de commande",
@@ -1049,11 +1077,10 @@ extension CommandBarFeatureStrings {
         kindLink: "Votre raccourci",
         linkSearchHint: "Tapez quoi chercher après le nom",
         linksTitle: "Vos raccourcis",
-        linksEmpty: "Rien d’enregistré. Ajoutez un site, un dossier ou une recherche que vous ouvrez tous les jours.",
+        linksEmpty: "Rien d’enregistré. Ajoutez un site, un dossier, une recherche ou un script que vous utilisez chaque jour.",
         linkDestinationLabel: "Où il mène",
         linkKindLink: "Site ou lien",
         linkKindPlace: "Dossier ou fichier",
-        linkKindScript: "Script",
         linkPlaceholdersHint: "Mettez-en un et il se remplit à l’ouverture",
         placeholderQuery: "ce que vous tapez",
         placeholderClipboard: "ce que vous avez copié",
@@ -1074,7 +1101,12 @@ extension CommandBarFeatureStrings {
         forceQuitAppFormat: "Forcer %@ à quitter…",
         forceQuitAppConfirmFormat: "Forcer %@ à quitter ? Les modifications non enregistrées seront perdues.",
         uninstallAppFormat: "Désinstaller %@…",
-        openInBrowser: "Ouvrir dans le navigateur")
+        openInBrowser: "Ouvrir dans le navigateur",
+        linkKindScript: "Script",
+        scriptHint: "Choisissez un fichier exécutable. Saisissez son nom suivi du texte à envoyer. Après une pause, le résultat s’affiche ici.",
+        scriptRunFailed: "Impossible d’exécuter ce fichier",
+        scriptSearchHint: "Saisissez ce qui sera envoyé après le nom",
+        linkAddButton: "Ajouter un raccourci")
 
     static let it = CommandBarFeatureStrings(
         pageTitle: "Barra dei comandi",
@@ -1180,11 +1212,10 @@ extension CommandBarFeatureStrings {
         kindLink: "La tua scorciatoia",
         linkSearchHint: "Scrivi cosa cercare dopo il nome",
         linksTitle: "Le tue scorciatoie",
-        linksEmpty: "Niente salvato. Aggiungi un sito, una cartella o una ricerca che apri ogni giorno.",
+        linksEmpty: "Niente salvato. Aggiungi un sito, una cartella, una ricerca o uno script che usi ogni giorno.",
         linkDestinationLabel: "Dove porta",
         linkKindLink: "Sito o link",
         linkKindPlace: "Cartella o file",
-        linkKindScript: "Script",
         linkPlaceholdersHint: "Metti uno di questi e viene riempito all’apertura",
         placeholderQuery: "quello che scrivi",
         placeholderClipboard: "quello che hai copiato",
@@ -1205,7 +1236,12 @@ extension CommandBarFeatureStrings {
         forceQuitAppFormat: "Forza l’uscita da %@…",
         forceQuitAppConfirmFormat: "Forzare l’uscita da %@? Le modifiche non salvate andranno perse.",
         uninstallAppFormat: "Disinstalla %@…",
-        openInBrowser: "Apri nel browser")
+        openInBrowser: "Apri nel browser",
+        linkKindScript: "Script",
+        scriptHint: "Scegli un file eseguibile. Digita il nome seguito dal testo da inviare. Dopo una pausa, il risultato appare qui.",
+        scriptRunFailed: "Impossibile eseguire questo file",
+        scriptSearchHint: "Digita cosa inviare dopo il nome",
+        linkAddButton: "Aggiungi scorciatoia")
 
     static let ja = CommandBarFeatureStrings(
         pageTitle: "コマンドバー",
@@ -1311,11 +1347,10 @@ extension CommandBarFeatureStrings {
         kindLink: "自分のショートカット",
         linkSearchHint: "名前の後に探すものを入力します",
         linksTitle: "自分のショートカット",
-        linksEmpty: "まだ何もありません。毎日開くサイトやフォルダ、検索を追加してください。",
+        linksEmpty: "まだ何もありません。毎日使うサイトやフォルダ、検索、スクリプトを追加してください。",
         linkDestinationLabel: "開く先",
         linkKindLink: "サイトまたはリンク",
         linkKindPlace: "フォルダまたはファイル",
-        linkKindScript: "スクリプト",
         linkPlaceholdersHint: "これを入れておくと、開くときに埋まります",
         placeholderQuery: "入力した内容",
         placeholderClipboard: "コピーした内容",
@@ -1336,7 +1371,12 @@ extension CommandBarFeatureStrings {
         forceQuitAppFormat: "%@を強制終了…",
         forceQuitAppConfirmFormat: "%@を強制終了しますか？保存していない変更内容は失われます。",
         uninstallAppFormat: "%@をアンインストール…",
-        openInBrowser: "ブラウザで開く")
+        openInBrowser: "ブラウザで開く",
+        linkKindScript: "スクリプト",
+        scriptHint: "実行可能なファイルを選びます。名前に続けて渡したい内容を入力すると、入力を止めた後に結果がここへ表示されます。",
+        scriptRunFailed: "このファイルを実行できませんでした",
+        scriptSearchHint: "名前の後に渡したい内容を入力",
+        linkAddButton: "ショートカットを追加")
 
     static let ko = CommandBarFeatureStrings(
         pageTitle: "명령 막대",
@@ -1442,11 +1482,10 @@ extension CommandBarFeatureStrings {
         kindLink: "내 단축키",
         linkSearchHint: "이름 뒤에 찾을 내용을 입력합니다",
         linksTitle: "내 단축키",
-        linksEmpty: "아직 없습니다. 매일 여는 사이트나 폴더, 검색을 추가하십시오.",
+        linksEmpty: "아직 없습니다. 매일 사용하는 사이트, 폴더, 검색 또는 스크립트를 추가하세요.",
         linkDestinationLabel: "가는 곳",
         linkKindLink: "사이트 또는 링크",
         linkKindPlace: "폴더 또는 파일",
-        linkKindScript: "스크립트",
         linkPlaceholdersHint: "이 중 하나를 넣으면 열 때 채워집니다",
         placeholderQuery: "입력한 내용",
         placeholderClipboard: "복사한 내용",
@@ -1467,7 +1506,12 @@ extension CommandBarFeatureStrings {
         forceQuitAppFormat: "%@ 강제 종료…",
         forceQuitAppConfirmFormat: "%@ 앱을 강제로 종료할까요? 저장하지 않은 변경 사항은 사라집니다.",
         uninstallAppFormat: "%@ 제거…",
-        openInBrowser: "브라우저에서 열기")
+        openInBrowser: "브라우저에서 열기",
+        linkKindScript: "스크립트",
+        scriptHint: "실행 가능한 파일을 선택하세요. 이름 뒤에 전달할 내용을 입력하면 멈춘 뒤 결과가 여기에 표시됩니다.",
+        scriptRunFailed: "이 파일을 실행할 수 없습니다",
+        scriptSearchHint: "이름 뒤에 전달할 내용을 입력하세요",
+        linkAddButton: "단축키 추가")
 
     static let zhHans = CommandBarFeatureStrings(
         pageTitle: "命令栏",
@@ -1573,11 +1617,10 @@ extension CommandBarFeatureStrings {
         kindLink: "你的快捷方式",
         linkSearchHint: "在名称后输入要查找的内容",
         linksTitle: "你的快捷方式",
-        linksEmpty: "还没有内容。添加一个每天都会打开的网站、文件夹或搜索。",
+        linksEmpty: "还没有内容。添加一个每天都会使用的网站、文件夹、搜索或脚本。",
         linkDestinationLabel: "去往哪里",
         linkKindLink: "网站或链接",
         linkKindPlace: "文件夹或文件",
-        linkKindScript: "脚本",
         linkPlaceholdersHint: "放入其中一个，打开时会自动填入",
         placeholderQuery: "你输入的内容",
         placeholderClipboard: "你复制的内容",
@@ -1598,7 +1641,12 @@ extension CommandBarFeatureStrings {
         forceQuitAppFormat: "强制退出%@…",
         forceQuitAppConfirmFormat: "要强制退出%@吗？未保存的更改将会丢失。",
         uninstallAppFormat: "卸载%@…",
-        openInBrowser: "在浏览器中打开")
+        openInBrowser: "在浏览器中打开",
+        linkKindScript: "脚本",
+        scriptHint: "选择一个可执行文件。输入名称，再输入要传递的内容。停止输入后会在这里显示结果。",
+        scriptRunFailed: "无法运行此文件",
+        scriptSearchHint: "在名称后输入要传递的内容",
+        linkAddButton: "添加快捷方式")
 
     static let zhTW = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -1704,11 +1752,10 @@ extension CommandBarFeatureStrings {
         kindLink: "你的捷徑",
         linkSearchHint: "在名稱後輸入要尋找的內容",
         linksTitle: "你的捷徑",
-        linksEmpty: "還沒有內容。加入一個每天都會開啟的網站、資料夾或搜尋。",
+        linksEmpty: "還沒有內容。加入一個每天都會使用的網站、資料夾、搜尋或腳本。",
         linkDestinationLabel: "前往哪裡",
         linkKindLink: "網站或連結",
         linkKindPlace: "資料夾或檔案",
-        linkKindScript: "腳本",
         linkPlaceholdersHint: "放入其中一個，開啟時會自動填入",
         placeholderQuery: "你輸入的內容",
         placeholderClipboard: "你複製的內容",
@@ -1729,7 +1776,12 @@ extension CommandBarFeatureStrings {
         forceQuitAppFormat: "強制結束%@…",
         forceQuitAppConfirmFormat: "要強制結束%@嗎？未儲存的更改將會遺失。",
         uninstallAppFormat: "解除安裝%@…",
-        openInBrowser: "在瀏覽器中開啟")
+        openInBrowser: "在瀏覽器中開啟",
+        linkKindScript: "腳本",
+        scriptHint: "選擇一個可執行檔案。輸入名稱，再輸入要傳送的內容。停止輸入後會在這裡顯示結果。",
+        scriptRunFailed: "無法執行此檔案",
+        scriptSearchHint: "在名稱後輸入要傳送的內容",
+        linkAddButton: "加入捷徑")
 
     static let zhHK = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -1835,11 +1887,10 @@ extension CommandBarFeatureStrings {
         kindLink: "你的捷徑",
         linkSearchHint: "在名稱後輸入要尋找的內容",
         linksTitle: "你的捷徑",
-        linksEmpty: "還沒有內容。加入一個每天都會開啟的網站、資料夾或搜尋。",
+        linksEmpty: "還沒有內容。加入一個每天都會使用的網站、資料夾、搜尋或腳本。",
         linkDestinationLabel: "前往哪裡",
         linkKindLink: "網站或連結",
         linkKindPlace: "資料夾或檔案",
-        linkKindScript: "腳本",
         linkPlaceholdersHint: "放入其中一個，開啟時會自動填入",
         placeholderQuery: "你輸入的內容",
         placeholderClipboard: "你複製的內容",
@@ -1860,5 +1911,10 @@ extension CommandBarFeatureStrings {
         forceQuitAppFormat: "強制結束%@…",
         forceQuitAppConfirmFormat: "要強制結束%@嗎？未儲存的更改將會遺失。",
         uninstallAppFormat: "解除安裝%@…",
-        openInBrowser: "在瀏覽器中開啟")
+        openInBrowser: "在瀏覽器中開啟",
+        linkKindScript: "腳本",
+        scriptHint: "選擇一個可執行檔案。輸入名稱，再輸入要傳送的內容。停止輸入後會在這裡顯示結果。",
+        scriptRunFailed: "無法執行此檔案",
+        scriptSearchHint: "在名稱後輸入要傳送的內容",
+        linkAddButton: "加入捷徑")
 }

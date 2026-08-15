@@ -245,6 +245,7 @@ final class CommandBarService: ObservableObject {
     @discardableResult
     private func beginPresentation() -> UUID {
         deferredRowShortcut.cancel()
+        scriptRunner.reset()
         let id = UUID()
         presentationID = id
         presentationLifecycle.beginHome(id)
@@ -303,6 +304,7 @@ final class CommandBarService: ObservableObject {
             TextSnippetService.shared.setCommandBarVisible(false)
         }
         deferredRowShortcut.cancel()
+        scriptRunner.reset()
         // Closing while listening for a combination must give every global key
         // back, or the whole app would go quiet until the next relaunch.
         if case .capturingShortcut = mode { endCapturingShortcut() }
@@ -1032,11 +1034,14 @@ final class CommandBarService: ObservableObject {
         if let scriptMatch, !hiddenKeys.contains("link.\(scriptMatch.link.id.uuidString)") {
             if let result = scriptRunner.cachedResult(linkID: scriptMatch.link.id,
                                                        argument: scriptMatch.argument) {
+                scriptRunner.cancelPending()
                 scriptAnswer = CommandBarCatalog.scriptAnswerEntry(link: scriptMatch.link,
                                                                    result: result, bar: bar)
             } else {
                 scriptRunner.schedule(link: scriptMatch.link, argument: scriptMatch.argument)
             }
+        } else {
+            scriptRunner.cancelPending()
         }
 
         // "brilho 40" is a command with a value; "code 1234" is a search for
@@ -1065,10 +1070,20 @@ final class CommandBarService: ObservableObject {
         // What is selected comes first, so a tie goes to the thing the person
         // is already looking at.
         var pool = selectionEntries + catalog + appEntries + windowEntries
-        // The plain row for this link is redundant once its answer leads
-        // the list; without this, the same saved name would show twice.
-        if scriptAnswer != nil, let scriptMatch {
-            pool.removeAll { $0.id == "link.\(scriptMatch.link.id.uuidString)" }
+        // Two script names can overlap ("run" and "run report"). Only the
+        // longest matching one is eligible; otherwise the shorter row can win
+        // a ranking tie and Return runs a different file from the answer shown.
+        if let scriptMatch {
+            let winnerID = "link.\(scriptMatch.link.id.uuidString)"
+            let matchingScriptIDs = Set(savedLinks.compactMap { link -> String? in
+                guard link.kind == .script,
+                      CommandBarLinks.trailingArgument(query: trimmed, name: link.name) != nil
+                else { return nil }
+                return "link.\(link.id.uuidString)"
+            })
+            pool.removeAll {
+                matchingScriptIDs.contains($0.id) && (scriptAnswer != nil || $0.id != winnerID)
+            }
         }
         // Quitting an app is a rare, heavy verb: its rows only join the list
         // when the person actually asked to quit something, so they never

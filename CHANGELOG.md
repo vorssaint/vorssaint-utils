@@ -7,13 +7,15 @@ All notable changes to this project are documented here. The format follows
 ## [3.3.2]
 
 ### Summary
-Vorssaint 3.3.2 adds batch image conversion and improves app discovery, unit conversions
-and full-screen switching. It also makes recording more flexible and strengthens screenshots,
-clipboard, Window Layout, audio, display safety and Settings.
+Vorssaint 3.3.2 adds batch image conversion and local Command Bar scripts, and improves
+app discovery, unit conversions and full-screen switching. It also makes recording more
+flexible and strengthens screenshots, clipboard, Window Layout, audio, display safety and Settings.
 
 ### Added
 - Media now converts images in batches with resizing, watermarks, renaming and
   reusable profiles. Thanks to @ruvelro.
+- Saved Command Bar shortcuts can now run local scripts and show their results as
+  you type. Thanks to @tenbux.
 - Emoji can open directly from a shortcut assigned to its Command Bar row.
   Thanks to @MaximilianMauroner.
 

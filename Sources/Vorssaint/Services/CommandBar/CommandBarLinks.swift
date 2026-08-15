@@ -142,18 +142,19 @@ enum CommandBarLinks {
         trailingArgument(query: query, name: name) != nil ? query : name
     }
 
-    /// The first script-kind link the query names, with what follows its
-    /// name as the argument, or nil when nothing matches. Only a link with
-    /// something typed after it matches: the bare name alone has nothing to
-    /// run yet.
+    /// The most specific script-kind link the query names, with what follows
+    /// its name as the argument, or nil when nothing matches. A longer name
+    /// wins over one that is only its prefix.
     static func matchingScriptLink(in links: [CommandBarLink],
                                    query: String) -> (link: CommandBarLink, argument: String)? {
+        var best: (link: CommandBarLink, argument: String, nameLength: Int)?
         for link in links where link.kind == .script {
-            if let argument = trailingArgument(query: query, name: link.name) {
-                return (link, argument)
-            }
+            guard let argument = trailingArgument(query: query, name: link.name) else { continue }
+            let nameLength = CommandBarSearch.normalized(link.name).count
+            if let best, nameLength <= best.nameLength { continue }
+            best = (link, argument, nameLength)
         }
-        return nil
+        return best.map { ($0.link, $0.argument) }
     }
 
     /// What a script printed, reduced to what the answer row shows: no

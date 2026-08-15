@@ -12663,7 +12663,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let commandBarValues = Mirror(reflecting: FeatureStrings.commandBar(language)).children
                 .compactMap { $0.value as? String }
-            expect(commandBarValues.count == 129 && commandBarValues.allSatisfy { !$0.isEmpty },
+            expect(commandBarValues.count == 133 && commandBarValues.allSatisfy { !$0.isEmpty },
                    "every command bar string is set for \(language.rawValue)")
             expect(commandBarValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible command bar strings (\(language.rawValue))")
@@ -12990,6 +12990,14 @@ struct MetricsTests {
                "the bare name alone has nothing to run yet")
         expect(CommandBarLinks.matchingScriptLink(in: scriptLinks, query: "a 100 usd eur") == nil,
                "a non-script link never matches, even with an argument")
+        let overlappingScripts = [
+            CommandBarLink(name: "run", kind: .script, destination: "/tmp/short"),
+            CommandBarLink(name: "run report", kind: .script, destination: "/tmp/specific"),
+        ]
+        expect(CommandBarLinks.matchingScriptLink(in: overlappingScripts,
+                                                   query: "run report today")?.link.name
+                == "run report",
+               "the most specific script name wins over a shorter prefix")
         expect(CommandBarLinks.resultText("  100 USD = 86.70 EUR\n") == "100 USD = 86.70 EUR",
                "a script's output loses its wrapping whitespace")
         expect(CommandBarLinks.resultText("   \n") == nil,

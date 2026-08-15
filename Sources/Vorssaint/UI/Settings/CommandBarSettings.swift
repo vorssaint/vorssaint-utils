@@ -17,8 +17,8 @@ struct CommandBarSettings: View {
     @State private var editing: CommandBarLink?
 
     private var text: CommandBarFeatureStrings { FeatureStrings.commandBar(l10n.language) }
-    /// The snippet library already says "add", "save", "delete" and "name" in
-    /// every language; saying them twice would only mean two things to keep.
+    /// The snippet library already says "save", "delete" and "name" in every
+    /// language; saying them twice would only mean two things to keep.
     private var common: SnippetFeatureStrings { FeatureStrings.snippets(l10n.language) }
     private var editLabel: String { FeatureStrings.screenshot(l10n.language).editButton }
 
@@ -119,7 +119,7 @@ struct CommandBarSettings: View {
                 Button {
                     editing = CommandBarLink()
                 } label: {
-                    Label(common.addButton, systemImage: "plus")
+                    Label(text.linkAddButton, systemImage: "plus")
                 }
             } header: {
                 Text(text.linksTitle)
@@ -428,6 +428,10 @@ private struct CommandBarLinkEditor: View {
                         }
                     }
                 }
+            } else {
+                Text(text.scriptHint)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             HStack {
