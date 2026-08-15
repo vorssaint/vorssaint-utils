@@ -80,3 +80,22 @@ enum SpaceHopSupport {
         return flags
     }
 }
+
+enum WindowSpaceMoveDirection {
+    case previous
+    case next
+}
+
+enum WindowSpaceMoveSupport {
+    static func destination(windowSpaces: [UInt64],
+                            orderedUserSpacesPerDisplay: [[UInt64]],
+                            direction: WindowSpaceMoveDirection) -> UInt64? {
+        guard windowSpaces.count == 1, let current = windowSpaces.first else { return nil }
+        for row in orderedUserSpacesPerDisplay where row.count > 1 {
+            guard let index = row.firstIndex(of: current) else { continue }
+            let offset = direction == .next ? 1 : row.count - 1
+            return row[(index + offset) % row.count]
+        }
+        return nil
+    }
+}

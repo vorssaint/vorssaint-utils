@@ -28,9 +28,10 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
     let take: RecorderTakeStore.Take
     let region: RecorderSupport.Region
     private let engine = RecorderCaptureEngine()
+    private let pauseClock = RecorderPauseClock()
     private let microphone: RecorderMicrophoneCapture?
     private let pointer: RecorderPointerSampler
-    private let typing = RecorderTypingSampler()
+    private let typing: RecorderTypingSampler
     private let writerQueue = DispatchQueue(label: "com.vorssaint.recorder.writer",
                                             qos: .userInitiated)
     /// Immutable for the whole session, which is what makes it safe to touch
@@ -49,13 +50,15 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
                                           pixelSize: region.pixelSize,
                                           frameRate: frameRate,
                                           capturesSystemAudio: capturesSystemAudio,
-                                          capturesMicrophone: capturesMicrophone)
+                                          capturesMicrophone: capturesMicrophone,
+                                          pauseClock: pauseClock)
         else { return nil }
         self.take = take
         self.region = region
         self.writer = writer
         microphone = capturesMicrophone ? RecorderMicrophoneCapture() : nil
-        pointer = RecorderPointerSampler(region: region)
+        pointer = RecorderPointerSampler(region: region, pauseClock: pauseClock)
+        typing = RecorderTypingSampler(pauseClock: pauseClock)
         super.init()
         engine.delegate = self
         microphone?.onSample = { [weak self] sampleBuffer in
@@ -82,6 +85,20 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
         pointer.start()
         typing.start()
         return nil
+    }
+
+    var isPaused: Bool { pauseClock.isPaused }
+
+    func pause(at time: CFTimeInterval) -> Bool {
+        pauseClock.pause(at: time)
+    }
+
+    func resume(at time: CFTimeInterval) -> Bool {
+        pauseClock.resume(at: time)
+    }
+
+    func elapsed(since origin: CFTimeInterval, at time: CFTimeInterval) -> Double {
+        pauseClock.elapsed(since: origin, at: time)
     }
 
     /// Stops the stream first and waits for it, so the file is closed knowing
@@ -150,6 +167,7 @@ final class ScreenRecorderService: ObservableObject {
     static let shared = ScreenRecorderService()
 
     @Published private(set) var isRecording = false
+    @Published private(set) var isPaused = false
     @Published private(set) var elapsedSeconds = 0
     @Published private(set) var shortcutRegistrationFailed = false
 
@@ -286,7 +304,9 @@ final class ScreenRecorderService: ObservableObject {
             self.selection = nil
             switch outcome {
             case .region(let region):
-                let indicator = RecorderIndicator(onStop: { [weak self] in self?.stop() })
+                let indicator = RecorderIndicator(
+                    onPause: { [weak self] in self?.togglePause() },
+                    onStop: { [weak self] in self?.stop() })
                 indicator.showRegionGuide(for: region)
                 self.indicator = indicator
                 self.prepareCountdown(for: region,
@@ -393,9 +413,14 @@ final class ScreenRecorderService: ObservableObject {
         // the capture filter names the windows it leaves out and can only name
         // the ones that already exist. Everything else this app shows stays in
         // the picture.
-        let indicator = indicator ?? RecorderIndicator(onStop: { [weak self] in self?.stop() })
+        let indicator = indicator ?? RecorderIndicator(
+            onPause: { [weak self] in self?.togglePause() },
+            onStop: { [weak self] in self?.stop() })
         indicator.show(on: NSScreen.screens.first { $0.displayID == region.displayID },
-                       tooltip: strings.indicatorTooltip)
+                       tooltip: strings.indicatorTooltip,
+                       pauseTooltip: strings.pauseButton,
+                       resumeTooltip: strings.resumeButton,
+                       stopTooltip: strings.stopButton)
         indicator.update(elapsed: RecorderSupport.elapsedLabel(seconds: 0))
         self.indicator = indicator
 
@@ -425,6 +450,7 @@ final class ScreenRecorderService: ObservableObject {
 
     private func recordingDidStart() {
         isRecording = true
+        isPaused = false
         elapsedSeconds = 0
         startedAt = CACurrentMediaTime()
         sleepActivity = ProcessInfo.processInfo.beginActivity(
@@ -439,10 +465,25 @@ final class ScreenRecorderService: ObservableObject {
     }
 
     private func tickElapsed() {
-        guard isRecording else { return }
-        elapsedSeconds = Int(CACurrentMediaTime() - startedAt)
+        guard isRecording, let session else { return }
+        elapsedSeconds = Int(session.elapsed(since: startedAt, at: CACurrentMediaTime()))
         indicator?.update(elapsed: RecorderSupport.elapsedLabel(seconds: elapsedSeconds))
         checkDiskSpace()
+    }
+
+    func togglePause() {
+        guard isRecording, let session else { return }
+        let now = CACurrentMediaTime()
+        if session.isPaused {
+            guard session.resume(at: now) else { return }
+            isPaused = false
+        } else {
+            guard session.pause(at: now) else { return }
+            isPaused = true
+        }
+        elapsedSeconds = Int(session.elapsed(since: startedAt, at: now))
+        indicator?.update(elapsed: RecorderSupport.elapsedLabel(seconds: elapsedSeconds))
+        indicator?.update(paused: isPaused)
     }
 
     /// A recording that fills the disk is a much worse failure than one that
@@ -491,6 +532,7 @@ final class ScreenRecorderService: ObservableObject {
 
     private func endRecordingSurfaces() {
         isRecording = false
+        isPaused = false
         elapsedTimer?.invalidate()
         elapsedTimer = nil
         indicator?.hide()

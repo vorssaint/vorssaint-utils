@@ -79,6 +79,8 @@ final class ShelfService: ObservableObject {
     /// Ids of tiles the user has selected; a drag of any selected tile drags
     /// the whole selection out together.
     @Published private(set) var selection: Set<UUID> = []
+    /// Last tile explicitly touched, used as the start of a Shift-click range.
+    private var selectionAnchor: UUID?
     @Published private(set) var expandedBatches: Set<UUID> = []
     /// Pinning is intentionally session-only: it means "keep this open while
     /// I work", not "reopen a floating panel on every launch".
@@ -686,14 +688,41 @@ final class ShelfService: ObservableObject {
         panel.orderFrontRegardless()
     }
 
+    /// Borderless Shelf panels need key status after a tile click so standard
+    /// keyboard selection commands can reach them without activating the app.
+    private final class KeyableShelfPanel: NSPanel {
+        override var canBecomeKey: Bool { true }
+
+        override func performKeyEquivalent(with event: NSEvent) -> Bool {
+            let modifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
+            if ShelfSelectionSupport.isClearSelectionShortcut(
+                keyCode: event.keyCode,
+                hasSelectionModifiers: !modifiers.isEmpty
+            ) {
+                ShelfService.shared.clearSelection()
+                return true
+            }
+            if modifiers == [.command], event.charactersIgnoringModifiers?.lowercased() == "a" {
+                ShelfService.shared.selectAllVisibleItems()
+                return true
+            }
+            return super.performKeyEquivalent(with: event)
+        }
+
+        override func cancelOperation(_ sender: Any?) {
+            ShelfService.shared.clearSelection()
+        }
+    }
+
     private func ensureDockedPanel() -> NSPanel {
         if let dockedPanel { return dockedPanel }
-        let panel = NSPanel(contentRect: .zero,
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered, defer: false)
+        let panel = KeyableShelfPanel(contentRect: .zero,
+                                      styleMask: [.borderless, .nonactivatingPanel],
+                                      backing: .buffered, defer: false)
         panel.level = .floating
         panel.isOpaque = false
         panel.backgroundColor = .clear
+        panel.becomesKeyOnlyIfNeeded = true
         panel.hasShadow = false
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
@@ -805,6 +834,7 @@ final class ShelfService: ObservableObject {
         let removed = items
         items = []
         selection = []
+        selectionAnchor = nil
         expandedBatches = []
         retireOwnedPayloads(in: removed)
         noteInteraction()
@@ -812,6 +842,38 @@ final class ShelfService: ObservableObject {
 
     func toggleSelection(_ id: UUID) {
         if selection.contains(id) { selection.remove(id) } else { selection.insert(id) }
+        selectionAnchor = id
+        noteInteraction()
+    }
+
+    /// Adds the visible range between the last tile touched and this tile.
+    /// Unioning preserves any deliberately accumulated non-contiguous items.
+    func extendSelection(to id: UUID) {
+        let visibleIDs = visibleItems.map(\.id)
+        let range = ShelfSelectionSupport.rangeSelectionIDs(allIDs: visibleIDs,
+                                                            anchorID: selectionAnchor,
+                                                            targetID: id)
+        guard !range.isEmpty else { return }
+        selection.formUnion(range)
+        selectionAnchor = id
+        noteInteraction()
+    }
+
+    /// Selects every tile currently presented by the Shelf, including items
+    /// exposed from expanded batches.
+    func selectAllVisibleItems() {
+        let visibleIDs = visibleItems.map(\.id)
+        guard !visibleIDs.isEmpty else { return }
+        selection.formUnion(visibleIDs)
+        noteInteraction()
+    }
+
+    /// Returns every selection shape to a clean slate and discards the range
+    /// anchor so the next Shift-click starts from the tile being clicked.
+    func clearSelection() {
+        guard !selection.isEmpty || selectionAnchor != nil else { return }
+        selection.removeAll()
+        selectionAnchor = nil
         noteInteraction()
     }
 
@@ -1428,7 +1490,11 @@ final class ShelfService: ObservableObject {
     }
 
     private func cleanSelectionState() {
-        selection.formIntersection(allIDs(in: items))
+        let survivingIDs = allIDs(in: items)
+        selection.formIntersection(survivingIDs)
+        if let selectionAnchor, !survivingIDs.contains(selectionAnchor) {
+            self.selectionAnchor = nil
+        }
         expandedBatches.formIntersection(batchIDs(in: items))
     }
 
@@ -1804,12 +1870,13 @@ final class ShelfService: ObservableObject {
 
     private func ensurePanel() -> NSPanel {
         if let panel { return panel }
-        let panel = NSPanel(contentRect: .zero,
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered, defer: false)
+        let panel = KeyableShelfPanel(contentRect: .zero,
+                                      styleMask: [.borderless, .nonactivatingPanel],
+                                      backing: .buffered, defer: false)
         panel.level = .floating
         panel.isOpaque = false
         panel.backgroundColor = .clear
+        panel.becomesKeyOnlyIfNeeded = true
         panel.hasShadow = false
         // Not movable by background: dragging a tile must start an item drag,
         // not move the whole panel.

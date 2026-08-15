@@ -347,6 +347,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
 
     override func mouseDown(with event: NSEvent) {
         ShelfService.shared.noteInteraction()
+        window?.makeKey()
         mouseDownPoint = event.locationInWindow
         didDrag = false
     }
@@ -364,6 +365,8 @@ final class ShelfTileView: NSView, NSDraggingSource {
         guard !didDrag else { return }
         if item.isBatch, event.clickCount >= 2 {
             ShelfService.shared.toggleBatchExpansion(item.id)
+        } else if event.modifierFlags.contains(.shift) {
+            ShelfService.shared.extendSelection(to: item.id)
         } else {
             ShelfService.shared.toggleSelection(item.id)
         }

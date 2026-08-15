@@ -7,9 +7,9 @@ All notable changes to this project are documented here. The format follows
 ## [3.3.2]
 
 ### Summary
-Vorssaint 3.3.2 adds batch image conversion, local Command Bar scripts and recent captures
-across capture tools. It also improves app discovery, conversions and capture clarity while
-preventing launch failures across window tools.
+Vorssaint 3.3.2 adds batch image conversion, local Command Bar scripts, recent captures and
+desktop window controls. It also improves app discovery, conversions and capture control while
+making Shelf selection faster and preventing launch failures across window tools.
 
 ### Added
 - Media now converts images in batches with resizing, watermarks, renaming and
@@ -19,15 +19,14 @@ preventing launch failures across window tools.
 - Screenshot and screen recording now open recent captures from the panel, their editors
   and the Command Bar.
   Thanks to @lmilojevicc.
+- Window Layout can send the active window to the previous or next desktop with
+  optional shortcuts.
 - Emoji can open directly from a shortcut assigned to its Command Bar row.
   Thanks to @MaximilianMauroner.
 
 ### Changed
-- The menu bar icon now matches the size of neighbouring menu bar icons instead
-  of rendering noticeably shorter than them.
-- Keep Awake active icons are now all drawn at the same size, so switching
-  between the coffee cup, eye, moon and lightbulb no longer changes how large
-  the menu bar icon looks.
+- Screen recordings can now pause and resume from the floating controls without
+  leaving a gap in the video or its audio. Thanks to @monfxx.
 - Area recordings now keep the chosen region visible with a dimmed guide until
   recording stops. Thanks to @lmilojevicc.
 - Copied screenshots now work as image files, so tools that expect a file path
@@ -49,6 +48,8 @@ preventing launch failures across window tools.
   consistently. Thanks to @PathGao.
 - The Command Bar now accepts Control-P and Control-N to move through results.
   Thanks to @theafox.
+- Shelf now supports Shift-click ranges, Command-A to select every visible item
+  and Escape to clear the selection. Thanks to @cimu233.
 - Foot conversions in the Command Bar now show localized feet and inches while
   keeping small measurements precise. Thanks to @tenbux.
 
