@@ -3,6 +3,19 @@
 
 import Foundation
 
+enum ShelfSelectionSupport {
+    /// The visible ids covered by a shift-click, from the last tile the user
+    /// touched to the clicked tile, inclusive and in either direction.
+    static func rangeSelectionIDs<ID: Equatable>(allIDs: [ID],
+                                                 anchorID: ID?,
+                                                 targetID: ID) -> [ID] {
+        guard let target = allIDs.firstIndex(of: targetID) else { return [] }
+        let anchor = anchorID.flatMap { allIDs.firstIndex(of: $0) } ?? target
+        let bounds = min(anchor, target)...max(anchor, target)
+        return Array(allIDs[bounds])
+    }
+}
+
 enum ShelfInteractionSupport {
     /// App exclusions only suppress automatic Shelf appearances. A deliberate
     /// shortcut or "Open now" action remains an escape hatch everywhere.
