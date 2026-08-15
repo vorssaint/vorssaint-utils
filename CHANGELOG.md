@@ -7,19 +7,30 @@ All notable changes to this project are documented here. The format follows
 ## [3.3.2]
 
 ### Summary
-Vorssaint 3.3.2 adds batch image conversion and local Command Bar scripts, and improves
-app discovery, unit conversions and full-screen switching. It also makes recording more
-flexible and strengthens screenshots, clipboard, Window Layout, audio, display safety and Settings.
+Vorssaint 3.3.2 adds batch image conversion, local Command Bar scripts, recent captures and
+desktop window controls. It also improves app discovery, conversions and capture control while
+making Shelf selection faster and preventing launch failures across window tools.
 
 ### Added
 - Media now converts images in batches with resizing, watermarks, renaming and
   reusable profiles. Thanks to @ruvelro.
 - Saved Command Bar shortcuts can now run local scripts and show their results as
   you type. Thanks to @tenbux.
+- Screenshot and screen recording now open recent captures from the panel, their editors
+  and the Command Bar.
+  Thanks to @lmilojevicc.
+- Window Layout can send the active window to the previous or next desktop with
+  optional shortcuts.
 - Emoji can open directly from a shortcut assigned to its Command Bar row.
   Thanks to @MaximilianMauroner.
 
 ### Changed
+- Screen recordings can now pause and resume from the floating controls without
+  leaving a gap in the video or its audio. Thanks to @monfxx.
+- Area recordings now keep the chosen region visible with a dimmed guide until
+  recording stops. Thanks to @lmilojevicc.
+- Copied screenshots now work as image files, so tools that expect a file path
+  can use them. Thanks to @lmilojevicc.
 - Screen recordings can now start without automatic zooms. Turn them off under
   Screen recording while keeping manual zooms available in the editor.
 - App Updates now searches more places, offers source controls and opens the
@@ -37,10 +48,14 @@ flexible and strengthens screenshots, clipboard, Window Layout, audio, display s
   consistently. Thanks to @PathGao.
 - The Command Bar now accepts Control-P and Control-N to move through results.
   Thanks to @theafox.
+- Shelf now supports Shift-click ranges, Command-A to select every visible item
+  and Escape to clear the selection. Thanks to @cimu233.
 - Foot conversions in the Command Bar now show localized feet and inches while
   keeping small measurements precise. Thanks to @tenbux.
 
 ### Fixed
+- Window tools no longer quit Vorssaint at launch when the running app list
+  contains the same process twice.
 - The screenshot editor now lets you draw a new crop directly over the image.
 - Clipboard history now keeps large copied documents instead of silently
   dropping text after 20,000 characters.

@@ -1170,11 +1170,11 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         }
     }
 
-    /// Every terminal output closes the editor: the capture leaves the app
+    /// Every final output closes the editor: the capture leaves the app
     /// and the window's job is done, so nothing lingers to tidy up.
     func copyToClipboard() {
         guard let image = model.exportImage() else { return }
-        guard Self.copyImage(image) else {
+        guard Self.copyImage(image, fileNamePrefix: strings.fileNamePrefix) else {
             NSSound.beep()
             return
         }
@@ -1184,8 +1184,31 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     @discardableResult
-    static func copyImage(_ image: CGImage) -> Bool {
-        copyClipboardPayload(clipboardPayload(from: image))
+    static func copyImage(_ image: CGImage, fileNamePrefix: String) -> Bool {
+        guard let data = ScreenshotRenderer.pngData(from: image),
+              let base = FileManager.default.urls(for: .cachesDirectory,
+                                                  in: .userDomainMask).first,
+              let bundleID = Bundle.main.bundleIdentifier
+        else { return false }
+        let folder = base.appendingPathComponent(bundleID, isDirectory: true)
+            .appendingPathComponent("Copied Screenshots", isDirectory: true)
+        let name = ScreenshotSupport.fileName(prefix: fileNamePrefix, date: Date())
+        guard let url = try? ScreenshotSupport.copiedFile(data: data, name: name,
+                                                         directory: folder) else {
+            return false
+        }
+        guard copyFile(url) else {
+            try? FileManager.default.removeItem(at: url)
+            return false
+        }
+        return true
+    }
+
+    @discardableResult
+    static func copyFile(_ url: URL) -> Bool {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        return pasteboard.writeObjects([url as NSURL])
     }
 
     struct ClipboardPayload: Sendable {

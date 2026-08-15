@@ -19,6 +19,7 @@ final class RecorderWriter {
     private let videoInput: AVAssetWriterInput
     private let systemAudioInput: AVAssetWriterInput?
     private let microphoneInput: AVAssetWriterInput?
+    private let pauseClock: RecorderPauseClock
 
     /// Everything is re-timed against the first sample that arrives, so the
     /// file starts at zero instead of at the machine's uptime.
@@ -38,7 +39,8 @@ final class RecorderWriter {
           pixelSize: CGSize,
           frameRate: Int,
           capturesSystemAudio: Bool,
-          capturesMicrophone: Bool) {
+          capturesMicrophone: Bool,
+          pauseClock: RecorderPauseClock) {
         guard let writer = try? AVAssetWriter(outputURL: url, fileType: .mov) else { return nil }
         // A recording that outlives a crash is worth the few extra bytes a
         // fragmented file costs.
@@ -91,6 +93,7 @@ final class RecorderWriter {
         self.videoInput = videoInput
         self.systemAudioInput = systemAudioInput
         self.microphoneInput = microphoneInput
+        self.pauseClock = pauseClock
     }
 
     // MARK: - Settings
@@ -154,8 +157,12 @@ final class RecorderWriter {
             started = true
         }
         guard let origin, started else { return }
-        let shifted = CMTimeSubtract(presentation, origin)
-        guard shifted >= .zero else { return }
+        let duration = CMSampleBufferGetDuration(sampleBuffer)
+        let seconds = duration.isValid && !duration.isIndefinite ? max(0, duration.seconds) : 0
+        guard let mapped = pauseClock.sampleTime(start: presentation.seconds,
+                                                 duration: seconds,
+                                                 since: origin.seconds) else { return }
+        let shifted = CMTime(seconds: mapped, preferredTimescale: 600_000_000)
 
         switch kind {
         case .video:
@@ -195,7 +202,9 @@ final class RecorderWriter {
             return false
         }
         if let origin, let lastVideoSample {
-            let end = CMTimeSubtract(wallClockEnd, origin)
+            let end = CMTime(
+                seconds: pauseClock.elapsed(since: origin.seconds, at: wallClockEnd.seconds),
+                preferredTimescale: 600_000_000)
             if end > lastVideoTime, videoInput.isReadyForMoreMediaData,
                let tail = Self.retimed(lastVideoSample, to: end) {
                 videoInput.append(tail)

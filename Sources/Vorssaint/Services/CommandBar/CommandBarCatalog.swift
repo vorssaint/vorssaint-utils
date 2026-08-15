@@ -303,6 +303,19 @@ enum CommandBarCatalog {
                 trouble: Permissions.shared.screenRecording ? nil : .needsPermission,
                 run: { _ in afterBeat { ScreenRecorderService.shared.toggle() } }))
         }
+        if AppFeature.screenshot.isAvailable || AppFeature.screenRecorder.isAvailable {
+            let recent = FeatureStrings.recentCaptures(language)
+            entries.append(CommandBarEntry(
+                id: "action.recentCaptures",
+                title: recent.title,
+                subtitle: groupTitle(.tools, hub: hub),
+                keywords: [recent.screenshot, recent.recording,
+                           RecentCaptureStrings.enUS.title].joined(separator: " "),
+                icon: .symbol("clock.arrow.circlepath"),
+                run: { _ in afterBeat(0.1) {
+                    RecentCaptureService.shared.showHistoryWindow()
+                } }))
+        }
         if AppFeature.screenOCR.isAvailable {
             entries.append(CommandBarEntry(
                 id: "action.screenOCR",

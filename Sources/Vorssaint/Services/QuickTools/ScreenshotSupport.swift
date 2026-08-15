@@ -12,6 +12,28 @@ enum ScreenshotSupport {
 
     // MARK: - Preferences
 
+    static let recentCaptureLimit = 12
+    static let recentCaptureMaximumBytes: Int64 = 256 * 1024 * 1024
+
+    static func cappedRecentCaptureIDs(_ ids: [UUID],
+                                       screenshotBytes: [UUID: Int64] = [:]) -> [UUID] {
+        var kept: [UUID] = []
+        var bytes: Int64 = 0
+        var keptScreenshot = false
+        for id in ids.prefix(recentCaptureLimit) {
+            guard let size = screenshotBytes[id] else {
+                kept.append(id)
+                continue
+            }
+            let safeSize = max(0, size)
+            if keptScreenshot, bytes + safeSize > recentCaptureMaximumBytes { continue }
+            kept.append(id)
+            keptScreenshot = true
+            bytes += safeSize
+        }
+        return kept
+    }
+
     /// Optional countdown before the capture starts, so menus, tooltips and
     /// hover states can be staged first.
     static let allowedDelays = [0, 3, 5, 10]
@@ -504,6 +526,35 @@ enum ScreenshotSupport {
                                                        isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent((name as NSString).lastPathComponent)
+        try data.write(to: url, options: .atomic)
+        return url
+    }
+
+    /// Keeps copied captures available long enough for paste targets that read
+    /// the file after accepting its URL from the pasteboard.
+    static func copiedFile(data: Data, name: String, directory: URL,
+                           now: Date = Date()) throws -> URL {
+        let manager = FileManager.default
+        try manager.createDirectory(at: directory, withIntermediateDirectories: true)
+        let cutoff = now.addingTimeInterval(-24 * 3600)
+        if let files = try? manager.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey]
+        ) {
+            for file in files {
+                let values = try? file.resourceValues(
+                    forKeys: [.contentModificationDateKey, .isRegularFileKey])
+                if values?.isRegularFile == true,
+                   (values?.contentModificationDate ?? .distantFuture) < cutoff {
+                    try? manager.removeItem(at: file)
+                }
+            }
+        }
+        let safeName = (name as NSString).lastPathComponent
+        let uniqueName = uniqueFileName(safeName) { candidate in
+            manager.fileExists(atPath: directory.appendingPathComponent(candidate).path)
+        }
+        let url = directory.appendingPathComponent(uniqueName)
         try data.write(to: url, options: .atomic)
         return url
     }

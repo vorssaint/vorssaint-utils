@@ -1533,6 +1533,34 @@ struct MetricsTests {
                                           visibleSpaces: [0],
                                           target: 40) == nil,
                "space travel refuses hops beyond the press cap")
+        expect(WindowSpaceMoveSupport.destination(windowSpaces: [4],
+                                                  orderedUserSpacesPerDisplay: [[3, 4, 5]],
+                                                  direction: .next) == 5
+                && WindowSpaceMoveSupport.destination(windowSpaces: [4],
+                                                       orderedUserSpacesPerDisplay: [[3, 4, 5]],
+                                                       direction: .previous) == 3,
+               "window desktop movement follows the neighboring user desktop")
+        expect(WindowSpaceMoveSupport.destination(windowSpaces: [3],
+                                                  orderedUserSpacesPerDisplay: [[3, 4, 5]],
+                                                  direction: .previous) == 5
+                && WindowSpaceMoveSupport.destination(windowSpaces: [5],
+                                                       orderedUserSpacesPerDisplay: [[3, 4, 5]],
+                                                       direction: .next) == 3,
+               "window desktop movement wraps in both directions")
+        expect(WindowSpaceMoveSupport.destination(windowSpaces: [9],
+                                                  orderedUserSpacesPerDisplay: [[3, 4], [8, 9]],
+                                                  direction: .previous) == 8,
+               "window desktop movement stays on the display that owns the window")
+        expect(WindowSpaceMoveSupport.destination(windowSpaces: [3, 4],
+                                                  orderedUserSpacesPerDisplay: [[3, 4]],
+                                                  direction: .next) == nil
+                && WindowSpaceMoveSupport.destination(windowSpaces: [7],
+                                                       orderedUserSpacesPerDisplay: [[3, 4]],
+                                                       direction: .next) == nil
+                && WindowSpaceMoveSupport.destination(windowSpaces: [3],
+                                                       orderedUserSpacesPerDisplay: [[3]],
+                                                       direction: .next) == nil,
+               "window desktop movement rejects pinned, unknown and lone-desktop windows")
         expect(SpaceHopSupport.firstStage(appHasWindowOnVisibleSpace: true) == .moveASpace,
                "an app with a window on the visible Space cannot travel by being activated, so the move is asked for right away")
         expect(SpaceHopSupport.firstStage(appHasWindowOnVisibleSpace: false) == .waitForActivationTravel,
@@ -2391,6 +2419,8 @@ struct MetricsTests {
             DefaultsKey.windowLayoutShortcutBottomRightSixth,
             DefaultsKey.windowLayoutShortcutPreviousDisplay,
             DefaultsKey.windowLayoutShortcutMarginMaximize,
+            DefaultsKey.windowLayoutShortcutPreviousSpace,
+            DefaultsKey.windowLayoutShortcutNextSpace,
         ]
         expect(unassignedLayoutShortcutKeys.allSatisfy {
                    registeredDefaults[$0] as? String == WindowLayoutAction.clearedShortcutStorageValue
@@ -2444,13 +2474,21 @@ struct MetricsTests {
                 && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutMarginMaximize] as? String
                     == WindowLayoutAction.clearedShortcutStorageValue,
                "margin maximize starts with no combination of its own")
+        expect(WindowLayoutAction.previousSpace.shortcutID == 56
+                && WindowLayoutAction.nextSpace.shortcutID == 57
+                && WindowLayoutAction(shortcutID: 56) == .previousSpace
+                && WindowLayoutAction(shortcutID: 57) == .nextSpace
+                && WindowLayoutAction.previousSpace.defaultShortcut == nil
+                && WindowLayoutAction.nextSpace.defaultShortcut == nil,
+               "desktop directions have stable optional shortcut ids")
         expect(Set(WindowLayoutAction.allCases.map(\.shortcutID)).count
                 == WindowLayoutAction.allCases.count,
                "every layout action keeps a distinct shortcut id")
         for language in AppLanguage.allCases {
             let layoutStrings = FeatureStrings.windowLayout(language)
             expect(!layoutStrings.fullScreen.isEmpty && !layoutStrings.previousDisplay.isEmpty
-                    && !layoutStrings.marginMaximize.isEmpty,
+                    && !layoutStrings.marginMaximize.isEmpty && !layoutStrings.spaces.isEmpty
+                    && !layoutStrings.previousSpace.isEmpty && !layoutStrings.nextSpace.isEmpty,
                    "\(language.rawValue) names the latest window layout actions")
         }
         expect(WindowLayoutGeometry.accepts(actualRect: .zero, targetRect: .zero,
@@ -3535,8 +3573,10 @@ struct MetricsTests {
         expect(WindowLayoutAction.shortcutActions.count == WindowLayoutAction.allCases.count,
                "every window layout action can register a global shortcut")
         expect(WindowLayoutAction.shortcutActions.contains(.previousDisplay)
-                && WindowLayoutAction.shortcutActions.contains(.nextDisplay),
-               "both display directions can register a global shortcut")
+                && WindowLayoutAction.shortcutActions.contains(.nextDisplay)
+                && WindowLayoutAction.shortcutActions.contains(.previousSpace)
+                && WindowLayoutAction.shortcutActions.contains(.nextSpace),
+               "both display and desktop directions can register a global shortcut")
         expect(Set(WindowLayoutAction.shortcutActions.map(\.shortcutKey)).count
                == WindowLayoutAction.shortcutActions.count,
                "every window layout shortcut has its own defaults key")
@@ -5062,6 +5102,28 @@ struct MetricsTests {
 
         // MARK: Shelf persistence
 
+        expect(ShelfSelectionSupport.rangeSelectionIDs(
+            allIDs: ["a", "b", "c", "d"], anchorID: "b", targetID: "d") == ["b", "c", "d"],
+               "shelf shift-click selects the forward visible range")
+        expect(ShelfSelectionSupport.rangeSelectionIDs(
+            allIDs: ["a", "b", "c", "d"], anchorID: "d", targetID: "b") == ["b", "c", "d"],
+               "shelf shift-click selects the reverse visible range")
+        expect(ShelfSelectionSupport.rangeSelectionIDs(
+            allIDs: ["a", "b"], anchorID: nil, targetID: "b") == ["b"],
+               "shelf shift-click without an anchor starts at the clicked tile")
+        expect(ShelfSelectionSupport.rangeSelectionIDs(
+            allIDs: ["a", "b"], anchorID: "a", targetID: "missing").isEmpty,
+               "shelf shift-click ignores a tile outside the visible list")
+        expect(ShelfSelectionSupport.isClearSelectionShortcut(
+            keyCode: 53, hasSelectionModifiers: false),
+               "shelf Escape clears the current selection")
+        expect(!ShelfSelectionSupport.isClearSelectionShortcut(
+            keyCode: 53, hasSelectionModifiers: true),
+               "shelf keeps modified Escape available for other shortcuts")
+        expect(!ShelfSelectionSupport.isClearSelectionShortcut(
+            keyCode: 36, hasSelectionModifiers: false),
+               "shelf does not clear selection for an unrelated key")
+
         expect(ShelfInteractionSupport.allowsAutomaticOpen(
             sourceBundleIdentifier: "com.example.Editor",
             excludedBundleIdentifiers: ["com.example.Browser"]),
@@ -6369,6 +6431,11 @@ struct MetricsTests {
         expect(QuickToolsSupport.hiddenIDs(from: QuickToolsSupport.serializeHiddenIDs(Set(["x", "y"])))
                    == Set(["x", "y"]),
                "launcher hidden set round-trips")
+        let repeatedProcessValues = SwitcherSupport.firstValuesByPID([(pid_t(1678), "first"),
+                                                                      (pid_t(1678), "duplicate"),
+                                                                      (pid_t(2048), "other")])
+        expect(repeatedProcessValues == [1678: "first", 2048: "other"],
+               "window enumeration keeps the first value when the system repeats a process")
         let groupedSwitcherItems = [
             SwitcherItem.window(id: 1, title: "One", appName: "Alpha", pid: 101,
                                 isOnScreen: true, frame: .zero),
@@ -8512,6 +8579,14 @@ struct MetricsTests {
                    "every screenshot string is set for \(language.rawValue)")
             expect(screenshotValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible screenshot strings (\(language.rawValue))")
+            let recentCaptureValues = Mirror(
+                reflecting: FeatureStrings.recentCaptures(language)).children
+                .compactMap { $0.value as? String }
+            expect(recentCaptureValues.count == 8
+                    && recentCaptureValues.allSatisfy { !$0.isEmpty },
+                   "every recent capture string is set for \(language.rawValue)")
+            expect(recentCaptureValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in recent capture strings (\(language.rawValue))")
             let feedbackValues = Mirror(reflecting: FeatureStrings.feedback(language)).children
                 .compactMap { $0.value as? String }
             expect(feedbackValues.count == 28 && feedbackValues.allSatisfy { !$0.isEmpty },
@@ -8564,7 +8639,7 @@ struct MetricsTests {
                    "no em-dash in WhatsApp organizer strings (\(language.rawValue))")
             let recorderValues = Mirror(reflecting: FeatureStrings.recorder(language)).children
                 .compactMap { $0.value as? String }
-            expect(recorderValues.count == 117 && recorderValues.allSatisfy { !$0.isEmpty },
+            expect(recorderValues.count == 119 && recorderValues.allSatisfy { !$0.isEmpty },
                    "every screen recorder string is set for \(language.rawValue)")
             expect(recorderValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible screen recorder strings (\(language.rawValue))")
@@ -9943,6 +10018,29 @@ struct MetricsTests {
                "temporary screenshot cleanup removes only app-owned drag directories")
         try? FileManager.default.removeItem(at: dragRoot)
 
+        let copyRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ScreenshotCopyTests-\(UUID().uuidString)", isDirectory: true)
+        let staleCopy = try? ScreenshotSupport.copiedFile(
+            data: dragData, name: "Old.png", directory: copyRoot)
+        if let staleCopy {
+            try? FileManager.default.setAttributes(
+                [.modificationDate: Date(timeIntervalSince1970: 1)],
+                ofItemAtPath: staleCopy.path)
+        }
+        let currentCopy = try? ScreenshotSupport.copiedFile(
+            data: dragData, name: "../Capture.png", directory: copyRoot,
+            now: Date(timeIntervalSince1970: 100_000))
+        let nextCopy = try? ScreenshotSupport.copiedFile(
+            data: dragData, name: "Capture.png", directory: copyRoot,
+            now: Date(timeIntervalSince1970: 100_000))
+        expect(staleCopy.map { !FileManager.default.fileExists(atPath: $0.path) } == true,
+               "copying a screenshot removes expired copied files")
+        expect(currentCopy?.lastPathComponent == "Capture.png"
+                && nextCopy?.lastPathComponent == "Capture 2.png"
+                && currentCopy.flatMap { try? Data(contentsOf: $0) } == dragData,
+               "copied screenshots stay as unique complete png files")
+        try? FileManager.default.removeItem(at: copyRoot)
+
         var counterList = [
             ScreenshotSupport.Annotation(tool: .counter, number: 1),
             ScreenshotSupport.Annotation(tool: .arrow),
@@ -10300,6 +10398,19 @@ struct MetricsTests {
                "guessable ids and short deletion tokens are rejected")
         expect(Defaults.registeredDefaults[DefaultsKey.panelUtilityScreenshot] as? Bool == true,
                "the panel row ships visible like its siblings")
+        let recentCaptureIDs = (0..<14).map { _ in UUID() }
+        expect(ScreenshotSupport.cappedRecentCaptureIDs(recentCaptureIDs)
+                == Array(recentCaptureIDs.prefix(12))
+                && ScreenshotSupport.recentCaptureLimit == 12,
+               "recent captures keeps only the newest bounded set")
+        let oversizedCaptureIDs = Array(recentCaptureIDs.prefix(3))
+        expect(ScreenshotSupport.cappedRecentCaptureIDs(
+            oversizedCaptureIDs,
+            screenshotBytes: [
+                oversizedCaptureIDs[0]: ScreenshotSupport.recentCaptureMaximumBytes - 1,
+                oversizedCaptureIDs[1]: 2,
+            ]) == [oversizedCaptureIDs[0], oversizedCaptureIDs[2]],
+               "recent captures keeps the latest screenshot and respects its disk budget")
         expect(GlobalShortcutRole.screenshot.requiredEnableKeys == [DefaultsKey.screenshotShortcutEnabled]
                 && GlobalShortcutRole.screenshot.feature == .screenshot,
                "the screenshot shortcut role gates on its toggle and feature")
@@ -11723,6 +11834,7 @@ struct MetricsTests {
                 && CommandBarPreferences.source(ofRowID: "menu.1.Bold") == .menus
                 && CommandBarPreferences.source(ofRowID: "folder./tmp") == .folders
                 && CommandBarPreferences.source(ofRowID: "action.screenshot") == .actions
+                && CommandBarPreferences.source(ofRowID: "action.recentCaptures") == .actions
                 && CommandBarPreferences.emojiBrowserRowID == "emoji.browse"
                 && CommandBarPreferences.source(ofRowID: CommandBarPreferences.emojiBrowserRowID)
                     == .emoji,
@@ -12055,6 +12167,28 @@ struct MetricsTests {
                "elapsed time reads like a player position and grows an hour field only when needed")
         expect(RecorderSupport.elapsedLabel(seconds: -5) == "0:00",
                "a clock that never went forward still reads as zero")
+
+        var pauseTimeline = RecorderPauseTimeline()
+        expect(pauseTimeline.pause(at: 3) && !pauseTimeline.pause(at: 4),
+               "a recording enters one pause only once")
+        expect(pauseTimeline.elapsed(since: 0, at: 7) == 3
+                && pauseTimeline.sampleTime(start: 5, duration: 0.01, since: 0) == nil,
+               "an open pause freezes elapsed time and discards captured samples")
+        expect(pauseTimeline.resume(at: 8) && !pauseTimeline.resume(at: 9),
+               "a recording resumes one open pause only once")
+        expect(pauseTimeline.sampleTime(start: 2, duration: 0.01, since: 0) == 2
+                && pauseTimeline.sampleTime(start: 8, duration: 0.01, since: 0) == 3
+                && pauseTimeline.eventTime(10, since: 0) == 5,
+               "video, audio and event time close the paused gap exactly")
+        expect(pauseTimeline.sampleTime(start: 2.99, duration: 0.02, since: 0) == nil,
+               "an audio buffer crossing the pause edge is dropped instead of overlapping")
+        expect(pauseTimeline.sampleTime(start: -0.01, duration: 0.01, since: 0) == nil,
+               "a late sample from before the recording origin stays out")
+        _ = pauseTimeline.pause(at: 12)
+        _ = pauseTimeline.resume(at: 14)
+        expect(pauseTimeline.eventTime(13, since: 0) == nil
+                && pauseTimeline.elapsed(since: 0, at: 16) == 9,
+               "several pauses stay excluded from every recording track")
 
         expect(RecorderSupport.sanitizedFrameRate(60) == 60
                 && RecorderSupport.sanitizedFrameRate(30) == 30
@@ -12766,6 +12900,10 @@ struct MetricsTests {
                "an unrelated word stays out")
         expect(CommandBarSearch.matches(title: "Capturar tela", keywords: "screenshot print", query: "print"),
                "keywords match like the title does")
+        expect(CommandBarSearch.matches(title: "Capturas recentes",
+                                        keywords: "Recent captures screenshot recording",
+                                        query: "recent captures"),
+               "recent captures stays searchable by its familiar English name")
         expect(CommandBarSearch.matches(title: "Silenciar microfone", query: "silenciar micro"),
                "tokens match in any order as prefixes")
         expect(!CommandBarSearch.matches(title: "Silenciar microfone", query: "silenciar tela"),

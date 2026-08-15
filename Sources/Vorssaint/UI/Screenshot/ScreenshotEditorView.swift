@@ -30,6 +30,10 @@ struct ScreenshotEditorView: View {
         FeatureStrings.screenshot(l10n.language)
     }
 
+    private var recentCapturesTitle: String {
+        FeatureStrings.recentCaptures(l10n.language).title
+    }
+
     var body: some View {
         // Real rows and columns, not overlays: the canvas scrolls in its own
         // region, so zoomed content can never slide under the controls.
@@ -664,6 +668,18 @@ struct ScreenshotEditorView: View {
 
     private var actionCluster: some View {
         HStack(spacing: 4) {
+            Button {
+                RecentCaptureService.shared.showHistoryWindow()
+            } label: {
+                Image(systemName: "clock.arrow.circlepath")
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.borderless)
+            .screenshotSafeHelp(recentCapturesTitle)
+            .accessibilityLabel(recentCapturesTitle)
+
+            Divider().frame(height: 16).padding(.horizontal, 3)
+
             Button {
                 controller.discardAndClose()
             } label: {

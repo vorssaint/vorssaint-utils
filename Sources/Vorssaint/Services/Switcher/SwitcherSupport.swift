@@ -219,6 +219,10 @@ enum SwitcherSupport {
     /// Grid resolution used to classify window captures.
     static let captureAlphaGridSize = 8
 
+    static func firstValuesByPID<Value>(_ pairs: [(pid_t, Value)]) -> [pid_t: Value] {
+        Dictionary(pairs, uniquingKeysWith: { first, _ in first })
+    }
+
     static func usesIconRowLayout(iconRowMode: Bool, simpleMode: Bool) -> Bool {
         iconRowMode || simpleMode
     }

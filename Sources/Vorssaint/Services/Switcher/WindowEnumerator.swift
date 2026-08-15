@@ -81,7 +81,7 @@ enum WindowEnumerator {
 
         let ownPid = ProcessInfo.processInfo.processIdentifier
         let runningApps = NSWorkspace.shared.runningApplications
-        let bundleIdentifiers = Dictionary(uniqueKeysWithValues: runningApps.compactMap { app in
+        let bundleIdentifiers = SwitcherSupport.firstValuesByPID(runningApps.compactMap { app in
             app.bundleIdentifier.map { (app.processIdentifier, $0) }
         })
         // Bring the use history up to date before ordering by it: windows that
@@ -124,7 +124,7 @@ enum WindowEnumerator {
             else { return nil }
             return (app.processIdentifier, hostPID)
         }
-        let embeddedHostPIDs = Dictionary(uniqueKeysWithValues: embeddedHostPairs)
+        let embeddedHostPIDs = SwitcherSupport.firstValuesByPID(embeddedHostPairs)
         // The regular process owns the app identity, but an embedded accessory
         // process can own its real windows. Query both sides of that mapping.
         let accessibilityPids = SwitcherSupport.accessibilityPIDs(

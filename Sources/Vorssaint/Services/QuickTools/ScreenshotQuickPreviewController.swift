@@ -17,7 +17,7 @@ final class ScreenshotQuickPreviewModel: ObservableObject {
 }
 
 /// A transient in-memory capture preview. It stays outside Command Tab and
-/// performs no file write until the user explicitly chooses Save.
+/// performs no file write until the user explicitly chooses Save or Copy.
 final class ScreenshotQuickPreviewController {
     enum Action {
         case edit
@@ -29,6 +29,7 @@ final class ScreenshotQuickPreviewController {
 
     private let capture: ScreenshotSelectionController.Capture
     private let strings: ScreenshotFeatureStrings
+    private let defaultAction: ScreenshotDefaultAction
     /// Runs one action and reports which sub-actions actually happened —
     /// save-and-copy can succeed by halves, and only the done halves gray
     /// their buttons out. Empty means the action failed entirely.
@@ -50,12 +51,14 @@ final class ScreenshotQuickPreviewController {
 
     init(capture: ScreenshotSelectionController.Capture,
          strings: ScreenshotFeatureStrings,
+         defaultAction: ScreenshotDefaultAction,
          action: @escaping (Action) -> Set<Action>,
          share: @escaping (ScreenshotShareDuration,
                            @escaping (ScreenshotShareRecord?) -> Void) -> Void,
          onClose: @escaping () -> Void) {
         self.capture = capture
         self.strings = strings
+        self.defaultAction = defaultAction
         self.action = action
         self.share = share
         self.onClose = onClose
@@ -63,7 +66,6 @@ final class ScreenshotQuickPreviewController {
 
     func show() {
         guard panel == nil, !closed else { return }
-        let defaultAction = ScreenshotDefaultAction.current
         let content = ScreenshotQuickPreviewView(
             image: Self.thumbnail(for: capture.image),
             strings: strings,
@@ -300,7 +302,7 @@ final class ScreenshotQuickPreviewController {
         // so it sits quietly in the corner and leaves sooner, instead of
         // popping up next to the selection and waiting.
         let effectivePosition: ScreenshotSupport.QuickPreviewPosition =
-            position == .automatic && ScreenshotDefaultAction.current != .none
+            position == .automatic && defaultAction != .none
                 ? .bottomRight
                 : position
         return ScreenshotSupport.quickPreviewFrame(

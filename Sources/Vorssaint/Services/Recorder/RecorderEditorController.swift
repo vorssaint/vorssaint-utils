@@ -1297,6 +1297,7 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                 // The window stays: exports are slow and plural, and a person
                 // who just made a video often wants the GIF of it too.
                 self.exported = true
+                RecentCaptureService.shared.recordRecording(at: destination)
                 if let onSuccess {
                     onSuccess(destination)
                 } else {

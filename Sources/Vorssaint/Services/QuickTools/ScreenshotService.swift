@@ -372,6 +372,7 @@ final class ScreenshotService: ObservableObject {
     /// exists to reach for.
     private func route(_ capture: ScreenshotSelectionController.Capture) {
         preview?.close()
+        RecentCaptureService.shared.recordScreenshot(capture)
         if UserDefaults.standard.bool(
             forKey: DefaultsKey.screenshotLastCaptureShortcutEnabled) {
             ScreenshotLastCaptureStore.save(capture)
@@ -383,10 +384,23 @@ final class ScreenshotService: ObservableObject {
             openEditor(with: capture)
             return
         }
+        presentPreview(capture, defaultAction: ScreenshotDefaultAction.current)
+    }
+
+    /// A history item returns to the same floating preview without repeating
+    /// automatic copy or save actions that already ran when it was captured.
+    func restorePreview(_ capture: ScreenshotSelectionController.Capture) {
+        preview?.close()
+        presentPreview(capture, defaultAction: .none)
+    }
+
+    private func presentPreview(_ capture: ScreenshotSelectionController.Capture,
+                                defaultAction: ScreenshotDefaultAction) {
         var saved: SaveOutcome?
         let controller = ScreenshotQuickPreviewController(
             capture: capture,
             strings: strings,
+            defaultAction: defaultAction,
             action: { [weak self] action in
                 guard let self else { return [] }
                 switch action {
@@ -556,7 +570,8 @@ final class ScreenshotService: ObservableObject {
     @discardableResult
     private func copyDirect(_ capture: ScreenshotSelectionController.Capture) -> Bool {
         guard let image = flatten(capture) else { return false }
-        guard ScreenshotEditorController.copyImage(image) else {
+        guard ScreenshotEditorController.copyImage(
+            image, fileNamePrefix: strings.fileNamePrefix) else {
             NSSound.beep()
             return false
         }
@@ -603,7 +618,7 @@ final class ScreenshotService: ObservableObject {
             return nil
         }
 
-        let copied = ScreenshotEditorController.copyImage(image)
+        let copied = ScreenshotEditorController.copyFile(url)
         let format = copied ? strings.savedAndCopiedHUDFormat : strings.savedHUDFormat
         QuickToolHUD.show(icon: "camera.viewfinder",
                           message: String(format: format,
