@@ -171,6 +171,28 @@ struct MetricsTests {
         expect(ClipboardHistorySearch.rankedIndexes(candidates: clipboardCandidates,
                                                     matching: "missing") == [],
                "clipboard search returns no results for unmatched terms")
+
+        // MARK: Clipboard auto clear preferences
+
+        expect(Defaults.sanitizedClipboardAutoClearDelay(20) == 20,
+               "auto clear delay in range passes through")
+        expect(Defaults.sanitizedClipboardAutoClearDelay(4) == 5,
+               "auto clear delay below the floor clamps up, so a typed 4 does not jump to the default")
+        expect(Defaults.sanitizedClipboardAutoClearDelay(0) == 5,
+               "auto clear delay of zero clamps up instead of clearing instantly")
+        expect(Defaults.sanitizedClipboardAutoClearDelay(99_999) == 3_600,
+               "auto clear delay above the ceiling clamps down")
+        expect(Defaults.registeredDefaults[DefaultsKey.clipboardAutoClearOnDelay] as? Bool == false,
+               "auto clear is off until asked for")
+        expect(Defaults.registeredDefaults[DefaultsKey.clipboardAutoClearOnSleep] as? Bool == false,
+               "clear on computer sleep is off until asked for")
+        expect(Defaults.registeredDefaults[DefaultsKey.clipboardAutoClearOnDisplaySleep] as? Bool == false,
+               "clear on display sleep is off until asked for")
+        expect(Defaults.registeredDefaults[DefaultsKey.clipboardAutoClearOnScreenLock] as? Bool == false,
+               "clear on screen lock is off until asked for")
+        expect(Defaults.registeredDefaults[DefaultsKey.clipboardAutoClearDelay] as? Int == 20,
+               "auto clear starts at twenty seconds")
+
         expect(FeatureStrings.clipboard(.ptBR).shortcutHint.contains("colar no app anterior"),
                "clipboard shortcut hint exposes row click paste in Portuguese")
         expect(FeatureStrings.clipboard(.ptBR).shortcutHint.contains("⌘+clique seleciona"),
