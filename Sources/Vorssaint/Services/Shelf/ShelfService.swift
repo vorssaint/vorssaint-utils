@@ -696,11 +696,22 @@ final class ShelfService: ObservableObject {
 
         override func performKeyEquivalent(with event: NSEvent) -> Bool {
             let modifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
+            if ShelfSelectionSupport.isClearSelectionShortcut(
+                keyCode: event.keyCode,
+                hasSelectionModifiers: !modifiers.isEmpty
+            ) {
+                ShelfService.shared.clearSelection()
+                return true
+            }
             if modifiers == [.command], event.charactersIgnoringModifiers?.lowercased() == "a" {
                 ShelfService.shared.selectAllVisibleItems()
                 return true
             }
             return super.performKeyEquivalent(with: event)
+        }
+
+        override func cancelOperation(_ sender: Any?) {
+            ShelfService.shared.clearSelection()
         }
     }
 
@@ -854,6 +865,15 @@ final class ShelfService: ObservableObject {
         let visibleIDs = visibleItems.map(\.id)
         guard !visibleIDs.isEmpty else { return }
         selection.formUnion(visibleIDs)
+        noteInteraction()
+    }
+
+    /// Returns every selection shape to a clean slate and discards the range
+    /// anchor so the next Shift-click starts from the tile being clicked.
+    func clearSelection() {
+        guard !selection.isEmpty || selectionAnchor != nil else { return }
+        selection.removeAll()
+        selectionAnchor = nil
         noteInteraction()
     }
 

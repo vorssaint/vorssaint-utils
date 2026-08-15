@@ -4,6 +4,13 @@
 import Foundation
 
 enum ShelfSelectionSupport {
+    /// Escape clears the Shelf selection only when pressed on its own. Keeping
+    /// modifier-bearing variants available avoids swallowing future shortcuts.
+    static func isClearSelectionShortcut(keyCode: UInt16,
+                                         hasSelectionModifiers: Bool) -> Bool {
+        keyCode == 53 && !hasSelectionModifiers
+    }
+
     /// The visible ids covered by a shift-click, from the last tile the user
     /// touched to the clicked tile, inclusive and in either direction.
     static func rangeSelectionIDs<ID: Equatable>(allIDs: [ID],

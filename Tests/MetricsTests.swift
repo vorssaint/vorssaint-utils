@@ -5074,6 +5074,15 @@ struct MetricsTests {
         expect(ShelfSelectionSupport.rangeSelectionIDs(
             allIDs: ["a", "b"], anchorID: "a", targetID: "missing").isEmpty,
                "shelf shift-click ignores a tile outside the visible list")
+        expect(ShelfSelectionSupport.isClearSelectionShortcut(
+            keyCode: 53, hasSelectionModifiers: false),
+               "shelf Escape clears the current selection")
+        expect(!ShelfSelectionSupport.isClearSelectionShortcut(
+            keyCode: 53, hasSelectionModifiers: true),
+               "shelf keeps modified Escape available for other shortcuts")
+        expect(!ShelfSelectionSupport.isClearSelectionShortcut(
+            keyCode: 36, hasSelectionModifiers: false),
+               "shelf does not clear selection for an unrelated key")
 
         expect(ShelfInteractionSupport.allowsAutomaticOpen(
             sourceBundleIdentifier: "com.example.Editor",
