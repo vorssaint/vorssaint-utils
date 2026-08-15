@@ -100,6 +100,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 ### Clipboard, files and links
 
 - **Clipboard history.** Local history of text, images and files with pinned favorites, search, quick paste shortcuts and a full preview where text can be selected or edited.
+- **Auto clear clipboard.** Empty the system clipboard a set time after you copy, and when the Mac sleeps, the display sleeps or the screen locks. Each trigger is optional, works with history off, and leaves your saved items untouched.
 - **Paste as plain text.** One shortcut pastes without fonts, colors or links, and the original stays on the clipboard.
 - **Shelf.** Park files, text and links near your cursor mid drag, then drop them where they belong later.
 - **Finder shortcuts.** ⌘X and ⌘V move files, an optional F2 shortcut renames the selection, and copied images can become PNG files with ⌘V.

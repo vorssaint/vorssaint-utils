@@ -24,6 +24,8 @@ quitting at launch and making source builds compatible with older development to
   optional shortcuts.
 - Emoji can open directly from a shortcut assigned to its Command Bar row.
   Thanks to @MaximilianMauroner.
+- The clipboard can now clear itself after a delay, and when the Mac sleeps, the
+  display sleeps or the screen locks. Under Clipboard.
 
 ### Changed
 - Menu bar icons now match surrounding icons in size and alignment. Thanks to @bambidotexe.
