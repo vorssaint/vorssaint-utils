@@ -17,6 +17,12 @@ struct ClipboardSettings: View {
     @AppStorage(DefaultsKey.clipboardHistoryShortcutEnabled) private var shortcutEnabled = true
     @AppStorage(DefaultsKey.panelUtilityClipboard) private var showInPanel = true
     @AppStorage(DefaultsKey.finderPasteImageAsFile) private var pasteImageAsFile = false
+    @AppStorage(DefaultsKey.clipboardAutoClearOnDelay) private var autoClearOnDelay = false
+    @AppStorage(DefaultsKey.clipboardAutoClearDelay)
+    private var autoClearDelay = Defaults.defaultClipboardAutoClearDelay
+    @AppStorage(DefaultsKey.clipboardAutoClearOnSleep) private var autoClearOnSleep = false
+    @AppStorage(DefaultsKey.clipboardAutoClearOnDisplaySleep) private var autoClearOnDisplaySleep = false
+    @AppStorage(DefaultsKey.clipboardAutoClearOnScreenLock) private var autoClearOnScreenLock = false
 
     private var text: ClipboardFeatureStrings {
         FeatureStrings.clipboard(l10n.language)
@@ -74,6 +80,8 @@ struct ClipboardSettings: View {
                 Section {
                     Toggle(text.showInPanel, isOn: $showInPanel)
                 }
+
+                clipboardAutoClearSection
             }
 
             if AppFeature.finderCutPaste.isAvailable {
@@ -125,9 +133,18 @@ struct ClipboardSettings: View {
         .formStyle(.grouped)
         .onAppear {
             limit = Defaults.sanitizedClipboardHistoryLimit(limit)
+            autoClearDelay = Defaults.sanitizedClipboardAutoClearDelay(autoClearDelay)
         }
         .onChange(of: limit) { _, value in
             limit = Defaults.sanitizedClipboardHistoryLimit(value)
+        }
+        // No syncWithPreferences() here, unlike the auto-clear toggles: the
+        // running poll reads this value from UserDefaults on every tick, so a
+        // new delay takes effect on the next one. Syncing would just tear the
+        // timer down and restart the wait.
+        .onChange(of: autoClearDelay) { _, value in
+            let sanitized = Defaults.sanitizedClipboardAutoClearDelay(value)
+            if sanitized != value { autoClearDelay = sanitized }
         }
     }
 
@@ -160,6 +177,52 @@ struct ClipboardSettings: View {
             .disabled(history.entries.isEmpty)
         }
     }
+
+    // Never disabled by the capture toggle, unlike the sections above it:
+    // emptying the pasteboard is a security setting in its own right, and
+    // someone who keeps no history is exactly who reaches for it.
+    @ViewBuilder
+    private var clipboardAutoClearSection: some View {
+        Section {
+            HStack {
+                Toggle(text.autoClearEnable, isOn: $autoClearOnDelay)
+                    .onChange(of: autoClearOnDelay) { _, _ in
+                        ClipboardAutoClearService.shared.syncWithPreferences()
+                    }
+                TextField("", value: $autoClearDelay, formatter: Self.delayFieldFormatter)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 60)
+                    .disabled(!autoClearOnDelay)
+                Text(text.autoClearSecondsSuffix)
+                    .foregroundStyle(.secondary)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            Toggle(text.autoClearOnSleep, isOn: $autoClearOnSleep)
+                .onChange(of: autoClearOnSleep) { _, _ in
+                    ClipboardAutoClearService.shared.syncWithPreferences()
+                }
+            Toggle(text.autoClearOnDisplaySleep, isOn: $autoClearOnDisplaySleep)
+                .onChange(of: autoClearOnDisplaySleep) { _, _ in
+                    ClipboardAutoClearService.shared.syncWithPreferences()
+                }
+            Toggle(text.autoClearOnScreenLock, isOn: $autoClearOnScreenLock)
+                .onChange(of: autoClearOnScreenLock) { _, _ in
+                    ClipboardAutoClearService.shared.syncWithPreferences()
+                }
+            Text(text.autoClearCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private static let delayFieldFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .none
+        formatter.minimum = NSNumber(value: Defaults.allowedClipboardAutoClearDelayRange.lowerBound)
+        formatter.maximum = NSNumber(value: Defaults.allowedClipboardAutoClearDelayRange.upperBound)
+        formatter.usesGroupingSeparator = false
+        return formatter
+    }()
 
     private var clipboardStatsSection: some View {
             Section {
