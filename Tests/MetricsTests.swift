@@ -193,6 +193,45 @@ struct MetricsTests {
         expect(Defaults.registeredDefaults[DefaultsKey.clipboardAutoClearDelay] as? Int == 20,
                "auto clear starts at twenty seconds")
 
+        // MARK: Clipboard auto clear timing
+
+        let autoClearCopiedAt = Date(timeIntervalSince1970: 1_000_000)
+        expect(ClipboardAutoClearSupport.decide(changeCount: 8,
+                                                lastChangeCount: 7,
+                                                lastClearedChangeCount: 0,
+                                                lastChangeDate: autoClearCopiedAt,
+                                                now: autoClearCopiedAt.addingTimeInterval(600),
+                                                delay: 20) == .noteChange,
+               "a new change count restarts the clock however long the old content sat there")
+        expect(ClipboardAutoClearSupport.decide(changeCount: 7,
+                                                lastChangeCount: 7,
+                                                lastClearedChangeCount: 0,
+                                                lastChangeDate: autoClearCopiedAt,
+                                                now: autoClearCopiedAt.addingTimeInterval(19),
+                                                delay: 20) == .wait,
+               "unchanged content waits until the delay is up")
+        expect(ClipboardAutoClearSupport.decide(changeCount: 7,
+                                                lastChangeCount: 7,
+                                                lastClearedChangeCount: 0,
+                                                lastChangeDate: autoClearCopiedAt,
+                                                now: autoClearCopiedAt.addingTimeInterval(20),
+                                                delay: 20) == .clear,
+               "unchanged content clears once the delay is exactly up")
+        expect(ClipboardAutoClearSupport.decide(changeCount: 7,
+                                                lastChangeCount: 7,
+                                                lastClearedChangeCount: 0,
+                                                lastChangeDate: autoClearCopiedAt,
+                                                now: autoClearCopiedAt.addingTimeInterval(8 * 3_600),
+                                                delay: 20) == .clear,
+               "waking after hours of sleep clears at once instead of waiting out another delay")
+        expect(ClipboardAutoClearSupport.decide(changeCount: 7,
+                                                lastChangeCount: 7,
+                                                lastClearedChangeCount: 7,
+                                                lastChangeDate: autoClearCopiedAt,
+                                                now: autoClearCopiedAt.addingTimeInterval(600),
+                                                delay: 20) == .wait,
+               "the count our own clear produced never clears again, so clearing cannot loop")
+
         expect(FeatureStrings.clipboard(.ptBR).shortcutHint.contains("colar no app anterior"),
                "clipboard shortcut hint exposes row click paste in Portuguese")
         expect(FeatureStrings.clipboard(.ptBR).shortcutHint.contains("⌘+clique seleciona"),
