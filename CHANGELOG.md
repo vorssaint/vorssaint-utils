@@ -9,7 +9,7 @@ All notable changes to this project are documented here. The format follows
 ### Summary
 Vorssaint 3.3.2 adds batch image conversion, local Command Bar scripts, recent captures,
 desktop window controls and edge-activated Shelf access. It also improves capture, app discovery,
-conversions, volume, Switcher navigation, menu bar sizing and compatibility with older development tools.
+conversions, volume, Switcher behavior, menu bar sizing and compatibility with older development tools.
 
 ### Added
 - Media now converts images in batches with resizing, watermarks, renaming and
@@ -109,6 +109,7 @@ conversions, volume, Switcher navigation, menu bar sizing and compatibility with
   Thanks to @liuxxxu.
 - The App Switcher now keeps its shortcut working after your Mac wakes from sleep.
 - The App Switcher now restores minimized windows when selected.
+- The App Switcher can now close windows kept on another desktop. Thanks to @AB-boi.
 - Full-screen video windows now remain available in App Switcher and Dock Preview.
 - The app no longer quits while typing when the Switcher's Windows shortcut uses a
   key whose label comes from the keyboard layout. Thanks to @eioz.

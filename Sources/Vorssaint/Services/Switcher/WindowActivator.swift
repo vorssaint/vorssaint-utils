@@ -14,6 +14,7 @@ enum WindowActivator {
     private static let focusRetryDelay: TimeInterval = 0.12
     private static let fullscreenFocusRetryDelays: [TimeInterval] = [0.18, 0.38, 0.68]
     private static var pendingMinimizeRestore: SwitcherWindowMinimizeRestore?
+    private static var pendingWindowClose: SwitcherPendingWindowClose?
 
     static func activate(_ item: SwitcherItem,
                          retry: Bool = true,
@@ -228,6 +229,39 @@ enum WindowActivator {
 
         AutoQuitService.shared.recordProgrammaticCloseRequest(pid: appPID)
         return AXUIElementPerformAction(closeButton, kAXPressAction as CFString) == .success
+    }
+
+    /// Keeps the regular close path immediate. A hidden target reuses the
+    /// existing verified Space hop, then closes only after Accessibility can
+    /// resolve that exact window on arrival.
+    static func closeWindowIncludingHiddenSpace(_ item: SwitcherItem,
+                                                completion: @escaping (Bool) -> Void) {
+        guard let windowID = item.windowID else {
+            completion(false)
+            return
+        }
+        if closeWindow(windowID: windowID,
+                       appPID: item.pid,
+                       windowOwnerPID: item.windowOwnerPID) {
+            completion(true)
+            return
+        }
+        guard SpaceWindowBridge.isParkedOnHiddenSpace(windowID) else {
+            completion(false)
+            return
+        }
+        pendingWindowClose?.cancel()
+        let pending = SwitcherPendingWindowClose(item: item, completion: completion)
+        pendingWindowClose = pending
+        pending.start()
+    }
+
+    fileprivate static func finishPendingWindowClose(_ pending: SwitcherPendingWindowClose,
+                                                     success: Bool) {
+        guard pendingWindowClose === pending else { return }
+        pendingWindowClose = nil
+        SpaceHop.cancelPending()
+        pending.finish(success: success)
     }
 
     private static func activateOwnWindow(_ item: SwitcherItem) {
@@ -595,6 +629,56 @@ enum WindowActivator {
             return CFBooleanGetValue((minimized as! CFBoolean))
         }
         return minimized as? Bool
+    }
+}
+
+/// Lives only while one explicit close request is travelling to another Space.
+/// The existing Space hop owns the transition; this object merely waits for
+/// the exact window to become reachable and then uses the normal close path.
+fileprivate final class SwitcherPendingWindowClose {
+    private static let pollInterval: TimeInterval = 0.1
+    private static let timeout: TimeInterval = 4.0
+
+    private let item: SwitcherItem
+    private let completion: (Bool) -> Void
+    private let deadline: DispatchTime
+    private var completed = false
+
+    init(item: SwitcherItem, completion: @escaping (Bool) -> Void) {
+        self.item = item
+        self.completion = completion
+        self.deadline = .now() + Self.timeout
+    }
+
+    func start() {
+        WindowActivator.activate(item, retry: false)
+        poll()
+    }
+
+    func cancel() {
+        WindowActivator.finishPendingWindowClose(self, success: false)
+    }
+
+    func finish(success: Bool) {
+        guard !completed else { return }
+        completed = true
+        completion(success)
+    }
+
+    private func poll() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.pollInterval) { [weak self] in
+            guard let self, !self.completed, let windowID = self.item.windowID else { return }
+            if !SpaceWindowBridge.isParkedOnHiddenSpace(windowID),
+               WindowActivator.closeWindow(windowID: windowID,
+                                           appPID: self.item.pid,
+                                           windowOwnerPID: self.item.windowOwnerPID) {
+                WindowActivator.finishPendingWindowClose(self, success: true)
+            } else if DispatchTime.now() < self.deadline {
+                self.poll()
+            } else {
+                WindowActivator.finishPendingWindowClose(self, success: false)
+            }
+        }
     }
 }
 
