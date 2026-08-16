@@ -6,6 +6,28 @@ on:
   pull_request:
 
 jobs:
+  compatibility:
+    name: Swift 6.0.3 compatibility
+    runs-on: macos-15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.2.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Verify toolchain
+        run: |
+          swiftc --version | grep -F "Apple Swift version 6.0.3"
+          test "$(xcrun --sdk macosx --show-sdk-version)" = "15.2"
+
+      - name: Unit tests
+        run: ./build.sh --test
+
+      - name: Build
+        run: ./build.sh
+
+      - name: Selftest
+        run: ./build/Vorssaint --selftest
+
   build:
     name: Build & selftest
     runs-on: macos-26

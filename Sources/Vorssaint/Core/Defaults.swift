@@ -370,6 +370,16 @@ enum DefaultsKey {
     static let clipboardHistorySkipSensitive = "clipboardHistorySkipSensitive"
     static let clipboardHistoryIncludeImagesFiles = "clipboardHistoryIncludeImagesFiles" // capture copied images and files too
     static let clipboardHistoryIgnoredApps = "clipboardHistoryIgnoredApps" // apps whose copies are never saved
+
+    // Auto clear: wipes the system pasteboard on a delay or on sleep and lock.
+    // Deliberately outside the clipboardHistory family, since it clears the
+    // pasteboard without touching saved entries, and runs with capture off.
+    static let clipboardAutoClearOnDelay = "clipboardAutoClearOnDelay"
+    static let clipboardAutoClearDelay = "clipboardAutoClearDelaySeconds" // seconds since the last copy
+    static let clipboardAutoClearOnSleep = "clipboardAutoClearOnSleep"
+    static let clipboardAutoClearOnDisplaySleep = "clipboardAutoClearOnDisplaySleep"
+    static let clipboardAutoClearOnScreenLock = "clipboardAutoClearOnScreenLock"
+
     static let windowPreviewExcludedApps = "windowPreviewExcludedApps" // pause thumbnail capture while these apps are in front
     // Quick tools: paste as plain text, color picker, screen OCR, mic mute.
     static let pastePlainEnabled = "pastePlainEnabled"
@@ -628,6 +638,17 @@ enum KeepAwakeActiveIcon: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Nudge down the menu bar canvas, in points. Symbols carrying their mass
+    /// above the shape's middle — steam over a cup, a bulb over its base — read
+    /// as sitting high when their ink is centered geometrically.
+    var menuBarDrop: CGFloat {
+        switch self {
+        case .coffee: return 1
+        case .light: return 0.5
+        case .vorssaint, .eye, .moon: return 0
+        }
+    }
+
     func title(_ strings: Strings) -> String {
         switch self {
         case .vorssaint: return strings.keepAwakeActiveIconVorssaint
@@ -682,6 +703,8 @@ enum Defaults {
     static let allowedMonitorMemoryMetrics = ["used", "app"]
     static let allowedPreviewSizes = ["small", "normal", "large", "xlarge"]
     static let allowedClipboardHistoryLimits = [20, 50, 100, 250, 500, 1_000]
+    static let allowedClipboardAutoClearDelayRange = 5...3_600
+    static let defaultClipboardAutoClearDelay = 20
     static let allowedMonitorAlertCooldowns = [2, 5, 15, 30, 60]
 
     static let registeredDefaults: [String: Any] = [
@@ -991,6 +1014,11 @@ enum Defaults {
         DefaultsKey.clipboardHistorySkipSensitive: true,
         DefaultsKey.clipboardHistoryIncludeImagesFiles: true,
         DefaultsKey.clipboardHistoryIgnoredApps: [String](),
+        DefaultsKey.clipboardAutoClearOnDelay: false,
+        DefaultsKey.clipboardAutoClearDelay: Defaults.defaultClipboardAutoClearDelay,
+        DefaultsKey.clipboardAutoClearOnSleep: false,
+        DefaultsKey.clipboardAutoClearOnDisplaySleep: false,
+        DefaultsKey.clipboardAutoClearOnScreenLock: false,
         DefaultsKey.finderPasteImageAsFile: false,
         DefaultsKey.windowPreviewExcludedApps: [String](),
         DefaultsKey.pastePlainEnabled: false,
@@ -1273,6 +1301,13 @@ enum Defaults {
         allowedKeyboardDebounceWindowRange.contains(milliseconds)
             ? milliseconds
             : defaultKeyboardDebounceWindowMs
+    }
+
+    /// Clamps rather than falling back to the default: a typed 4 becoming 5 is
+    /// the correction the person meant, a typed 4 becoming 20 is not.
+    static func sanitizedClipboardAutoClearDelay(_ seconds: Int) -> Int {
+        min(max(seconds, allowedClipboardAutoClearDelayRange.lowerBound),
+            allowedClipboardAutoClearDelayRange.upperBound)
     }
 
     static func sanitizedMenuBarPreset(_ preset: String) -> String {

@@ -266,7 +266,7 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Add zooms automatically",
         automaticZoomCaption: "Turn this off to start new recordings without zooms. You can still add them in the editor.",
         pauseButton: "Pause recording",
-        resumeButton: "Resume recording",
+        resumeButton: "Resume recording"
     )
 
     static let ptBR = RecorderFeatureStrings(
@@ -388,7 +388,7 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Adicionar zooms automaticamente",
         automaticZoomCaption: "Desative para começar novas gravações sem zooms. Você ainda pode adicioná-los no editor.",
         pauseButton: "Pausar gravação",
-        resumeButton: "Retomar gravação",
+        resumeButton: "Retomar gravação"
     )
 
     static let tr = RecorderFeatureStrings(
@@ -510,7 +510,7 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Yakınlaştırmaları otomatik ekle",
         automaticZoomCaption: "Yeni kayıtları yakınlaştırmasız başlatmak için kapatın. Düzenleyicide yine ekleyebilirsiniz.",
         pauseButton: "Kaydı duraklat",
-        resumeButton: "Kayda devam et",
+        resumeButton: "Kayda devam et"
     )
 
     static let ru = RecorderFeatureStrings(
@@ -632,7 +632,7 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Добавлять масштабирование автоматически",
         automaticZoomCaption: "Отключите, чтобы новые записи начинались без масштабирования. Его можно добавить в редакторе.",
         pauseButton: "Приостановить запись",
-        resumeButton: "Продолжить запись",
+        resumeButton: "Продолжить запись"
     )
 
     static let es = RecorderFeatureStrings(
@@ -754,7 +754,7 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Añadir zooms automáticamente",
         automaticZoomCaption: "Desactívalo para iniciar nuevas grabaciones sin zooms. Aún puedes añadirlos en el editor.",
         pauseButton: "Pausar grabación",
-        resumeButton: "Reanudar grabación",
+        resumeButton: "Reanudar grabación"
     )
 
     static let de = RecorderFeatureStrings(
@@ -876,7 +876,7 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Zooms automatisch hinzufügen",
         automaticZoomCaption: "Deaktivieren, um neue Aufnahmen ohne Zooms zu beginnen. Im Editor kannst du sie weiterhin hinzufügen.",
         pauseButton: "Aufnahme pausieren",
-        resumeButton: "Aufnahme fortsetzen",
+        resumeButton: "Aufnahme fortsetzen"
     )
 
     static let fr = RecorderFeatureStrings(
@@ -998,7 +998,7 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Ajouter les zooms automatiquement",
         automaticZoomCaption: "Désactivez cette option pour commencer sans zoom. Vous pourrez toujours en ajouter dans l’éditeur.",
         pauseButton: "Mettre l’enregistrement en pause",
-        resumeButton: "Reprendre l’enregistrement",
+        resumeButton: "Reprendre l’enregistrement"
     )
 
     static let it = RecorderFeatureStrings(
@@ -1120,7 +1120,7 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Aggiungi zoom automaticamente",
         automaticZoomCaption: "Disattiva per iniziare le nuove registrazioni senza zoom. Puoi comunque aggiungerli nell’editor.",
         pauseButton: "Metti in pausa la registrazione",
-        resumeButton: "Riprendi la registrazione",
+        resumeButton: "Riprendi la registrazione"
     )
 
     static let ja = RecorderFeatureStrings(
@@ -1242,7 +1242,7 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "ズームを自動的に追加",
         automaticZoomCaption: "オフにすると、新しい収録はズームなしで始まります。エディタで後から追加できます。",
         pauseButton: "収録を一時停止",
-        resumeButton: "収録を再開",
+        resumeButton: "収録を再開"
     )
 
     static let ko = RecorderFeatureStrings(
@@ -1364,7 +1364,7 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "확대 효과 자동 추가",
         automaticZoomCaption: "끄면 새 화면 기록이 확대 효과 없이 시작됩니다. 편집기에서 나중에 추가할 수 있습니다.",
         pauseButton: "화면 기록 일시 정지",
-        resumeButton: "화면 기록 계속",
+        resumeButton: "화면 기록 계속"
     )
 
     static let zhHans = RecorderFeatureStrings(
@@ -1486,7 +1486,7 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "自动添加缩放",
         automaticZoomCaption: "关闭后，新录制将不带缩放。你仍可在编辑器中添加缩放。",
         pauseButton: "暂停录制",
-        resumeButton: "继续录制",
+        resumeButton: "继续录制"
     )
 
     static let zhTW = RecorderFeatureStrings(
@@ -1608,7 +1608,7 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "自動加入縮放",
         automaticZoomCaption: "關閉後，新錄影將不含縮放。你仍可在編輯器中加入縮放。",
         pauseButton: "暫停錄製",
-        resumeButton: "繼續錄製",
+        resumeButton: "繼續錄製"
     )
 
     static let zhHK = RecorderFeatureStrings(
@@ -1730,6 +1730,6 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "自動加入縮放",
         automaticZoomCaption: "關閉後，新錄影將不含縮放。你仍可在編輯器中加入縮放。",
         pauseButton: "暫停錄製",
-        resumeButton: "繼續錄製",
+        resumeButton: "繼續錄製"
     )
 }

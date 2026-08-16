@@ -8,8 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Summary
 Vorssaint 3.3.2 adds batch image conversion, local Command Bar scripts, recent captures and
-desktop window controls. It also improves app discovery, conversions and capture control while
-making Shelf selection faster and preventing launch failures across window tools.
+desktop window controls. It also improves app discovery, conversions, capture control and volume
+adjustments and menu bar icon sizing while making Shelf selection faster, keeping window tools from
+quitting at launch and making source builds compatible with older development tools.
 
 ### Added
 - Media now converts images in batches with resizing, watermarks, renaming and
@@ -23,8 +24,14 @@ making Shelf selection faster and preventing launch failures across window tools
   optional shortcuts.
 - Emoji can open directly from a shortcut assigned to its Command Bar row.
   Thanks to @MaximilianMauroner.
+- The clipboard can now clear itself after a delay, and when the Mac sleeps, the
+  display sleeps or the screen locks. Under Clipboard.
 
 ### Changed
+- Menu bar icons now match surrounding icons in size and alignment. Thanks to @bambidotexe.
+- Volume Mixer percentages can now be entered directly for the system output and each app.
+- Building Vorssaint from source now works with older development tools.
+  Thanks to @Bald-M.
 - Screen recordings can now pause and resume from the floating controls without
   leaving a gap in the video or its audio. Thanks to @monfxx.
 - Area recordings now keep the chosen region visible with a dimmed guide until

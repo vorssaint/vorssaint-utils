@@ -86,7 +86,9 @@ fi
 # Prefer the macOS 26 SDK when present: the 27 SDK turns SwiftUI property wrappers
 # into macros (SwiftUIMacros plugin) that the Command Line Tools cannot load yet.
 PINNED_SDK="/Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk"
-if [[ -d "$PINNED_SDK" ]]; then
+if [[ -n "${DEVELOPER_DIR:-}" ]]; then
+    SDK="$(xcrun --show-sdk-path)"
+elif [[ -d "$PINNED_SDK" ]]; then
     SDK="$PINNED_SDK"
 else
     SDK="$(xcrun --show-sdk-path)"
@@ -167,6 +169,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/DiskImageInstallerStrings.swift \
         Sources/Vorssaint/Services/DiskImageInstaller/DiskImageInstallerSupport.swift \
         Sources/Vorssaint/Services/Clipboard/ClipboardHistorySupport.swift \
+        Sources/Vorssaint/Services/Clipboard/ClipboardAutoClearSupport.swift \
         Sources/Vorssaint/Services/AutoQuit/AutoQuitSupport.swift \
         Sources/Vorssaint/Services/Shelf/ShelfSupport.swift \
         Sources/Vorssaint/Services/Finder/FinderRenameSupport.swift \
@@ -294,11 +297,14 @@ if (( DEV )); then
     /usr/libexec/PlistBuddy -c "Add :VorssaintBuildCommit string '$SHA · $(date '+%Y-%m-%d %H:%M')'" "$STAGE/Contents/Info.plist"
     echo "  stamped dev build: $SHA"
 fi
-FAN_HELPER_VERSION="$(/usr/bin/shasum -a 256 \
-    "$STAGE/Contents/Library/LaunchServices/$FAN_HELPER_ID" \
-    "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist" \
-    | /usr/bin/awk '{print $1}' | /usr/bin/shasum -a 256 \
-    | /usr/bin/awk '{print $1}')"
+FAN_HELPER_VERSION="$(
+    export LC_ALL=C
+    /usr/bin/shasum -a 256 \
+        "$STAGE/Contents/Library/LaunchServices/$FAN_HELPER_ID" \
+        "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist" \
+        | /usr/bin/awk '{print $1}' | /usr/bin/shasum -a 256 \
+        | /usr/bin/awk '{print $1}'
+)"
 /usr/libexec/PlistBuddy -c "Add :VorssaintFanControlHelperVersion string '$FAN_HELPER_VERSION'" \
     "$STAGE/Contents/Info.plist"
 printf 'APPL????' > "$STAGE/Contents/PkgInfo"

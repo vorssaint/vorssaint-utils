@@ -131,11 +131,14 @@ struct MixerSection: View {
                                       maximum: 1,
                                       accessibilityLabel: l10n.s.mixerSystemOutputTitle)
 
-                    Text("\(Int((volume * 100).rounded()))%")
-                        .font(.system(size: 10.5, weight: .medium))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                        .frame(width: 36, alignment: .trailing)
+                    MixerPercentageField(value: volume,
+                                         maximumPercentage: 100,
+                                         isBoosting: false,
+                                         normalTint: .secondary,
+                                         boostTint: .secondary,
+                                         accessibilityLabel: l10n.s.mixerSystemOutputTitle) {
+                        mixer.setCurrentOutputVolume($0)
+                    }
                 }
             }
 
@@ -528,6 +531,7 @@ struct MixerSection: View {
 
     @ViewBuilder
     private var mixerRows: some View {
+#if compiler(>=6.2)
         if #available(macOS 26.0, *) {
             GlassEffectContainer(spacing: 8) {
                 rowList
@@ -535,6 +539,9 @@ struct MixerSection: View {
         } else {
             rowList
         }
+#else
+        rowList
+#endif
     }
 
     @ViewBuilder
@@ -653,18 +660,14 @@ private struct MixerRow: View {
                                           maximum: AppVolumeMixer.maxVolume,
                                           accessibilityLabel: app.name)
 
-                        HStack(spacing: 2) {
-                            if isBoosting {
-                                Image(systemName: "bolt.fill")
-                                    .font(.system(size: 8, weight: .bold))
-                                    .foregroundStyle(boostColor)
-                            }
-                            Text("\(Int((app.volume * 100).rounded()))%")
-                                .font(.system(size: 10.5, weight: .medium))
-                                .monospacedDigit()
-                                .foregroundStyle(isBoosting ? boostColor : Color.secondary)
+                        MixerPercentageField(value: app.volume,
+                                             maximumPercentage: Int((AppVolumeMixer.maxVolume * 100).rounded()),
+                                             isBoosting: isBoosting,
+                                             normalTint: .secondary,
+                                             boostTint: boostColor,
+                                             accessibilityLabel: app.name) {
+                            mixer.setVolume($0, for: app)
                         }
-                        .frame(width: 42, alignment: .trailing)
 
                         Button {
                             mixer.setVolume(1, for: app)
@@ -756,6 +759,89 @@ private struct MixerRow: View {
     }
 }
 
+private struct MixerPercentageField: View {
+    let value: Double
+    let maximumPercentage: Int
+    let isBoosting: Bool
+    let normalTint: Color
+    let boostTint: Color
+    let accessibilityLabel: String
+    let onCommit: (Double) -> Void
+
+    @State private var draft = ""
+    @State private var editing = false
+    @FocusState private var focused: Bool
+
+    private var percentage: Int { Int((value * 100).rounded()) }
+    private var tint: Color { isBoosting ? boostTint : normalTint }
+
+    var body: some View {
+        Group {
+            if editing {
+                TextField("\(percentage)%", text: $draft)
+                    .textFieldStyle(.roundedBorder)
+                    .controlSize(.small)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .monospacedDigit()
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 42)
+                    .focused($focused)
+                    .onSubmit(commit)
+                    .onExitCommand(perform: cancel)
+                    .onChange(of: focused) { _, isFocused in
+                        if !isFocused { commit() }
+                    }
+            } else {
+                Button {
+                    beginEditing()
+                } label: {
+                    HStack(spacing: 2) {
+                        if isBoosting {
+                            Image(systemName: "bolt.fill")
+                                .font(.system(size: 8, weight: .bold))
+                        }
+                        Text("\(percentage)%")
+                            .font(.system(size: 10.5, weight: .medium))
+                            .monospacedDigit()
+                    }
+                    .foregroundStyle(tint)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(width: 42, alignment: .trailing)
+        .accessibilityLabel("\(accessibilityLabel) \(percentage)%")
+    }
+
+    private func beginEditing() {
+        draft = ""
+        editing = true
+        DispatchQueue.main.async { focused = true }
+    }
+
+    private func commit() {
+        guard editing else { return }
+        if let percent = Int(draft.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            let bounded = min(max(percent, 0), maximumPercentage)
+            onCommit(Double(bounded) / 100)
+        }
+        finishEditing()
+    }
+
+    private func cancel() {
+        guard editing else { return }
+        finishEditing()
+    }
+
+    private func finishEditing() {
+        editing = false
+        focused = false
+        draft = ""
+    }
+}
+
 private struct MixerVolumeSlider: View {
     @Binding var value: Double
     let normalTint: Color
@@ -770,6 +856,7 @@ private struct MixerVolumeSlider: View {
 
     var body: some View {
         Group {
+#if compiler(>=6.2)
             if #available(macOS 26.0, *) {
                 LiquidGlassMixerSlider(value: $value,
                                        tint: activeTint,
@@ -781,6 +868,11 @@ private struct MixerVolumeSlider: View {
                     .accessibilityLabel(accessibilityLabel)
                     .accessibilityValue("\(percentage)%")
             }
+#else
+            nativeSlider
+                .accessibilityLabel(accessibilityLabel)
+                .accessibilityValue("\(percentage)%")
+#endif
         }
     }
 
@@ -795,6 +887,7 @@ private struct MixerVolumeSlider: View {
     }
 }
 
+#if compiler(>=6.2)
 @available(macOS 26.0, *)
 private struct LiquidGlassMixerSlider: View {
     @Binding var value: Double
@@ -898,3 +991,4 @@ private struct LiquidGlassMixerSlider: View {
         value = Double(normalized) * maximum
     }
 }
+#endif

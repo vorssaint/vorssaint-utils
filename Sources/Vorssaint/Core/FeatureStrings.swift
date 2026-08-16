@@ -139,7 +139,13 @@ extension ClipboardFeatureStrings {
         previewLabel: "미리보기",
         edit: "편집",
         cancel: "취소",
-        save: "저장"
+        save: "저장",
+        autoClearEnable: "클립보드 자동 지우기 대기 시간",
+        autoClearSecondsSuffix: "초",
+        autoClearOnSleep: "Mac이 잠자기에 들어갈 때 클립보드 지우기",
+        autoClearOnDisplaySleep: "디스플레이가 꺼질 때 클립보드 지우기",
+        autoClearOnScreenLock: "화면이 잠길 때 클립보드 지우기",
+        autoClearCaption: "시스템 클립보드만 지웁니다. 이미 저장된 항목은 기록에 남습니다."
     )
 }
 
@@ -405,6 +411,12 @@ struct ClipboardFeatureStrings {
     let edit: String
     let cancel: String
     let save: String
+    let autoClearEnable: String
+    let autoClearSecondsSuffix: String
+    let autoClearOnSleep: String
+    let autoClearOnDisplaySleep: String
+    let autoClearOnScreenLock: String
+    let autoClearCaption: String
 
     static let enUS = ClipboardFeatureStrings(
         title: "Clipboard",
@@ -452,7 +464,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "Preview",
         edit: "Edit",
         cancel: "Cancel",
-        save: "Save"
+        save: "Save",
+        autoClearEnable: "Auto clear clipboard with a delay of",
+        autoClearSecondsSuffix: "seconds",
+        autoClearOnSleep: "Clear clipboard on computer sleep",
+        autoClearOnDisplaySleep: "Clear clipboard on display sleep",
+        autoClearOnScreenLock: "Clear clipboard on screen lock",
+        autoClearCaption: "Clears the system clipboard only. Items already saved stay in the history."
     )
 
     static let ptBR = ClipboardFeatureStrings(
@@ -501,7 +519,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "Prévia",
         edit: "Editar",
         cancel: "Cancelar",
-        save: "Salvar"
+        save: "Salvar",
+        autoClearEnable: "Limpar o clipboard automaticamente após",
+        autoClearSecondsSuffix: "segundos",
+        autoClearOnSleep: "Limpar o clipboard quando o Mac dormir",
+        autoClearOnDisplaySleep: "Limpar o clipboard quando a tela apagar",
+        autoClearOnScreenLock: "Limpar o clipboard ao bloquear a tela",
+        autoClearCaption: "Limpa apenas o clipboard do sistema. Os itens já guardados continuam no histórico."
     )
 
     static let tr = ClipboardFeatureStrings(
@@ -550,7 +574,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "Önizleme",
         edit: "Düzenle",
         cancel: "İptal",
-        save: "Kaydet"
+        save: "Kaydet",
+        autoClearEnable: "Panoyu otomatik temizle, gecikme",
+        autoClearSecondsSuffix: "saniye",
+        autoClearOnSleep: "Mac uykuya geçince panoyu temizle",
+        autoClearOnDisplaySleep: "Ekran uykuya geçince panoyu temizle",
+        autoClearOnScreenLock: "Ekran kilitlenince panoyu temizle",
+        autoClearCaption: "Yalnızca sistem panosunu temizler. Kaydedilmiş ögeler geçmişte kalır."
     )
 
     static let ru = ClipboardFeatureStrings(
@@ -599,7 +629,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "Просмотр",
         edit: "Редактировать",
         cancel: "Отмена",
-        save: "Сохранить"
+        save: "Сохранить",
+        autoClearEnable: "Очищать буфер обмена через",
+        autoClearSecondsSuffix: "секунд",
+        autoClearOnSleep: "Очищать буфер обмена при переходе в режим сна",
+        autoClearOnDisplaySleep: "Очищать буфер обмена при выключении экрана",
+        autoClearOnScreenLock: "Очищать буфер обмена при блокировке экрана",
+        autoClearCaption: "Очищается только системный буфер обмена. Сохранённые элементы остаются в истории."
     )
 
     static let es = ClipboardFeatureStrings(
@@ -648,7 +684,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "Vista previa",
         edit: "Editar",
         cancel: "Cancelar",
-        save: "Guardar"
+        save: "Guardar",
+        autoClearEnable: "Vaciar el portapapeles automáticamente tras",
+        autoClearSecondsSuffix: "segundos",
+        autoClearOnSleep: "Vaciar el portapapeles al suspender el Mac",
+        autoClearOnDisplaySleep: "Vaciar el portapapeles al apagarse la pantalla",
+        autoClearOnScreenLock: "Vaciar el portapapeles al bloquear la pantalla",
+        autoClearCaption: "Solo se vacía el portapapeles del sistema. Los elementos guardados siguen en el historial."
     )
 
     static let de = ClipboardFeatureStrings(
@@ -697,7 +739,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "Vorschau",
         edit: "Bearbeiten",
         cancel: "Abbrechen",
-        save: "Sichern"
+        save: "Sichern",
+        autoClearEnable: "Zwischenablage automatisch leeren nach",
+        autoClearSecondsSuffix: "Sekunden",
+        autoClearOnSleep: "Zwischenablage beim Ruhezustand leeren",
+        autoClearOnDisplaySleep: "Zwischenablage beim Ausschalten des Bildschirms leeren",
+        autoClearOnScreenLock: "Zwischenablage beim Sperren des Bildschirms leeren",
+        autoClearCaption: "Leert nur die Zwischenablage des Systems. Bereits gesicherte Einträge bleiben im Verlauf."
     )
 
     static let fr = ClipboardFeatureStrings(
@@ -746,7 +794,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "Aperçu",
         edit: "Modifier",
         cancel: "Annuler",
-        save: "Enregistrer"
+        save: "Enregistrer",
+        autoClearEnable: "Vider le presse-papiers automatiquement après",
+        autoClearSecondsSuffix: "secondes",
+        autoClearOnSleep: "Vider le presse-papiers à la mise en veille du Mac",
+        autoClearOnDisplaySleep: "Vider le presse-papiers à l'extinction de l'écran",
+        autoClearOnScreenLock: "Vider le presse-papiers au verrouillage de l'écran",
+        autoClearCaption: "Seul le presse-papiers du système est vidé. Les éléments enregistrés restent dans l'historique."
     )
 
     static let it = ClipboardFeatureStrings(
@@ -795,7 +849,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "Anteprima",
         edit: "Modifica",
         cancel: "Annulla",
-        save: "Salva"
+        save: "Salva",
+        autoClearEnable: "Svuota gli appunti automaticamente dopo",
+        autoClearSecondsSuffix: "secondi",
+        autoClearOnSleep: "Svuota gli appunti quando il Mac va in stop",
+        autoClearOnDisplaySleep: "Svuota gli appunti quando lo schermo si spegne",
+        autoClearOnScreenLock: "Svuota gli appunti al blocco dello schermo",
+        autoClearCaption: "Svuota solo gli appunti di sistema. Gli elementi salvati restano nella cronologia."
     )
 
     static let ja = ClipboardFeatureStrings(
@@ -844,7 +904,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "プレビュー",
         edit: "編集",
         cancel: "キャンセル",
-        save: "保存"
+        save: "保存",
+        autoClearEnable: "クリップボードを自動消去するまでの時間",
+        autoClearSecondsSuffix: "秒",
+        autoClearOnSleep: "システムスリープ時にクリップボードを消去",
+        autoClearOnDisplaySleep: "ディスプレイスリープ時にクリップボードを消去",
+        autoClearOnScreenLock: "画面ロック時にクリップボードを消去",
+        autoClearCaption: "システムのクリップボードのみを消去します。保存済みの項目は履歴に残ります。"
     )
 
     static let zhHans = ClipboardFeatureStrings(
@@ -893,7 +959,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "预览",
         edit: "编辑",
         cancel: "取消",
-        save: "保存"
+        save: "保存",
+        autoClearEnable: "自动清空剪贴板，延迟",
+        autoClearSecondsSuffix: "秒",
+        autoClearOnSleep: "睡眠时清空剪贴板",
+        autoClearOnDisplaySleep: "显示器睡眠时清空剪贴板",
+        autoClearOnScreenLock: "锁定屏幕时清空剪贴板",
+        autoClearCaption: "仅清空系统剪贴板，已保存的条目仍保留在历史记录中。"
     )
 
     static let zhTW = ClipboardFeatureStrings(
@@ -942,7 +1014,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "預覽",
         edit: "編輯",
         cancel: "取消",
-        save: "儲存"
+        save: "儲存",
+        autoClearEnable: "自動清除剪貼簿，延遲",
+        autoClearSecondsSuffix: "秒",
+        autoClearOnSleep: "睡眠時清除剪貼簿",
+        autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
+        autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
+        autoClearCaption: "僅清除系統剪貼簿，已儲存的項目仍保留在記錄中。"
     )
 
     static let zhHK = ClipboardFeatureStrings(
@@ -991,7 +1069,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "預覽",
         edit: "編輯",
         cancel: "取消",
-        save: "儲存"
+        save: "儲存",
+        autoClearEnable: "自動清除剪貼簿，延遲",
+        autoClearSecondsSuffix: "秒",
+        autoClearOnSleep: "睡眠時清除剪貼簿",
+        autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
+        autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
+        autoClearCaption: "只會清除系統剪貼簿，已儲存的項目仍會保留在記錄中。"
     )
 }
 

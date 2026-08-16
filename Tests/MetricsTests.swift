@@ -171,6 +171,67 @@ struct MetricsTests {
         expect(ClipboardHistorySearch.rankedIndexes(candidates: clipboardCandidates,
                                                     matching: "missing") == [],
                "clipboard search returns no results for unmatched terms")
+
+        // MARK: Clipboard auto clear preferences
+
+        expect(Defaults.sanitizedClipboardAutoClearDelay(20) == 20,
+               "auto clear delay in range passes through")
+        expect(Defaults.sanitizedClipboardAutoClearDelay(4) == 5,
+               "auto clear delay below the floor clamps up, so a typed 4 does not jump to the default")
+        expect(Defaults.sanitizedClipboardAutoClearDelay(0) == 5,
+               "auto clear delay of zero clamps up instead of clearing instantly")
+        expect(Defaults.sanitizedClipboardAutoClearDelay(99_999) == 3_600,
+               "auto clear delay above the ceiling clamps down")
+        expect(Defaults.registeredDefaults[DefaultsKey.clipboardAutoClearOnDelay] as? Bool == false,
+               "auto clear is off until asked for")
+        expect(Defaults.registeredDefaults[DefaultsKey.clipboardAutoClearOnSleep] as? Bool == false,
+               "clear on computer sleep is off until asked for")
+        expect(Defaults.registeredDefaults[DefaultsKey.clipboardAutoClearOnDisplaySleep] as? Bool == false,
+               "clear on display sleep is off until asked for")
+        expect(Defaults.registeredDefaults[DefaultsKey.clipboardAutoClearOnScreenLock] as? Bool == false,
+               "clear on screen lock is off until asked for")
+        expect(Defaults.registeredDefaults[DefaultsKey.clipboardAutoClearDelay] as? Int == 20,
+               "auto clear starts at twenty seconds")
+
+        // MARK: Clipboard auto clear timing
+
+        let autoClearCopiedAt = Date(timeIntervalSince1970: 1_000_000)
+        expect(ClipboardAutoClearSupport.decide(changeCount: 8,
+                                                lastChangeCount: 7,
+                                                lastClearedChangeCount: 0,
+                                                lastChangeDate: autoClearCopiedAt,
+                                                now: autoClearCopiedAt.addingTimeInterval(600),
+                                                delay: 20) == .noteChange,
+               "a new change count restarts the clock however long the old content sat there")
+        expect(ClipboardAutoClearSupport.decide(changeCount: 7,
+                                                lastChangeCount: 7,
+                                                lastClearedChangeCount: 0,
+                                                lastChangeDate: autoClearCopiedAt,
+                                                now: autoClearCopiedAt.addingTimeInterval(19),
+                                                delay: 20) == .wait,
+               "unchanged content waits until the delay is up")
+        expect(ClipboardAutoClearSupport.decide(changeCount: 7,
+                                                lastChangeCount: 7,
+                                                lastClearedChangeCount: 0,
+                                                lastChangeDate: autoClearCopiedAt,
+                                                now: autoClearCopiedAt.addingTimeInterval(20),
+                                                delay: 20) == .clear,
+               "unchanged content clears once the delay is exactly up")
+        expect(ClipboardAutoClearSupport.decide(changeCount: 7,
+                                                lastChangeCount: 7,
+                                                lastClearedChangeCount: 0,
+                                                lastChangeDate: autoClearCopiedAt,
+                                                now: autoClearCopiedAt.addingTimeInterval(8 * 3_600),
+                                                delay: 20) == .clear,
+               "waking after hours of sleep clears at once instead of waiting out another delay")
+        expect(ClipboardAutoClearSupport.decide(changeCount: 7,
+                                                lastChangeCount: 7,
+                                                lastClearedChangeCount: 7,
+                                                lastChangeDate: autoClearCopiedAt,
+                                                now: autoClearCopiedAt.addingTimeInterval(600),
+                                                delay: 20) == .wait,
+               "the count our own clear produced never clears again, so clearing cannot loop")
+
         expect(FeatureStrings.clipboard(.ptBR).shortcutHint.contains("colar no app anterior"),
                "clipboard shortcut hint exposes row click paste in Portuguese")
         expect(FeatureStrings.clipboard(.ptBR).shortcutHint.contains("⌘+clique seleciona"),
@@ -220,6 +281,13 @@ struct MetricsTests {
                          "\(language.rawValue) paste-selected button format")
             expectFormat(clipboardStrings.copySelectedFormat, ["d"],
                          "\(language.rawValue) copy-selected button format")
+            expect(!clipboardStrings.autoClearEnable.isEmpty
+                   && !clipboardStrings.autoClearSecondsSuffix.isEmpty
+                   && !clipboardStrings.autoClearOnSleep.isEmpty
+                   && !clipboardStrings.autoClearOnDisplaySleep.isEmpty
+                   && !clipboardStrings.autoClearOnScreenLock.isEmpty
+                   && !clipboardStrings.autoClearCaption.isEmpty,
+                   "\(language.rawValue) clipboard auto clear labels are localized")
             let layoutStrings = FeatureStrings.windowLayout(language)
             expect(!layoutStrings.sixths.isEmpty
                    && !layoutStrings.topLeftSixth.isEmpty
@@ -8536,7 +8604,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let values = Mirror(reflecting: FeatureStrings.clipboard(language)).children
                 .compactMap { $0.value as? String }
-            expect(values.count == 46 && values.allSatisfy { !$0.isEmpty },
+            expect(values.count == 52 && values.allSatisfy { !$0.isEmpty },
                    "every clipboard string is set for \(language.rawValue)")
             expect(values.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible clipboard strings (\(language.rawValue))")
@@ -8960,11 +9028,12 @@ struct MetricsTests {
         // MARK: Display brightness (DDC/CI helpers)
 
         let ddcWrite = BrightnessSupport.writePacket(code: 0x10, value: 0x1234)
-        expect(ddcWrite == [0x84, 0x03, 0x10, 0x12, 0x34,
-                            0x6E ^ 0x51 ^ 0x84 ^ 0x03 ^ 0x10 ^ 0x12 ^ 0x34],
+        let expectedDDCWrite: [UInt8] = [0x84, 0x03, 0x10, 0x12, 0x34, 0x8E]
+        expect(ddcWrite == expectedDDCWrite,
                "DDC write packet carries the set opcode, big-endian value and checksum")
         let ddcRead = BrightnessSupport.readRequestPacket(code: 0x10)
-        expect(ddcRead == [0x82, 0x01, 0x10, 0x6E ^ 0x82 ^ 0x01 ^ 0x10],
+        let expectedDDCRead: [UInt8] = [0x82, 0x01, 0x10, 0xFD]
+        expect(ddcRead == expectedDDCRead,
                "DDC read request omits the sub-address from its checksum seed")
         expect(Array(BrightnessSupport.writePacket(code: 0x10, value: 100)[3...4]) == [0x00, 0x64],
                "DDC values split into high and low bytes")
