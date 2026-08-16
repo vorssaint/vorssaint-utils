@@ -10,7 +10,8 @@ All notable changes to this project are documented here. The format follows
 Vorssaint 3.3.2 adds batch image conversion, local Command Bar scripts, recent captures and
 desktop window controls. It also improves app discovery, conversions, capture control and volume
 adjustments and menu bar icon sizing while making Shelf selection faster, keeping window tools from
-quitting at launch and making source builds compatible with older development tools.
+quitting at launch and making source builds compatible with older development tools. Shelf can also
+open when files reach a screen edge.
 
 ### Added
 - Media now converts images in batches with resizing, watermarks, renaming and
@@ -57,6 +58,8 @@ quitting at launch and making source builds compatible with older development to
   Thanks to @theafox.
 - Shelf now supports Shift-click ranges, Command-A to select every visible item
   and Escape to clear the selection. Thanks to @cimu233.
+- Shelf can now open when a dragged file reaches a screen edge. Enable it under
+  Shelf. Thanks to @tenbux.
 - Foot conversions in the Command Bar now show localized feet and inches while
   keeping small measurements precise. Thanks to @tenbux.
 

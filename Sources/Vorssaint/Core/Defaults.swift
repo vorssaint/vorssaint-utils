@@ -778,10 +778,8 @@ enum Defaults {
         // On by default (owner's call): it costs nothing until the shelf itself
         // is on, and then the shelf lives handily under the menu bar icon.
         DefaultsKey.shelfDropZoneEnabled: true,
-        // Same reasoning as the drop zone: costs nothing until the shelf
-        // itself is on, and it is one more way to reach for a familiar
-        // target while both hands are full with a drag.
-        DefaultsKey.shelfEdgeDragEnabled: true,
+        // New Shelf behavior stays opt-in for existing users.
+        DefaultsKey.shelfEdgeDragEnabled: false,
         // Closing after a drop is new behavior, so it arrives OFF for people
         // who already rely on the panel staying put; removing after a drop
         // keeps the value shipped releases always had.

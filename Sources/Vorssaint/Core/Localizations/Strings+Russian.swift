@@ -471,8 +471,6 @@ extension Strings {
         shelfShakeCaption: "Быстро потрясите указателем, удерживая объект, чтобы вызвать полку рядом с курсором.",
         shelfDropZoneToggle: "Держать перетащенные файлы в строке меню",
         shelfDropZoneCaption: "Пока вы перетаскиваете файл, полка появляется под значком в строке меню. То, что вы отпустите, остаётся прямо там, в кнопке, которую можно свернуть и открыть одним щелчком и которая исчезает, когда полка пустеет.",
-        shelfEdgeToggle: "Открывать у края экрана",
-        shelfEdgeCaption: "Перетащите файл к краю экрана, чтобы полка выглянула. Отпустите его там, или потяните обратно, и полка уберётся.",
         shelfDropZoneLabel: "Отпустите здесь",
         shelfCollapse: "Свернуть",
         shelfBehaviorTitle: "После использования",
@@ -903,6 +901,8 @@ extension Strings {
         invertHorizontalScroll: "Инвертировать горизонтальную прокрутку",
         switcherShowShortcutHints: "Показывать подсказки сочетаний клавиш",
         switcherShowShortcutHintsCaption: "Показывает сочетания клавиш для приложений и окон под значками.",
-        uninstallerHomebrewPackageFormat: "%@ также будет удалён из Homebrew."
+        uninstallerHomebrewPackageFormat: "%@ также будет удалён из Homebrew.",
+        shelfEdgeToggle: "Открывать у края экрана",
+        shelfEdgeCaption: "Перетащите файл к краю экрана, чтобы полка выглянула. Отпустите его там, или потяните обратно, и полка уберётся."
     )
 }

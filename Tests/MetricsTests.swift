@@ -2056,6 +2056,8 @@ struct MetricsTests {
                "shelf shortcut defaults to Ctrl+Opt+Cmd+D")
         expect(registeredDefaults[DefaultsKey.shelfShakeToOpen] as? Bool == true,
                "shelf shake opens by default once shelf is enabled")
+        expect(registeredDefaults[DefaultsKey.shelfEdgeDragEnabled] as? Bool == false,
+               "new shelf edge opening stays off by default")
         expect(registeredDefaults[DefaultsKey.shelfCloseAfterDrop] as? Bool == false,
                "closing after a drop is new behavior and must arrive off in an update")
         expect(registeredDefaults[DefaultsKey.shelfRemoveAfterDrop] as? Bool == true,

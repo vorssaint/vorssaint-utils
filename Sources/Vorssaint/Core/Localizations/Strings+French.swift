@@ -470,8 +470,6 @@ extension Strings {
         shelfShakeCaption: "Secouez rapidement le pointeur tout en tenant un élément pour faire apparaître l’étagère près du curseur.",
         shelfDropZoneToggle: "Garder les fichiers glissés dans la barre des menus",
         shelfDropZoneCaption: "Pendant que vous faites glisser un fichier, l’étagère apparaît sous l’icône de la barre des menus. Ce que vous déposez y reste, dans un bouton que vous réduisez et ouvrez d’un clic et qui disparaît une fois l’étagère vide.",
-        shelfEdgeToggle: "Ouvrir près d’un bord de l’écran",
-        shelfEdgeCaption: "Faites glisser un fichier vers le bord de l’écran pour entrevoir l’étagère. Déposez-le là, ou reculez et elle se retire.",
         shelfDropZoneLabel: "Déposez ici",
         shelfCollapse: "Réduire",
         shelfBehaviorTitle: "Après utilisation",
@@ -902,6 +900,8 @@ extension Strings {
         invertHorizontalScroll: "Inverser le défilement horizontal",
         switcherShowShortcutHints: "Afficher les raccourcis",
         switcherShowShortcutHintsCaption: "Affiche les raccourcis des apps et des fenêtres sous les icônes.",
-        uninstallerHomebrewPackageFormat: "%@ sera aussi retiré de Homebrew."
+        uninstallerHomebrewPackageFormat: "%@ sera aussi retiré de Homebrew.",
+        shelfEdgeToggle: "Ouvrir près d’un bord de l’écran",
+        shelfEdgeCaption: "Faites glisser un fichier vers le bord de l’écran pour entrevoir l’étagère. Déposez-le là, ou reculez et elle se retire."
     )
 }

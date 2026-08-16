@@ -593,8 +593,6 @@ struct Strings {
     let shelfShakeCaption: String
     let shelfDropZoneToggle: String
     let shelfDropZoneCaption: String
-    let shelfEdgeToggle: String
-    let shelfEdgeCaption: String
     let shelfDropZoneLabel: String
     let shelfCollapse: String
     let shelfBehaviorTitle: String
@@ -1047,6 +1045,8 @@ struct Strings {
     let switcherShowShortcutHints: String
     let switcherShowShortcutHintsCaption: String
     let uninstallerHomebrewPackageFormat: String
+    let shelfEdgeToggle: String
+    let shelfEdgeCaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -1518,8 +1518,6 @@ extension Strings {
         shelfShakeCaption: "Sacuda o ponteiro rapidamente segurando um item para chamar a área perto do cursor.",
         shelfDropZoneToggle: "Guardar arquivos na barra de menus ao arrastar",
         shelfDropZoneCaption: "Ao arrastar um arquivo, a área aparece embaixo do ícone na barra de menus. O que você soltar fica guardado ali, num botão que você encolhe e abre com um clique e que some quando a área fica vazia.",
-        shelfEdgeToggle: "Abrir perto de uma borda da tela",
-        shelfEdgeCaption: "Ao arrastar um arquivo para perto da borda da tela, a área espia para dentro. Solte ali, ou puxe de volta e ela recua.",
         shelfDropZoneLabel: "Solte aqui",
         shelfCollapse: "Encolher",
         shelfBehaviorTitle: "Depois de usar",
@@ -1950,7 +1948,9 @@ extension Strings {
         invertHorizontalScroll: "Inverter rolagem horizontal",
         switcherShowShortcutHints: "Mostrar dicas de atalhos",
         switcherShowShortcutHintsCaption: "Exibe os atalhos de apps e janelas abaixo dos ícones.",
-        uninstallerHomebrewPackageFormat: "%@ também será removido do Homebrew."
+        uninstallerHomebrewPackageFormat: "%@ também será removido do Homebrew.",
+        shelfEdgeToggle: "Abrir perto de uma borda da tela",
+        shelfEdgeCaption: "Ao arrastar um arquivo para perto da borda da tela, a área espia para dentro. Solte ali, ou puxe de volta e ela recua."
     )
 }
 
@@ -2423,8 +2423,6 @@ extension Strings {
         shelfShakeCaption: "Shake the pointer quickly while holding an item to summon it near the cursor.",
         shelfDropZoneToggle: "Keep dragged files in the menu bar",
         shelfDropZoneCaption: "While you drag a file, the shelf appears below the menu bar icon. Whatever you drop is kept right there, in a button you shrink and open with a click that goes away once the shelf is empty.",
-        shelfEdgeToggle: "Open near a screen edge",
-        shelfEdgeCaption: "Drag a file toward the screen edge to peek the shelf in. Drop it there, or pull back and it retreats.",
         shelfDropZoneLabel: "Drop here",
         shelfCollapse: "Collapse",
         shelfBehaviorTitle: "After use",
@@ -2855,6 +2853,8 @@ extension Strings {
         invertHorizontalScroll: "Invert horizontal scrolling",
         switcherShowShortcutHints: "Show shortcut hints",
         switcherShowShortcutHintsCaption: "Shows the app and window shortcuts below the icons.",
-        uninstallerHomebrewPackageFormat: "%@ will also be removed from Homebrew."
+        uninstallerHomebrewPackageFormat: "%@ will also be removed from Homebrew.",
+        shelfEdgeToggle: "Open near a screen edge",
+        shelfEdgeCaption: "Drag a file toward the screen edge to peek the shelf in. Drop it there, or pull back and it retreats."
     )
 }

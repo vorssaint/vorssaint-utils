@@ -471,8 +471,6 @@ extension Strings {
         shelfShakeCaption: "按住項目時快速搖動指標，即可在游標附近叫出暫存架。",
         shelfDropZoneToggle: "將拖曳的檔案保留在選單列",
         shelfDropZoneCaption: "拖移檔案時，暫存架會出現在選單列圖示下方。放下的內容就保存在那裡，收進一個點按即可收合或打開的按鈕，暫存架清空後按鈕便會消失。",
-        shelfEdgeToggle: "接近螢幕邊緣時開啟",
-        shelfEdgeCaption: "將檔案拖曳至螢幕邊緣，暫存架便會探出一角。放在那裡即可放低，往回拖曳暫存架便會縮回去。",
         shelfDropZoneLabel: "放到這裡",
         shelfCollapse: "收合",
         shelfBehaviorTitle: "使用後",
@@ -903,6 +901,8 @@ extension Strings {
         invertHorizontalScroll: "反轉水平捲動",
         switcherShowShortcutHints: "顯示快速鍵提示",
         switcherShowShortcutHintsCaption: "在圖示下方顯示 App 和視窗快速鍵。",
-        uninstallerHomebrewPackageFormat: "%@ 亦會從 Homebrew 移除。"
+        uninstallerHomebrewPackageFormat: "%@ 亦會從 Homebrew 移除。",
+        shelfEdgeToggle: "接近螢幕邊緣時開啟",
+        shelfEdgeCaption: "將檔案拖曳至螢幕邊緣，暫存架便會探出一角。放在那裡即可放低，往回拖曳暫存架便會縮回去。"
     )
 }

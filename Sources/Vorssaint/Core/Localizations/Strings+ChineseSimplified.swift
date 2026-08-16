@@ -470,8 +470,6 @@ extension Strings {
         shelfShakeCaption: "按住某个项目时快速晃动指针，即可在光标附近呼出暂存架。",
         shelfDropZoneToggle: "将拖动的文件保留在菜单栏",
         shelfDropZoneCaption: "拖动文件时，暂存架会出现在菜单栏图标下方。放下的内容就保存在那里，收进一个点按即可收起或打开的按钮，暂存架清空后按钮会消失。",
-        shelfEdgeToggle: "靠近屏幕边缘时打开",
-        shelfEdgeCaption: "将文件拖向屏幕边缘，暂存架就会探出一角。放在那里即可放下，往回拖则会收回去。",
         shelfDropZoneLabel: "放到这里",
         shelfCollapse: "收起",
         shelfBehaviorTitle: "使用后",
@@ -902,6 +900,8 @@ extension Strings {
         invertHorizontalScroll: "反转水平滚动",
         switcherShowShortcutHints: "显示快捷键提示",
         switcherShowShortcutHintsCaption: "在图标下方显示 App 和窗口快捷键。",
-        uninstallerHomebrewPackageFormat: "%@ 也会从 Homebrew 中移除。"
+        uninstallerHomebrewPackageFormat: "%@ 也会从 Homebrew 中移除。",
+        shelfEdgeToggle: "靠近屏幕边缘时打开",
+        shelfEdgeCaption: "将文件拖向屏幕边缘，暂存架就会探出一角。放在那里即可放下，往回拖则会收回去。"
     )
 }

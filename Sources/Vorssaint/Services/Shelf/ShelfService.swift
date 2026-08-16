@@ -123,15 +123,6 @@ final class ShelfService: ObservableObject {
     /// shows even with nothing in it yet. Items keep it up on their own.
     private var dockedForcedOpen = false
     private let autoHideDelay: TimeInterval = 5
-    /// A shorter delay used whenever the idle timer arms while the shelf is
-    /// empty, rather than the full delay a shelf with items gets. Most
-    /// removal paths dismiss an emptied shelf immediately and never reach
-    /// this timer at all (see `dismissIfEmptied`); the cases that still do
-    /// are opening an empty shelf on purpose (the shortcut, shake, or
-    /// Settings' "Open now") and un-pinning one that's already empty.
-    /// Either way, something with nothing in it shouldn't sit at the full
-    /// idle delay before it goes away.
-    private let emptyAutoHideDelay: TimeInterval = 2.5
     private let autoHideFadeDuration: TimeInterval = 0.22
     private var autoHideTimer: Timer?
     private var autoHideFadeTimer: Timer?
@@ -1002,13 +993,10 @@ final class ShelfService: ObservableObject {
         cleanSelectionState()
         retireOwnedPayloads(in: removed)
         noteInteraction()
-        dismissIfEmptied()
     }
 
-    /// Removes several items at once, used after a successful drag-out (the
-    /// tiles you dropped elsewhere leave the shelf) and by explicit
-    /// multi-select deletion. Either way, emptying the shelf dismisses it
-    /// right away; see `dismissIfEmptied`.
+    /// Removes several items at once — used after a successful drag-out so the
+    /// tiles you dropped elsewhere leave the shelf.
     func removeItems(_ ids: [UUID]) {
         let set = Set(ids)
         var removed: [Item] = []
@@ -1016,7 +1004,6 @@ final class ShelfService: ObservableObject {
         cleanSelectionState()
         retireOwnedPayloads(in: removed)
         noteInteraction()
-        dismissIfEmptied()
     }
 
     func clear() {
@@ -1027,16 +1014,6 @@ final class ShelfService: ObservableObject {
         expandedBatches = []
         retireOwnedPayloads(in: removed)
         noteInteraction()
-        dismissIfEmptied()
-    }
-
-    /// Dismisses the classic panel right away once nothing is left in it,
-    /// instead of waiting out the normal idle delay, so it's immediately
-    /// ready to be triggered again. Pinning still wins, same as every other
-    /// close path.
-    private func dismissIfEmptied() {
-        guard items.isEmpty, !isPinned, panel?.isVisible == true else { return }
-        hide()
     }
 
     func toggleSelection(_ id: UUID) {
@@ -1987,8 +1964,7 @@ final class ShelfService: ObservableObject {
         autoHideTimer = nil
         guard panel?.isVisible == true, !shouldHoldOpen else { return }
 
-        let delay = items.isEmpty ? emptyAutoHideDelay : autoHideDelay
-        autoHideTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+        autoHideTimer = Timer.scheduledTimer(withTimeInterval: autoHideDelay, repeats: false) { [weak self] _ in
             self?.autoHideIfIdle()
         }
         autoHideTimer?.tolerance = 0.5

@@ -10,7 +10,7 @@ struct ShelfSettings: View {
     @AppStorage(DefaultsKey.shelfShortcutEnabled) private var shortcutEnabled = true
     @AppStorage(DefaultsKey.shelfShakeToOpen) private var shake = true
     @AppStorage(DefaultsKey.shelfDropZoneEnabled) private var dropZone = true
-    @AppStorage(DefaultsKey.shelfEdgeDragEnabled) private var edgeDrag = true
+    @AppStorage(DefaultsKey.shelfEdgeDragEnabled) private var edgeDrag = false
     @AppStorage(DefaultsKey.shelfCloseAfterDrop) private var closeAfterDrop = false
     @AppStorage(DefaultsKey.shelfRemoveAfterDrop) private var removeAfterDrop = true
     @State private var showingAppPicker = false
