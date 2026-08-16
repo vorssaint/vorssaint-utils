@@ -111,6 +111,20 @@ struct ShelfTilesView: NSViewRepresentable {
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
+        Self.rebuildTiles(scroll: scroll, items: items, selection: selection, expandedBatches: expandedBatches)
+    }
+
+    /// Lays out every tile from scratch. Shared with `ShelfTileView`, which
+    /// calls this directly (bypassing SwiftUI) right after a successful
+    /// merge onto a tile, whether the drag came from outside the app or from
+    /// another tile: SwiftUI's own `updateNSView` observably lags behind the
+    /// mutation while an AppKit drag session is still unwinding, so the
+    /// merged tile otherwise stays visually stale until some later,
+    /// unrelated event forces a redraw.
+    static func rebuildTiles(scroll: NSScrollView,
+                             items: [ShelfService.Item],
+                             selection: Set<UUID>,
+                             expandedBatches: Set<UUID>) {
         guard let document = scroll.documentView else { return }
         document.subviews.forEach { $0.removeFromSuperview() }
 
@@ -492,6 +506,20 @@ final class ShelfTileView: NSView, NSDraggingSource {
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         let merged = ShelfService.shared.mergePasteboard(sender.draggingPasteboard, into: item.id)
         setDropTargeted(false)
+        // mergePasteboard mutates ShelfService synchronously (whether the
+        // drag came from outside the app or from another tile), but SwiftUI's
+        // own updateNSView observably lags behind it while this AppKit drag
+        // session is still unwinding, leaving the merged tile visually stale
+        // until some unrelated later event forces a redraw. Rebuilding
+        // directly here, with the service's own current state, bypasses that
+        // lag for the one thing that has to be immediate: showing the drop
+        // actually worked.
+        if merged, let scroll = superview?.enclosingScrollView {
+            ShelfTilesView.rebuildTiles(scroll: scroll,
+                                       items: ShelfService.shared.visibleItems,
+                                       selection: ShelfService.shared.selection,
+                                       expandedBatches: ShelfService.shared.expandedBatches)
+        }
         return merged
     }
 
