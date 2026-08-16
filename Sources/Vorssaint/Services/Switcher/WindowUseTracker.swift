@@ -36,6 +36,7 @@ final class WindowUseTracker {
     private let stateLock = NSLock()
     private var windowHistory: [CGWindowID] = []
     private var appHistory: [pid_t] = []
+    private var windowChangeHandler: (() -> Void)?
     /// False from the moment the feature is switched off. The watcher thread is
     /// stopped from the outside and never joined, so without this a callback
     /// already in flight could write a window back into a history that was
@@ -101,11 +102,24 @@ final class WindowUseTracker {
         }
     }
 
-    private func promote(window windowID: CGWindowID) {
-        stateLock.withLock {
-            guard recording else { return }
+    private func promote(window windowID: CGWindowID, notifyChange: Bool = true) {
+        let handler = stateLock.withLock { () -> (() -> Void)? in
+            guard recording else { return nil }
             windowHistory = WindowUseOrder.promoting(windowID, in: windowHistory)
+            return notifyChange ? windowChangeHandler : nil
         }
+        handler?()
+    }
+
+    private func invalidateWarmWindowList() {
+        let handler = stateLock.withLock { recording ? windowChangeHandler : nil }
+        handler?()
+    }
+
+    /// Lets the switcher warm a new AX-derived list when the foreground app
+    /// changes windows without an application lifecycle notification.
+    func setWindowChangeHandler(_ handler: (() -> Void)?) {
+        stateLock.withLock { windowChangeHandler = handler }
     }
 
     private func promote(app pid: pid_t) {
@@ -296,7 +310,9 @@ final class WindowUseTracker {
         // full default timeout, on this thread, once per switch.
         AXUIElementSetMessagingTimeout(application, Self.messagingTimeout)
         let refcon = Unmanaged.passUnretained(self).toOpaque()
-        for notification in [kAXFocusedWindowChangedNotification, kAXMainWindowChangedNotification] {
+        for notification in [kAXFocusedWindowChangedNotification,
+                             kAXMainWindowChangedNotification,
+                             kAXWindowCreatedNotification] {
             _ = AXObserverAddNotification(created, application, notification as CFString, refcon)
         }
         CFRunLoopAddSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(created), .defaultMode)
@@ -315,7 +331,9 @@ final class WindowUseTracker {
         if let observedPID {
             let application = AXUIElementCreateApplication(observedPID)
             AXUIElementSetMessagingTimeout(application, Self.messagingTimeout)
-            for notification in [kAXFocusedWindowChangedNotification, kAXMainWindowChangedNotification] {
+            for notification in [kAXFocusedWindowChangedNotification,
+                                 kAXMainWindowChangedNotification,
+                                 kAXWindowCreatedNotification] {
                 _ = AXObserverRemoveNotification(observer, application, notification as CFString)
             }
         }
@@ -323,7 +341,7 @@ final class WindowUseTracker {
         observedPID = nil
     }
 
-    private func readFocusedWindow(of pid: pid_t) {
+    private func readFocusedWindow(of pid: pid_t, notifyChange: Bool = true) {
         guard AXIsProcessTrusted() else { return }
         let application = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(application, Self.messagingTimeout)
@@ -335,13 +353,21 @@ final class WindowUseTracker {
         // A misbehaving app can answer with something that is not an element.
         let window = value as! AXUIElement
         guard let windowID = AXWindowResolver.windowID(for: window) else { return }
-        promote(window: windowID)
+        promote(window: windowID, notifyChange: notifyChange)
     }
 
     /// C callback: no captures, so the tracker travels in the refcon.
-    private static let focusCallback: AXObserverCallback = { _, element, _, refcon in
+    private static let focusCallback: AXObserverCallback = { _, element, notification, refcon in
         guard let refcon else { return }
         let tracker = Unmanaged<WindowUseTracker>.fromOpaque(refcon).takeUnretainedValue()
+        if SwitcherWindowObservationAction.action(for: notification as String)
+            == .refreshFocusedWindow {
+            tracker.invalidateWarmWindowList()
+            if let pid = tracker.observedPID {
+                tracker.readFocusedWindow(of: pid, notifyChange: false)
+            }
+            return
+        }
         guard let windowID = AXWindowResolver.windowID(for: element) else { return }
         tracker.promote(window: windowID)
     }

@@ -75,6 +75,19 @@ enum SelfTest {
         }
         UserDefaults.standard.removeObject(forKey: "selftest")
 
+        let commandBarSnapshot = WindowEnumerator.captureCommandBarSnapshot()
+        if !commandBarSnapshot.appRules.isEmpty {
+            failures.append("Command Bar window rules")
+        }
+        let commandBarEnumeration = DispatchSemaphore(value: 0)
+        DispatchQueue.global(qos: .userInitiated).async {
+            _ = WindowEnumerator.listWindowsForCommandBar(from: commandBarSnapshot)
+            commandBarEnumeration.signal()
+        }
+        if commandBarEnumeration.wait(timeout: .now() + 10) == .timedOut {
+            failures.append("Command Bar window enumeration")
+        }
+
         for style in KeepAwakeActiveIcon.allCases {
             guard let image = BlackHoleGlyph.activeImage(style: style, tint: .orange) else {
                 failures.append("Keep Awake icon \(style.rawValue)")

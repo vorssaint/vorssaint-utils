@@ -23,6 +23,696 @@ struct SwitcherSearchRecord: Equatable {
     let appName: String
 }
 
+/// The exact shortcut decision made while the event tap still owns the key.
+/// Main-thread handling carries this value instead of consulting mutable
+/// preferences after the original event has already been swallowed.
+struct SwitcherInitialRoute: Equatable {
+    let shortcut: GlobalShortcut
+    let scope: SwitcherSessionScope
+    let reversed: Bool
+}
+
+struct SwitcherPendingNavigation: Equatable {
+    let command: SwitcherSessionScope
+    let delta: Int
+    let wrapping: Bool
+}
+
+/// A key the event tap consumed while main was still building the session.
+/// It stores only the values needed after startup, never the tap's CGEvent.
+struct SwitcherPendingKeyInput: Equatable {
+    let keyCode: Int64
+    let text: String?
+    let isRepeat: Bool
+}
+
+enum SwitcherPendingOperation: Equatable {
+    case navigation(SwitcherPendingNavigation)
+    case keyCommand(SwitcherPendingKeyInput)
+    case letterAction(SwitcherLetterAction)
+    case searchText(String)
+    case terminal(SwitcherPendingTerminal)
+
+    var isTerminal: Bool {
+        if case .terminal = self { return true }
+        return false
+    }
+}
+
+enum SwitcherPendingTerminal: Equatable {
+    case commit
+    case cancel
+}
+
+struct SwitcherPendingFlagsObservation: Equatable {
+    let gestureEnded: Bool
+    let consumesEvent: Bool
+
+    static let none = SwitcherPendingFlagsObservation(gestureEnded: false,
+                                                       consumesEvent: false)
+}
+
+enum SwitcherPendingRouteAcceptance: Equatable {
+    case accepted(UInt64)
+    case coalesced
+    case rejected
+}
+
+enum SwitcherMatchedRouteDecision: Equatable {
+    case activeSession
+    case needsAccessibility
+    case accepted(UInt64)
+    case coalesced
+    case rejected
+}
+
+struct SwitcherRouteSource: Equatable {
+    let itemID: String
+    let pid: pid_t
+    let windowID: CGWindowID?
+    let windowOwnerPID: pid_t?
+    let isFullscreen: Bool
+
+    init(_ item: SwitcherItem) {
+        itemID = item.id
+        pid = item.pid
+        windowID = item.windowID
+        windowOwnerPID = item.windowOwnerPID
+        isFullscreen = item.isFullscreen
+    }
+}
+
+struct SwitcherRouteClaim: Equatable {
+    let route: SwitcherInitialRoute
+    let source: SwitcherRouteSource?
+}
+
+enum SwitcherClaimedSessionResolution: Equatable {
+    case invalid
+    case valid(route: SwitcherInitialRoute, source: SwitcherRouteSource?)
+}
+
+struct SwitcherActivationWindowTarget: Equatable {
+    let generation: UInt64
+    let windowID: CGWindowID
+    let windowOwnerPID: pid_t
+}
+
+enum SwitcherActivationConfirmation {
+    static let probeDelays: [TimeInterval] = [0, 0.12, 0.18, 0.38, 0.68]
+    static let timeout: TimeInterval = 0.8
+}
+
+/// Owns the shortcut between the tap swallowing it and the main thread
+/// establishing a session. Navigation remains on the tap thread while a cold
+/// Accessibility walk is in progress; modifier release queues the next
+/// physical gesture as a separate session.
+struct SwitcherRouteOwnership {
+    static let pendingGestureLimit = 8
+    static let pendingOperationLimit = 64
+
+    private(set) var tapLive = false
+    private(set) var capturing = false
+
+    private struct Pending {
+        let token: UInt64
+        let route: SwitcherInitialRoute
+        var sourceGeneration: UInt64?
+        var operations: [SwitcherPendingOperation] = []
+        var claimed = false
+        var gestureEnded = false
+        var shiftBackNavigationHeld: Bool
+        var searchPinRequested = false
+        var searchLength = 0
+        var terminal: SwitcherPendingTerminal?
+    }
+
+    private struct Active {
+        let token: UInt64
+        let shortcut: GlobalShortcut
+        let terminal: SwitcherPendingTerminal?
+        var searchPinned = false
+    }
+
+    private struct Released {
+        let token: UInt64
+        var claimed = false
+    }
+
+    private struct Activation {
+        let generation: UInt64
+        let source: SwitcherRouteSource
+    }
+
+    private var generation: UInt64 = 0
+    private var pending: [Pending] = []
+    private var active: Active?
+    private var released: Released?
+    private var activation: Activation?
+
+    var hasPendingRoute: Bool { !pending.isEmpty }
+    var sessionActive: Bool { active != nil }
+    var hasSessionLifecycle: Bool { active != nil || released != nil }
+    var activeToken: UInt64? { active?.token }
+    var activeTerminalPending: Bool { active?.terminal != nil }
+    var routableActiveToken: UInt64? {
+        active?.terminal == nil ? active?.token : nil
+    }
+    var routingShortcut: GlobalShortcut? {
+        pending.last(where: { !$0.gestureEnded })?.route.shortcut ?? active?.shortcut
+    }
+
+    mutating func setTapLive(_ live: Bool) {
+        tapLive = live
+        if !live { invalidateLifecycle() }
+    }
+
+    mutating func setCapturing(_ value: Bool) {
+        capturing = value
+        if value { invalidateLifecycle() }
+    }
+
+    mutating func accept(_ route: SwitcherInitialRoute,
+                         isRepeat: Bool = false) -> SwitcherPendingRouteAcceptance {
+        guard tapLive, !capturing,
+              (!sessionActive || active?.terminal != nil)
+        else { return .rejected }
+        if var current = pending.last, !current.gestureEnded {
+            let operation = SwitcherPendingNavigation(command: route.scope,
+                                                      delta: route.reversed ? -1 : 1,
+                                                      wrapping: !isRepeat)
+            if isRepeat,
+               case let .navigation(last)? = current.operations.last,
+               last.command == operation.command,
+               last.wrapping == operation.wrapping,
+               last.delta.signum() == operation.delta.signum() {
+                current.operations[current.operations.count - 1] = .navigation(
+                    SwitcherPendingNavigation(command: last.command,
+                                              delta: last.delta + operation.delta,
+                                              wrapping: false)
+                )
+            } else {
+                current.operations.append(.navigation(operation))
+                Self.trimOperations(&current.operations)
+            }
+            pending[pending.count - 1] = current
+            return .coalesced
+        }
+        generation &+= 1
+        if pending.count >= Self.pendingGestureLimit,
+           let evicted = pending.firstIndex(where: { !$0.claimed }) {
+            pending.remove(at: evicted)
+        }
+        let sourceGeneration = active?.terminal == .commit
+            ? active?.token
+            : released?.token ?? activation?.generation
+        pending.append(Pending(token: generation,
+                               route: route,
+                               sourceGeneration: sourceGeneration,
+                               shiftBackNavigationHeld: route.reversed
+                                   && route.shortcut.shiftIsNavigationModifier))
+        return .accepted(generation)
+    }
+
+    private static func trimOperations(_ operations: inout [SwitcherPendingOperation]) {
+        while operations.count > Self.pendingOperationLimit {
+            let removable = operations.firstIndex { operation in
+                operation != .letterAction(.pinSearch) && !operation.isTerminal
+            }
+            guard let removable else { return }
+            operations.remove(at: removable)
+        }
+    }
+
+    /// Resolves the pending-to-active handoff under the route lock. The first
+    /// pass may request the live Accessibility check; the second either owns a
+    /// new route or observes that main established the session in between.
+    mutating func decideMatchedRoute(_ route: SwitcherInitialRoute,
+                                     isRepeat: Bool = false,
+                                     allowingNewRoute: Bool) -> SwitcherMatchedRouteDecision {
+        guard tapLive, !capturing else { return .rejected }
+        if routableActiveToken != nil { return .activeSession }
+        if pending.isEmpty, !allowingNewRoute { return .needsAccessibility }
+        switch accept(route, isRepeat: isRepeat) {
+        case let .accepted(token): return .accepted(token)
+        case .coalesced: return .coalesced
+        case .rejected: return .rejected
+        }
+    }
+
+    /// Records the release even while main is still building the session.
+    /// The next press is then a new gesture instead of another navigation step.
+    @discardableResult
+    mutating func observePendingModifierFlags(
+        _ flags: CGEventFlags
+    ) -> SwitcherPendingFlagsObservation {
+        guard let index = pending.lastIndex(where: { !$0.gestureEnded }) else { return .none }
+        let shiftHeld = flags.contains(.maskShift)
+        let requiredModifiersHeld = pending[index].route.shortcut.requiredModifiersHeld(in: flags)
+        var consumesEvent = false
+        if requiredModifiersHeld,
+           !pending[index].searchPinRequested,
+           SwitcherSupport.shouldNavigateBackwardOnShiftPress(
+            shiftIsNavigationModifier: pending[index].route.shortcut.shiftIsNavigationModifier,
+            wasShiftHeld: pending[index].shiftBackNavigationHeld,
+            isShiftHeld: shiftHeld
+        ) {
+            pending[index].operations.append(.navigation(SwitcherPendingNavigation(
+                command: pending[index].route.scope,
+                delta: -1,
+                wrapping: true
+            )))
+            Self.trimOperations(&pending[index].operations)
+            consumesEvent = true
+        }
+        pending[index].shiftBackNavigationHeld = shiftHeld
+        var gestureEnded = false
+        if !pending[index].searchPinRequested, !requiredModifiersHeld {
+            pending[index].gestureEnded = true
+            gestureEnded = true
+        }
+        return SwitcherPendingFlagsObservation(gestureEnded: gestureEnded,
+                                                consumesEvent: consumesEvent)
+    }
+
+    /// Keeps commands owned by a live accepted gesture from leaking into
+    /// the foreground app while its Accessibility enumeration is in progress.
+    /// A late event can only join the pending generation that still exists.
+    mutating func queuePendingKeyInput(_ input: SwitcherPendingKeyInput,
+                                       letterAction: SwitcherLetterAction?,
+                                       deletesSearchCharacter: Bool,
+                                       terminal: SwitcherPendingTerminal? = nil) -> Bool {
+        guard tapLive, !capturing,
+              (!sessionActive || active?.terminal != nil),
+              let index = pending.lastIndex(where: { !$0.gestureEnded })
+        else { return false }
+
+        if let terminal {
+            pending[index].terminal = terminal
+            pending[index].gestureEnded = true
+            pending[index].operations.append(.terminal(terminal))
+        } else if deletesSearchCharacter {
+            pending[index].searchLength = max(0, pending[index].searchLength - 1)
+            pending[index].operations.append(.keyCommand(input))
+        } else if pending[index].searchLength > 0 || pending[index].searchPinRequested {
+            if let text = input.text, !text.isEmpty {
+                pending[index].searchLength = min(64,
+                                                  pending[index].searchLength + text.count)
+                pending[index].operations.append(.searchText(text))
+            } else {
+                pending[index].operations.append(.keyCommand(input))
+            }
+        } else if let letterAction {
+            if !input.isRepeat {
+                if letterAction == .pinSearch {
+                    pending[index].searchPinRequested = true
+                }
+                pending[index].operations.append(.letterAction(letterAction))
+            }
+        } else if let text = input.text, !text.isEmpty {
+            pending[index].searchLength = min(64, text.count)
+            pending[index].operations.append(.searchText(text))
+        } else {
+            pending[index].operations.append(.keyCommand(input))
+        }
+        Self.trimOperations(&pending[index].operations)
+        return true
+    }
+
+    /// During all-apps search, the Windows shortcut is query input just as it
+    /// is after the active session appears. The check and append share the
+    /// route lock so a startup handoff cannot change its meaning in between.
+    mutating func queuePendingWindowShortcutAsSearch(
+        _ input: SwitcherPendingKeyInput
+    ) -> Bool {
+        guard tapLive, !capturing,
+              (!sessionActive || active?.terminal != nil),
+              let index = pending.lastIndex(where: { !$0.gestureEnded }),
+              pending[index].route.scope == .allApps,
+              pending[index].searchLength > 0
+        else { return false }
+        if let text = input.text, !text.isEmpty {
+            pending[index].searchLength = min(64,
+                                              pending[index].searchLength + text.count)
+            pending[index].operations.append(.searchText(text))
+        } else {
+            pending[index].operations.append(.keyCommand(input))
+        }
+        Self.trimOperations(&pending[index].operations)
+        return true
+    }
+
+    mutating func claim(_ token: UInt64) -> SwitcherRouteClaim? {
+        guard tapLive, !capturing, !sessionActive,
+              pending.first?.token == token, !pending[0].claimed
+        else { return nil }
+        let source: SwitcherRouteSource?
+        if let sourceGeneration = pending[0].sourceGeneration {
+            guard activation?.generation == sourceGeneration else { return nil }
+            source = activation?.source
+        } else {
+            source = nil
+        }
+        pending[0].claimed = true
+        return SwitcherRouteClaim(route: pending[0].route, source: source)
+    }
+
+    /// Revalidates an asynchronously claimed token without changing ownership.
+    /// A retired dependency is a valid route with no source, not a stale token.
+    func resolveClaimedSession(_ token: UInt64) -> SwitcherClaimedSessionResolution {
+        guard tapLive, !capturing, !sessionActive,
+              pending.first?.token == token, pending[0].claimed
+        else { return .invalid }
+        let source: SwitcherRouteSource?
+        if let sourceGeneration = pending[0].sourceGeneration,
+           activation?.generation == sourceGeneration {
+            source = activation?.source
+        } else {
+            source = nil
+        }
+        return .valid(route: pending[0].route, source: source)
+    }
+
+    /// Atomically hands routing to the new session after its first selection
+    /// exists. Repeats can keep accumulating until this exact transition.
+    mutating func beginSession(_ token: UInt64) -> (route: SwitcherInitialRoute,
+                                                    operations: [SwitcherPendingOperation],
+                                                    searchPinned: Bool,
+                                                    gestureEnded: Bool,
+                                                    source: SwitcherRouteSource?,
+                                                    token: UInt64)? {
+        guard tapLive, !capturing, !sessionActive,
+              pending.first?.token == token, pending[0].claimed
+        else { return nil }
+        let accepted = pending.removeFirst()
+        let source: SwitcherRouteSource?
+        if let sourceGeneration = accepted.sourceGeneration,
+           activation?.generation == sourceGeneration {
+            source = activation?.source
+        } else {
+            source = nil
+        }
+        if !accepted.gestureEnded || accepted.terminal != nil {
+            active = Active(token: accepted.token,
+                            shortcut: accepted.route.shortcut,
+                            terminal: accepted.terminal,
+                            searchPinned: accepted.searchPinRequested)
+        } else {
+            released = Released(token: accepted.token)
+        }
+        return (accepted.route, accepted.operations, accepted.searchPinRequested,
+                accepted.gestureEnded, source, accepted.token)
+    }
+
+    /// Moves the route into a validation phase that remains lifecycle-owned.
+    /// New gestures can queue behind it, but teardown and shortcut capture can
+    /// still invalidate the exact release before it activates anything.
+    mutating func releaseActiveSession(for flags: CGEventFlags) -> UInt64? {
+        guard let active,
+              active.terminal == nil,
+              !active.searchPinned,
+              !active.shortcut.requiredModifiersHeld(in: flags)
+        else { return nil }
+        self.active = nil
+        released = Released(token: active.token)
+        return active.token
+    }
+
+    mutating func releaseActiveSession() -> UInt64? {
+        guard let active else { return nil }
+        self.active = nil
+        released = Released(token: active.token)
+        return active.token
+    }
+
+    /// Releases only the session observed by the tap callback. A delayed key
+    /// must never commit a replacement session that claimed routing meanwhile.
+    mutating func releaseActiveSession(expectedToken token: UInt64) -> UInt64? {
+        guard active?.token == token else { return nil }
+        self.active = nil
+        released = Released(token: token)
+        return token
+    }
+
+    /// Cancels only the active generation that queued Escape during startup.
+    /// A later physical gesture may already be pending and must survive.
+    mutating func cancelActiveSession(expectedToken token: UInt64) -> Bool {
+        guard active?.token == token else { return false }
+        active = nil
+        return true
+    }
+
+    /// Mouse-down may dismiss a normal session before its panel appears, but
+    /// terminal replay remains the sole owner of terminal Active lifecycles.
+    mutating func cancelActiveSessionForMouseDown(expectedToken token: UInt64) -> Bool {
+        guard active?.token == token, active?.terminal == nil else { return false }
+        active = nil
+        return true
+    }
+
+    /// Pins only the session that produced the key event. Delayed main-thread
+    /// work cannot pin a replacement session that already owns routing.
+    @discardableResult
+    mutating func pinActiveSession(expectedToken token: UInt64) -> Bool {
+        guard active?.token == token else { return false }
+        active?.searchPinned = true
+        return true
+    }
+
+    mutating func claimReleasedSession(_ token: UInt64) -> Bool {
+        guard tapLive, !capturing, released?.token == token,
+              released?.claimed == false else { return false }
+        released?.claimed = true
+        return true
+    }
+
+    mutating func publishActivationSource(_ source: SwitcherRouteSource,
+                                          generation token: UInt64) -> Bool {
+        guard tapLive, !capturing, released?.token == token,
+              released?.claimed == true else { return false }
+        released = nil
+        activation = Activation(generation: token, source: source)
+        for index in pending.indices {
+            pending[index].sourceGeneration = token
+        }
+        return true
+    }
+
+    mutating func completeReleasedSession(_ token: UInt64) {
+        guard released?.token == token else { return }
+        released = nil
+        for index in pending.indices where pending[index].sourceGeneration == token {
+            pending[index].sourceGeneration = nil
+        }
+    }
+
+    mutating func finishActivation(_ token: UInt64) {
+        guard activation?.generation == token else { return }
+        activation = nil
+        for index in pending.indices where pending[index].sourceGeneration == token {
+            pending[index].sourceGeneration = nil
+        }
+    }
+
+    mutating func confirmAppActivation(pid: pid_t) {
+        guard let activation else { return }
+        if activation.source.windowID != nil,
+           activation.source.pid == pid
+            || activation.source.windowOwnerPID == pid {
+            return
+        }
+        finishActivation(activation.generation)
+    }
+
+    /// Pending Q can empty either an Active session or one already Released
+    /// by modifier-up. Clear only that exact lifecycle and keep later gestures.
+    mutating func cancelSessionAfterPendingAction(expectedToken token: UInt64) -> Bool {
+        if active?.token == token {
+            active = nil
+            return true
+        }
+        guard released?.token == token else { return false }
+        released = nil
+        for index in pending.indices where pending[index].sourceGeneration == token {
+            pending[index].sourceGeneration = nil
+        }
+        return true
+    }
+
+    func windowActivationTarget(generation token: UInt64) -> SwitcherActivationWindowTarget? {
+        guard let activation,
+              activation.generation == token,
+              let windowID = activation.source.windowID
+        else { return nil }
+        return SwitcherActivationWindowTarget(
+            generation: activation.generation,
+            windowID: windowID,
+            windowOwnerPID: activation.source.windowOwnerPID ?? activation.source.pid
+        )
+    }
+
+    mutating func confirmWindowActivation(generation token: UInt64,
+                                          focusedWindowID: CGWindowID?) {
+        guard let target = windowActivationTarget(generation: token),
+              target.windowID == focusedWindowID
+        else { return }
+        finishActivation(target.generation)
+    }
+
+    /// Claims an active-event handoff only if the session observed by the tap
+    /// ended normally. Capture, teardown, and replacement sessions invalidate
+    /// the expected token, so a delayed event passes through instead.
+    mutating func claimHandoff(_ route: SwitcherInitialRoute,
+                               expectedSessionToken: UInt64) -> (token: UInt64,
+                                                                 claim: SwitcherRouteClaim)? {
+        guard tapLive, !capturing, !sessionActive,
+              activation?.generation == expectedSessionToken
+        else { return nil }
+        guard case let .accepted(token) = accept(route),
+              let claim = claim(token) else { return nil }
+        return (token, claim)
+    }
+
+    mutating func invalidateLifecycle() {
+        pending = []
+        active = nil
+        released = nil
+        activation = nil
+        generation &+= 1
+    }
+
+    mutating func invalidatePendingRoute() {
+        guard !pending.isEmpty else { return }
+        pending = []
+        generation &+= 1
+    }
+
+    mutating func invalidatePendingRoute(token: UInt64) {
+        guard let index = pending.firstIndex(where: { $0.token == token }) else { return }
+        pending.remove(at: index)
+        generation &+= 1
+    }
+
+    /// A click before startup completes dismisses every cold gesture. Once a
+    /// lifecycle exists, this path leaves it and any dependent gesture intact.
+    mutating func invalidateColdPendingRoutesForMouseDown() -> Bool {
+        guard active == nil, released == nil, activation == nil, !pending.isEmpty else {
+            return false
+        }
+        invalidatePendingRoute()
+        return true
+    }
+}
+
+enum SwitcherCacheDisposition: Equatable {
+    case reuse
+    case reuseAndRefresh
+    case rebuild
+}
+
+/// Generation ownership for the asynchronous cache warmer. Scheduling and
+/// snapshot capture happen on main, the worker holds only the token, and a
+/// late completion can store results only while that exact generation lives.
+struct SwitcherCacheRefreshOwnership {
+    struct Completion: Equatable {
+        let installsResult: Bool
+        let schedulesRerun: Bool
+    }
+
+    private(set) var enabled = false
+    private var generation: UInt64 = 0
+    private var scheduledToken: UInt64?
+    private var workerToken: UInt64?
+    private var rerunRequested = false
+
+    mutating func setEnabled(_ value: Bool) {
+        enabled = value
+        invalidate()
+    }
+
+    mutating func schedule(sessionActive: Bool) -> UInt64? {
+        guard enabled, !sessionActive else { return nil }
+        if workerToken != nil {
+            rerunRequested = true
+            return nil
+        }
+        guard scheduledToken == nil else { return nil }
+        generation &+= 1
+        scheduledToken = generation
+        return generation
+    }
+
+    mutating func beginWorker(_ token: UInt64, sessionActive: Bool) -> Bool {
+        guard enabled, scheduledToken == token else { return false }
+        scheduledToken = nil
+        guard !sessionActive else { return false }
+        workerToken = token
+        return true
+    }
+
+    mutating func completeWorker(_ token: UInt64, sessionActive: Bool) -> Completion? {
+        guard workerToken == token else { return nil }
+        workerToken = nil
+        let completion = Completion(installsResult: enabled && generation == token,
+                                    schedulesRerun: enabled && !sessionActive && rerunRequested)
+        rerunRequested = false
+        return completion
+    }
+
+    mutating func invalidate() {
+        generation &+= 1
+        scheduledToken = nil
+    }
+}
+
+/// The cheap state that proves a warmed window list still describes the
+/// current desktop and the preferences that shaped it.
+struct SwitcherWindowFingerprint: Equatable {
+    struct Window: Equatable {
+        let id: CGWindowID
+        let ownerPID: pid_t
+        let layer: Int
+        let title: String
+        let bounds: CGRect
+        let alpha: Double
+        let isOnScreen: Bool
+        let spaces: [UInt64]
+    }
+
+    struct Preferences: Equatable {
+        let appRules: [String: SwitcherAppRule]
+        let windowlessApps: String?
+        let mergeTabs: Bool
+        let currentSpaceOnly: Bool
+    }
+
+    struct Application: Equatable {
+        let pid: pid_t
+        let bundleIdentifier: String?
+        let name: String?
+        let isRegular: Bool
+        let isTerminated: Bool
+        let bundlePath: String?
+        let executablePath: String?
+    }
+
+    let windows: [Window]
+    let applications: [Application]
+    let visibleSpaces: Set<UInt64>
+    let preferences: Preferences
+}
+
+enum SwitcherWindowObservationAction: Equatable {
+    case promoteElement
+    case refreshFocusedWindow
+
+    static func action(for notification: String) -> SwitcherWindowObservationAction {
+        notification == "AXWindowCreated"
+            ? .refreshFocusedWindow
+            : .promoteElement
+    }
+}
+
 /// What a letter typed with the panel open does. Anything else goes to search.
 enum SwitcherLetterAction: Equatable {
     case closeWindow
@@ -226,7 +916,177 @@ struct SwitcherShortcutHints: Equatable {
     let windows: String
 }
 
+struct SwitcherSpaceResolver {
+    private let loadVisibleSpaces: () -> Set<UInt64>
+    private let loadWindowSpaces: (CGWindowID) -> [UInt64]
+    private let loadExcludedFromCycle: (CGWindowID) -> Bool
+    private var visibleSpaces: Set<UInt64>?
+    private var hiddenSpaceVerdicts: [CGWindowID: Bool] = [:]
+
+    init(loadVisibleSpaces: @escaping () -> Set<UInt64>,
+         loadWindowSpaces: @escaping (CGWindowID) -> [UInt64],
+         loadExcludedFromCycle: @escaping (CGWindowID) -> Bool) {
+        self.loadVisibleSpaces = loadVisibleSpaces
+        self.loadWindowSpaces = loadWindowSpaces
+        self.loadExcludedFromCycle = loadExcludedFromCycle
+    }
+
+    mutating func isOnHiddenSpace(_ windowID: CGWindowID) -> Bool {
+        if let verdict = hiddenSpaceVerdicts[windowID] { return verdict }
+        if visibleSpaces == nil { visibleSpaces = loadVisibleSpaces() }
+        guard let visibleSpaces, !visibleSpaces.isEmpty else { return false }
+        let verdict = SpaceHopSupport.isParkedOnHiddenSpace(
+            windowSpaces: loadWindowSpaces(windowID),
+            visibleSpaces: visibleSpaces
+        )
+        hiddenSpaceVerdicts[windowID] = verdict
+        return verdict
+    }
+
+    func isExcludedFromCycle(_ windowID: CGWindowID) -> Bool {
+        loadExcludedFromCycle(windowID)
+    }
+}
+
 enum SwitcherSupport {
+    static func resolvingFingerprintSpaces(
+        _ fingerprint: SwitcherWindowFingerprint,
+        spacesOf: (CGWindowID) -> [UInt64],
+        visibleSpaces: () -> Set<UInt64>
+    ) -> SwitcherWindowFingerprint {
+        guard fingerprint.preferences.currentSpaceOnly else { return fingerprint }
+        return SwitcherWindowFingerprint(
+            windows: fingerprint.windows.map { window in
+                SwitcherWindowFingerprint.Window(
+                    id: window.id,
+                    ownerPID: window.ownerPID,
+                    layer: window.layer,
+                    title: window.title,
+                    bounds: window.bounds,
+                    alpha: window.alpha,
+                    isOnScreen: window.isOnScreen,
+                    spaces: spacesOf(window.id).sorted()
+                )
+            },
+            applications: fingerprint.applications,
+            visibleSpaces: visibleSpaces(),
+            preferences: fingerprint.preferences
+        )
+    }
+
+    static func shouldShowPanelAfterStartup(searchPinned: Bool,
+                                            gestureEnded: Bool,
+                                            requiredModifiersHeld: Bool) -> Bool {
+        searchPinned || (!gestureEnded && requiredModifiersHeld)
+    }
+
+    static func cacheDisposition(fingerprintMatches: Bool,
+                                 storedAt: TimeInterval?,
+                                 now: TimeInterval,
+                                 maximumAge: TimeInterval) -> SwitcherCacheDisposition {
+        guard fingerprintMatches else { return .rebuild }
+        guard let storedAt,
+              now >= storedAt,
+              now - storedAt <= maximumAge
+        else { return .reuseAndRefresh }
+        return .reuse
+    }
+
+    static func eligibleCandidate(_ item: SwitcherItem,
+                                  in eligibleItems: [SwitcherItem],
+                                  groupedByApp: Bool) -> SwitcherItem? {
+        if item.windowID == nil {
+            return eligibleItems.first { $0.pid == item.pid && $0.windowID != nil }
+                ?? eligibleItems.first { $0.pid == item.pid }
+        }
+        if groupedByApp {
+            return eligibleItems.first { $0.pid == item.pid }
+        }
+        return eligibleItems.first { $0.id == item.id }
+    }
+
+    static func sessionWindowItems(cacheDisposition: SwitcherCacheDisposition,
+                                   cached: [SwitcherItem],
+                                   rebuild: () -> [SwitcherItem]) -> [SwitcherItem] {
+        cacheDisposition == .rebuild ? rebuild() : cached
+    }
+
+    /// Applies the switcher's immediate MRU update to a warm cache. This is
+    /// needed for same-app switches because they do not activate a new app or
+    /// change the WindowServer fingerprint used to validate the cache.
+    static func cachedItemsAfterSwitch(_ items: [SwitcherItem],
+                                       targetID: String?,
+                                       previousID: String?) -> [SwitcherItem] {
+        var ordered = items
+        func promote(_ itemID: String?) {
+            guard let itemID,
+                  let index = ordered.firstIndex(where: { $0.id == itemID })
+            else { return }
+            ordered.insert(ordered.remove(at: index), at: 0)
+        }
+        promote(previousID)
+        promote(targetID)
+        return ordered
+    }
+
+    static func initialRoute(appsShortcut: GlobalShortcut,
+                             windowShortcut: GlobalShortcut,
+                             matchesApps: Bool,
+                             matchesWindows: Bool,
+                             windowPositionalMatch: Bool,
+                             shiftHeld: Bool) -> SwitcherInitialRoute? {
+        if matchesApps {
+            return SwitcherInitialRoute(
+                shortcut: appsShortcut,
+                scope: .allApps,
+                reversed: appsShortcut.shiftIsNavigationModifier && shiftHeld
+            )
+        }
+        guard matchesWindows else { return nil }
+        let reversed = windowNavigationDelta(
+            positionalMatch: windowPositionalMatch,
+            shiftIsNavigationModifier: windowShortcut.shiftIsNavigationModifier,
+            shiftHeld: shiftHeld
+        ) < 0
+        return SwitcherInitialRoute(shortcut: windowShortcut,
+                                    scope: .frontmostApp,
+                                    reversed: reversed)
+    }
+
+    /// Refresh retries are deliberately finite. A moving or retitling window
+    /// can keep two consecutive fingerprints different indefinitely, and a
+    /// warmer must yield instead of monopolizing the main queue.
+    static func cacheRefreshRetryDelay(stable: Bool,
+                                       retryCount: Int,
+                                       sessionActive: Bool,
+                                       maximumRetries: Int = 2) -> TimeInterval? {
+        guard !stable, !sessionActive, retryCount < maximumRetries else { return nil }
+        return 0.2 * Double(retryCount + 1)
+    }
+
+    /// Resolves only a bounded number of release candidates. The first stale
+    /// item can disappear between warming and release, but validating the
+    /// whole desktop here would put the expensive Accessibility walk back on
+    /// the shortcut path.
+    static func liveCommitTarget(items: [SwitcherItem],
+                                 selectedIndex: Int,
+                                 closingItemIDs: Set<String>,
+                                 maximumChecks: Int = 2,
+                                 resolve: (SwitcherItem) -> SwitcherItem?) -> SwitcherItem? {
+        guard maximumChecks > 0,
+              let firstID = commitTargetID(itemIDs: items.map(\.id),
+                                           selectedIndex: selectedIndex,
+                                           closingItemIDs: closingItemIDs),
+              let firstIndex = items.firstIndex(where: { $0.id == firstID })
+        else { return nil }
+        let candidates = Array(items[firstIndex...]) + Array(items[..<firstIndex])
+        return candidates.lazy
+            .filter { !closingItemIDs.contains($0.id) }
+            .prefix(maximumChecks)
+            .compactMap(resolve)
+            .first
+    }
+
     /// Grid resolution used to classify window captures.
     static let captureAlphaGridSize = 8
 
@@ -284,6 +1144,16 @@ enum SwitcherSupport {
         }
         return candidates.first(where: { $0.isOnScreen && !$0.isMinimized })
             ?? candidates.first(where: { $0.windowID == nil })
+    }
+
+    /// A focused-window Accessibility query is useful only when several
+    /// visible windows from the foreground app could be the session source.
+    static func needsFocusedWindowLookup(frontmostPID: pid_t,
+                                         items: [SwitcherItem]) -> Bool {
+        let appPID = appPID(forFrontmost: frontmostPID, items: items)
+        return items.lazy.filter {
+            $0.pid == appPID && $0.windowID != nil && $0.isOnScreen && !$0.isMinimized
+        }.prefix(2).count > 1
     }
 
     /// The regular app behind the process holding the keyboard. Multi-process
@@ -699,11 +1569,19 @@ enum SwitcherSupport {
         let selectedID = items[selectedIndex].id
         let currentGroupIndex = groups.firstIndex { $0.itemIDs.contains(selectedID) } ?? 0
         let unwrapped = currentGroupIndex + delta
-        if !wrapping, !groups.indices.contains(unwrapped) {
-            return groups[currentGroupIndex].representativeIndex
-        }
-        let targetGroupIndex = (unwrapped + groups.count) % groups.count
+        let targetGroupIndex = wrapping
+            ? (unwrapped + groups.count) % groups.count
+            : min(max(0, unwrapped), groups.count - 1)
         return groups[targetGroupIndex].representativeIndex
+    }
+
+    /// Applies collapsed key repeats as the equivalent bounded unit steps.
+    static func nonWrappingSelectionIndex(itemCount: Int,
+                                          selectedIndex: Int,
+                                          delta: Int) -> Int {
+        guard itemCount > 0 else { return 0 }
+        let current = min(max(0, selectedIndex), itemCount - 1)
+        return min(max(0, current + delta), itemCount - 1)
     }
 
     static func nextWindowSelectionIndexWithinApp(items: [SwitcherItem],
@@ -876,7 +1754,7 @@ enum SwitcherSupport {
     static func shouldDismissForClick(panelIsVisible: Bool,
                                       panelFrame: CGRect,
                                       location: CGPoint) -> Bool {
-        panelIsVisible && !panelFrame.contains(location)
+        !panelIsVisible || !panelFrame.contains(location)
     }
 
     /// The letters the panel acts on: W closes the highlighted window, Q quits

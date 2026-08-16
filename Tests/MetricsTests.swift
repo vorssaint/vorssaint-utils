@@ -1586,6 +1586,33 @@ struct MetricsTests {
                "a window-server surface marked to ignore cycling is excluded from the switcher")
         expect(!SpaceHopSupport.isExcludedFromWindowCycle(windowTagsLow: (1 << 19) | (1 << 22)),
                "other window-server tags do not hide a legitimate cross-Space window")
+        var visibleSpaceLoads = 0
+        var windowSpaceLoads: [CGWindowID] = []
+        var excludedTagLoads: [CGWindowID] = []
+        var lazySpaceResolver = SwitcherSpaceResolver(
+            loadVisibleSpaces: {
+                visibleSpaceLoads += 1
+                return [3]
+            },
+            loadWindowSpaces: { windowID in
+                windowSpaceLoads.append(windowID)
+                return [4]
+            },
+            loadExcludedFromCycle: { windowID in
+                excludedTagLoads.append(windowID)
+                return true
+            }
+        )
+        expect(visibleSpaceLoads == 0 && windowSpaceLoads.isEmpty && excludedTagLoads.isEmpty,
+               "App Switcher does not resolve private Space metadata during snapshot capture")
+        expect(lazySpaceResolver.isOnHiddenSpace(41)
+               && lazySpaceResolver.isOnHiddenSpace(41)
+               && visibleSpaceLoads == 1
+               && windowSpaceLoads == [41],
+               "App Switcher lazily resolves and caches Space membership per candidate")
+        expect(lazySpaceResolver.isExcludedFromCycle(41)
+               && excludedTagLoads == [41],
+               "App Switcher resolves window-cycle tags only for candidates that need the veto")
         expect(SpaceHopSupport.arrowSteps(orderedSpacesPerDisplay: [[3, 4, 5]],
                                           visibleSpaces: [3],
                                           target: 5) == 2,
@@ -1730,6 +1757,1699 @@ struct MetricsTests {
                                                  focusedWindowID: nil,
                                                  items: [embeddedWindow]) == nil,
                "App Switcher reports no foreground window when the app in front owns none")
+        expect(!SwitcherSupport.needsFocusedWindowLookup(frontmostPID: 101,
+                                                         items: [embeddedWindow, offscreenWindow]),
+               "App Switcher skips focused-window AX lookup when the source is unambiguous")
+        let secondVisibleWindow = SwitcherItem.window(id: 79,
+                                                      title: "Second",
+                                                      appName: "Primary",
+                                                      pid: 101,
+                                                      isOnScreen: true,
+                                                      frame: CGRect(x: 40, y: 40,
+                                                                    width: 800, height: 500))
+        expect(SwitcherSupport.needsFocusedWindowLookup(frontmostPID: 101,
+                                                        items: [embeddedWindow, secondVisibleWindow]),
+               "App Switcher resolves the focused window when visible sources are ambiguous")
+        func windowFingerprint(title: String = "Project",
+                               isOnScreen: Bool = true,
+                               spaces: [UInt64] = [1],
+                               mergeTabs: Bool = false) -> SwitcherWindowFingerprint {
+            SwitcherWindowFingerprint(
+                windows: [.init(id: 77,
+                                ownerPID: 202,
+                                layer: 0,
+                                title: title,
+                                bounds: CGRect(x: 20, y: 20, width: 900, height: 600),
+                                alpha: 1,
+                                isOnScreen: isOnScreen,
+                                spaces: spaces)],
+                applications: [.init(pid: 101,
+                                     bundleIdentifier: "test.primary",
+                                     name: "Primary",
+                                     isRegular: true,
+                                     isTerminated: false,
+                                     bundlePath: "/Applications/Primary.app",
+                                     executablePath: "/Applications/Primary.app/Contents/MacOS/Primary")],
+                visibleSpaces: [1],
+                preferences: .init(appRules: [:],
+                                   windowlessApps: SwitcherWindowlessApps.finder.rawValue,
+                                   mergeTabs: mergeTabs,
+                                   currentSpaceOnly: true)
+            )
+        }
+        let stableWindowFingerprint = windowFingerprint()
+        expect(stableWindowFingerprint == windowFingerprint(),
+               "App Switcher reuses a cache only while window state and preferences match")
+        expect(stableWindowFingerprint != windowFingerprint(title: "Other tab"),
+               "App Switcher invalidates its cache when a window's displayed content changes")
+        expect(stableWindowFingerprint != windowFingerprint(isOnScreen: false),
+               "App Switcher invalidates its cache when a window leaves the visible desktop")
+        expect(stableWindowFingerprint != windowFingerprint(spaces: [2]),
+               "App Switcher invalidates its cache when a window moves between desktops")
+        expect(stableWindowFingerprint != windowFingerprint(mergeTabs: true),
+               "App Switcher invalidates its cache when grouping preferences change")
+        var fingerprintSpaceLoads: [CGWindowID] = []
+        var fingerprintVisibleLoads = 0
+        let capturedFingerprint = windowFingerprint(spaces: [])
+        let resolvedFingerprint = SwitcherSupport.resolvingFingerprintSpaces(
+            capturedFingerprint,
+            spacesOf: { windowID in
+                fingerprintSpaceLoads.append(windowID)
+                return [7]
+            },
+            visibleSpaces: {
+                fingerprintVisibleLoads += 1
+                return [7]
+            }
+        )
+        expect(resolvedFingerprint.windows.first?.spaces == [7]
+               && resolvedFingerprint.visibleSpaces == [7]
+               && fingerprintSpaceLoads == [77]
+               && fingerprintVisibleLoads == 1,
+               "App Switcher resolves current-Space fingerprint work through injected worker calls")
+        let allDesktopFingerprint = SwitcherWindowFingerprint(
+            windows: capturedFingerprint.windows,
+            applications: capturedFingerprint.applications,
+            visibleSpaces: [],
+            preferences: .init(appRules: [:],
+                               windowlessApps: SwitcherWindowlessApps.finder.rawValue,
+                               mergeTabs: false,
+                               currentSpaceOnly: false)
+        )
+        fingerprintSpaceLoads = []
+        fingerprintVisibleLoads = 0
+        expect(SwitcherSupport.resolvingFingerprintSpaces(
+            allDesktopFingerprint,
+            spacesOf: { windowID in
+                fingerprintSpaceLoads.append(windowID)
+                return [8]
+            },
+            visibleSpaces: {
+                fingerprintVisibleLoads += 1
+                return [8]
+            }
+        ) == allDesktopFingerprint
+               && fingerprintSpaceLoads.isEmpty
+               && fingerprintVisibleLoads == 0,
+               "App Switcher skips private fingerprint work when current-Space filtering is off")
+        expect(SwitcherWindowObservationAction.action(for: "AXFocusedWindowChanged")
+               == .promoteElement
+               && SwitcherWindowObservationAction.action(for: "AXMainWindowChanged")
+               == .promoteElement
+               && SwitcherWindowObservationAction.action(for: "AXWindowCreated")
+               == .refreshFocusedWindow,
+               "App Switcher promotes focus changes but re-reads focus after window creation")
+        let cachedMRUItems = (1...4).map { id in
+            SwitcherItem.window(id: CGWindowID(id),
+                                title: "Window \(id)",
+                                appName: "Editor",
+                                pid: 101,
+                                isOnScreen: true,
+                                frame: .zero)
+        }
+        let afterCachedSwitchToThird = SwitcherSupport.cachedItemsAfterSwitch(
+            cachedMRUItems,
+            targetID: cachedMRUItems[2].id,
+            previousID: cachedMRUItems[0].id
+        )
+        let afterCachedSwitchToFourth = SwitcherSupport.cachedItemsAfterSwitch(
+            afterCachedSwitchToThird,
+            targetID: cachedMRUItems[3].id,
+            previousID: cachedMRUItems[2].id
+        )
+        expect(afterCachedSwitchToThird.compactMap(\.windowID) == [3, 1, 2, 4]
+               && afterCachedSwitchToFourth.compactMap(\.windowID) == [4, 3, 1, 2],
+               "App Switcher updates cached MRU order after rapid same-app switches")
+        let cachedAppOnlyItems = [
+            SwitcherItem.appOnly(appName: "Finder", pid: 201),
+            SwitcherItem.appOnly(appName: "Music", pid: 202),
+            cachedMRUItems[0]
+        ]
+        let afterCachedAppOnlySwitch = SwitcherSupport.cachedItemsAfterSwitch(
+            cachedAppOnlyItems,
+            targetID: cachedAppOnlyItems[1].id,
+            previousID: cachedAppOnlyItems[0].id
+        )
+        let afterCachedRealWindowSwitch = SwitcherSupport.cachedItemsAfterSwitch(
+            afterCachedAppOnlySwitch,
+            targetID: cachedMRUItems[0].id,
+            previousID: cachedAppOnlyItems[1].id
+        )
+        expect(afterCachedAppOnlySwitch.map(\.id) == [
+            cachedAppOnlyItems[1].id, cachedAppOnlyItems[0].id, cachedMRUItems[0].id
+        ] && afterCachedRealWindowSwitch.map(\.id) == [
+            cachedMRUItems[0].id, cachedAppOnlyItems[1].id, cachedAppOnlyItems[0].id
+        ], "App Switcher promotes app-only and real cached items by stable identity")
+        let acceptedAppsRoute = SwitcherSupport.initialRoute(
+            appsShortcut: .switcherDefault,
+            windowShortcut: .switcherWindowDefault,
+            matchesApps: true,
+            matchesWindows: false,
+            windowPositionalMatch: false,
+            shiftHeld: false
+        )
+        let expectedAppsRoute = SwitcherInitialRoute(shortcut: .switcherDefault,
+                                                     scope: .allApps,
+                                                     reversed: false)
+        expect(acceptedAppsRoute == expectedAppsRoute,
+               "App Switcher carries the accepted shortcut decision unchanged to main")
+        var pendingRoute = SwitcherRouteOwnership()
+        pendingRoute.setTapLive(true)
+        guard case let .accepted(pendingToken) = pendingRoute.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher atomically owns an accepted shortcut")
+            return
+        }
+        expect(pendingRoute.accept(expectedAppsRoute) == .coalesced
+               && pendingRoute.claim(pendingToken)?.route == expectedAppsRoute
+               && pendingRoute.accept(expectedAppsRoute, isRepeat: true) == .coalesced
+               && pendingRoute.accept(expectedAppsRoute, isRepeat: true) == .coalesced,
+               "App Switcher queues fresh presses and compacts held repeats during startup")
+        let begunPendingRoute = pendingRoute.beginSession(pendingToken)
+        expect(begunPendingRoute?.route == expectedAppsRoute
+               && begunPendingRoute?.operations == [
+                   .navigation(SwitcherPendingNavigation(command: .allApps,
+                                                         delta: 1,
+                                                         wrapping: true)),
+                   .navigation(SwitcherPendingNavigation(command: .allApps,
+                                                         delta: 2,
+                                                         wrapping: false))
+               ]
+               && begunPendingRoute?.gestureEnded == false
+               && pendingRoute.sessionActive,
+               "App Switcher preserves fresh wrapping and held-repeat clamping when startup finishes")
+
+        let pendingS = SwitcherPendingKeyInput(keyCode: 1, text: "s", isRepeat: false)
+        let pendingA = SwitcherPendingKeyInput(keyCode: 0, text: "a", isRepeat: false)
+        var pinnedStartup = SwitcherRouteOwnership()
+        pinnedStartup.setTapLive(true)
+        guard case let .accepted(pinnedStartupToken) = pinnedStartup.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns a route before cold-start search pinning")
+            return
+        }
+        _ = pinnedStartup.claim(pinnedStartupToken)
+        expect(pinnedStartup.queuePendingKeyInput(pendingS,
+                                                  letterAction: .pinSearch,
+                                                  deletesSearchCharacter: false),
+               "App Switcher consumes S while cold startup is pending")
+        let pinnedRelease = pinnedStartup.observePendingModifierFlags([])
+        expect(!pinnedRelease.gestureEnded
+               && pinnedStartup.queuePendingKeyInput(pendingA,
+                                                     letterAction: nil,
+                                                     deletesSearchCharacter: false),
+               "App Switcher keeps unmodified query input after pending S pins the route")
+        let begunPinnedStartup = pinnedStartup.beginSession(pinnedStartupToken)
+        expect(begunPinnedStartup?.searchPinned == true
+               && begunPinnedStartup?.gestureEnded == false
+               && begunPinnedStartup?.operations == [
+                   .letterAction(.pinSearch),
+                   .searchText("a")
+               ],
+               "App Switcher applies pending pin before its unmodified query")
+        expect(SwitcherSupport.shouldShowPanelAfterStartup(searchPinned: true,
+                                                           gestureEnded: true,
+                                                           requiredModifiersHeld: false),
+               "App Switcher shows a cold pinned search after modifier release")
+        expect(SwitcherSupport.shouldShowPanelAfterStartup(searchPinned: false,
+                                                           gestureEnded: false,
+                                                           requiredModifiersHeld: true)
+               && !SwitcherSupport.shouldShowPanelAfterStartup(searchPinned: false,
+                                                                gestureEnded: true,
+                                                                requiredModifiersHeld: false)
+               && !SwitcherSupport.shouldShowPanelAfterStartup(searchPinned: false,
+                                                                gestureEnded: false,
+                                                                requiredModifiersHeld: false),
+               "App Switcher preserves unpinned held-panel and quick-flick commit behavior")
+
+        var orderedPendingPin = SwitcherRouteOwnership()
+        orderedPendingPin.setTapLive(true)
+        guard case let .accepted(orderedPendingPinToken) = orderedPendingPin.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns a route before ordered pending pin commands")
+            return
+        }
+        let orderedPendingW = SwitcherPendingKeyInput(keyCode: 13,
+                                                      text: "w",
+                                                      isRepeat: false)
+        expect(orderedPendingPin.queuePendingKeyInput(orderedPendingW,
+                                                      letterAction: .closeWindow,
+                                                      deletesSearchCharacter: false)
+               && orderedPendingPin.queuePendingKeyInput(pendingS,
+                                                         letterAction: .pinSearch,
+                                                         deletesSearchCharacter: false)
+               && orderedPendingPin.queuePendingKeyInput(pendingA,
+                                                         letterAction: nil,
+                                                         deletesSearchCharacter: false),
+               "App Switcher classifies W, S, and text against pending query state")
+        _ = orderedPendingPin.claim(orderedPendingPinToken)
+        expect(orderedPendingPin.beginSession(orderedPendingPinToken)?.operations == [
+            .letterAction(.closeWindow),
+            .letterAction(.pinSearch),
+            .searchText("a")
+        ], "App Switcher does not turn a command before pending S into query text")
+
+        var disabledPendingPin = SwitcherRouteOwnership()
+        disabledPendingPin.setTapLive(true)
+        guard case let .accepted(disabledPendingPinToken) = disabledPendingPin.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns a route before disabled pending pin input")
+            return
+        }
+        expect(disabledPendingPin.queuePendingKeyInput(pendingS,
+                                                       letterAction: nil,
+                                                       deletesSearchCharacter: false),
+               "App Switcher treats S as search text when pinning is disabled")
+        let disabledPinRelease = disabledPendingPin.observePendingModifierFlags([])
+        expect(disabledPinRelease.gestureEnded
+               && !disabledPendingPin.queuePendingKeyInput(pendingA,
+                                                           letterAction: nil,
+                                                           deletesSearchCharacter: false),
+               "App Switcher ends an unpinned pending gesture on modifier release")
+        _ = disabledPendingPin.claim(disabledPendingPinToken)
+        expect(disabledPendingPin.beginSession(disabledPendingPinToken)?.operations
+               == [.searchText("s")],
+               "App Switcher replays disabled pin input as search text")
+
+        var boundedPendingInputs = SwitcherRouteOwnership()
+        boundedPendingInputs.setTapLive(true)
+        guard case let .accepted(boundedPendingInputsToken) = boundedPendingInputs.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns a route before bounded cold-start input")
+            return
+        }
+        expect(boundedPendingInputs.queuePendingKeyInput(pendingS,
+                                                        letterAction: .pinSearch,
+                                                        deletesSearchCharacter: false),
+               "App Switcher pins before its pending operation stream reaches the limit")
+        let allPendingText = (0..<(SwitcherRouteOwnership.pendingOperationLimit + 7)).map(String.init)
+        for text in allPendingText {
+            expect(boundedPendingInputs.queuePendingKeyInput(
+                SwitcherPendingKeyInput(keyCode: 0, text: text, isRepeat: false),
+                letterAction: nil,
+                deletesSearchCharacter: false
+            ), "App Switcher keeps consuming cold-start input after its operation limit")
+        }
+        _ = boundedPendingInputs.claim(boundedPendingInputsToken)
+        let boundedPendingSession = boundedPendingInputs.beginSession(boundedPendingInputsToken)
+        expect(boundedPendingSession?.operations.count == SwitcherRouteOwnership.pendingOperationLimit
+               && boundedPendingSession?.operations.first == .letterAction(.pinSearch)
+               && boundedPendingSession?.operations.last == .searchText(allPendingText.last!),
+               "App Switcher bounds pending operations without dropping pin state or newest intent")
+
+        var stalePendingInputs = SwitcherRouteOwnership()
+        stalePendingInputs.setTapLive(true)
+        guard case let .accepted(stalePendingInputToken) = stalePendingInputs.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns a route before pending pin state becomes stale")
+            return
+        }
+        expect(stalePendingInputs.queuePendingKeyInput(pendingS,
+                                                       letterAction: .pinSearch,
+                                                       deletesSearchCharacter: false),
+               "App Switcher owns pending pin state before lifecycle invalidation")
+        stalePendingInputs.invalidateLifecycle()
+        stalePendingInputs.setTapLive(true)
+        guard case let .accepted(replacementPendingInputToken) = stalePendingInputs.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns a replacement route after pending pin becomes stale")
+            return
+        }
+        _ = stalePendingInputs.claim(replacementPendingInputToken)
+        expect(stalePendingInputs.beginSession(stalePendingInputToken) == nil
+               && stalePendingInputs.beginSession(replacementPendingInputToken)?.searchPinned == false,
+               "App Switcher cannot pin a replacement session with stale pending state")
+
+        var alternateAppsFirst = SwitcherRouteOwnership()
+        alternateAppsFirst.setTapLive(true)
+        guard case let .accepted(alternateAppsToken) = alternateAppsFirst.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns an Apps shortcut before alternate navigation")
+            return
+        }
+        let expectedWindowRoute = SwitcherInitialRoute(shortcut: .switcherWindowDefault,
+                                                       scope: .frontmostApp,
+                                                       reversed: false)
+        expect(alternateAppsFirst.accept(expectedWindowRoute) == .coalesced,
+               "App Switcher consumes a Window shortcut while Apps startup is pending")
+        _ = alternateAppsFirst.claim(alternateAppsToken)
+        expect(alternateAppsFirst.beginSession(alternateAppsToken)?.operations == [
+            .navigation(SwitcherPendingNavigation(command: .frontmostApp,
+                                                   delta: 1,
+                                                   wrapping: true))
+        ], "App Switcher retains Apps-then-Windows command identity")
+
+        var alternateWindowsFirst = SwitcherRouteOwnership()
+        alternateWindowsFirst.setTapLive(true)
+        guard case let .accepted(alternateWindowsToken) = alternateWindowsFirst.accept(expectedWindowRoute) else {
+            expect(false, "App Switcher owns a Window shortcut before alternate navigation")
+            return
+        }
+        let reversedAppsRoute = SwitcherInitialRoute(shortcut: .switcherDefault,
+                                                     scope: .allApps,
+                                                     reversed: true)
+        expect(alternateWindowsFirst.accept(reversedAppsRoute, isRepeat: true) == .coalesced,
+               "App Switcher consumes a reverse Apps repeat while Window startup is pending")
+        _ = alternateWindowsFirst.claim(alternateWindowsToken)
+        expect(alternateWindowsFirst.beginSession(alternateWindowsToken)?.operations == [
+            .navigation(SwitcherPendingNavigation(command: .allApps,
+                                                   delta: -1,
+                                                   wrapping: false))
+        ], "App Switcher retains Windows-then-Apps direction and repeat semantics")
+
+        var mixedPendingNavigation = SwitcherRouteOwnership()
+        mixedPendingNavigation.setTapLive(true)
+        guard case let .accepted(mixedToken) = mixedPendingNavigation.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns a shortcut before mixed pending navigation")
+            return
+        }
+        expect(mixedPendingNavigation.accept(reversedAppsRoute) == .coalesced
+               && mixedPendingNavigation.accept(expectedAppsRoute, isRepeat: true) == .coalesced
+               && mixedPendingNavigation.accept(reversedAppsRoute, isRepeat: true) == .coalesced,
+               "App Switcher consumes mixed fresh and held navigation during startup")
+        _ = mixedPendingNavigation.claim(mixedToken)
+        expect(mixedPendingNavigation.beginSession(mixedToken)?.operations == [
+            .navigation(SwitcherPendingNavigation(command: .allApps,
+                                                   delta: -1,
+                                                   wrapping: true)),
+            .navigation(SwitcherPendingNavigation(command: .allApps,
+                                                   delta: 1,
+                                                   wrapping: false)),
+            .navigation(SwitcherPendingNavigation(command: .allApps,
+                                                   delta: -1,
+                                                   wrapping: false))
+        ], "App Switcher keeps fresh reverse wrapping separate from repeats at both edges")
+
+        var interleavedPendingOperations = SwitcherRouteOwnership()
+        interleavedPendingOperations.setTapLive(true)
+        guard case let .accepted(interleavedToken) = interleavedPendingOperations.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns a route before interleaved pending input")
+            return
+        }
+        let pendingW = SwitcherPendingKeyInput(keyCode: 13, text: "w", isRepeat: false)
+        expect(interleavedPendingOperations.accept(expectedWindowRoute) == .coalesced
+               && interleavedPendingOperations.queuePendingKeyInput(
+                    pendingW,
+                    letterAction: .closeWindow,
+                    deletesSearchCharacter: false
+               )
+               && interleavedPendingOperations.accept(reversedAppsRoute) == .coalesced,
+               "App Switcher consumes interleaved navigation and commands during startup")
+        _ = interleavedPendingOperations.claim(interleavedToken)
+        expect(interleavedPendingOperations.beginSession(interleavedToken)?.operations == [
+            .navigation(SwitcherPendingNavigation(command: .frontmostApp,
+                                                   delta: 1,
+                                                   wrapping: true)),
+            .letterAction(.closeWindow),
+            .navigation(SwitcherPendingNavigation(command: .allApps,
+                                                   delta: -1,
+                                                   wrapping: true))
+        ], "App Switcher preserves exact event order across pending operation types")
+
+        var releasedPendingQuit = SwitcherRouteOwnership()
+        releasedPendingQuit.setTapLive(true)
+        guard case let .accepted(pendingQuitToken) = releasedPendingQuit.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns T1 before pending Q")
+            return
+        }
+        let pendingQ = SwitcherPendingKeyInput(keyCode: 12, text: "q", isRepeat: false)
+        expect(releasedPendingQuit.queuePendingKeyInput(pendingQ,
+                                                        letterAction: .quitApp,
+                                                        deletesSearchCharacter: false),
+               "App Switcher queues Q against T1")
+        _ = releasedPendingQuit.observePendingModifierFlags([])
+        guard case let .accepted(afterPendingQuitToken) = releasedPendingQuit.accept(
+            expectedWindowRoute
+        ) else {
+            expect(false, "App Switcher owns T2 after pending Q release")
+            return
+        }
+        _ = releasedPendingQuit.claim(pendingQuitToken)
+        expect(releasedPendingQuit.beginSession(pendingQuitToken)?.operations
+               == [.letterAction(.quitApp)]
+               && releasedPendingQuit.cancelSessionAfterPendingAction(
+                expectedToken: pendingQuitToken
+               )
+               && releasedPendingQuit.claim(afterPendingQuitToken)?.route == expectedWindowRoute
+               && releasedPendingQuit.beginSession(afterPendingQuitToken) != nil
+               && !releasedPendingQuit.cancelSessionAfterPendingAction(
+                expectedToken: pendingQuitToken
+               )
+               && releasedPendingQuit.activeToken == afterPendingQuitToken,
+               "App Switcher pending Q cancels exact released T1 and preserves T2")
+
+        var pendingShiftEdges = SwitcherRouteOwnership()
+        pendingShiftEdges.setTapLive(true)
+        guard case let .accepted(pendingShiftToken) = pendingShiftEdges.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns a route before pending Shift navigation")
+            return
+        }
+        let firstShiftPress = pendingShiftEdges.observePendingModifierFlags([
+            .maskCommand, .maskShift
+        ])
+        expect(firstShiftPress.consumesEvent && !firstShiftPress.gestureEnded
+               && pendingShiftEdges.queuePendingKeyInput(
+                    pendingW,
+                    letterAction: .closeWindow,
+                    deletesSearchCharacter: false
+               ),
+               "App Switcher consumes a pending Shift press without ending the gesture")
+        let shiftRelease = pendingShiftEdges.observePendingModifierFlags([.maskCommand])
+        let secondShiftPress = pendingShiftEdges.observePendingModifierFlags([
+            .maskCommand, .maskShift
+        ])
+        expect(!shiftRelease.consumesEvent && !shiftRelease.gestureEnded
+               && secondShiftPress.consumesEvent,
+               "App Switcher records only Shift press edges during pending startup")
+        _ = pendingShiftEdges.claim(pendingShiftToken)
+        expect(pendingShiftEdges.beginSession(pendingShiftToken)?.operations == [
+            .navigation(SwitcherPendingNavigation(command: .allApps,
+                                                   delta: -1,
+                                                   wrapping: true)),
+            .letterAction(.closeWindow),
+            .navigation(SwitcherPendingNavigation(command: .allApps,
+                                                   delta: -1,
+                                                   wrapping: true))
+        ], "App Switcher preserves pending Shift edges in event order")
+
+        var initiallyReversedShift = SwitcherRouteOwnership()
+        initiallyReversedShift.setTapLive(true)
+        guard case let .accepted(initiallyReversedToken) = initiallyReversedShift.accept(reversedAppsRoute)
+        else {
+            expect(false, "App Switcher owns an initially reversed pending route")
+            return
+        }
+        let unchangedInitialShift = initiallyReversedShift.observePendingModifierFlags([
+            .maskCommand, .maskShift
+        ])
+        _ = initiallyReversedShift.observePendingModifierFlags([.maskCommand])
+        let repressedShift = initiallyReversedShift.observePendingModifierFlags([
+            .maskCommand, .maskShift
+        ])
+        _ = initiallyReversedShift.claim(initiallyReversedToken)
+        expect(!unchangedInitialShift.consumesEvent && repressedShift.consumesEvent
+               && initiallyReversedShift.beginSession(initiallyReversedToken)?.operations == [
+                   .navigation(SwitcherPendingNavigation(command: .allApps,
+                                                        delta: -1,
+                                                        wrapping: true))
+               ],
+               "App Switcher does not double-step the Shift held by its initial reverse route")
+
+        var pendingQueryMeaning = SwitcherRouteOwnership()
+        pendingQueryMeaning.setTapLive(true)
+        guard case let .accepted(pendingQueryMeaningToken) = pendingQueryMeaning.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns a route before pending query classification")
+            return
+        }
+        let pendingDelete = SwitcherPendingKeyInput(keyCode: 51, text: nil, isRepeat: false)
+        expect(pendingQueryMeaning.queuePendingKeyInput(pendingA,
+                                                       letterAction: nil,
+                                                       deletesSearchCharacter: false)
+               && pendingQueryMeaning.queuePendingKeyInput(pendingDelete,
+                                                           letterAction: nil,
+                                                           deletesSearchCharacter: true)
+               && pendingQueryMeaning.queuePendingKeyInput(pendingW,
+                                                           letterAction: .closeWindow,
+                                                           deletesSearchCharacter: false),
+               "App Switcher tracks pending query length when classifying commands")
+        _ = pendingQueryMeaning.claim(pendingQueryMeaningToken)
+        expect(pendingQueryMeaning.beginSession(pendingQueryMeaningToken)?.operations == [
+            .searchText("a"),
+            .keyCommand(pendingDelete),
+            .letterAction(.closeWindow)
+        ], "App Switcher keeps A, Delete, W semantics independent of later trimming")
+
+        let pendingEnter = SwitcherPendingKeyInput(keyCode: 36,
+                                                   text: "\r",
+                                                   isRepeat: false)
+        let pendingEscape = SwitcherPendingKeyInput(keyCode: 53,
+                                                    text: nil,
+                                                    isRepeat: false)
+        var pendingEnterBoundary = SwitcherRouteOwnership()
+        pendingEnterBoundary.setTapLive(true)
+        guard case let .accepted(pendingEnterToken) = pendingEnterBoundary.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns a route before pending Enter")
+            return
+        }
+        expect(pendingEnterBoundary.queuePendingKeyInput(pendingA,
+                                                        letterAction: nil,
+                                                        deletesSearchCharacter: false)
+               && pendingEnterBoundary.queuePendingKeyInput(pendingEnter,
+                                                            letterAction: nil,
+                                                            deletesSearchCharacter: false,
+                                                            terminal: .commit)
+               && !pendingEnterBoundary.queuePendingKeyInput(pendingW,
+                                                             letterAction: .closeWindow,
+                                                             deletesSearchCharacter: false),
+               "App Switcher makes pending Enter a terminal input boundary")
+        expect(pendingEnterBoundary.observePendingModifierFlags([]) == .none,
+               "App Switcher keeps pending Enter terminal after modifier release")
+        guard case let .accepted(afterEnterGestureToken) = pendingEnterBoundary.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher gives a later physical gesture its own token after Enter")
+            return
+        }
+        _ = pendingEnterBoundary.claim(pendingEnterToken)
+        let begunPendingEnter = pendingEnterBoundary.beginSession(pendingEnterToken)
+        expect(begunPendingEnter?.operations == [.searchText("a"), .terminal(.commit)]
+               && begunPendingEnter?.gestureEnded == true
+               && pendingEnterBoundary.activeToken == pendingEnterToken
+               && pendingEnterBoundary.activeTerminalPending,
+               "App Switcher activates the exact pending Enter token for one commit")
+        expect(pendingEnterBoundary.releaseActiveSession(for: []) == nil
+               && pendingEnterBoundary.activeToken == pendingEnterToken
+               && pendingEnterBoundary.releaseActiveSession(expectedToken: pendingEnterToken)
+               == pendingEnterToken
+               && pendingEnterBoundary.releaseActiveSession(expectedToken: pendingEnterToken) == nil,
+               "App Switcher ignores modifier release before replaying Enter exactly once")
+        pendingEnterBoundary.completeReleasedSession(pendingEnterToken)
+        expect(pendingEnterBoundary.claim(afterEnterGestureToken)?.route == expectedAppsRoute,
+               "App Switcher preserves the gesture queued after pending Enter")
+
+        var pendingEscapeBoundary = SwitcherRouteOwnership()
+        pendingEscapeBoundary.setTapLive(true)
+        guard case let .accepted(pendingEscapeToken) = pendingEscapeBoundary.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns a route before pending Escape")
+            return
+        }
+        expect(pendingEscapeBoundary.queuePendingKeyInput(pendingEscape,
+                                                         letterAction: nil,
+                                                         deletesSearchCharacter: false,
+                                                         terminal: .cancel)
+               && !pendingEscapeBoundary.queuePendingKeyInput(pendingW,
+                                                              letterAction: .closeWindow,
+                                                              deletesSearchCharacter: false),
+               "App Switcher makes pending Escape a terminal input boundary")
+        expect(pendingEscapeBoundary.observePendingModifierFlags([]) == .none,
+               "App Switcher keeps pending Escape terminal after modifier release")
+        guard case let .accepted(afterEscapeGestureToken) = pendingEscapeBoundary.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher gives a later physical gesture its own token after Escape")
+            return
+        }
+        _ = pendingEscapeBoundary.claim(pendingEscapeToken)
+        expect(pendingEscapeBoundary.beginSession(pendingEscapeToken)?.operations
+               == [.terminal(.cancel)]
+               && pendingEscapeBoundary.activeTerminalPending
+               && pendingEscapeBoundary.releaseActiveSession(for: []) == nil
+               && pendingEscapeBoundary.activeToken == pendingEscapeToken
+               && pendingEscapeBoundary.cancelActiveSession(expectedToken: pendingEscapeToken)
+               && !pendingEscapeBoundary.cancelActiveSession(expectedToken: pendingEscapeToken)
+               && pendingEscapeBoundary.claim(afterEscapeGestureToken)?.route == expectedAppsRoute,
+               "App Switcher ignores modifier release, cancels Escape, and preserves the later gesture")
+
+        var activeEscapeBoundary = SwitcherRouteOwnership()
+        activeEscapeBoundary.setTapLive(true)
+        guard case let .accepted(activeEscapeToken) = activeEscapeBoundary.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns Escape before testing its active routing boundary")
+            return
+        }
+        _ = activeEscapeBoundary.queuePendingKeyInput(pendingEscape,
+                                                       letterAction: nil,
+                                                       deletesSearchCharacter: false,
+                                                       terminal: .cancel)
+        _ = activeEscapeBoundary.claim(activeEscapeToken)
+        _ = activeEscapeBoundary.beginSession(activeEscapeToken)
+        expect(activeEscapeBoundary.routableActiveToken == nil
+               && activeEscapeBoundary.releaseActiveSession(
+                expectedToken: activeEscapeBoundary.routableActiveToken ?? 0
+               ) == nil
+               && activeEscapeBoundary.activeToken == activeEscapeToken
+               && !activeEscapeBoundary.queuePendingKeyInput(pendingEnter,
+                                                              letterAction: nil,
+                                                              deletesSearchCharacter: false,
+                                                              terminal: .commit)
+               && !activeEscapeBoundary.queuePendingKeyInput(pendingW,
+                                                              letterAction: .closeWindow,
+                                                              deletesSearchCharacter: false),
+               "App Switcher does not route later Enter or unrelated input into active Escape")
+        guard case let .accepted(afterActiveEscapeToken) = activeEscapeBoundary.decideMatchedRoute(
+            expectedAppsRoute,
+            allowingNewRoute: true
+        ) else {
+            expect(false, "App Switcher accepts an Apps gesture behind active Escape")
+            return
+        }
+        expect(activeEscapeBoundary.routingShortcut == expectedAppsRoute.shortcut
+               && activeEscapeBoundary.queuePendingKeyInput(pendingA,
+                                                             letterAction: nil,
+                                                             deletesSearchCharacter: false)
+               && activeEscapeBoundary.claim(afterActiveEscapeToken) == nil,
+               "App Switcher attaches later input to the gesture behind active Escape")
+        expect(activeEscapeBoundary.cancelActiveSession(expectedToken: activeEscapeToken)
+               && activeEscapeBoundary.claim(afterActiveEscapeToken)?.route == expectedAppsRoute
+               && activeEscapeBoundary.beginSession(afterActiveEscapeToken)?.operations
+               == [.searchText("a")]
+               && !activeEscapeBoundary.cancelActiveSession(expectedToken: activeEscapeToken)
+               && activeEscapeBoundary.activeToken == afterActiveEscapeToken,
+               "App Switcher starts the preserved gesture only after exact Escape cancellation")
+
+        var activeEnterBoundary = SwitcherRouteOwnership()
+        activeEnterBoundary.setTapLive(true)
+        guard case let .accepted(activeEnterToken) = activeEnterBoundary.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns Enter before testing its active routing boundary")
+            return
+        }
+        _ = activeEnterBoundary.queuePendingKeyInput(pendingEnter,
+                                                      letterAction: nil,
+                                                      deletesSearchCharacter: false,
+                                                      terminal: .commit)
+        _ = activeEnterBoundary.claim(activeEnterToken)
+        _ = activeEnterBoundary.beginSession(activeEnterToken)
+        guard case let .accepted(afterActiveEnterToken) = activeEnterBoundary.decideMatchedRoute(
+            expectedWindowRoute,
+            allowingNewRoute: true
+        ) else {
+            expect(false, "App Switcher accepts a Windows gesture behind active Enter")
+            return
+        }
+        expect(activeEnterBoundary.routingShortcut == expectedWindowRoute.shortcut
+               && activeEnterBoundary.queuePendingKeyInput(pendingW,
+                                                            letterAction: .closeWindow,
+                                                            deletesSearchCharacter: false)
+               && activeEnterBoundary.claim(afterActiveEnterToken) == nil,
+               "App Switcher preserves Windows routing and input behind active Enter")
+        let terminalActivationSource = SwitcherRouteSource(
+            .appOnly(appName: "Terminal Target", pid: 515)
+        )
+        expect(activeEnterBoundary.releaseActiveSession(expectedToken: activeEnterToken)
+               == activeEnterToken
+               && activeEnterBoundary.claim(afterActiveEnterToken) == nil
+               && activeEnterBoundary.claimReleasedSession(activeEnterToken)
+               && activeEnterBoundary.publishActivationSource(terminalActivationSource,
+                                                                generation: activeEnterToken)
+               && activeEnterBoundary.claim(afterActiveEnterToken)?.source
+               == terminalActivationSource,
+               "App Switcher waits for Enter activation before handing off the queued source")
+        expect(activeEnterBoundary.beginSession(afterActiveEnterToken)?.operations
+               == [.letterAction(.closeWindow)]
+               && activeEnterBoundary.releaseActiveSession(expectedToken: activeEnterToken) == nil
+               && activeEnterBoundary.activeToken == afterActiveEnterToken,
+               "App Switcher keeps stale Enter replay isolated from its replacement session")
+
+        var boundedTerminal = SwitcherRouteOwnership()
+        boundedTerminal.setTapLive(true)
+        guard case let .accepted(boundedTerminalToken) = boundedTerminal.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns a route before bounded pending Enter")
+            return
+        }
+        for index in 0..<(SwitcherRouteOwnership.pendingOperationLimit + 7) {
+            expect(boundedTerminal.queuePendingKeyInput(
+                SwitcherPendingKeyInput(keyCode: 0, text: "\(index)", isRepeat: false),
+                letterAction: nil,
+                deletesSearchCharacter: false
+            ), "App Switcher consumes input before a bounded pending terminal")
+        }
+        expect(boundedTerminal.queuePendingKeyInput(pendingEnter,
+                                                    letterAction: nil,
+                                                    deletesSearchCharacter: false,
+                                                    terminal: .commit),
+               "App Switcher consumes Enter after its pending stream reaches the limit")
+        _ = boundedTerminal.claim(boundedTerminalToken)
+        let boundedTerminalSession = boundedTerminal.beginSession(boundedTerminalToken)
+        expect(boundedTerminalSession?.operations.count == SwitcherRouteOwnership.pendingOperationLimit
+               && boundedTerminalSession?.operations.last == .terminal(.commit),
+               "App Switcher never trims a pending terminal operation")
+
+        var stalePendingTerminal = SwitcherRouteOwnership()
+        stalePendingTerminal.setTapLive(true)
+        guard case let .accepted(stalePendingTerminalToken) = stalePendingTerminal.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns a terminal route before it becomes stale")
+            return
+        }
+        _ = stalePendingTerminal.queuePendingKeyInput(pendingEscape,
+                                                      letterAction: nil,
+                                                      deletesSearchCharacter: false,
+                                                      terminal: .cancel)
+        _ = stalePendingTerminal.claim(stalePendingTerminalToken)
+        _ = stalePendingTerminal.beginSession(stalePendingTerminalToken)
+        expect(stalePendingTerminal.releaseActiveSession(for: []) == nil
+               && stalePendingTerminal.activeToken == stalePendingTerminalToken,
+               "App Switcher holds a terminal token active until exact replay or teardown")
+        stalePendingTerminal.invalidateLifecycle()
+        stalePendingTerminal.setTapLive(true)
+        guard case let .accepted(replacementTerminalToken) = stalePendingTerminal.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns a replacement after a stale terminal")
+            return
+        }
+        _ = stalePendingTerminal.claim(replacementTerminalToken)
+        _ = stalePendingTerminal.beginSession(replacementTerminalToken)
+        expect(!stalePendingTerminal.cancelActiveSession(expectedToken: stalePendingTerminalToken)
+               && stalePendingTerminal.activeToken == replacementTerminalToken
+               && !stalePendingTerminal.activeTerminalPending,
+               "App Switcher stale terminal state cannot affect its replacement token")
+
+        var capturedTerminal = SwitcherRouteOwnership()
+        capturedTerminal.setTapLive(true)
+        guard case let .accepted(capturedTerminalToken) = capturedTerminal.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns a terminal route before shortcut capture")
+            return
+        }
+        _ = capturedTerminal.queuePendingKeyInput(pendingEscape,
+                                                  letterAction: nil,
+                                                  deletesSearchCharacter: false,
+                                                  terminal: .cancel)
+        _ = capturedTerminal.claim(capturedTerminalToken)
+        _ = capturedTerminal.beginSession(capturedTerminalToken)
+        capturedTerminal.setCapturing(true)
+        expect(!capturedTerminal.activeTerminalPending
+               && !capturedTerminal.cancelActiveSession(expectedToken: capturedTerminalToken),
+               "App Switcher shortcut capture clears an active pending terminal")
+
+        var tornDownTerminal = SwitcherRouteOwnership()
+        tornDownTerminal.setTapLive(true)
+        guard case let .accepted(tornDownTerminalToken) = tornDownTerminal.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns a terminal route before tap teardown")
+            return
+        }
+        _ = tornDownTerminal.queuePendingKeyInput(pendingEnter,
+                                                  letterAction: nil,
+                                                  deletesSearchCharacter: false,
+                                                  terminal: .commit)
+        _ = tornDownTerminal.claim(tornDownTerminalToken)
+        _ = tornDownTerminal.beginSession(tornDownTerminalToken)
+        tornDownTerminal.setTapLive(false)
+        expect(!tornDownTerminal.activeTerminalPending
+               && tornDownTerminal.releaseActiveSession(expectedToken: tornDownTerminalToken) == nil,
+               "App Switcher tap teardown clears an active pending terminal")
+
+        let pendingWindowShortcut = SwitcherPendingKeyInput(keyCode: 50,
+                                                            text: "`",
+                                                            isRepeat: false)
+        var windowShortcutBeforeSearch = SwitcherRouteOwnership()
+        windowShortcutBeforeSearch.setTapLive(true)
+        guard case let .accepted(windowBeforeSearchToken) = windowShortcutBeforeSearch.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns all-apps startup before Window navigation")
+            return
+        }
+        expect(!windowShortcutBeforeSearch.queuePendingWindowShortcutAsSearch(pendingWindowShortcut)
+               && windowShortcutBeforeSearch.accept(expectedWindowRoute) == .coalesced,
+               "App Switcher keeps the Windows shortcut as navigation before search starts")
+        _ = windowShortcutBeforeSearch.claim(windowBeforeSearchToken)
+        expect(windowShortcutBeforeSearch.beginSession(windowBeforeSearchToken)?.operations == [
+            .navigation(SwitcherPendingNavigation(command: .frontmostApp,
+                                                   delta: 1,
+                                                   wrapping: true))
+        ], "App Switcher replays pre-search Windows shortcut navigation")
+
+        var windowShortcutAfterSearch = SwitcherRouteOwnership()
+        windowShortcutAfterSearch.setTapLive(true)
+        guard case let .accepted(windowAfterSearchToken) = windowShortcutAfterSearch.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns all-apps startup before Window search input")
+            return
+        }
+        expect(windowShortcutAfterSearch.queuePendingKeyInput(pendingA,
+                                                             letterAction: nil,
+                                                             deletesSearchCharacter: false)
+               && windowShortcutAfterSearch.queuePendingWindowShortcutAsSearch(pendingWindowShortcut),
+               "App Switcher treats printable Windows shortcut as text after search starts")
+        _ = windowShortcutAfterSearch.claim(windowAfterSearchToken)
+        expect(windowShortcutAfterSearch.beginSession(windowAfterSearchToken)?.operations == [
+            .searchText("a"), .searchText("`")
+        ], "App Switcher preserves the pending Windows shortcut character in search")
+
+        var nonprintingWindowSearch = SwitcherRouteOwnership()
+        nonprintingWindowSearch.setTapLive(true)
+        guard case let .accepted(nonprintingWindowToken) = nonprintingWindowSearch.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns all-apps startup before stray Window input")
+            return
+        }
+        let nonprintingWindowShortcut = SwitcherPendingKeyInput(keyCode: 50,
+                                                               text: nil,
+                                                               isRepeat: false)
+        _ = nonprintingWindowSearch.queuePendingKeyInput(pendingA,
+                                                        letterAction: nil,
+                                                        deletesSearchCharacter: false)
+        expect(nonprintingWindowSearch.queuePendingWindowShortcutAsSearch(nonprintingWindowShortcut),
+               "App Switcher consumes a nonprinting Windows shortcut after search starts")
+        _ = nonprintingWindowSearch.claim(nonprintingWindowToken)
+        expect(nonprintingWindowSearch.beginSession(nonprintingWindowToken)?.operations == [
+            .searchText("a"), .keyCommand(nonprintingWindowShortcut)
+        ], "App Switcher replays nonprinting Windows shortcut as a stray consumed key")
+
+        var frontmostAppsShortcutAfterSearch = SwitcherRouteOwnership()
+        frontmostAppsShortcutAfterSearch.setTapLive(true)
+        guard case let .accepted(frontmostSearchToken) = frontmostAppsShortcutAfterSearch.accept(expectedWindowRoute)
+        else {
+            expect(false, "App Switcher owns frontmost-app startup before Apps navigation")
+            return
+        }
+        _ = frontmostAppsShortcutAfterSearch.queuePendingKeyInput(pendingA,
+                                                                 letterAction: nil,
+                                                                 deletesSearchCharacter: false)
+        expect(frontmostAppsShortcutAfterSearch.accept(expectedAppsRoute) == .coalesced,
+               "App Switcher keeps Apps shortcut navigation in a frontmost-app search session")
+        _ = frontmostAppsShortcutAfterSearch.claim(frontmostSearchToken)
+        expect(frontmostAppsShortcutAfterSearch.beginSession(frontmostSearchToken)?.operations == [
+            .searchText("a"),
+            .navigation(SwitcherPendingNavigation(command: .allApps,
+                                                   delta: 1,
+                                                   wrapping: true))
+        ], "App Switcher preserves frontmost-app Apps shortcut behavior after search")
+
+        var handoffRoute = SwitcherRouteOwnership()
+        handoffRoute.setTapLive(true)
+        guard case let .accepted(handoffToken) = handoffRoute.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns a shortcut before the handoff interleaving")
+            return
+        }
+        let tapObservedPendingRoute = handoffRoute.hasPendingRoute
+        _ = handoffRoute.claim(handoffToken)
+        _ = handoffRoute.beginSession(handoffToken)
+        let decisionAfterMainWonHandoff = handoffRoute.decideMatchedRoute(
+            expectedAppsRoute,
+            allowingNewRoute: true
+        )
+        expect(tapObservedPendingRoute && decisionAfterMainWonHandoff == .activeSession,
+               "App Switcher consumes a matched repeat when main wins between observation and acceptance")
+        let releasedHandoffToken = handoffRoute.releaseActiveSession(for: [])
+        expect(releasedHandoffToken == handoffToken
+               && !handoffRoute.sessionActive
+               && handoffRoute.hasSessionLifecycle,
+               "App Switcher keeps lifecycle ownership while release validation runs")
+        expect(handoffRoute.accept(expectedAppsRoute) != .rejected,
+               "App Switcher accepts a new gesture while release validation is pending")
+
+        var enterRelease = SwitcherRouteOwnership()
+        enterRelease.setTapLive(true)
+        guard case let .accepted(enterSessionToken) = enterRelease.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns a route before Enter commits it")
+            return
+        }
+        _ = enterRelease.claim(enterSessionToken)
+        _ = enterRelease.beginSession(enterSessionToken)
+        expect(enterRelease.releaseActiveSession(expectedToken: enterSessionToken)
+               == enterSessionToken,
+               "App Switcher Enter releases exactly the generation observed by the tap")
+        expect(enterRelease.accept(expectedAppsRoute) != .rejected,
+               "App Switcher accepts a new gesture before Enter validation completes")
+
+        var staleEnterRelease = SwitcherRouteOwnership()
+        staleEnterRelease.setTapLive(true)
+        guard case let .accepted(staleEnterToken) = staleEnterRelease.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns a route before an Enter handoff race")
+            return
+        }
+        _ = staleEnterRelease.claim(staleEnterToken)
+        _ = staleEnterRelease.beginSession(staleEnterToken)
+        staleEnterRelease.invalidateLifecycle()
+        staleEnterRelease.setTapLive(true)
+        guard case let .accepted(replacementEnterToken) = staleEnterRelease.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns a replacement route after Enter becomes stale")
+            return
+        }
+        _ = staleEnterRelease.claim(replacementEnterToken)
+        _ = staleEnterRelease.beginSession(replacementEnterToken)
+        expect(staleEnterRelease.releaseActiveSession(expectedToken: staleEnterToken) == nil
+               && staleEnterRelease.activeToken == replacementEnterToken,
+               "App Switcher stale Enter cannot release a replacement session")
+
+        var pinnedRoute = SwitcherRouteOwnership()
+        pinnedRoute.setTapLive(true)
+        guard case let .accepted(pinnedToken) = pinnedRoute.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns a route before search is pinned")
+            return
+        }
+        _ = pinnedRoute.claim(pinnedToken)
+        _ = pinnedRoute.beginSession(pinnedToken)
+        expect(pinnedRoute.pinActiveSession(expectedToken: pinnedToken)
+               && pinnedRoute.releaseActiveSession(for: []) == nil
+               && pinnedRoute.activeToken == pinnedToken,
+               "App Switcher keeps the exact pinned route active after modifier release")
+        expect(pinnedRoute.releaseActiveSession(expectedToken: pinnedToken) == pinnedToken,
+               "App Switcher Enter explicitly releases a pinned route")
+
+        var stalePinRoute = SwitcherRouteOwnership()
+        stalePinRoute.setTapLive(true)
+        guard case let .accepted(stalePinToken) = stalePinRoute.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns a route before a stale pin event")
+            return
+        }
+        _ = stalePinRoute.claim(stalePinToken)
+        _ = stalePinRoute.beginSession(stalePinToken)
+        stalePinRoute.invalidateLifecycle()
+        stalePinRoute.setTapLive(true)
+        guard case let .accepted(replacementPinToken) = stalePinRoute.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns a replacement route after pin becomes stale")
+            return
+        }
+        _ = stalePinRoute.claim(replacementPinToken)
+        _ = stalePinRoute.beginSession(replacementPinToken)
+        expect(!stalePinRoute.pinActiveSession(expectedToken: stalePinToken)
+               && stalePinRoute.releaseActiveSession(for: []) == replacementPinToken,
+               "App Switcher stale pin cannot pin a replacement session")
+
+        var boundedGestures = SwitcherRouteOwnership()
+        boundedGestures.setTapLive(true)
+        var boundedGestureTokens: [UInt64] = []
+        for _ in 0..<(SwitcherRouteOwnership.pendingGestureLimit + 3) {
+            guard case let .accepted(token) = boundedGestures.accept(expectedAppsRoute) else {
+                expect(false, "App Switcher keeps consuming shortcuts after its gesture limit")
+                return
+            }
+            boundedGestureTokens.append(token)
+            _ = boundedGestures.observePendingModifierFlags([])
+        }
+        let evictedGestureTokens = boundedGestureTokens.dropLast(
+            SwitcherRouteOwnership.pendingGestureLimit
+        )
+        expect(evictedGestureTokens.allSatisfy { boundedGestures.claim($0) == nil },
+               "App Switcher makes evicted gesture tokens harmless")
+        var retainedGestureTokens: [UInt64] = []
+        for token in boundedGestureTokens.suffix(SwitcherRouteOwnership.pendingGestureLimit) {
+            guard boundedGestures.claim(token) != nil,
+                  boundedGestures.beginSession(token)?.gestureEnded == true else {
+                expect(false, "App Switcher retains each newest gesture in order")
+                return
+            }
+            retainedGestureTokens.append(token)
+            boundedGestures.completeReleasedSession(token)
+        }
+        expect(retainedGestureTokens.last == boundedGestureTokens.last
+               && !boundedGestures.hasPendingRoute,
+               "App Switcher bounds queued gestures at eight and drains the newest intent")
+
+        var boundedNavigation = SwitcherRouteOwnership()
+        boundedNavigation.setTapLive(true)
+        guard case let .accepted(boundedNavigationToken) = boundedNavigation.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns a route before bounded navigation")
+            return
+        }
+        var allNavigation: [SwitcherPendingOperation] = []
+        for index in 0..<(SwitcherRouteOwnership.pendingOperationLimit + 5) {
+            let route = index.isMultiple(of: 2) ? expectedWindowRoute : reversedAppsRoute
+            expect(boundedNavigation.accept(route) == .coalesced,
+                   "App Switcher consumes matched navigation after its navigation limit")
+            allNavigation.append(.navigation(SwitcherPendingNavigation(
+                command: route.scope,
+                delta: route.reversed ? -1 : 1,
+                wrapping: true
+            )))
+        }
+        _ = boundedNavigation.claim(boundedNavigationToken)
+        expect(boundedNavigation.beginSession(boundedNavigationToken)?.operations
+               == Array(allNavigation.suffix(SwitcherRouteOwnership.pendingOperationLimit)),
+               "App Switcher bounds navigation and retains the newest operations")
+
+        var compactedRepeats = SwitcherRouteOwnership()
+        compactedRepeats.setTapLive(true)
+        guard case let .accepted(compactedRepeatToken) = compactedRepeats.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns a route before repeat compaction")
+            return
+        }
+        for _ in 0..<(SwitcherRouteOwnership.pendingOperationLimit * 4) {
+            expect(compactedRepeats.accept(expectedAppsRoute, isRepeat: true) == .coalesced,
+                   "App Switcher consumes a held repeat while startup is pending")
+        }
+        _ = compactedRepeats.claim(compactedRepeatToken)
+        expect(compactedRepeats.beginSession(compactedRepeatToken)?.operations == [
+            .navigation(SwitcherPendingNavigation(
+                command: .allApps,
+                delta: SwitcherRouteOwnership.pendingOperationLimit * 4,
+                wrapping: false
+            ))
+        ], "App Switcher compacts a long held repeat into one bounded operation")
+
+        var clearedBoundedRoutes = SwitcherRouteOwnership()
+        clearedBoundedRoutes.setTapLive(true)
+        var clearedTokens: [UInt64] = []
+        for _ in 0..<SwitcherRouteOwnership.pendingGestureLimit {
+            guard case let .accepted(token) = clearedBoundedRoutes.accept(expectedAppsRoute) else {
+                expect(false, "App Switcher queues bounded routes before capture")
+                return
+            }
+            clearedTokens.append(token)
+            _ = clearedBoundedRoutes.observePendingModifierFlags([])
+        }
+        clearedBoundedRoutes.setCapturing(true)
+        expect(!clearedBoundedRoutes.hasPendingRoute
+               && clearedTokens.allSatisfy { clearedBoundedRoutes.claim($0) == nil },
+               "App Switcher capture clears every retained bounded route")
+        clearedBoundedRoutes.setCapturing(false)
+        guard case let .accepted(teardownBoundedToken) = clearedBoundedRoutes.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher accepts a route after capture ends")
+            return
+        }
+        clearedBoundedRoutes.setTapLive(false)
+        expect(!clearedBoundedRoutes.hasPendingRoute
+               && clearedBoundedRoutes.claim(teardownBoundedToken) == nil,
+               "App Switcher teardown clears every retained bounded route")
+
+        var separateGestures = SwitcherRouteOwnership()
+        separateGestures.setTapLive(true)
+        guard case let .accepted(firstGestureToken) = separateGestures.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns the first cold-start gesture")
+            return
+        }
+        expect(separateGestures.claim(firstGestureToken)?.route == expectedAppsRoute,
+               "App Switcher preserves the consumed first gesture during startup")
+        expect(separateGestures.observePendingModifierFlags([]).gestureEnded,
+               "App Switcher records modifier release before a session exists")
+        guard case let .accepted(secondGestureToken) = separateGestures.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher starts a new route after modifier release")
+            return
+        }
+        let firstGesture = separateGestures.beginSession(firstGestureToken)
+        expect(firstGesture?.operations.isEmpty == true && firstGesture?.gestureEnded == true,
+               "App Switcher keeps A to B as one completed physical gesture")
+        expect(separateGestures.claim(secondGestureToken)?.route == expectedAppsRoute,
+               "App Switcher retains the queued B to A gesture after the first commit")
+        expect(separateGestures.observePendingModifierFlags([]).gestureEnded,
+               "App Switcher observes release for the queued gesture")
+        let secondGesture = separateGestures.beginSession(secondGestureToken)
+        expect(secondGesture?.operations.isEmpty == true && secondGesture?.gestureEnded == true,
+               "App Switcher routes A to B to A as two switches, not one two-step session")
+
+        var tornDownRoute = SwitcherRouteOwnership()
+        tornDownRoute.setTapLive(true)
+        guard case let .accepted(tornDownToken) = tornDownRoute.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns a shortcut before teardown")
+            return
+        }
+        tornDownRoute.setTapLive(false)
+        expect(tornDownRoute.claim(tornDownToken) == nil && !tornDownRoute.hasPendingRoute,
+               "App Switcher invalidates accepted shortcut ownership before tap teardown")
+        tornDownRoute.setTapLive(true)
+        guard case let .accepted(replacementToken) = tornDownRoute.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher accepts a shortcut after tap restart")
+            return
+        }
+        expect(replacementToken > tornDownToken
+               && tornDownRoute.claim(tornDownToken) == nil
+               && tornDownRoute.claim(replacementToken)?.route == expectedAppsRoute,
+               "App Switcher tokens keep stale main-thread work from claiming a new route")
+        tornDownRoute.invalidatePendingRoute(token: replacementToken)
+        expect(tornDownRoute.beginSession(replacementToken) == nil
+               && !tornDownRoute.sessionActive,
+               "App Switcher releases ownership after empty or failed session startup")
+
+        var pendingMouseRoute = SwitcherRouteOwnership()
+        pendingMouseRoute.setTapLive(true)
+        guard case let .accepted(mousePendingToken) = pendingMouseRoute.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns a cold route before mouse dismissal")
+            return
+        }
+        _ = pendingMouseRoute.observePendingModifierFlags([])
+        guard case let .accepted(secondMousePendingToken) = pendingMouseRoute.accept(
+            expectedWindowRoute
+        ) else {
+            expect(false, "App Switcher owns a second cold gesture before mouse dismissal")
+            return
+        }
+        _ = pendingMouseRoute.claim(mousePendingToken)
+        let staleMouseSource = SwitcherRouteSource(.appOnly(appName: "Stale Mouse", pid: 414))
+        expect(pendingMouseRoute.invalidateColdPendingRoutesForMouseDown()
+               && !pendingMouseRoute.hasPendingRoute
+               && pendingMouseRoute.resolveClaimedSession(mousePendingToken) == .invalid
+               && pendingMouseRoute.beginSession(mousePendingToken) == nil
+               && pendingMouseRoute.beginSession(secondMousePendingToken) == nil
+               && pendingMouseRoute.releaseActiveSession(expectedToken: mousePendingToken) == nil
+               && !pendingMouseRoute.cancelActiveSession(expectedToken: mousePendingToken)
+               && !pendingMouseRoute.claimReleasedSession(mousePendingToken)
+               && !pendingMouseRoute.publishActivationSource(staleMouseSource,
+                                                              generation: mousePendingToken),
+               "App Switcher mouse-down invalidates every accepted or claimed cold token")
+        guard case let .accepted(afterMouseToken) = pendingMouseRoute.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher accepts a replacement after cold mouse dismissal")
+            return
+        }
+        expect(afterMouseToken > secondMousePendingToken
+               && pendingMouseRoute.claim(mousePendingToken) == nil
+               && pendingMouseRoute.claim(afterMouseToken)?.route == expectedAppsRoute
+               && pendingMouseRoute.resolveClaimedSession(mousePendingToken) == .invalid
+               && pendingMouseRoute.resolveClaimedSession(afterMouseToken)
+               == .valid(route: expectedAppsRoute, source: nil),
+               "App Switcher keeps stale mouse-dismissed tokens away from their replacement")
+
+        var asyncTeardownRoute = SwitcherRouteOwnership()
+        asyncTeardownRoute.setTapLive(true)
+        guard case let .accepted(asyncTeardownToken) = asyncTeardownRoute.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns a claimed token before async teardown")
+            return
+        }
+        _ = asyncTeardownRoute.claim(asyncTeardownToken)
+        asyncTeardownRoute.setTapLive(false)
+        expect(asyncTeardownRoute.resolveClaimedSession(asyncTeardownToken) == .invalid,
+               "App Switcher rejects an async claimed continuation after teardown")
+
+        var activeMouseRoute = SwitcherRouteOwnership()
+        activeMouseRoute.setTapLive(true)
+        guard case let .accepted(activeMouseToken) = activeMouseRoute.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns an active route before mouse-down")
+            return
+        }
+        _ = activeMouseRoute.claim(activeMouseToken)
+        _ = activeMouseRoute.beginSession(activeMouseToken)
+        expect(!activeMouseRoute.invalidateColdPendingRoutesForMouseDown()
+               && activeMouseRoute.activeToken == activeMouseToken
+               && activeMouseRoute.cancelActiveSessionForMouseDown(
+                expectedToken: activeMouseToken
+               )
+               && activeMouseRoute.releaseActiveSession(expectedToken: activeMouseToken) == nil,
+               "App Switcher cancels the exact hidden Active before it can commit")
+        guard case let .accepted(replacementMouseActiveToken) = activeMouseRoute.accept(
+            expectedWindowRoute
+        ) else {
+            expect(false, "App Switcher accepts a replacement after hidden Active cancellation")
+            return
+        }
+        _ = activeMouseRoute.claim(replacementMouseActiveToken)
+        _ = activeMouseRoute.beginSession(replacementMouseActiveToken)
+        expect(!activeMouseRoute.cancelActiveSessionForMouseDown(expectedToken: activeMouseToken)
+               && activeMouseRoute.activeToken == replacementMouseActiveToken,
+               "App Switcher stale mouse-down cannot cancel its replacement session")
+
+        var terminalMouseRoute = SwitcherRouteOwnership()
+        terminalMouseRoute.setTapLive(true)
+        guard case let .accepted(terminalMouseToken) = terminalMouseRoute.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns a terminal route before mouse-down")
+            return
+        }
+        _ = terminalMouseRoute.queuePendingKeyInput(pendingEscape,
+                                                     letterAction: nil,
+                                                     deletesSearchCharacter: false,
+                                                     terminal: .cancel)
+        _ = terminalMouseRoute.claim(terminalMouseToken)
+        _ = terminalMouseRoute.beginSession(terminalMouseToken)
+        guard case let .accepted(behindTerminalMouseToken) = terminalMouseRoute.accept(
+            expectedWindowRoute
+        ) else {
+            expect(false, "App Switcher queues a gesture behind terminal mouse-down")
+            return
+        }
+        expect(!terminalMouseRoute.invalidateColdPendingRoutesForMouseDown()
+               && terminalMouseRoute.activeToken == terminalMouseToken
+               && terminalMouseRoute.hasPendingRoute
+               && !terminalMouseRoute.cancelActiveSessionForMouseDown(
+                expectedToken: terminalMouseToken
+               )
+               && terminalMouseRoute.cancelActiveSession(expectedToken: terminalMouseToken)
+               && terminalMouseRoute.claim(behindTerminalMouseToken)?.route
+               == expectedWindowRoute,
+               "App Switcher preserves terminal ownership and its queued gesture on mouse-down")
+
+        var releasedMouseRoute = SwitcherRouteOwnership()
+        releasedMouseRoute.setTapLive(true)
+        guard case let .accepted(releasedMouseToken) = releasedMouseRoute.accept(expectedAppsRoute)
+        else {
+            expect(false, "App Switcher owns a route before released mouse-down")
+            return
+        }
+        _ = releasedMouseRoute.claim(releasedMouseToken)
+        _ = releasedMouseRoute.beginSession(releasedMouseToken)
+        _ = releasedMouseRoute.releaseActiveSession(expectedToken: releasedMouseToken)
+        guard case let .accepted(behindReleasedMouseToken) = releasedMouseRoute.accept(
+            expectedWindowRoute
+        ) else {
+            expect(false, "App Switcher queues a gesture behind a released lifecycle")
+            return
+        }
+        expect(!releasedMouseRoute.invalidateColdPendingRoutesForMouseDown()
+               && !releasedMouseRoute.cancelActiveSessionForMouseDown(
+                expectedToken: releasedMouseToken
+               )
+               && releasedMouseRoute.hasSessionLifecycle
+               && releasedMouseRoute.hasPendingRoute,
+               "App Switcher preserves released lifecycle ownership and its queued gesture")
+        releasedMouseRoute.completeReleasedSession(releasedMouseToken)
+        expect(releasedMouseRoute.claim(behindReleasedMouseToken)?.route == expectedWindowRoute,
+               "App Switcher keeps the gesture queued behind a released mouse-down")
+
+        let activationTarget = SwitcherItem.window(id: 901,
+                                                   title: "Target",
+                                                   appName: "Target App",
+                                                   pid: 909,
+                                                   windowOwnerPID: 919,
+                                                   isOnScreen: true,
+                                                   frame: CGRect(x: 10, y: 10,
+                                                                 width: 800, height: 600))
+        let activationSource = SwitcherRouteSource(activationTarget)
+        expect(SwitcherActivationConfirmation.probeDelays == [0, 0.12, 0.18, 0.38, 0.68]
+               && SwitcherActivationConfirmation.timeout == 0.8,
+               "App Switcher probes ordinary and fullscreen focus before its bounded timeout")
+        var activationMouseRoute = SwitcherRouteOwnership()
+        activationMouseRoute.setTapLive(true)
+        guard case let .accepted(activationMouseToken) = activationMouseRoute.accept(
+            expectedAppsRoute
+        ) else {
+            expect(false, "App Switcher owns a route before activation mouse-down")
+            return
+        }
+        _ = activationMouseRoute.claim(activationMouseToken)
+        _ = activationMouseRoute.beginSession(activationMouseToken)
+        _ = activationMouseRoute.releaseActiveSession(expectedToken: activationMouseToken)
+        _ = activationMouseRoute.claimReleasedSession(activationMouseToken)
+        _ = activationMouseRoute.publishActivationSource(activationSource,
+                                                          generation: activationMouseToken)
+        guard case let .accepted(behindActivationMouseToken) = activationMouseRoute.accept(
+            expectedWindowRoute
+        ) else {
+            expect(false, "App Switcher queues a gesture behind activation")
+            return
+        }
+        expect(!activationMouseRoute.invalidateColdPendingRoutesForMouseDown()
+               && !activationMouseRoute.cancelActiveSessionForMouseDown(
+                expectedToken: activationMouseToken
+               )
+               && activationMouseRoute.windowActivationTarget(generation: activationMouseToken)
+               != nil
+               && activationMouseRoute.claim(behindActivationMouseToken)?.source
+               == activationSource,
+               "App Switcher preserves activation ownership and its queued gesture on mouse-down")
+        var releasedTeardown = SwitcherRouteOwnership()
+        releasedTeardown.setTapLive(true)
+        guard case let .accepted(releasedTeardownToken) = releasedTeardown.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns a route before release teardown")
+            return
+        }
+        _ = releasedTeardown.claim(releasedTeardownToken)
+        _ = releasedTeardown.beginSession(releasedTeardownToken)
+        _ = releasedTeardown.releaseActiveSession(for: [])
+        expect(releasedTeardown.claimReleasedSession(releasedTeardownToken),
+               "App Switcher claims the exact released generation before validation")
+        releasedTeardown.setTapLive(false)
+        expect(!releasedTeardown.hasSessionLifecycle
+               && !releasedTeardown.publishActivationSource(activationSource,
+                                                            generation: releasedTeardownToken),
+               "App Switcher teardown invalidates released validation before activation")
+
+        var releasedCapture = SwitcherRouteOwnership()
+        releasedCapture.setTapLive(true)
+        guard case let .accepted(releasedCaptureToken) = releasedCapture.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns a route before shortcut capture")
+            return
+        }
+        _ = releasedCapture.claim(releasedCaptureToken)
+        _ = releasedCapture.beginSession(releasedCaptureToken)
+        _ = releasedCapture.releaseActiveSession(for: [])
+        _ = releasedCapture.claimReleasedSession(releasedCaptureToken)
+        releasedCapture.setCapturing(true)
+        expect(!releasedCapture.hasSessionLifecycle
+               && !releasedCapture.publishActivationSource(activationSource,
+                                                           generation: releasedCaptureToken),
+               "App Switcher capture invalidates released validation before activation")
+
+        var queuedSourceRoute = SwitcherRouteOwnership()
+        queuedSourceRoute.setTapLive(true)
+        guard case let .accepted(sourceSessionToken) = queuedSourceRoute.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns a route before source handoff")
+            return
+        }
+        _ = queuedSourceRoute.claim(sourceSessionToken)
+        _ = queuedSourceRoute.beginSession(sourceSessionToken)
+        _ = queuedSourceRoute.releaseActiveSession(for: [])
+        guard case let .accepted(beforePublicationToken) = queuedSourceRoute.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher queues a gesture before target publication")
+            return
+        }
+        expect(queuedSourceRoute.claim(beforePublicationToken) == nil,
+               "App Switcher waits for a release target before claiming its queued source")
+        expect(queuedSourceRoute.claimReleasedSession(sourceSessionToken)
+               && queuedSourceRoute.publishActivationSource(activationSource,
+                                                            generation: sourceSessionToken)
+               && queuedSourceRoute.claim(beforePublicationToken)?.source == activationSource,
+               "App Switcher binds a pre-publication gesture to the activated target")
+
+        var publishedSourceRoute = SwitcherRouteOwnership()
+        publishedSourceRoute.setTapLive(true)
+        guard case let .accepted(publishedSessionToken) = publishedSourceRoute.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns a route before published source handoff")
+            return
+        }
+        _ = publishedSourceRoute.claim(publishedSessionToken)
+        _ = publishedSourceRoute.beginSession(publishedSessionToken)
+        _ = publishedSourceRoute.releaseActiveSession(for: [])
+        _ = publishedSourceRoute.claimReleasedSession(publishedSessionToken)
+        _ = publishedSourceRoute.publishActivationSource(activationSource,
+                                                         generation: publishedSessionToken)
+        expect(publishedSourceRoute.windowActivationTarget(generation: publishedSessionToken)
+               == SwitcherActivationWindowTarget(generation: publishedSessionToken,
+                                                  windowID: 901,
+                                                  windowOwnerPID: 919),
+               "App Switcher probes an embedded target through its exact window owner")
+        publishedSourceRoute.confirmAppActivation(pid: 909)
+        publishedSourceRoute.confirmAppActivation(pid: 919)
+        publishedSourceRoute.confirmWindowActivation(generation: publishedSessionToken,
+                                                     focusedWindowID: nil)
+        publishedSourceRoute.confirmWindowActivation(generation: publishedSessionToken,
+                                                     focusedWindowID: 900)
+        guard case let .accepted(afterPublicationToken) = publishedSourceRoute.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher queues a gesture while activation is in flight")
+            return
+        }
+        expect(publishedSourceRoute.claim(afterPublicationToken)?.source == activationSource,
+               "App Switcher retains an exact source through app activation and delayed window focus")
+        publishedSourceRoute.confirmWindowActivation(generation: publishedSessionToken + 1,
+                                                     focusedWindowID: 901)
+        expect(publishedSourceRoute.windowActivationTarget(generation: publishedSessionToken) != nil
+               && publishedSourceRoute.resolveClaimedSession(afterPublicationToken)
+               == .valid(route: expectedAppsRoute, source: activationSource),
+               "App Switcher keeps exact-window activation through target and owner app focus")
+        publishedSourceRoute.confirmWindowActivation(generation: publishedSessionToken,
+                                                     focusedWindowID: 901)
+        publishedSourceRoute.invalidatePendingRoute(token: afterPublicationToken)
+        guard case let .accepted(afterConfirmationToken) = publishedSourceRoute.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher accepts a later gesture after activation confirmation")
+            return
+        }
+        expect(publishedSourceRoute.claim(afterConfirmationToken)?.source == nil,
+               "App Switcher does not leak a confirmed activation source into later gestures")
+
+        var unrelatedWindowActivation = SwitcherRouteOwnership()
+        unrelatedWindowActivation.setTapLive(true)
+        guard case let .accepted(unrelatedWindowSessionToken) = unrelatedWindowActivation.accept(
+            expectedAppsRoute
+        ) else {
+            expect(false, "App Switcher owns a route before unrelated app activation")
+            return
+        }
+        _ = unrelatedWindowActivation.claim(unrelatedWindowSessionToken)
+        _ = unrelatedWindowActivation.beginSession(unrelatedWindowSessionToken)
+        _ = unrelatedWindowActivation.releaseActiveSession(for: [])
+        _ = unrelatedWindowActivation.claimReleasedSession(unrelatedWindowSessionToken)
+        _ = unrelatedWindowActivation.publishActivationSource(
+            activationSource,
+            generation: unrelatedWindowSessionToken
+        )
+        guard case let .accepted(behindUnrelatedActivationToken) = unrelatedWindowActivation.accept(
+            expectedWindowRoute
+        ) else {
+            expect(false, "App Switcher queues a route behind exact-window activation")
+            return
+        }
+        expect(unrelatedWindowActivation.claim(behindUnrelatedActivationToken)?.source
+               == activationSource,
+               "App Switcher initially binds a dependent route to exact-window activation")
+        unrelatedWindowActivation.invalidatePendingRoute(token: behindUnrelatedActivationToken)
+        guard case let .accepted(afterUnrelatedActivationToken) = unrelatedWindowActivation.accept(
+            expectedWindowRoute
+        ) else {
+            expect(false, "App Switcher queues a route before unrelated focus wins")
+            return
+        }
+        let copiedUnrelatedSource = unrelatedWindowActivation.claim(afterUnrelatedActivationToken)
+        unrelatedWindowActivation.confirmAppActivation(pid: 777)
+        expect(unrelatedWindowActivation.windowActivationTarget(
+            generation: unrelatedWindowSessionToken
+        ) == nil
+               && copiedUnrelatedSource?.source == activationSource
+               && unrelatedWindowActivation.resolveClaimedSession(afterUnrelatedActivationToken)
+               == .valid(route: expectedWindowRoute, source: nil)
+               && unrelatedWindowActivation.beginSession(afterUnrelatedActivationToken)?.source == nil,
+               "App Switcher retires exact-window activation and dependencies on unrelated focus")
+
+        var appOnlyActivation = SwitcherRouteOwnership()
+        appOnlyActivation.setTapLive(true)
+        guard case let .accepted(appOnlySessionToken) = appOnlyActivation.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns a route before app-only activation")
+            return
+        }
+        _ = appOnlyActivation.claim(appOnlySessionToken)
+        _ = appOnlyActivation.beginSession(appOnlySessionToken)
+        _ = appOnlyActivation.releaseActiveSession(for: [])
+        _ = appOnlyActivation.claimReleasedSession(appOnlySessionToken)
+        _ = appOnlyActivation.publishActivationSource(
+            SwitcherRouteSource(.appOnly(appName: "Target App", pid: 909)),
+            generation: appOnlySessionToken
+        )
+        appOnlyActivation.confirmAppActivation(pid: 909)
+        guard case let .accepted(afterAppActivationToken) = appOnlyActivation.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher accepts a route after app-only activation")
+            return
+        }
+        expect(appOnlyActivation.claim(afterAppActivationToken)?.source == nil,
+               "App Switcher retires an app-only source when its application activates")
+
+        var timedOutActivation = SwitcherRouteOwnership()
+        timedOutActivation.setTapLive(true)
+        guard case let .accepted(timedOutSessionToken) = timedOutActivation.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns a route before activation timeout")
+            return
+        }
+        _ = timedOutActivation.claim(timedOutSessionToken)
+        _ = timedOutActivation.beginSession(timedOutSessionToken)
+        _ = timedOutActivation.releaseActiveSession(for: [])
+        _ = timedOutActivation.claimReleasedSession(timedOutSessionToken)
+        _ = timedOutActivation.publishActivationSource(activationSource,
+                                                        generation: timedOutSessionToken)
+        timedOutActivation.finishActivation(timedOutSessionToken)
+        guard case let .accepted(afterTimeoutToken) = timedOutActivation.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher accepts a route after activation timeout")
+            return
+        }
+        expect(timedOutActivation.claim(afterTimeoutToken)?.source == nil,
+               "App Switcher safely retires an unconfirmed exact source at the activation timeout")
+
+        let replacementTarget = SwitcherItem.window(id: 902,
+                                                    title: "Replacement",
+                                                    appName: "Replacement App",
+                                                    pid: 910,
+                                                    isOnScreen: true,
+                                                    frame: CGRect(x: 20, y: 20,
+                                                                  width: 900, height: 700))
+        let replacementSource = SwitcherRouteSource(replacementTarget)
+        var chainedSourceRoute = SwitcherRouteOwnership()
+        chainedSourceRoute.setTapLive(true)
+        guard case let .accepted(chainedSessionToken) = chainedSourceRoute.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns the first route in a source chain")
+            return
+        }
+        _ = chainedSourceRoute.claim(chainedSessionToken)
+        _ = chainedSourceRoute.beginSession(chainedSessionToken)
+        _ = chainedSourceRoute.releaseActiveSession(for: [])
+        _ = chainedSourceRoute.claimReleasedSession(chainedSessionToken)
+        _ = chainedSourceRoute.publishActivationSource(activationSource,
+                                                       generation: chainedSessionToken)
+        guard case let .accepted(chainedFirstGesture) = chainedSourceRoute.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher queues the first gesture in a source chain")
+            return
+        }
+        _ = chainedSourceRoute.observePendingModifierFlags([])
+        guard case let .accepted(chainedSecondGesture) = chainedSourceRoute.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher queues the second gesture in a source chain")
+            return
+        }
+        _ = chainedSourceRoute.claim(chainedFirstGesture)
+        _ = chainedSourceRoute.beginSession(chainedFirstGesture)
+        _ = chainedSourceRoute.claimReleasedSession(chainedFirstGesture)
+        _ = chainedSourceRoute.publishActivationSource(replacementSource,
+                                                       generation: chainedFirstGesture)
+        expect(chainedSourceRoute.claim(chainedSecondGesture)?.source == replacementSource,
+               "App Switcher rebinds already queued gestures to the newest activation target")
+
+        var guardedHandoff = SwitcherRouteOwnership()
+        guardedHandoff.setTapLive(true)
+        guard case let .accepted(guardedSessionToken) = guardedHandoff.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns a route before guarded active-event handoff")
+            return
+        }
+        _ = guardedHandoff.claim(guardedSessionToken)
+        _ = guardedHandoff.beginSession(guardedSessionToken)
+        _ = guardedHandoff.releaseActiveSession(for: [])
+        _ = guardedHandoff.claimReleasedSession(guardedSessionToken)
+        _ = guardedHandoff.publishActivationSource(activationSource,
+                                                  generation: guardedSessionToken)
+        expect(guardedHandoff.claimHandoff(expectedAppsRoute,
+                                           expectedSessionToken: guardedSessionToken) != nil,
+               "App Switcher permits one handoff after the observed session ends normally")
+        var captureHandoff = SwitcherRouteOwnership()
+        captureHandoff.setTapLive(true)
+        guard case let .accepted(captureSessionToken) = captureHandoff.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns a route before capture wins a handoff race")
+            return
+        }
+        _ = captureHandoff.claim(captureSessionToken)
+        _ = captureHandoff.beginSession(captureSessionToken)
+        captureHandoff.setCapturing(true)
+        expect(captureHandoff.claimHandoff(expectedAppsRoute,
+                                           expectedSessionToken: captureSessionToken) == nil,
+               "App Switcher rejects a delayed active event after capture invalidation")
+        var teardownHandoff = SwitcherRouteOwnership()
+        teardownHandoff.setTapLive(true)
+        guard case let .accepted(teardownSessionToken) = teardownHandoff.accept(expectedAppsRoute) else {
+            expect(false, "App Switcher owns a route before teardown wins a handoff race")
+            return
+        }
+        _ = teardownHandoff.claim(teardownSessionToken)
+        _ = teardownHandoff.beginSession(teardownSessionToken)
+        teardownHandoff.setTapLive(false)
+        expect(teardownHandoff.claimHandoff(expectedAppsRoute,
+                                            expectedSessionToken: teardownSessionToken) == nil,
+               "App Switcher rejects a delayed active event after tap teardown")
+
+        var cacheRefresh = SwitcherCacheRefreshOwnership()
+        cacheRefresh.setEnabled(true)
+        let switcherFirstRefresh = cacheRefresh.schedule(sessionActive: false)
+        expect(switcherFirstRefresh != nil
+               && cacheRefresh.beginWorker(switcherFirstRefresh!, sessionActive: false),
+               "App Switcher starts a scheduled cache worker without main-thread enumeration")
+        cacheRefresh.invalidate()
+        expect(cacheRefresh.schedule(sessionActive: false) == nil,
+               "App Switcher coalesces refresh demand behind an occupied worker")
+        cacheRefresh.invalidate()
+        expect(cacheRefresh.schedule(sessionActive: false) == nil,
+               "App Switcher never queues a second worker after repeated invalidation")
+        let staleRefreshCompletion = cacheRefresh.completeWorker(switcherFirstRefresh!,
+                                                                 sessionActive: false)
+        expect(staleRefreshCompletion
+               == SwitcherCacheRefreshOwnership.Completion(installsResult: false,
+                                                            schedulesRerun: true),
+               "App Switcher rejects stale results and requests exactly one latest refresh")
+        let switcherSecondRefresh = cacheRefresh.schedule(sessionActive: false)
+        expect(switcherSecondRefresh != nil && switcherSecondRefresh! > switcherFirstRefresh!
+               && cacheRefresh.beginWorker(switcherSecondRefresh!, sessionActive: false)
+               && cacheRefresh.completeWorker(switcherSecondRefresh!, sessionActive: false)
+                    == SwitcherCacheRefreshOwnership.Completion(installsResult: true,
+                                                                 schedulesRerun: false),
+               "App Switcher stores only the newest cache refresh generation")
+
+        var activeSessionRefresh = SwitcherCacheRefreshOwnership()
+        activeSessionRefresh.setEnabled(true)
+        let activeSessionToken = activeSessionRefresh.schedule(sessionActive: false)!
+        _ = activeSessionRefresh.beginWorker(activeSessionToken, sessionActive: false)
+        activeSessionRefresh.invalidate()
+        _ = activeSessionRefresh.schedule(sessionActive: false)
+        expect(activeSessionRefresh.completeWorker(activeSessionToken, sessionActive: true)
+               == SwitcherCacheRefreshOwnership.Completion(installsResult: false,
+                                                            schedulesRerun: false),
+               "App Switcher an active session suppresses a stale worker rerun")
+
+        var delayedSessionRefresh = SwitcherCacheRefreshOwnership()
+        delayedSessionRefresh.setEnabled(true)
+        let delayedSessionToken = delayedSessionRefresh.schedule(sessionActive: false)!
+        expect(!delayedSessionRefresh.beginWorker(delayedSessionToken, sessionActive: true)
+               && delayedSessionRefresh.schedule(sessionActive: false) != nil,
+               "App Switcher reschedules warming after a session suppresses worker startup")
+
+        var stoppedRefresh = SwitcherCacheRefreshOwnership()
+        stoppedRefresh.setEnabled(true)
+        let stoppedToken = stoppedRefresh.schedule(sessionActive: false)!
+        _ = stoppedRefresh.beginWorker(stoppedToken, sessionActive: false)
+        stoppedRefresh.invalidate()
+        _ = stoppedRefresh.schedule(sessionActive: false)
+        stoppedRefresh.setEnabled(false)
+        expect(stoppedRefresh.completeWorker(stoppedToken, sessionActive: false)
+               == SwitcherCacheRefreshOwnership.Completion(installsResult: false,
+                                                            schedulesRerun: false),
+               "App Switcher teardown clears stale worker demand without a rerun")
+        cacheRefresh.setEnabled(false)
+        expect(cacheRefresh.schedule(sessionActive: false) == nil,
+               "App Switcher teardown prevents cache refresh scheduling")
+
+        expect(SwitcherSupport.cacheDisposition(fingerprintMatches: true,
+                                                storedAt: 99,
+                                                now: 100,
+                                                maximumAge: 2) == .reuse,
+               "App Switcher immediately reuses a fresh equal-fingerprint cache")
+        expect(SwitcherSupport.cacheDisposition(fingerprintMatches: true,
+                                                storedAt: 90,
+                                                now: 100,
+                                                maximumAge: 2) == .reuseAndRefresh,
+               "App Switcher presents an expired equal-fingerprint cache and refreshes it")
+        expect(SwitcherSupport.cacheDisposition(fingerprintMatches: true,
+                                                storedAt: nil,
+                                                now: 100,
+                                                maximumAge: 2) == .reuseAndRefresh,
+               "App Switcher refreshes an expired empty cache without blocking presentation")
+        expect(SwitcherSupport.cacheDisposition(fingerprintMatches: false,
+                                                storedAt: 99,
+                                                now: 100,
+                                                maximumAge: 2) == .rebuild,
+               "App Switcher never treats a mismatched fingerprint as current")
+        let rebuiltWindow = SwitcherItem.appOnly(appName: "New", pid: 404)
+        var rebuiltWindowList = false
+        let mismatchItems = SwitcherSupport.sessionWindowItems(
+            cacheDisposition: .rebuild,
+            cached: [SwitcherItem.appOnly(appName: "Old", pid: 303)]
+        ) {
+            rebuiltWindowList = true
+            return [rebuiltWindow]
+        }
+        expect(rebuiltWindowList && mismatchItems == [rebuiltWindow]
+               && SwitcherSupport.frontmostAppWindows(allItems: mismatchItems,
+                                                      frontmostPID: 404) == [rebuiltWindow],
+               "App Switcher rebuilds mismatched nonempty caches before scoping the session")
+        expect(SwitcherSupport.cacheRefreshRetryDelay(stable: false,
+                                                      retryCount: 0,
+                                                      sessionActive: false) == 0.2
+               && SwitcherSupport.cacheRefreshRetryDelay(stable: false,
+                                                         retryCount: 1,
+                                                         sessionActive: false) == 0.4
+               && SwitcherSupport.cacheRefreshRetryDelay(stable: false,
+                                                         retryCount: 2,
+                                                         sessionActive: false) == nil,
+               "App Switcher bounds and spaces unstable cache refresh retries")
+        expect(SwitcherSupport.cacheRefreshRetryDelay(stable: false,
+                                                      retryCount: 0,
+                                                      sessionActive: true) == nil,
+               "App Switcher never warms the window cache during a session")
+        let staleCandidate = SwitcherItem.window(id: 90,
+                                                 title: "Closed",
+                                                 appName: "Primary",
+                                                 pid: 101,
+                                                 isOnScreen: true,
+                                                 frame: CGRect(x: 20, y: 20, width: 900, height: 600))
+        let cachedCandidate = SwitcherItem.window(id: 91,
+                                                  title: "Restored",
+                                                  appName: "Secondary",
+                                                  pid: 202,
+                                                  isOnScreen: false,
+                                                  isMinimized: true,
+                                                  frame: CGRect(x: 40, y: 40, width: 800, height: 500))
+        let refreshedCandidate = cachedCandidate.withMinimized(false)
+        var validatedIDs: [String] = []
+        let liveCandidate = SwitcherSupport.liveCommitTarget(
+            items: [staleCandidate, cachedCandidate, offscreenWindow],
+            selectedIndex: 0,
+            closingItemIDs: [],
+            maximumChecks: 2
+        ) { item in
+            validatedIDs.append(item.id)
+            return item.id == cachedCandidate.id ? refreshedCandidate : nil
+        }
+        expect(validatedIDs == [staleCandidate.id, cachedCandidate.id]
+               && liveCandidate == refreshedCandidate,
+               "App Switcher validates only bounded candidates and uses current AX state")
+        let appOnlyCandidate = SwitcherItem.appOnly(appName: "Primary", pid: 101)
+        expect(SwitcherSupport.eligibleCandidate(staleCandidate,
+                                                in: [],
+                                                groupedByApp: false) == nil,
+               "App Switcher rejects a release candidate moved to a hidden Space")
+        expect(SwitcherSupport.eligibleCandidate(staleCandidate,
+                                                in: [cachedCandidate],
+                                                groupedByApp: false) == nil,
+               "App Switcher rejects a release candidate hidden by its app rule")
+        expect(SwitcherSupport.eligibleCandidate(appOnlyCandidate,
+                                                in: [appOnlyCandidate],
+                                                groupedByApp: false) == appOnlyCandidate,
+               "App Switcher validates app-only candidates through live switcher eligibility")
+        expect(SwitcherSupport.eligibleCandidate(appOnlyCandidate,
+                                                in: [appOnlyCandidate, staleCandidate],
+                                                groupedByApp: false) == staleCandidate,
+               "App Switcher resolves an ungrouped app-only candidate to its first live window")
+        expect(SwitcherSupport.eligibleCandidate(appOnlyCandidate,
+                                                in: [staleCandidate],
+                                                groupedByApp: true) == staleCandidate,
+               "App Switcher resolves grouped app entries to their current representative")
         expect(SwitcherSupport.initialSelectionPosition(pids: [101, 202, 303],
                                                         hasForegroundEntry: true,
                                                         frontmostPID: 101,
@@ -6628,6 +8348,28 @@ struct MetricsTests {
                                                      delta: 1,
                                                      wrapping: false) == 2,
                "non-wrapping navigation still advances while not at the edge")
+        let overshootGroupedSwitcherItems = groupedSwitcherItems + [
+            SwitcherItem.window(id: 4, title: "Last", appName: "Gamma", pid: 303,
+                                isOnScreen: true, frame: .zero),
+        ]
+        expect(SwitcherSupport.nextAppSelectionIndex(items: overshootGroupedSwitcherItems,
+                                                     selectedIndex: 2,
+                                                     delta: 5,
+                                                     wrapping: false) == 3,
+               "collapsed forward repeats stop at the final app")
+        expect(SwitcherSupport.nextAppSelectionIndex(items: overshootGroupedSwitcherItems,
+                                                     selectedIndex: 2,
+                                                     delta: -5,
+                                                     wrapping: false) == 0,
+               "collapsed reverse repeats stop at the first app")
+        expect(SwitcherSupport.nonWrappingSelectionIndex(itemCount: 5,
+                                                         selectedIndex: 1,
+                                                         delta: 8) == 4,
+               "collapsed forward repeats stop at the final plain window")
+        expect(SwitcherSupport.nonWrappingSelectionIndex(itemCount: 5,
+                                                         selectedIndex: 3,
+                                                         delta: -8) == 0,
+               "collapsed reverse repeats stop at the first plain window")
         expect(SwitcherSupport.nextWindowSelectionIndexWithinApp(items: groupedSwitcherItems,
                                                                  selectedIndex: 0,
                                                                  delta: 1) == 1,
@@ -7272,10 +9014,10 @@ struct MetricsTests {
                                                       panelFrame: switcherPanelFrame,
                                                       location: CGPoint(x: 401, y: 301)),
                "App Switcher panel counts its own edge as part of it")
-        expect(!SwitcherSupport.shouldDismissForClick(panelIsVisible: false,
-                                                      panelFrame: switcherPanelFrame,
-                                                      location: CGPoint(x: 200, y: 200)),
-               "App Switcher ignores clicks while a quick switch shows no panel")
+        expect(SwitcherSupport.shouldDismissForClick(panelIsVisible: false,
+                                                     panelFrame: switcherPanelFrame,
+                                                     location: CGPoint(x: 200, y: 200)),
+               "App Switcher cancels a startup session before its panel appears")
         let searchRecords = [
             SwitcherSearchRecord(id: "alpha", title: "Inbox", appName: "Alpha"),
             SwitcherSearchRecord(id: "beta", title: "Vorssaint Roadmap", appName: "Beta"),

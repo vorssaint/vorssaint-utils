@@ -30,15 +30,194 @@ enum WindowEnumerator {
     /// bounded AX batches.
     private static let maximumConcurrentQueries = 24
 
+    struct SwitcherSnapshot {
+        struct Application {
+            let pid: pid_t
+            let bundleIdentifier: String?
+            let localizedName: String?
+            let isRegular: Bool
+            let isTerminated: Bool
+            let bundlePath: String?
+            let executablePath: String?
+        }
+
+        let rawWindows: [[String: Any]]
+        let applications: [Application]
+        let ownPID: pid_t
+        let ownWindowTitles: [CGWindowID: String]
+        let frontToBack: WindowUseTracker.FrontToBack
+        let windowHistory: [CGWindowID]
+        let appHistory: [pid_t]
+        let screenFrames: [CGRect]
+        let accessibilityGranted: Bool
+        let windowlessApps: SwitcherWindowlessApps
+        let appRules: [String: SwitcherAppRule]
+        let groupByApp: Bool
+        let currentSpaceOnly: Bool
+    }
+
+    /// Captures AppKit, preference, and WindowServer input on main. Slow
+    /// Accessibility and private Space lookups run later on the cache worker.
+    static func captureSwitcherSnapshot() -> SwitcherSnapshot {
+        dispatchPrecondition(condition: .onQueue(.main))
+        let defaults = UserDefaults.standard
+        return captureSnapshot(
+            windowlessApps: SwitcherWindowlessApps.mode(
+                storedValue: defaults.string(forKey: DefaultsKey.switcherWindowlessApps)),
+            appRules: SwitcherAppRule.rules(
+                storedValue: defaults.dictionary(forKey: DefaultsKey.switcherAppRules)),
+            groupByApp: defaults.bool(forKey: DefaultsKey.switcherMergeTabs),
+            currentSpaceOnly: defaults.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
+        )
+    }
+
+    /// Captures the Command Bar's broader window list on main. Its completion
+    /// deliberately ignores Switcher app rules so hidden apps remain searchable.
+    static func captureCommandBarSnapshot() -> SwitcherSnapshot {
+        dispatchPrecondition(condition: .onQueue(.main))
+        let defaults = UserDefaults.standard
+        return captureSnapshot(
+            windowlessApps: SwitcherWindowlessApps.mode(
+                storedValue: defaults.string(forKey: DefaultsKey.switcherWindowlessApps)),
+            appRules: [:],
+            groupByApp: defaults.bool(forKey: DefaultsKey.switcherMergeTabs),
+            currentSpaceOnly: defaults.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
+        )
+    }
+
+    private static func captureSnapshot(windowlessApps: SwitcherWindowlessApps,
+                                        appRules: [String: SwitcherAppRule],
+                                        groupByApp: Bool,
+                                        currentSpaceOnly: Bool) -> SwitcherSnapshot {
+        dispatchPrecondition(condition: .onQueue(.main))
+        let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
+        let runningApps = NSWorkspace.shared.runningApplications
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        let windowIDs = raw.compactMap {
+            ($0[kCGWindowNumber as String] as? NSNumber).map { CGWindowID($0.uint32Value) }
+        }
+        let frontToBack = WindowUseTracker.frontToBack()
+        WindowUseTracker.shared.reconcile(existingWindows: Set(windowIDs),
+                                          frontToBack: frontToBack,
+                                          running: Set(runningApps.map(\.processIdentifier)))
+        let ownWindowTitlePairs: [(CGWindowID, String)] = (NSApp?.windows ?? []).compactMap { window in
+            guard window.styleMask.contains(.titled), window.canBecomeKey,
+                  window.isVisible || window.isMiniaturized else { return nil }
+            let title = window.title.isEmpty ? AppInfo.name : window.title
+            return (CGWindowID(window.windowNumber), title)
+        }
+        let ownWindowTitles = Dictionary(uniqueKeysWithValues: ownWindowTitlePairs)
+        return SwitcherSnapshot(
+            rawWindows: raw,
+            applications: runningApps.map { app in
+                SwitcherSnapshot.Application(pid: app.processIdentifier,
+                                             bundleIdentifier: app.bundleIdentifier,
+                                             localizedName: app.localizedName,
+                                             isRegular: app.activationPolicy == .regular,
+                                             isTerminated: app.isTerminated,
+                                             bundlePath: app.bundleURL?.path,
+                                             executablePath: app.executableURL?.path)
+            },
+            ownPID: pid_t(ownPID),
+            ownWindowTitles: ownWindowTitles,
+            frontToBack: frontToBack,
+            windowHistory: WindowUseTracker.shared.windows,
+            appHistory: WindowUseTracker.shared.apps,
+            screenFrames: NSScreen.screens.map(\.frame),
+            accessibilityGranted: NSApp == nil
+                ? AXIsProcessTrusted()
+                : Permissions.shared.accessibility,
+            windowlessApps: windowlessApps,
+            appRules: appRules,
+            groupByApp: groupByApp,
+            currentSpaceOnly: currentSpaceOnly
+        )
+    }
+
+    static func listWindows(from snapshot: SwitcherSnapshot) -> [SwitcherItem] {
+        dispatchPrecondition(condition: .notOnQueue(.main))
+        return listWindows(snapshot: snapshot, filterPID: nil, maximumCount: maximumCount)
+    }
+
+    static func listWindowsForCommandBar(from snapshot: SwitcherSnapshot) -> [SwitcherItem] {
+        dispatchPrecondition(condition: .notOnQueue(.main))
+        return listWindows(snapshot: snapshot, filterPID: nil, maximumCount: maximumCount)
+    }
+
+    /// Captures the main-thread-only inputs for cache validation. Private Space
+    /// membership is resolved later on the cache worker.
+    static func captureSwitcherFingerprint() -> SwitcherWindowFingerprint {
+        dispatchPrecondition(condition: .onQueue(.main))
+        let defaults = UserDefaults.standard
+        let currentSpaceOnly = defaults.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
+        let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
+        let windows = raw.compactMap { info -> SwitcherWindowFingerprint.Window? in
+            guard let id = (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+                  let ownerPID = (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
+                  let layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue,
+                  layer == 0,
+                  let boundsDictionary = info[kCGWindowBounds as String] as? [String: Any]
+            else { return nil }
+            let bounds = CGRect(x: (boundsDictionary["X"] as? NSNumber)?.doubleValue ?? 0,
+                                y: (boundsDictionary["Y"] as? NSNumber)?.doubleValue ?? 0,
+                                width: (boundsDictionary["Width"] as? NSNumber)?.doubleValue ?? 0,
+                                height: (boundsDictionary["Height"] as? NSNumber)?.doubleValue ?? 0)
+            let isOnScreen = (info[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue
+                ?? (info[kCGWindowIsOnscreen as String] as? Bool)
+                ?? false
+            return SwitcherWindowFingerprint.Window(
+                id: CGWindowID(id),
+                ownerPID: ownerPID,
+                layer: layer,
+                title: info[kCGWindowName as String] as? String ?? "",
+                bounds: bounds,
+                alpha: (info[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1,
+                isOnScreen: isOnScreen,
+                spaces: []
+            )
+        }
+        let applications = NSWorkspace.shared.runningApplications.map { app in
+            SwitcherWindowFingerprint.Application(
+                pid: app.processIdentifier,
+                bundleIdentifier: app.bundleIdentifier,
+                name: app.localizedName,
+                isRegular: app.activationPolicy == .regular,
+                isTerminated: app.isTerminated,
+                bundlePath: app.bundleURL?.path,
+                executablePath: app.executableURL?.path
+            )
+        }.sorted { $0.pid < $1.pid }
+        let appRules = SwitcherAppRule.rules(
+            storedValue: defaults.dictionary(forKey: DefaultsKey.switcherAppRules)
+        )
+        return SwitcherWindowFingerprint(
+            windows: windows,
+            applications: applications,
+            visibleSpaces: [],
+            preferences: .init(
+                appRules: appRules,
+                windowlessApps: defaults.string(forKey: DefaultsKey.switcherWindowlessApps),
+                mergeTabs: defaults.bool(forKey: DefaultsKey.switcherMergeTabs),
+                currentSpaceOnly: currentSpaceOnly
+            )
+        )
+    }
+
+    /// Completes cache validation away from main. Current Desktop Only must
+    /// include Space membership so moving a window invalidates a warm list.
+    static func resolveSwitcherFingerprint(
+        _ captured: SwitcherWindowFingerprint
+    ) -> SwitcherWindowFingerprint {
+        SwitcherSupport.resolvingFingerprintSpaces(
+            captured,
+            spacesOf: SpaceWindowBridge.spaces,
+            visibleSpaces: { SpaceWindowBridge.topology()?.visibleSpaces ?? [] }
+        )
+    }
+
     static func listWindows() -> [SwitcherItem] {
         listWindows(appRules: SwitcherAppRule.rules(
             storedValue: UserDefaults.standard.dictionary(forKey: DefaultsKey.switcherAppRules)))
-    }
-
-    /// The Command Bar shares the window walk, not the Switcher's visibility
-    /// preferences. An app hidden from ⌘Tab must remain searchable there.
-    static func listWindowsForCommandBar() -> [SwitcherItem] {
-        listWindows(appRules: [:])
     }
 
     private static func listWindows(appRules: [String: SwitcherAppRule]) -> [SwitcherItem] {
@@ -71,33 +250,70 @@ enum WindowEnumerator {
                     currentSpaceOnly: false)
     }
 
+    /// Re-enumerates one app using the switcher's live visibility contract.
+    /// Release validation stays bounded without borrowing the Dock preview's
+    /// deliberately broader rules.
+    static func listSwitcherWindows(for pid: pid_t, maximumCount: Int = 64) -> [SwitcherItem] {
+        let defaults = UserDefaults.standard
+        return listWindows(
+            filterPID: pid,
+            maximumCount: maximumCount,
+            windowlessApps: SwitcherWindowlessApps.mode(
+                storedValue: defaults.string(forKey: DefaultsKey.switcherWindowlessApps)),
+            appRules: SwitcherAppRule.rules(
+                storedValue: defaults.dictionary(forKey: DefaultsKey.switcherAppRules)),
+            groupByApp: defaults.bool(forKey: DefaultsKey.switcherMergeTabs),
+            currentSpaceOnly: defaults.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
+        )
+    }
+
+    /// Re-reads just the app that owns a release candidate. This AX-aware
+    /// check catches closed, minimized, restored, fullscreen and AX-only
+    /// windows without making the consumed shortcut enumerate every app.
+    static func refreshedSwitcherCandidate(_ item: SwitcherItem) -> SwitcherItem? {
+        dispatchPrecondition(condition: .onQueue(.main))
+        let groupedByApp = UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs)
+        return SwitcherSupport.eligibleCandidate(
+            item,
+            in: listSwitcherWindows(for: item.pid),
+            groupedByApp: groupedByApp
+        )
+    }
+
     private static func listWindows(filterPID: pid_t?,
                                     maximumCount: Int,
                                     windowlessApps: SwitcherWindowlessApps,
                                     appRules: [String: SwitcherAppRule],
                                     groupByApp: Bool,
                                     currentSpaceOnly: Bool) -> [SwitcherItem] {
-        let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
+        let snapshot = captureSnapshot(windowlessApps: windowlessApps,
+                                       appRules: appRules,
+                                       groupByApp: groupByApp,
+                                       currentSpaceOnly: currentSpaceOnly)
+        return listWindows(snapshot: snapshot,
+                           filterPID: filterPID,
+                           maximumCount: maximumCount)
+    }
 
-        let ownPid = ProcessInfo.processInfo.processIdentifier
-        let runningApps = NSWorkspace.shared.runningApplications
+    private static func listWindows(snapshot: SwitcherSnapshot,
+                                    filterPID: pid_t?,
+                                    maximumCount: Int) -> [SwitcherItem] {
+        let raw = snapshot.rawWindows
+        let ownPid = snapshot.ownPID
+        let runningApps = snapshot.applications
+        let appRules = snapshot.appRules
+        let groupByApp = snapshot.groupByApp
+        let currentSpaceOnly = snapshot.currentSpaceOnly
+        let windowlessApps = snapshot.windowlessApps
         let bundleIdentifiers = SwitcherSupport.firstValuesByPID(runningApps.compactMap { app in
-            app.bundleIdentifier.map { (app.processIdentifier, $0) }
+            app.bundleIdentifier.map { (app.pid, $0) }
         })
-        // Bring the use history up to date before ordering by it: windows that
-        // are gone leave, and any window that appeared without ever taking
-        // focus is filed by the window server's front-to-back order.
-        let frontToBack = WindowUseTracker.frontToBack()
-        WindowUseTracker.shared.reconcile(
-            existingWindows: Set(raw.compactMap { $0[kCGWindowNumber as String] as? CGWindowID }),
-            frontToBack: frontToBack,
-            running: Set(runningApps.map(\.processIdentifier)))
         var regularApps: [pid_t: String] = [:]
         var regularBundlePaths: [pid_t: String] = [:]
-        for app in runningApps where app.activationPolicy == .regular {
-            regularApps[app.processIdentifier] = app.localizedName ?? ""
-            if let path = app.bundleURL?.path {
-                regularBundlePaths[app.processIdentifier] = path
+        for app in runningApps where app.isRegular {
+            regularApps[app.pid] = app.localizedName ?? ""
+            if let path = app.bundlePath {
+                regularBundlePaths[app.pid] = path
             }
         }
         regularApps[pid_t(ownPid)] = AppInfo.name
@@ -109,20 +325,20 @@ enum WindowEnumerator {
         var compatibilityLayerPids: Set<pid_t> = []
         for app in runningApps where SwitcherSupport.isCompatibilityLayerApp(
             bundleIdentifier: app.bundleIdentifier,
-            executablePath: app.executableURL?.path,
+            executablePath: app.executablePath,
             localizedName: app.localizedName) {
-            compatibilityLayerPids.insert(app.processIdentifier)
-            if regularApps[app.processIdentifier] == nil {
-                regularApps[app.processIdentifier] = app.localizedName ?? ""
+            compatibilityLayerPids.insert(app.pid)
+            if regularApps[app.pid] == nil {
+                regularApps[app.pid] = app.localizedName ?? ""
             }
         }
         let embeddedHostPairs: [(pid_t, pid_t)] = runningApps.compactMap { app in
-            guard app.activationPolicy != .regular,
-                  let helperPath = app.bundleURL?.path,
+            guard !app.isRegular,
+                  let helperPath = app.bundlePath,
                   let hostPID = SwitcherSupport.embeddedHostPID(helperBundlePath: helperPath,
                                                                regularBundlePaths: regularBundlePaths)
             else { return nil }
-            return (app.processIdentifier, hostPID)
+            return (app.pid, hostPID)
         }
         let embeddedHostPIDs = SwitcherSupport.firstValuesByPID(embeddedHostPairs)
         // The regular process owns the app identity, but an embedded accessory
@@ -134,7 +350,9 @@ enum WindowEnumerator {
             filterPID: filterPID)
         let accessibilityWindows = accessibilityWindows(for: accessibilityPids,
                                                         bundleIdentifiers: bundleIdentifiers,
-                                                        undescribedSubrolePids: compatibilityLayerPids)
+                                                        undescribedSubrolePids: compatibilityLayerPids,
+                                                        screenFrames: snapshot.screenFrames,
+                                                        accessibilityGranted: snapshot.accessibilityGranted)
 
         var seen = Set<CGWindowID>()
         var windows: [SwitcherItem] = []
@@ -150,20 +368,13 @@ enum WindowEnumerator {
         // window belongs to a Space, a stale leftover surface belongs to none.
         // Resolved lazily and cached, so fully Accessibility-confirmed lists
         // pay nothing.
-        var visibleSpaces: Set<UInt64>?
-        var hiddenSpaceVerdicts: [CGWindowID: Bool] = [:]
+        var spaceResolver = SwitcherSpaceResolver(
+            loadVisibleSpaces: { SpaceWindowBridge.topology()?.visibleSpaces ?? [] },
+            loadWindowSpaces: SpaceWindowBridge.spaces,
+            loadExcludedFromCycle: SpaceWindowBridge.isExcludedFromWindowCycle
+        )
         func isOnHiddenSpace(_ windowID: CGWindowID) -> Bool {
-            if let verdict = hiddenSpaceVerdicts[windowID] { return verdict }
-            if visibleSpaces == nil {
-                visibleSpaces = SpaceWindowBridge.topology()?.visibleSpaces ?? []
-            }
-            guard let visible = visibleSpaces, !visible.isEmpty else { return false }
-            let verdict = SpaceHopSupport.isParkedOnHiddenSpace(
-                windowSpaces: SpaceWindowBridge.spaces(of: windowID),
-                visibleSpaces: visible
-            )
-            hiddenSpaceVerdicts[windowID] = verdict
-            return verdict
+            spaceResolver.isOnHiddenSpace(windowID)
         }
 
         // No cap during enumeration: the raw window-server order is not
@@ -198,7 +409,7 @@ enum WindowEnumerator {
             let axWindow = accessibilityWindows[windowOwnerPID]?.byID[CGWindowID(windowID)]
             if accessibilityWindows[windowOwnerPID] != nil, axWindow == nil,
                (!isOnHiddenSpace(CGWindowID(windowID))
-                || SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID))) {
+                || spaceResolver.isExcludedFromCycle(CGWindowID(windowID))) {
                 continue
             }
             let cgFrame = CGRect(x: (boundsDict["X"] as? NSNumber)?.doubleValue ?? 0,
@@ -206,7 +417,8 @@ enum WindowEnumerator {
                                  width: (boundsDict["Width"] as? NSNumber)?.doubleValue ?? 0,
                                  height: (boundsDict["Height"] as? NSNumber)?.doubleValue ?? 0)
             let isMinimized = axWindow?.isMinimized ?? false
-            let isFullscreen = (axWindow?.isFullscreen ?? false) || frameLooksFullscreen(cgFrame)
+            let isFullscreen = (axWindow?.isFullscreen ?? false)
+                || frameLooksFullscreen(cgFrame, screenFrames: snapshot.screenFrames)
             guard let frame = switchableFrame(cgFrame, fallback: axWindow?.frame, isMinimized: isMinimized) else {
                 continue
             }
@@ -223,7 +435,7 @@ enum WindowEnumerator {
             let appName: String
             let displayTitle: String
             if windowOwnerPID == ownPid {
-                guard let title = ownWindowTitle(for: windowID) else { continue }
+                guard let title = snapshot.ownWindowTitles[windowID] else { continue }
                 appName = AppInfo.name
                 displayTitle = title
             } else {
@@ -257,6 +469,8 @@ enum WindowEnumerator {
                                        snapshots: accessibilityWindows,
                                        regularApps: regularApps,
                                        embeddedHostPIDs: embeddedHostPIDs,
+                                       appHistory: snapshot.appHistory,
+                                       ownPID: ownPid,
                                        seen: &seen,
                                        filterPID: filterPID,
                                        excludeWindow: { windowID, appPID in
@@ -278,7 +492,10 @@ enum WindowEnumerator {
         if groupByApp {
             windows = groupWindowsByApp(windows)
         }
-        let ordered = orderByUse(windows, frontToBack: frontToBack)
+        let ordered = orderByUse(windows,
+                                 frontToBack: snapshot.frontToBack,
+                                 windowHistory: snapshot.windowHistory,
+                                 appHistory: snapshot.appHistory)
         guard ordered.count > maximumCount else { return ordered }
         var trimmed = Array(ordered.prefix(maximumCount))
         // Asking for the desktop app alone names one entry, so that entry must
@@ -309,12 +526,14 @@ enum WindowEnumerator {
 
     private static func accessibilityWindows(for pids: Set<pid_t>,
                                              bundleIdentifiers: [pid_t: String] = [:],
-                                             undescribedSubrolePids: Set<pid_t> = []) -> [pid_t: AccessibilityWindowSnapshotList] {
-        guard Permissions.shared.accessibility else { return [:] }
+                                             undescribedSubrolePids: Set<pid_t> = [],
+                                             screenFrames: [CGRect]? = nil,
+                                             accessibilityGranted: Bool? = nil) -> [pid_t: AccessibilityWindowSnapshotList] {
+        guard accessibilityGranted ?? Permissions.shared.accessibility else { return [:] }
 
         let orderedPIDs = pids.sorted()
         guard !orderedPIDs.isEmpty else { return [:] }
-        let screenFrames = NSScreen.screens.map(\.frame)
+        let screenFrames = screenFrames ?? NSScreen.screens.map(\.frame)
         var result: [pid_t: AccessibilityWindowSnapshotList] = [:]
         let resultLock = NSLock()
         // A remote app can consume its whole messaging timeout. Overlap those
@@ -346,10 +565,8 @@ enum WindowEnumerator {
                                              acceptsUndescribedSubroles: Bool = false,
                                              screenFrames: [CGRect]) -> AccessibilityWindowSnapshotList? {
         let app = AXUIElementCreateApplication(pid)
-        // This runs on the main thread (tap callback and activation warm-ups):
-        // an app that is not servicing its run loop would hold every AX call
-        // for the 6 second default timeout, and a blocked main thread stalls
-        // the event taps with it, freezing typing system wide (issue #189).
+        // An app that is not servicing its run loop must not hold a query batch
+        // for Accessibility's six-second default (issue #189).
         AXUIElementSetMessagingTimeout(app, messagingTimeout)
         var axWindows: [AXUIElement] = []
         var value: CFTypeRef?
@@ -416,13 +633,14 @@ enum WindowEnumerator {
                                                        snapshots: [pid_t: AccessibilityWindowSnapshotList],
                                                        regularApps: [pid_t: String],
                                                        embeddedHostPIDs: [pid_t: pid_t],
+                                                       appHistory: [pid_t],
+                                                       ownPID: pid_t,
                                                        seen: inout Set<CGWindowID>,
                                                        filterPID: pid_t?,
                                                        excludeWindow: (CGWindowID, pid_t) -> Bool = { _, _ in false }) {
-        let tracker = WindowUseTracker.shared
         let pids = snapshots.keys
             .filter { windowOwnerPID in
-                guard windowOwnerPID != ProcessInfo.processInfo.processIdentifier else { return false }
+                guard windowOwnerPID != ownPID else { return false }
                 let appPID = regularApps[windowOwnerPID] != nil
                     ? windowOwnerPID
                     : embeddedHostPIDs[windowOwnerPID]
@@ -430,8 +648,8 @@ enum WindowEnumerator {
                 return filterPID == nil || appPID == filterPID
             }
             .sorted { lhs, rhs in
-                let rankL = tracker.rank(of: embeddedHostPIDs[lhs] ?? lhs)
-                let rankR = tracker.rank(of: embeddedHostPIDs[rhs] ?? rhs)
+                let rankL = appHistory.firstIndex(of: embeddedHostPIDs[lhs] ?? lhs) ?? Int.max
+                let rankR = appHistory.firstIndex(of: embeddedHostPIDs[rhs] ?? rhs) ?? Int.max
                 return rankL != rankR ? rankL < rankR : lhs < rhs
             }
 
@@ -588,7 +806,7 @@ enum WindowEnumerator {
     /// through a compatibility layer out of the list.
     private static func appendWindowlessApps(to windows: inout [SwitcherItem],
                                              mode: SwitcherWindowlessApps,
-                                             runningApps: [NSRunningApplication],
+                                             runningApps: [SwitcherSnapshot.Application],
                                              regularApps: [pid_t: String],
                                              accessibilityWindows: [pid_t: AccessibilityWindowSnapshotList],
                                              ownPID: pid_t,
@@ -598,8 +816,8 @@ enum WindowEnumerator {
         // never brought to the front keep a settled place instead of shuffling
         // between one press and the next.
         let candidates = runningApps.compactMap { app -> SwitcherAppCandidate? in
-            let pid = app.processIdentifier
-            guard app.activationPolicy == .regular,
+            let pid = app.pid
+            guard app.isRegular,
                   !app.isTerminated,
                   pid != ownPID,
                   regularApps[pid]?.isEmpty == false,
@@ -632,12 +850,13 @@ enum WindowEnumerator {
     /// the current one is the window they came from — another app's window, or
     /// another window of the same app, whichever was really used last.
     private static func orderByUse(_ windows: [SwitcherItem],
-                                   frontToBack: WindowUseTracker.FrontToBack) -> [SwitcherItem] {
-        let tracker = WindowUseTracker.shared
+                                   frontToBack: WindowUseTracker.FrontToBack,
+                                   windowHistory: [CGWindowID],
+                                   appHistory: [pid_t]) -> [SwitcherItem] {
         let entries = windows.map { WindowUseOrder.Entry(windowID: $0.windowID, pid: $0.pid) }
         return WindowUseOrder.order(entries,
-                                    windowHistory: tracker.windows,
-                                    appHistory: tracker.apps,
+                                    windowHistory: windowHistory,
+                                    appHistory: appHistory,
                                     frontToBack: frontToBack.windows)
             .map { windows[$0] }
     }

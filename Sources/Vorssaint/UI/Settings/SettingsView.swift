@@ -828,6 +828,9 @@ struct SwitcherSettings: View {
 
                     Toggle(l10n.s.switcherSearchPin, isOn: $switcherSearchPinEnabled)
                         .disabled(!switcherEnabled)
+                        .onChange(of: switcherSearchPinEnabled) { _, _ in
+                            AppSwitcher.shared.syncWithPreferences()
+                        }
                     Text(l10n.s.switcherSearchPinCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
