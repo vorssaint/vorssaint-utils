@@ -21,6 +21,7 @@ struct SwitcherItem: Identifiable, Equatable {
     let windowID: CGWindowID?
     let isOnScreen: Bool
     let isMinimized: Bool
+    let isMaximized: Bool
     let isFullscreen: Bool
     let frame: CGRect
 
@@ -64,6 +65,7 @@ struct SwitcherItem: Identifiable, Equatable {
                      windowID: windowID,
                      isOnScreen: minimized ? false : true,
                      isMinimized: minimized,
+                     isMaximized: isMaximized,
                      isFullscreen: isFullscreen,
                      frame: frame)
     }
@@ -71,17 +73,20 @@ struct SwitcherItem: Identifiable, Equatable {
     static func window(id: CGWindowID, title: String, appName: String, pid: pid_t,
                        windowOwnerPID: pid_t? = nil,
                        isOnScreen: Bool, isMinimized: Bool = false,
+                       isMaximized: Bool = false,
                        isFullscreen: Bool = false, frame: CGRect) -> SwitcherItem {
         SwitcherItem(id: "w:\(id)", title: title, appName: appName,
                      pid: pid, windowOwnerPID: windowOwnerPID ?? pid,
                      windowID: id, isOnScreen: isOnScreen,
-                     isMinimized: isMinimized, isFullscreen: isFullscreen,
+                     isMinimized: isMinimized,
+                     isMaximized: isMaximized,
+                     isFullscreen: isFullscreen,
                      frame: frame)
     }
 
     static func appOnly(appName: String, pid: pid_t) -> SwitcherItem {
         SwitcherItem(id: "a:\(pid)", title: appName, appName: appName,
                      pid: pid, windowOwnerPID: pid, windowID: nil, isOnScreen: false,
-                     isMinimized: false, isFullscreen: false, frame: .zero)
+                     isMinimized: false, isMaximized: false, isFullscreen: false, frame: .zero)
     }
 }
