@@ -1539,6 +1539,15 @@ struct MetricsTests {
                "App Switcher keeps shortcut hints visible by default and carries the choice in backups")
         expect(SwitcherSupport.usesIconRowLayout(iconRowMode: false, simpleMode: true),
                "App Switcher simple mode always uses the app icon row")
+        expect(SwitcherSupport.usesWindowRow(simpleMode: true, mergeWindowsByApp: false)
+               && !SwitcherSupport.usesWindowRow(simpleMode: true, mergeWindowsByApp: true)
+               && !SwitcherSupport.usesWindowRow(simpleMode: false, mergeWindowsByApp: false),
+               "App Switcher simple mode lists windows unless one-entry-per-app is enabled")
+        expect(!SwitcherSupport.usesAppGroupsForMainShortcut(iconRowLayout: true,
+                                                              windowRow: true)
+               && SwitcherSupport.usesAppGroupsForMainShortcut(iconRowLayout: true,
+                                                                windowRow: false),
+               "App Switcher main shortcut steps through simple window rows without app grouping")
         expect(!SwitcherSupport.capturesPreviews(simpleMode: true),
                "App Switcher simple mode never captures window previews")
         expect(!SwitcherSupport.needsScreenRecording(switcherEnabled: true,
@@ -6742,6 +6751,20 @@ struct MetricsTests {
         expectClose(Double(groupedIconLayout.previewSurfaceWidth),
                     Double(groupedIconLayout.previewContentWidth + SwitcherIconRowLayout.previewPanelPadding * 2),
                     "App Switcher icon-row layout keeps preview cards away from the surface border")
+        let simpleWindowLayout = SwitcherIconRowLayout.compute(
+            appCount: groupedSwitcherItems.count,
+            selectedWindowCount: 1,
+            screenVisibleFrame: screen,
+            tileWidth: SwitcherIconRowLayout.windowTileWidth
+        )
+        expect(simpleWindowLayout.appRowContentWidth
+               >= CGFloat(groupedSwitcherItems.count) * SwitcherIconRowLayout.windowTileWidth,
+               "App Switcher simple window row gives every window title its own tile width")
+        expectClose(Double(simpleWindowLayout.simplePanelSize.height
+                           - simpleWindowLayout.simpleWindowPanelSize.height),
+                    Double(SwitcherIconRowLayout.simpleTitleHeight
+                           + SwitcherIconRowLayout.simpleTitleGap),
+                    "App Switcher simple window row removes the redundant grouped title strip")
         let issue128Layout = SwitcherIconRowLayout.compute(appCount: 7,
                                                            selectedWindowCount: 2,
                                                            screenVisibleFrame: screen)

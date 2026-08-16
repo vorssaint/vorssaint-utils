@@ -129,6 +129,8 @@ struct SwitcherIconRowLayout: Equatable {
     static var iconLabelWidth: CGFloat { max(selectedIconSize + 12, 86 * scale) }
     static var rowHeight: CGFloat { 108 * scale }
     static var appTileWidth: CGFloat { iconLabelWidth + 12 }
+    static var windowLabelWidth: CGFloat { 120 * scale }
+    static var windowTileWidth: CGFloat { windowLabelWidth + 12 }
     static var previewCardWidth: CGFloat { 220 * scale }
     static var previewCardHeight: CGFloat { 164 * scale }
     static var appEntryIconSize: CGFloat { 66 * scale }
@@ -156,6 +158,14 @@ struct SwitcherIconRowLayout: Equatable {
                         + Self.padding * 2)
     }
 
+    /// A flat window row names every entry under its icon, so it needs no
+    /// separate title strip above the row.
+    var simpleWindowPanelSize: CGSize {
+        CGSize(width: max(appRowSurfaceWidth,
+                          showsShortcutHints ? Self.hintBarWidth : 0) + Self.padding * 2,
+               height: Self.rowHeight + shortcutHintHeight + Self.padding * 2)
+    }
+
     private var shortcutHintHeight: CGFloat {
         showsShortcutHints ? Self.hintGap + Self.hintHeight : 0
     }
@@ -171,15 +181,16 @@ struct SwitcherIconRowLayout: Equatable {
     static func compute(appCount rawAppCount: Int,
                         selectedWindowCount rawWindowCount: Int,
                         screenVisibleFrame: CGRect,
-                        showsShortcutHints: Bool = true) -> SwitcherIconRowLayout {
+                        showsShortcutHints: Bool = true,
+                        tileWidth: CGFloat = appTileWidth) -> SwitcherIconRowLayout {
         let appCount = max(1, rawAppCount)
         let windowCount = max(1, rawWindowCount)
         let usableWidth = max(320, screenVisibleFrame.width * 0.96)
-        let maxContentWidth = max(appTileWidth, usableWidth - padding * 2)
-        let naturalAppRowWidth = CGFloat(appCount) * appTileWidth + CGFloat(max(0, appCount - 1)) * spacing
+        let maxContentWidth = max(tileWidth, usableWidth - padding * 2)
+        let naturalAppRowWidth = CGFloat(appCount) * tileWidth + CGFloat(max(0, appCount - 1)) * spacing
         let naturalPreviewWidth = CGFloat(windowCount) * previewCardWidth
             + CGFloat(max(0, windowCount - 1)) * spacing
-        let maxAppContentWidth = max(appTileWidth, maxContentWidth - rowHorizontalPadding * 2)
+        let maxAppContentWidth = max(tileWidth, maxContentWidth - rowHorizontalPadding * 2)
         let maxPreviewContentWidth = max(previewCardWidth, maxContentWidth - previewPanelPadding * 2)
         let appRowWidth = min(naturalAppRowWidth, maxAppContentWidth)
         let appRowSurfaceWidth = min(appRowWidth + rowHorizontalPadding * 2, maxContentWidth)
@@ -187,7 +198,7 @@ struct SwitcherIconRowLayout: Equatable {
         let previewSurfaceWidth = min(previewWidth + previewPanelPadding * 2, maxContentWidth)
         let hintWidth = showsShortcutHints ? min(hintBarWidth, maxContentWidth) : 0
         let contentWidth = min(max(appRowSurfaceWidth, previewSurfaceWidth, hintWidth), maxContentWidth)
-        let visibleIconCount = max(1, min(appCount, Int((maxAppContentWidth + spacing) / (appTileWidth + spacing))))
+        let visibleIconCount = max(1, min(appCount, Int((maxAppContentWidth + spacing) / (tileWidth + spacing))))
         let width = contentWidth + padding * 2
         let shortcutHintHeight = showsShortcutHints ? hintGap + hintHeight : 0
         let height = previewHeight + previewGap + rowHeight + shortcutHintHeight + padding * 2
@@ -229,6 +240,17 @@ enum SwitcherSupport {
 
     static func capturesPreviews(simpleMode: Bool) -> Bool {
         !simpleMode
+    }
+
+    /// The simple switcher follows the existing one-entry-per-app choice.
+    /// With grouping off, its icon row represents windows directly.
+    static func usesWindowRow(simpleMode: Bool, mergeWindowsByApp: Bool) -> Bool {
+        simpleMode && !mergeWindowsByApp
+    }
+
+    static func usesAppGroupsForMainShortcut(iconRowLayout: Bool,
+                                              windowRow: Bool) -> Bool {
+        iconRowLayout && !windowRow
     }
 
     static func shouldPausePreviewCapture(frontmostBundleIdentifier: String?,

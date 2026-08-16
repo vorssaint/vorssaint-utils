@@ -36,6 +36,7 @@ struct SwitcherView: View {
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.switcherIconRowMode) private var iconRowMode = false
     @AppStorage(DefaultsKey.switcherSimpleMode) private var simpleMode = false
+    @AppStorage(DefaultsKey.switcherMergeTabs) private var mergeWindowsByApp = false
     @AppStorage(DefaultsKey.switcherShowShortcutHints) private var showsShortcutHints = true
     @AppStorage(DefaultsKey.switcherShortcut) private var switcherShortcutStorage = GlobalShortcut.switcherDefault.storageValue
     @AppStorage(DefaultsKey.switcherWindowShortcut) private var switcherWindowShortcutStorage = GlobalShortcut.switcherWindowDefault.storageValue
@@ -172,9 +173,11 @@ struct SwitcherView: View {
     private var iconRowSwitcher: some View {
         VStack(spacing: 0) {
             if simpleMode {
-                selectedAppTitlePanel
-                Spacer()
-                    .frame(height: SwitcherIconRowLayout.simpleTitleGap)
+                if !usesWindowRow {
+                    selectedAppTitlePanel
+                    Spacer()
+                        .frame(height: SwitcherIconRowLayout.simpleTitleGap)
+                }
             } else {
                 selectedAppPreviewPanel
                 Spacer()
@@ -191,7 +194,13 @@ struct SwitcherView: View {
     }
 
     private var iconRowPanelSize: CGSize {
-        simpleMode ? switcher.iconRowLayout.simplePanelSize : switcher.iconRowLayout.panelSize
+        if usesWindowRow { return switcher.iconRowLayout.simpleWindowPanelSize }
+        return simpleMode ? switcher.iconRowLayout.simplePanelSize : switcher.iconRowLayout.panelSize
+    }
+
+    private var usesWindowRow: Bool {
+        SwitcherSupport.usesWindowRow(simpleMode: simpleMode,
+                                      mergeWindowsByApp: mergeWindowsByApp)
     }
 
     private var shortcutHintBar: some View {
@@ -199,11 +208,15 @@ struct SwitcherView: View {
         let windowShortcut = GlobalShortcut(storageValue: switcherWindowShortcutStorage) ?? .switcherWindowDefault
         let hints = SwitcherSupport.shortcutHints(for: shortcut, windowShortcut: windowShortcut)
         return HStack(spacing: 12) {
-            shortcutHint(label: l10n.s.switcherShortcutHintApps, value: hints.apps)
-            Divider()
-                .frame(height: 16)
-                .overlay(Color.white.opacity(0.18))
-            shortcutHint(label: l10n.s.switcherShortcutHintWindows, value: hints.windows)
+            if usesWindowRow {
+                shortcutHint(label: l10n.s.switcherShortcutHintWindows, value: hints.apps)
+            } else {
+                shortcutHint(label: l10n.s.switcherShortcutHintApps, value: hints.apps)
+                Divider()
+                    .frame(height: 16)
+                    .overlay(Color.white.opacity(0.18))
+                shortcutHint(label: l10n.s.switcherShortcutHintWindows, value: hints.windows)
+            }
         }
         .padding(.horizontal, 12)
         .frame(width: min(SwitcherIconRowLayout.hintBarWidth, iconRowContentWidth),
@@ -408,7 +421,16 @@ struct SwitcherView: View {
                    height: SwitcherIconRowLayout.rowHeight)
     }
 
+    @ViewBuilder
     private var iconRow: some View {
+        if usesWindowRow {
+            windowIconRow
+        } else {
+            appIconRow
+        }
+    }
+
+    private var appIconRow: some View {
         let groups = appGroups
         return ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
@@ -418,6 +440,7 @@ struct SwitcherView: View {
                         let window = switcher.windows[index]
                         SwitcherIconTile(window: window,
                                          windowCount: group.windowCount,
+                                         showsWindowTitle: false,
                                          isSelected: group.pid == selectedWindow?.pid,
                                          onCommit: {
                                              switcher.select(index: index)
@@ -439,6 +462,41 @@ struct SwitcherView: View {
                 let pid = switcher.windows[newIndex].pid
                 withAnimation(.easeOut(duration: 0.15)) {
                     proxy.scrollTo(pid, anchor: .center)
+                }
+            }
+        }
+    }
+
+    private var windowIconRow: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .center, spacing: SwitcherIconRowLayout.spacing) {
+                    ForEach(Array(switcher.windows.enumerated()), id: \.element.id) { index, window in
+                        SwitcherIconTile(
+                            window: window,
+                            windowCount: 1,
+                            showsWindowTitle: true,
+                            isSelected: index == switcher.selectedIndex,
+                            onCommit: {
+                                switcher.select(index: index)
+                                switcher.commitSession()
+                            }
+                        )
+                        .id(window.id)
+                        .onHover { hovering in
+                            if hovering { switcher.hoverSelect(index: index) }
+                        }
+                    }
+                }
+                .frame(height: SwitcherIconRowLayout.rowHeight, alignment: .center)
+            }
+            .scrollDisabled(switcher.windows.count <= switcher.iconRowLayout.visibleIconCount)
+            .frame(width: switcher.iconRowLayout.appRowContentWidth,
+                   height: SwitcherIconRowLayout.rowHeight)
+            .onChange(of: switcher.selectedIndex) { _, newIndex in
+                guard switcher.windows.indices.contains(newIndex) else { return }
+                withAnimation(.easeOut(duration: 0.15)) {
+                    proxy.scrollTo(switcher.windows[newIndex].id, anchor: .center)
                 }
             }
         }
@@ -529,8 +587,26 @@ private struct SwitcherWindowTitleChip: View {
 private struct SwitcherIconTile: View {
     let window: SwitcherItem
     let windowCount: Int
+    let showsWindowTitle: Bool
     let isSelected: Bool
     let onCommit: () -> Void
+
+    @ObservedObject private var l10n = L10n.shared
+
+    private var title: String {
+        showsWindowTitle ? window.displayTitle : window.appName
+    }
+
+    private var labelWidth: CGFloat {
+        showsWindowTitle ? SwitcherIconRowLayout.windowLabelWidth
+                         : SwitcherIconRowLayout.iconLabelWidth
+    }
+
+    private var spokenLabel: String {
+        showsWindowTitle
+            ? window.spokenLabel(noOpenWindow: l10n.s.switcherNoOpenWindow)
+            : window.appName
+    }
 
     var body: some View {
         VStack(spacing: 5) {
@@ -560,12 +636,12 @@ private struct SwitcherIconTile: View {
             .frame(width: SwitcherIconRowLayout.selectedIconSize,
                    height: SwitcherIconRowLayout.selectedIconSize,
                    alignment: .bottom)
-            Text(window.appName)
+            Text(title)
                 .font(.system(size: 11, weight: isSelected ? .semibold : .medium))
                 .foregroundStyle(isSelected ? SwitcherIconStyle.text : SwitcherIconStyle.secondaryText)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .frame(width: SwitcherIconRowLayout.iconLabelWidth)
+                .frame(width: labelWidth)
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 5)
@@ -581,7 +657,7 @@ private struct SwitcherIconTile: View {
         .onTapGesture(perform: onCommit)
         .scaleEffect(isSelected ? 1 : 0.96)
         .animation(.spring(response: 0.24, dampingFraction: 0.82), value: isSelected)
-        .accessibilityLabel(window.appName)
+        .accessibilityLabel(spokenLabel)
     }
 }
 

@@ -687,7 +687,10 @@ final class AppSwitcher: ObservableObject {
                                        hasForegroundItem: Bool,
                                        frontmostPID: pid_t) -> Int {
         guard !items.isEmpty else { return 0 }
-        guard usesIconRowLayout else {
+        guard SwitcherSupport.usesAppGroupsForMainShortcut(
+            iconRowLayout: usesIconRowLayout,
+            windowRow: usesWindowRow
+        ) else {
             return SwitcherSupport.initialSelectionPosition(pids: items.map(\.pid),
                                                             hasForegroundEntry: hasForegroundItem,
                                                             frontmostPID: frontmostPID,
@@ -819,7 +822,10 @@ final class AppSwitcher: ObservableObject {
 
     private func advanceSelection(by delta: Int, wrapping: Bool = true) {
         guard !windows.isEmpty else { return }
-        if usesIconRowLayout, sessionScope == .allApps {
+        if SwitcherSupport.usesAppGroupsForMainShortcut(
+            iconRowLayout: usesIconRowLayout,
+            windowRow: usesWindowRow
+        ), sessionScope == .allApps {
             advanceAppSelection(by: delta, wrapping: wrapping)
             return
         }
@@ -1062,7 +1068,9 @@ final class AppSwitcher: ObservableObject {
 
     private var currentPanelSize: CGSize {
         usesIconRowLayout
-            ? (simpleModeEnabled ? iconRowLayout.simplePanelSize : iconRowLayout.panelSize)
+            ? (simpleModeEnabled
+                ? (usesWindowRow ? iconRowLayout.simpleWindowPanelSize : iconRowLayout.simplePanelSize)
+                : iconRowLayout.panelSize)
             : grid.panelSize
     }
 
@@ -1072,6 +1080,13 @@ final class AppSwitcher: ObservableObject {
 
     private var simpleModeEnabled: Bool {
         UserDefaults.standard.bool(forKey: DefaultsKey.switcherSimpleMode)
+    }
+
+    private var usesWindowRow: Bool {
+        SwitcherSupport.usesWindowRow(
+            simpleMode: simpleModeEnabled,
+            mergeWindowsByApp: UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs)
+        )
     }
 
     private var searchPinEnabled: Bool {
@@ -1096,10 +1111,12 @@ final class AppSwitcher: ObservableObject {
         grid = SwitcherGrid.compute(count: max(items.count, 1), on: screen)
         let appGroups = SwitcherSupport.appGroups(items: items)
         iconRowLayout = SwitcherIconRowLayout.compute(
-            appCount: appGroups.count,
-            selectedWindowCount: selectedAppWindowCount(in: items),
+            appCount: usesWindowRow ? items.count : appGroups.count,
+            selectedWindowCount: usesWindowRow ? 1 : selectedAppWindowCount(in: items),
             screenVisibleFrame: screen.visibleFrame,
-            showsShortcutHints: showsShortcutHints
+            showsShortcutHints: showsShortcutHints,
+            tileWidth: usesWindowRow ? SwitcherIconRowLayout.windowTileWidth
+                                     : SwitcherIconRowLayout.appTileWidth
         )
     }
 
@@ -1107,10 +1124,12 @@ final class AppSwitcher: ObservableObject {
         guard !windows.isEmpty else { return }
         let appGroups = SwitcherSupport.appGroups(items: windows)
         iconRowLayout = SwitcherIconRowLayout.compute(
-            appCount: appGroups.count,
-            selectedWindowCount: selectedAppWindowCount(in: windows),
+            appCount: usesWindowRow ? windows.count : appGroups.count,
+            selectedWindowCount: usesWindowRow ? 1 : selectedAppWindowCount(in: windows),
             screenVisibleFrame: NSScreen.pointerVisibleFrame,
-            showsShortcutHints: showsShortcutHints
+            showsShortcutHints: showsShortcutHints,
+            tileWidth: usesWindowRow ? SwitcherIconRowLayout.windowTileWidth
+                                     : SwitcherIconRowLayout.appTileWidth
         )
     }
 
