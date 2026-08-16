@@ -391,10 +391,29 @@ struct PermissionsPortalSections: View {
         case .screenRecording: return permissions.screenRecording ? .granted : .missing
         case .fullDiskAccess: return permissions.fullDiskAccess ? .granted : .missing
         case .filesAndFolders:
-            guard AppFeature.cleaner.isAvailable else { return .unknown }
-            switch WhatsAppDownloadManager.shared.accessStatus {
-            case .available: return .granted
-            case .denied: return .missing
+            guard AppFeature.cleaner.isAvailable || AppFeature.videoDownloader.isAvailable else {
+                return .unknown
+            }
+            var statuses: [PermissionStatusAggregation.Status] = []
+            if AppFeature.cleaner.isAvailable {
+                switch WhatsAppDownloadManager.shared.accessStatus {
+                case .available: statuses.append(.granted)
+                case .denied: statuses.append(.missing)
+                case .unknown: statuses.append(.unknown)
+                }
+            }
+            if AppFeature.videoDownloader.isAvailable {
+                switch VideoDownloaderDestinationSupport.accessStatus(
+                    savedPath: UserDefaults.standard.string(
+                        forKey: DefaultsKey.videoDownloaderDestinationPath)) {
+                case .available: statuses.append(.granted)
+                case .denied: statuses.append(.missing)
+                case .unknown: statuses.append(.unknown)
+                }
+            }
+            switch PermissionStatusAggregation.status(for: statuses) {
+            case .granted: return .granted
+            case .missing: return .missing
             case .unknown: return .unknown
             }
         case .notifications:
@@ -441,7 +460,7 @@ struct PermissionsPortalSections: View {
 }
 
 private struct PermissionPortalRow: View {
-    enum Status { case granted, missing, unknown }
+    enum Status: Equatable { case granted, missing, unknown }
 
     @ObservedObject private var l10n = L10n.shared
     let permission: AppPermission
@@ -627,6 +646,7 @@ extension AppFeature {
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).pageTitle
         case .cleaningMode: return s.cleaningMenuItem
         case .mediaTools: return s.mediaName
+        case .videoDownloader: return FeatureStrings.videoDownloader(L10n.shared.language).pageTitle
         case .cleaner: return s.cleanerName
         case .uninstaller: return s.uninstallerName
         case .homebrew: return s.homebrewName
@@ -684,6 +704,7 @@ extension AppFeature {
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).hubDescription
         case .cleaningMode: return hub.descCleaningMode
         case .mediaTools: return hub.descMediaTools
+        case .videoDownloader: return FeatureStrings.videoDownloader(L10n.shared.language).hubDescription
         case .cleaner:
             return hub.descCleaner + " · "
                 + FeatureStrings.whatsAppDownloads(L10n.shared.language).hubDescription

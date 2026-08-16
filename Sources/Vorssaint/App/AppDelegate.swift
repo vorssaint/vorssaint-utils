@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var metricAnchorSwitchSerial = 0
     private var popoverCloseCompletions: [() -> Void] = []
     private var isTerminating = false
+    private var downloaderTerminationPending = false
     private var cancellables = Set<AnyCancellable>()
     private var settingsWindow: NSWindow?
     private var feedbackWindow: NSWindow?
@@ -111,6 +112,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // One binding per feature: only available features are touched, so a
         // feature switched off in the hub never even instantiates here.
         FeatureRuntime.shared.syncAtLaunch()
+        // A Terminal downloader setup is an exception to the availability
+        // rule: if the feature was switched off or the app crashed during the
+        // handoff, recover its persisted process marker so the external
+        // mutation is cancelled or supervised instead of being orphaned.
+        if !AppFeature.videoDownloader.isAvailable {
+            VideoDownloaderWorkflow.syncRuntimeIfNeeded()
+        }
         if AppFeature.monitorPower.isAvailable, PowerSampler.hasInternalBattery {
             MaxCapacityProbe.shared.refreshIfStale()
         }
@@ -210,6 +218,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     private func endStartupWatch() {
         UserDefaults.standard.removeObject(forKey: DefaultsKey.startupDidNotFinish)
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard !downloaderTerminationPending else { return .terminateLater }
+        downloaderTerminationPending = true
+        VideoDownloaderWorkflow.terminateLoaded {
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -819,6 +836,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // (Menu bar icon recovery happens on a deliberate reopen, not here: this
         // fires on every activation, so rebuilding here would cause churn/flicker.)
         UpdateService.shared.checkIfStale()
+        // This helper is a no-op unless the downloader is loaded or has a
+        // persisted Terminal setup to recover, including when the feature is
+        // currently unavailable.
+        VideoDownloaderWorkflow.applicationBecameActiveIfNeeded()
         restoreAfterAppStoreHandoff()
     }
 
@@ -845,6 +866,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             self?.closePopoverNow(animated: animated, completion: completion)
+        }
+    }
+
+    /// A modal file panel must not sit on top of the menu-bar popover. The
+    /// popover is deliberately kept alive while utility views are open, which
+    /// can leave its window intercepting clicks after the modal session ends.
+    /// Close it completely and let the caller restore it after the panel
+    /// returns.
+    @discardableResult
+    func suspendPopoverForModalPanel() -> Bool {
+        guard popover.isShown else { return false }
+        PanelInteractionState.shared.keepsPopoverOpen = false
+        closePopover(animated: false)
+        return true
+    }
+
+    /// Reopen a popover that was suspended around a modal file panel. This is
+    /// intentionally scheduled for the next run-loop turn so AppKit has
+    /// finished removing the old popover window before showing it again.
+    func restorePopoverAfterModalPanelIfNeeded(wasShown: Bool) {
+        guard wasShown else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !self.popover.isShown else { return }
+            self.showPopover(anchor: self.statusController.button,
+                             allowRecentClose: true,
+                             animate: false)
         }
     }
 

@@ -1103,11 +1103,15 @@ struct MediaWorkspaceView: View {
                                       completion: @escaping (NSApplication.ModalResponse) -> Void) {
         guard !panelModalActive else { return }
         panelModalActive = true
+        let restorePopover = appDelegate()?.suspendPopoverForModalPanel() ?? false
         NSApp.activate(ignoringOtherApps: true)
         DispatchQueue.main.async {
             let response = panel.runModal()
             panelModalActive = false
             QuickLauncherService.shared.refocusAfterModal()
+            defer {
+                appDelegate()?.restorePopoverAfterModalPanelIfNeeded(wasShown: restorePopover)
+            }
             completion(response)
         }
     }

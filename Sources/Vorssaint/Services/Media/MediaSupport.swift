@@ -325,6 +325,63 @@ enum MediaVideoCodec: String, CaseIterable, Identifiable {
     }
 }
 
+/// Uniform Type Identifiers normally provide their conformance graph through
+/// LaunchServices. That service is not always available to the standalone
+/// helper/tests (and can briefly be unavailable during login), so keep a
+/// small identifier fallback for the media families this app accepts. The
+/// system conformance result remains authoritative whenever it is available.
+enum VorssaintUTTypeSupport {
+    static func conforms(identifier: String, to expected: UTType) -> Bool {
+        let actualID = identifier.lowercased()
+        let expectedID = expected.identifier.lowercased()
+        if actualID == expectedID { return true }
+        if let actual = UTType(identifier), actual.conforms(to: expected) { return true }
+
+        switch expectedID {
+        case UTType.image.identifier.lowercased():
+            return imageIdentifiers.contains(actualID)
+        case UTType.movie.identifier.lowercased(), UTType.video.identifier.lowercased():
+            return movieIdentifiers.contains(actualID)
+        case UTType.audio.identifier.lowercased():
+            return audioIdentifiers.contains(actualID)
+        case UTType.archive.identifier.lowercased():
+            return archiveIdentifiers.contains(actualID)
+        case UTType.text.identifier.lowercased():
+            return textIdentifiers.contains(actualID)
+        default:
+            return false
+        }
+    }
+
+    private static let imageIdentifiers: Set<String> = [
+        "public.image", "public.jpeg", "public.png", "public.tiff", "public.gif",
+        "public.heic", "public.heif", "public.camera-raw-image", "com.apple.icns",
+        "org.webmproject.webp",
+    ]
+
+    private static let movieIdentifiers: Set<String> = [
+        "public.movie", "public.video", "public.mpeg-4", "public.mpeg",
+        "public.avi", "public.3gpp", "public.3gpp2", "public.m2ts",
+        "com.apple.quicktime-movie", "public.quicktime-movie",
+    ]
+
+    private static let audioIdentifiers: Set<String> = [
+        "public.audio", "public.mp3", "public.mpeg-4-audio", "public.aiff-audio",
+        "public.wav", "public.flac", "public.midi-audio", "public.ac3-audio",
+        "com.microsoft.waveform-audio",
+    ]
+
+    private static let archiveIdentifiers: Set<String> = [
+        "public.archive", "public.zip-archive", "public.tar-archive",
+        "public.bzip2-archive", "public.gzip-archive", "public.7z-archive",
+    ]
+
+    private static let textIdentifiers: Set<String> = [
+        "public.text", "public.plain-text", "public.utf8-plain-text",
+        "public.utf16-plain-text", "public.rtf", "com.apple.traditional-mac-plain-text",
+    ]
+}
+
 struct MediaTrimRange: Equatable {
     let start: Double
     let end: Double
@@ -554,7 +611,9 @@ enum MediaSupport {
     /// "succeed" by silently rasterizing page one (ImageIO opens PDFs).
     static func inputMatchesTool(contentType: UTType?, inputTypes: [UTType]) -> Bool {
         guard let contentType else { return false }
-        return inputTypes.contains { contentType.conforms(to: $0) }
+        return inputTypes.contains {
+            VorssaintUTTypeSupport.conforms(identifier: contentType.identifier, to: $0)
+        }
     }
 
     /// Whether the result deserves the "came out larger" caption: growth is

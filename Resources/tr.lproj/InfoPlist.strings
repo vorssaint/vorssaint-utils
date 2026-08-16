@@ -14,10 +14,10 @@
 "NSCameraUsageDescription" = "Vorssaint, kameranızı yalnızca açtığınız önizleme penceresinde gösterir; böylece aramadan önce nasıl göründüğünüzü kontrol edebilirsiniz. Hiçbir şey kaydedilmez veya Mac'inizden çıkmaz.";
 
 /* macOS Downloads folder permission prompt. */
-"NSDownloadsFolderUsageDescription" = "Vorssaint, yalnızca seçtiğiniz doğrulanmış WhatsApp dosyalarını incelemek, düzenlemek veya Çöp Sepeti'ne taşımak için İndirilenler'deki yerel meta verileri denetler.";
+"NSDownloadsFolderUsageDescription" = "Vorssaint, İndirilenler'e yalnızca video indiriciyi kullandığınızda veya doğrulanmış WhatsApp dosyalarını incelemesini, düzenlemesini ya da Çöp Sepeti'ne taşımasını istediğinizde erişir.";
 
-/* macOS user-selected organizer destination prompts. */
-"NSDesktopFolderUsageDescription" = "Vorssaint, doğrulanmış WhatsApp indirmelerini açıkça seçtiğiniz bir hedef klasörde düzenler.";
-"NSDocumentsFolderUsageDescription" = "Vorssaint, doğrulanmış WhatsApp indirmelerini açıkça seçtiğiniz bir hedef klasörde düzenler.";
-"NSNetworkVolumesUsageDescription" = "Vorssaint, doğrulanmış WhatsApp indirmelerini açıkça seçtiğiniz bir hedef klasörde düzenler.";
-"NSRemovableVolumesUsageDescription" = "Vorssaint, doğrulanmış WhatsApp indirmelerini açıkça seçtiğiniz bir hedef klasörde düzenler.";
+/* macOS user-selected destination prompts. */
+"NSDesktopFolderUsageDescription" = "Vorssaint, videoları yalnızca açıkça seçtiğiniz bir hedef klasöre kaydeder veya doğrulanmış WhatsApp indirmelerini bu klasörde düzenler.";
+"NSDocumentsFolderUsageDescription" = "Vorssaint, videoları yalnızca açıkça seçtiğiniz bir hedef klasöre kaydeder veya doğrulanmış WhatsApp indirmelerini bu klasörde düzenler.";
+"NSNetworkVolumesUsageDescription" = "Vorssaint, videoları yalnızca açıkça seçtiğiniz bir hedef klasöre kaydeder veya doğrulanmış WhatsApp indirmelerini bu klasörde düzenler.";
+"NSRemovableVolumesUsageDescription" = "Vorssaint, videoları yalnızca açıkça seçtiğiniz bir hedef klasöre kaydeder veya doğrulanmış WhatsApp indirmelerini bu klasörde düzenler.";

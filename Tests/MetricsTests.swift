@@ -9,8 +9,130 @@ import Darwin
 import Foundation
 import ImageIO
 
-// Standalone unit tests for pure helpers. Compiled without IOKit or UI by
-// `./build.sh --test`, so they run fast and deterministically on any machine.
+final class VideoDownloaderThumbnailTestURLProtocol: URLProtocol {
+    struct Fixture {
+        let statusCode: Int
+        let headers: [String: String]
+        let data: Data
+
+        init(statusCode: Int,
+             contentType: String? = nil,
+             contentLength: Int? = nil,
+             location: URL? = nil,
+             data: Data = Data()) {
+            var headers: [String: String] = [:]
+            if let contentType { headers["Content-Type"] = contentType }
+            if let contentLength { headers["Content-Length"] = String(contentLength) }
+            if let location { headers["Location"] = location.absoluteString }
+            self.statusCode = statusCode
+            self.headers = headers
+            self.data = data
+        }
+    }
+
+    private static let lock = NSLock()
+    private static var fixtures: [URL: Fixture] = [:]
+    private static var requestedURLs: [URL] = []
+    private static var receivedResponseCount = 0
+    private static var redirectedCount = 0
+    private static var finishedCount = 0
+    private static var stoppedCount = 0
+
+    static func configure(_ fixtures: [URL: Fixture]) {
+        lock.lock()
+        self.fixtures = fixtures
+        requestedURLs = []
+        receivedResponseCount = 0
+        redirectedCount = 0
+        finishedCount = 0
+        stoppedCount = 0
+        lock.unlock()
+    }
+
+    static func requestCount() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return requestedURLs.count
+    }
+
+    static func requestedURL(at index: Int) -> URL? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard requestedURLs.indices.contains(index) else { return nil }
+        return requestedURLs[index]
+    }
+
+    static func responseCount() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return receivedResponseCount
+    }
+
+    static func redirectCount() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return redirectedCount
+    }
+
+    static func terminalCallbackCount() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return finishedCount + stoppedCount
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        request.url?.scheme?.lowercased() == "https"
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let url = request.url else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badURL))
+            return
+        }
+        let fixture: Fixture? = Self.withLock {
+            Self.requestedURLs.append(url)
+            return Self.fixtures[url]
+        }
+        guard let fixture,
+              let response = HTTPURLResponse(url: url,
+                                             statusCode: fixture.statusCode,
+                                             httpVersion: "HTTP/1.1",
+                                             headerFields: fixture.headers) else {
+            client?.urlProtocol(self, didFailWithError: URLError(.resourceUnavailable))
+            return
+        }
+        Self.withLock { Self.receivedResponseCount += 1 }
+        if (300..<400).contains(fixture.statusCode),
+           let location = response.value(forHTTPHeaderField: "Location"),
+           let redirectedURL = URL(string: location, relativeTo: url)?.absoluteURL {
+            var redirectedRequest = request
+            redirectedRequest.url = redirectedURL
+            Self.withLock { Self.redirectedCount += 1 }
+            client?.urlProtocol(self, wasRedirectedTo: redirectedRequest,
+                               redirectResponse: response)
+            return
+        }
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        if !fixture.data.isEmpty { client?.urlProtocol(self, didLoad: fixture.data) }
+        client?.urlProtocolDidFinishLoading(self)
+        Self.withLock { Self.finishedCount += 1 }
+    }
+
+    override func stopLoading() {
+        Self.withLock { Self.stoppedCount += 1 }
+    }
+
+    private static func withLock<T>(_ body: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
+    }
+}
+
+// Standalone offline tests for pure helpers and controlled process/workflow
+// integration fixtures. Compiled without IOKit or UI by `./build.sh --test`.
 //
 // A tiny @main harness instead of XCTest: the Command Line Tools cannot run
 // `swift test`, and these checks need nothing more than equality assertions.
@@ -7470,6 +7592,27 @@ struct MetricsTests {
                "Homebrew install and upgrade preserve package details after success")
         expect(HomebrewCommandBuilder.needsTerminalFallback(output: "sudo: a terminal is required to read the password"),
                "sudo terminal error triggers Homebrew terminal fallback")
+        expect(HomebrewCommandBuilder.needsTerminalFallback(
+            output: "Error: The following directories are not writable by your user:"),
+               "Homebrew writable-directory errors trigger terminal fallback")
+        expect(HomebrewCommandBuilder.needsTerminalFallback(
+            output: "Error: Permission denied while creating a package directory"),
+               "Homebrew permission errors trigger terminal fallback")
+        expect(HomebrewCommandBuilder.needsTerminalFallback(
+            output: "Error: Operation not permitted"),
+               "Homebrew operation-not-permitted errors trigger terminal fallback")
+        let missingFormulae = VideoDownloaderTerminalSetup.formulae(
+            for: Set([VideoDownloaderTool.ffprobe, .ffmpeg, .deno]))
+        expect(missingFormulae == ["ffmpeg", "deno"],
+               "Terminal setup maps missing executables to unique Homebrew formulae")
+        let lightTerminalSetup = VideoDownloaderTerminalSetup.command(
+            formulae: ["deno"],
+            installHomebrew: false,
+            installerBodyProducer: "printf bootstrap",
+            brewCandidatePaths: ["/opt/homebrew/bin/brew"])
+        expect(lightTerminalSetup.contains("/opt/homebrew/bin/brew install deno")
+                && !lightTerminalSetup.contains("printf bootstrap"),
+               "Existing Homebrew terminal fallback installs only the missing formula without bootstrapping Homebrew")
         expect(HomebrewCommandBuilder.installerCommand == #"/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)""#,
                "Homebrew installer command matches the official install script entrypoint")
         expectEqual(HomebrewCommandBuilder.shellProfilePath(homeDirectory: "/Users/test", shellPath: "/bin/zsh"),
@@ -8215,7 +8358,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 51, "feature catalog has 51 features")
+        expect(AppFeature.allCases.count == 52, "feature catalog has 52 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -8227,6 +8370,7 @@ struct MetricsTests {
             "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
             "keepAwake", "brightness", "extraBrightness",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
+            "videoDownloader",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
             "radialMenu", "scratchpad", "commandBar", "screenRecorder",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
@@ -8555,11 +8699,18 @@ struct MetricsTests {
                          on: [DefaultsKey.whatsAppOrganizerEnabled,
                               DefaultsKey.whatsAppDownloadsNotify]) == [.cleaner],
                "the experimental WhatsApp organizer can offer an undo notification")
-        expect(activeSet(.filesAndFolders) == [.cleaner],
-               "the cleaner owns WhatsApp Downloads folder access")
+        expect(activeSet(.filesAndFolders) == [.cleaner, .videoDownloader],
+               "the cleaner and video downloader own Downloads folder access")
 
         expect(activeSet(.fullDiskAccess) == [.cleaner, .uninstaller],
                "cleaner and uninstaller are on-demand full disk users")
+        expect(activeSet(.fullDiskAccess,
+                         on: [DefaultsKey.videoDownloaderUseBrowserCookies])
+                == [.cleaner, .uninstaller, .videoDownloader],
+               "the video downloader uses Full Disk Access only when browser cookies are enabled")
+        expect(AppFeature.videoDownloader.permissions
+                == [.filesAndFolders, .automationTerminal, .fullDiskAccess],
+               "video downloader declares browser-cookie Full Disk Access alongside its existing permissions")
         expect(activeSet(.automationFinder, on: [DefaultsKey.finderCutPasteEnabled])
                 == [.finderCutPaste, .uninstaller, .quickToggles],
                "finder automation is used by cut and paste, the uninstaller and the quick toggles")
@@ -13411,6 +13562,3581 @@ struct MetricsTests {
                                              curated: ["c", "b", "a"],
                                              limit: 5) == ["b", "a"],
                "curated suggestions skip whatever is unavailable")
+
+        // MARK: Video Downloader
+
+        func runVideoDownloaderTests() {
+        func downloaderJSON(_ value: [String: Any]) -> Data {
+            (try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])) ?? Data()
+        }
+        func inspectionFailure(_ data: Data, maximumBytes: Int = VideoDownloaderInspectionParser.maximumJSONBytes)
+            -> VideoDownloaderFailure? {
+            do {
+                _ = try VideoDownloaderInspectionParser.parse(data, maximumBytes: maximumBytes)
+                return nil
+            } catch let failure as VideoDownloaderFailure {
+                return failure
+            } catch {
+                return .malformedInspection
+            }
+        }
+        func writeExecutable(_ url: URL, _ source: String) {
+            try? Data(source.utf8).write(to: url, options: .atomic)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        }
+        func waitUntil(_ timeout: TimeInterval = 5, _ condition: () -> Bool) -> Bool {
+            let deadline = Date().addingTimeInterval(timeout)
+            while !condition(), Date() < deadline {
+                _ = RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.01))
+            }
+            return condition()
+        }
+        func shellStatus(_ command: String) -> Int32 {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/bash")
+            process.arguments = ["-c", command]
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            do { try process.run(); process.waitUntilExit(); return process.terminationStatus }
+            catch { return -1 }
+        }
+
+        let cleanVideoURL = try? VideoDownloaderURLValidator.validate("  https://example.com/watch?v=secret  ")
+        expect(cleanVideoURL?.string == "https://example.com/watch?v=secret",
+               "downloader URL validation trims spaces and preserves the complete HTTPS URL")
+        expect((try? VideoDownloaderURLValidator.validate("http://example.com/media")) != nil,
+               "downloader accepts HTTP URLs")
+        expect((try? VideoDownloaderURLValidator.validate("ftp://example.com/media")) == nil,
+               "downloader rejects non-HTTP schemes")
+        expect((try? VideoDownloaderURLValidator.validate("https://user:password@example.com/media")) == nil,
+               "downloader rejects embedded credentials")
+        expect((try? VideoDownloaderURLValidator.validate("http://127.0.0.1/media")) != nil
+                && (try? VideoDownloaderURLValidator.validate("https://device.local/media")) != nil,
+               "downloader accepts local source hosts when public-only filtering is not required")
+        expect((try? VideoDownloaderURLValidator.validate("https://example.com/a\nsecond")) == nil,
+               "downloader rejects embedded newlines")
+        expect((try? VideoDownloaderURLValidator.validate("https://example.com/a\u{0007}")) == nil,
+               "downloader rejects control characters")
+        expect((try? VideoDownloaderURLValidator.validate(String(repeating: "x", count: 16 * 1024 + 1))) == nil,
+               "downloader bounds URL bytes")
+
+        let inspectionFixture: [String: Any] = [
+            "_type": "video",
+            "title": "A title",
+            "uploader": "An uploader",
+            "duration": 125.5,
+            "thumbnail": "https://example.com/small.jpg",
+            "thumbnails": [
+                ["url": "https://example.com/large.jpg", "width": 1280, "height": 720],
+                ["url": "file:///tmp/private.jpg", "width": 9999, "height": 9999],
+            ],
+            "formats": [
+                ["url": "https://cdn.example.com/v1080", "vcodec": "avc1", "acodec": "none", "height": 1080],
+                ["url": "https://cdn.example.com/v720a", "vcodec": "avc1", "acodec": "none", "height": 720],
+                ["url": "https://cdn.example.com/v720b", "vcodec": "vp9", "acodec": "none", "height": 720],
+                ["url": "https://cdn.example.com/audio", "vcodec": "none", "acodec": "opus"],
+            ],
+            "subtitles": [
+                "en": [["url": "https://example.com/en.vtt", "name": "English"]],
+                "pt-BR": [["url": "https://example.com/pt.vtt"]],
+                "live_chat": [["url": "https://example.com/chat.json"]],
+            ],
+            "automatic_captions": [
+                "en": [["url": "https://example.com/en-auto.vtt"]],
+                "tr": [["url": "https://example.com/tr-auto.vtt"]],
+            ],
+            "chapters": [["start_time": 0, "end_time": 30, "title": "Intro"]],
+            "availability": "public",
+            "is_live": false,
+        ]
+        let inspected = try? VideoDownloaderInspectionParser.parse(downloaderJSON(inspectionFixture))
+        expect(inspected?.title == "A title" && inspected?.uploader == "An uploader",
+               "inspection parses title and uploader")
+        expect(inspected?.duration == 125.5 && inspected?.thumbnailURL?.lastPathComponent == "large.jpg",
+               "inspection parses duration and chooses the best remote thumbnail")
+        expect(inspected?.heights == [1080, 720],
+               "inspection sorts and deduplicates positive video heights")
+        expect(inspected?.videoAvailability == .available
+                && inspected?.audioAvailability == .available && inspected?.hasChapters == true,
+               "inspection reports usable streams and chapters without coupling download to every alternative host")
+        expect(inspected?.subtitles.count == 4
+                && inspected?.subtitles.contains(where: { $0.code == "live_chat" }) == false,
+               "inspection distinguishes manual and automatic captions and excludes live chat")
+        expect(VideoDownloaderSubtitleSelection.defaultTrack(in: inspected?.subtitles ?? [], appLanguage: .ptBR)?.code == "pt-BR",
+               "manual app-language caption wins the deterministic subtitle default")
+        expect(VideoDownloaderSubtitleSelection.defaultTrack(in: inspected?.subtitles ?? [], appLanguage: .tr)?.id == "manual:en",
+               "manual English wins before an app-language automatic caption")
+        let regionalTracks = [
+            VideoDownloaderSubtitleTrack(code: "pt", source: .manual, name: nil),
+            VideoDownloaderSubtitleTrack(code: "pt-BR", source: .manual, name: nil),
+            VideoDownloaderSubtitleTrack(code: "zh-Hans", source: .manual, name: nil),
+            VideoDownloaderSubtitleTrack(code: "zh-TW", source: .manual, name: nil),
+        ]
+        expect(VideoDownloaderSubtitleSelection.defaultTrack(in: regionalTracks, appLanguage: .ptBR)?.code == "pt-BR"
+                && VideoDownloaderSubtitleSelection.defaultTrack(in: regionalTracks, appLanguage: .zhTW)?.code == "zh-TW",
+               "subtitle defaults prefer an exact locale before a primary-language fallback")
+        let translatedAutomaticTracks = [
+            VideoDownloaderSubtitleTrack(code: "en", source: .automatic, name: "English"),
+            VideoDownloaderSubtitleTrack(code: "tr-orig", source: .automatic,
+                                         name: "Turkish (Original)"),
+            VideoDownloaderSubtitleTrack(code: "tr", source: .automatic, name: "Turkish"),
+        ]
+        expect(VideoDownloaderSubtitleSelection.defaultTrack(
+            in: translatedAutomaticTracks, appLanguage: .enUS)?.code == "tr-orig",
+               "automatic subtitle defaults prefer the source caption over a rate-limited auto-translation")
+        let duplicatePickerTracks = [
+            VideoDownloaderSubtitleTrack(code: "en", source: .manual, name: nil),
+            VideoDownloaderSubtitleTrack(code: "en", source: .automatic, name: nil),
+            VideoDownloaderSubtitleTrack(code: "tr", source: .automatic, name: nil),
+            VideoDownloaderSubtitleTrack(code: "tr-orig", source: .automatic, name: nil),
+        ]
+        expect(VideoDownloaderSubtitleSelection.pickerTracks(in: duplicatePickerTracks)
+                .map(\.id) == ["manual:en", "automatic:tr-orig"],
+               "subtitle picker removes duplicate language entries and keeps the best source")
+        expect(VideoDownloaderInspectionParser.validSubtitleCode("pt-BR")
+                && !VideoDownloaderInspectionParser.validSubtitleCode("en.*"),
+               "subtitle selectors preserve ordinary exact codes and reject regex metacharacters")
+
+        var playlistFixture = inspectionFixture
+        playlistFixture["_type"] = "playlist"
+        playlistFixture["entries"] = [["id": "one"]]
+        expect(inspectionFailure(downloaderJSON(playlistFixture)) == .playlist,
+               "inspection rejects playlists even when JSON is otherwise valid")
+        var liveFixture = inspectionFixture
+        liveFixture["live_status"] = "is_upcoming"
+        expect(inspectionFailure(downloaderJSON(liveFixture)) == .live,
+               "inspection rejects live and upcoming media")
+        var drmFixture = inspectionFixture
+        drmFixture["has_drm"] = true
+        drmFixture["formats"] = []
+        expect(inspectionFailure(downloaderJSON(drmFixture)) == .drm,
+               "inspection rejects a top-level DRM item when no public format details exist")
+        var mixedDRMFixture = inspectionFixture
+        var mixedFormats = inspectionFixture["formats"] as! [[String: Any]]
+        mixedFormats.insert(["url": "https://cdn.example.com/drm", "vcodec": "avc1",
+                             "acodec": "none", "height": 2160, "has_drm": true], at: 0)
+        mixedDRMFixture["formats"] = mixedFormats
+        mixedDRMFixture["_has_drm"] = true
+        expect(inspectionFailure(downloaderJSON(mixedDRMFixture)) == nil,
+               "yt-dlp's aggregate DRM marker does not hide a separate usable public format")
+        var unavailableFixture = inspectionFixture
+        unavailableFixture["availability"] = "needs_auth"
+        expect(inspectionFailure(downloaderJSON(unavailableFixture)) == .restricted,
+               "inspection rejects private and restricted media")
+        let authenticatedInspection = try? VideoDownloaderInspectionParser.parse(
+            downloaderJSON(unavailableFixture), allowAuthenticatedContent: true)
+        expect(authenticatedInspection?.title == "A title"
+                && authenticatedInspection?.videoAvailability == .available,
+               "inspection permits restricted availability when browser authentication is explicitly enabled")
+        var noFormatsFixture = inspectionFixture
+        noFormatsFixture["formats"] = []
+        let noFormatsInspection = try? VideoDownloaderInspectionParser.parse(
+            downloaderJSON(noFormatsFixture))
+        expect(noFormatsInspection?.title == "A title" && noFormatsInspection?.heights.isEmpty == true
+                && noFormatsInspection?.canAttemptVideo == true,
+               "inspection keeps entries without recognizable formats downloadable by yt-dlp")
+        var privateFormatFixture = inspectionFixture
+        privateFormatFixture["formats"] = [[
+            "url": "http://127.0.0.1/private.mp4", "vcodec": "avc1", "acodec": "mp4a",
+        ]]
+        let privateFormat = try? VideoDownloaderInspectionParser.parse(downloaderJSON(privateFormatFixture))
+        expect(privateFormat?.videoAvailability == .available
+                && privateFormat?.audioAvailability == .available,
+               "inspection accepts media endpoints without public-network filtering")
+        // A direct media URL may omit codec labels and still be downloadable.
+        // When it also omits stream-extension labels, keep both capabilities
+        // unknown rather than unavailable.
+        let directMP4Fixture: [String: Any] = [
+            "_type": "video",
+            "title": "sample",
+            "formats": [[
+                "format_id": "mp4",
+                "url": "https://cdn.example.com/sample.mp4",
+            "ext": "mp4",
+            "vcodec": NSNull(),
+                "protocol": "http",
+            ]],
+        ]
+        let directMP4 = try? VideoDownloaderInspectionParser.parse(downloaderJSON(directMP4Fixture))
+        expect(directMP4?.videoAvailability == .unknown
+                && directMP4?.audioAvailability == .unknown
+                && directMP4?.canAttemptVideo == true && directMP4?.canAttemptAudio == true,
+               "inspection keeps yt-dlp-supported direct media attemptable when codec labels are unknown")
+        var unknownHeightFixture = directMP4Fixture
+        var unknownHeightFormat = unknownHeightFixture["formats"] as! [[String: Any]]
+        unknownHeightFormat[0]["height"] = 1080
+        unknownHeightFixture["formats"] = unknownHeightFormat
+        let unknownHeight = try? VideoDownloaderInspectionParser.parse(
+            downloaderJSON(unknownHeightFixture))
+        expect(unknownHeight?.heights == [1080],
+               "inspection keeps numeric qualities when yt-dlp omits codec labels")
+
+        // test-videos.co.uk's Big Buck Bunny sample has this exact shape:
+        // yt-dlp knows the container has video, reports audio_ext=none, but
+        // leaves both codec labels null. The old parser treated both streams
+        // as unknown and incorrectly allowed audio.
+        let directVideoOnlyFixture: [String: Any] = [
+            "_type": "video",
+            "title": "Big_Buck_Bunny_360_10s_1MB",
+            "formats": [[
+                "format_id": "x-matroska",
+                "url": "https://test-videos.co.uk/vids/bigbuckbunny/mkv/360/Big_Buck_Bunny_360_10s_1MB.mkv",
+                "ext": "mkv",
+                "vcodec": NSNull(),
+                "video_ext": "mkv",
+                "audio_ext": "none",
+                "protocol": "https",
+            ]],
+        ]
+        let directVideoOnly = try? VideoDownloaderInspectionParser.parse(
+            downloaderJSON(directVideoOnlyFixture))
+        expect(directVideoOnly?.videoAvailability == .available
+                && directVideoOnly?.audioAvailability == .unavailable
+                && directVideoOnly?.canAttemptVideo == true
+                && directVideoOnly?.canAttemptAudio == false,
+               "direct video-only files use stream extensions when codec labels are missing")
+
+        var audioOnlyFixture = inspectionFixture
+        audioOnlyFixture["formats"] = [[
+            "url": "https://cdn.example.com/audio", "vcodec": "none", "acodec": "opus",
+        ]]
+        let audioOnly = try? VideoDownloaderInspectionParser.parse(downloaderJSON(audioOnlyFixture))
+        expect(audioOnly?.videoAvailability == .unavailable
+                && audioOnly?.audioAvailability == .available
+                && audioOnly?.canAttemptVideo == false && audioOnly?.canAttemptAudio == true,
+               "inspection still distinguishes an explicitly audio-only item from an unknown direct format")
+        var videoOnlyFixture = inspectionFixture
+        videoOnlyFixture["formats"] = [[
+            "url": "https://cdn.example.com/video", "vcodec": "avc1", "acodec": "none",
+        ]]
+        let videoOnly = try? VideoDownloaderInspectionParser.parse(downloaderJSON(videoOnlyFixture))
+        expect(videoOnly?.videoAvailability == .available
+                && videoOnly?.audioAvailability == .unavailable
+                && videoOnly?.canAttemptVideo == true && videoOnly?.canAttemptAudio == false,
+               "inspection still distinguishes an explicitly silent video from an unknown direct format")
+
+        let multiCodecFixture: [String: Any] = [
+            "_type": "video",
+            "title": "Multi-codec media",
+            "duration": 100.0,
+            "availability": "public",
+            "is_live": false,
+            "formats": [
+                ["url": "https://cdn.example.com/v1080-h264", "ext": "mp4", "vcodec": "avc1.640028",
+                 "acodec": "none", "height": 1080, "fps": 30, "filesize": 400_000_000, "vbr": 4200],
+                ["url": "https://cdn.example.com/v1080-av1", "ext": "mp4", "vcodec": "av01.0.08M.08",
+                 "acodec": "none", "height": 1080, "fps": 30, "filesize": 235_000_000, "vbr": 1700],
+                ["url": "https://cdn.example.com/a48", "ext": "m4a", "audio_ext": "m4a",
+                 "vcodec": "none", "acodec": "mp4a.40.5", "abr": 48, "filesize": 5_000_000],
+                ["url": "https://cdn.example.com/a128", "ext": "m4a", "audio_ext": "m4a",
+                 "vcodec": "none", "acodec": "mp4a.40.2", "abr": 128, "filesize": 15_000_000],
+            ],
+        ]
+        let multiCodecInspected = try? VideoDownloaderInspectionParser.parse(downloaderJSON(multiCodecFixture))
+        expect(multiCodecInspected?.estimatedSizes[1080] == 250_000_000
+                && multiCodecInspected?.estimatedAudioSize == 15_000_000,
+               "format estimation accurately mirrors yt-dlp's codec priority and best-bitrate audio selection")
+        expect(inspectionFailure(Data("not json".utf8)) == .malformedInspection,
+               "inspection rejects malformed JSON")
+        expect(inspectionFailure(Data(repeating: 0x20, count: 33), maximumBytes: 32) == .inspectionTooLarge,
+               "inspection rejects oversized JSON before parsing")
+        expect(VideoDownloaderFailureClassifier.failure(
+            stderr: Data("ERROR: HTTP Error 429: Too Many Requests".utf8)) == .rateLimited,
+               "inspection reports HTTP 429 as a rate-limit failure")
+        expect(VideoDownloaderRateLimitSupport.shouldSuggestRateLimitHelp(
+                    "ERROR: HTTP Error 403: Forbidden")
+                && VideoDownloaderFailureClassifier.failure(
+                    stderr: Data("ERROR: CAPTCHA required".utf8)) == .rateLimited,
+               "inspection recognizes common HTTP 403 and CAPTCHA blocks as cookie-recovery cases")
+
+        expect(VideoDownloaderCommandBuilder.videoFormatSelector(.best)
+                == "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b",
+               "best video selector prefers MP4 streams before its unrestricted fallback")
+        let cappedSelector = VideoDownloaderCommandBuilder.videoFormatSelector(.height(1080))
+        expect(cappedSelector
+                == "bv*[ext=mp4][height<=1080]+ba[ext=m4a]/b[ext=mp4][height<=1080]/bv*[height<=1080]+ba/b[height<=1080]"
+                && cappedSelector.components(separatedBy: "height<=1080").count == 5,
+               "capped selector prefers MP4 while keeping every fallback below the ceiling")
+        expect(String(format: FeatureStrings.videoDownloader(.enUS).heightFormat, 1080) == "1080p",
+               "inspected quality labels show the selected height without implying picker complexity")
+        expect(VideoDownloaderQualityFallback.detect(requested: .height(1080), actualHeight: 720)
+                == VideoDownloaderQualityFallback(requestedHeight: 1080, actualHeight: 720)
+                && VideoDownloaderQualityFallback.detect(requested: .height(1080), actualHeight: 1080) == nil
+                && VideoDownloaderQualityFallback.detect(requested: .best, actualHeight: 720) == nil,
+               "quality fallback notices appear only when a capped download selects a lower height")
+        expect(VideoDownloaderQuality.highest(in: [720, 1080, 720]) == .height(1080)
+                && VideoDownloaderQuality.highest(in: []) == .best,
+               "numeric quality defaults to the highest inspected height and keeps a native fallback when absent")
+        expect(VideoDownloaderByteCountFormatter.formattedApproximateSize(152_043_520)?.contains("MB") == true
+                && VideoDownloaderByteCountFormatter.formattedApproximateSize(nil) == nil
+                && VideoDownloaderByteCountFormatter.formattedApproximateSize(0) == nil,
+               "byte count formatter produces human-readable size labels and handles nil or zero gracefully")
+
+        let inspectedMedia = inspected ?? VideoDownloaderMedia(title: "Fixture", uploader: nil, duration: nil,
+                                                                thumbnailURL: URL(string: "https://example.com/t.jpg"),
+                                                                heights: [1080], videoAvailability: .available,
+                                                                audioAvailability: .available,
+                                                                subtitles: [], hasChapters: true)
+        let requestSource = try! VideoDownloaderURLValidator.validate("https://example.com/watch?v=private")
+        let requestOptions = VideoDownloaderEmbeddingOptions(thumbnail: true, metadata: true, chapters: false)
+        let manualTrack = VideoDownloaderSubtitleTrack(code: "en", source: .manual, name: nil)
+        let automaticTrack = VideoDownloaderSubtitleTrack(code: "tr", source: .automatic, name: nil)
+        let commandStaging = URL(fileURLWithPath: "/tmp/.vorssaint-video-download-fixture", isDirectory: true)
+        let videoRequest = VideoDownloaderRequest(source: requestSource, mode: .video, quality: .height(1080),
+                                                  subtitle: manualTrack, destination: URL(fileURLWithPath: "/tmp"),
+                                                  media: inspectedMedia, options: requestOptions)
+        let videoArguments = VideoDownloaderCommandBuilder.download(ytDlpPath: "/tools/yt-dlp",
+                                                                    ffmpegPath: "/tools/ffmpeg",
+                                                                    staging: commandStaging,
+                                                                    request: videoRequest).arguments
+        expect(videoArguments.contains("--merge-output-format") && videoArguments.contains("mp4/mkv")
+                && videoArguments.contains("--remux-video")
+                && videoArguments.contains("mp4>mp4/mov>mp4/mkv")
+                && !videoArguments.contains("--recode-video")
+                && !videoArguments.contains("-c:v") && !videoArguments.contains("-c:a"),
+               "video arguments automatically choose MP4 or lossless MKV without transcoding")
+        expect(videoArguments.contains("--no-playlist") && videoArguments.contains("--playlist-items")
+                && !videoArguments.contains("--max-downloads"),
+               "one-item downloads avoid yt-dlp's successful status-101 max-download termination")
+        let nullPlaceholderIndex = videoArguments.firstIndex(of: "--output-na-placeholder")
+        let hasNullPlaceholder = nullPlaceholderIndex.map { index in
+            videoArguments.indices.contains(index + 1) && videoArguments[index + 1] == "null"
+        } ?? false
+        expect(hasNullPlaceholder,
+               "download progress makes every missing template value valid JSON null")
+        let concurrentFragmentsIndex = videoArguments.firstIndex(of: "--concurrent-fragments")
+        let hasConcurrentFragments = concurrentFragmentsIndex.map { index in
+            videoArguments.indices.contains(index + 1) && videoArguments[index + 1] == "4"
+        } ?? false
+        expect(hasConcurrentFragments,
+               "video arguments specify 4 concurrent fragment downloads for stream acceleration")
+        expect(videoArguments.contains(where: { $0.contains("\"extension\":%(info.ext)j") }),
+               "download progress identifies auxiliary subtitle and thumbnail transfers")
+        expect(videoArguments.contains(where: {
+            $0.contains("\"format_id\":%(info.format_id)j")
+                && $0.contains("\"vcodec\":%(info.vcodec)j")
+                && $0.contains("\"acodec\":%(info.acodec)j")
+                && $0.contains("\"video_ext\":%(info.video_ext)j")
+                && $0.contains("\"audio_ext\":%(info.audio_ext)j")
+        }), "download progress identifies combined and separate media formats")
+        expect(videoArguments.contains("--match-filters") && !videoArguments.contains("--match-filter")
+                && videoArguments.contains(where: {
+                    $0.contains("!is_live") && $0.contains("live_status!=?is_live")
+                        && $0.contains("live_status!=?is_upcoming")
+                        && $0.contains("live_status!=?post_live")
+                }),
+               "download revalidates live state without rejecting extractors that omit live_status")
+        expect(videoArguments.contains("--no-write-thumbnail")
+                && videoArguments.contains("--no-embed-thumbnail")
+                && !videoArguments.contains("--write-thumbnail")
+                && videoArguments.contains("--embed-metadata")
+                && videoArguments.contains("--no-embed-chapters"),
+               "yt-dlp never fetches artwork while metadata and chapter toggles remain explicit")
+        expect(videoArguments.contains("--write-subs")
+                && videoArguments.contains("--no-write-auto-subs")
+                && videoArguments.contains("--sub-langs") && videoArguments.contains("en")
+                && videoArguments.contains("--convert-subs") && videoArguments.contains("srt")
+                && videoArguments.contains("--no-embed-subs"),
+               "selected manual captions are fetched during the core yt-dlp transfer")
+        expect(!videoArguments.contains(requestSource.string),
+               "the private source URL never appears in yt-dlp arguments")
+        expect(!videoArguments.contains("--proxy"),
+               "downloads do not add an app-owned proxy to extractor arguments")
+        expect(videoArguments.contains("before_dl:\(VideoDownloaderCommandBuilder.qualityPrefix)%(height)j"),
+               "download reports yt-dlp's actually selected video height")
+
+        let automaticRequest = VideoDownloaderRequest(source: requestSource, mode: .video, quality: .best,
+                                                      subtitle: automaticTrack, destination: URL(fileURLWithPath: "/tmp"),
+                                                      media: inspectedMedia, options: requestOptions)
+        let automaticArguments = VideoDownloaderCommandBuilder.download(ytDlpPath: "yt-dlp", ffmpegPath: "ffmpeg",
+                                                                        staging: commandStaging,
+                                                                        request: automaticRequest).arguments
+        expect(automaticArguments.contains("--write-auto-subs")
+                && automaticArguments.contains("--no-write-subs"),
+               "automatic captions use the selected source without selecting manual captions")
+
+        let noEmbeddingOptions = VideoDownloaderEmbeddingOptions(thumbnail: false, metadata: false, chapters: true)
+        let noEmbeddingRequest = VideoDownloaderRequest(source: requestSource, mode: .video, quality: .best,
+                                                        subtitle: manualTrack, destination: URL(fileURLWithPath: "/tmp"),
+                                                        media: inspectedMedia, options: noEmbeddingOptions)
+        let noEmbeddingArguments = VideoDownloaderCommandBuilder.download(ytDlpPath: "yt-dlp", ffmpegPath: "ffmpeg",
+                                                                          staging: commandStaging,
+                                                                          request: noEmbeddingRequest).arguments
+        expect(noEmbeddingArguments.contains("--no-embed-thumbnail")
+                && noEmbeddingArguments.contains("--no-embed-metadata")
+                && noEmbeddingArguments.contains("--embed-chapters")
+                && noEmbeddingArguments.contains("--write-subs")
+                && noEmbeddingArguments.contains("--no-write-auto-subs"),
+               "independent embedding toggles build explicit positive and negative arguments")
+        let hermeticYtDlpArguments = ["--ignore-config", "--no-config-locations", "--no-plugin-dirs",
+                                      "--no-cookies", "--no-cookies-from-browser",
+                                      "--force-ipv4"]
+        expect(noEmbeddingArguments.contains("--no-exec")
+                && hermeticYtDlpArguments.allSatisfy({ noEmbeddingArguments.contains($0) })
+                && noEmbeddingArguments.contains("--cache-dir")
+                && noEmbeddingArguments.contains("--remote-components")
+                && noEmbeddingArguments.contains("ejs:github")
+                && !noEmbeddingArguments.contains("--no-cache-dir"),
+               "media downloads do not inherit local yt-dlp config, plugins, or authentication, and confine the cache to the app-owned EJS directory")
+        let cookieArguments = VideoDownloaderCommandBuilder.download(
+            ytDlpPath: "yt-dlp", ffmpegPath: "ffmpeg",
+            staging: commandStaging, request: videoRequest,
+            cookiesFromBrowser: "safari").arguments
+        expect(cookieArguments.contains("--cookies-from-browser")
+                && cookieArguments.contains("safari")
+                && !cookieArguments.contains("--no-cookies-from-browser")
+                && !cookieArguments.contains("--no-cookies"),
+               "opting into browser cookies replaces the hermetic cookie negations with --cookies-from-browser")
+        expect(noEmbeddingArguments.contains("--no-cookies-from-browser")
+                && !noEmbeddingArguments.contains("--cookies-from-browser"),
+               "downloads stay cookie-free unless the browser-cookies setting is on")
+        let inspectionCookieArguments = VideoDownloaderCommandBuilder.inspection(
+            ytDlpPath: "yt-dlp", cookiesFromBrowser: "chrome").arguments
+        expect(inspectionCookieArguments.contains("--cookies-from-browser")
+                && inspectionCookieArguments.contains("chrome")
+                && !inspectionCookieArguments.contains("--no-cookies"),
+               "inspection reuses the same authenticated browser session")
+
+        let audioRequest = VideoDownloaderRequest(source: requestSource, mode: .audio, quality: .best,
+                                                subtitle: nil, destination: URL(fileURLWithPath: "/tmp"),
+                                                media: inspectedMedia, options: requestOptions)
+        let audioArguments = VideoDownloaderCommandBuilder.download(ytDlpPath: "yt-dlp", ffmpegPath: "ffmpeg",
+                                                                  staging: commandStaging, request: audioRequest).arguments
+        expect(audioArguments.contains("ba[ext=m4a]/ba") && audioArguments.contains("--extract-audio")
+                && audioArguments.contains("--audio-format") && audioArguments.contains("m4a")
+                && audioArguments.contains("--audio-quality") && audioArguments.contains("0"),
+               "Audio arguments select best audio and highest-quality M4A export")
+        expect(!audioArguments.contains("--write-subs") && !audioArguments.contains("--write-auto-subs")
+                && audioArguments.contains("--no-write-subs") && audioArguments.contains("--no-write-auto-subs")
+                && audioArguments.contains("--no-embed-chapters"),
+               "Audio media arguments do not request captions")
+        let inspectionArguments = VideoDownloaderCommandBuilder.inspection(ytDlpPath: "yt-dlp").arguments
+        for required in ["--ignore-config", "--no-config-locations", "--no-plugin-dirs",
+                         "--no-cookies", "--no-cookies-from-browser",
+                         "--force-ipv4", "--yes-playlist", "--playlist-items", "--skip-download",
+                         "--dump-single-json", "--no-check-formats", "--no-color",
+                         "--socket-timeout", "--no-exec", "--batch-file", "--cache-dir",
+                         "--remote-components"] {
+            expect(inspectionArguments.contains(required), "inspection includes \(required)")
+        }
+        expect(inspectionArguments.contains("ejs:github")
+                && !inspectionArguments.contains("--no-cache-dir"),
+               "inspection enables EJS challenge solving with the app-owned cache instead of the global cache")
+        expect(!inspectionArguments.contains("--no-netrc")
+                && !inspectionArguments.contains("--max-downloads")
+                && !inspectionArguments.contains("--no-playlist")
+                && VideoDownloaderCommandBuilder.dependencyProbe(tool: .ytDlp,
+                                                                 executablePath: "yt-dlp").arguments
+                    .contains("--ignore-config")
+                && VideoDownloaderCommandBuilder.dependencyProbe(tool: .ytDlp,
+                                                                 executablePath: "yt-dlp").arguments
+                    .contains("--no-plugin-dirs"),
+               "inspection and dependency probes use the same deterministic yt-dlp policy")
+        expect(!inspectionArguments.contains("--format"),
+               "inspection lets yt-dlp report every supported format instead of imposing a video selector")
+        expect(!inspectionArguments.contains("--allow-unplayable-formats"),
+               "inspection uses only yt-dlp's playable format pool")
+
+        if case let .progress(value)? = VideoDownloaderProtocolParser.parse(
+            line: VideoDownloaderCommandBuilder.progressPrefix
+                + #"{"downloaded":500,"total":1000,"percent":"50.0%","speed":2048,"eta":9}"#) {
+            expect(value.fraction == 0.5 && value.speedBytesPerSecond == 2048 && value.etaSeconds == 9,
+                   "progress protocol parses percentage, speed and ETA")
+        } else {
+            expect(false, "progress protocol recognizes a valid progress marker")
+        }
+        if case let .progress(subtitleProgress)? = VideoDownloaderProtocolParser.parse(
+            line: VideoDownloaderCommandBuilder.progressPrefix
+                + #"{"downloaded":1000,"total":1000,"percent":"100.0%","extension":"vtt"}"#),
+           case let .progress(videoProgress)? = VideoDownloaderProtocolParser.parse(
+               line: VideoDownloaderCommandBuilder.progressPrefix
+                   + #"{"downloaded":1000,"total":1000,"percent":"100.0%","extension":"mp4"}"#) {
+            expect(subtitleProgress.isAuxiliary && !videoProgress.isAuxiliary,
+                   "progress protocol distinguishes subtitle transfers from media transfers")
+        } else {
+            expect(false, "progress protocol parses transfer extensions")
+        }
+        if case let .progress(unlistedThumbnailProgress)? = VideoDownloaderProtocolParser.parse(
+            line: VideoDownloaderCommandBuilder.progressPrefix
+                + #"{"downloaded":100,"total":100,"percent":"100%","extension":"jpe","format_id":null,"vcodec":null,"acodec":null}"#),
+           case let .progress(combinedProgress)? = VideoDownloaderProtocolParser.parse(
+               line: VideoDownloaderCommandBuilder.progressPrefix
+                   + #"{"downloaded":50,"total":100,"percent":"50%","extension":"mp4","format_id":"18","vcodec":"avc1","acodec":"mp4a"}"#) {
+            expect(unlistedThumbnailProgress.isAuxiliary && combinedProgress.isCombinedMedia,
+                   "progress protocol recognizes uncommon artwork and a combined media transfer")
+        } else {
+            expect(false, "progress protocol parses media format identity")
+        }
+        if case let .progress(unknownMediaProgress)? = VideoDownloaderProtocolParser.parse(
+            line: VideoDownloaderCommandBuilder.progressPrefix
+                + #"{"downloaded":100,"total":100,"percent":"100%","extension":null,"format_id":null,"vcodec":null,"acodec":null,"video_ext":null,"audio_ext":null}"#) {
+            expect(!unknownMediaProgress.isAuxiliary,
+                   "progress without format identity stays media so the bar never stalls")
+        } else {
+            expect(false, "progress protocol parses unknown media identity")
+        }
+        if case let .progress(value)? = VideoDownloaderProtocolParser.parse(
+            line: VideoDownloaderCommandBuilder.progressPrefix
+                + #"{"downloaded":null,"total":"N/A","percent":"NA","speed":"nan","eta":""}"#) {
+            expect(value.fraction == nil && value.speedBytesPerSecond == nil && value.etaSeconds == nil,
+                   "progress protocol tolerates unknown and non-finite values")
+        } else {
+            expect(false, "progress protocol accepts unknown values")
+        }
+        if case let .progress(value)? = VideoDownloaderProtocolParser.parse(
+            line: VideoDownloaderCommandBuilder.progressPrefix
+                + #"{"downloaded":1024,"total":524288,"percent":"  0.2%","speed":null,"eta":null}"#) {
+            expect(value.fraction == 0.002 && value.speedBytesPerSecond == nil && value.etaSeconds == nil,
+                   "progress protocol preserves determinate progress when optional metrics are unavailable")
+        } else {
+            expect(false, "progress protocol accepts yt-dlp's nullable machine record")
+        }
+        if case let .progress(value)? = VideoDownloaderProtocolParser.parse(
+            line: VideoDownloaderCommandBuilder.progressPrefix
+                + #"{"downloaded":262144,"total":524288,"percent":"50.0%","speed":NA,"eta":N/A,"elapsed":4,"fragment_index":NA,"fragment_count":NA}"#) {
+            expect(value.fraction == 0.5 && value.speedBytesPerSecond == 65_536
+                    && value.etaSeconds == 4,
+                   "progress protocol isolates bare placeholders and derives missing rate fields")
+        } else {
+            expect(false, "progress protocol tolerates yt-dlp's bare NA placeholders")
+        }
+        if case let .progress(value)? = VideoDownloaderProtocolParser.parse(
+            line: VideoDownloaderCommandBuilder.progressPrefix
+                + #"{"downloaded":3000,"total":null,"percent":broken,"speed":1000,"eta":null,"elapsed":3,"fragment_index":3,"fragment_count":10}"#) {
+            expect(value.fraction == 0.3 && value.speedBytesPerSecond == 1000
+                    && abs((value.etaSeconds ?? 0) - 7) < 0.0001,
+                   "progress protocol falls back to fragments when byte percentage is malformed")
+        } else {
+            expect(false, "progress protocol tolerates one malformed field without discarding the record")
+        }
+        expect(VideoDownloaderProtocolParser.parse(line: VideoDownloaderCommandBuilder.progressPrefix + "bad") == nil,
+               "progress protocol ignores malformed markers")
+        expect(VideoDownloaderProtocolParser.parse(line: VideoDownloaderCommandBuilder.qualityPrefix + "720")
+                == .selectedVideoHeight(720)
+                && VideoDownloaderProtocolParser.parse(line: VideoDownloaderCommandBuilder.qualityPrefix + "null")
+                    == .selectedVideoHeight(nil),
+               "quality protocol reports a selected height or an unavailable height without parsing prose")
+        let oddTitle = "line one\n__VORSSAINT_DOWNLOADER_PATH__inside"
+        let oddTitleJSON = String(data: try! JSONEncoder().encode(oddTitle), encoding: .utf8)!
+        expect(VideoDownloaderProtocolParser.parse(line: VideoDownloaderCommandBuilder.titlePrefix + oddTitleJSON)
+                == .title(oddTitle),
+               "JSON title markers preserve newlines and marker-looking text")
+        var lineDecoder = VideoDownloaderLineDecoder()
+        let splitMarker = VideoDownloaderCommandBuilder.pathPrefix + "\"/tmp/final name.mp4\""
+        expect(lineDecoder.append(Data(splitMarker.prefix(12).utf8)).isEmpty,
+               "line decoder holds a fragmented marker")
+        _ = lineDecoder.append(Data(splitMarker.dropFirst(12).utf8))
+        expect(lineDecoder.finish().flatMap(VideoDownloaderProtocolParser.parse(line:)) == .path("/tmp/final name.mp4"),
+               "line decoder flushes a final marker without a newline")
+
+        let ffmpegSubtitle = VideoDownloaderCommandBuilder.ffmpegSubtitle(
+            ffmpegPath: "ffmpeg",
+            input: URL(fileURLWithPath: "/tmp/in.mp4"),
+            subtitle: URL(fileURLWithPath: "/tmp/captions.srt"),
+            output: URL(fileURLWithPath: "/tmp/out.mp4"),
+            language: "tr").arguments
+        expect(ffmpegSubtitle.contains("-map") && ffmpegSubtitle.contains("1:0")
+                && ffmpegSubtitle.contains("-c:s") && ffmpegSubtitle.contains("mov_text")
+                && ffmpegSubtitle.contains("language=tr"),
+               "video subtitle embedding maps the fetched caption and uses the MP4 subtitle codec")
+        let ffmpegArtwork = VideoDownloaderCommandBuilder.ffmpegArtwork(
+            ffmpegPath: "ffmpeg", input: URL(fileURLWithPath: "/tmp/in.mp4"),
+            artwork: URL(fileURLWithPath: "/tmp/cover.jpg"),
+            output: URL(fileURLWithPath: "/tmp/out.mp4"), mode: .video).arguments
+        expect(ffmpegArtwork.contains("-map_metadata") && ffmpegArtwork.contains("-map_chapters")
+                && ffmpegArtwork.contains("-c:v:1") && ffmpegArtwork.contains("mjpeg")
+                && ffmpegArtwork.contains("attached_pic"),
+               "artwork FFmpeg pass preserves media and metadata while encoding only the cover image")
+        let mkvArtwork = VideoDownloaderCommandBuilder.ffmpegArtwork(
+            ffmpegPath: "ffmpeg", input: URL(fileURLWithPath: "/tmp/in.mkv"),
+            artwork: URL(fileURLWithPath: "/tmp/cover.jpg"),
+            output: URL(fileURLWithPath: "/tmp/out.mkv"), mode: .video).arguments
+        expect(mkvArtwork.contains("-attach") && mkvArtwork.contains("mimetype=image/jpeg")
+                && mkvArtwork.contains("filename=cover.jpg") && !mkvArtwork.contains("-c:v:1"),
+               "Matroska artwork uses a native attachment instead of an ordinary video stream")
+        let audioArtwork = VideoDownloaderCommandBuilder.ffmpegArtwork(
+            ffmpegPath: "ffmpeg", input: URL(fileURLWithPath: "/tmp/in.m4a"),
+            artwork: URL(fileURLWithPath: "/tmp/cover.jpg"),
+            output: URL(fileURLWithPath: "/tmp/out.m4a"), mode: .audio).arguments
+        expect(audioArtwork.contains("-c:v:0") && audioArtwork.contains("-disposition:v:0")
+                && audioArtwork.contains("attached_pic") && !audioArtwork.contains("-c:v:1"),
+               "audio artwork targets the single primary video stream in an audio-only container")
+
+        let downloaderTemp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-downloader-tests-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: downloaderTemp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: downloaderTemp) }
+        let stage = try! VideoDownloaderFileSupport.makeStagingDirectory(in: downloaderTemp)
+        let stagedMedia = stage.appendingPathComponent("Example.mp4")
+        try! Data([1, 2, 3]).write(to: stagedMedia)
+        try! Data("caption".utf8).write(to: stage.appendingPathComponent("Example.en.srt"))
+        expect(VideoDownloaderFileSupport.isContained(stagedMedia, in: stage)
+                && !VideoDownloaderFileSupport.isContained(downloaderTemp.appendingPathComponent("outside.mp4"), in: stage),
+               "staging containment accepts descendants and rejects outside paths")
+        expect((try? VideoDownloaderFileSupport.finalMedia(in: stage,
+                                                           reportedPath: downloaderTemp.appendingPathComponent("outside.mp4").path,
+                                                           mode: .video)) == nil,
+               "reported paths outside staging are rejected")
+        let verifiedMedia = try! VideoDownloaderFileSupport.finalMedia(in: stage,
+                                                                       reportedPath: stagedMedia.path,
+                                                                       mode: .video)
+        let existing = downloaderTemp.appendingPathComponent("Example.mp4")
+        try! Data([9]).write(to: existing)
+        let published = try! VideoDownloaderFileSupport.publish(verifiedMedia, into: downloaderTemp)
+        expect(published.lastPathComponent == "Example (2).mp4"
+                && (try? Data(contentsOf: existing)) == Data([9]),
+               "publication preserves an existing file and chooses a collision-safe name")
+        let visibleNames = (try? FileManager.default.contentsOfDirectory(atPath: downloaderTemp.path)) ?? []
+        expect(visibleNames.contains("Example (2).mp4") && !visibleNames.contains(where: {
+            ["srt", "vtt", "ass", "lrc", "jpg"].contains(URL(fileURLWithPath: $0).pathExtension.lowercased())
+        }), "only the final media file is published beside pre-existing user files")
+        try? FileManager.default.removeItem(at: stage)
+
+        enum StagingFixtureError: Error { case expected }
+        let markerFailureID = UUID()
+        _ = try? VideoDownloaderFileSupport.makeStagingDirectory(
+            in: downloaderTemp, id: markerFailureID, writeOwnerMarker: { _ in throw StagingFixtureError.expected })
+        expect(!FileManager.default.fileExists(atPath: downloaderTemp
+            .appendingPathComponent(VideoDownloaderFileSupport.stagingPrefix + markerFailureID.uuidString).path),
+               "staging creation rolls back the directory when owner-marker initialization fails")
+        let successfulStageID = UUID()
+        _ = try? VideoDownloaderFileSupport.withStagingDirectory(in: downloaderTemp, id: successfulStageID) { url in
+            try Data([1]).write(to: url.appendingPathComponent("work"))
+        }
+        expect(!FileManager.default.fileExists(atPath: downloaderTemp
+            .appendingPathComponent(VideoDownloaderFileSupport.stagingPrefix + successfulStageID.uuidString).path),
+               "staging cleans up after success")
+        let failingStageID = UUID()
+        _ = try? VideoDownloaderFileSupport.withStagingDirectory(in: downloaderTemp, id: failingStageID) { _ in
+            throw StagingFixtureError.expected
+        }
+        expect(!FileManager.default.fileExists(atPath: downloaderTemp
+            .appendingPathComponent(VideoDownloaderFileSupport.stagingPrefix + failingStageID.uuidString).path),
+               "staging cleans up after failure or start failure")
+        let cancelledStageID = UUID()
+        _ = try? VideoDownloaderFileSupport.withStagingDirectory(in: downloaderTemp, id: cancelledStageID) { _ in
+            throw VideoDownloaderFailure.cancelled
+        }
+        expect(!FileManager.default.fileExists(atPath: downloaderTemp
+            .appendingPathComponent(VideoDownloaderFileSupport.stagingPrefix + cancelledStageID.uuidString).path),
+               "staging cleans up after cancellation")
+
+        func serviceRequest(destination: URL) -> VideoDownloaderRequest {
+            VideoDownloaderRequest(
+                source: requestSource, mode: .video, quality: .best, subtitle: nil,
+                destination: destination, media: inspectedMedia,
+                options: VideoDownloaderEmbeddingOptions(thumbnail: false, metadata: false, chapters: false))
+        }
+        func stagingExists(_ id: UUID, in destination: URL) -> Bool {
+            FileManager.default.fileExists(atPath: destination
+                .appendingPathComponent(VideoDownloaderFileSupport.stagingPrefix + id.uuidString).path)
+        }
+        let validVideoFFprobe = downloaderTemp.appendingPathComponent("valid-video-ffprobe")
+        writeExecutable(validVideoFFprobe, """
+        #!/bin/sh
+        printf '%s\n' '{"streams":[{"codec_type":"video","disposition":{"attached_pic":0}},{"codec_type":"audio"}],"chapters":[],"format":{"format_name":"mov,mp4,m4a,3gp,3g2,mj2","tags":{}}}'
+        """)
+
+        let transientVideoState = downloaderTemp.appendingPathComponent("transient-video-state")
+        let transientVideoDownloader = downloaderTemp.appendingPathComponent("transient-video-yt-dlp")
+        writeExecutable(transientVideoDownloader, """
+        #!/bin/sh
+        stage=''
+        while [ "$#" -gt 0 ]; do
+          if [ "$1" = '--paths' ] && [ "$#" -ge 2 ]; then stage="$2"; break; fi
+          shift
+        done
+        [ -n "$stage" ] || exit 20
+        if [ ! -e '\(transientVideoState.path)' ]; then
+          : > '\(transientVideoState.path)'
+          output="$stage/ChallengeRetry.mp4"
+          printf 'partial-media' > "$output"
+          printf '\(VideoDownloaderCommandBuilder.pathPrefix)"%s"\n' "$output"
+          printf '%s\n' "ERROR: [youtube] Sign in to confirm you're not a bot" >&2
+          exit 1
+        fi
+        output="$stage/ChallengeRetry.mp4"
+        printf 'retried-media' > "$output"
+        printf '\(VideoDownloaderCommandBuilder.pathPrefix)"%s"\n' "$output"
+        """)
+        let transientVideoService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: transientVideoDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: validVideoFFprobe.path, .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        let transientVideoID = UUID()
+        var transientVideoURL: URL?
+        var transientVideoFailure: VideoDownloaderFailure?
+        transientVideoService.download(
+            VideoDownloaderRequest(source: requestSource, mode: .video, quality: .best,
+                                   subtitle: manualTrack, destination: downloaderTemp,
+                                   media: inspectedMedia,
+                                   options: VideoDownloaderEmbeddingOptions(
+                                    thumbnail: false, metadata: false, chapters: false)),
+            id: transientVideoID, progress: { _, _ in }) { _, result in
+                switch result {
+                case let .success(result): transientVideoURL = result.file
+                case let .failure(error): transientVideoFailure = error
+                }
+            }
+        let transientVideoFinished = waitUntil(10) {
+            transientVideoURL != nil || transientVideoFailure != nil
+        }
+        var transientVideoMessage: String?
+        if case let .extractorError(message)? = transientVideoFailure {
+            transientVideoMessage = message
+        }
+        expect(transientVideoFinished
+                && transientVideoURL == nil
+                && transientVideoFailure != nil
+                && transientVideoMessage?.contains("not a bot") == true
+                && (try? String(contentsOf: transientVideoState, encoding: .utf8)) == ""
+                && !stagingExists(transientVideoID, in: downloaderTemp),
+               "video extractor challenge failures surface immediately without redundant retries")
+
+        let strictInspector = downloaderTemp.appendingPathComponent("strict-yt-dlp")
+        let inspectionPayload = String(data: downloaderJSON(inspectionFixture), encoding: .utf8)!
+            .replacingOccurrences(of: "'", with: "'\\''")
+        writeExecutable(strictInspector, """
+        #!/bin/sh
+        for argument in "$@"; do
+          [ "$argument" = '--no-netrc' ] && exit 64
+          [ "$argument" = '--max-downloads' ] && exit 101
+        done
+        printf '%s\\n' '\(inspectionPayload)'
+        """)
+        let strictInspectionService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: strictInspector.path, .deno: strictInspector.path],
+            mutationGate: HomebrewMutationGate())
+        var strictInspectionSucceeded = false
+        strictInspectionService.inspect(requestSource, id: UUID()) { _, result in
+            if case let .success(media) = result, media.title == "A title" {
+                strictInspectionSucceeded = true
+            }
+        }
+        expect(waitUntil { strictInspectionSucceeded },
+               "process inspection succeeds with a current yt-dlp fixture that rejects obsolete and status-101 options")
+
+        let transientInspectionState = downloaderTemp.appendingPathComponent("transient-inspection-state")
+        let transientInspector = downloaderTemp.appendingPathComponent("transient-yt-dlp")
+        writeExecutable(transientInspector, """
+        #!/bin/sh
+        attempt=0
+        if [ -e '\(transientInspectionState.path)' ]; then
+          attempt="$(cat '\(transientInspectionState.path)')"
+        fi
+        if [ "$attempt" -eq 0 ]; then
+          printf '1' > '\(transientInspectionState.path)'
+          printf '%s\n' 'ERROR: Unable to extract universal data for rehydration' >&2
+          exit 1
+        fi
+        printf '%s\n' '\(inspectionPayload)'
+        """)
+        let transientInspectionService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: transientInspector.path, .deno: transientInspector.path],
+            mutationGate: HomebrewMutationGate())
+        var transientInspectionMedia: VideoDownloaderMedia?
+        var transientInspectionFailure: VideoDownloaderFailure?
+        transientInspectionService.inspect(requestSource, id: UUID()) { _, result in
+            switch result {
+            case let .success(media): transientInspectionMedia = media
+            case let .failure(error): transientInspectionFailure = error
+            }
+        }
+        expect(waitUntil(10) { transientInspectionMedia != nil || transientInspectionFailure != nil }
+                && transientInspectionMedia?.title == "A title"
+                && transientInspectionFailure == nil
+                && (try? String(contentsOf: transientInspectionState, encoding: .utf8)) == "1",
+               "generic extractor rehydration failures retry without a site-specific rule")
+
+        let impersonationInspectionState = downloaderTemp.appendingPathComponent("impersonation-inspection-state")
+        let impersonationInspector = downloaderTemp.appendingPathComponent("impersonation-yt-dlp")
+        writeExecutable(impersonationInspector, """
+        #!/bin/sh
+        count=0
+        if [ -e '\(impersonationInspectionState.path)' ]; then
+          count="$(cat '\(impersonationInspectionState.path)')"
+        fi
+        count=$((count + 1))
+        printf '%s' "$count" > '\(impersonationInspectionState.path)'
+        printf '%s\n' 'WARNING: [TikTok] The extractor is attempting impersonation, but no impersonate target is available.' >&2
+        printf '%s\n' 'ERROR: [TikTok] 123: Unable to extract universal data for rehydration; please report this issue' >&2
+        exit 1
+        """)
+        let impersonationInspectionService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: impersonationInspector.path, .deno: impersonationInspector.path],
+            mutationGate: HomebrewMutationGate())
+        var impersonationInspectionOutcome: VideoDownloaderFailure?
+        impersonationInspectionService.inspect(requestSource, id: UUID()) { _, result in
+            if case let .failure(error) = result { impersonationInspectionOutcome = error }
+        }
+        let impersonationInspectionDone = waitUntil { impersonationInspectionOutcome != nil }
+        let impersonationInspectionCount = (try? String(contentsOf: impersonationInspectionState, encoding: .utf8)) ?? "nil"
+        let impersonationInspectionMessage: String?
+        if case let .extractorError(message) = impersonationInspectionOutcome {
+            impersonationInspectionMessage = message
+        } else {
+            impersonationInspectionMessage = nil
+        }
+        expect(impersonationInspectionDone
+                && impersonationInspectionCount == "2"
+                && impersonationInspectionMessage?.contains("Unable to extract universal data for rehydration") == true,
+               "a rehydration extraction failure uses the standard retry count and surfaces the raw extractor error without a site-specific rule")
+
+        let inspectionTimeoutInspector = downloaderTemp.appendingPathComponent("inspection-timeout-yt-dlp")
+        writeExecutable(inspectionTimeoutInspector, "#!/bin/sh\nsleep 30\n")
+        let inspectionTimeoutPolicy = VideoDownloaderTimeoutPolicy(
+            // Keep enough scheduler headroom for the timeout callback while
+            // still exercising the retry path quickly.
+            inspection: 1.0,
+            download: 60 * 60,
+            postProcessing: 60 * 60,
+            homebrewSetup: 60 * 60)
+        let inspectionTimeoutService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: inspectionTimeoutInspector.path,
+                               .deno: inspectionTimeoutInspector.path],
+            mutationGate: HomebrewMutationGate(),
+            timeoutPolicy: inspectionTimeoutPolicy)
+        var inspectionTimeoutOutcome: VideoDownloaderFailure?
+        inspectionTimeoutService.inspect(requestSource, id: UUID()) { _, result in
+            if case let .failure(error) = result { inspectionTimeoutOutcome = error }
+        }
+        expect(waitUntil(15) { inspectionTimeoutOutcome != nil }
+                && inspectionTimeoutOutcome == .inspectionTimedOut,
+               "an extractor that never answers is retried and then reported as an inspection timeout")
+
+        let inspectionRecoveryState = downloaderTemp.appendingPathComponent("inspection-timeout-recovery-state")
+        let inspectionRecoveryJSON = downloaderTemp.appendingPathComponent("inspection-timeout-recovery.json")
+        try? downloaderJSON(inspectionFixture).write(to: inspectionRecoveryJSON, options: .atomic)
+        let inspectionRecoveryInspector = downloaderTemp.appendingPathComponent("inspection-timeout-recovery-yt-dlp")
+        writeExecutable(inspectionRecoveryInspector, """
+        #!/bin/sh
+        count=0
+        if [ -e '\(inspectionRecoveryState.path)' ]; then
+          count="$(cat '\(inspectionRecoveryState.path)')"
+        fi
+        count=$((count + 1))
+        printf '%s' "$count" > '\(inspectionRecoveryState.path)'
+        if [ "$count" -eq 1 ]; then
+          trap 'exit 0' TERM
+          sleep 30
+        else
+          cat '\(inspectionRecoveryJSON.path)'
+        fi
+        """)
+        let inspectionRecoveryService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: inspectionRecoveryInspector.path,
+                               .deno: inspectionRecoveryInspector.path],
+            mutationGate: HomebrewMutationGate(),
+            timeoutPolicy: inspectionTimeoutPolicy)
+        var inspectionRecoveryResult: Result<VideoDownloaderMedia, VideoDownloaderFailure>?
+        inspectionRecoveryService.inspect(requestSource, id: UUID()) { _, result in
+            inspectionRecoveryResult = result
+        }
+        let inspectionRecoveryFinished = waitUntil(15) { inspectionRecoveryResult != nil }
+        let inspectionRecoveryCount = (try? String(contentsOf: inspectionRecoveryState, encoding: .utf8)) ?? "nil"
+        var inspectionRecoveryTitle: String?
+        if case let .success(media)? = inspectionRecoveryResult {
+            inspectionRecoveryTitle = media.title
+        }
+        expect(inspectionRecoveryFinished
+                && inspectionRecoveryTitle == "A title"
+                && inspectionRecoveryCount == "2",
+               "an inspection retry clears timeout state so a successful second attempt completes normally")
+
+        let fakeDownloader = downloaderTemp.appendingPathComponent("fake-yt-dlp")
+        writeExecutable(fakeDownloader, """
+        #!/bin/sh
+        saw_match_filters=0
+        saw_missing_safe_filter=0
+        saw_json_null_placeholder=0
+        previous=''
+        for argument in "$@"; do
+          [ "$argument" = '--max-downloads' ] && exit 101
+          [ "$argument" = '--match-filter' ] && exit 65
+          [ "$argument" = '--match-filters' ] && saw_match_filters=1
+          if [ "$previous" = '--output-na-placeholder' ] && [ "$argument" = 'null' ]; then
+            saw_json_null_placeholder=1
+          fi
+          case "$argument" in
+            *'live_status!=?is_upcoming'*) saw_missing_safe_filter=1 ;;
+          esac
+          previous="$argument"
+        done
+        [ "$saw_match_filters" -eq 1 ] || exit 66
+        [ "$saw_missing_safe_filter" -eq 1 ] || exit 67
+        stage=''
+        while [ "$#" -gt 0 ]; do
+          if [ "$1" = '--paths' ] && [ "$#" -ge 2 ]; then stage="$2"; break; fi
+          shift
+        done
+        [ -n "$stage" ] || exit 20
+        output="$stage/Fixture.mp4"
+        printf 'media' > "$output"
+        printf '\(VideoDownloaderCommandBuilder.titlePrefix)"Fixture"\\n'
+        printf '\(VideoDownloaderCommandBuilder.qualityPrefix)720\\n'
+        if [ "$saw_json_null_placeholder" -eq 1 ]; then
+          printf '\(VideoDownloaderCommandBuilder.progressPrefix){"downloaded":262144,"total":524288,"percent":"50.0%%","speed":null,"eta":null,"elapsed":4,"fragment_index":null,"fragment_count":null}\\n' >&2
+        else
+          # This is yt-dlp's usual output for missing values. It is not valid
+          # JSON, so the old parser dropped the whole sample—even its usable
+          # percentage.
+          printf '\(VideoDownloaderCommandBuilder.progressPrefix){"downloaded":262144,"total":524288,"percent":"50.0%%","speed":NA,"eta":NA,"elapsed":4,"fragment_index":NA,"fragment_count":NA}\\n' >&2
+        fi
+        sleep 0.2
+        printf '\(VideoDownloaderCommandBuilder.progressPrefix){"downloaded":393216,"total":524288,"percent":"75.0%%","speed":65536,"eta":2,"elapsed":6,"fragment_index":null,"fragment_count":null}\\n' >&2
+        # Leave a generous window after progress is emitted so a busy test
+        # runner cannot finish the process before the main queue observes it.
+        sleep 3
+        printf '\(VideoDownloaderCommandBuilder.pathPrefix)"%s"\\n' "$output"
+        """)
+        let successfulDownloadID = UUID()
+        let successfulService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: fakeDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: validVideoFFprobe.path, .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        var successfulDownloadFinished = false
+        var successfulDownloadCleaned = false
+        var deliveredDeterminateProgress = false
+        var deliveredRateProgress = false
+        var deliveredSelectedHeight = false
+        successfulService.download(serviceRequest(destination: downloaderTemp), id: successfulDownloadID,
+                                   progress: { _, event in
+            if case let .progress(value) = event,
+               value.fraction == 0.425 {
+                deliveredDeterminateProgress = true
+            }
+            if case let .progress(value) = event,
+               value.fraction == 0.6375, value.speedBytesPerSecond == 65_536,
+               value.etaSeconds != nil {
+                deliveredRateProgress = true
+            }
+            if event == .selectedVideoHeight(720) { deliveredSelectedHeight = true }
+        }) { _, result in
+            successfulDownloadCleaned = !stagingExists(successfulDownloadID, in: downloaderTemp)
+            if case let .success(result) = result {
+                successfulDownloadFinished = FileManager.default.fileExists(atPath: result.file.path)
+            }
+        }
+        let deliveredWhileProcessRunning = waitUntil(2) {
+            deliveredDeterminateProgress && deliveredRateProgress && !successfulDownloadFinished
+        }
+        expect(deliveredWhileProcessRunning && waitUntil { successfulDownloadFinished } && successfulDownloadCleaned
+                && deliveredDeterminateProgress && deliveredRateProgress && deliveredSelectedHeight,
+               "process service delivers selected height and live progress while the downloader is still running")
+
+        let artworkFFmpeg = downloaderTemp.appendingPathComponent("artwork-ffmpeg")
+        writeExecutable(artworkFFmpeg, """
+        #!/bin/sh
+        output=''
+        for argument in "$@"; do output="$argument"; done
+        [ -n "$output" ] || exit 20
+        printf 'media-with-artwork' > "$output"
+        """)
+        let artworkFFprobe = downloaderTemp.appendingPathComponent("artwork-ffprobe")
+        writeExecutable(artworkFFprobe, """
+        #!/bin/sh
+        printf '%s\n' '{"streams":[{"codec_type":"video","disposition":{"attached_pic":0}},{"codec_type":"video","disposition":{"attached_pic":1}},{"codec_type":"audio"}],"chapters":[],"format":{"format_name":"mov,mp4,m4a,3gp,3g2,mj2","tags":{}}}'
+        """)
+        let artworkRequest = VideoDownloaderRequest(
+            source: requestSource, mode: .video, quality: .best, subtitle: nil,
+            destination: downloaderTemp, media: inspectedMedia,
+            options: VideoDownloaderEmbeddingOptions(thumbnail: true, metadata: false, chapters: false))
+        var artworkFetchUsedInspectedURL = false
+        let artworkService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: fakeDownloader.path, .ffmpeg: artworkFFmpeg.path,
+                               .ffprobe: artworkFFprobe.path, .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate(),
+            artworkFetcher: { url, _, _ in
+                artworkFetchUsedInspectedURL = url == inspectedMedia.thumbnailURL
+                return Data([0xff, 0xd8, 0xff, 0xd9])
+            })
+        var artworkDownloadURL: URL?
+        artworkService.download(artworkRequest, id: UUID(), progress: { _, _ in }) { _, result in
+            if case let .success(result) = result { artworkDownloadURL = result.file }
+        }
+        expect(waitUntil { artworkDownloadURL != nil }
+                && artworkFetchUsedInspectedURL
+                && (try? Data(contentsOf: artworkDownloadURL!)) == Data("media-with-artwork".utf8),
+               "process service fetches only the inspected artwork URL and embeds it before publication")
+
+        let originalDownloader = downloaderTemp.appendingPathComponent("original-yt-dlp")
+        writeExecutable(originalDownloader, """
+        #!/bin/sh
+        stage=''
+        while [ "$#" -gt 0 ]; do
+          if [ "$1" = '--paths' ] && [ "$#" -ge 2 ]; then stage="$2"; break; fi
+          shift
+        done
+        [ -n "$stage" ] || exit 20
+        output="$stage/FallbackFixture.mkv"
+        printf 'native-media' > "$output"
+        printf '\(VideoDownloaderCommandBuilder.pathPrefix)"%s"\n' "$output"
+        """)
+        let originalFFprobe = downloaderTemp.appendingPathComponent("original-ffprobe")
+        writeExecutable(originalFFprobe, """
+        #!/bin/sh
+        printf '%s\n' '{"streams":[{"codec_type":"video","disposition":{"attached_pic":0}},{"codec_type":"audio"}],"chapters":[],"format":{"format_name":"matroska,webm","tags":{}}}'
+        """)
+        let mislabeledMP4FFprobe = downloaderTemp.appendingPathComponent("mislabeled-mp4-ffprobe")
+        writeExecutable(mislabeledMP4FFprobe, """
+        #!/bin/sh
+        printf '%s\n' '{"streams":[{"codec_type":"video","disposition":{"attached_pic":0}},{"codec_type":"audio"}],"chapters":[],"format":{"format_name":"mov,mp4,m4a,3gp,3g2,mj2","tags":{}}}'
+        """)
+        let invalidOriginalFFprobe = downloaderTemp.appendingPathComponent("invalid-original-ffprobe")
+        writeExecutable(invalidOriginalFFprobe, """
+        #!/bin/sh
+        printf '%s\n' '{"streams":[{"codec_type":"audio"}],"chapters":[],"format":{"format_name":"matroska,webm","tags":{}}}'
+        """)
+        let missingAudioFFprobe = downloaderTemp.appendingPathComponent("missing-audio-ffprobe")
+        writeExecutable(missingAudioFFprobe, """
+        #!/bin/sh
+        printf '%s\n' '{"streams":[{"codec_type":"video","disposition":{"attached_pic":0}}],"chapters":[],"format":{"format_name":"matroska,webm","tags":{}}}'
+        """)
+        let malformedFFprobe = downloaderTemp.appendingPathComponent("malformed-ffprobe")
+        writeExecutable(malformedFFprobe, "#!/bin/sh\nprintf '%s\\n' 'not json'\n")
+        func fallbackServiceRequest(destination: URL) -> VideoDownloaderRequest {
+            VideoDownloaderRequest(
+                source: requestSource, mode: .video, quality: .best, subtitle: nil,
+                destination: destination, media: inspectedMedia,
+                options: VideoDownloaderEmbeddingOptions(thumbnail: false, metadata: false,
+                                                         chapters: false))
+        }
+        let originalService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: originalDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: originalFFprobe.path, .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        let originalDownloadID = UUID()
+        var originalDownloadURL: URL?
+        originalService.download(fallbackServiceRequest(destination: downloaderTemp), id: originalDownloadID,
+                                 progress: { _, _ in }) { _, result in
+            if case let .success(result) = result { originalDownloadURL = result.file }
+        }
+        let mislabeledMP4Service = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: originalDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: mislabeledMP4FFprobe.path, .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        let mislabeledMP4ID = UUID()
+        var normalizedMP4URL: URL?
+        mislabeledMP4Service.download(
+            fallbackServiceRequest(destination: downloaderTemp), id: mislabeledMP4ID,
+            progress: { _, _ in }) { _, result in
+                if case let .success(result) = result { normalizedMP4URL = result.file }
+            }
+        let invalidOriginalService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: originalDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: invalidOriginalFFprobe.path, .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        let invalidOriginalID = UUID()
+        var invalidOriginalFailure: VideoDownloaderFailure?
+        invalidOriginalService.download(
+            fallbackServiceRequest(destination: downloaderTemp), id: invalidOriginalID,
+            progress: { _, _ in }) { _, result in
+                if case let .failure(error) = result { invalidOriginalFailure = error }
+            }
+        let missingAudioService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: originalDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: missingAudioFFprobe.path, .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        var missingAudioFailure: VideoDownloaderFailure?
+        missingAudioService.download(
+            fallbackServiceRequest(destination: downloaderTemp), id: UUID(),
+            progress: { _, _ in }) { _, result in
+                if case let .failure(error) = result { missingAudioFailure = error }
+            }
+        let malformedMediaService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: originalDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: malformedFFprobe.path, .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        var malformedMediaFailure: VideoDownloaderFailure?
+        malformedMediaService.download(
+            fallbackServiceRequest(destination: downloaderTemp), id: UUID(),
+            progress: { _, _ in }) { _, result in
+                if case let .failure(error) = result { malformedMediaFailure = error }
+            }
+        expect(waitUntil { originalDownloadURL != nil }
+                && originalDownloadURL?.pathExtension == "mkv"
+                && (try? Data(contentsOf: originalDownloadURL!)) == Data("native-media".utf8)
+                && !stagingExists(originalDownloadID, in: downloaderTemp)
+                && waitUntil { normalizedMP4URL != nil }
+                && normalizedMP4URL?.pathExtension == "mp4"
+                && (try? Data(contentsOf: normalizedMP4URL!)) == Data("native-media".utf8)
+                && !stagingExists(mislabeledMP4ID, in: downloaderTemp)
+                && waitUntil { invalidOriginalFailure != nil }
+                && invalidOriginalFailure == .fileSafety
+                && !stagingExists(invalidOriginalID, in: downloaderTemp),
+               "process service preserves real MKV, renames MP4 content, and rejects non-video payloads")
+        expect(waitUntil { missingAudioFailure != nil && malformedMediaFailure != nil }
+                && missingAudioFailure == .fileSafety
+                && malformedMediaFailure == .fileSafety,
+               "mandatory ffprobe validation rejects missing required audio and malformed media")
+
+        let audioDownloader = downloaderTemp.appendingPathComponent("audio-yt-dlp")
+        writeExecutable(audioDownloader, """
+        #!/bin/sh
+        stage=''
+        skip=0
+        while [ "$#" -gt 0 ]; do
+          if [ -z "$stage" ] && [ "$1" = '--paths' ] && [ "$#" -ge 2 ]; then stage="$2"; fi
+          [ "$1" = '--skip-download' ] && skip=1
+          shift
+        done
+        [ -n "$stage" ] || exit 20
+        [ "$skip" -eq 0 ] || exit 0
+        output="$stage/AudioFixture.m4a"
+        printf 'audio-media' > "$output"
+        printf '\(VideoDownloaderCommandBuilder.pathPrefix)"%s"\n' "$output"
+        """)
+        let validM4AFFprobe = downloaderTemp.appendingPathComponent("valid-m4a-ffprobe")
+        writeExecutable(validM4AFFprobe, """
+        #!/bin/sh
+        printf '%s\n' '{"streams":[{"codec_type":"audio"}],"chapters":[],"format":{"format_name":"mov,mp4,m4a,3gp,3g2,mj2","tags":{}}}'
+        """)
+        func audioServiceRequest(destination: URL) -> VideoDownloaderRequest {
+            VideoDownloaderRequest(
+                source: requestSource, mode: .audio, quality: .best, subtitle: nil,
+                destination: destination, media: inspectedMedia,
+                options: VideoDownloaderEmbeddingOptions(thumbnail: false, metadata: false,
+                                                         chapters: false))
+        }
+        let validAudioService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: audioDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: validM4AFFprobe.path, .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        var validAudioURL: URL?
+        validAudioService.download(audioServiceRequest(destination: downloaderTemp), id: UUID(),
+                                 progress: { _, _ in }) { _, result in
+            if case let .success(result) = result { validAudioURL = result.file }
+        }
+        let invalidAudioService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: audioDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: malformedFFprobe.path, .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        var invalidAudioFailure: VideoDownloaderFailure?
+        invalidAudioService.download(audioServiceRequest(destination: downloaderTemp), id: UUID(),
+                                   progress: { _, _ in }) { _, result in
+            if case let .failure(error) = result { invalidAudioFailure = error }
+        }
+        expect(waitUntil { validAudioURL != nil && invalidAudioFailure != nil }
+                && validAudioURL?.pathExtension == "m4a"
+                && invalidAudioFailure == .fileSafety,
+               "plain M4A downloads are probed and malformed audio is never published")
+
+        let transientRetryState = downloaderTemp.appendingPathComponent("transient-retry-state")
+        let transientRetryDownloader = downloaderTemp.appendingPathComponent("transient-retry-yt-dlp")
+        writeExecutable(transientRetryDownloader, """
+        #!/bin/sh
+        stage=''
+        while [ "$#" -gt 0 ]; do
+          if [ "$1" = '--paths' ] && [ "$#" -ge 2 ]; then stage="$2"; break; fi
+          shift
+        done
+        [ -n "$stage" ] || exit 20
+        attempt=0
+        if [ -e '\(transientRetryState.path)' ]; then
+          attempt="$(cat '\(transientRetryState.path)')"
+        fi
+        if [ "$attempt" -lt 1 ]; then
+          attempt=$((attempt + 1))
+          printf '%s' "$attempt" > '\(transientRetryState.path)'
+          printf 'stale-media' > "$stage/Stale.mp4"
+          printf '%s\n' 'ERROR: HTTP Error 403: Forbidden' >&2
+          exit 1
+        fi
+        output="$stage/RetryFixture.mp4"
+        printf 'retried-media' > "$output"
+        printf '\(VideoDownloaderCommandBuilder.pathPrefix)"%s"\n' "$output"
+        """)
+        let transientRetryService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: transientRetryDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: validVideoFFprobe.path, .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        let transientRetryID = UUID()
+        var transientRetryURL: URL?
+        var transientRetryFailure: VideoDownloaderFailure?
+        transientRetryService.download(serviceRequest(destination: downloaderTemp), id: transientRetryID,
+                                        progress: { _, _ in }) { _, result in
+            switch result {
+            case let .success(result): transientRetryURL = result.file
+            case let .failure(error): transientRetryFailure = error
+            }
+        }
+        expect(waitUntil(10) { transientRetryURL != nil || transientRetryFailure != nil }
+                && transientRetryURL?.pathExtension == "mp4"
+                && (try? Data(contentsOf: transientRetryURL!)) == Data("retried-media".utf8)
+                && transientRetryFailure == nil
+                && (try? String(contentsOf: transientRetryState, encoding: .utf8)) == "1"
+                && !FileManager.default.fileExists(atPath: downloaderTemp
+                    .appendingPathComponent("Stale.mp4").path),
+               "a transient 403 gets one bounded retry with fresh staging before media is published")
+
+        let formatFallbackState = downloaderTemp.appendingPathComponent("format-fallback-state")
+        let formatFallbackDownloader = downloaderTemp.appendingPathComponent("format-fallback-yt-dlp")
+        writeExecutable(formatFallbackDownloader, """
+        #!/bin/sh
+        stage=''
+        while [ "$#" -gt 0 ]; do
+          if [ "$1" = '--paths' ] && [ "$#" -ge 2 ]; then stage="$2"; break; fi
+          shift
+        done
+        [ -n "$stage" ] || exit 20
+        if [ ! -e '\(formatFallbackState.path)' ]; then
+          printf '1' > '\(formatFallbackState.path)'
+          printf '%s\n' 'ERROR: Requested format is not available' >&2
+          exit 1
+        fi
+        output="$stage/FormatFallbackFixture.mp4"
+        printf 'format-fallback-media' > "$output"
+        printf '\(VideoDownloaderCommandBuilder.pathPrefix)"%s"\\n' "$output"
+        """)
+        let formatFallbackService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: formatFallbackDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: validVideoFFprobe.path, .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        let formatFallbackID = UUID()
+        var formatFallbackURL: URL?
+        var formatFallbackFailure: VideoDownloaderFailure?
+        let formatFallbackRequest = serviceRequest(destination: downloaderTemp).withQuality(.height(1080))
+        formatFallbackService.download(formatFallbackRequest, id: formatFallbackID,
+                                       progress: { _, _ in }) { _, result in
+            switch result {
+            case let .success(result): formatFallbackURL = result.file
+            case let .failure(error): formatFallbackFailure = error
+            }
+        }
+        expect(waitUntil(10) { formatFallbackURL != nil || formatFallbackFailure != nil }
+                && formatFallbackURL?.pathExtension == "mp4"
+                && (try? Data(contentsOf: formatFallbackURL!)) == Data("format-fallback-media".utf8)
+                && formatFallbackFailure == nil
+                && (try? String(contentsOf: formatFallbackState, encoding: .utf8)) == "1"
+                && !stagingExists(formatFallbackID, in: downloaderTemp),
+               "a failed numeric format expression falls back to yt-dlp's uncapped MP4-first selection")
+
+        let refreshProbeMarker = downloaderTemp.appendingPathComponent("refresh-probe-started")
+        let refreshingDownloader = downloaderTemp.appendingPathComponent("refreshing-yt-dlp")
+        writeExecutable(refreshingDownloader, """
+        #!/bin/sh
+        for argument in "$@"; do
+          if [ "$argument" = '--help' ] || [ "$argument" = '--version' ]; then
+            printf 'started' > '\(refreshProbeMarker.path)'
+            sleep 1
+            printf '%s\\n' '--ignore-config --no-config-locations --no-plugin-dirs --no-cache-dir --no-cookies --no-cookies-from-browser --js-runtimes --output-na-placeholder --progress-delta --no-exec --cache-dir --remote-components --force-ipv4'
+            exit 0
+          fi
+        done
+        stage=''
+        while [ "$#" -gt 0 ]; do
+          if [ "$1" = '--paths' ] && [ "$#" -ge 2 ]; then stage="$2"; break; fi
+          shift
+        done
+        [ -n "$stage" ] || exit 20
+        output="$stage/RefreshRace.mp4"
+        printf 'media' > "$output"
+        printf '\(VideoDownloaderCommandBuilder.pathPrefix)"%s"\\n' "$output"
+        """)
+        let refreshingFFmpeg = downloaderTemp.appendingPathComponent("refreshing-ffmpeg")
+        writeExecutable(refreshingFFmpeg, "#!/bin/sh\nprintf 'fixture-ffmpeg\\n'\n")
+        let refreshingService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: refreshingDownloader.path, .ffmpeg: refreshingFFmpeg.path,
+                               .ffprobe: validVideoFFprobe.path, .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        var refreshProbeFinished = false
+        refreshingService.probeDependencies { _ in refreshProbeFinished = true }
+        expect(waitUntil { FileManager.default.fileExists(atPath: refreshProbeMarker.path) },
+               "dependency refresh reaches an in-flight validation probe")
+        var refreshDownloadSucceeded = false
+        var refreshDownloadFinishedBeforeProbe = false
+        refreshingService.download(serviceRequest(destination: downloaderTemp), id: UUID(),
+                                    progress: { _, _ in }) { _, result in
+            if case let .success(result) = result {
+                refreshDownloadSucceeded = FileManager.default.fileExists(atPath: result.file.path)
+            }
+            refreshDownloadFinishedBeforeProbe = !refreshProbeFinished
+        }
+        expect(waitUntil { refreshDownloadSucceeded } && refreshDownloadFinishedBeforeProbe,
+               "dependency refresh preserves the complete known-good cache until atomic replacement")
+        expect(waitUntil { refreshProbeFinished },
+               "dependency refresh eventually publishes its replacement cache")
+
+        let inheritedPipeDownloader = downloaderTemp.appendingPathComponent("inherited-pipe-yt-dlp")
+        writeExecutable(inheritedPipeDownloader, """
+        #!/bin/sh
+        stage=''
+        while [ "$#" -gt 0 ]; do
+          if [ "$1" = '--paths' ] && [ "$#" -ge 2 ]; then stage="$2"; break; fi
+          shift
+        done
+        [ -n "$stage" ] || exit 20
+        output="$stage/InheritedPipe.mp4"
+        printf 'media' > "$output"
+        printf '\(VideoDownloaderCommandBuilder.pathPrefix)"%s"\\n' "$output"
+        sleep 2 &
+        exit 0
+        """)
+        let inheritedPipeService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: inheritedPipeDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: validVideoFFprobe.path, .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        let inheritedPipeStart = Date()
+        var inheritedPipeElapsed: TimeInterval?
+        var inheritedPipeSucceeded = false
+        inheritedPipeService.download(serviceRequest(destination: downloaderTemp), id: UUID(),
+                                       progress: { _, _ in }) { _, result in
+            inheritedPipeElapsed = Date().timeIntervalSince(inheritedPipeStart)
+            if case let .success(result) = result {
+                inheritedPipeSucceeded = FileManager.default.fileExists(atPath: result.file.path)
+            }
+        }
+        expect(waitUntil(3) { inheritedPipeElapsed != nil }
+                && inheritedPipeSucceeded && (inheritedPipeElapsed ?? 3) < 1,
+               "root completion performs a bounded final drain instead of waiting for inherited pipe EOF")
+
+        // A freshly installed tool can be slow on its very first launch: yt-dlp
+        // byte-compiles its Python modules and the machine is often still busy
+        // right after Homebrew finishes. The dependency probe must retry that
+        // one slow run instead of marking a healthy install as missing (which
+        // used to make the post-install probe report ffmpeg/yt-dlp as absent
+        // until the user manually probed again).
+        let coldStartMarker = downloaderTemp.appendingPathComponent("cold-start-warmed")
+        let coldStartDownloader = downloaderTemp.appendingPathComponent("cold-start-yt-dlp")
+        writeExecutable(coldStartDownloader, """
+        #!/bin/sh
+        for argument in "$@"; do
+          if [ "$argument" = '--help' ] || [ "$argument" = '--version' ]; then
+            if [ ! -e '\(coldStartMarker.path)' ]; then
+              touch '\(coldStartMarker.path)'
+              sleep 6
+            fi
+            printf '%s\\n' '--ignore-config --no-config-locations --no-plugin-dirs --no-cache-dir --no-cookies --no-cookies-from-browser --js-runtimes --output-na-placeholder --progress-delta --no-exec --cache-dir --remote-components --force-ipv4'
+            exit 0
+          fi
+        done
+        exit 0
+        """)
+        let coldStartFFmpeg = downloaderTemp.appendingPathComponent("cold-start-ffmpeg")
+        writeExecutable(coldStartFFmpeg, "#!/bin/sh\nprintf 'fixture-ffmpeg\\n'\n")
+        let coldStartFFprobe = downloaderTemp.appendingPathComponent("cold-start-ffprobe")
+        writeExecutable(coldStartFFprobe, "#!/bin/sh\nprintf 'fixture-ffprobe\\n'\n")
+        let coldStartDeno = downloaderTemp.appendingPathComponent("cold-start-deno")
+        writeExecutable(coldStartDeno, "#!/bin/sh\nprintf 'deno 2.3.0\\n'\n")
+        let coldStartService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: coldStartDownloader.path, .ffmpeg: coldStartFFmpeg.path,
+                               .ffprobe: coldStartFFprobe.path, .deno: coldStartDeno.path],
+            mutationGate: HomebrewMutationGate())
+        var coldStartResult: VideoDownloaderDependencies?
+        coldStartService.probeDependencies { coldStartResult = $0 }
+        expect(waitUntil(30) { coldStartResult != nil }
+                && coldStartResult?.paths[.ytDlp] != nil
+                && coldStartResult?.paths[.ffmpeg] != nil
+                && coldStartResult?.paths[.ffprobe] != nil
+                && coldStartResult?.paths[.deno] != nil,
+               "a tool that is slow on its first launch is retried by the dependency probe instead of being marked missing")
+
+        let startFailureID = UUID()
+        let startFailureService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: downloaderTemp.appendingPathComponent("missing-executable").path,
+                               .ffmpeg: "/usr/bin/true", .ffprobe: "/usr/bin/true",
+                               .deno: "/usr/bin/true"], mutationGate: HomebrewMutationGate())
+        var startFailureFinished = false
+        var startFailureCleaned = false
+        startFailureService.download(serviceRequest(destination: downloaderTemp), id: startFailureID,
+                                     progress: { _, _ in }) { _, result in
+            if case .failure(.downloadFailed) = result { startFailureFinished = true }
+            startFailureCleaned = !stagingExists(startFailureID, in: downloaderTemp)
+        }
+        expect(waitUntil { startFailureFinished } && startFailureCleaned,
+               "process start failure completes only after its staging transaction rolls back")
+
+        let misleadingFailureDownloader = downloaderTemp.appendingPathComponent("misleading-failure-yt-dlp")
+        writeExecutable(misleadingFailureDownloader, "#!/bin/sh\nprintf 'format is supported in container\\n' >&2\nexit 9\n")
+        let misleadingFailureService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: misleadingFailureDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: "/usr/bin/true", .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        var misleadingFailureOutcome: VideoDownloaderFailure?
+        misleadingFailureService.download(serviceRequest(destination: downloaderTemp), id: UUID(),
+                                           progress: { _, _ in }) { _, result in
+            if case let .failure(error) = result { misleadingFailureOutcome = error }
+        }
+        let misleadingFailureFinished = waitUntil { misleadingFailureOutcome != nil }
+        var misleadingFailureExtractorMessage: String?
+        if case let .extractorError(message)? = misleadingFailureOutcome {
+            misleadingFailureExtractorMessage = message
+        }
+        expect(misleadingFailureFinished
+                && misleadingFailureExtractorMessage?.contains("supported in container") == true,
+               "a positive 'supported in container' diagnostic is not misclassified as an MP4 remux failure and surfaces the raw extractor message")
+
+        let downloadDRMDownloader = downloaderTemp.appendingPathComponent("download-drm-yt-dlp")
+        writeExecutable(downloadDRMDownloader,
+                        "#!/bin/sh\nprintf '%s\\n' 'ERROR: This video is DRM protected and can only be watched on your TV' >&2\nexit 1\n")
+        let downloadDRMService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: downloadDRMDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: "/usr/bin/true", .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        var downloadDRMOutcome: VideoDownloaderFailure?
+        downloadDRMService.download(serviceRequest(destination: downloaderTemp), id: UUID(),
+                                     progress: { _, _ in }) { _, result in
+            if case let .failure(error) = result { downloadDRMOutcome = error }
+        }
+        let downloadDRMFinished = waitUntil { downloadDRMOutcome != nil }
+        expect(downloadDRMFinished && downloadDRMOutcome == .drm,
+               "a DRM-only item that slips past a soft inspection still gets the friendly DRM failure at download time")
+
+        let downloadEJSComponentDownloader = downloaderTemp.appendingPathComponent("download-ejs-component-yt-dlp")
+        writeExecutable(downloadEJSComponentDownloader,
+                        "#!/bin/sh\nprintf '%s\\n' 'ERROR: Error solving 1 challenge request using \"ejs\" provider: Network is unreachable' >&2\nexit 1\n")
+        let downloadEJSComponentService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: downloadEJSComponentDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: "/usr/bin/true", .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        var downloadEJSComponentOutcome: VideoDownloaderFailure?
+        downloadEJSComponentService.download(serviceRequest(destination: downloaderTemp), id: UUID(),
+                                             progress: { _, _ in }) { _, result in
+            if case let .failure(error) = result { downloadEJSComponentOutcome = error }
+        }
+        let downloadEJSComponentFinished = waitUntil { downloadEJSComponentOutcome != nil }
+        expect(downloadEJSComponentFinished && downloadEJSComponentOutcome == .ejsComponentFailure,
+               "a failed EJS challenge-solver fetch gets the friendly component failure instead of a raw network error")
+
+        let downloadImpersonationDownloader = downloaderTemp.appendingPathComponent("download-impersonation-yt-dlp")
+        writeExecutable(downloadImpersonationDownloader,
+                        "#!/bin/sh\nprintf '%s\\n' 'WARNING: [TikTok] The extractor is attempting impersonation, but no impersonate target is available.' >&2\nprintf '%s\\n' 'ERROR: [TikTok] 123: Unable to extract universal data for rehydration' >&2\nexit 1\n")
+        let downloadImpersonationService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: downloadImpersonationDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: "/usr/bin/true", .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        var downloadImpersonationOutcome: VideoDownloaderFailure?
+        downloadImpersonationService.download(serviceRequest(destination: downloaderTemp), id: UUID(),
+                                             progress: { _, _ in }) { _, result in
+            if case let .failure(error) = result { downloadImpersonationOutcome = error }
+        }
+        let downloadImpersonationFinished = waitUntil { downloadImpersonationOutcome != nil }
+        let downloadImpersonationMessage: String?
+        if case let .extractorError(message) = downloadImpersonationOutcome {
+            downloadImpersonationMessage = message
+        } else {
+            downloadImpersonationMessage = nil
+        }
+        expect(downloadImpersonationFinished
+                && downloadImpersonationMessage?.contains("Unable to extract universal data for rehydration") == true,
+               "a download that fails on rehydration without impersonation surfaces the raw extractor error")
+
+        let remuxFailureDownloader = downloaderTemp.appendingPathComponent("remux-failure-yt-dlp")
+        writeExecutable(remuxFailureDownloader,
+                        "#!/bin/sh\nprintf '%s\\n' 'ERROR: Could not write header for output file #0 (incorrect codec parameters ?): Invalid argument' >&2\nexit 1\n")
+        let remuxFailureService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: remuxFailureDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: "/usr/bin/true", .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        var remuxFailureOutcome: VideoDownloaderFailure?
+        remuxFailureService.download(serviceRequest(destination: downloaderTemp), id: UUID(),
+                                      progress: { _, _ in }) { _, result in
+            if case let .failure(error) = result { remuxFailureOutcome = error }
+        }
+        expect(waitUntil { remuxFailureOutcome != nil } && remuxFailureOutcome == .mp4Remux,
+               "a container/remux failure during download is classified as an MP4 remux problem")
+
+        // A failed run whose stderr mentions optional data (metadata, thumbnail)
+        // must surface the real extractor failure, not a misleading file-safety
+        // error: there is no produced file to publish.
+        let metadataMaskingDownloader = downloaderTemp.appendingPathComponent("metadata-masking-yt-dlp")
+        writeExecutable(metadataMaskingDownloader,
+                        "#!/bin/sh\nprintf '%s\\n' 'ERROR: unable to download video metadata: unexpected HTTP status 403' >&2\nexit 1\n")
+        let metadataMaskingRequest = VideoDownloaderRequest(
+            source: requestSource, mode: .video, quality: .best, subtitle: nil,
+            destination: downloaderTemp, media: inspectedMedia,
+            options: VideoDownloaderEmbeddingOptions(thumbnail: false, metadata: true, chapters: false))
+        let metadataMaskingService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: metadataMaskingDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: "/usr/bin/true", .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        var metadataMaskingOutcome: VideoDownloaderFailure?
+        metadataMaskingService.download(metadataMaskingRequest, id: UUID(),
+                                        progress: { _, _ in }) { _, result in
+            if case let .failure(error) = result { metadataMaskingOutcome = error }
+        }
+        let metadataMaskingFinished = waitUntil { metadataMaskingOutcome != nil }
+        var metadataMaskingMessage: String?
+        if case let .extractorError(message)? = metadataMaskingOutcome {
+            metadataMaskingMessage = message
+        }
+        expect(metadataMaskingFinished && metadataMaskingOutcome != .fileSafety
+                && metadataMaskingMessage?.contains("unable to download video metadata") == true,
+               "a failed download that mentions metadata in stderr surfaces the real extractor error instead of a misleading file-safety failure")
+
+        let cancellationPIDFile = downloaderTemp.appendingPathComponent("cancel-child-pid")
+        let blockingDownloader = downloaderTemp.appendingPathComponent("blocking-yt-dlp")
+        writeExecutable(blockingDownloader, """
+        #!/bin/sh
+        sleep 30 &
+        child=$!
+        printf '%s' "$child" > '\(cancellationPIDFile.path)'
+        wait
+        """)
+        let cancellationID = UUID()
+        let cancellationService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: blockingDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: "/usr/bin/true", .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        var cancellationFinished = false
+        var cancellationCleaned = false
+        cancellationService.download(serviceRequest(destination: downloaderTemp), id: cancellationID,
+                                     progress: { _, _ in }) { _, result in
+            if case .failure(.cancelled) = result { cancellationFinished = true }
+            cancellationCleaned = !stagingExists(cancellationID, in: downloaderTemp)
+        }
+        expect(waitUntil { stagingExists(cancellationID, in: downloaderTemp)
+            && FileManager.default.fileExists(atPath: cancellationPIDFile.path) },
+               "cancellation fixture reaches a running child process inside staging")
+        cancellationService.cancelDownload(wait: false)
+        let cancelledChildPID = pid_t(((try? String(contentsOf: cancellationPIDFile, encoding: .utf8))
+            .flatMap(Int32.init)) ?? 0)
+        expect(waitUntil(5) { cancellationFinished } && cancellationCleaned
+                && waitUntil(2) { !VideoDownloaderProcessTree.isAlive(cancelledChildPID) },
+               "download cancellation reports Cancelled only after readers, process tree, and staging finish")
+
+        let stubbornPIDFile = downloaderTemp.appendingPathComponent("stubborn-child-pid")
+        let stubbornReadyFile = downloaderTemp.appendingPathComponent("stubborn-child-ready")
+        let stubbornDownloader = downloaderTemp.appendingPathComponent("stubborn-yt-dlp")
+        writeExecutable(stubbornDownloader, """
+        #!/bin/sh
+        trap 'exit 0' TERM
+        /bin/sh -c 'trap "" TERM; printf ready > "\(stubbornReadyFile.path)"; exec sleep 30' &
+        child=$!
+        printf '%s' "$child" > '\(stubbornPIDFile.path)'
+        wait
+        """)
+        let stubbornService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: stubbornDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: "/usr/bin/true", .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        let stubbornID = UUID()
+        var stubbornCompletionArrived = false
+        var stubbornChildAliveAtCompletion = false
+        stubbornService.download(serviceRequest(destination: downloaderTemp), id: stubbornID,
+                                 progress: { _, _ in }) { _, result in
+            let childPID = pid_t(((try? String(contentsOf: stubbornPIDFile, encoding: .utf8))
+                .flatMap(Int32.init)) ?? 0)
+            stubbornChildAliveAtCompletion = VideoDownloaderProcessTree.isAlive(childPID)
+            if case .failure(.cancelled) = result { stubbornCompletionArrived = true }
+        }
+        expect(waitUntil { stagingExists(stubbornID, in: downloaderTemp)
+            && FileManager.default.fileExists(atPath: stubbornPIDFile.path)
+            && FileManager.default.fileExists(atPath: stubbornReadyFile.path) },
+               "stubborn cancellation fixture reaches an active child")
+        let stubbornChildPID = pid_t(((try? String(contentsOf: stubbornPIDFile, encoding: .utf8))
+            .flatMap(Int32.init)) ?? 0)
+        stubbornService.cancelDownload(wait: true)
+        let stubbornChildAliveWhenWaitReturned = VideoDownloaderProcessTree.isAlive(stubbornChildPID)
+        expect(waitUntil(3) { stubbornCompletionArrived }
+                && !stubbornChildAliveWhenWaitReturned && !stubbornChildAliveAtCompletion,
+               "synchronous cancellation and its completion both wait for a TERM-resistant downloader child to exit")
+        if VideoDownloaderProcessTree.isAlive(stubbornChildPID) {
+            VideoDownloaderProcessTree.terminate(stubbornChildPID, grace: 0.1)
+        }
+
+        let timeoutPolicy = VideoDownloaderTimeoutPolicy(inspection: 1,
+                                                         download: 1,
+                                                         postProcessing: 1,
+                                                         homebrewSetup: 1)
+        let timeoutStartedFile = downloaderTemp.appendingPathComponent("timeout-started")
+        let timeoutDownloader = downloaderTemp.appendingPathComponent("timeout-success-exit-yt-dlp")
+        writeExecutable(timeoutDownloader, """
+        #!/bin/sh
+        trap 'exit 0' TERM
+        printf started > '\(timeoutStartedFile.path)'
+        stage=''
+        while [ "$#" -gt 0 ]; do
+          if [ "$1" = '--paths' ] && [ "$#" -ge 2 ]; then stage="$2"; break; fi
+          shift
+        done
+        [ -n "$stage" ] || exit 20
+        output="$stage/TimedOut.mp4"
+        printf 'media' > "$output"
+        printf '\(VideoDownloaderCommandBuilder.pathPrefix)"%s"\\n' "$output"
+        sleep 30
+        """)
+        let timeoutService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: timeoutDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: "/usr/bin/true", .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate(), timeoutPolicy: timeoutPolicy)
+        let timeoutID = UUID()
+        var timeoutOutcome: VideoDownloaderFailure?
+        var timeoutCleaned = false
+        var timeoutPublishedURL: URL?
+        timeoutService.download(serviceRequest(destination: downloaderTemp), id: timeoutID,
+                                progress: { _, _ in }) { _, result in
+            switch result {
+            case let .success(result): timeoutPublishedURL = result.file
+            case let .failure(error): timeoutOutcome = error
+            }
+            timeoutCleaned = !stagingExists(timeoutID, in: downloaderTemp)
+        }
+        let timeoutStarted = waitUntil { FileManager.default.fileExists(atPath: timeoutStartedFile.path) }
+        let timeoutFinished = waitUntil(5) { timeoutOutcome != nil || timeoutPublishedURL != nil }
+        expect(timeoutStarted
+                && timeoutFinished
+                && timeoutOutcome == .downloadFailed && timeoutPublishedURL == nil && timeoutCleaned,
+               "a timed-out downloader is failed even when its terminated process exits zero")
+
+        let setupTimeoutStartedFile = downloaderTemp.appendingPathComponent("setup-timeout-started")
+        let setupTimeoutExecutable = downloaderTemp.appendingPathComponent("brew-timeout-success-exit")
+        writeExecutable(setupTimeoutExecutable, """
+        #!/bin/sh
+        trap 'exit 0' TERM
+        printf started > '\(setupTimeoutStartedFile.path)'
+        sleep 30
+        """)
+        let setupTimeoutGate = HomebrewMutationGate()
+        let setupTimeoutService = VideoDownloaderProcessService(
+            mutationGate: setupTimeoutGate, timeoutPolicy: timeoutPolicy)
+        var setupTimeoutOutcome: VideoDownloaderFailure?
+        var setupTimeoutFinished = false
+        setupTimeoutService.installMissingTools(brewPath: setupTimeoutExecutable.path,
+                                                missing: [.ytDlp], id: UUID()) { _, result in
+            if case let .failure(error) = result { setupTimeoutOutcome = error }
+            setupTimeoutFinished = true
+        }
+        let setupTimeoutStarted = waitUntil { FileManager.default.fileExists(atPath: setupTimeoutStartedFile.path) }
+        let setupTimeoutWaited = waitUntil(5) { setupTimeoutFinished }
+        expect(setupTimeoutStarted
+                && setupTimeoutWaited
+                && setupTimeoutOutcome == .setupFailed && !setupTimeoutGate.isReserved,
+               "timed-out setup is failed even when its terminated process exits zero")
+
+        func setupFixture(executable: String, cancelAfterStart: Bool = false,
+                          pidFile: URL? = nil) -> (VideoDownloaderFailure?, Bool) {
+            let gate = HomebrewMutationGate()
+            let service = VideoDownloaderProcessService(mutationGate: gate)
+            var outcome: VideoDownloaderFailure?
+            var completed = false
+            service.installMissingTools(brewPath: executable, missing: [.ytDlp, .ffmpeg], id: UUID()) { _, result in
+                if case let .failure(error) = result { outcome = error }
+                completed = true
+            }
+            if cancelAfterStart {
+                _ = waitUntil { pidFile.map { FileManager.default.fileExists(atPath: $0.path) } ?? gate.isReserved }
+                service.cancelSetup(wait: false)
+            }
+            _ = waitUntil(5) { completed }
+            let released = !gate.isReserved && gate.reserve() != nil
+            return (outcome, released)
+        }
+        let setupSuccess = downloaderTemp.appendingPathComponent("brew-success")
+        writeExecutable(setupSuccess, "#!/bin/sh\nexit 0\n")
+        let setupFailure = downloaderTemp.appendingPathComponent("brew-failure")
+        writeExecutable(setupFailure, "#!/bin/sh\nexit 7\n")
+        let setupTerminalFallback = downloaderTemp.appendingPathComponent("brew-terminal-fallback")
+        writeExecutable(setupTerminalFallback, "#!/bin/sh\nprintf '%s\\n' 'sudo: a password is required' >&2\nexit 1\n")
+        let setupCancelPID = downloaderTemp.appendingPathComponent("setup-cancel-pid")
+        let setupBlocking = downloaderTemp.appendingPathComponent("brew-blocking")
+        writeExecutable(setupBlocking, "#!/bin/sh\nsleep 30 &\nprintf '%s' \"$!\" > '\(setupCancelPID.path)'\nwait\n")
+        let setupSuccessResult = setupFixture(executable: setupSuccess.path)
+        let setupFailureResult = setupFixture(executable: setupFailure.path)
+        let setupTerminalFallbackResult = setupFixture(executable: setupTerminalFallback.path)
+        let setupStartFailureResult = setupFixture(executable: downloaderTemp.appendingPathComponent("no-brew").path)
+        let setupCancelResult = setupFixture(executable: setupBlocking.path, cancelAfterStart: true,
+                                             pidFile: setupCancelPID)
+        expect(setupSuccessResult.0 == nil && setupSuccessResult.1
+                && setupFailureResult.0 == .setupFailed && setupFailureResult.1
+                && setupTerminalFallbackResult.0 == .terminalPermission && setupTerminalFallbackResult.1
+                && setupStartFailureResult.0 == .setupFailed && setupStartFailureResult.1
+                && setupCancelResult.0 == .cancelled && setupCancelResult.1,
+               "Homebrew setup detects Terminal-required permissions and releases its reservation for every outcome")
+
+        let busyGate = HomebrewMutationGate()
+        let busyReservation = busyGate.reserve()
+        let busyService = VideoDownloaderProcessService(mutationGate: busyGate)
+        var busyOutcome: VideoDownloaderFailure?
+        var busyFinished = false
+        busyService.installMissingTools(brewPath: downloaderTemp.appendingPathComponent("no-brew").path,
+                                        missing: [.ytDlp], id: UUID()) { _, result in
+            if case let .failure(error) = result { busyOutcome = error }
+            busyFinished = true
+        }
+        let busyRejected = waitUntil { busyFinished }
+        busyReservation?.release()
+        expect(busyRejected && busyOutcome == .setupBusy,
+               "a Homebrew mutation blocked by an active reservation reports SetupBusy without touching the gate")
+
+        final class FakeDownloaderService: VideoDownloaderProcessServicing {
+            var dependencyProbes: [(VideoDownloaderDependencies) -> Void] = []
+            var inspections: [(UUID, VideoDownloaderProcessService.InspectionCompletion)] = []
+            var downloads: [(UUID, VideoDownloaderProcessService.DownloadCompletion)] = []
+            var downloadProgress: [(UUID, (UUID, VideoDownloaderProtocolEvent) -> Void)] = []
+            var downloadRequests: [VideoDownloaderRequest] = []
+            var setupID: UUID?
+            var setupCompletion: VideoDownloaderProcessService.SetupCompletion?
+            var didCancelInspection = false
+            var didCancelDownload = false
+            var didCancelSetup = false
+            var didCancelAll = false
+
+            func probeDependencies(completion: @escaping (VideoDownloaderDependencies) -> Void) {
+                dependencyProbes.append(completion)
+            }
+            func inspect(_ source: ValidatedVideoURL, id: UUID,
+                         completion: @escaping VideoDownloaderProcessService.InspectionCompletion) {
+                inspections.append((id, completion))
+            }
+            func download(_ request: VideoDownloaderRequest, id: UUID,
+                          progress: @escaping (UUID, VideoDownloaderProtocolEvent) -> Void,
+                          completion: @escaping VideoDownloaderProcessService.DownloadCompletion) {
+                downloadRequests.append(request)
+                downloadProgress.append((id, progress))
+                downloads.append((id, completion))
+            }
+            func installMissingTools(brewPath: String, missing: Set<VideoDownloaderTool>,
+                                     id: UUID,
+                                     completion: @escaping VideoDownloaderProcessService.SetupCompletion) {
+                setupID = id
+                setupCompletion = completion
+            }
+            func cancelInspection(wait: Bool) { didCancelInspection = true }
+            func cancelDownload(wait: Bool) { didCancelDownload = true }
+            func cancelSetup(wait: Bool) { didCancelSetup = true }
+            func cancelAll(wait: Bool) { didCancelAll = true }
+        }
+
+        let oldDestinationDefault = UserDefaults.standard.string(forKey: DefaultsKey.videoDownloaderDestinationPath)
+        let oldTerminalStatusDefault = UserDefaults.standard.string(
+            forKey: DefaultsKey.videoDownloaderTerminalSetupStatusPath)
+        let oldTerminalBootDefault = UserDefaults.standard.string(
+            forKey: DefaultsKey.videoDownloaderTerminalSetupBootID)
+        UserDefaults.standard.set(downloaderTemp.path, forKey: DefaultsKey.videoDownloaderDestinationPath)
+        UserDefaults.standard.removeObject(forKey: DefaultsKey.videoDownloaderTerminalSetupStatusPath)
+        UserDefaults.standard.removeObject(forKey: DefaultsKey.videoDownloaderTerminalSetupBootID)
+        defer {
+            if let oldDestinationDefault {
+                UserDefaults.standard.set(oldDestinationDefault, forKey: DefaultsKey.videoDownloaderDestinationPath)
+            } else {
+                UserDefaults.standard.removeObject(forKey: DefaultsKey.videoDownloaderDestinationPath)
+            }
+            if let oldTerminalStatusDefault {
+                UserDefaults.standard.set(oldTerminalStatusDefault,
+                                          forKey: DefaultsKey.videoDownloaderTerminalSetupStatusPath)
+            } else {
+                UserDefaults.standard.removeObject(forKey: DefaultsKey.videoDownloaderTerminalSetupStatusPath)
+            }
+            if let oldTerminalBootDefault {
+                UserDefaults.standard.set(oldTerminalBootDefault,
+                                          forKey: DefaultsKey.videoDownloaderTerminalSetupBootID)
+            } else {
+                UserDefaults.standard.removeObject(forKey: DefaultsKey.videoDownloaderTerminalSetupBootID)
+            }
+        }
+        let probeFake = FakeDownloaderService()
+        let probeWorkflow = VideoDownloaderWorkflow(service: probeFake,
+                                                    brewPathProvider: { "/fake/brew" },
+                                                    terminalInstallerOpener: { _, _ in false },
+                                                    featureAvailability: { true })
+        expect(probeWorkflow.isProbingDependencies && probeWorkflow.missingTools.isEmpty
+                && !probeWorkflow.canSetupDependencies && probeFake.dependencyProbes.count == 1,
+               "workflow represents initial dependency discovery as unknown and cannot install guessed tools")
+        probeWorkflow.refreshDependencies()
+        let readyDependencies = VideoDownloaderDependencies(paths: [.ytDlp: "/fake/yt-dlp",
+                                                                     .ffmpeg: "/fake/ffmpeg",
+                                                                     .ffprobe: "/fake/ffprobe",
+                                                                     .deno: "/fake/deno"])
+        probeFake.dependencyProbes[1](readyDependencies)
+        probeFake.dependencyProbes[0](VideoDownloaderDependencies(paths: [:]))
+        expect(probeWorkflow.dependencyState == .resolved(readyDependencies)
+                && probeWorkflow.missingTools.isEmpty,
+               "workflow ignores an older dependency probe that completes after a newer result")
+        probeWorkflow.refreshDependencies()
+        let refreshKeepsLastResultVisible = probeWorkflow.isProbingDependencies
+            && !probeWorkflow.isInitialDependencyProbe
+        probeFake.dependencyProbes.last?(readyDependencies)
+        expect(refreshKeepsLastResultVisible,
+               "routine dependency refreshes keep the previous result instead of showing initial setup")
+        let inFlightFake = FakeDownloaderService()
+        let inFlightWorkflow = VideoDownloaderWorkflow(service: inFlightFake,
+                                                       brewPathProvider: { "/fake/brew" },
+                                                       terminalInstallerOpener: { _, _ in false },
+                                                       featureAvailability: { true })
+        inFlightFake.dependencyProbes[0](readyDependencies)
+        inFlightWorkflow.setSourceText(requestSource.string)
+        expect(waitUntil { inFlightFake.inspections.count == 1 },
+               "inspection fixture reaches its first in-flight request")
+        inFlightWorkflow.applicationBecameActive()
+        inFlightFake.dependencyProbes.last?(readyDependencies)
+        expect(inFlightFake.inspections.count == 1,
+               "activation refresh does not restart an in-flight inspection for the same URL")
+
+        let cancelFake = FakeDownloaderService()
+        let cancelWorkflow = VideoDownloaderWorkflow(service: cancelFake,
+                                                     brewPathProvider: { "/fake/brew" },
+                                                     terminalInstallerOpener: { _, _ in false },
+                                                     featureAvailability: { true })
+        cancelFake.dependencyProbes[0](VideoDownloaderDependencies(paths: [:]))
+        cancelWorkflow.setupDependencies()
+        cancelWorkflow.cancelActiveOperation()
+        let waitsForSetupCompletion = cancelWorkflow.phase == .cancelling && cancelFake.didCancelSetup
+        if let id = cancelFake.setupID {
+            cancelFake.setupCompletion?(id, .failure(.cancelled))
+        }
+        expect(waitsForSetupCompletion && cancelWorkflow.phase == .cancelled,
+               "workflow remains Cancelling until the setup service confirms process-tree completion")
+
+        let completionFake = FakeDownloaderService()
+        let completionWorkflow = VideoDownloaderWorkflow(service: completionFake,
+                                                         brewPathProvider: { "/fake/brew" },
+                                                         terminalInstallerOpener: { _, _ in false },
+                                                         featureAvailability: { true })
+        completionFake.dependencyProbes[0](readyDependencies)
+        completionWorkflow.setSourceText(requestSource.string)
+        expect(waitUntil { completionFake.inspections.count == 1 },
+               "completion-state fixture reaches inspection")
+        let completionInspection = completionFake.inspections[0]
+        completionInspection.1(completionInspection.0, .success(inspectedMedia))
+        let selectedSubtitle = completionWorkflow.subtitle
+        let subtitlesDefaultOff = !completionWorkflow.subtitlesEnabled && selectedSubtitle != nil
+        let highestQualityDefaulted = completionWorkflow.quality == .height(1080)
+        completionWorkflow.setSubtitlesEnabled(true)
+        let subtitlesTurnedOn = completionWorkflow.subtitlesEnabled && completionWorkflow.subtitle == selectedSubtitle
+        completionWorkflow.setSubtitlesEnabled(false)
+        completionWorkflow.startDownload()
+        expect(highestQualityDefaulted && subtitlesDefaultOff && subtitlesTurnedOn
+                && completionWorkflow.subtitle == selectedSubtitle
+                && completionFake.downloadRequests[0].subtitle == nil,
+               "inspection selects the highest numeric quality and subtitle toggle preserves the selected track")
+        let completionDownload = completionFake.downloads[0]
+        let completionURL = downloaderTemp.appendingPathComponent("completed-state.mp4")
+        completionDownload.1(completionDownload.0, .success(
+            VideoDownloaderDownloadResult(file: completionURL, warnings: [])))
+        let didReachCompletedState = completionWorkflow.phase == .completed
+        completionWorkflow.applicationBecameActive()
+        completionFake.dependencyProbes.last?(readyDependencies)
+        expect(didReachCompletedState && completionWorkflow.phase == .completed
+                && completionFake.inspections.count == 1,
+               "an activation dependency refresh preserves the completed download and does not silently re-inspect it")
+
+        let subtitleModeMemoryFake = FakeDownloaderService()
+        let subtitleModeMemoryWorkflow = VideoDownloaderWorkflow(
+            service: subtitleModeMemoryFake,
+            brewPathProvider: { "/fake/brew" },
+            terminalInstallerOpener: { _, _ in false },
+            featureAvailability: { true })
+        subtitleModeMemoryFake.dependencyProbes[0](readyDependencies)
+        subtitleModeMemoryWorkflow.setSourceText(requestSource.string)
+        let subtitleModeInspectionStarted = waitUntil {
+            subtitleModeMemoryFake.inspections.count == 1
+        }
+        if subtitleModeInspectionStarted {
+            let inspection = subtitleModeMemoryFake.inspections[0]
+            inspection.1(inspection.0, .success(inspectedMedia))
+        }
+        let subtitleDefaultOff = !subtitleModeMemoryWorkflow.subtitlesEnabled
+        subtitleModeMemoryWorkflow.setSubtitlesEnabled(true)
+        let subtitleExplicitOn = subtitleModeMemoryWorkflow.subtitlesEnabled
+        subtitleModeMemoryWorkflow.setMode(.audio)
+        let subtitleDisabledForAudio = !subtitleModeMemoryWorkflow.subtitlesEnabled
+        subtitleModeMemoryWorkflow.setMode(.video)
+        let subtitleRestoredAfterAudio = subtitleModeMemoryWorkflow.subtitlesEnabled
+        subtitleModeMemoryWorkflow.setSubtitlesEnabled(false)
+        subtitleModeMemoryWorkflow.setMode(.audio)
+        subtitleModeMemoryWorkflow.setMode(.video)
+        let subtitleOffChoiceRestored = !subtitleModeMemoryWorkflow.subtitlesEnabled
+        expect(subtitleModeInspectionStarted && subtitleDefaultOff && subtitleExplicitOn && subtitleDisabledForAudio
+                && subtitleRestoredAfterAudio && subtitleOffChoiceRestored,
+               "video subtitle preference survives audio mode and preserves an explicit off choice")
+
+        let inspectionFallbackFake = FakeDownloaderService()
+        let inspectionFallbackWorkflow = VideoDownloaderWorkflow(
+            service: inspectionFallbackFake,
+            brewPathProvider: { "/fake/brew" }, terminalInstallerOpener: { _, _ in false },
+            featureAvailability: { true }, automaticallyProbe: false)
+        inspectionFallbackWorkflow.refreshDependencies()
+        inspectionFallbackFake.dependencyProbes[0](readyDependencies)
+        inspectionFallbackWorkflow.setSourceText(requestSource.string)
+        let fallbackInspectionStarted = waitUntil { inspectionFallbackFake.inspections.count == 1 }
+        if fallbackInspectionStarted {
+            let fallbackInspection = inspectionFallbackFake.inspections[0]
+            fallbackInspection.1(fallbackInspection.0, .failure(.malformedInspection))
+        }
+        let fallbackMedia = inspectionFallbackWorkflow.media
+        let fallbackCanDownload = inspectionFallbackWorkflow.canDownload
+        let fallbackNoticeSet = inspectionFallbackWorkflow.inspectionNotice == .malformedInspection
+            && inspectionFallbackWorkflow.phase == .ready
+            && inspectionFallbackWorkflow.failure == nil
+        inspectionFallbackWorkflow.startDownload()
+        let fallbackDownloadStarted = inspectionFallbackFake.downloadRequests.first
+        let noticeClearedOnDownload = inspectionFallbackWorkflow.inspectionNotice == nil
+        expect(fallbackInspectionStarted
+                && fallbackNoticeSet
+                && inspectionFallbackWorkflow.phase == .downloading
+                && noticeClearedOnDownload
+                && fallbackCanDownload
+                && fallbackMedia?.title == "example.com"
+                && fallbackMedia?.videoAvailability == .unknown
+                && fallbackMedia?.audioAvailability == .unknown
+                && fallbackDownloadStarted?.quality == .best
+                && fallbackDownloadStarted?.media.videoAvailability == .unknown,
+               "metadata inspection failure leaves yt-dlp download available with unknown capabilities and a visible notice")
+
+        let noticeRetryFake = FakeDownloaderService()
+        let noticeRetryWorkflow = VideoDownloaderWorkflow(
+            service: noticeRetryFake,
+            brewPathProvider: { "/fake/brew" }, terminalInstallerOpener: { _, _ in false },
+            featureAvailability: { true }, automaticallyProbe: false)
+        noticeRetryWorkflow.refreshDependencies()
+        noticeRetryFake.dependencyProbes[0](readyDependencies)
+        noticeRetryWorkflow.setSourceText(requestSource.string)
+        let noticeInspectionStarted = waitUntil { noticeRetryFake.inspections.count == 1 }
+        if noticeInspectionStarted {
+            let noticeInspection = noticeRetryFake.inspections[0]
+            noticeInspection.1(noticeInspection.0, .failure(.malformedInspection))
+        }
+        let noticeSet = noticeRetryWorkflow.inspectionNotice == .malformedInspection
+            && noticeRetryWorkflow.phase == .ready
+            && noticeRetryWorkflow.media != nil
+        noticeRetryWorkflow.retry()
+        let noticeReinspected = waitUntil { noticeRetryFake.inspections.count == 2 }
+        if noticeReinspected {
+            let noticeReinspection = noticeRetryFake.inspections[1]
+            noticeReinspection.1(noticeReinspection.0, .success(inspectedMedia))
+        }
+        let noticeClearedOnSuccess = noticeRetryWorkflow.inspectionNotice == nil
+            && noticeRetryWorkflow.media == inspectedMedia
+            && noticeRetryWorkflow.phase == .ready
+        expect(noticeInspectionStarted && noticeSet && noticeReinspected && noticeClearedOnSuccess,
+               "the inspection-failure notice stays visible with the fallback shell and banner Retry re-inspects then clears it")
+
+        let rejectedInspectionFake = FakeDownloaderService()
+        let rejectedInspectionWorkflow = VideoDownloaderWorkflow(
+            service: rejectedInspectionFake,
+            brewPathProvider: { "/fake/brew" }, terminalInstallerOpener: { _, _ in false },
+            featureAvailability: { true }, automaticallyProbe: false)
+        rejectedInspectionWorkflow.refreshDependencies()
+        rejectedInspectionFake.dependencyProbes[0](readyDependencies)
+        rejectedInspectionWorkflow.setSourceText(requestSource.string)
+        let rejectedInspectionStarted = waitUntil { rejectedInspectionFake.inspections.count == 1 }
+        if rejectedInspectionStarted {
+            let rejectedInspection = rejectedInspectionFake.inspections[0]
+            rejectedInspection.1(rejectedInspection.0, .failure(.playlist))
+        }
+        let hardRejectionReached = rejectedInspectionWorkflow.phase == .failed
+            && rejectedInspectionWorkflow.failure == .playlist
+            && rejectedInspectionWorkflow.media == nil
+            && rejectedInspectionWorkflow.inspectionNotice == nil
+            && !rejectedInspectionWorkflow.canDownload
+        rejectedInspectionWorkflow.retry()
+        expect(rejectedInspectionStarted && hardRejectionReached
+                && rejectedInspectionFake.inspections.count == 2
+                && rejectedInspectionWorkflow.phase == .inspecting,
+               "a playlist inspection rejection stays a hard failure instead of falling back to unknown media, and Retry re-inspects")
+
+        let workflowCookieEnabledBefore = UserDefaults.standard.object(
+            forKey: DefaultsKey.videoDownloaderUseBrowserCookies)
+        let workflowCookieBrowserBefore = UserDefaults.standard.string(
+            forKey: DefaultsKey.videoDownloaderCookiesBrowser)
+        UserDefaults.standard.set(false, forKey: DefaultsKey.videoDownloaderUseBrowserCookies)
+        let restrictedWithoutCookiesFake = FakeDownloaderService()
+        let restrictedWithoutCookiesWorkflow = VideoDownloaderWorkflow(
+            service: restrictedWithoutCookiesFake,
+            brewPathProvider: { "/fake/brew" }, terminalInstallerOpener: { _, _ in false },
+            featureAvailability: { true }, automaticallyProbe: false)
+        restrictedWithoutCookiesWorkflow.refreshDependencies()
+        restrictedWithoutCookiesFake.dependencyProbes[0](readyDependencies)
+        restrictedWithoutCookiesWorkflow.setSourceText(requestSource.string)
+        let restrictedWithoutCookiesStarted = waitUntil {
+            restrictedWithoutCookiesFake.inspections.count == 1
+        }
+        if restrictedWithoutCookiesStarted {
+            let inspection = restrictedWithoutCookiesFake.inspections[0]
+            inspection.1(inspection.0, .failure(.restricted))
+        }
+        let restrictedWithoutCookiesRejected = restrictedWithoutCookiesWorkflow.phase == .failed
+            && restrictedWithoutCookiesWorkflow.failure == .restricted
+
+        UserDefaults.standard.set(true, forKey: DefaultsKey.videoDownloaderUseBrowserCookies)
+        UserDefaults.standard.set("chrome", forKey: DefaultsKey.videoDownloaderCookiesBrowser)
+        let restrictedWithCookiesFake = FakeDownloaderService()
+        let restrictedWithCookiesWorkflow = VideoDownloaderWorkflow(
+            service: restrictedWithCookiesFake,
+            brewPathProvider: { "/fake/brew" }, terminalInstallerOpener: { _, _ in false },
+            featureAvailability: { true }, automaticallyProbe: false)
+        restrictedWithCookiesWorkflow.refreshDependencies()
+        restrictedWithCookiesFake.dependencyProbes[0](readyDependencies)
+        restrictedWithCookiesWorkflow.setSourceText(requestSource.string)
+        let restrictedWithCookiesStarted = waitUntil {
+            restrictedWithCookiesFake.inspections.count == 1
+        }
+        if restrictedWithCookiesStarted {
+            let inspection = restrictedWithCookiesFake.inspections[0]
+            inspection.1(inspection.0, .failure(.restricted))
+        }
+        let restrictedWithCookiesAllowed = restrictedWithCookiesWorkflow.phase == .ready
+            && restrictedWithCookiesWorkflow.inspectionNotice == .restricted
+            && restrictedWithCookiesWorkflow.canDownload
+        if let workflowCookieEnabledBefore {
+            UserDefaults.standard.set(workflowCookieEnabledBefore,
+                                      forKey: DefaultsKey.videoDownloaderUseBrowserCookies)
+        } else {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.videoDownloaderUseBrowserCookies)
+        }
+        if let workflowCookieBrowserBefore {
+            UserDefaults.standard.set(workflowCookieBrowserBefore,
+                                      forKey: DefaultsKey.videoDownloaderCookiesBrowser)
+        } else {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.videoDownloaderCookiesBrowser)
+        }
+        expect(restrictedWithoutCookiesStarted && restrictedWithoutCookiesRejected
+                && restrictedWithCookiesStarted && restrictedWithCookiesAllowed,
+               "restricted inspection is hard-rejected without cookies but remains downloadable with an explicit browser session")
+
+        var disabledFeatureAvailable = true
+        let disabledFake = FakeDownloaderService()
+        let disabledWorkflow = VideoDownloaderWorkflow(service: disabledFake,
+                                                       brewPathProvider: { "/fake/brew" },
+                                                       terminalInstallerOpener: { _, _ in false },
+                                                       featureAvailability: { disabledFeatureAvailable })
+        disabledWorkflow.setSourceText(requestSource.string)
+        disabledFeatureAvailable = false
+        disabledWorkflow.syncWithFeature()
+        let disabledStateReached = disabledWorkflow.phase == .cancelled
+        disabledFake.dependencyProbes[0](readyDependencies)
+        expect(disabledStateReached && disabledWorkflow.phase == .cancelled
+                && disabledFake.inspections.isEmpty,
+               "disabling the feature invalidates an in-flight dependency probe so it cannot restart inspection")
+
+        let terminalFake = FakeDownloaderService()
+        var terminalCommandOpened = false
+        let terminalWorkflow = VideoDownloaderWorkflow(service: terminalFake,
+                                                       brewPathProvider: { nil },
+                                                       terminalInstallerOpener: { _, _ in
+            terminalCommandOpened = true
+            return true
+        }, featureAvailability: { true })
+        terminalFake.dependencyProbes[0](VideoDownloaderDependencies(paths: [:]))
+        terminalWorkflow.setupDependencies()
+        let terminalHandoff = terminalCommandOpened
+            && terminalWorkflow.phase == .idle
+            && terminalWorkflow.terminalSetupPending
+            && !terminalWorkflow.canSetupDependencies
+        // The app cannot observe the Terminal installer, so it does not hold
+        // the mutation gate for the handoff: the user is in Terminal, not
+        // triggering app-side brew changes.
+        let gateReservedDuringHandoff = HomebrewMutationGate.shared.isReserved
+        terminalWorkflow.setupDependencies()
+        terminalWorkflow.refreshDependencies()
+        let duplicateSetupBlocked = terminalFake.dependencyProbes.count == 1
+        let terminalPermissionFake = FakeDownloaderService()
+        let terminalPermissionWorkflow = VideoDownloaderWorkflow(service: terminalPermissionFake,
+                                                                mutationGate: HomebrewMutationGate(),
+                                                                brewPathProvider: { nil },
+                                                                terminalInstallerOpener: { _, _ in false },
+                                                                featureAvailability: { true })
+        terminalPermissionFake.dependencyProbes[0](VideoDownloaderDependencies(paths: [:]))
+        terminalPermissionWorkflow.setupDependencies()
+        let terminalPermissionRejected = terminalPermissionWorkflow.phase == .failed
+            && terminalPermissionWorkflow.failure == .terminalPermission
+        terminalWorkflow.checkDependencies()
+        let terminalProbeStarted = waitUntil {
+            terminalFake.dependencyProbes.count >= 2
+        }
+        terminalFake.dependencyProbes.last?(readyDependencies)
+        expect(terminalHandoff && !gateReservedDuringHandoff
+                && !HomebrewMutationGate.shared.isReserved
+                && duplicateSetupBlocked && terminalPermissionRejected && terminalProbeStarted
+                && terminalWorkflow.phase == .idle
+                && !terminalWorkflow.terminalSetupPending,
+               "without Homebrew the workflow hands setup to Terminal without holding the mutation gate, blocks duplicate setup, and lets Check Again discover the installed tools")
+
+        let brewPermissionFake = FakeDownloaderService()
+        var brewPermissionTerminalOpened = false
+        let brewPermissionWorkflow = VideoDownloaderWorkflow(
+            service: brewPermissionFake,
+            mutationGate: HomebrewMutationGate(),
+            brewPathProvider: { "/fake/brew" },
+            terminalInstallerOpener: { _, _ in
+                brewPermissionTerminalOpened = true
+                return true
+            },
+            featureAvailability: { true })
+        brewPermissionFake.dependencyProbes[0](VideoDownloaderDependencies(paths: [:]))
+        brewPermissionWorkflow.setupDependencies()
+        if let setupID = brewPermissionFake.setupID {
+            brewPermissionFake.setupCompletion?(setupID, .failure(.terminalPermission))
+        }
+        expect(brewPermissionTerminalOpened
+                && brewPermissionWorkflow.phase == .idle
+                && brewPermissionWorkflow.terminalSetupPending
+                && !brewPermissionWorkflow.canSetupDependencies,
+               "a Homebrew permission failure reuses the existing Terminal handoff")
+
+        let oldStageID = UUID()
+        let oldStage = try! VideoDownloaderFileSupport.makeStagingDirectory(
+            in: downloaderTemp, id: oldStageID, ownerPID: pid_t.max)
+        let activeStage = downloaderTemp.appendingPathComponent(VideoDownloaderFileSupport.stagingPrefix + "active")
+        let liveOwnerStage = try! VideoDownloaderFileSupport.makeStagingDirectory(in: downloaderTemp)
+        let unownedStage = downloaderTemp.appendingPathComponent(
+            VideoDownloaderFileSupport.stagingPrefix + UUID().uuidString)
+        let unrelatedOld = downloaderTemp.appendingPathComponent("somebody-elses-old-folder")
+        for url in [activeStage, unownedStage, unrelatedOld] {
+            try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
+        }
+        try? Data("personal data".utf8).write(to: unownedStage.appendingPathComponent("keep.txt"))
+        try? FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSinceNow: -2 * 86400)],
+                                               ofItemAtPath: oldStage.path)
+        try? FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSinceNow: -2 * 86400)],
+                                               ofItemAtPath: liveOwnerStage.path)
+        try? FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSinceNow: -2 * 86400)],
+                                               ofItemAtPath: unownedStage.path)
+        try? FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSinceNow: -2 * 86400)],
+                                               ofItemAtPath: unrelatedOld.path)
+        VideoDownloaderFileSupport.cleanupStaleDirectories(in: downloaderTemp)
+        expect(!FileManager.default.fileExists(atPath: oldStage.path)
+                && FileManager.default.fileExists(atPath: activeStage.path)
+                && FileManager.default.fileExists(atPath: liveOwnerStage.path)
+                && FileManager.default.fileExists(atPath: unownedStage.appendingPathComponent("keep.txt").path)
+                && FileManager.default.fileExists(atPath: unrelatedOld.path),
+               "startup cleanup removes only stale directories with an authentic matching ownership marker")
+
+        let staleInspectionID = UUID()
+        let currentInspectionID = UUID()
+        let staleDownloadID = UUID()
+        let currentDownloadID = UUID()
+        expect(!VideoDownloaderCallbackGate.accepts(staleInspectionID, currentID: currentInspectionID)
+                && VideoDownloaderCallbackGate.accepts(currentInspectionID, currentID: currentInspectionID)
+                && !VideoDownloaderCallbackGate.accepts(staleDownloadID, currentID: currentDownloadID)
+                && VideoDownloaderCallbackGate.accepts(currentDownloadID, currentID: currentDownloadID)
+                && !VideoDownloaderCallbackGate.accepts(currentDownloadID, currentID: nil),
+               "the workflow gate rejects stale inspection and download callbacks")
+
+        let downloadsFallback = URL(fileURLWithPath: "/Users/test/Downloads", isDirectory: true)
+        expect(VideoDownloaderDestinationSupport.resolved(savedPath: "/missing",
+                                                          downloads: downloadsFallback,
+                                                          isUsableDirectory: { $0.path == downloadsFallback.path })
+                == downloadsFallback,
+               "invalid saved destinations fall back to Downloads")
+        expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.videoDownloaderDestinationPath)
+                && !SettingsBackupSupport.exportKeys().contains(DefaultsKey.videoDownloaderTerminalSetupUsed)
+                && !SettingsBackupSupport.exportKeys().contains(DefaultsKey.videoDownloaderTerminalSetupStatusPath)
+                && !SettingsBackupSupport.exportKeys().contains(DefaultsKey.videoDownloaderTerminalSetupBootID)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.videoDownloaderEmbedMetadata),
+               "portable backups exclude the machine path and Terminal trace but keep downloader preferences")
+
+        let downloaderCandidates = VideoDownloaderDependencySupport.candidatePaths(for: .ytDlp,
+                                                                                   home: URL(fileURLWithPath: "/Users/test"),
+                                                                                   pathEnvironment: "/custom/bin:/opt/homebrew/bin")
+        expect(downloaderCandidates.contains("/opt/homebrew/bin/yt-dlp")
+                && downloaderCandidates.contains("/usr/local/bin/yt-dlp")
+                && downloaderCandidates.contains("/opt/local/bin/yt-dlp")
+                && downloaderCandidates.contains("/Users/test/.local/bin/yt-dlp")
+                && downloaderCandidates.contains("/custom/bin/yt-dlp")
+                && Set(downloaderCandidates).count == downloaderCandidates.count,
+               "dependency discovery covers fixed, local and PATH locations without duplicates")
+        let brewSetup = VideoDownloaderCommandBuilder.homebrewInstall(
+            brewPath: "/opt/homebrew/bin/brew", missingTools: [.ytDlp, .ffmpeg])
+        expect(brewSetup?.arguments == ["install", "yt-dlp", "ffmpeg"],
+               "Homebrew setup installs only missing downloader formulae in one operation")
+        let terminalSetupCommand = VideoDownloaderTerminalSetup.command()
+        expect(!terminalSetupCommand.contains(#"\"$("#)
+                && terminalSetupCommand.contains(#"/bin/bash -c "$("#),
+               "Terminal setup passes the fetched installer to bash as one quoted argument")
+        expect(terminalSetupCommand.contains("Homebrew/install/HEAD/install.sh")
+                && terminalSetupCommand.contains("brew install yt-dlp ffmpeg")
+                && !terminalSetupCommand.contains(requestSource.string),
+               "trusted Terminal setup installs downloader tools after the official Homebrew installer without user data")
+        let terminalBrew = downloaderTemp.appendingPathComponent("fake brew")
+        let terminalRecord = downloaderTemp.appendingPathComponent("terminal-arguments")
+        writeExecutable(terminalBrew, "#!/bin/sh\nprintf '%s\\n' \"$@\" > '\(terminalRecord.path)'\n")
+        let offlineTerminalCommand = VideoDownloaderTerminalSetup.command(
+            installerBodyProducer: "printf 'exit 0\\n'",
+            brewCandidatePaths: [terminalBrew.path])
+        expect(shellStatus(offlineTerminalCommand) == 0
+                && (try? String(contentsOf: terminalRecord, encoding: .utf8)) == "install\nyt-dlp\nffmpeg\ndeno\n",
+               "Terminal setup executes a fetched installer body and then one exact offline brew transaction")
+
+        let mutationGate = HomebrewMutationGate.shared
+        let reservation = mutationGate.reserve()
+        expect(reservation != nil && mutationGate.reserve() == nil,
+               "Homebrew reservation prevents simultaneous mutations")
+        reservation?.release()
+        let releasedReservation = mutationGate.reserve()
+        expect(releasedReservation != nil, "Homebrew reservation releases after every operation outcome")
+        releasedReservation?.release()
+
+        let treeParent = Process()
+        treeParent.executableURL = URL(fileURLWithPath: "/bin/sh")
+        treeParent.arguments = ["-c", "sleep 30 & child=$!; echo $child; wait"]
+        let treePipe = Pipe()
+        treeParent.standardOutput = treePipe
+        treeParent.standardError = FileHandle.nullDevice
+        do {
+            try treeParent.run()
+            try? treePipe.fileHandleForWriting.close()
+            let childData = treePipe.fileHandleForReading.availableData
+            let childPID = pid_t(String(decoding: childData, as: UTF8.self)
+                .trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+            expect(childPID > 0 && VideoDownloaderProcessTree.isAlive(childPID),
+                   "process-tree fixture starts a child process")
+            VideoDownloaderProcessTree.terminate(treeParent.processIdentifier, grace: 0.15)
+            treeParent.waitUntilExit()
+            usleep(150_000)
+            expect(!VideoDownloaderProcessTree.isAlive(childPID),
+                   "cancellation terminates both the root process and its child")
+        } catch {
+            expect(false, "process-tree fixture starts")
+        }
+
+        expect(AppFeature.allCases.contains(.videoDownloader)
+                && AppFeature.videoDownloader.group == .tools
+                && AppFeature.videoDownloader.symbolName == "arrow.down.circle"
+                && AppFeature.availabilityDefaults[AppFeature.videoDownloader.availabilityKey] as? Bool == true,
+               "feature catalog installs the Video Downloader in Tools by default")
+        expect(FeatureVisibilitySupport.features(for: .videoDownloader) == [.videoDownloader]
+                && FeatureVisibilitySupport.isPageVisible(.videoDownloader) { $0 == .videoDownloader },
+               "Video Downloader has a dedicated feature-gated Settings page")
+        expect(Defaults.sanitizedPanelItemOrder("media,media",
+                                               defaultOrder: ["videoDownloader", "media"])
+                == ["media", "videoDownloader"],
+               "old panel utility orders gain the downloader without duplicates or lost items")
+
+        func thumbnailTestConfiguration() -> URLSessionConfiguration {
+            let configuration = URLSessionConfiguration.ephemeral
+            configuration.protocolClasses = [VideoDownloaderThumbnailTestURLProtocol.self]
+            return configuration
+        }
+
+        let publicThumbnailURL = VideoDownloaderThumbnailURLPolicy.sanitizedURL(
+            URL(string: "https://8.8.8.8/thumb.jpg"))
+        expect(publicThumbnailURL?.scheme == "https" && publicThumbnailURL?.host == "8.8.8.8",
+               "thumbnail policy accepts a normal HTTPS endpoint")
+        expect(VideoDownloaderThumbnailURLPolicy.sanitizedURL(URL(string: "http://thumb.cdn/a")) == nil,
+               "thumbnail policy rejects cleartext HTTP")
+        expect(VideoDownloaderThumbnailURLPolicy.sanitizedURL(URL(string: "https://thumb.cdn:443/a")) != nil,
+               "thumbnail policy permits the explicit HTTPS port")
+        expect(VideoDownloaderThumbnailURLPolicy.sanitizedURL(URL(string: "https://thumb.cdn:8443/a")) == nil,
+               "thumbnail policy rejects non-HTTPS ports")
+        expect(VideoDownloaderThumbnailURLPolicy.sanitizedURL(URL(string: "https://user:pass@thumb.cdn/a")) == nil,
+               "thumbnail policy rejects embedded credentials")
+        expect(VideoDownloaderThumbnailURLPolicy.sanitizedURL(URL(string: "https://localhost/a")) == nil,
+               "thumbnail policy rejects localhost names")
+        expect(VideoDownloaderThumbnailURLPolicy.sanitizedURL(URL(string: "https://127.0.0.1/a")) == nil,
+               "thumbnail policy rejects private IPv4 literals")
+        expect(VideoDownloaderThumbnailURLPolicy.sanitizedURL(URL(string: "https://[::1]/a")) == nil,
+               "thumbnail policy rejects private IPv6 literals")
+        expect(VideoDownloaderThumbnailURLPolicy.sanitizedURL(URL(string: "https://8.8.8.8/a")) != nil,
+               "thumbnail policy accepts public IPv4 literals")
+        expect(VideoDownloaderThumbnailURLPolicy.sanitizedURL(URL(string: "file:///tmp/a")) == nil,
+               "thumbnail policy rejects non-network URLs")
+        expect(VideoDownloaderThumbnailURLPolicy.sanitizedURL(nil) == nil,
+               "thumbnail policy handles a missing URL")
+        let overlongThumbnailURL = URL(string: "https://thumb.cdn/" +
+                                        String(repeating: "a", count: VideoDownloaderThumbnailURLPolicy.maximumURLBytes))
+        expect(VideoDownloaderThumbnailURLPolicy.sanitizedURL(overlongThumbnailURL) == nil,
+               "thumbnail policy bounds URL bytes")
+        let queryThumbnailURL = VideoDownloaderThumbnailURLPolicy.sanitizedURL(
+            URL(string: "https://thumb.cdn/a?q=1#preview"))
+        expect(queryThumbnailURL?.query == "q=1" && queryThumbnailURL?.fragment == "preview",
+               "thumbnail policy preserves query and fragment data")
+        expect(publicThumbnailURL.map(VideoDownloaderThumbnailURLPolicy.resolvesToPublicEndpoint) == true,
+               "thumbnail endpoint resolution accepts a public literal")
+        expect(!VideoDownloaderThumbnailURLPolicy.resolvesToPublicEndpoint(
+            URL(string: "https://127.0.0.1/thumb.jpg")!),
+               "thumbnail endpoint resolution rejects a private literal")
+        expect(!VideoDownloaderThumbnailURLPolicy.resolvesToPublicEndpoint(URL(string: "file:///tmp/a")!),
+               "thumbnail endpoint resolution rejects a URL without a host")
+        expect(VideoDownloaderThumbnailURLPolicy.isPublicAddress("8.8.8.8")
+                && !VideoDownloaderThumbnailURLPolicy.isPublicAddress("0.0.0.0"),
+               "thumbnail peer validation distinguishes public and unspecified IPv4")
+        expect(VideoDownloaderThumbnailURLPolicy.isPublicAddress("2001:4860:4860::8888")
+                && !VideoDownloaderThumbnailURLPolicy.isPublicAddress("::1"),
+               "thumbnail peer validation distinguishes public and loopback IPv6")
+
+        let callbackID = UUID()
+        expect(VideoDownloaderCallbackGate.accepts(callbackID, currentID: callbackID),
+               "workflow callback gate accepts the current generation")
+        expect(!VideoDownloaderCallbackGate.accepts(UUID(), currentID: callbackID),
+               "workflow callback gate rejects a stale generation")
+        expect(!VideoDownloaderCallbackGate.accepts(callbackID, currentID: nil),
+               "workflow callback gate rejects a missing generation")
+        expect(VideoDownloaderTimeoutPolicy.default.download > VideoDownloaderTimeoutPolicy.default.postProcessing
+                && VideoDownloaderTimeoutPolicy.default.homebrewSetup > 0,
+               "downloader timeout defaults bound every long-running operation")
+
+        expect(VideoDownloaderNumericPolicy.timeInterval(1.5) == 1.5,
+               "numeric policy accepts a positive finite time")
+        expect(VideoDownloaderNumericPolicy.timeInterval(0) == nil,
+               "numeric policy rejects a zero time")
+        expect(VideoDownloaderNumericPolicy.timeInterval(-1) == nil,
+               "numeric policy rejects a negative time")
+        expect(VideoDownloaderNumericPolicy.timeInterval(Double.nan) == nil
+                && VideoDownloaderNumericPolicy.timeInterval(Double.infinity) == nil,
+               "numeric policy rejects non-finite times")
+        expect(VideoDownloaderNumericPolicy.timeInterval(VideoDownloaderNumericPolicy.maximumTimeInterval)
+                == VideoDownloaderNumericPolicy.maximumTimeInterval,
+               "numeric policy accepts its maximum representable time")
+        expect(VideoDownloaderNumericPolicy.timeInterval(VideoDownloaderNumericPolicy.maximumTimeInterval + 1) == nil,
+               "numeric policy rejects times beyond its bound")
+        expect(VideoDownloaderNumericPolicy.wholeSeconds(3.6) == 4,
+               "numeric policy rounds safe durations to whole seconds")
+        expect(VideoDownloaderNumericPolicy.wholeSeconds(0) == nil,
+               "numeric policy does not format an empty duration")
+        expect(VideoDownloaderNumericPolicy.wholeSeconds(Double.infinity) == nil,
+               "numeric policy keeps infinity out of integer conversion")
+        expect(!VideoDownloaderProgress(fraction: nil, speedBytesPerSecond: nil, etaSeconds: nil).isNetworkComplete,
+               "an indeterminate progress record is not complete")
+        expect(VideoDownloaderProgress(fraction: 1, speedBytesPerSecond: nil, etaSeconds: nil).isNetworkComplete,
+               "a complete progress record is network-complete")
+        var aggregate = VideoDownloaderProgressAggregator(expectsSeparateMediaTransfers: true)
+        expect(aggregate.aggregate(VideoDownloaderRawProgress(fraction: 0.5,
+                                                               speedBytesPerSecond: nil,
+                                                               etaSeconds: nil,
+                                                               isAuxiliary: false,
+                                                               isCombinedMedia: false)).fraction == 0.425,
+               "aggregated progress assigns the first transfer the realistic video weight")
+        expect(aggregate.aggregate(VideoDownloaderRawProgress(fraction: 1,
+                                                               speedBytesPerSecond: nil,
+                                                               etaSeconds: nil,
+                                                               isAuxiliary: false,
+                                                               isCombinedMedia: false)).fraction == 0.85,
+               "aggregated progress completes the first transfer at the video weight boundary")
+        expect(aggregate.aggregate(VideoDownloaderRawProgress(fraction: 0.1,
+                                                               speedBytesPerSecond: 10,
+                                                               etaSeconds: 4,
+                                                               isAuxiliary: false,
+                                                               isCombinedMedia: false)).fraction == 0.865,
+               "aggregated progress starts the next transfer monotonically")
+        var customWeightAggregate = VideoDownloaderProgressAggregator(expectsSeparateMediaTransfers: true, videoWeight: 0.5)
+        expect(customWeightAggregate.aggregate(VideoDownloaderRawProgress(fraction: 0.5,
+                                                                          speedBytesPerSecond: nil,
+                                                                          etaSeconds: 10,
+                                                                          isAuxiliary: false,
+                                                                          isCombinedMedia: false)).fraction == 0.25,
+               "aggregated progress respects custom video weights")
+        var resetAggregate = VideoDownloaderProgressAggregator(expectsSeparateMediaTransfers: true)
+        expect(resetAggregate.aggregate(VideoDownloaderRawProgress(
+            fraction: 0.4, speedBytesPerSecond: nil, etaSeconds: nil,
+            isAuxiliary: false, isCombinedMedia: false)).fraction == 0.34,
+               "aggregated progress weights the first transfer even when it ends below 100%")
+        expect(resetAggregate.aggregate(VideoDownloaderRawProgress(
+            fraction: 0, speedBytesPerSecond: nil, etaSeconds: nil,
+            isAuxiliary: false, isCombinedMedia: false)).fraction == 0.85,
+               "a drop to near zero counts the previous transfer so the bar never falls back")
+        expect(resetAggregate.aggregate(VideoDownloaderRawProgress(
+            fraction: 0.5, speedBytesPerSecond: nil, etaSeconds: nil,
+            isAuxiliary: false, isCombinedMedia: false)).fraction == 0.925,
+               "the second transfer continues monotonically after a small reset")
+        expect(aggregate.complete()?.fraction == 1,
+               "aggregated progress completes when the final path is published")
+        expect(aggregate.complete() == nil,
+               "aggregated progress does not emit duplicate completion")
+        var auxiliaryFirstAggregate = VideoDownloaderProgressAggregator(expectsSeparateMediaTransfers: true)
+        let ignoredSubtitle = auxiliaryFirstAggregate.aggregate(VideoDownloaderRawProgress(
+            fraction: 1, speedBytesPerSecond: nil, etaSeconds: nil,
+            isAuxiliary: true, isCombinedMedia: false))
+        let firstMediaTransfer = auxiliaryFirstAggregate.aggregate(VideoDownloaderRawProgress(
+            fraction: 0.5, speedBytesPerSecond: nil, etaSeconds: nil,
+            isAuxiliary: false, isCombinedMedia: false))
+        expect(ignoredSubtitle.fraction == nil && firstMediaTransfer.fraction == 0.425,
+               "subtitle progress does not consume the first portion of the media progress range")
+        let retainedProgress = aggregate.aggregate(VideoDownloaderRawProgress(
+            fraction: nil, speedBytesPerSecond: 5, etaSeconds: 2,
+            isAuxiliary: false, isCombinedMedia: false))
+        expect(retainedProgress.fraction == 1 && retainedProgress.speedBytesPerSecond == 5
+                && retainedProgress.etaSeconds == 2,
+               "aggregated progress retains the last fraction when metrics go unknown")
+        var clampedAggregate = VideoDownloaderProgressAggregator(expectsSeparateMediaTransfers: false)
+        expect(clampedAggregate.aggregate(VideoDownloaderRawProgress(
+            fraction: 2, speedBytesPerSecond: nil, etaSeconds: nil,
+            isAuxiliary: false, isCombinedMedia: false)).fraction == 1,
+               "aggregated progress clamps malformed fractions")
+        var combinedAggregate = VideoDownloaderProgressAggregator(expectsSeparateMediaTransfers: true)
+        expect(combinedAggregate.aggregate(VideoDownloaderRawProgress(
+            fraction: 0.5, speedBytesPerSecond: nil, etaSeconds: nil,
+            isAuxiliary: false, isCombinedMedia: true)).fraction == 0.5,
+               "a combined fallback uses the full range even when inspection found both capabilities")
+
+        let embeddedDataJSON: [String: Any] = [
+            "streams": [
+                ["codec_type": "video", "disposition": ["attached_pic": 0]],
+                ["codec_type": "video", "disposition": ["attached_pic": 1]],
+                ["codec_type": "audio"],
+                ["codec_type": "subtitle", "tags": ["language": "eng"]],
+            ],
+            "chapters": [["id": 0]],
+            "format": ["format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+                       "tags": ["TITLE": "A title"]],
+        ]
+        let embeddedData = VideoDownloaderEmbeddedDataParser.parse(downloaderJSON(embeddedDataJSON))
+        expect(embeddedData == VideoDownloaderEmbeddedDataInspection(
+            hasVideo: true, hasAudio: true, hasSubtitle: true, hasArtwork: true,
+            hasChapters: true, hasMetadata: true, container: .mp4),
+               "ffprobe JSON identifies the embedded media data the app supports")
+        let missingEmbeddedData = VideoDownloaderEmbeddedDataInspection(
+            hasVideo: false, hasAudio: false, hasSubtitle: false, hasArtwork: false,
+            hasChapters: false, hasMetadata: false, container: nil)
+        let videoWithoutExtras = VideoDownloaderEmbeddedDataInspection(
+            hasVideo: true, hasAudio: true, hasSubtitle: false, hasArtwork: false,
+            hasChapters: false, hasMetadata: false, container: .mp4)
+        expect(VideoDownloaderEmbeddedDataVerifier.failure(in: videoWithoutExtras,
+                                                           for: videoRequest) == nil
+                && VideoDownloaderEmbeddedDataVerifier.warnings(in: videoWithoutExtras,
+                                                                for: videoRequest).contains(.subtitle),
+               "a successful video without its selected subtitle is published with a warning")
+        let optionalDataRequest = VideoDownloaderRequest(
+            source: requestSource, mode: .video, quality: .best, subtitle: nil,
+            destination: URL(fileURLWithPath: "/tmp"), media: inspectedMedia,
+            options: requestOptions)
+        let optionalWarnings = VideoDownloaderEmbeddedDataVerifier.warnings(in: videoWithoutExtras,
+                                                                              for: optionalDataRequest)
+        expect(VideoDownloaderEmbeddedDataVerifier.failure(in: videoWithoutExtras,
+                                                           for: optionalDataRequest) == nil
+                && optionalWarnings.contains(.artwork) && optionalWarnings.contains(.metadata),
+               "a successful file without requested artwork or metadata is published with warnings")
+        let chapterRequest = VideoDownloaderRequest(
+            source: requestSource, mode: .video, quality: .best, subtitle: nil,
+            destination: URL(fileURLWithPath: "/tmp"), media: inspectedMedia,
+            options: noEmbeddingOptions)
+        expect(VideoDownloaderEmbeddedDataVerifier.failure(in: videoWithoutExtras,
+                                                           for: chapterRequest) == nil
+                && VideoDownloaderEmbeddedDataVerifier.warnings(in: videoWithoutExtras,
+                                                                for: chapterRequest).contains(.chapters),
+               "a successful MP4 without requested inspected chapters is published with a warning")
+        expect(VideoDownloaderEmbeddedDataVerifier.failure(in: missingEmbeddedData,
+                                                           for: audioRequest) == .fileSafety,
+               "a mislabeled or audio-less M4A is rejected before publication")
+        let noRequestedData = VideoDownloaderRequest(
+            source: requestSource, mode: .video, quality: .best, subtitle: nil,
+            destination: URL(fileURLWithPath: "/tmp"), media: inspectedMedia,
+            options: VideoDownloaderEmbeddingOptions(thumbnail: false, metadata: false, chapters: false))
+        expect(VideoDownloaderEmbeddedDataVerifier.failure(
+                    in: videoWithoutExtras, for: noRequestedData) == nil
+                && VideoDownloaderEmbeddedDataVerifier.failure(
+                    in: missingEmbeddedData, for: noRequestedData) == .fileSafety,
+               "mandatory verification accepts real video content and rejects a non-video payload")
+        expect(VideoDownloaderEmbeddedDataParser.parse(Data("{}".utf8)) == missingEmbeddedData
+                && VideoDownloaderEmbeddedDataParser.parse(Data("not json".utf8)) == nil,
+               "ffprobe parsing distinguishes an empty report from malformed output")
+        let ffprobeArguments = VideoDownloaderCommandBuilder.ffprobe(
+            ffprobePath: "ffprobe", input: URL(fileURLWithPath: "/tmp/media.mp4")).arguments
+        expect(ffprobeArguments.contains("-show_streams")
+                && ffprobeArguments.contains("-show_chapters")
+                && ffprobeArguments.contains("-show_format")
+                && ffprobeArguments.contains("json"),
+               "final verification requests streams, chapters and format tags")
+
+        let denoInspection = VideoDownloaderCommandBuilder.inspection(ytDlpPath: "yt-dlp",
+                                                                        denoPath: "/tools/deno")
+        expect(denoInspection.arguments.contains("--js-runtimes"),
+               "inspection includes the Deno runtime option")
+        expect(denoInspection.arguments.contains("deno:/tools/deno"),
+               "inspection binds the Deno runtime to the discovered executable")
+        expect(denoInspection.executableSearchDirectories == ["/tools"],
+               "tool commands search the supplied runtime directory")
+        expect(VideoDownloaderTool.allCases.map(\.executableName) == ["yt-dlp", "ffmpeg", "ffprobe", "deno"],
+               "the dependency model exposes every executable in stable order")
+        let requiredYtDlpHelp = Data("--ignore-config --no-config-locations --no-plugin-dirs --no-cache-dir --no-cookies --no-cookies-from-browser --js-runtimes --output-na-placeholder --progress-delta --no-exec --cache-dir --remote-components --force-ipv4".utf8)
+        expect(VideoDownloaderDependencySupport.supportsRequiredCapabilities(.ytDlp,
+                                                                              output: requiredYtDlpHelp),
+               "dependency probes accept the complete yt-dlp capability contract")
+        expect(!VideoDownloaderDependencySupport.supportsRequiredCapabilities(
+            .ytDlp, output: Data("old help".utf8)),
+               "dependency probes reject incomplete yt-dlp capabilities")
+        expect(VideoDownloaderDependencySupport.supportsRequiredCapabilities(
+            .deno, output: Data("deno 2.3.0\n".utf8)),
+               "dependency probes accept the minimum supported Deno version")
+        expect(!VideoDownloaderDependencySupport.supportsRequiredCapabilities(
+            .deno, output: Data("deno 2.2.9\n".utf8)),
+               "dependency probes reject an old Deno version")
+        expect(VideoDownloaderDependencySupport.supportsRequiredCapabilities(
+            .ffmpeg, output: Data("ffmpeg version\n".utf8))
+                && !VideoDownloaderDependencySupport.supportsRequiredCapabilities(.ffprobe, output: Data()),
+               "dependency probes require nonempty media-tool output")
+        let partialDependencies = VideoDownloaderDependencies(paths: [.ytDlp: "yt-dlp"])
+        expect(partialDependencies.missing == [.ffmpeg, .ffprobe, .deno] && !partialDependencies.isReady,
+               "dependency state lists every missing current tool")
+        let completeDependencies = VideoDownloaderDependencies(paths: [
+            .ytDlp: "yt-dlp", .ffmpeg: "ffmpeg", .ffprobe: "ffprobe", .deno: "deno",
+        ])
+        expect(completeDependencies.isReady && completeDependencies.missing.isEmpty,
+               "dependency state becomes ready only when every tool is present")
+        expect(VideoDownloaderCommandBuilder.homebrewInstall(
+            brewPath: "brew", missingTools: [.ffmpeg, .ffprobe])?.arguments
+                == ["install", "ffmpeg"],
+               "Homebrew setup deduplicates ffprobe into the ffmpeg formula")
+
+        let environment = VideoDownloaderExecutionEnvironment.make(
+            base: ["PATH": "/usr/bin:/tools:/usr/bin"], executable: "/tools/yt-dlp",
+            additionalDirectories: ["/extra", "/tools"])
+        let environmentPath = environment["PATH"]?.split(separator: ":").map(String.init) ?? []
+        expect(environmentPath.first == "/tools" && environmentPath.contains("/extra")
+                && environmentPath.contains("/usr/bin"),
+               "process environments prioritize the executable and support directories")
+        expect(Set(environmentPath).count == environmentPath.count,
+               "process environments do not duplicate PATH directories")
+        expect(environment["HTTP_PROXY"] == nil && environment["HTTPS_PROXY"] == nil,
+               "extractor child processes do not inherit an app-owned proxy")
+        expect(VideoDownloaderFailureClassifier.failure(stderr: Data("DRM protected media".utf8)) == .drm,
+               "inspection failure classification recognizes an all-DRM diagnostic")
+        expect(VideoDownloaderFailureClassifier.failure(stderr: Data(
+            "ERROR: Error solving 1 challenge request using \"ejs\" provider: [Errno 8] nodename nor servname provided".utf8))
+            == .ejsComponentFailure,
+               "inspection failure classification recognizes an EJS challenge-solver fetch failure")
+        expect(VideoDownloaderFailureClassifier.failure(stderr: Data("ejs runtime is ready".utf8))
+                == .extractorError("ejs runtime is ready"),
+               "inspection failure classification does not mislabel messages that merely mention ejs")
+        let impersonationClassified = VideoDownloaderFailureClassifier.failure(stderr: Data(
+            "WARNING: [TikTok] The extractor is attempting impersonation, but no impersonate target is available.\nERROR: [TikTok] 123: Unable to extract universal data for rehydration; please report this issue".utf8))
+        if case let .extractorError(message) = impersonationClassified {
+            expect(message.contains("Unable to extract universal data for rehydration"),
+                   "inspection failure classification keeps the rehydration error as a raw extractor message without a site-specific rule")
+        } else {
+            expect(false,
+                   "inspection failure classification keeps the rehydration error as a raw extractor message without a site-specific rule")
+        }
+        expect(VideoDownloaderFailureClassifier.failure(stderr: Data(
+            "ERROR: [TikTok] 123: Your IP address is blocked from accessing this post".utf8))
+            == .extractorError("ERROR: [TikTok] 123: Your IP address is blocked from accessing this post"),
+               "an IP block without the impersonation signal stays a raw extractor error")
+        expect(VideoDownloaderFailureClassifier.failure(stderr: Data("network failed".utf8))
+                == .extractorError("network failed"),
+               "inspection failure classification surfaces the raw extractor message")
+        let hugeStderr = Data(String(repeating: "x", count: 2500).utf8)
+        if case let .extractorError(limited) = VideoDownloaderFailureClassifier.failure(stderr: hugeStderr) {
+            expect(limited.count <= VideoDownloaderExtractorErrorSupport.maximumMessageLength,
+                   "extractor messages are trimmed for display")
+        } else {
+            expect(false, "unrecognized diagnostics surface as extractor errors")
+        }
+        expect(VideoDownloaderExtractorErrorSupport.failure(from: Data(), fallback: .inspectionFailed)
+                == .inspectionFailed,
+               "empty stderr keeps the generic classification")
+        let cookiePermissionDiagnostic = "ERROR: Could not copy Chrome cookie database: Operation not permitted"
+        expect(VideoDownloaderCookiesSupport.isAccessDenied(
+                    cookiePermissionDiagnostic, cookiesFromBrowser: "chrome")
+                && !VideoDownloaderCookiesSupport.isAccessDenied(
+                    cookiePermissionDiagnostic, cookiesFromBrowser: nil)
+                && VideoDownloaderFailureClassifier.failure(
+                    stderr: Data(cookiePermissionDiagnostic.utf8), cookiesFromBrowser: "chrome")
+                    == .cookiesPermission,
+               "browser-cookie access denials become a Full Disk Access failure only when cookies are enabled")
+
+        let oldCookiesEnabled = UserDefaults.standard.object(forKey: DefaultsKey.videoDownloaderUseBrowserCookies)
+        let oldCookiesBrowser = UserDefaults.standard.string(forKey: DefaultsKey.videoDownloaderCookiesBrowser)
+        defer {
+            if let oldCookiesEnabled {
+                UserDefaults.standard.set(oldCookiesEnabled, forKey: DefaultsKey.videoDownloaderUseBrowserCookies)
+            } else {
+                UserDefaults.standard.removeObject(forKey: DefaultsKey.videoDownloaderUseBrowserCookies)
+            }
+            if let oldCookiesBrowser {
+                UserDefaults.standard.set(oldCookiesBrowser, forKey: DefaultsKey.videoDownloaderCookiesBrowser)
+            } else {
+                UserDefaults.standard.removeObject(forKey: DefaultsKey.videoDownloaderCookiesBrowser)
+            }
+        }
+        UserDefaults.standard.set(false, forKey: DefaultsKey.videoDownloaderUseBrowserCookies)
+        UserDefaults.standard.set("firefox", forKey: DefaultsKey.videoDownloaderCookiesBrowser)
+        let cookiesDisabled = VideoDownloaderCookiesSupport.selectedBrowser() == nil
+        UserDefaults.standard.set(true, forKey: DefaultsKey.videoDownloaderUseBrowserCookies)
+        let firefoxSelected = VideoDownloaderCookiesSupport.selectedBrowser() == "firefox"
+        UserDefaults.standard.set("Not a Browser", forKey: DefaultsKey.videoDownloaderCookiesBrowser)
+        let unknownBrowserIgnored = VideoDownloaderCookiesSupport.selectedBrowser() == nil
+        expect(cookiesDisabled && firefoxSelected && unknownBrowserIgnored,
+               "browser cookies are off by default and only accept known browser names")
+
+        let cookieArgsMarker = downloaderTemp.appendingPathComponent("cookie-args")
+        let cookieAwareDownloader = downloaderTemp.appendingPathComponent("cookie-aware-yt-dlp")
+        let authenticatedPayload = String(data: downloaderJSON(unavailableFixture), encoding: .utf8)!
+            .replacingOccurrences(of: "'", with: "'\\''")
+        writeExecutable(cookieAwareDownloader, """
+        #!/bin/sh
+        printf '%s\\n' "$@" > '\(cookieArgsMarker.path)'
+        printf '%s\\n' '\(authenticatedPayload)'
+        """)
+        let cookieService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: cookieAwareDownloader.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: "/usr/bin/true", .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        UserDefaults.standard.set(true, forKey: DefaultsKey.videoDownloaderUseBrowserCookies)
+        UserDefaults.standard.set("edge", forKey: DefaultsKey.videoDownloaderCookiesBrowser)
+        var cookieInspectionResult: Result<VideoDownloaderMedia, VideoDownloaderFailure>?
+        cookieService.inspect(requestSource, id: UUID()) { _, result in
+            cookieInspectionResult = result
+        }
+        let cookieInspectionFinished = waitUntil(5) { cookieInspectionResult != nil }
+        var cookieInspectionMedia: VideoDownloaderMedia?
+        if case let .success(media)? = cookieInspectionResult {
+            cookieInspectionMedia = media
+        }
+        let cookieArgs = (try? String(contentsOf: cookieArgsMarker, encoding: .utf8)) ?? ""
+        expect(cookieInspectionFinished
+                && cookieInspectionMedia?.title == "A title"
+                && cookieArgs.contains("--cookies-from-browser")
+                && cookieArgs.contains("edge")
+                && !cookieArgs.contains("--no-cookies"),
+               "inspection passes the chosen browser session to yt-dlp when cookies are enabled")
+        expect(VideoDownloaderQualityFallback.detect(requested: .height(720), actualHeight: 480)
+                == VideoDownloaderQualityFallback(requestedHeight: 720, actualHeight: 480),
+               "quality fallback records a lower selected height")
+        expect(VideoDownloaderQualityFallback.detect(requested: .height(720), actualHeight: 720) == nil,
+               "quality fallback stays quiet at the requested height")
+        expect(VideoDownloaderQualityFallback.detect(requested: .best, actualHeight: 480) == nil,
+               "quality fallback does not annotate an uncapped best download")
+        expect(VideoDownloaderTerminalSetup.shellQuote("brew") == "brew"
+                && VideoDownloaderTerminalSetup.shellQuote("a'b").hasPrefix("'"),
+               "Terminal setup quotes shell metacharacters while leaving simple paths readable")
+        let completeEmbeddedData = VideoDownloaderEmbeddedDataInspection(
+            hasVideo: true, hasAudio: true, hasSubtitle: true, hasArtwork: true,
+            hasChapters: true, hasMetadata: true, container: .mp4)
+        expect(VideoDownloaderEmbeddedDataVerifier.failure(in: completeEmbeddedData, for: videoRequest) == nil,
+               "complete ffprobe data satisfies every requested video embedding")
+        expect(VideoDownloaderTimeoutPolicy(inspection: 1, download: 1, postProcessing: 2, homebrewSetup: 3)
+                == VideoDownloaderTimeoutPolicy(inspection: 1, download: 1, postProcessing: 2, homebrewSetup: 3),
+               "downloader timeout policies compare by their injected values")
+
+        let png = Data(base64Encoded:
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")!
+        let goodThumbnailURL = URL(string: "https://thumb.cdn/good")!
+        VideoDownloaderThumbnailTestURLProtocol.configure([
+            goodThumbnailURL: .init(statusCode: 200, contentType: "image/png", data: png),
+        ])
+        let goodThumbnailLoader = VideoDownloaderThumbnailLoader(
+            url: goodThumbnailURL,
+            endpointValidator: { _ in true },
+            configurationProvider: thumbnailTestConfiguration)
+        goodThumbnailLoader.load()
+        let goodThumbnailFinished = waitUntil { goodThumbnailLoader.image != nil }
+        goodThumbnailLoader.cancel()
+        expect(goodThumbnailFinished, "thumbnail loader decodes an image response")
+
+        let textThumbnailURL = URL(string: "https://thumb.cdn/text")!
+        VideoDownloaderThumbnailTestURLProtocol.configure([
+            textThumbnailURL: .init(statusCode: 200, contentType: "text/plain"),
+        ])
+        let textThumbnailLoader = VideoDownloaderThumbnailLoader(
+            url: textThumbnailURL,
+            endpointValidator: { _ in true },
+            configurationProvider: thumbnailTestConfiguration)
+        textThumbnailLoader.load()
+        let textThumbnailFinished = waitUntil {
+            VideoDownloaderThumbnailTestURLProtocol.requestCount() == 1
+                && VideoDownloaderThumbnailTestURLProtocol.responseCount() == 1
+        }
+        expect(textThumbnailFinished && textThumbnailLoader.image == nil,
+               "thumbnail loader rejects a non-image response")
+        textThumbnailLoader.cancel()
+
+        let headerThumbnailURL = URL(string: "https://thumb.cdn/header-limit")!
+        VideoDownloaderThumbnailTestURLProtocol.configure([
+            headerThumbnailURL: .init(statusCode: 200, contentType: "image/png",
+                                      contentLength: VideoDownloaderThumbnailURLPolicy.maximumResponseBytes + 1),
+        ])
+        let headerThumbnailLoader = VideoDownloaderThumbnailLoader(
+            url: headerThumbnailURL,
+            endpointValidator: { _ in true },
+            configurationProvider: thumbnailTestConfiguration)
+        headerThumbnailLoader.load()
+        let headerThumbnailFinished = waitUntil {
+            VideoDownloaderThumbnailTestURLProtocol.requestCount() == 1
+                && VideoDownloaderThumbnailTestURLProtocol.terminalCallbackCount() > 0
+        }
+        expect(headerThumbnailFinished && headerThumbnailLoader.image == nil,
+               "thumbnail loader rejects an oversized declared response")
+        headerThumbnailLoader.cancel()
+
+        let bodyThumbnailURL = URL(string: "https://thumb.cdn/body-limit")!
+        VideoDownloaderThumbnailTestURLProtocol.configure([
+            bodyThumbnailURL: .init(statusCode: 200, contentType: "image/png",
+                                    data: Data(repeating: 0,
+                                               count: VideoDownloaderThumbnailURLPolicy.maximumResponseBytes + 1)),
+        ])
+        let bodyThumbnailLoader = VideoDownloaderThumbnailLoader(
+            url: bodyThumbnailURL,
+            endpointValidator: { _ in true },
+            configurationProvider: thumbnailTestConfiguration)
+        bodyThumbnailLoader.load()
+        let bodyThumbnailFinished = waitUntil {
+            VideoDownloaderThumbnailTestURLProtocol.requestCount() == 1
+                && VideoDownloaderThumbnailTestURLProtocol.terminalCallbackCount() > 0
+        }
+        expect(bodyThumbnailFinished && bodyThumbnailLoader.image == nil,
+               "thumbnail loader rejects an oversized streamed body")
+        bodyThumbnailLoader.cancel()
+
+        let invalidThumbnailURL = URL(string: "https://thumb.cdn/invalid")!
+        VideoDownloaderThumbnailTestURLProtocol.configure([
+            invalidThumbnailURL: .init(statusCode: 200, contentType: "image/png",
+                                       data: Data("not an image".utf8)),
+        ])
+        let invalidThumbnailLoader = VideoDownloaderThumbnailLoader(
+            url: invalidThumbnailURL,
+            endpointValidator: { _ in true },
+            configurationProvider: thumbnailTestConfiguration)
+        invalidThumbnailLoader.load()
+        let invalidThumbnailFinished = waitUntil {
+            VideoDownloaderThumbnailTestURLProtocol.requestCount() == 1
+                && VideoDownloaderThumbnailTestURLProtocol.terminalCallbackCount() > 0
+        }
+        expect(invalidThumbnailFinished && invalidThumbnailLoader.image == nil,
+               "thumbnail loader rejects undecodable image data")
+        invalidThumbnailLoader.cancel()
+
+        let redirectThumbnailURL = URL(string: "https://thumb.cdn/redirect")!
+        let finalThumbnailURL = URL(string: "https://thumb.cdn/final")!
+        VideoDownloaderThumbnailTestURLProtocol.configure([
+            redirectThumbnailURL: .init(statusCode: 302, location: finalThumbnailURL),
+            finalThumbnailURL: .init(statusCode: 200, contentType: "image/png", data: png),
+        ])
+        let redirectThumbnailLoader = VideoDownloaderThumbnailLoader(
+            url: redirectThumbnailURL,
+            endpointValidator: { _ in true },
+            configurationProvider: thumbnailTestConfiguration)
+        redirectThumbnailLoader.load()
+        let redirectThumbnailFinished = waitUntil {
+            redirectThumbnailLoader.image != nil
+                && VideoDownloaderThumbnailTestURLProtocol.requestCount() == 2
+        }
+        expect(redirectThumbnailFinished
+                && VideoDownloaderThumbnailTestURLProtocol.requestedURL(at: 1) == finalThumbnailURL,
+               "thumbnail loader follows a safe HTTPS redirect")
+        redirectThumbnailLoader.cancel()
+
+        let unsafeThumbnailURL = URL(string: "https://thumb.cdn/unsafe")!
+        let cleartextThumbnailURL = URL(string: "http://thumb.cdn/private")!
+        VideoDownloaderThumbnailTestURLProtocol.configure([
+            unsafeThumbnailURL: .init(statusCode: 302, location: cleartextThumbnailURL),
+            cleartextThumbnailURL: .init(statusCode: 200, contentType: "image/png", data: png),
+        ])
+        let unsafeThumbnailLoader = VideoDownloaderThumbnailLoader(
+            url: unsafeThumbnailURL,
+            endpointValidator: { _ in true },
+            configurationProvider: thumbnailTestConfiguration)
+        unsafeThumbnailLoader.load()
+        let unsafeThumbnailFinished = waitUntil {
+            VideoDownloaderThumbnailTestURLProtocol.requestCount() == 1
+                && VideoDownloaderThumbnailTestURLProtocol.redirectCount() == 1
+        }
+        expect(unsafeThumbnailFinished && unsafeThumbnailLoader.image == nil,
+               "thumbnail loader rejects an unsafe redirect")
+        unsafeThumbnailLoader.cancel()
+
+        let blockedThumbnailURL = URL(string: "https://thumb.cdn/blocked")!
+        VideoDownloaderThumbnailTestURLProtocol.configure([
+            blockedThumbnailURL: .init(statusCode: 200, contentType: "image/png", data: png),
+        ])
+        let blockedThumbnailLoader = VideoDownloaderThumbnailLoader(
+            url: blockedThumbnailURL,
+            endpointValidator: { _ in false },
+            configurationProvider: thumbnailTestConfiguration)
+        blockedThumbnailLoader.load()
+        let blockedThumbnailWaited = waitUntil(0.5) {
+            VideoDownloaderThumbnailTestURLProtocol.requestCount() > 0
+        }
+        expect(!blockedThumbnailWaited && blockedThumbnailLoader.image == nil,
+               "thumbnail loader requires endpoint validation before opening a session")
+        blockedThumbnailLoader.cancel()
+
+        let revalidatedThumbnailURL = URL(string: "https://thumb.cdn/revalidated")!
+        VideoDownloaderThumbnailTestURLProtocol.configure([
+            revalidatedThumbnailURL: .init(statusCode: 200, contentType: "image/png", data: png),
+        ])
+        let revalidationLock = NSLock()
+        var revalidationCalls = 0
+        let revalidatedThumbnailLoader = VideoDownloaderThumbnailLoader(
+            url: revalidatedThumbnailURL,
+            endpointValidator: { _ in
+                revalidationLock.lock()
+                revalidationCalls += 1
+                let allowed = revalidationCalls == 1
+                revalidationLock.unlock()
+                return allowed
+            },
+            configurationProvider: thumbnailTestConfiguration)
+        revalidatedThumbnailLoader.load()
+        let revalidationWaited = waitUntil(0.5) {
+            VideoDownloaderThumbnailTestURLProtocol.requestCount() > 0
+        }
+        revalidationLock.lock()
+        let revalidationCallCount = revalidationCalls
+        revalidationLock.unlock()
+        expect(!revalidationWaited && revalidationCallCount >= 2
+                && revalidatedThumbnailLoader.image == nil,
+               "thumbnail loader revalidates the endpoint immediately before opening the request")
+        revalidatedThumbnailLoader.cancel()
+
+        let statusThumbnailURL = URL(string: "https://thumb.cdn/status")!
+        VideoDownloaderThumbnailTestURLProtocol.configure([
+            statusThumbnailURL: .init(statusCode: 404, contentType: "image/png", data: png),
+        ])
+        let statusThumbnailLoader = VideoDownloaderThumbnailLoader(
+            url: statusThumbnailURL,
+            endpointValidator: { _ in true },
+            configurationProvider: thumbnailTestConfiguration)
+        statusThumbnailLoader.load()
+        let statusThumbnailFinished = waitUntil {
+            VideoDownloaderThumbnailTestURLProtocol.requestCount() == 1
+                && VideoDownloaderThumbnailTestURLProtocol.terminalCallbackCount() > 0
+        }
+        expect(statusThumbnailFinished && statusThumbnailLoader.image == nil,
+               "thumbnail loader rejects non-success HTTP statuses")
+        statusThumbnailLoader.cancel()
+
+        let unavailableThumbnailURL = URL(string: "https://thumb.cdn/unavailable")!
+        VideoDownloaderThumbnailTestURLProtocol.configure([:])
+        let unavailableThumbnailLoader = VideoDownloaderThumbnailLoader(
+            url: unavailableThumbnailURL,
+            endpointValidator: { _ in true },
+            configurationProvider: thumbnailTestConfiguration)
+        unavailableThumbnailLoader.load()
+        let unavailableThumbnailFinished = waitUntil {
+            VideoDownloaderThumbnailTestURLProtocol.requestCount() == 1
+                && VideoDownloaderThumbnailTestURLProtocol.terminalCallbackCount() > 0
+        }
+        expect(unavailableThumbnailFinished && unavailableThumbnailLoader.image == nil,
+               "thumbnail loader completes safely when the URL session reports a network failure")
+        unavailableThumbnailLoader.cancel()
+
+        let redirectLimitURLs = (0...4).map {
+            URL(string: "https://thumb.cdn/redirect-" + String($0))!
+        }
+        var redirectLimitFixtures: [URL: VideoDownloaderThumbnailTestURLProtocol.Fixture] = [:]
+        for index in 0..<4 {
+            redirectLimitFixtures[redirectLimitURLs[index]] = .init(
+                statusCode: 302, location: redirectLimitURLs[index + 1])
+        }
+        redirectLimitFixtures[redirectLimitURLs[4]] = .init(
+            statusCode: 200, contentType: "image/png", data: png)
+        VideoDownloaderThumbnailTestURLProtocol.configure(redirectLimitFixtures)
+        let redirectLimitLoader = VideoDownloaderThumbnailLoader(
+            url: redirectLimitURLs[0],
+            endpointValidator: { _ in true },
+            configurationProvider: thumbnailTestConfiguration)
+        redirectLimitLoader.load()
+        let redirectLimitFinished = waitUntil(3) {
+            VideoDownloaderThumbnailTestURLProtocol.requestCount() == 4
+                && VideoDownloaderThumbnailTestURLProtocol.redirectCount() == 4
+                && VideoDownloaderThumbnailTestURLProtocol.terminalCallbackCount() > 0
+        }
+        expect(redirectLimitFinished && redirectLimitLoader.image == nil,
+               "thumbnail loader stops after its bounded number of safe redirects")
+        redirectLimitLoader.cancel()
+
+        // MARK: Additional downloader regression cases
+
+        func validationFailure(_ value: String) -> VideoURLValidationError? {
+            do {
+                _ = try VideoDownloaderURLValidator.validate(value)
+                return nil
+            } catch let error as VideoURLValidationError {
+                return error
+            } catch {
+                return nil
+            }
+        }
+
+        let urlPrefix = "https://example.com/"
+        let boundaryURL = urlPrefix + String(
+            repeating: "a",
+            count: VideoDownloaderURLValidator.maximumUTF8Bytes - urlPrefix.utf8.count)
+        expect(validationFailure("   ") == .empty
+                && validationFailure("https:///missing-host") == .missingHost
+                && validationFailure("mailto:user@example.com") == .unsupportedScheme,
+               "URL validation distinguishes empty input, a missing host, and unsupported schemes")
+        expect((try? VideoDownloaderURLValidator.validate(boundaryURL)) != nil
+                && validationFailure(boundaryURL + "a") == .tooLong,
+               "URL validation enforces its UTF-8 byte boundary without rejecting the exact limit")
+
+        var numericInspectionFixture = inspectionFixture
+        numericInspectionFixture["title"] = "  Trimmed title  "
+        numericInspectionFixture.removeValue(forKey: "uploader")
+        numericInspectionFixture["channel"] = "Fallback channel"
+        numericInspectionFixture["duration"] = "nan"
+        numericInspectionFixture["availability"] = "unlisted"
+        numericInspectionFixture["formats"] = [
+            ["url": "https://cdn.example.com/max", "vcodec": "avc1", "acodec": "none", "height": 16_384],
+            ["url": "https://cdn.example.com/too-tall", "vcodec": "avc1", "acodec": "none", "height": 20_000],
+            ["url": "https://cdn.example.com/zero", "vcodec": "avc1", "acodec": "none", "height": 0],
+            ["url": "file:///private/video", "vcodec": "avc1", "acodec": "none", "height": 4320],
+            ["url": "https://cdn.example.com/storyboard", "protocol": "mhtml",
+             "vcodec": "avc1", "acodec": "none", "height": 4320],
+            ["url": "https://cdn.example.com/audio", "vcodec": "none", "acodec": "opus"],
+        ]
+        let numericInspection = try? VideoDownloaderInspectionParser.parse(
+            downloaderJSON(numericInspectionFixture))
+        expect(numericInspection?.title == "Trimmed title"
+                && numericInspection?.uploader == "Fallback channel"
+                && numericInspection?.duration == nil
+                && numericInspection?.heights == [16_384]
+                && numericInspection?.audioAvailability == .available,
+               "inspection trims titles, falls back to channel, bounds numeric metadata, and filters non-media formats")
+
+        var invalidCaptionFixture = inspectionFixture
+        let overlongCaptionCode = String(repeating: "x", count: 65)
+        invalidCaptionFixture["subtitles"] = [
+            "de": [["url": "https://example.com/de.vtt"]],
+            "en_US": [["url": "https://example.com/en.vtt"]],
+            "en.*": [["url": "https://example.com/regex.vtt"]],
+            "": [["url": "https://example.com/empty.vtt"]],
+            overlongCaptionCode: [["url": "https://example.com/long.vtt"]],
+            "empty": [],
+            "live_chat": [["url": "https://example.com/chat.json"]],
+        ]
+        invalidCaptionFixture["automatic_captions"] = [:]
+        let filteredCaptions = try? VideoDownloaderInspectionParser.parse(
+            downloaderJSON(invalidCaptionFixture))
+        let filteredCaptionCodes = Set(filteredCaptions?.subtitles.map(\.code) ?? [])
+        expect(filteredCaptionCodes == Set(["de", "en_US"])
+                && !VideoDownloaderInspectionParser.validSubtitleCode(overlongCaptionCode),
+               "inspection drops empty, live-chat, overlong, and regex caption selectors")
+
+        var allDRMFixture = inspectionFixture
+        allDRMFixture["formats"] = [[
+            "url": "https://cdn.example.com/drm", "vcodec": "avc1", "acodec": "none",
+            "height": 1080, "has_drm": true,
+        ]]
+        expect(inspectionFailure(downloaderJSON(allDRMFixture)) == .drm,
+               "inspection rejects an item whose only formats are DRM-protected")
+
+        if case let .progress(clampedHigh)? = VideoDownloaderProtocolParser.parse(
+            line: VideoDownloaderCommandBuilder.progressPrefix
+                + #"{"percent":"120%","speed":0,"eta":0}"#),
+           case let .progress(clampedLow)? = VideoDownloaderProtocolParser.parse(
+               line: VideoDownloaderCommandBuilder.progressPrefix
+                   + #"{"percent":"-5%","speed":null,"eta":null}"#) {
+            expect(clampedHigh.fraction == 1 && clampedHigh.speedBytesPerSecond == nil
+                    && clampedLow.fraction == 0,
+                   "progress protocol clamps percentages and ignores non-positive rate metrics")
+        } else {
+            expect(false, "progress protocol parses clamped percentage records")
+        }
+        expect(VideoDownloaderProtocolParser.parse(
+            line: VideoDownloaderCommandBuilder.qualityPrefix + "720.5") == nil
+                && VideoDownloaderProtocolParser.parse(
+                    line: VideoDownloaderCommandBuilder.qualityPrefix + "-1") == nil
+                && VideoDownloaderProtocolParser.parse(
+                    line: VideoDownloaderCommandBuilder.pathPrefix + "not-json") == nil,
+               "protocol parsing rejects fractional or negative heights and non-JSON paths")
+
+        var additionalLineDecoder = VideoDownloaderLineDecoder()
+        let decodedLines = additionalLineDecoder.append(Data("first\r\nsecond\n".utf8))
+        let emptyTail = additionalLineDecoder.finish()
+        var boundedLineDecoder = VideoDownloaderLineDecoder(maximumBufferedBytes: 4)
+        _ = boundedLineDecoder.append(Data("123456".utf8))
+        let boundedTail = boundedLineDecoder.finish()
+        expect(decodedLines == ["first", "second"] && emptyTail == nil && boundedTail == "3456",
+               "line decoding normalizes CRLF, flushes complete records, and caps an unterminated line")
+
+        var completionOnlyAggregate = VideoDownloaderProgressAggregator(expectsSeparateMediaTransfers: true)
+        let forcedCompletion = completionOnlyAggregate.complete()
+        expect(forcedCompletion?.fraction == 1 && completionOnlyAggregate.complete() == nil,
+               "progress aggregation can force a single terminal completion without duplicates")
+
+        let symlinkStage = try! VideoDownloaderFileSupport.makeStagingDirectory(in: downloaderTemp)
+        let symlinkTarget = downloaderTemp.appendingPathComponent("symlink-target.mp4")
+        let symlinkPath = symlinkStage.appendingPathComponent("link.mp4")
+        try! Data([1]).write(to: symlinkTarget)
+        var symlinkCreated = false
+        do {
+            try FileManager.default.createSymbolicLink(at: symlinkPath, withDestinationURL: symlinkTarget)
+            symlinkCreated = true
+        } catch {}
+        expect(symlinkCreated && !VideoDownloaderFileSupport.isContained(symlinkPath, in: symlinkStage),
+               "staging containment resolves symlinks before accepting a reported path")
+        try? FileManager.default.removeItem(at: symlinkStage)
+        try? FileManager.default.removeItem(at: symlinkTarget)
+
+        let multipleMediaStage = try! VideoDownloaderFileSupport.makeStagingDirectory(in: downloaderTemp)
+        let primaryMedia = multipleMediaStage.appendingPathComponent("primary.mp4")
+        let secondaryMedia = multipleMediaStage.appendingPathComponent("secondary.mp4")
+        try! Data([1]).write(to: primaryMedia)
+        try! Data([2]).write(to: secondaryMedia)
+        expect((try? VideoDownloaderFileSupport.finalMedia(in: multipleMediaStage,
+                                                           reportedPath: primaryMedia.path,
+                                                           mode: .video)) == nil,
+               "final media verification rejects a staging directory with multiple candidate outputs")
+        try? FileManager.default.removeItem(at: multipleMediaStage)
+
+        let wrongExtensionStage = try! VideoDownloaderFileSupport.makeStagingDirectory(in: downloaderTemp)
+        let wrongExtensionMedia = wrongExtensionStage.appendingPathComponent("audio.mp4")
+        try! Data([1]).write(to: wrongExtensionMedia)
+        expect((try? VideoDownloaderFileSupport.finalMedia(in: wrongExtensionStage,
+                                                           reportedPath: wrongExtensionMedia.path,
+                                                           mode: .audio)) == nil,
+               "final media verification enforces the requested output extension")
+        try? FileManager.default.removeItem(at: wrongExtensionStage)
+
+        let fallbackVideoStage = try! VideoDownloaderFileSupport.makeStagingDirectory(in: downloaderTemp)
+        let fallbackVideo = fallbackVideoStage.appendingPathComponent("fallback.mkv")
+        try! Data([1]).write(to: fallbackVideo)
+        let verifiedFallback = try? VideoDownloaderFileSupport.finalMedia(
+            in: fallbackVideoStage, reportedPath: fallbackVideo.path, mode: .video)
+        let nativeVideoStage = try! VideoDownloaderFileSupport.makeStagingDirectory(in: downloaderTemp)
+        let nativeVideo = nativeVideoStage.appendingPathComponent("legacy.flv")
+        try! Data([1]).write(to: nativeVideo)
+        expect(verifiedFallback == fallbackVideo
+                && (try? VideoDownloaderFileSupport.finalMedia(
+                    in: nativeVideoStage, reportedPath: nativeVideo.path, mode: .video)) == nil,
+               "video publication accepts automatic MP4/MKV outputs and rejects unnormalized native containers")
+        let normalizedFallback = try? VideoDownloaderFileSupport.normalizeExtension(
+            of: fallbackVideo, in: fallbackVideoStage, for: .mp4)
+        expect(normalizedFallback?.pathExtension == "mp4"
+                && FileManager.default.fileExists(atPath: normalizedFallback?.path ?? "")
+                && !FileManager.default.fileExists(atPath: fallbackVideo.path),
+               "final media normalization makes the extension match the probed container")
+        try? FileManager.default.removeItem(at: fallbackVideoStage)
+        try? FileManager.default.removeItem(at: nativeVideoStage)
+
+        let occupiedNames: Set<String> = ["report.mp4", "report (2).mp4"]
+        let collisionSafeName = VideoDownloaderFileSupport.collisionSafeURL(
+            for: "../../.report.mp4", in: downloaderTemp) { path in
+                occupiedNames.contains(URL(fileURLWithPath: path).lastPathComponent)
+            }
+        let dotOnlyName = VideoDownloaderFileSupport.collisionSafeURL(
+            for: "...", in: downloaderTemp, fileExists: { _ in false })
+        expect(collisionSafeName.lastPathComponent == "report (3).mp4"
+                && dotOnlyName.lastPathComponent == "download",
+               "publication makes dot-prefixed names visible and keeps collision suffixes deterministic")
+
+        let fallbackDestination = downloaderTemp.appendingPathComponent("fallback", isDirectory: true)
+        var fallbackPrepared = false
+        let retainedDestination = VideoDownloaderDestinationSupport.resolved(
+            savedPath: downloaderTemp.path,
+            downloads: fallbackDestination,
+            isUsableDirectory: { $0.path == downloaderTemp.path },
+            prepareFallback: { fallbackPrepared = true })
+        let missingCustomDestination = downloaderTemp.appendingPathComponent("moved-away")
+        let destinationFile = downloaderTemp.appendingPathComponent("not-a-directory")
+        try! Data([1]).write(to: destinationFile)
+        expect(retainedDestination == downloaderTemp && !fallbackPrepared
+                && VideoDownloaderDestinationSupport.accessStatus(savedPath: downloaderTemp.path) == .available
+                && VideoDownloaderDestinationSupport.accessStatus(savedPath: missingCustomDestination.path) == .unknown
+                && VideoDownloaderDestinationSupport.accessStatus(savedPath: destinationFile.path) == .denied,
+               "destination resolution preserves usable folders and distinguishes missing or non-directory paths")
+
+        expect(VideoDownloaderDependencySupport.supportsRequiredCapabilities(
+            .deno, output: Data("deno 2.10.0\n".utf8))
+                && !VideoDownloaderDependencySupport.supportsRequiredCapabilities(
+                    .deno, output: Data("deno 2.3\n".utf8))
+                && !VideoDownloaderDependencySupport.supportsRequiredCapabilities(
+                    .deno, output: Data("not deno 2.10.0\n".utf8)),
+               "dependency probing compares complete Deno versions and rejects malformed banners")
+
+        let missingDependencyService = VideoDownloaderProcessService(
+            initialToolPaths: [:], mutationGate: HomebrewMutationGate())
+        var missingInspectionFailure: VideoDownloaderFailure?
+        missingDependencyService.inspect(requestSource, id: UUID()) { _, result in
+            if case let .failure(error) = result { missingInspectionFailure = error }
+        }
+        let missingInspectionFinished = waitUntil { missingInspectionFailure != nil }
+        var missingDownloadFailure: VideoDownloaderFailure?
+        missingDependencyService.download(serviceRequest(destination: downloaderTemp), id: UUID(),
+                                          progress: { _, _ in }) { _, result in
+            if case let .failure(error) = result { missingDownloadFailure = error }
+        }
+        let missingDownloadFinished = waitUntil { missingDownloadFailure != nil }
+        expect(missingInspectionFinished && missingInspectionFailure == .missingDependencies
+                && missingDownloadFinished && missingDownloadFailure == .missingDependencies,
+               "process service reports missing dependencies consistently for inspection and download")
+
+        let subtitleFailureExecutable = downloaderTemp.appendingPathComponent("subtitle-failure")
+        writeExecutable(subtitleFailureExecutable,
+                        "#!/bin/sh\nprintf '%s\\n' 'ERROR: requested subtitles not available' >&2\nexit 1\n")
+        let subtitleFailureService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: subtitleFailureExecutable.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: "/usr/bin/true", .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        let subtitleFailureID = UUID()
+        var subtitleFailureOutcome: VideoDownloaderFailure?
+        subtitleFailureService.download(
+            VideoDownloaderRequest(source: requestSource, mode: .video, quality: .best,
+                                   subtitle: manualTrack, destination: downloaderTemp,
+                                   media: inspectedMedia,
+                                   options: VideoDownloaderEmbeddingOptions(
+                                    thumbnail: false, metadata: false, chapters: false)),
+            id: subtitleFailureID, progress: { _, _ in }) { _, result in
+                if case let .failure(error) = result { subtitleFailureOutcome = error }
+            }
+        let subtitleFailureFinished = waitUntil { subtitleFailureOutcome != nil }
+        var subtitleFailureExtractorMessage: String?
+        if case let .extractorError(message)? = subtitleFailureOutcome {
+            subtitleFailureExtractorMessage = message
+        }
+        expect(subtitleFailureFinished
+                && subtitleFailureExtractorMessage?.contains("requested subtitles not available") == true
+                && !stagingExists(subtitleFailureID, in: downloaderTemp),
+               "process service never publishes a download that has no media file and surfaces the raw subtitle error")
+
+        let rateLimitFailureExecutable = downloaderTemp.appendingPathComponent("rate-limit-failure")
+        writeExecutable(rateLimitFailureExecutable,
+                        "#!/bin/sh\nprintf '%s\\n' 'ERROR: HTTP Error 429: Too Many Requests' >&2\nexit 1\n")
+        let rateLimitFailureService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: rateLimitFailureExecutable.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: "/usr/bin/true", .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        let rateLimitFailureID = UUID()
+        var rateLimitFailureOutcome: VideoDownloaderFailure?
+        rateLimitFailureService.download(serviceRequest(destination: downloaderTemp),
+                                         id: rateLimitFailureID, progress: { _, _ in }) { _, result in
+            if case let .failure(error) = result { rateLimitFailureOutcome = error }
+        }
+        expect(waitUntil { rateLimitFailureOutcome != nil }
+                && rateLimitFailureOutcome == .rateLimited
+                && !stagingExists(rateLimitFailureID, in: downloaderTemp),
+               "a core HTTP 429 download failure is reported as rate limited instead of generic")
+
+        let subtitleRateLimitExecutable = downloaderTemp.appendingPathComponent("subtitle-rate-limit")
+        writeExecutable(subtitleRateLimitExecutable, """
+        #!/bin/sh
+        stage=''
+        skip=0
+        write_auto=0
+        while [ "$#" -gt 0 ]; do
+          if [ -z "$stage" ] && [ "$1" = '--paths' ] && [ "$#" -ge 2 ]; then stage="$2"; fi
+          [ "$1" = '--skip-download' ] && skip=1
+          [ "$1" = '--write-auto-subs' ] && write_auto=1
+          shift
+        done
+        [ -n "$stage" ] || exit 20
+        if [ "$skip" -eq 1 ] || [ "$write_auto" -eq 1 ]; then
+          if [ "$skip" -eq 0 ]; then
+            output="$stage/SubtitleRateLimit.mp4"
+            printf 'media' > "$output"
+            printf '\(VideoDownloaderCommandBuilder.pathPrefix)"%s"\n' "$output"
+          fi
+          printf '%s\n' "ERROR: Unable to download video subtitles for 'en': HTTP Error 429: Too Many Requests" >&2
+          exit 1
+        fi
+        output="$stage/SubtitleRateLimit.mp4"
+        printf 'media' > "$output"
+        printf '\(VideoDownloaderCommandBuilder.pathPrefix)"%s"\n' "$output"
+        """)
+        let subtitleRateLimitService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: subtitleRateLimitExecutable.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: validVideoFFprobe.path, .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        let subtitleRateLimitID = UUID()
+        var subtitleRateLimitResult: VideoDownloaderDownloadResult?
+        var subtitleRateLimitFailure: VideoDownloaderFailure?
+        subtitleRateLimitService.download(
+            VideoDownloaderRequest(source: requestSource, mode: .video, quality: .best,
+                                   subtitle: automaticTrack, destination: downloaderTemp,
+                                   media: inspectedMedia,
+                                   options: VideoDownloaderEmbeddingOptions(
+                                    thumbnail: false, metadata: false, chapters: false)),
+            id: subtitleRateLimitID, progress: { _, _ in }) { _, result in
+                switch result {
+                case let .success(value): subtitleRateLimitResult = value
+                case let .failure(error): subtitleRateLimitFailure = error
+                }
+            }
+        expect(waitUntil { subtitleRateLimitResult != nil || subtitleRateLimitFailure != nil }
+                && subtitleRateLimitResult?.warnings.contains(.subtitleRateLimited) == true
+                && subtitleRateLimitFailure == nil
+                && !stagingExists(subtitleRateLimitID, in: downloaderTemp),
+               "process service keeps valid media when an optional subtitle request is rate limited")
+
+        let mixedSubtitleFailureState = downloaderTemp.appendingPathComponent("mixed-subtitle-failure-state")
+        let mixedSubtitleFailureExecutable = downloaderTemp.appendingPathComponent("mixed-subtitle-failure")
+        writeExecutable(mixedSubtitleFailureExecutable, """
+        #!/bin/sh
+        stage=''
+        while [ "$#" -gt 0 ]; do
+          if [ -z "$stage" ] && [ "$1" = '--paths' ] && [ "$#" -ge 2 ]; then stage="$2"; fi
+          shift
+        done
+        [ -n "$stage" ] || exit 20
+        output="$stage/MixedSubtitleFailure.mp4"
+        if [ ! -e '\(mixedSubtitleFailureState.path)' ]; then
+          : > '\(mixedSubtitleFailureState.path)'
+          printf 'partial-media' > "$output"
+          printf '\(VideoDownloaderCommandBuilder.pathPrefix)"%s"\\n' "$output"
+          printf '%s\\n' "ERROR: Unable to download video subtitles for 'en': temporary failure" >&2
+          printf '%s\\n' 'ERROR: HTTP Error 503: Service Unavailable' >&2
+          exit 1
+        fi
+        printf 'retried-media' > "$output"
+        printf '\(VideoDownloaderCommandBuilder.pathPrefix)"%s"\\n' "$output"
+        """)
+        let mixedSubtitleFailureService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: mixedSubtitleFailureExecutable.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: validVideoFFprobe.path, .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        let mixedSubtitleFailureID = UUID()
+        var mixedSubtitleFailureURL: URL?
+        var mixedSubtitleFailureOutcome: VideoDownloaderFailure?
+        mixedSubtitleFailureService.download(
+            VideoDownloaderRequest(source: requestSource, mode: .video, quality: .best,
+                                   subtitle: automaticTrack, destination: downloaderTemp,
+                                   media: inspectedMedia,
+                                   options: VideoDownloaderEmbeddingOptions(
+                                    thumbnail: false, metadata: false, chapters: false)),
+            id: mixedSubtitleFailureID, progress: { _, _ in }) { _, result in
+                switch result {
+                case let .success(result): mixedSubtitleFailureURL = result.file
+                case let .failure(error): mixedSubtitleFailureOutcome = error
+                }
+            }
+        let mixedSubtitleFailureFinished = waitUntil {
+            mixedSubtitleFailureURL != nil || mixedSubtitleFailureOutcome != nil
+        }
+        let mixedSubtitleFailureData = mixedSubtitleFailureURL.flatMap {
+            try? Data(contentsOf: $0)
+        }
+        expect(mixedSubtitleFailureFinished
+                && mixedSubtitleFailureOutcome == nil
+                && mixedSubtitleFailureData == Data("retried-media".utf8)
+                && (try? String(contentsOf: mixedSubtitleFailureState, encoding: .utf8)) == ""
+                && !stagingExists(mixedSubtitleFailureID, in: downloaderTemp),
+               "a core media error mixed with a subtitle warning retries instead of publishing the partial file")
+
+        let subtitleWarningExecutable = downloaderTemp.appendingPathComponent("subtitle-warning")
+        writeExecutable(subtitleWarningExecutable, """
+        #!/bin/sh
+        stage=''
+        skip=0
+        while [ "$#" -gt 0 ]; do
+          if [ -z "$stage" ] && [ "$1" = '--paths' ] && [ "$#" -ge 2 ]; then stage="$2"; fi
+          [ "$1" = '--skip-download' ] && skip=1
+          shift
+        done
+        [ -n "$stage" ] || exit 20
+        if [ "$skip" -eq 1 ]; then
+          printf '1\\n00:00:00,000 --> 00:00:01,000\\nCaption\\n' > "$stage/SubtitleWarning.tr.srt"
+          printf '%s\\n' 'WARNING: The extractor specified to use impersonation for this download, but no impersonate target is available. If you encounter errors, see the documentation.' >&2
+          exit 0
+        fi
+        output="$stage/SubtitleWarning.mp4"
+        printf 'media' > "$output"
+        printf '\(VideoDownloaderCommandBuilder.pathPrefix)"%s"\\n' "$output"
+        """)
+        let subtitleWarningFFmpeg = downloaderTemp.appendingPathComponent("subtitle-warning-ffmpeg")
+        writeExecutable(subtitleWarningFFmpeg, """
+        #!/bin/sh
+        output=''
+        for argument in "$@"; do output="$argument"; done
+        [ -n "$output" ] || exit 20
+        printf 'media-with-subtitle' > "$output"
+        """)
+        let subtitleWarningFFprobe = downloaderTemp.appendingPathComponent("subtitle-warning-ffprobe")
+        writeExecutable(subtitleWarningFFprobe, """
+        #!/bin/sh
+        printf '%s\\n' '{"streams":[{"codec_type":"video","disposition":{"attached_pic":0}},{"codec_type":"audio"},{"codec_type":"subtitle"}],"chapters":[],"format":{"format_name":"mov,mp4,m4a,3gp,3g2,mj2","tags":{}}}'
+        """)
+        let subtitleWarningService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: subtitleWarningExecutable.path, .ffmpeg: subtitleWarningFFmpeg.path,
+                               .ffprobe: subtitleWarningFFprobe.path, .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        let subtitleWarningID = UUID()
+        var subtitleWarningURL: URL?
+        var subtitleWarningFailure: VideoDownloaderFailure?
+        subtitleWarningService.download(
+            VideoDownloaderRequest(source: requestSource, mode: .video, quality: .best,
+                                   subtitle: automaticTrack, destination: downloaderTemp,
+                                   media: inspectedMedia,
+                                   options: VideoDownloaderEmbeddingOptions(
+                                    thumbnail: false, metadata: false, chapters: false)),
+            id: subtitleWarningID, progress: { _, _ in }) { _, result in
+                switch result {
+                case let .success(result): subtitleWarningURL = result.file
+                case let .failure(error): subtitleWarningFailure = error
+                }
+            }
+        expect(waitUntil { subtitleWarningURL != nil || subtitleWarningFailure != nil }
+                && subtitleWarningURL?.pathExtension == "mp4"
+                && subtitleWarningFailure == nil
+                && !stagingExists(subtitleWarningID, in: downloaderTemp),
+               "successful subtitles ignore yt-dlp's harmless impersonation warning mentioning possible errors")
+
+        let impersonationWarningExecutable = downloaderTemp.appendingPathComponent("impersonation-warning")
+        writeExecutable(impersonationWarningExecutable, """
+        #!/bin/sh
+        stage=''
+        while [ "$#" -gt 0 ]; do
+          if [ -z "$stage" ] && [ "$1" = '--paths' ] && [ "$#" -ge 2 ]; then stage="$2"; fi
+          shift
+        done
+        [ -n "$stage" ] || exit 20
+        output="$stage/ImpersonationWarning.mp4"
+        printf 'media' > "$output"
+        printf '\(VideoDownloaderCommandBuilder.pathPrefix)"%s"\\n' "$output"
+        printf '%s\\n' 'WARNING: [TikTok] The extractor is attempting impersonation, but no impersonate target is available. If you encounter errors, see the documentation.' >&2
+        exit 1
+        """)
+        let impersonationWarningService = VideoDownloaderProcessService(
+            initialToolPaths: [.ytDlp: impersonationWarningExecutable.path, .ffmpeg: "/usr/bin/true",
+                               .ffprobe: validVideoFFprobe.path, .deno: "/usr/bin/true"],
+            mutationGate: HomebrewMutationGate())
+        let impersonationWarningID = UUID()
+        var impersonationWarningURL: URL?
+        var impersonationWarningFailure: VideoDownloaderFailure?
+        impersonationWarningService.download(serviceRequest(destination: downloaderTemp),
+                                              id: impersonationWarningID,
+                                              progress: { _, _ in }) { _, result in
+            switch result {
+            case let .success(result): impersonationWarningURL = result.file
+            case let .failure(error): impersonationWarningFailure = error
+            }
+        }
+        let impersonationWarningFinished = waitUntil {
+            impersonationWarningURL != nil || impersonationWarningFailure != nil
+        }
+        let impersonationWarningData = impersonationWarningURL.flatMap {
+            try? Data(contentsOf: $0)
+        }
+        expect(impersonationWarningFinished
+                && impersonationWarningFailure == nil
+                && impersonationWarningData == Data("media".utf8)
+                && !stagingExists(impersonationWarningID, in: downloaderTemp),
+               "a valid media file is published when yt-dlp exits nonzero only for the missing impersonation warning")
+
+        let validationFake = FakeDownloaderService()
+        let validationWorkflow = VideoDownloaderWorkflow(
+            service: validationFake,
+            brewPathProvider: { "/fake/brew" }, terminalInstallerOpener: { _, _ in false },
+            featureAvailability: { true }, automaticallyProbe: false)
+        validationWorkflow.setSourceText("ftp://example.com/video")
+        let unsupportedSourceRejected = validationWorkflow.phase == .idle
+            && validationWorkflow.validationError == .unsupportedScheme
+            && validationFake.inspections.isEmpty
+        validationWorkflow.setSourceText("   ")
+        expect(unsupportedSourceRejected && validationWorkflow.validationError == nil
+                && validationWorkflow.phase == .idle && validationFake.didCancelInspection,
+               "workflow rejects invalid sources before inspection and clears validation for blank input")
+
+        let staleInspectionFake = FakeDownloaderService()
+        let staleInspectionWorkflow = VideoDownloaderWorkflow(
+            service: staleInspectionFake,
+            brewPathProvider: { "/fake/brew" }, terminalInstallerOpener: { _, _ in false },
+            featureAvailability: { true }, automaticallyProbe: false)
+        staleInspectionWorkflow.refreshDependencies()
+        staleInspectionFake.dependencyProbes[0](readyDependencies)
+        staleInspectionWorkflow.setSourceText(requestSource.string)
+        let firstInspectionStarted = waitUntil { staleInspectionFake.inspections.count == 1 }
+        let firstInspection = staleInspectionFake.inspections[0]
+        staleInspectionWorkflow.setSourceText("https://example.com/second")
+        let secondInspectionStarted = waitUntil { staleInspectionFake.inspections.count == 2 }
+        let secondInspection = staleInspectionFake.inspections[1]
+        firstInspection.1(firstInspection.0, .success(inspectedMedia))
+        let staleInspectionIgnored = staleInspectionWorkflow.media == nil
+            && staleInspectionWorkflow.phase == .inspecting
+        secondInspection.1(secondInspection.0, .success(inspectedMedia))
+        expect(firstInspectionStarted && secondInspectionStarted && staleInspectionIgnored
+                && staleInspectionWorkflow.phase == .ready,
+               "workflow ignores a completed inspection from a superseded source generation")
+
+        let automaticFormatFake = FakeDownloaderService()
+        let automaticFormatWorkflow = VideoDownloaderWorkflow(
+            service: automaticFormatFake,
+            brewPathProvider: { "/fake/brew" }, terminalInstallerOpener: { _, _ in false },
+            featureAvailability: { true }, automaticallyProbe: false)
+        automaticFormatWorkflow.refreshDependencies()
+        automaticFormatFake.dependencyProbes[0](readyDependencies)
+        automaticFormatWorkflow.setSourceText(requestSource.string)
+        let automaticInspectionStarted = waitUntil { automaticFormatFake.inspections.count == 1 }
+        if automaticInspectionStarted {
+            let inspection = automaticFormatFake.inspections[0]
+            inspection.1(inspection.0, .success(inspectedMedia))
+        }
+        automaticFormatWorkflow.startDownload()
+        expect(automaticInspectionStarted
+                && automaticFormatFake.downloadRequests.count == 1
+                && automaticFormatWorkflow.phase == .downloading,
+               "video download starts immediately with the automatic MP4-first policy and no format prompt")
+
+        let rapidQualityFake = FakeDownloaderService()
+        let rapidQualityWorkflow = VideoDownloaderWorkflow(
+            service: rapidQualityFake,
+            brewPathProvider: { "/fake/brew" }, terminalInstallerOpener: { _, _ in false },
+            featureAvailability: { true }, automaticallyProbe: false)
+        rapidQualityWorkflow.refreshDependencies()
+        rapidQualityFake.dependencyProbes[0](readyDependencies)
+        rapidQualityWorkflow.setSourceText(requestSource.string)
+        let rapidSourceInspectionStarted = waitUntil { rapidQualityFake.inspections.count == 1 }
+        if rapidSourceInspectionStarted {
+            let inspection = rapidQualityFake.inspections[0]
+            inspection.1(inspection.0, .success(inspectedMedia))
+        }
+        rapidQualityWorkflow.setQuality(.height(720))
+        rapidQualityWorkflow.setQuality(.height(1080))
+        rapidQualityWorkflow.startDownload()
+        expect(rapidSourceInspectionStarted
+                && rapidQualityFake.inspections.count == 1
+                && rapidQualityFake.downloadRequests.first?.quality == .height(1080)
+                && rapidQualityWorkflow.phase == .downloading,
+               "rapid quality changes require no extra inspection and use the final selected quality")
+
+        let retryFake = FakeDownloaderService()
+        let retryWorkflow = VideoDownloaderWorkflow(
+            service: retryFake,
+            brewPathProvider: { "/fake/brew" }, terminalInstallerOpener: { _, _ in false },
+            featureAvailability: { true }, automaticallyProbe: false)
+        retryWorkflow.refreshDependencies()
+        retryFake.dependencyProbes[0](readyDependencies)
+        retryWorkflow.setSourceText(requestSource.string)
+        let retryInspectionStarted = waitUntil { retryFake.inspections.count == 1 }
+        if retryInspectionStarted {
+            let retryInspection = retryFake.inspections[0]
+            retryInspection.1(retryInspection.0, .success(inspectedMedia))
+        }
+        retryWorkflow.startDownload()
+        let firstRetryDownload = retryFake.downloads.first
+        retryWorkflow.startDownload()
+        let duplicateDownloadBlocked = retryFake.downloads.count == 1
+            && retryWorkflow.phase == .downloading
+        if let firstRetryDownload {
+            firstRetryDownload.1(firstRetryDownload.0, .failure(.downloadFailed))
+        }
+        let firstFailureReached = retryWorkflow.phase == .failed
+            && retryWorkflow.failure == .downloadFailed
+        retryWorkflow.retry()
+        let retryStarted = retryFake.downloads.count == 2
+            && retryWorkflow.phase == .downloading
+        let retryCompletedURL = downloaderTemp.appendingPathComponent("retry-complete.mp4")
+        if let firstRetryDownload {
+            retryFake.downloadProgress[0].1(firstRetryDownload.0, .title("stale title"))
+            firstRetryDownload.1(firstRetryDownload.0, .success(VideoDownloaderDownloadResult(
+                file: downloaderTemp.appendingPathComponent("stale-success.mp4"), warnings: [])))
+        }
+        let staleDownloadIgnored = retryWorkflow.phase == .downloading
+            && retryWorkflow.activeTitle == inspectedMedia.title
+        if retryFake.downloads.count > 1 {
+            let secondRetryDownload = retryFake.downloads[1]
+            secondRetryDownload.1(secondRetryDownload.0, .success(VideoDownloaderDownloadResult(
+                file: retryCompletedURL, warnings: [])))
+        }
+        let retryCompleted = retryWorkflow.phase == .completed
+            && retryWorkflow.completedFile == retryCompletedURL
+        retryWorkflow.downloadAnother()
+        expect(retryInspectionStarted && duplicateDownloadBlocked && firstFailureReached
+                && retryStarted && staleDownloadIgnored && retryCompleted
+                && retryWorkflow.phase == .idle && retryWorkflow.sourceText.isEmpty
+                && retryWorkflow.media == nil,
+               "workflow blocks duplicate starts, retries failed downloads, rejects stale callbacks, and resets cleanly")
+
+        let cancellationFake = FakeDownloaderService()
+        let cancellationWorkflow = VideoDownloaderWorkflow(
+            service: cancellationFake,
+            brewPathProvider: { "/fake/brew" }, terminalInstallerOpener: { _, _ in false },
+            featureAvailability: { true }, automaticallyProbe: false)
+        cancellationWorkflow.refreshDependencies()
+        cancellationFake.dependencyProbes[0](readyDependencies)
+        cancellationWorkflow.setSourceText(requestSource.string)
+        let cancellationInspectionStarted = waitUntil { cancellationFake.inspections.count == 1 }
+        if cancellationInspectionStarted {
+            let cancellationInspection = cancellationFake.inspections[0]
+            cancellationInspection.1(cancellationInspection.0, .success(inspectedMedia))
+        }
+        cancellationWorkflow.startDownload()
+        let cancellationDownload = cancellationFake.downloads.first
+        cancellationWorkflow.cancelActiveOperation()
+        let cancellationRequested = cancellationWorkflow.phase == .cancelling
+            && cancellationFake.didCancelDownload
+        if let cancellationDownload {
+            cancellationDownload.1(cancellationDownload.0, .failure(.cancelled))
+        }
+        expect(cancellationInspectionStarted && cancellationRequested
+                && cancellationWorkflow.phase == .cancelled
+                && cancellationWorkflow.failure == nil,
+               "workflow keeps a download in Cancelling until the service confirms cancellation")
+
+        let availabilityFake = FakeDownloaderService()
+        let availabilityWorkflow = VideoDownloaderWorkflow(
+            service: availabilityFake,
+            brewPathProvider: { "/fake/brew" }, terminalInstallerOpener: { _, _ in false },
+            featureAvailability: { true }, automaticallyProbe: false)
+        availabilityWorkflow.refreshDependencies()
+        availabilityFake.dependencyProbes[0](readyDependencies)
+        availabilityWorkflow.setSourceText(requestSource.string)
+        let availabilityInspectionStarted = waitUntil { availabilityFake.inspections.count == 1 }
+        if availabilityInspectionStarted {
+            let availabilityInspection = availabilityFake.inspections[0]
+            availabilityInspection.1(availabilityInspection.0, .success(audioOnly!))
+        }
+        availabilityWorkflow.setMode(.video)
+        let audioOnlyVideoModeSelected = availabilityWorkflow.mode == .video
+            && !availabilityWorkflow.canDownload
+        availabilityWorkflow.setMode(.audio)
+        let audioOnlyAudioModeSelected = availabilityWorkflow.mode == .audio
+            && availabilityWorkflow.canDownload
+        expect(availabilityInspectionStarted && audioOnlyVideoModeSelected
+                && audioOnlyAudioModeSelected,
+               "audio-only media keeps both modes selectable and gates only the download button")
+
+        let videoOnlyFallbackFake = FakeDownloaderService()
+        let videoOnlyFallbackWorkflow = VideoDownloaderWorkflow(
+            service: videoOnlyFallbackFake,
+            brewPathProvider: { "/fake/brew" }, terminalInstallerOpener: { _, _ in false },
+            featureAvailability: { true }, automaticallyProbe: false)
+        videoOnlyFallbackWorkflow.refreshDependencies()
+        videoOnlyFallbackFake.dependencyProbes[0](readyDependencies)
+        // Simulate a stale audio selection from a previous item before the new
+        // video-only inspection completes.
+        videoOnlyFallbackWorkflow.setMode(.audio)
+        videoOnlyFallbackWorkflow.setSourceText(requestSource.string)
+        let videoOnlyInspectionStarted = waitUntil {
+            videoOnlyFallbackFake.inspections.count == 1
+        }
+        if videoOnlyInspectionStarted {
+            let videoOnlyInspection = videoOnlyFallbackFake.inspections[0]
+            videoOnlyInspection.1(videoOnlyInspection.0, .success(directVideoOnly!))
+        }
+        let videoOnlyDefaultSelected = videoOnlyFallbackWorkflow.mode == .video
+            && videoOnlyFallbackWorkflow.canDownload
+        videoOnlyFallbackWorkflow.setMode(.audio)
+        let videoOnlyAudioModeSelected = videoOnlyFallbackWorkflow.mode == .audio
+            && !videoOnlyFallbackWorkflow.canDownload
+        expect(videoOnlyInspectionStarted && videoOnlyDefaultSelected
+                && videoOnlyAudioModeSelected,
+               "video-only media keeps both modes selectable and gates only the download button")
+
+        let staleAudioFake = FakeDownloaderService()
+        let staleAudioWorkflow = VideoDownloaderWorkflow(
+            service: staleAudioFake,
+            brewPathProvider: { "/fake/brew" }, terminalInstallerOpener: { _, _ in false },
+            featureAvailability: { true }, automaticallyProbe: false)
+        staleAudioWorkflow.refreshDependencies()
+        staleAudioFake.dependencyProbes[0](readyDependencies)
+        staleAudioWorkflow.setMode(.audio)
+        staleAudioWorkflow.setSourceText(requestSource.string)
+        let staleAudioInspectionStarted = waitUntil { staleAudioFake.inspections.count == 1 }
+        if staleAudioInspectionStarted {
+            let staleAudioInspection = staleAudioFake.inspections[0]
+            staleAudioInspection.1(staleAudioInspection.0, .failure(.malformedInspection))
+        }
+        expect(staleAudioInspectionStarted
+                && staleAudioWorkflow.mode == .video
+                && staleAudioWorkflow.canDownload,
+               "a failed inspection resets a stale audio selection to the video path")
+
+        let englishDownloaderStrings = FeatureStrings.videoDownloader(.enUS)
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.videoDownloader(language)
+            let prefix = "downloader localization \(language.rawValue)"
+            expect(!strings.allValues.isEmpty && strings.allValues.allSatisfy { !$0.isEmpty },
+                   "\(prefix) has every nonempty string")
+            expect(strings.requiredErrors.count == 27 && strings.requiredErrors.allSatisfy { !$0.isEmpty },
+                   "\(prefix) has every required warning and error")
+            expectFormat(strings.heightFormat, ["d"], "\(prefix) quality format")
+            expect(String(format: strings.heightFormat, 1080) == "1080p",
+                   "\(prefix) quality label is the inspected height")
+            expectFormat(strings.qualityFallbackFormat, ["d", "d"], "\(prefix) quality fallback format")
+            expectFormat(strings.missingToolsFormat, ["@"], "\(prefix) missing-tools format")
+            expectFormat(strings.percentFormat, ["f"], "\(prefix) percent format")
+            expectFormat(strings.speedFormat, ["@"], "\(prefix) speed format")
+            expectFormat(strings.etaFormat, ["@"], "\(prefix) ETA format")
+            if language != .enUS {
+                expect(strings.pageTitle + strings.hubDescription != englishDownloaderStrings.pageTitle
+                    + englishDownloaderStrings.hubDescription,
+                       "\(prefix) does not silently reuse the English catalog")
+                expect(strings.requiredErrors != englishDownloaderStrings.requiredErrors,
+                       "\(prefix) localizes warnings and errors")
+            }
+        }
+        expect(englishDownloaderStrings.message(for: .rateLimited).contains("HTTP 429/403")
+                && englishDownloaderStrings.message(for: .rateLimited).localizedCaseInsensitiveContains("CAPTCHA")
+                && englishDownloaderStrings.cookiesCaptchaNote.localizedCaseInsensitiveContains("CAPTCHA")
+                && englishDownloaderStrings.cookiesCaptchaNote.localizedCaseInsensitiveContains("same browser")
+                && englishDownloaderStrings.cookiesCaptchaNote.localizedCaseInsensitiveContains("network")
+                && englishDownloaderStrings.message(for: .ejsComponentFailure).localizedCaseInsensitiveContains("GitHub")
+                && englishDownloaderStrings.message(for: .ejsComponentFailure).localizedCaseInsensitiveContains("network"),
+               "rate-limit failures explain browser-cookie CAPTCHA recovery and EJS fetch failures point at the network")
+        }
+        runVideoDownloaderTests()
 
         // MARK: Result
 

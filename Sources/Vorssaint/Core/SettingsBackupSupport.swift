@@ -111,6 +111,10 @@ enum SettingsBackupSupport {
         DefaultsKey.fanControlHelperVersion,
         // DDC capability belongs to one physical monitor on one Mac port.
         DefaultsKey.brightnessDDCWriteOnlyPaths,
+        // Local filesystem placement and Terminal permission state never travel
+        // to another Mac.
+        DefaultsKey.videoDownloaderDestinationPath,
+        DefaultsKey.videoDownloaderTerminalSetupUsed,
     ]
 
     /// The file's content: an envelope with the format version, the app

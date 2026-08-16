@@ -16,9 +16,9 @@ final class Permissions: ObservableObject {
 
     @Published private(set) var accessibility = false
     @Published private(set) var screenRecording = false
-    /// Optional — only used to make the uninstaller's scan more thorough by
-    /// reaching protected locations. There is no API prompt for it; the user
-    /// grants it in System Settings.
+    /// Optional — used by the uninstaller's protected scan and by the video
+    /// downloader when browser-cookie authentication is enabled. There is no
+    /// API prompt for it; the user grants it in System Settings.
     @Published private(set) var fullDiskAccess = false
     /// Refreshed inside refresh() only (launch and activation); notifications
     /// have no cheap poll and the portal calls refresh() when it appears.

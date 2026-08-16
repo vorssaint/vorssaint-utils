@@ -104,6 +104,16 @@ enum SettingsDirectory {
                                       keywords: ["PDF", "GIF", "PNG", "JPEG", "convert", "resize", "watermark",
                                                  "rename", "profile", "fit", "fill", "crop",
                                                  s.mediaStartConvertPDF, s.ocrName]),
+                SettingsDirectoryItem(
+                    page: .videoDownloader,
+                    title: FeatureStrings.videoDownloader(language).pageTitle,
+                    icon: "arrow.down.circle",
+                    keywords: [FeatureStrings.videoDownloader(language).panelCaption,
+                               FeatureStrings.videoDownloader(language).downloadVideo,
+                               FeatureStrings.videoDownloader(language).downloadAudio,
+                               FeatureStrings.videoDownloader(language).subtitles,
+                               FeatureStrings.videoDownloader(language).defaultLocation]
+                ),
             ]),
             // Everything about the apps installed on the Mac lives together:
             // what is out of date, what is junk and what should go.

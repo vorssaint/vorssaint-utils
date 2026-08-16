@@ -37,6 +37,10 @@ This one feeds window titles and thumbnails in the switcher and Dock Preview. If
 
 This one powers per app volume and output routing in the mixer. If the mixer says it needs permission, open System Settings, Privacy and Security, Screen and System Audio Recording, and switch Vorssaint on. Audio is processed only for the local mixer.
 
+### Files and Folders
+
+This one powers saving finished media in Video Downloader into your chosen folder. If saving a download fails with a permissions error, open System Settings, Privacy and Security, Files and Folders, and make sure Vorssaint is allowed for that folder.
+
 ### Automation
 
 Finder cut and paste, the uninstaller and Homebrew's Terminal handoff may ask for Automation. If a Finder move or Terminal handoff does nothing after a denial, open System Settings, Privacy and Security, Automation, and allow Vorssaint for the app it needs to control.
@@ -61,7 +65,10 @@ To wipe Vorssaint's granted permissions and let macOS ask again from scratch, pi
 
 ## Clean uninstall
 
-The bundled script takes out everything Vorssaint added, the app itself, its preferences and saved state, the login item, its privacy grants, and the optional closed lid `sudoers` rule.
+The bundled script takes out everything Vorssaint added: the app itself, its
+preferences and saved state, the login item, its privacy grants, and the
+optional closed lid `sudoers` rule. It does not remove downloaded media or
+files in folders you selected for the Video Downloader or other features.
 
 ```sh
 ./Tools/uninstall.sh

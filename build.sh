@@ -99,15 +99,23 @@ if [[ "$SDK" == "$PINNED_SDK" ]]; then
     SDK_COMPAT_FLAGS=(-Xfrontend -interface-compiler-version -Xfrontend 6.3.2)
 fi
 
-# --test: compile and run the standalone unit tests (pure helpers only: metrics,
-# Homebrew parsing, defaults, localization contracts; no app, no UI, no IOKit),
-# then exit. Fast and deterministic; no XCTest needed.
+# --test: compile and run the standalone offline suite (pure helper contracts,
+# thumbnail URL-session fixtures, and controlled process-service/workflow
+# integration; no network, installs, app launch, SwiftUI, or IOKit). No XCTest
+# is required.
 if (( TEST )); then
     echo "▸ Building & running unit tests against $(basename "$SDK")…"
     rm -rf build
     mkdir -p build
-    swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
+    # Tests value quick deterministic feedback over optimizer coverage. Keeping
+    # this unoptimized also prevents the single large assertion harness from
+    # spending minutes optimizing code that exits immediately.
+    swiftc -Onone -D VORSSAINT_TEST -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
         Sources/Vorssaint/Services/Media/MediaSupport.swift \
+        Sources/Vorssaint/Services/VideoDownloader/VideoDownloaderSupport.swift \
+        Sources/Vorssaint/Services/VideoDownloader/VideoDownloaderProcessService.swift \
+        Sources/Vorssaint/Services/VideoDownloader/VideoDownloaderWorkflow.swift \
+        Sources/Vorssaint/UI/VideoDownloader/VideoDownloaderView.swift \
         Sources/Vorssaint/Core/Defaults.swift \
         Sources/Vorssaint/Core/FeatureCatalog.swift \
         Sources/Vorssaint/Core/FeaturePresets.swift \
@@ -136,6 +144,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/KeepAwakeStrings.swift \
         Sources/Vorssaint/Core/PermissionGuideStrings.swift \
         Sources/Vorssaint/Core/FanControlStrings.swift \
+        Sources/Vorssaint/Core/VideoDownloaderStrings.swift \
         Sources/Vorssaint/Services/FanControl/FanControlSupport.swift \
         Sources/Vorssaint/Services/Snippets/TextSnippetSupport.swift \
         Sources/Vorssaint/Services/RadialMenu/RadialMenuSupport.swift \
@@ -159,11 +168,13 @@ if (( TEST )); then
         Sources/Vorssaint/Core/ReleaseNotes.swift \
         Sources/Vorssaint/Core/URLCleaning.swift \
         Sources/Vorssaint/Services/GeneralPasteboardAccess.swift \
+        Sources/Vorssaint/Services/ShellSupport.swift \
         Sources/Vorssaint/Services/Audio/MixerRoutingSupport.swift \
         Sources/Vorssaint/Services/Audio/BoostLimiter.swift \
         Sources/Vorssaint/Services/Audio/MixerRender.swift \
         Sources/Vorssaint/Services/DockPreview/DockPreviewSupport.swift \
         Sources/Vorssaint/Services/Homebrew/HomebrewSupport.swift \
+        Sources/Vorssaint/Services/Homebrew/HomebrewManager.swift \
         Sources/Vorssaint/Services/AppUpdates/AppUpdatesSupport.swift \
         Sources/Vorssaint/Core/AppUpdateStrings.swift \
         Sources/Vorssaint/Core/DiskImageInstallerStrings.swift \

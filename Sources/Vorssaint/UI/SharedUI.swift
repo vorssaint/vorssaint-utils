@@ -39,16 +39,22 @@ struct ShortcutCaps: View {
 
 struct FullDiskAccessNote: View {
     var compact = false
+    private let note: String?
 
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
+
+    init(compact: Bool = false, note: String? = nil) {
+        self.compact = compact
+        self.note = note
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .top, spacing: compact ? 7 : 8) {
                 Image(systemName: "info.circle")
                     .foregroundStyle(.secondary)
-                Text(l10n.s.uninstallerFDANote)
+                Text(note ?? l10n.s.uninstallerFDANote)
                     .font(compact ? .system(size: 10) : .caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

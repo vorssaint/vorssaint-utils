@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [3.3.2]
 
 ### Summary
-Vorssaint 3.3.2 adds batch image conversion, local Command Bar scripts, recent captures,
+Vorssaint 3.3.2 adds a local-first Video Downloader, batch image conversion, local Command Bar scripts, recent captures,
 desktop window controls and edge-activated Shelf access. It also improves capture, app discovery,
 conversions, volume, Switcher behavior, menu bar sizing and compatibility with older development tools.
 
@@ -23,6 +23,9 @@ conversions, volume, Switcher behavior, menu bar sizing and compatibility with o
   optional shortcuts.
 - Emoji can open directly from a shortcut assigned to its Command Bar row.
   Thanks to @MaximilianMauroner.
+- Video Downloader downloads video as Apple-ready MP4/MKV or highest-quality M4A audio
+  from YouTube and supported media links, with resolution choice, subtitle embedding,
+  cover art and live progress. Thanks to @huseyinbal05.
 - The clipboard can now clear itself after a delay, and when the Mac sleeps, the
   display sleeps or the screen locks. Under Clipboard.
 

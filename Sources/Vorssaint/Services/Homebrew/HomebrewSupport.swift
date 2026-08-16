@@ -3,6 +3,58 @@
 
 import Foundation
 
+/// Keeps Homebrew changes in one lane. Browsing can continue, but installs,
+/// upgrades, and downloader setup must not run at the same time.
+final class HomebrewMutationGate {
+    static let shared = HomebrewMutationGate()
+
+    final class Reservation {
+        private weak var gate: HomebrewMutationGate?
+        private let id: UUID
+        private let lock = NSLock()
+        private var didRelease = false
+
+        fileprivate init(gate: HomebrewMutationGate, id: UUID) {
+            self.gate = gate
+            self.id = id
+        }
+
+        func release() {
+            lock.lock()
+            guard !didRelease else { lock.unlock(); return }
+            didRelease = true
+            lock.unlock()
+            gate?.release(id)
+        }
+
+        deinit { release() }
+    }
+
+    private let lock = NSLock()
+    private var activeID: UUID?
+
+    var isReserved: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return activeID != nil
+    }
+
+    func reserve() -> Reservation? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard activeID == nil else { return nil }
+        let id = UUID()
+        activeID = id
+        return Reservation(gate: self, id: id)
+    }
+
+    private func release(_ id: UUID) {
+        lock.lock()
+        defer { lock.unlock() }
+        if activeID == id { activeID = nil }
+    }
+}
+
 enum HomebrewPackageKind: String, CaseIterable, Identifiable {
     case cask
     case formula
@@ -222,8 +274,28 @@ struct HomebrewPendingAction {
 }
 
 enum HomebrewCommandBuilder {
+    static let installerBodyProducer = "curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
     static let candidatePaths = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
-    static let installerCommand = #"/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)""#
+    static let installerCommand = terminalInstallerCommand(bodyProducer: installerBodyProducer)
+
+    static func terminalInstallerCommand(bodyProducer: String = installerBodyProducer) -> String {
+        #"/bin/bash -c "$(\#(bodyProducer))""#
+    }
+
+    static func terminalInstallCommand(formulae: [String],
+                                       installHomebrew: Bool = true,
+                                       installerBodyProducer: String = installerBodyProducer,
+                                       brewCandidatePaths: [String] = candidatePaths) -> String {
+        let installer = terminalInstallerCommand(bodyProducer: installerBodyProducer)
+        let arguments = formulae.map(shellQuote).joined(separator: " ")
+        let branches = brewCandidatePaths.enumerated().map { index, path in
+            let prefix = index == 0 ? "if" : "elif"
+            let quoted = shellQuote(path)
+            return "\(prefix) [ -x \(quoted) ]; then \(quoted) install \(arguments);"
+        }.joined(separator: " ")
+        let install = "\(branches) else exit 1; fi"
+        return installHomebrew ? "\(installer) && \(install)" : install
+    }
 
     static func installed(brewPath: String) -> HomebrewCommand {
         HomebrewCommand(executable: brewPath, arguments: ["info", "--json=v2", "--installed"])
@@ -326,6 +398,10 @@ enum HomebrewCommandBuilder {
             || lower.contains("password is required")
             || lower.contains("password:")
             || lower.contains("administrator privileges")
+            || lower.contains("not writable")
+            || lower.contains("not writeable")
+            || lower.contains("permission denied")
+            || lower.contains("operation not permitted")
     }
 
     static func shellQuote(_ value: String) -> String {

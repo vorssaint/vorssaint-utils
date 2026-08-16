@@ -14,7 +14,7 @@ enum FinderPasteImageSupport {
         guard !typeIdentifiers.contains(fileURLType) else { return nil }
         if typeIdentifiers.contains(pngType) { return pngType }
         return typeIdentifiers.first {
-            UTType($0)?.conforms(to: .image) == true
+            VorssaintUTTypeSupport.conforms(identifier: $0, to: .image)
         }
     }
 
