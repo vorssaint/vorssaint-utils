@@ -913,77 +913,81 @@ final class ShelfService: ObservableObject {
     /// drag carries both an image and its page URL — prefer the image, and
     /// only fall back to treating a URL as a link when nothing richer exists.
     func accept(providers: [NSItemProvider]) -> Bool {
-        let fileProviders = providers.enumerated().filter {
-            $0.element.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
-        }
-        if fileProviders.count > 1, fileProviders.count == providers.count {
-            acceptFileBatch(providers: fileProviders)
-            return true
-        }
-
-        var handled = false
-        for provider in providers {
-            if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-                handled = true
-                _ = provider.loadObject(ofClass: URL.self) { [weak self] url, _ in
-                    guard let url, url.isFileURL else { return }
-                    DispatchQueue.main.async { self?.addFile(url) }
-                }
-            } else if provider.hasItemConformingToTypeIdentifier(UTType.gif.identifier) {
-                handled = true
-                _ = provider.loadDataRepresentation(forTypeIdentifier: UTType.gif.identifier) { [weak self] data, _ in
-                    guard let data, !data.isEmpty else { return }
-                    DispatchQueue.main.async { self?.addGIF(data: data) }
-                }
-            } else if provider.canLoadObject(ofClass: NSImage.self) {
-                handled = true
-                _ = provider.loadObject(ofClass: NSImage.self) { [weak self] image, _ in
-                    guard let image = image as? NSImage else { return }
-                    DispatchQueue.main.async { self?.addImage(image) }
-                }
-            } else if provider.canLoadObject(ofClass: URL.self) {
-                handled = true
-                _ = provider.loadObject(ofClass: URL.self) { [weak self] url, _ in
-                    guard let url else { return }
-                    DispatchQueue.main.async {
-                        url.isFileURL ? self?.addFile(url) : self?.addLink(url)
-                    }
-                }
-            } else if provider.canLoadObject(ofClass: NSString.self) {
-                handled = true
-                _ = provider.loadObject(ofClass: NSString.self) { [weak self] string, _ in
-                    guard let string = string as? String else { return }
-                    DispatchQueue.main.async { self?.addText(string) }
-                }
-            }
-        }
-        return handled
+        guard providers.contains(where: canResolveItem) else { return false }
+        acceptMixedBatch(providers: providers)
+        return true
     }
 
-    private func acceptFileBatch(providers: [(offset: Int, element: NSItemProvider)]) {
-        let group = DispatchGroup()
-        let lock = NSLock()
-        var loaded: [(Int, URL)] = []
+    /// Whether `resolveItem` has any representation it can turn into an item.
+    /// Kept in sync with `resolveItem`'s own branches by hand, since a
+    /// provider load is async and cannot itself be probed synchronously.
+    private func canResolveItem(from provider: NSItemProvider) -> Bool {
+        provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
+            || provider.hasItemConformingToTypeIdentifier(UTType.gif.identifier)
+            || provider.canLoadObject(ofClass: NSImage.self)
+            || provider.canLoadObject(ofClass: URL.self)
+            || provider.canLoadObject(ofClass: NSString.self)
+    }
 
-        for (index, provider) in providers {
+    /// Resolves every provider in a drop and adds them together: one pile
+    /// when more than one item survives, a single plain item otherwise. A
+    /// drop is one gesture, so whatever arrives with it belongs together,
+    /// whether it's files, images, GIFs, links or text: the same rule
+    /// `accept(pasteboard:)` already applies to files.
+    private func acceptMixedBatch(providers: [NSItemProvider]) {
+        let group = DispatchGroup()
+        var resolved: [(Int, Item)] = []
+
+        for (index, provider) in providers.enumerated() {
             group.enter()
-            _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                if let url, url.isFileURL {
-                    lock.lock()
-                    loaded.append((index, url))
-                    lock.unlock()
-                }
+            resolveItem(from: provider) { item in
+                if let item { resolved.append((index, item)) }
                 group.leave()
             }
         }
 
         group.notify(queue: .main) { [weak self] in
-            let urls = loaded.sorted { $0.0 < $1.0 }.map(\.1)
-            guard urls.count > 1 else {
-                if let url = urls.first { self?.addFile(url) }
-                return
+            guard let self else { return }
+            let items = resolved.sorted { $0.0 < $1.0 }.map(\.1)
+            guard !items.isEmpty else { return }
+            self.append(items.count == 1 ? items[0] : self.batchItem(children: items))
+        }
+    }
+
+    /// Turns one dropped provider into an item, preferring richer
+    /// representations first: a file on disk, then GIF data, then a plain
+    /// image, then a URL (file or link), then text. Always calls back
+    /// exactly once, on the main queue, so callers can mutate state from it.
+    private func resolveItem(from provider: NSItemProvider, completion: @escaping (Item?) -> Void) {
+        if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+            _ = provider.loadObject(ofClass: URL.self) { [weak self] url, _ in
+                let item: Item?
+                if let url, url.isFileURL { item = self?.fileItem(for: url) } else { item = nil }
+                DispatchQueue.main.async { completion(item) }
             }
-            self?.addFileBatch(urls)
+        } else if provider.hasItemConformingToTypeIdentifier(UTType.gif.identifier) {
+            _ = provider.loadDataRepresentation(forTypeIdentifier: UTType.gif.identifier) { [weak self] data, _ in
+                let item: Item?
+                if let data, !data.isEmpty { item = self?.gifItem(for: data) } else { item = nil }
+                DispatchQueue.main.async { completion(item) }
+            }
+        } else if provider.canLoadObject(ofClass: NSImage.self) {
+            _ = provider.loadObject(ofClass: NSImage.self) { [weak self] image, _ in
+                let item = (image as? NSImage).flatMap { self?.imageItem(for: $0) }
+                DispatchQueue.main.async { completion(item) }
+            }
+        } else if provider.canLoadObject(ofClass: URL.self) {
+            _ = provider.loadObject(ofClass: URL.self) { [weak self] url, _ in
+                let item = url.flatMap { url in url.isFileURL ? self?.fileItem(for: url) : self?.linkItem(for: url) }
+                DispatchQueue.main.async { completion(item) }
+            }
+        } else if provider.canLoadObject(ofClass: NSString.self) {
+            _ = provider.loadObject(ofClass: NSString.self) { [weak self] string, _ in
+                let item = (string as? String).flatMap { self?.textItem(for: $0) }
+                DispatchQueue.main.async { completion(item) }
+            }
+        } else {
+            DispatchQueue.main.async { completion(nil) }
         }
     }
 
@@ -1280,32 +1284,9 @@ final class ShelfService: ObservableObject {
         }
     }
 
-    private func addFile(_ url: URL) {
-        append(fileItem(for: url))
-    }
-
     private func addFileBatch(_ urls: [URL]) {
         let children = urls.map { fileItem(for: $0) }
         append(batchItem(children: children))
-    }
-
-    private func addImage(_ image: NSImage) {
-        guard let item = imageItem(for: image) else { return }
-        append(item)
-    }
-
-    private func addGIF(data: Data) {
-        guard let item = gifItem(for: data) else { return }
-        append(item)
-    }
-
-    private func addText(_ string: String) {
-        guard let item = textItem(for: string) else { return }
-        append(item)
-    }
-
-    private func addLink(_ url: URL) {
-        append(linkItem(for: url))
     }
 
     private func fileItem(for url: URL, id: UUID = UUID(), title: String? = nil,
