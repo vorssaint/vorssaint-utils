@@ -35,11 +35,11 @@
   <a href="mailto:hello@vorssaint.com"><strong>hello@vorssaint.com</strong></a>
 </p>
 
-<p align="center">
+<div align="center">
   <a href="https://trendshift.io/repositories/53716?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-53716" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/53716/daily?language=Swift" alt="vorssaint/vorssaint-utils | Trendshift daily ranking" width="250" height="55"></a>
-  &nbsp;&nbsp;
+  <br>
   <a href="https://trendshift.io/repositories/53716?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-53716" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/53716/weekly?language=Swift" alt="vorssaint/vorssaint-utils | Trendshift weekly ranking" width="250" height="55"></a>
-</p>
+</div>
 
 <p align="center">
   <img src="docs/assets/readme/panel-mixer.png" width="196" alt="Volume mixer with per app sliders, one app boosted past 100 percent">

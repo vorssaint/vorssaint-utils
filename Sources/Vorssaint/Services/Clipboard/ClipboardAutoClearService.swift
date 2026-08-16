@@ -144,7 +144,7 @@ final class ClipboardAutoClearService {
             guard let self, self.readGeneration == generation, self.readInFlight else { return }
             self.readInFlight = false
         }
-        GeneralPasteboardAccess.shared.async {
+        GeneralPasteboardAccess.shared.async { [weak self] in
             let count = NSPasteboard.general.changeCount
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.readGeneration == generation else { return }
@@ -161,7 +161,7 @@ final class ClipboardAutoClearService {
     /// right now, which is what the event triggers want.
     private func clearNow(expecting expectedChangeCount: Int? = nil) {
         let alreadyCleared = lastClearedChangeCount
-        GeneralPasteboardAccess.shared.async {
+        GeneralPasteboardAccess.shared.async { [weak self] in
             let pasteboard = NSPasteboard.general
             let changeCount = pasteboard.changeCount
             // Locking a Mac fires display sleep and screen lock together: with
