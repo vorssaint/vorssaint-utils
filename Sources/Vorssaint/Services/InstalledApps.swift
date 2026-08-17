@@ -54,6 +54,20 @@ enum InstalledApps {
         return systemPathPrefixes.contains { path.hasPrefix($0) }
     }
 
+    /// Whether `url` sits directly inside one of the folders installed apps
+    /// live in - /Applications or ~/Applications, not a subfolder and not
+    /// somewhere else the user happened to keep an app bundle.
+    static func isInApplicationsFolder(_ url: URL) -> Bool {
+        let parent = url.deletingLastPathComponent()
+            .resolvingSymlinksInPath().standardizedFileURL.path
+        let roots = [
+            URL(fileURLWithPath: "/Applications").standardizedFileURL.path,
+            URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Applications")
+                .standardizedFileURL.path,
+        ]
+        return roots.contains(parent)
+    }
+
     static func installedApplications(includeSystemApplications: Bool = false,
                                       spotlightPaths: [String] = []) -> [InstalledApp] {
         let fm = FileManager.default

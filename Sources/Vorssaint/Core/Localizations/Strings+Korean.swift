@@ -307,6 +307,9 @@ extension Strings {
         uninstallerCatLogs: "로그",
         uninstallerCatState: "저장된 상태",
         uninstallerCatOther: "기타",
+        uninstallerCommandBarBrowseTitle: "애플리케이션 제거",
+        uninstallerCommandBarToggle: "명령 바에 표시",
+        uninstallerCommandBarCaption: "명령 바에 앱마다 제거 항목을 추가합니다. Finder에서 선택한 앱의 바로 가기도 포함됩니다.",
 
         quarantineManagerName: "격리 관리자",
         quarantineManagerMenuItem: "격리 관리자",

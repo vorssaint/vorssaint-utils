@@ -307,6 +307,9 @@ extension Strings {
         uninstallerCatLogs: "日誌",
         uninstallerCatState: "已儲存狀態",
         uninstallerCatOther: "其他",
+        uninstallerCommandBarBrowseTitle: "解除安裝應用程式",
+        uninstallerCommandBarToggle: "在指令列中顯示",
+        uninstallerCommandBarCaption: "為每個應用程式在指令列中新增解除安裝項目，並為 Finder 中選取的應用程式新增捷徑。",
 
         quarantineManagerName: "隔離管理員",
         quarantineManagerMenuItem: "隔離管理員",

@@ -425,6 +425,9 @@ struct Strings {
     let uninstallerCatLogs: String
     let uninstallerCatState: String
     let uninstallerCatOther: String
+    let uninstallerCommandBarBrowseTitle: String
+    let uninstallerCommandBarToggle: String
+    let uninstallerCommandBarCaption: String
 
     // MARK: Feature — quarantine manager
     let quarantineManagerName: String
@@ -1418,6 +1421,9 @@ extension Strings {
         uninstallerCatLogs: "Logs",
         uninstallerCatState: "Estado salvo",
         uninstallerCatOther: "Outros",
+        uninstallerCommandBarBrowseTitle: "Desinstalar aplicativo",
+        uninstallerCommandBarToggle: "Mostrar na Barra de Comandos",
+        uninstallerCommandBarCaption: "Adiciona uma linha de desinstalação para cada aplicativo na Barra de Comandos, além de um atalho para o aplicativo selecionado no Finder.",
 
         quarantineManagerName: "Gerenciador de quarentena",
         quarantineManagerMenuItem: "Gerenciador de quarentena",
@@ -2386,6 +2392,9 @@ extension Strings {
         uninstallerCatLogs: "Logs",
         uninstallerCatState: "Saved state",
         uninstallerCatOther: "Other",
+        uninstallerCommandBarBrowseTitle: "Uninstall Application",
+        uninstallerCommandBarToggle: "Show in Command Bar",
+        uninstallerCommandBarCaption: "Adds an uninstall row for each app to the Command Bar, plus a shortcut for whatever app is selected in Finder.",
 
         quarantineManagerName: "Quarantine Manager",
         quarantineManagerMenuItem: "Quarantine Manager",

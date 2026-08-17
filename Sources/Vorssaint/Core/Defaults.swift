@@ -168,6 +168,7 @@ enum DefaultsKey {
     static let panelUtilityCleaning = "panelUtilityCleaning"
     static let panelUtilityURLCleaner = "panelUtilityURLCleaner"
     static let panelUtilityUninstaller = "panelUtilityUninstaller"
+    static let uninstallerCommandBarEnabled = "uninstallerCommandBarEnabled"
     static let panelUtilityQuarantineManager = "panelUtilityQuarantineManager"
     static let quarantineManagerCommandBarEnabled = "quarantineManagerCommandBarEnabled"
     static let panelUtilityCleaner = "panelUtilityCleaner"
@@ -860,6 +861,7 @@ enum Defaults {
         DefaultsKey.panelUtilityCleaning: true,
         DefaultsKey.panelUtilityURLCleaner: true,
         DefaultsKey.panelUtilityUninstaller: true,
+        DefaultsKey.uninstallerCommandBarEnabled: true,
         DefaultsKey.panelUtilityQuarantineManager: true,
         DefaultsKey.quarantineManagerCommandBarEnabled: true,
         DefaultsKey.panelUtilityCleaner: true,

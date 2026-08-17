@@ -306,6 +306,9 @@ extension Strings {
         uninstallerCatLogs: "Journaux",
         uninstallerCatState: "État enregistré",
         uninstallerCatOther: "Autres",
+        uninstallerCommandBarBrowseTitle: "Désinstaller une application",
+        uninstallerCommandBarToggle: "Afficher dans la barre de commandes",
+        uninstallerCommandBarCaption: "Ajoute une ligne de désinstallation pour chaque application à la barre de commandes, plus un raccourci pour l'application sélectionnée dans le Finder.",
 
         quarantineManagerName: "Gestionnaire de quarantaine",
         quarantineManagerMenuItem: "Gestionnaire de quarantaine",

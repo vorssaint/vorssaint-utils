@@ -306,6 +306,9 @@ extension Strings {
         uninstallerCatLogs: "ログ",
         uninstallerCatState: "保存された状態",
         uninstallerCatOther: "その他",
+        uninstallerCommandBarBrowseTitle: "アプリケーションをアンインストール",
+        uninstallerCommandBarToggle: "コマンドバーに表示",
+        uninstallerCommandBarCaption: "コマンドバーにアプリごとのアンインストール項目を追加します。Finder で選択したアプリのショートカットも含まれます。",
 
         quarantineManagerName: "隔離マネージャ",
         quarantineManagerMenuItem: "隔離マネージャ",

@@ -306,6 +306,9 @@ extension Strings {
         uninstallerCatLogs: "Günlükler",
         uninstallerCatState: "Kaydedilen durum",
         uninstallerCatOther: "Diğer",
+        uninstallerCommandBarBrowseTitle: "Uygulamayı Kaldır",
+        uninstallerCommandBarToggle: "Komut Çubuğunda Göster",
+        uninstallerCommandBarCaption: "Komut Çubuğuna her uygulama için bir kaldırma satırı ekler; ayrıca Finder'da seçili olan uygulama için bir kısayol da eklenir.",
 
         quarantineManagerName: "Karantina Yöneticisi",
         quarantineManagerMenuItem: "Karantina Yöneticisi",

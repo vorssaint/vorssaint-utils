@@ -306,6 +306,9 @@ extension Strings {
         uninstallerCatLogs: "Protokolle",
         uninstallerCatState: "Gesicherter Zustand",
         uninstallerCatOther: "Sonstiges",
+        uninstallerCommandBarBrowseTitle: "Anwendung deinstallieren",
+        uninstallerCommandBarToggle: "In der Befehlsleiste anzeigen",
+        uninstallerCommandBarCaption: "Fügt der Befehlsleiste für jede App eine Deinstallationszeile hinzu, plus eine Verknüpfung für die im Finder ausgewählte App.",
 
         quarantineManagerName: "Quarantäne-Manager",
         quarantineManagerMenuItem: "Quarantäne-Manager",
