@@ -9281,27 +9281,97 @@ struct MetricsTests {
         expect(BrightnessSupport.ddcPathKey(displayFingerprint: "1507:9218:245",
                                             ioDisplayLocation: "") == nil,
                "a display without a stable connection path is never cached")
-        let rememberedPaths = BrightnessSupport.updatedWriteOnlyDDCPaths(
-            ["old", "same", "other", "same"], path: "same", isWriteOnly: true, limit: 3)
+        let rememberedPaths = BrightnessSupport.updatedRememberedPaths(
+            ["old", "same", "other", "same"], path: "same", remembered: true, limit: 3)
         expect(rememberedPaths == ["old", "other", "same"],
                "remembering a write-only path deduplicates it and makes it newest")
-        expect(BrightnessSupport.updatedWriteOnlyDDCPaths(
-            rememberedPaths, path: "other", isWriteOnly: false, limit: 3) == ["old", "same"],
+        expect(BrightnessSupport.updatedRememberedPaths(
+            rememberedPaths, path: "other", remembered: false, limit: 3) == ["old", "same"],
                "a changed DDC result invalidates the remembered path")
-        expect(BrightnessSupport.updatedWriteOnlyDDCPaths(
-            ["one", "two", "three"], path: "four", isWriteOnly: true, limit: 3)
+        expect(BrightnessSupport.updatedRememberedPaths(
+            ["one", "two", "three"], path: "four", remembered: true, limit: 3)
             == ["two", "three", "four"],
                "the write-only path cache remains bounded")
-        expect(!BrightnessSupport.shouldProbeDDC(
-            pathKey: ddcPath, writeOnlyPaths: [ddcPath!])
-                && BrightnessSupport.shouldProbeDDC(
-                    pathKey: "another", writeOnlyPaths: [ddcPath!])
-                && BrightnessSupport.shouldProbeDDC(
-                    pathKey: nil, writeOnlyPaths: [ddcPath!]),
+        expect(!BrightnessSupport.shouldProbe(
+            pathKey: ddcPath, rememberedPaths: [ddcPath!])
+                && BrightnessSupport.shouldProbe(
+                    pathKey: "another", rememberedPaths: [ddcPath!])
+                && BrightnessSupport.shouldProbe(
+                    pathKey: String?.none, rememberedPaths: [ddcPath!]),
                "only the same physical display path skips future DDC probes")
+
+        // MARK: Monitor speakers (DDC audio)
+
+        expect(BrightnessSupport.audioReply(current: 30, maximum: 100) == 0.3,
+               "a volume reply normalizes onto the slider scale")
+        expect(BrightnessSupport.audioReply(current: 0, maximum: 0) == nil,
+               "a monitor answering with an empty range has no speakers to control")
+        expect(BrightnessSupport.muteReply(current: BrightnessSupport.audioMutedValue,
+                                           maximum: 2) == true
+                && BrightnessSupport.muteReply(current: BrightnessSupport.audioUnmutedValue,
+                                               maximum: 2) == false,
+               "the two documented mute values read as muted and unmuted")
+        expect(BrightnessSupport.muteReply(current: 50, maximum: 100) == nil
+                && BrightnessSupport.muteReply(current: 1, maximum: 1) == nil,
+               "a monitor echoing an unrelated value is not offered a mute button")
+        expect(BrightnessSupport.muteDeviceValue(true) == 1
+                && BrightnessSupport.muteDeviceValue(false) == 2,
+               "mute writes carry the MCCS values")
+        expect(BrightnessSupport.isDisplayAudioTransport(kAudioDeviceTransportTypeHDMI)
+                && BrightnessSupport.isDisplayAudioTransport(kAudioDeviceTransportTypeDisplayPort),
+               "sound carried by a display cable comes out of the monitor")
+        expect(!BrightnessSupport.isDisplayAudioTransport(kAudioDeviceTransportTypeBuiltIn)
+                && !BrightnessSupport.isDisplayAudioTransport(kAudioDeviceTransportTypeBluetooth)
+                && !BrightnessSupport.isDisplayAudioTransport(kAudioDeviceTransportTypeUSB),
+               "every other output keeps the volume control it already has")
+
+        let speakerDisplays: [(id: UInt32, name: String)] = [(1, "Dell U2720Q"), (2, "LG HDR 4K")]
+        expect(BrightnessSupport.displayForAudioOutput(deviceName: "Anything at all",
+                                                       candidates: [(7, "Dell U2720Q")]) == 7,
+               "one monitor with speakers is the whole answer")
+        expect(BrightnessSupport.displayForAudioOutput(deviceName: "LG HDR 4K",
+                                                       candidates: speakerDisplays) == 2,
+               "an exact name match picks the monitor the sound leaves through")
+        expect(BrightnessSupport.displayForAudioOutput(deviceName: "DELL U2720Q",
+                                                       candidates: speakerDisplays) == 1,
+               "the name match ignores case")
+        expect(BrightnessSupport.displayForAudioOutput(deviceName: "Studio Speakers",
+                                                       candidates: speakerDisplays) == nil,
+               "an unrelated output name never guesses a monitor")
+        expect(BrightnessSupport.displayForAudioOutput(deviceName: "Dell U2720Q",
+                                                       candidates: []) == nil,
+               "no monitor with speakers means nothing to route to")
+
+        let volumeUp = BrightnessSupport.volumeKeyEvent(subtype: 8, data1: 0x000A00 | 0x1)
+        expect(volumeUp?.action == .step(BrightnessSupport.volumeKeyStep)
+                && volumeUp?.isKeyDown == true && volumeUp?.isRepeat == true,
+               "the volume up key steps up on press and reports its repeat")
+        expect(BrightnessSupport.volumeKeyEvent(subtype: 8, data1: 0x00010A00)?.action
+                == .step(-BrightnessSupport.volumeKeyStep),
+               "the volume down key steps down")
+        expect(BrightnessSupport.volumeKeyEvent(subtype: 8, data1: 0x00070A00)?.action
+                == .toggleMute,
+               "the mute key toggles mute")
+        expect(BrightnessSupport.volumeKeyEvent(subtype: 8, data1: 0x00000B00)?.isKeyDown == false,
+               "the release half is reported so it can be swallowed with its press")
+        expect(BrightnessSupport.volumeKeyEvent(subtype: 8, data1: 0x00020A00) == nil,
+               "a system-defined key that is not a volume key is left alone")
+        expect(BrightnessSupport.volumeKeyEvent(subtype: 7, data1: 0x00000A00) == nil,
+               "only the auxiliary control subtype carries volume keys")
+        expect(BrightnessSupport.volumeKeyEvent(subtype: 8, data1: 0x00000A00,
+                                                hasModifiers: true) == nil,
+               "a modified volume press keeps the system's own finer steps")
+        expect(BrightnessSupport.steppedLevel(0.97, delta: BrightnessSupport.volumeKeyStep) == 1.0
+                && BrightnessSupport.steppedLevel(0.02, delta: -BrightnessSupport.volumeKeyStep) == 0,
+               "volume steps clamp at both ends of the scale")
         expect(!SettingsBackupSupport.exportKeys().contains(
-            DefaultsKey.brightnessDDCWriteOnlyPaths),
+            DefaultsKey.brightnessDDCWriteOnlyPaths)
+                && !SettingsBackupSupport.exportKeys().contains(
+                    DefaultsKey.displayAudioSilentPaths),
                "per-monitor DDC capability never travels in a settings backup")
+        expect(SettingsBackupSupport.exportKeys().isSuperset(of: [
+            DefaultsKey.displayVolumeEnabled, DefaultsKey.displayVolumeKeysEnabled,
+        ]), "the display options a person chose do travel in a settings backup")
         let oneDisplay = BrightnessSupport.DisplayTopology(online: [1], active: [1])
         let twoDisplays = BrightnessSupport.DisplayTopology(online: [1, 2], active: [1, 2])
         expect(!BrightnessSupport.shouldQueueRebuild(topology: oneDisplay, pending: oneDisplay),

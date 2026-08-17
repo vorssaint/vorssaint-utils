@@ -110,6 +110,13 @@ enum DefaultsKey {
     // answer reads. Kept local so wake handling does not repeatedly probe a
     // sensitive display path.
     static let brightnessDDCWriteOnlyPaths = "brightnessDDCWriteOnlyPaths"
+    static let displayVolumeEnabled = "displayVolumeEnabled" // speakers built into external monitors
+    static let displayVolumeKeysEnabled = "displayVolumeKeysEnabled" // volume keys reach those speakers
+    // Per-monitor connection paths whose display answered the audio controls
+    // with no speakers behind them. Remembered for the same reason as the
+    // write-only paths: two extra reads on a bus paced in tens of
+    // milliseconds are not worth repeating on every scan.
+    static let displayAudioSilentPaths = "displayAudioSilentPaths"
     // Displays this app switched off, so a run that ends without putting them
     // back can be repaired on the next start instead of needing a replug.
     static let displaysSwitchedOff = "displaysSwitchedOff"
@@ -794,6 +801,8 @@ enum Defaults {
         DefaultsKey.brightnessControlEnabled: false,
         DefaultsKey.brightnessKeysEnabled: false,
         DefaultsKey.brightnessOSDEnabled: false,
+        DefaultsKey.displayVolumeEnabled: false,
+        DefaultsKey.displayVolumeKeysEnabled: false,
         DefaultsKey.musicBlockEnabled: false,
         DefaultsKey.musicBlockReplacementPath: "",
         DefaultsKey.cleanerScheduleFrequency: "off",

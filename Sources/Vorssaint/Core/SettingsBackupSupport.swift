@@ -118,6 +118,7 @@ enum SettingsBackupSupport {
         DefaultsKey.fanControlHelperVersion,
         // DDC capability belongs to one physical monitor on one Mac port.
         DefaultsKey.brightnessDDCWriteOnlyPaths,
+        DefaultsKey.displayAudioSilentPaths,
     ]
 
     /// The file's content: an envelope with the format version, the app

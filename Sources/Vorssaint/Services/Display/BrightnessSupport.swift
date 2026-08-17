@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import CoreAudio
 import Foundation
 
 /// Pure DDC/CI helpers for the display brightness feature: packet building,
@@ -27,6 +28,15 @@ enum BrightnessSupport {
 
     /// VCP code for luminance in the DDC/CI standard.
     static let luminanceCode: UInt8 = 0x10
+    /// VCP code for speaker volume: the same channel the monitor's own
+    /// buttons use for the speakers built into it.
+    static let audioVolumeCode: UInt8 = 0x62
+    /// VCP code for the audio mute control. Monitors that carry sound but
+    /// offer no mute of their own simply never answer it.
+    static let audioMuteCode: UInt8 = 0x8D
+    /// The two values MCCS defines for the mute control.
+    static let audioMutedValue: UInt16 = 1
+    static let audioUnmutedValue: UInt16 = 2
     /// 7-bit I2C address DDC displays listen on.
     static let chipAddress: UInt32 = 0x37
     /// Sub-address DDC hosts write through.
@@ -149,22 +159,24 @@ enum BrightnessSupport {
         return "\(displayFingerprint)|\(ioDisplayLocation)"
     }
 
-    /// Keeps recent write-only paths unique and bounded. Re-adding a path
-    /// moves it to the end, while a successful reply or rejected write removes
-    /// it so a changed connection can be classified again.
-    static func updatedWriteOnlyDDCPaths(_ stored: [String],
-                                         path: String,
-                                         isWriteOnly: Bool,
-                                         limit: Int = 16) -> [String] {
+    /// Keeps a remembered set of connection paths unique and bounded.
+    /// Re-adding a path moves it to the end, while dropping it lets a changed
+    /// connection be classified again. Two sets are kept this way: paths that
+    /// accept writes but never reply, and paths whose monitor turned out to
+    /// have no speakers, so neither slow discovery is repeated on every scan.
+    static func updatedRememberedPaths(_ stored: [String],
+                                       path: String,
+                                       remembered: Bool,
+                                       limit: Int = 16) -> [String] {
         guard !path.isEmpty, limit > 0 else { return [] }
         var updated = stored.filter { !$0.isEmpty && $0 != path }
-        if isWriteOnly { updated.append(path) }
+        if remembered { updated.append(path) }
         return Array(updated.suffix(limit))
     }
 
-    static func shouldProbeDDC(pathKey: String?, writeOnlyPaths: Set<String>) -> Bool {
+    static func shouldProbe(pathKey: String?, rememberedPaths: Set<String>) -> Bool {
         guard let pathKey else { return true }
-        return !writeOnlyPaths.contains(pathKey)
+        return !rememberedPaths.contains(pathKey)
     }
 
     // MARK: - Display switching
@@ -303,8 +315,14 @@ enum BrightnessSupport {
         return true
     }
 
-    static func steppedBrightness(_ current: Double, delta: Double) -> Double {
+    /// Every key path moves a 0...1 level and clamps it the same way,
+    /// whether the level is a backlight or a monitor's speakers.
+    static func steppedLevel(_ current: Double, delta: Double) -> Double {
         min(max(current + delta, 0), 1)
+    }
+
+    static func steppedBrightness(_ current: Double, delta: Double) -> Double {
+        steppedLevel(current, delta: delta)
     }
 
     /// Whether a brightness key press aimed at a system-routed display is
@@ -319,6 +337,51 @@ enum BrightnessSupport {
                                          overlayReplacesNative: Bool) -> Bool {
         if followsPointer, !displayIsBuiltIn { return true }
         return overlayReplacesNative
+    }
+
+    // MARK: - Volume keys
+
+    /// The volume keys arrive as the same system-defined events the
+    /// brightness keys do, with codes of their own. The system moves its own
+    /// volume in sixteenths, and a monitor's scale is spanned in the same
+    /// number of steps, so a held key feels alike whichever output listens.
+    static let volumeKeyStep = 1.0 / 16.0
+
+    enum VolumeKeyCode {
+        static let up = 0
+        static let down = 1
+        static let mute = 7
+    }
+
+    enum VolumeKeyAction: Equatable {
+        case step(Double)
+        case toggleMute
+    }
+
+    struct VolumeKeyEvent: Equatable {
+        let action: VolumeKeyAction
+        let isKeyDown: Bool
+        let isRepeat: Bool
+    }
+
+    /// A modified press means something else (the system's own finer steps
+    /// and its sound settings), so those are left to it, exactly as the
+    /// brightness keys do.
+    static func volumeKeyEvent(subtype: Int, data1: Int,
+                               hasModifiers: Bool = false) -> VolumeKeyEvent? {
+        guard subtype == 8, !hasModifiers else { return nil }
+        let raw = UInt32(truncatingIfNeeded: data1)
+        let state = Int((raw >> 8) & 0xFF)
+        guard state == 10 || state == 11 else { return nil }
+        let action: VolumeKeyAction
+        switch Int((raw >> 16) & 0xFFFF) {
+        case VolumeKeyCode.up: action = .step(volumeKeyStep)
+        case VolumeKeyCode.down: action = .step(-volumeKeyStep)
+        case VolumeKeyCode.mute: action = .toggleMute
+        default: return nil
+        }
+        return VolumeKeyEvent(action: action, isKeyDown: state == 10,
+                              isRepeat: (raw & 0x1) != 0)
     }
 
     /// Sixteen segments match the system brightness steps. A non-zero value
@@ -358,6 +421,66 @@ enum BrightnessSupport {
         let ceiling = sanitizedMaximum(maximum)
         let clamped = min(max(normalized, 0), 1)
         return UInt16((clamped * Double(ceiling)).rounded())
+    }
+
+    // MARK: - Monitor speakers
+
+    /// A volume reply, but only when it describes speakers that exist.
+    /// Brightness may assume the conventional range for a monitor that
+    /// reports none, because every panel has a backlight; speakers are the
+    /// other way round. A monitor without them still answers the code, and
+    /// it answers with an empty range, so taking the brightness route here
+    /// would hand a silent display a slider that looks like it works.
+    static func audioReply(current: UInt16, maximum: UInt16) -> Double? {
+        guard maximum > 0 else { return nil }
+        return normalized(current: current, maximum: maximum)
+    }
+
+    /// Whether a mute reply is really the MCCS control. Monitors that answer
+    /// a code they do not implement by echoing their last valid reply are
+    /// common enough that accepting any number would put a dead mute button
+    /// on displays that have no mute at all, so only the two documented
+    /// values count and everything else reads as absent.
+    static func muteReply(current: UInt16, maximum: UInt16) -> Bool? {
+        guard maximum >= audioUnmutedValue else { return nil }
+        switch current {
+        case audioMutedValue: return true
+        case audioUnmutedValue: return false
+        default: return nil
+        }
+    }
+
+    static func muteDeviceValue(_ muted: Bool) -> UInt16 {
+        muted ? audioMutedValue : audioUnmutedValue
+    }
+
+    /// Whether the Mac's current sound output is carried by a display cable,
+    /// which is what a monitor's own speakers are. The transport is the only
+    /// signal that survives the names monitors give themselves, and a device
+    /// on any other transport (the built-in speakers, USB, Bluetooth) has a
+    /// volume control of its own that must be left alone.
+    static func isDisplayAudioTransport(_ transportType: UInt32) -> Bool {
+        transportType == kAudioDeviceTransportTypeHDMI
+            || transportType == kAudioDeviceTransportTypeDisplayPort
+    }
+
+    /// Which monitor the sound is coming out of. A single display with
+    /// speakers is the whole answer on almost every desk; beyond that the
+    /// audio device's name is matched against the display names, since macOS
+    /// builds both from the same EDID product name.
+    static func displayForAudioOutput(deviceName: String,
+                                      candidates: [(id: UInt32, name: String)]) -> UInt32? {
+        guard candidates.count != 1 else { return candidates[0].id }
+        guard !candidates.isEmpty else { return nil }
+        let device = deviceName.lowercased()
+        guard !device.isEmpty else { return nil }
+        if let exact = candidates.first(where: { $0.name.lowercased() == device }) {
+            return exact.id
+        }
+        return candidates.first { candidate in
+            let name = candidate.name.lowercased()
+            return !name.isEmpty && (device.contains(name) || name.contains(device))
+        }?.id
     }
 
     // MARK: - Display to service matching

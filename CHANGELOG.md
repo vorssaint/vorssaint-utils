@@ -17,6 +17,12 @@ accidental middle clicks while typing and
 compatibility with older development tools.
 
 ### Added
+- Displays can now control the speakers built into an external monitor, with a
+  volume slider and a mute button on the same channel the monitor's own buttons
+  use. Monitors with no speakers never show one. The keyboard volume keys can
+  reach those speakers too, while the sound is actually leaving through that
+  monitor, instead of moving a level macOS cannot change. Under Displays, and
+  off until you switch it on.
 - Extra brightness now works on external HDR monitors as well as the XDR panel
   of a MacBook Pro, using whatever headroom each display reports and scaling
   down when it grants less.
