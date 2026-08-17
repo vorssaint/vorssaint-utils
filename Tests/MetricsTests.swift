@@ -2981,6 +2981,26 @@ struct MetricsTests {
         expect(ExtraBrightnessSupport.gracedTarget(instantaneous: 1.10, previous: 1.0,
                                                    engaged: false, disengagedTicks: 1) == 1.10,
                "grace never lifts a factor that had no boost to protect")
+        expect(ExtraBrightnessSupport.isBoostableExternal(potentialEDR: 4.0)
+                && ExtraBrightnessSupport.isBoostableExternal(potentialEDR: 16.0),
+               "an external monitor reporting real headroom can be boosted")
+        expect(!ExtraBrightnessSupport.isBoostableExternal(potentialEDR: 2.0)
+                && !ExtraBrightnessSupport.isBoostableExternal(potentialEDR: 1.0),
+               "a display that only fakes EDR is left alone")
+        let external = ExtraBrightnessSupport.externalReference(potentialEDR: 4.0)
+        expect(external.referenceEDR == 4.0
+                && external.bonus == ExtraBrightnessSupport.externalBonus,
+               "an external monitor's own claimed headroom is its reference")
+        expect(ExtraBrightnessSupport.externalReference(potentialEDR: 1.0).referenceEDR
+                == ExtraBrightnessSupport.capabilityFloor,
+               "the external reference never falls below the capability floor")
+        expectClose(ExtraBrightnessSupport.boostFactor(level: 1, maxEDR: 4.0, reference: external),
+                    1 + ExtraBrightnessSupport.externalBonus,
+                    "a fully granting external monitor takes the whole external bonus")
+        expectClose(ExtraBrightnessSupport.boostFactor(level: 1, maxEDR: 2.0, reference: external),
+                    1 + ExtraBrightnessSupport.externalBonus * 0.5,
+                    "an external monitor granting half its claim gets half the bonus")
+
         expect(ExtraBrightnessSupport.canReuseSpaceWindows(
                    sameDisplay: true, overlayOnActiveSpace: true, triggerOnActiveSpace: true),
                "fullscreen handoff keeps the live overlay pair when both windows followed")

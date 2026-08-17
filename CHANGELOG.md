@@ -17,6 +17,9 @@ accidental middle clicks while typing and
 compatibility with older development tools.
 
 ### Added
+- Extra brightness now works on external HDR monitors as well as the XDR panel
+  of a MacBook Pro, using whatever headroom each display reports and scaling
+  down when it grants less.
 - One screen-capture shortcut now opens a shared selector for screenshots,
   recordings, screen text and colors. It only shows installed tools and keeps
   recording sound and microphone choices beside the mode selector. Their
