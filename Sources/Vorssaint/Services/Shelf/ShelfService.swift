@@ -961,30 +961,38 @@ final class ShelfService: ObservableObject {
     private func resolveItem(from provider: NSItemProvider, completion: @escaping (Item?) -> Void) {
         if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
             _ = provider.loadObject(ofClass: URL.self) { [weak self] url, _ in
-                let item: Item?
-                if let url, url.isFileURL { item = self?.fileItem(for: url) } else { item = nil }
-                DispatchQueue.main.async { completion(item) }
+                DispatchQueue.main.async {
+                    guard let url, url.isFileURL else { return completion(nil) }
+                    completion(self?.fileItem(for: url))
+                }
             }
         } else if provider.hasItemConformingToTypeIdentifier(UTType.gif.identifier) {
             _ = provider.loadDataRepresentation(forTypeIdentifier: UTType.gif.identifier) { [weak self] data, _ in
-                let item: Item?
-                if let data, !data.isEmpty { item = self?.gifItem(for: data) } else { item = nil }
-                DispatchQueue.main.async { completion(item) }
+                DispatchQueue.main.async {
+                    guard let data, !data.isEmpty else { return completion(nil) }
+                    completion(self?.gifItem(for: data))
+                }
             }
         } else if provider.canLoadObject(ofClass: NSImage.self) {
             _ = provider.loadObject(ofClass: NSImage.self) { [weak self] image, _ in
-                let item = (image as? NSImage).flatMap { self?.imageItem(for: $0) }
-                DispatchQueue.main.async { completion(item) }
+                DispatchQueue.main.async {
+                    let item = (image as? NSImage).flatMap { self?.imageItem(for: $0) }
+                    completion(item)
+                }
             }
         } else if provider.canLoadObject(ofClass: URL.self) {
             _ = provider.loadObject(ofClass: URL.self) { [weak self] url, _ in
-                let item = url.flatMap { url in url.isFileURL ? self?.fileItem(for: url) : self?.linkItem(for: url) }
-                DispatchQueue.main.async { completion(item) }
+                DispatchQueue.main.async {
+                    let item = url.flatMap { url in url.isFileURL ? self?.fileItem(for: url) : self?.linkItem(for: url) }
+                    completion(item)
+                }
             }
         } else if provider.canLoadObject(ofClass: NSString.self) {
             _ = provider.loadObject(ofClass: NSString.self) { [weak self] string, _ in
-                let item = (string as? String).flatMap { self?.textItem(for: $0) }
-                DispatchQueue.main.async { completion(item) }
+                DispatchQueue.main.async {
+                    let item = (string as? String).flatMap { self?.textItem(for: $0) }
+                    completion(item)
+                }
             }
         } else {
             DispatchQueue.main.async { completion(nil) }
