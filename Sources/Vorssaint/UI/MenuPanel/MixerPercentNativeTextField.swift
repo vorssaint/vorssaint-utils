@@ -16,7 +16,9 @@ final class MixerPercentNativeTextField: NSTextField {
 
     @discardableResult
     func focusAndSelectAll() -> Bool {
-        guard let window, window.makeFirstResponder(self) else { return false }
+        guard let window else { return false }
+        window.makeKey()
+        guard window.makeFirstResponder(self) else { return false }
         selectText(nil)
         return true
     }

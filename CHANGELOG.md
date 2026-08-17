@@ -45,6 +45,7 @@ compatibility with older development tools.
   on-demand preview for reading or editing the full item.
 - Menu bar icons now match surrounding icons in size and alignment. Thanks to @bambidotexe.
 - Volume Mixer percentages can now be entered directly for the system output and each app.
+  Thanks to @KSI-cell.
 - Building Vorssaint from source now works with older development tools.
   Thanks to @Bald-M.
 - Screen recordings can now pause and resume from the floating controls without

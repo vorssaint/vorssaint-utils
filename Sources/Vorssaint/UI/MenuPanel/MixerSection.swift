@@ -797,15 +797,6 @@ private struct EditableVolumePercent<Label: View>: View {
 
     var body: some View {
         ZStack {
-            Button(action: beginEditing) {
-                label()
-                    .frame(width: width, alignment: .trailing)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .opacity(isEditing ? 0 : 1)
-            .allowsHitTesting(!isEditing)
-
             HStack(spacing: 1) {
                 AutofocusingVolumeTextField(text: $draft,
                                             isActive: isEditing,
@@ -815,6 +806,7 @@ private struct EditableVolumePercent<Label: View>: View {
                 Text("%")
                     .font(.system(size: 9.5, weight: .medium))
                     .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
             }
             .padding(.horizontal, 3)
             .frame(width: width, height: 18)
@@ -828,6 +820,18 @@ private struct EditableVolumePercent<Label: View>: View {
             )
             .opacity(isEditing ? 1 : 0)
             .allowsHitTesting(isEditing)
+            .accessibilityHidden(!isEditing)
+
+            Button(action: beginEditing) {
+                label()
+                    .frame(width: width, alignment: .trailing)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .opacity(isEditing ? 0 : 1)
+            .allowsHitTesting(!isEditing)
+            .accessibilityLabel("\(accessibilityLabel) \(currentPercent)%")
+            .accessibilityHidden(isEditing)
         }
         .frame(width: width, alignment: .trailing)
     }
@@ -883,6 +887,8 @@ private struct AutofocusingVolumeTextField: NSViewRepresentable {
         field.font = .systemFont(ofSize: 10.5, weight: .medium)
         field.cell?.wraps = false
         field.cell?.isScrollable = true
+        field.isEnabled = isActive
+        field.isHidden = !isActive
         field.setAccessibilityLabel(accessibilityLabel)
         field.didAttachToWindow = { [weak field, weak coordinator = context.coordinator] in
             guard let field else { return }
@@ -934,7 +940,7 @@ private struct AutofocusingVolumeTextField: NSViewRepresentable {
         }
 
         func controlTextDidEndEditing(_ notification: Notification) {
-            guard isActive, !isFinishing else { return }
+            guard isActive, didFocus, !isFinishing else { return }
             isFinishing = true
             onCancel()
         }
@@ -968,9 +974,13 @@ private struct AutofocusingVolumeTextField: NSViewRepresentable {
                 didFocus = false
                 isFinishing = false
                 if active {
+                    field.isHidden = false
+                    field.isEnabled = true
                     startMonitoringEscape()
                 } else {
                     stopMonitoringEscape()
+                    field.isEnabled = false
+                    field.isHidden = true
                 }
             }
             if active { focusIfNeeded(field) }

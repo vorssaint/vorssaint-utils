@@ -3410,9 +3410,10 @@ struct MetricsTests {
         let reusedHistoryWindow = WindowLayoutWindowKey(processID: 41,
                                                         processLaunchTime: 101,
                                                         windowID: 414)
-        let historyFrames = (0...WindowLayoutHistory.perWindowLimit).map {
-            WindowLayoutFrame(origin: CGPoint(x: $0 * 10, y: $0 * 20),
-                              size: CGSize(width: 800 + $0, height: 500 + $0))
+        let historyFrames: [WindowLayoutFrame] = (0...WindowLayoutHistory.perWindowLimit).map { index in
+            let origin = CGPoint(x: index * 10, y: index * 20)
+            let size = CGSize(width: 800 + index, height: 500 + index)
+            return WindowLayoutFrame(origin: origin, size: size)
         }
         var layoutHistory = WindowLayoutHistory()
         layoutHistory.record(historyFrames[0], for: historyWindow)
