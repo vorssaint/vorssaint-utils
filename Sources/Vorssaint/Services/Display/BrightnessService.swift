@@ -56,8 +56,10 @@ struct BrightnessDisplay: Identifiable, Equatable {
 /// I2C traffic. Keyboard light state is read only when Quick toggles opens.
 /// While display control is on, the standing resources are one screen change
 /// observer and a pair of wake observers; everything else happens when a
-/// slider moves, a panel opens or the Mac wakes, plus an observer for which
-/// device the Mac plays through while the volume keys want it. All I2C work
+/// slider moves, a panel opens or the Mac wakes. Two optional additions have
+/// a cost of their own and exist only while their option is on: an observer
+/// for which device the Mac plays through, and the one timer here, which
+/// samples the built-in panel so external displays can follow it. All I2C work
 /// runs on a serial queue with the pacing displays need, and slider drags
 /// coalesce to the newest value per display.
 final class BrightnessService: ObservableObject {
@@ -301,6 +303,7 @@ final class BrightnessService: ObservableObject {
         stateLock.unlock()
         if wanted, wantsMonitorVolume != covered { refresh(force: true) }
         syncKeyTap()
+        syncBuiltInFollowing()
     }
 
     private func start() {
@@ -321,6 +324,7 @@ final class BrightnessService: ObservableObject {
         removeKeyTap()
         removeFunctionKeyTap()
         removeAudioOutputObserver()
+        stopBuiltInSync()
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         screenObserver = nil
         removeWakeObservers()
@@ -454,6 +458,116 @@ final class BrightnessService: ObservableObject {
         guard schedule else { return }
         workQueue.async { [weak self] in
             self?.drainPendingLevels()
+        }
+    }
+
+    // MARK: - One slider for every display
+
+    /// Where the combined slider sits. It is a handle, not a reading: what it
+    /// carries is the distance it moves, so every display shifts by the same
+    /// amount and a desk deliberately set with one screen dimmer keeps that
+    /// gap. Only a drag all the way to an end flattens the gaps, because a
+    /// display that has hit black or full cannot fall further behind.
+    @Published private(set) var combinedBrightness: Double = 1
+
+    var adjustableDisplays: [BrightnessDisplay] {
+        displays.filter { $0.isActive && $0.method != nil }
+    }
+
+    func setCombinedBrightness(_ value: Double) {
+        let clamped = min(max(value, 0), 1)
+        let delta = clamped - combinedBrightness
+        if combinedBrightness != clamped { combinedBrightness = clamped }
+        guard delta != 0 else { return }
+        for display in adjustableDisplays {
+            let level = BrightnessSupport.steppedLevel(display.brightness, delta: delta)
+            setBrightness(level, for: display.id)
+            // This slider already moved the externals itself. Letting the
+            // follower read the panel's new level as news would move them a
+            // second time, so it is told where the panel landed.
+            if display.isBuiltIn, syncTimer != nil { lastSyncedBuiltIn = level }
+        }
+    }
+
+    /// Puts the handle back where the displays actually are after a scan, so
+    /// a monitor arriving or leaving does not make the next drag jump.
+    private func reseatCombinedBrightness() {
+        let levels = adjustableDisplays.map(\.brightness)
+        guard !levels.isEmpty else { return }
+        let average = levels.reduce(0, +) / Double(levels.count)
+        if combinedBrightness != average { combinedBrightness = average }
+    }
+
+    // MARK: - External displays following the built-in panel
+
+    /// The built-in panel moves on its own, through the ambient light sensor
+    /// and through paths this app never sees (the system's own key handling,
+    /// System Settings), and none of them announce themselves through any
+    /// public API. So the panel is sampled while the option is on, and the
+    /// externals are moved by whatever distance it travelled: matching its
+    /// number outright would be wrong, since a monitor is rarely comfortable
+    /// at the same level as a laptop panel a foot closer to the face.
+    ///
+    /// This is the one timer the display feature keeps, it exists only while
+    /// the option is on and there is both a panel to follow and an external
+    /// display to follow it, and a tick costs a single brightness read.
+    private var syncTimer: Timer?
+    private static let syncInterval: TimeInterval = 2
+    /// The panel level the externals were last matched to. Nil until the
+    /// first tick, which only learns where the panel is: acting on that
+    /// first reading would move every monitor by the distance between the
+    /// panel and nothing at all.
+    private var lastSyncedBuiltIn: Double?
+    /// Smaller moves than this are the panel's own smoothing, not a level
+    /// somebody chose.
+    private static let syncThreshold = 0.01
+
+    private func syncBuiltInFollowing() {
+        let wanted = running
+            && UserDefaults.standard.bool(forKey: DefaultsKey.brightnessSyncEnabled)
+            && displays.contains { $0.isBuiltIn && $0.isActive && $0.method == .system }
+            && displays.contains { !$0.isBuiltIn && $0.isActive && $0.method != nil }
+        if wanted { startBuiltInSync() } else { stopBuiltInSync() }
+    }
+
+    private func startBuiltInSync() {
+        guard syncTimer == nil else { return }
+        let timer = Timer.scheduledTimer(withTimeInterval: Self.syncInterval,
+                                         repeats: true) { [weak self] _ in
+            self?.followBuiltInBrightness()
+        }
+        timer.tolerance = Self.syncInterval / 4
+        syncTimer = timer
+    }
+
+    private func stopBuiltInSync() {
+        syncTimer?.invalidate()
+        syncTimer = nil
+        lastSyncedBuiltIn = nil
+    }
+
+    private func followBuiltInBrightness() {
+        guard running,
+              let builtIn = displays.first(where: {
+                  $0.isBuiltIn && $0.isActive && $0.method == .system
+              }),
+              let read = BrightnessBridge.getBrightness else { return }
+        // A sleeping panel answers a number it cannot honour, and dragging
+        // every monitor to meet it is exactly the wrong thing to do.
+        var level: Float = -1
+        guard CGDisplayIsAsleep(builtIn.id) == 0,
+              read(builtIn.id, &level) == 0, level >= 0, level <= 1 else { return }
+        let current = Double(level)
+        defer { lastSyncedBuiltIn = current }
+        guard let previous = lastSyncedBuiltIn else { return }
+        let delta = current - previous
+        guard abs(delta) >= Self.syncThreshold else { return }
+        if let index = displays.firstIndex(where: { $0.id == builtIn.id }) {
+            displays[index].brightness = current
+        }
+        for display in adjustableDisplays where !display.isBuiltIn {
+            setBrightness(BrightnessSupport.steppedLevel(display.brightness, delta: delta),
+                          for: display.id)
         }
     }
 
@@ -1657,9 +1771,12 @@ final class BrightnessService: ObservableObject {
             }
             self.refreshKeyboardLight()
             self.syncKeyTap()
-            // A monitor arriving or leaving changes what the sound can come
-            // out of.
+            self.reseatCombinedBrightness()
+            // A monitor arriving or leaving changes both what the sound can
+            // come out of and whether there is anything left to follow the
+            // built-in panel.
             self.refreshAudioKeyTarget()
+            self.syncBuiltInFollowing()
         }
     }
 

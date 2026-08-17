@@ -9370,6 +9370,7 @@ struct MetricsTests {
                     DefaultsKey.displayAudioSilentPaths),
                "per-monitor DDC capability never travels in a settings backup")
         expect(SettingsBackupSupport.exportKeys().isSuperset(of: [
+            DefaultsKey.brightnessCombinedEnabled, DefaultsKey.brightnessSyncEnabled,
             DefaultsKey.displayVolumeEnabled, DefaultsKey.displayVolumeKeysEnabled,
         ]), "the display options a person chose do travel in a settings backup")
         let oneDisplay = BrightnessSupport.DisplayTopology(online: [1], active: [1])

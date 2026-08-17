@@ -11,6 +11,7 @@ struct BrightnessSection: View {
     @ObservedObject private var service = BrightnessService.shared
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
+    @AppStorage(DefaultsKey.brightnessCombinedEnabled) private var combinedEnabled = false
     var collapsible = true
 
     private var strings: BrightnessFeatureStrings { FeatureStrings.brightness(l10n.language) }
@@ -23,6 +24,12 @@ struct BrightnessSection: View {
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
                 } else {
+                    // One handle for the whole desk only earns its space
+                    // when there is more than one display under it.
+                    if combinedEnabled, service.adjustableDisplays.count > 1 {
+                        combinedRow
+                        Divider()
+                    }
                     ForEach(service.displays) { display in
                         row(display)
                     }
@@ -47,6 +54,25 @@ struct BrightnessSection: View {
             }
             .panelCard()
             .onAppear { service.refresh() }
+        }
+    }
+
+    private var combinedRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: "rectangle.on.rectangle")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+                Text(strings.allDisplays)
+                    .font(.system(size: 11.5, weight: .medium))
+                Spacer(minLength: 4)
+            }
+            Slider(value: Binding(get: { service.combinedBrightness },
+                                  set: { service.setCombinedBrightness($0) }),
+                   in: 0...1)
+                .controlSize(.small)
+                .accessibilityLabel(strings.allDisplays)
         }
     }
 

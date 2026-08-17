@@ -110,6 +110,8 @@ enum DefaultsKey {
     // answer reads. Kept local so wake handling does not repeatedly probe a
     // sensitive display path.
     static let brightnessDDCWriteOnlyPaths = "brightnessDDCWriteOnlyPaths"
+    static let brightnessCombinedEnabled = "brightnessCombinedEnabled" // one slider for every display
+    static let brightnessSyncEnabled = "brightnessSyncEnabled" // external displays follow the built-in panel
     static let displayVolumeEnabled = "displayVolumeEnabled" // speakers built into external monitors
     static let displayVolumeKeysEnabled = "displayVolumeKeysEnabled" // volume keys reach those speakers
     // Per-monitor connection paths whose display answered the audio controls
@@ -801,6 +803,8 @@ enum Defaults {
         DefaultsKey.brightnessControlEnabled: false,
         DefaultsKey.brightnessKeysEnabled: false,
         DefaultsKey.brightnessOSDEnabled: false,
+        DefaultsKey.brightnessCombinedEnabled: false,
+        DefaultsKey.brightnessSyncEnabled: false,
         DefaultsKey.displayVolumeEnabled: false,
         DefaultsKey.displayVolumeKeysEnabled: false,
         DefaultsKey.musicBlockEnabled: false,

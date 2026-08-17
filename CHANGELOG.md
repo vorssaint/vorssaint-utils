@@ -17,6 +17,10 @@ accidental middle clicks while typing and
 compatibility with older development tools.
 
 ### Added
+- Displays can now show one slider that moves every display at once, keeping the
+  gaps between them.
+- External displays can now follow the built-in screen, moving with it whether
+  its brightness changed by hand or by ambient light.
 - Displays can now control the speakers built into an external monitor, with a
   volume slider and a mute button on the same channel the monitor's own buttons
   use. Monitors with no speakers never show one. The keyboard volume keys can

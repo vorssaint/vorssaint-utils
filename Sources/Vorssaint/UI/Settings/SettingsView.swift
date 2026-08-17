@@ -377,6 +377,8 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
+    @AppStorage(DefaultsKey.brightnessCombinedEnabled) private var brightnessCombined = false
+    @AppStorage(DefaultsKey.brightnessSyncEnabled) private var brightnessSync = false
     @AppStorage(DefaultsKey.displayVolumeEnabled) private var displayVolume = false
     @AppStorage(DefaultsKey.displayVolumeKeysEnabled) private var displayVolumeKeys = false
     @AppStorage(DefaultsKey.extraBrightnessEnabled) private var extraBrightnessEnabled = false
@@ -502,6 +504,17 @@ struct EnergySettings: View {
                                                       isOn: $brightnessOSDEnabled)
                                 .onChange(of: brightnessOSDEnabled) { _, isOn in
                                     if isOn { Permissions.shared.requestAccessibility() }
+                                    BrightnessService.shared.syncWithPreferences()
+                                }
+                        }
+                        SettingsToggleWithCaption(title: strings.combinedToggle,
+                                                  caption: strings.combinedCaption,
+                                                  isOn: $brightnessCombined)
+                        if brightness.displays.contains(where: { $0.isBuiltIn }) {
+                            SettingsToggleWithCaption(title: strings.syncToggle,
+                                                      caption: strings.syncCaption,
+                                                      isOn: $brightnessSync)
+                                .onChange(of: brightnessSync) { _, _ in
                                     BrightnessService.shared.syncWithPreferences()
                                 }
                         }
