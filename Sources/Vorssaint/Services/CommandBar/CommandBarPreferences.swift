@@ -273,4 +273,23 @@ enum CommandBarPreferences {
         if next.contains(key) { next.remove(key) } else { next.insert(key) }
         return next
     }
+
+    // MARK: - Position
+
+    /// How far the person dragged the bar from the spot it opens on by
+    /// default, stored as an offset rather than a place: "a hand's width
+    /// lower and to the left" means the same thing on every display, and
+    /// a place remembered from a monitor that is no longer plugged in
+    /// would put the bar where nobody can see it.
+    static func decodePositionOffset(_ raw: String) -> CGSize {
+        let parts = raw.split(separator: ",").compactMap { Double($0) }
+        guard parts.count == 2 else { return .zero }
+        return CGSize(width: parts[0], height: parts[1])
+    }
+
+    static func encodePositionOffset(_ offset: CGSize) -> String {
+        let rounded = CGSize(width: offset.width.rounded(), height: offset.height.rounded())
+        guard rounded != .zero else { return "" }
+        return "\(Int(rounded.width)),\(Int(rounded.height))"
+    }
 }

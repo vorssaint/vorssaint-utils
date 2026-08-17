@@ -38,6 +38,15 @@ struct CommandBarSettings: View {
                 } label: {
                     Label(text.openButton, systemImage: "command")
                 }
+                Button {
+                    CommandBarService.shared.resetPanelPosition()
+                } label: {
+                    Label(text.resetPositionButton, systemImage: "arrow.uturn.backward")
+                }
+                .disabled(!service.hasCustomPosition)
+                Text(text.positionCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Text(text.settingsCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)

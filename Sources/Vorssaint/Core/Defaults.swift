@@ -407,6 +407,7 @@ enum DefaultsKey {
     static let commandBarHidden = "commandBarHidden"         // row keys the person never wants offered
     static let commandBarLinks = "commandBarLinks"           // Data: [CommandBarLink] JSON
     static let commandBarRowShortcuts = "commandBarRowShortcuts" // {row key: shortcut}
+    static let commandBarPositionOffset = "commandBarPositionOffset" // "dx,dy" from the default spot
     static let panelUtilityCommandBar = "panelUtilityCommandBar"
     static let scratchpadRetention = "scratchpadRetention"   // never | day | week | month
     static let scratchpadCloseOnClickOutside = "scratchpadCloseOnClickOutside"
@@ -1045,6 +1046,7 @@ enum Defaults {
         DefaultsKey.commandBarPins: "",
         DefaultsKey.commandBarHidden: "",
         DefaultsKey.commandBarShortcut: GlobalShortcut.commandBarDefault.storageValue,
+        DefaultsKey.commandBarPositionOffset: "",
         DefaultsKey.panelUtilityCommandBar: true,
         DefaultsKey.scratchpadRetention: ScratchpadRetention.never.rawValue,
         DefaultsKey.scratchpadCloseOnClickOutside: true,
