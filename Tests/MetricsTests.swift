@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import CoreAudio
-import CoreGraphics
+import AppKit
 import Carbon.HIToolbox
 import Combine
+import CoreAudio
+import CoreGraphics
 import Darwin
 import Foundation
 import ImageIO
@@ -3409,9 +3410,10 @@ struct MetricsTests {
         let reusedHistoryWindow = WindowLayoutWindowKey(processID: 41,
                                                         processLaunchTime: 101,
                                                         windowID: 414)
-        let historyFrames = (0...WindowLayoutHistory.perWindowLimit).map {
-            WindowLayoutFrame(origin: CGPoint(x: $0 * 10, y: $0 * 20),
-                              size: CGSize(width: 800 + $0, height: 500 + $0))
+        let historyFrames: [WindowLayoutFrame] = (0...WindowLayoutHistory.perWindowLimit).map { index in
+            let origin = CGPoint(x: index * 10, y: index * 20)
+            let size = CGSize(width: 800 + index, height: 500 + index)
+            return WindowLayoutFrame(origin: origin, size: size)
         }
         var layoutHistory = WindowLayoutHistory()
         layoutHistory.record(historyFrames[0], for: historyWindow)
@@ -4318,6 +4320,45 @@ struct MetricsTests {
         expectClose(Defaults.sanitizedAppVolume(3), 2, "high app volume clamps to boost maximum")
         expectClose(Defaults.sanitizedAppVolume(-1), 0, "negative app volume clamps to mute")
         expectClose(Defaults.sanitizedAppVolume(.infinity), 1, "non-finite app volume falls back to unity")
+        expectClose(MixerRoutingSupport.volumeFraction(fromPercentageText: "40",
+                                                       maximumPercent: 200) ?? -1,
+                    0.4,
+                    "mixer percentage input becomes app gain")
+        expectClose(MixerRoutingSupport.volumeFraction(fromPercentageText: " 75% ",
+                                                       maximumPercent: 100) ?? -1,
+                    0.75,
+                    "mixer percentage input accepts a percent sign")
+        expectClose(MixerRoutingSupport.volumeFraction(fromPercentageText: "250",
+                                                       maximumPercent: 200) ?? -1,
+                    2,
+                    "mixer percentage input clamps to the row maximum")
+        expectClose(MixerRoutingSupport.volumeFraction(fromPercentageText: "-10",
+                                                       maximumPercent: 100) ?? -1,
+                    0,
+                    "mixer percentage input clamps negative values")
+        expect(MixerRoutingSupport.volumeFraction(fromPercentageText: "loud",
+                                                  maximumPercent: 100) == nil,
+               "mixer percentage input rejects non-numbers")
+        expect(MixerRoutingSupport.volumeFraction(fromPercentageText: "nan",
+                                                  maximumPercent: 100) == nil,
+               "mixer percentage input rejects non-finite numbers")
+        let percentWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 80, height: 24),
+                                     styleMask: .borderless,
+                                     backing: .buffered,
+                                     defer: false)
+        let percentField = MixerPercentNativeTextField(frame: percentWindow.contentView!.bounds)
+        percentField.stringValue = "37"
+        var percentFieldAttached = false
+        percentField.didAttachToWindow = { percentFieldAttached = true }
+        percentWindow.contentView?.addSubview(percentField)
+        expect(percentFieldAttached,
+               "mixer percentage field notices when it joins its popover window")
+        expect(percentField.focusAndSelectAll(),
+               "mixer percentage field becomes the native first responder")
+        expect((percentField.currentEditor() as? NSTextView)?.selectedRange()
+                == NSRange(location: 0, length: 2),
+               "mixer percentage field selects its existing value for direct replacement")
+        percentWindow.orderOut(nil)
         expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(35) == 35,
                "headphone disconnect volume preserves valid percentages")
         expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(-5)
@@ -12235,6 +12276,30 @@ struct MetricsTests {
         expect(CommandBarPreferences.decodePins(CommandBarPreferences.encodePins(["a", "b"])) == ["a", "b"]
                 && CommandBarPreferences.decodePins("a\na\n\nb") == ["a", "b"],
                "pins survive the round trip and never repeat")
+        let positionOffset = CGSize(width: -24.4, height: 80.6)
+        expect(CommandBarPreferences.decodePositionOffset(
+            CommandBarPreferences.encodePositionOffset(positionOffset))
+            == CGSize(width: -24, height: 81),
+               "the command bar position offset survives a rounded round trip")
+        for invalidOffset in ["", "12", "12,", "12,nope", "12,nope,20", "nan,1", "inf,1"] {
+            expect(CommandBarPreferences.decodePositionOffset(invalidOffset) == .zero,
+                   "an invalid command bar position offset is ignored (\(invalidOffset))")
+        }
+        expect(CommandBarPreferences.encodePositionOffset(.zero).isEmpty
+                && CommandBarPreferences.encodePositionOffset(
+                    CGSize(width: CGFloat.infinity, height: 1)).isEmpty,
+               "an empty or non-finite command bar position offset is not stored")
+        let commandBarScreen = CGRect(x: -1440, y: 0, width: 1440, height: 900)
+        let commandBarSize = CGSize(width: 560, height: 380)
+        let upperRight = CommandBarPreferences.clampedPanelOrigin(
+            size: commandBarSize, in: commandBarScreen,
+            offset: CGSize(width: 10_000, height: 10_000))
+        let lowerLeft = CommandBarPreferences.clampedPanelOrigin(
+            size: commandBarSize, in: commandBarScreen,
+            offset: CGSize(width: -10_000, height: -10_000))
+        expect(upperRight == CGPoint(x: -576, y: 504)
+                && lowerLeft == CGPoint(x: -1424, y: 16),
+               "the command bar stays fully inside a screen on both axes")
 
         // MARK: Command bar unit conversion
 
@@ -12345,6 +12410,8 @@ struct MetricsTests {
         expect(Defaults.registeredDefaults[DefaultsKey.commandBarShortcut] as? String
                 == "option:49",
                "the default command bar shortcut is option space, the launcher convention")
+        expect(Defaults.registeredDefaults[DefaultsKey.commandBarPositionOffset] as? String == "",
+               "the command bar position starts at its default spot")
         expect(Defaults.registeredDefaults[DefaultsKey.panelUtilityCommandBar] as? Bool == true,
                "the command bar panel row ships visible like its siblings")
         expect(GlobalShortcutRole.commandBar.requiredEnableKeys == [DefaultsKey.commandBarShortcutEnabled]
@@ -12362,7 +12429,8 @@ struct MetricsTests {
                "what the person runs most never travels in a backup")
         expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarShortcutEnabled)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarShortcut)
-                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarLinks),
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarLinks)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarPositionOffset),
                "the command bar settings travel in backups")
         // MARK: Screen recorder wiring
 
@@ -13206,7 +13274,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let commandBarValues = Mirror(reflecting: FeatureStrings.commandBar(language)).children
                 .compactMap { $0.value as? String }
-            expect(commandBarValues.count == 133 && commandBarValues.allSatisfy { !$0.isEmpty },
+            expect(commandBarValues.count == 136 && commandBarValues.allSatisfy { !$0.isEmpty },
                    "every command bar string is set for \(language.rawValue)")
             expect(commandBarValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible command bar strings (\(language.rawValue))")

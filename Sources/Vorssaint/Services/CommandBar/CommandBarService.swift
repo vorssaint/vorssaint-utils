@@ -96,9 +96,6 @@ final class CommandBarService: ObservableObject {
     private var localClickMonitor: Any?
     private var flagsMonitor: Any?
     private var activationObserver: NSObjectProtocol?
-    /// Fires when the panel finishes a move, whatever moved it — the mark's
-    /// drag, the animated return — so the resting place is written down once.
-    private var panelMoveObserver: NSObjectProtocol?
 
     private var catalog: [CommandBarEntry] = []
     let scriptRunner = CommandBarScriptRunner()
@@ -1981,9 +1978,6 @@ final class CommandBarService: ObservableObject {
         let host = NSHostingController(rootView: CommandBarView())
         host.sizingOptions = .preferredContentSize
         panel.contentViewController = host
-        panelMoveObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.didMoveNotification, object: panel, queue: .main
-        ) { [weak self] _ in self?.savePanelPosition() }
         self.panel = panel
         return panel
     }
@@ -2001,12 +1995,9 @@ final class CommandBarService: ObservableObject {
         let screen = NSScreen.pointerVisibleFrame
         panelScreen = screen
         let offset = positionOffset
-        let x = screen.midX - size.width / 2 + offset.width
-        let top = screen.minY + screen.height * 0.72 + offset.height
-        panel.setFrame(NSRect(x: max(screen.minX + 16, min(x, screen.maxX - size.width - 16)),
-                              y: max(screen.minY + 16, top - size.height),
-                              width: size.width,
-                              height: size.height),
+        let origin = CommandBarPreferences.clampedPanelOrigin(
+            size: size, in: screen, offset: offset)
+        panel.setFrame(NSRect(origin: origin, size: size),
                        display: true,
                        animate: animated)
     }
@@ -2020,19 +2011,27 @@ final class CommandBarService: ObservableObject {
 
     // MARK: - Moving the bar
 
-    /// Writes down where the panel came to rest, as the distance from the
-    /// spot it would have opened on, so it opens there from now on. Riding
-    /// on didMove means every way the panel can stop moving — the mark's
-    /// drag, the animated return, even the plain show — lands on this one
-    /// line of bookkeeping, and none of them needs its own save.
-    private func savePanelPosition() {
+    /// Clamps and saves only after the person's drag has ended. Programmatic
+    /// positioning and content-driven resizing never rewrite this preference.
+    func finishPanelDrag() {
         guard let panel else { return }
-        let screen = panelScreen ?? NSScreen.pointerVisibleFrame
-        let offset = CGSize(width: (panel.frame.midX - screen.midX).rounded(),
-                            height: (panel.frame.maxY - (screen.minY + screen.height * 0.72)).rounded())
-        UserDefaults.standard.set(CommandBarPreferences.encodePositionOffset(offset),
-                                  forKey: DefaultsKey.commandBarPositionOffset)
-        hasCustomPosition = offset != .zero
+        let screen = panel.screen?.visibleFrame ?? panelScreen ?? NSScreen.pointerVisibleFrame
+        panelScreen = screen
+        let draggedOffset = CGSize(
+            width: panel.frame.midX - screen.midX,
+            height: panel.frame.maxY - (screen.minY + screen.height * 0.72))
+        let origin = CommandBarPreferences.clampedPanelOrigin(
+            size: panel.frame.size, in: screen, offset: draggedOffset)
+        if panel.frame.origin != origin { panel.setFrameOrigin(origin) }
+        let offset = CGSize(width: panel.frame.midX - screen.midX,
+                            height: panel.frame.maxY - (screen.minY + screen.height * 0.72))
+        let encoded = CommandBarPreferences.encodePositionOffset(offset)
+        if encoded.isEmpty {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.commandBarPositionOffset)
+        } else {
+            UserDefaults.standard.set(encoded, forKey: DefaultsKey.commandBarPositionOffset)
+        }
+        hasCustomPosition = !encoded.isEmpty
     }
 
     /// The way back: a double-click on the mark, or the button in Settings,

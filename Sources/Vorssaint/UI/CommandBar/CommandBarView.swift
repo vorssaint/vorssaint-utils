@@ -34,6 +34,14 @@ struct CommandBarView: View {
         func updateNSView(_ view: HandleView, context: Context) {}
 
         final class HandleView: NSView {
+            private var moveObserver: NSObjectProtocol?
+            private var saveTask: DispatchWorkItem?
+
+            deinit {
+                saveTask?.cancel()
+                if let moveObserver { NotificationCenter.default.removeObserver(moveObserver) }
+            }
+
             override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
             override func resetCursorRects() {
@@ -48,9 +56,37 @@ struct CommandBarView: View {
                     CommandBarService.shared.resetPanelPosition()
                     return
                 }
+                guard let window else { return }
                 NSCursor.closedHand.set()
-                window?.performDrag(with: event)
+                observeMovement(of: window)
+                window.performDrag(with: event)
+                scheduleSave()
                 NSCursor.openHand.set()
+            }
+
+            private func observeMovement(of window: NSWindow) {
+                saveTask?.cancel()
+                if let moveObserver { NotificationCenter.default.removeObserver(moveObserver) }
+                moveObserver = NotificationCenter.default.addObserver(
+                    forName: NSWindow.didMoveNotification,
+                    object: window,
+                    queue: .main
+                ) { [weak self] _ in
+                    self?.scheduleSave()
+                }
+            }
+
+            private func scheduleSave() {
+                saveTask?.cancel()
+                let task = DispatchWorkItem { [weak self] in
+                    guard let self else { return }
+                    if let moveObserver { NotificationCenter.default.removeObserver(moveObserver) }
+                    moveObserver = nil
+                    saveTask = nil
+                    CommandBarService.shared.finishPanelDrag()
+                }
+                saveTask = task
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: task)
             }
         }
     }

@@ -12,9 +12,6 @@ struct CommandBarFeatureStrings {
     let panelCaption: String
     let settingsCaption: String
     let openButton: String
-    let positionCaption: String
-    let resetPositionButton: String
-    let dragHint: String
     let searchPlaceholder: String
     let suggestionsLabel: String
     let noResultsTitle: String
@@ -143,6 +140,9 @@ struct CommandBarFeatureStrings {
     let scriptRunFailed: String
     let scriptSearchHint: String
     let linkAddButton: String
+    let positionCaption: String
+    let resetPositionButton: String
+    let dragHint: String
 }
 
 extension FeatureStrings {
@@ -172,9 +172,6 @@ extension CommandBarFeatureStrings {
         panelCaption: "Type to find and run anything",
         settingsCaption: "One shortcut opens a field over whatever you are doing. Type a few letters, press Return and it happens. Nothing you type is saved.",
         openButton: "Open the bar now",
-        positionCaption: "Drag the mark at the left of the field to put the bar anywhere on the screen; double-click the mark to put it back where it started.",
-        resetPositionButton: "Put the bar back where it started",
-        dragHint: "Drag to move · Double-click to put it back",
         searchPlaceholder: "Type what you want to do",
         suggestionsLabel: "Suggestions",
         noResultsTitle: "Nothing here by that name.",
@@ -302,7 +299,10 @@ extension CommandBarFeatureStrings {
         scriptHint: "Choose an executable file. Type its name followed by what you want to send. It runs when you pause and shows the result here.",
         scriptRunFailed: "Couldn’t run this file",
         scriptSearchHint: "Type what to send after the name",
-        linkAddButton: "Add shortcut")
+        linkAddButton: "Add shortcut",
+        positionCaption: "Drag the mark at the left of the field to put the bar anywhere on the screen; double-click the mark to put it back where it started.",
+        resetPositionButton: "Put the bar back where it started",
+        dragHint: "Drag to move · Double-click to put it back")
 
     static let ptBR = CommandBarFeatureStrings(
         pageTitle: "Barra de comando",
@@ -310,9 +310,6 @@ extension CommandBarFeatureStrings {
         panelCaption: "Digite para achar e executar qualquer coisa",
         settingsCaption: "Um atalho abre um campo por cima do que você estiver fazendo. Digite umas letras, aperte Return e pronto. Nada do que você digita fica salvo.",
         openButton: "Abrir a barra agora",
-        positionCaption: "Arraste a marca à esquerda do campo para colocar a barra em qualquer lugar da tela; clique duas vezes nela para voltar ao começo.",
-        resetPositionButton: "Colocar a barra onde ela começou",
-        dragHint: "Arraste para mover · Clique duplo para voltar",
         searchPlaceholder: "Digite o que você quer fazer",
         suggestionsLabel: "Sugestões",
         noResultsTitle: "Nada com esse nome por aqui.",
@@ -440,7 +437,10 @@ extension CommandBarFeatureStrings {
         scriptHint: "Escolha um arquivo executável. Digite o nome seguido do que deseja enviar. Ele roda quando você para e mostra o resultado aqui.",
         scriptRunFailed: "Não foi possível executar este arquivo",
         scriptSearchHint: "Digite o que enviar depois do nome",
-        linkAddButton: "Adicionar atalho")
+        linkAddButton: "Adicionar atalho",
+        positionCaption: "Arraste a marca à esquerda do campo para colocar a barra em qualquer lugar da tela; clique duas vezes nela para voltar ao começo.",
+        resetPositionButton: "Colocar a barra onde ela começou",
+        dragHint: "Arraste para mover · Clique duplo para voltar")
 
     static let tr = CommandBarFeatureStrings(
         pageTitle: "Komut çubuğu",
@@ -448,9 +448,6 @@ extension CommandBarFeatureStrings {
         panelCaption: "Yazın, bulun ve çalıştırın",
         settingsCaption: "Tek bir kısayol, yaptığınız işin üstünde bir alan açar. Birkaç harf yazın, Return'e basın ve iş biter. Yazdıklarınız kaydedilmez.",
         openButton: "Çubuğu şimdi aç",
-        positionCaption: "Alanı ekranın istediğiniz yerine taşımak için soldaki işareti sürükleyin; geri koymak için işarete çift tıklayın.",
-        resetPositionButton: "Çubuğu başladığı yere koy",
-        dragHint: "Taşımak için sürükleyin · Geri koymak için çift tıklayın",
         searchPlaceholder: "Ne yapmak istediğinizi yazın",
         suggestionsLabel: "Öneriler",
         noResultsTitle: "Bu adda bir şey yok.",
@@ -578,7 +575,10 @@ extension CommandBarFeatureStrings {
         scriptHint: "Çalıştırılabilir bir dosya seçin. Adını ve ardından göndermek istediğiniz metni yazın. Durduğunuzda çalışır ve sonucu burada gösterir.",
         scriptRunFailed: "Bu dosya çalıştırılamadı",
         scriptSearchHint: "Addan sonra göndermek istediğinizi yazın",
-        linkAddButton: "Kısayol ekle")
+        linkAddButton: "Kısayol ekle",
+        positionCaption: "Alanı ekranın istediğiniz yerine taşımak için soldaki işareti sürükleyin; geri koymak için işarete çift tıklayın.",
+        resetPositionButton: "Çubuğu başladığı yere koy",
+        dragHint: "Taşımak için sürükleyin · Geri koymak için çift tıklayın")
 
     static let ru = CommandBarFeatureStrings(
         pageTitle: "Командная панель",
@@ -586,9 +586,6 @@ extension CommandBarFeatureStrings {
         panelCaption: "Введите, чтобы найти и запустить что угодно",
         settingsCaption: "Одно сочетание клавиш открывает поле поверх того, чем вы заняты. Наберите пару букв, нажмите Return, и готово. Введённое нигде не сохраняется.",
         openButton: "Открыть панель сейчас",
-        positionCaption: "Перетащите значок слева от поля, чтобы поставить панель в любое место экрана; двойной щелчок по значку возвращает её назад.",
-        resetPositionButton: "Вернуть панель на прежнее место",
-        dragHint: "Перетащите, чтобы сдвинуть · Двойной щелчок — вернуть",
         searchPlaceholder: "Наберите, что нужно сделать",
         suggestionsLabel: "Предложения",
         noResultsTitle: "Ничего с таким названием не нашлось.",
@@ -716,7 +713,10 @@ extension CommandBarFeatureStrings {
         scriptHint: "Выберите исполняемый файл. Введите имя и затем то, что хотите передать. После паузы файл запустится и покажет результат здесь.",
         scriptRunFailed: "Не удалось запустить этот файл",
         scriptSearchHint: "После имени введите то, что нужно передать",
-        linkAddButton: "Добавить ярлык")
+        linkAddButton: "Добавить ярлык",
+        positionCaption: "Перетащите значок слева от поля, чтобы поставить панель в любое место экрана; двойной щелчок по значку возвращает её назад.",
+        resetPositionButton: "Вернуть панель на прежнее место",
+        dragHint: "Перетащите, чтобы сдвинуть · Двойной щелчок, чтобы вернуть")
 
     static let es = CommandBarFeatureStrings(
         pageTitle: "Barra de comandos",
@@ -724,9 +724,6 @@ extension CommandBarFeatureStrings {
         panelCaption: "Escribe para encontrar y ejecutar lo que sea",
         settingsCaption: "Un atajo abre un campo sobre lo que estés haciendo. Escribe unas letras, pulsa Retorno y listo. Nada de lo que escribes se guarda.",
         openButton: "Abrir la barra ahora",
-        positionCaption: "Arrastra la marca a la izquierda del campo para poner la barra en cualquier lugar de la pantalla; doble clic en la marca para volver al principio.",
-        resetPositionButton: "Volver a poner la barra donde empezó",
-        dragHint: "Arrastra para mover · Doble clic para volver",
         searchPlaceholder: "Escribe lo que quieres hacer",
         suggestionsLabel: "Sugerencias",
         noResultsTitle: "No hay nada con ese nombre.",
@@ -854,7 +851,10 @@ extension CommandBarFeatureStrings {
         scriptHint: "Elige un archivo ejecutable. Escribe su nombre seguido de lo que quieras enviar. Se ejecuta al hacer una pausa y muestra el resultado aquí.",
         scriptRunFailed: "No se pudo ejecutar este archivo",
         scriptSearchHint: "Escribe lo que quieras enviar después del nombre",
-        linkAddButton: "Añadir atajo")
+        linkAddButton: "Añadir atajo",
+        positionCaption: "Arrastra la marca a la izquierda del campo para poner la barra en cualquier lugar de la pantalla; doble clic en la marca para volver al principio.",
+        resetPositionButton: "Volver a poner la barra donde empezó",
+        dragHint: "Arrastra para mover · Doble clic para volver")
 
     static let de = CommandBarFeatureStrings(
         pageTitle: "Befehlsleiste",
@@ -862,9 +862,6 @@ extension CommandBarFeatureStrings {
         panelCaption: "Tippen, finden, ausführen",
         settingsCaption: "Ein Kurzbefehl öffnet ein Feld über dem, was du gerade tust. Ein paar Buchstaben tippen, Return drücken, fertig. Nichts von dem, was du tippst, wird gespeichert.",
         openButton: "Leiste jetzt öffnen",
-        positionCaption: "Ziehe das Zeichen links vom Feld, um die Leiste überall auf dem Bildschirm zu platzieren; Doppelklick aufs Zeichen stellt alles zurück.",
-        resetPositionButton: "Leiste an den Anfangsort zurücksetzen",
-        dragHint: "Ziehen zum Verschieben · Doppelklick stellt zurück",
         searchPlaceholder: "Tippe, was du tun möchtest",
         suggestionsLabel: "Vorschläge",
         noResultsTitle: "Nichts mit diesem Namen gefunden.",
@@ -992,7 +989,10 @@ extension CommandBarFeatureStrings {
         scriptHint: "Wählen Sie eine ausführbare Datei. Geben Sie den Namen und danach den gewünschten Text ein. Nach einer Pause wird das Ergebnis hier angezeigt.",
         scriptRunFailed: "Diese Datei konnte nicht ausgeführt werden",
         scriptSearchHint: "Geben Sie nach dem Namen ein, was gesendet werden soll",
-        linkAddButton: "Kurzbefehl hinzufügen")
+        linkAddButton: "Kurzbefehl hinzufügen",
+        positionCaption: "Ziehe das Zeichen links vom Feld, um die Leiste überall auf dem Bildschirm zu platzieren; Doppelklick aufs Zeichen stellt alles zurück.",
+        resetPositionButton: "Leiste an den Anfangsort zurücksetzen",
+        dragHint: "Ziehen zum Verschieben · Doppelklick stellt zurück")
 
     static let fr = CommandBarFeatureStrings(
         pageTitle: "Barre de commande",
@@ -1000,9 +1000,6 @@ extension CommandBarFeatureStrings {
         panelCaption: "Tapez pour trouver et lancer ce que vous voulez",
         settingsCaption: "Un raccourci ouvre un champ par-dessus ce que vous faites. Tapez quelques lettres, appuyez sur Retour, c'est fait. Rien de ce que vous tapez n'est enregistré.",
         openButton: "Ouvrir la barre maintenant",
-        positionCaption: "Faites glisser la marque à gauche du champ pour placer la barre où vous voulez à l'écran ; double-cliquez sur la marque pour la remettre à sa place de départ.",
-        resetPositionButton: "Remettre la barre à sa place de départ",
-        dragHint: "Glisser pour déplacer · Double-clic pour remettre",
         searchPlaceholder: "Tapez ce que vous voulez faire",
         suggestionsLabel: "Suggestions",
         noResultsTitle: "Rien à ce nom par ici.",
@@ -1130,7 +1127,10 @@ extension CommandBarFeatureStrings {
         scriptHint: "Choisissez un fichier exécutable. Saisissez son nom suivi du texte à envoyer. Après une pause, le résultat s’affiche ici.",
         scriptRunFailed: "Impossible d’exécuter ce fichier",
         scriptSearchHint: "Saisissez ce qui sera envoyé après le nom",
-        linkAddButton: "Ajouter un raccourci")
+        linkAddButton: "Ajouter un raccourci",
+        positionCaption: "Faites glisser la marque à gauche du champ pour placer la barre où vous voulez à l'écran ; double-cliquez sur la marque pour la remettre à sa place de départ.",
+        resetPositionButton: "Remettre la barre à sa place de départ",
+        dragHint: "Glisser pour déplacer · Double-clic pour remettre")
 
     static let it = CommandBarFeatureStrings(
         pageTitle: "Barra dei comandi",
@@ -1138,9 +1138,6 @@ extension CommandBarFeatureStrings {
         panelCaption: "Scrivi per trovare ed eseguire qualsiasi cosa",
         settingsCaption: "Una scorciatoia apre un campo sopra quello che stai facendo. Scrivi qualche lettera, premi Invio e via. Niente di ciò che scrivi viene salvato.",
         openButton: "Apri la barra adesso",
-        positionCaption: "Trascina il segno a sinistra del campo per mettere la barra in qualsiasi punto dello schermo; doppio clic sul segno per rimetterla com'era.",
-        resetPositionButton: "Rimetti la barra dov'era",
-        dragHint: "Trascina per spostare · Doppio clic per rimettere",
         searchPlaceholder: "Scrivi cosa vuoi fare",
         suggestionsLabel: "Suggerimenti",
         noResultsTitle: "Qui non c'è niente con questo nome.",
@@ -1268,7 +1265,10 @@ extension CommandBarFeatureStrings {
         scriptHint: "Scegli un file eseguibile. Digita il nome seguito dal testo da inviare. Dopo una pausa, il risultato appare qui.",
         scriptRunFailed: "Impossibile eseguire questo file",
         scriptSearchHint: "Digita cosa inviare dopo il nome",
-        linkAddButton: "Aggiungi scorciatoia")
+        linkAddButton: "Aggiungi scorciatoia",
+        positionCaption: "Trascina il segno a sinistra del campo per mettere la barra in qualsiasi punto dello schermo; doppio clic sul segno per rimetterla com'era.",
+        resetPositionButton: "Rimetti la barra dov'era",
+        dragHint: "Trascina per spostare · Doppio clic per rimettere")
 
     static let ja = CommandBarFeatureStrings(
         pageTitle: "コマンドバー",
@@ -1276,9 +1276,6 @@ extension CommandBarFeatureStrings {
         panelCaption: "入力するだけで見つけて実行",
         settingsCaption: "ショートカットひとつで、作業中の画面の上に入力欄が開きます。数文字入力して Return を押すだけ。入力した内容は保存されません。",
         openButton: "今すぐバーを開く",
-        positionCaption: "入力欄の左のマークをドラッグすると、バーを画面の好きな場所に移動できます。マークをダブルクリックすると元の位置に戻ります。",
-        resetPositionButton: "バーを元の位置に戻す",
-        dragHint: "ドラッグで移動 · ダブルクリックで戻す",
         searchPlaceholder: "やりたいことを入力",
         suggestionsLabel: "候補",
         noResultsTitle: "その名前では見つかりませんでした。",
@@ -1406,7 +1403,10 @@ extension CommandBarFeatureStrings {
         scriptHint: "実行可能なファイルを選びます。名前に続けて渡したい内容を入力すると、入力を止めた後に結果がここへ表示されます。",
         scriptRunFailed: "このファイルを実行できませんでした",
         scriptSearchHint: "名前の後に渡したい内容を入力",
-        linkAddButton: "ショートカットを追加")
+        linkAddButton: "ショートカットを追加",
+        positionCaption: "入力欄の左のマークをドラッグすると、バーを画面の好きな場所に移動できます。マークをダブルクリックすると元の位置に戻ります。",
+        resetPositionButton: "バーを元の位置に戻す",
+        dragHint: "ドラッグで移動 · ダブルクリックで戻す")
 
     static let ko = CommandBarFeatureStrings(
         pageTitle: "명령 막대",
@@ -1414,9 +1414,6 @@ extension CommandBarFeatureStrings {
         panelCaption: "입력해서 찾고 바로 실행",
         settingsCaption: "단축키 하나로 지금 하던 작업 위에 입력란이 열립니다. 몇 글자 입력하고 Return을 누르면 끝. 입력한 내용은 저장되지 않습니다.",
         openButton: "지금 막대 열기",
-        positionCaption: "입력란 왼쪽의 표식을 드래그하면 막대를 화면 어디든 옮길 수 있습니다. 표식을 두 번 클릭하면 처음 자리로 돌아갑니다.",
-        resetPositionButton: "막대를 처음 자리로 되돌리기",
-        dragHint: "드래그하여 이동 · 두 번 클릭하여 되돌리기",
         searchPlaceholder: "하고 싶은 일을 입력",
         suggestionsLabel: "제안",
         noResultsTitle: "그 이름으로는 아무것도 없습니다.",
@@ -1544,7 +1541,10 @@ extension CommandBarFeatureStrings {
         scriptHint: "실행 가능한 파일을 선택하세요. 이름 뒤에 전달할 내용을 입력하면 멈춘 뒤 결과가 여기에 표시됩니다.",
         scriptRunFailed: "이 파일을 실행할 수 없습니다",
         scriptSearchHint: "이름 뒤에 전달할 내용을 입력하세요",
-        linkAddButton: "단축키 추가")
+        linkAddButton: "단축키 추가",
+        positionCaption: "입력란 왼쪽의 표식을 드래그하면 막대를 화면 어디든 옮길 수 있습니다. 표식을 두 번 클릭하면 처음 자리로 돌아갑니다.",
+        resetPositionButton: "막대를 처음 자리로 되돌리기",
+        dragHint: "드래그하여 이동 · 두 번 클릭하여 되돌리기")
 
     static let zhHans = CommandBarFeatureStrings(
         pageTitle: "命令栏",
@@ -1552,9 +1552,6 @@ extension CommandBarFeatureStrings {
         panelCaption: "输入即可找到并执行任何功能",
         settingsCaption: "一个快捷键就能在当前屏幕上打开输入框。输入几个字母，按下 Return 即可完成。输入的内容不会保存。",
         openButton: "立即打开命令栏",
-        positionCaption: "拖动输入框左侧的标志，可以把命令栏放到屏幕任意位置；双击标志即可恢复到起始位置。",
-        resetPositionButton: "把命令栏放回起始位置",
-        dragHint: "拖动移动 · 双击复原",
         searchPlaceholder: "输入你想做的事",
         suggestionsLabel: "建议",
         noResultsTitle: "没有找到这个名称。",
@@ -1682,7 +1679,10 @@ extension CommandBarFeatureStrings {
         scriptHint: "选择一个可执行文件。输入名称，再输入要传递的内容。停止输入后会在这里显示结果。",
         scriptRunFailed: "无法运行此文件",
         scriptSearchHint: "在名称后输入要传递的内容",
-        linkAddButton: "添加快捷方式")
+        linkAddButton: "添加快捷方式",
+        positionCaption: "拖动输入框左侧的标志，可以把命令栏放到屏幕任意位置；双击标志即可恢复到起始位置。",
+        resetPositionButton: "把命令栏放回起始位置",
+        dragHint: "拖动移动 · 双击复原")
 
     static let zhTW = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -1690,9 +1690,6 @@ extension CommandBarFeatureStrings {
         panelCaption: "輸入即可找到並執行任何功能",
         settingsCaption: "一個快速鍵就能在目前畫面上打開輸入欄位。輸入幾個字母，按下 Return 就完成。輸入的內容不會儲存。",
         openButton: "立即打開指令列",
-        positionCaption: "拖曳輸入欄左側的標誌，可以把指令列放到螢幕任何位置；雙按標誌即可回到起始位置。",
-        resetPositionButton: "把指令列放回起始位置",
-        dragHint: "拖曳移動 · 雙按復原",
         searchPlaceholder: "輸入你想做的事",
         suggestionsLabel: "建議",
         noResultsTitle: "沒有找到這個名稱。",
@@ -1820,7 +1817,10 @@ extension CommandBarFeatureStrings {
         scriptHint: "選擇一個可執行檔案。輸入名稱，再輸入要傳送的內容。停止輸入後會在這裡顯示結果。",
         scriptRunFailed: "無法執行此檔案",
         scriptSearchHint: "在名稱後輸入要傳送的內容",
-        linkAddButton: "加入捷徑")
+        linkAddButton: "加入捷徑",
+        positionCaption: "拖曳輸入欄左側的標誌，可以把指令列放到螢幕任何位置；雙按標誌即可回到起始位置。",
+        resetPositionButton: "把指令列放回起始位置",
+        dragHint: "拖曳移動 · 雙按復原")
 
     static let zhHK = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -1828,9 +1828,6 @@ extension CommandBarFeatureStrings {
         panelCaption: "輸入即可找到並執行任何功能",
         settingsCaption: "一個快捷鍵就能在目前螢幕上打開輸入欄位。輸入幾個字母，按下 Return 就完成。輸入的內容不會儲存。",
         openButton: "立即打開指令列",
-        positionCaption: "拖曳輸入欄左側嘅標誌，可以將指令列放到螢幕任何位置；雙擊標誌即可回到起始位置。",
-        resetPositionButton: "把指令列放返起始位置",
-        dragHint: "拖曳移動 · 雙擊復原",
         searchPlaceholder: "輸入你想做的事",
         suggestionsLabel: "建議",
         noResultsTitle: "沒有找到這個名稱。",
@@ -1958,5 +1955,8 @@ extension CommandBarFeatureStrings {
         scriptHint: "選擇一個可執行檔案。輸入名稱，再輸入要傳送的內容。停止輸入後會在這裡顯示結果。",
         scriptRunFailed: "無法執行此檔案",
         scriptSearchHint: "在名稱後輸入要傳送的內容",
-        linkAddButton: "加入捷徑")
+        linkAddButton: "加入捷徑",
+        positionCaption: "拖曳輸入欄左側嘅標誌，可以將指令列放到螢幕任何位置；雙擊標誌即可回到起始位置。",
+        resetPositionButton: "把指令列放返起始位置",
+        dragHint: "拖曳移動 · 雙擊復原")
 }

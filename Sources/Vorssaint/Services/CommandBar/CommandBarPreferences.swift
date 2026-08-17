@@ -282,14 +282,34 @@ enum CommandBarPreferences {
     /// a place remembered from a monitor that is no longer plugged in
     /// would put the bar where nobody can see it.
     static func decodePositionOffset(_ raw: String) -> CGSize {
-        let parts = raw.split(separator: ",").compactMap { Double($0) }
-        guard parts.count == 2 else { return .zero }
-        return CGSize(width: parts[0], height: parts[1])
+        let parts = raw.split(separator: ",", omittingEmptySubsequences: false)
+        guard parts.count == 2,
+              let width = Double(parts[0]), width.isFinite,
+              let height = Double(parts[1]), height.isFinite
+        else { return .zero }
+        return CGSize(width: width, height: height)
     }
 
     static func encodePositionOffset(_ offset: CGSize) -> String {
         let rounded = CGSize(width: offset.width.rounded(), height: offset.height.rounded())
         guard rounded != .zero else { return "" }
-        return "\(Int(rounded.width)),\(Int(rounded.height))"
+        guard let width = Int(exactly: rounded.width),
+              let height = Int(exactly: rounded.height)
+        else { return "" }
+        return "\(width),\(height)"
+    }
+
+    static func clampedPanelOrigin(size: CGSize, in visibleFrame: CGRect,
+                                   offset: CGSize) -> CGPoint {
+        let margin: CGFloat = 16
+        let wanted = CGPoint(x: visibleFrame.midX - size.width / 2 + offset.width,
+                             y: visibleFrame.minY + visibleFrame.height * 0.72
+                                - size.height + offset.height)
+        let minX = visibleFrame.minX + margin
+        let maxX = max(minX, visibleFrame.maxX - size.width - margin)
+        let minY = visibleFrame.minY + margin
+        let maxY = max(minY, visibleFrame.maxY - size.height - margin)
+        return CGPoint(x: min(max(wanted.x, minX), maxX),
+                       y: min(max(wanted.y, minY), maxY))
     }
 }
