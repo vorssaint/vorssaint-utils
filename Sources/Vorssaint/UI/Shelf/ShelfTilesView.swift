@@ -172,6 +172,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
     private var didDrag = false
     private var draggedIDs: [UUID] = []
     private var isDropTargeted = false
+    private var pendingRebuildAfterDrag = false
     private var closeButton: NSButton!
     private var expandButton: NSButton?
 
@@ -506,6 +507,12 @@ final class ShelfTileView: NSView, NSDraggingSource {
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         let merged = ShelfService.shared.mergePasteboard(sender.draggingPasteboard, into: item.id)
         setDropTargeted(false)
+        pendingRebuildAfterDrag = merged
+        return merged
+    }
+
+    override func concludeDragOperation(_ sender: NSDraggingInfo?) {
+        setDropTargeted(false)
         // mergePasteboard mutates ShelfService synchronously (whether the
         // drag came from outside the app or from another tile), but SwiftUI's
         // own updateNSView observably lags behind it while this AppKit drag
@@ -513,18 +520,17 @@ final class ShelfTileView: NSView, NSDraggingSource {
         // until some unrelated later event forces a redraw. Rebuilding
         // directly here, with the service's own current state, bypasses that
         // lag for the one thing that has to be immediate: showing the drop
-        // actually worked.
-        if merged, let scroll = superview?.enclosingScrollView {
-            ShelfTilesView.rebuildTiles(scroll: scroll,
-                                       items: ShelfService.shared.visibleItems,
-                                       selection: ShelfService.shared.selection,
-                                       expandedBatches: ShelfService.shared.expandedBatches)
-        }
-        return merged
-    }
-
-    override func concludeDragOperation(_ sender: NSDraggingInfo?) {
-        setDropTargeted(false)
+        // actually worked. Deferred to here rather than done inline in
+        // performDragOperation: rebuildTiles tears down every tile,
+        // including self, and concludeDragOperation is the last AppKit
+        // callback expected on self for this drag, so self is safe to
+        // remove from the hierarchy by the time this runs.
+        guard pendingRebuildAfterDrag, let scroll = superview?.enclosingScrollView else { return }
+        pendingRebuildAfterDrag = false
+        ShelfTilesView.rebuildTiles(scroll: scroll,
+                                   items: ShelfService.shared.visibleItems,
+                                   selection: ShelfService.shared.selection,
+                                   expandedBatches: ShelfService.shared.expandedBatches)
     }
 
     private func mergeOperation(for sender: NSDraggingInfo) -> NSDragOperation {
