@@ -213,6 +213,7 @@ extension Strings {
         switcherWindowlessAppsFinder: "Nur Finder",
         switcherWindowlessAppsAll: "Alle Apps",
         switcherNoOpenWindow: "Kein geöffnetes Fenster",
+        switcherOtherDesktop: "Anderer Schreibtisch",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Fenster im Dock vorab anzeigen",
         dockPreviewEnableCaption: "Zeige auf eine geöffnete App im Dock, um ihre Fenster zu sehen, und klicke dann auf das gewünschte.",

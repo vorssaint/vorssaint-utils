@@ -248,10 +248,12 @@ struct GlobalShortcut: Equatable, Hashable {
         modifiers.keyCaps + [keyLabel ?? "Key \(keyCode)"]
     }
 
-    /// The shorter way to press a four-modifier shortcut while the Super key
-    /// is running. Shortcuts with any other modifier set have no equivalent.
-    func superKeyAlternative(capsLockLabel: String) -> String? {
-        guard modifiers == .validMask, let key = keyCaps.last else { return nil }
+    /// The shorter way to press a shortcut matching the configured Super key.
+    func superKeyAlternative(capsLockLabel: String,
+                             superKeyModifiers: GlobalShortcutModifiers) -> String? {
+        guard superKeyModifiers.hasPrimaryModifier,
+              modifiers == superKeyModifiers,
+              let key = keyCaps.last else { return nil }
         return "\(capsLockLabel) + \(key)"
     }
 

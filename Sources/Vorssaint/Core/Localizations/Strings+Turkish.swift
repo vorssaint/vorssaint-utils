@@ -213,6 +213,7 @@ extension Strings {
         switcherWindowlessAppsFinder: "Yalnızca Finder",
         switcherWindowlessAppsAll: "Tüm uygulamalar",
         switcherNoOpenWindow: "Açık penceresi yok",
+        switcherOtherDesktop: "Başka masaüstü",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Dock'tan pencereleri önizle",
         dockPreviewEnableCaption: "Pencerelerini görmek için Dock'taki açık bir uygulamanın üzerine gel, ardından açmak istediğin pencereye tıkla.",

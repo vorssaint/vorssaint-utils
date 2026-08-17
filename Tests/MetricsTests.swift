@@ -1715,8 +1715,33 @@ struct MetricsTests {
                && embeddedWindow.windowOwnerPID == 202
                && embeddedWindow.previewWindowID == 77,
                "App Switcher keeps regular app identity separate from the window owner")
-        expect(embeddedWindow.withMinimized(true).windowOwnerPID == 202,
-               "App Switcher preserves the real window owner across state updates")
+        let hiddenSpaceWindow = embeddedWindow.withHiddenSpaceState(true)
+        let minimizedHiddenSpaceWindow = hiddenSpaceWindow.withMinimized(true)
+        expect(hiddenSpaceWindow.isOnHiddenSpace
+               && minimizedHiddenSpaceWindow.windowOwnerPID == 202
+               && minimizedHiddenSpaceWindow.isOnHiddenSpace,
+               "App Switcher preserves window ownership and other-desktop state across updates")
+
+        // MARK: Hidden app windows (issue #656)
+        let hiddenAppWindow = SwitcherItem.window(id: 79,
+                                                  title: "Hidden Project",
+                                                  appName: "Primary",
+                                                  pid: 101,
+                                                  isOnScreen: false,
+                                                  isAppHidden: true,
+                                                  frame: CGRect(x: 20, y: 20, width: 900, height: 600))
+        expect(hiddenAppWindow.isAppHidden
+               && hiddenAppWindow.withMinimized(true).isAppHidden
+               && SwitcherItem.appOnly(appName: "Primary", pid: 101,
+                                       isAppHidden: true).isAppHidden,
+               "App Switcher carries a hidden app's state through every entry shape")
+        expect(SwitcherSupport.isConfirmedHiddenAppWindow(appIsHidden: true,
+                                                          windowSpaces: [3])
+               && !SwitcherSupport.isConfirmedHiddenAppWindow(appIsHidden: false,
+                                                               windowSpaces: [3])
+               && !SwitcherSupport.isConfirmedHiddenAppWindow(appIsHidden: true,
+                                                               windowSpaces: []),
+               "App Switcher keeps only hidden-app surfaces assigned to a real desktop")
         expect(SwitcherSupport.sessionSourceItem(frontmostPID: 101,
                                                  focusedWindowID: nil,
                                                  items: [embeddedWindow])?.id == embeddedWindow.id,
@@ -6066,6 +6091,13 @@ struct MetricsTests {
                     "App Switcher Small keeps a windowless app icon inside its preview")
         expectClose(Double(SwitcherIconRowLayout.appEntrySpacing), 5.25,
                     "App Switcher Small keeps windowless app content proportionally spaced")
+        let selectedIconTileHeight = SwitcherIconRowLayout.selectedIconSize
+            + SwitcherIconRowLayout.iconTileSpacing
+            + SwitcherIconRowLayout.iconTitleHeight
+            + SwitcherIconRowLayout.iconTileVerticalPadding * 2
+        expectClose(Double(SwitcherIconRowLayout.rowHeight - selectedIconTileHeight),
+                    Double(SwitcherIconRowLayout.iconTileVerticalMargin * 2),
+                    "App Switcher Small keeps the selection outline inside its icon row")
         expectClose(Double(DockPreviewSupport.cardSpacing), 6,
                     "Dock Preview Small previews tighten card spacing")
         expectClose(Double(DockPreviewSupport.panelPadding), 9,
@@ -7809,6 +7841,9 @@ struct MetricsTests {
             expect(!strings.switcherCurrentSpaceOnlyCaption.isEmpty
                    && !strings.switcherCurrentSpaceOnlyCaption.contains("—"),
                    "\(prefix) App Switcher current-desktop caption is present without em dash")
+            expect(!strings.switcherOtherDesktop.isEmpty
+                   && !strings.switcherOtherDesktop.contains("—"),
+                   "\(prefix) App Switcher other-desktop label is present without em dash")
             expect(!strings.switcherSearchPin.isEmpty
                    && !strings.switcherSearchPinCaption.isEmpty
                    && !strings.switcherSearchPin.contains("—")
@@ -8723,9 +8758,17 @@ struct MetricsTests {
                "the shortcut editor lists installed roles even without reading enable keys")
 
         let superSpace = GlobalShortcut(keyCode: Int64(kVK_Space), modifiers: .validMask)
-        expect(superSpace.superKeyAlternative(capsLockLabel: "Caps Lock") == "Caps Lock + Space"
-                && GlobalShortcut.commandBarDefault.superKeyAlternative(capsLockLabel: "Caps Lock") == nil,
-               "the shortcut editor only shows a Super key alternative for all four modifiers")
+        let customSuperSpace = GlobalShortcut(keyCode: Int64(kVK_Space),
+                                              modifiers: [.control, .option, .command])
+        expect(superSpace.superKeyAlternative(capsLockLabel: "Caps Lock",
+                                              superKeyModifiers: .validMask) == "Caps Lock + Space"
+                && customSuperSpace.superKeyAlternative(
+                    capsLockLabel: "Caps Lock",
+                    superKeyModifiers: [.control, .option, .command]) == "Caps Lock + Space"
+                && GlobalShortcut.commandBarDefault.superKeyAlternative(
+                    capsLockLabel: "Caps Lock",
+                    superKeyModifiers: [.control, .option, .command]) == nil,
+               "the shortcut editor follows the configured Super key modifiers")
 
         // MARK: Features hub strings
 
@@ -8840,8 +8883,9 @@ struct MetricsTests {
                 .compactMap { $0.value as? String }
             expect(superKeyValues.count == 14 && superKeyValues.allSatisfy { !$0.isEmpty },
                    "every super key string is set for \(language.rawValue)")
-            expect(superKeyValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible super key strings (\(language.rawValue))")
+            expect(superKeyValues.allSatisfy { !$0.contains("—") }
+                    && FeatureStrings.superKey(language).panelCaptionFormat.contains("%@"),
+                   "super key strings keep their format and avoid em-dashes (\(language.rawValue))")
             let shortcutValues = Mirror(reflecting: FeatureStrings.shortcuts(language)).children
                 .compactMap { $0.value as? String }
             expect(shortcutValues.count == 3 && shortcutValues.allSatisfy { !$0.isEmpty },
@@ -11154,6 +11198,9 @@ struct MetricsTests {
 
         expect(Defaults.registeredDefaults[DefaultsKey.superKeyEnabled] as? Bool == false,
                "the super key ships off by default")
+        expect(Defaults.registeredDefaults[DefaultsKey.superKeyModifiers] as? String
+                == SuperKeySupport.defaultModifierStorageValue,
+               "the super key starts with all four modifiers")
         expect(Defaults.registeredDefaults[DefaultsKey.superKeySoloAction] as? String
                 == SuperKeySoloAction.none.rawValue,
                "a tap on its own does nothing until the user picks something")
@@ -11163,8 +11210,9 @@ struct MetricsTests {
                "the mapping flag is machine state, so it is never registered and never backed up")
         expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.superKeyMappingApplied)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.superKeyEnabled)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.superKeyModifiers)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.superKeySoloAction),
-               "the switch and the solo action travel in a backup, the mapping state stays behind")
+               "the Super key preferences travel in a backup, the mapping state stays behind")
         expect(AppFeature.superKey.enabledKeys == [DefaultsKey.superKeyEnabled]
                 && AppFeature.superKey.permissions == [.accessibility]
                 && AppFeature.superKey.group == .mouseKeyboard
@@ -11178,6 +11226,19 @@ struct MetricsTests {
                 && SuperKeySoloAction.sanitized("nonsense") == SuperKeySoloAction.none
                 && SuperKeySoloAction.sanitized(nil) == SuperKeySoloAction.none,
                "a stored solo action is trusted only when the app still knows it")
+        expect(SuperKeySupport.modifiers(from: "control+option+command")
+                == [.control, .option, .command]
+                && SuperKeySupport.modifiers(from: "shift") == .validMask
+                && SuperKeySupport.modifiers(from: "control+") == .validMask
+                && SuperKeySupport.modifiers(from: "") == .validMask
+                && SuperKeySupport.modifiers(from: "invalid") == .validMask
+                && SuperKeySupport.modifiers(from: nil) == .validMask,
+               "stored Super key modifiers require a shortcut modifier or use the default")
+        expect(SuperKeySupport.storageValue(for: [.control, .option, .command])
+                == "control+option+command"
+                && SuperKeySupport.storageValue(for: [])
+                    == SuperKeySupport.defaultModifierStorageValue,
+               "Super key modifiers keep stable storage and never save an empty combination")
 
         let capsMapping = SuperKeyMapping(source: SuperKeySupport.capsLockUsage,
                                           destination: SuperKeySupport.triggerUsage)
@@ -11258,7 +11319,7 @@ struct MetricsTests {
         expect(superKeyState.isHeld
                 && superKeyState.decide(.otherKey) == .addModifiers
                 && superKeyState.decide(.otherKey) == .addModifiers,
-               "every key pressed while it is held carries the four modifiers")
+               "every key pressed while it is held carries the configured modifiers")
         expect(superKeyState.decide(.triggerUp) == .swallow && !superKeyState.isHeld,
                "releasing after a combination does nothing on its own")
 
@@ -12363,6 +12424,23 @@ struct MetricsTests {
                 && quickLauncherViewSource.contains(
                     "case .screenRecorder: return recorder.isRecording ? \"stop.circle\" : \"record.circle\""),
                "the screen recorder keeps its quick-panel tile, action and recording state")
+        var windowRetention = WindowActivationRetention()
+        let firstWindowNeedsPromotion = windowRetention.retain()
+        let secondWindowNeedsPromotion = windowRetention.retain()
+        let firstCloseNeedsDemotion = windowRetention.release()
+        let lastCloseNeedsDemotion = windowRetention.release()
+        let extraCloseNeedsDemotion = windowRetention.release()
+        expect(firstWindowNeedsPromotion && !secondWindowNeedsPromotion
+                && !firstCloseNeedsDemotion && lastCloseNeedsDemotion
+                && !extraCloseNeedsDemotion && windowRetention.count == 0,
+               "user-facing windows share one balanced app activation lifetime")
+        let appDelegateSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/App/AppDelegate.swift",
+            encoding: .utf8)) ?? ""
+        expect(appDelegateSource.contains("if !settingsKeepsAppRegular {")
+                && appDelegateSource.contains("WindowActivationPolicy.retain()")
+                && appDelegateSource.contains("WindowActivationPolicy.release()"),
+               "Settings retains Command Tab presence only while its window is visible")
         expect(Defaults.registeredDefaults[DefaultsKey.recorderSystemAudio] as? Bool == true,
                "a recording carries the sound of the Mac unless the person turns it off")
         expect(Defaults.registeredDefaults[DefaultsKey.recorderMicrophone] as? Bool == false,

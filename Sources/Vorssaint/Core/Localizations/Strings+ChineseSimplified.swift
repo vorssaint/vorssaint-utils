@@ -213,6 +213,7 @@ extension Strings {
         switcherWindowlessAppsFinder: "仅访达",
         switcherWindowlessAppsAll: "全部 App",
         switcherNoOpenWindow: "无打开的窗口",
+        switcherOtherDesktop: "其他桌面",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "在 Dock 中预览窗口",
         dockPreviewEnableCaption: "将指针悬停在 Dock 中已打开的 App 上查看窗口，然后点按要打开的窗口。",

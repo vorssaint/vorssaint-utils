@@ -213,6 +213,7 @@ extension Strings {
         switcherWindowlessAppsFinder: "Finder のみ",
         switcherWindowlessAppsAll: "すべてのアプリ",
         switcherNoOpenWindow: "ウインドウなし",
+        switcherOtherDesktop: "別のデスクトップ",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Dock でウインドウをプレビュー",
         dockPreviewEnableCaption: "Dock の開いているアプリにポインタを重ねてウインドウを確認し、開きたいウインドウをクリックします。",

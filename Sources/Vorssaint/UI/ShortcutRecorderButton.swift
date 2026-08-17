@@ -268,6 +268,7 @@ struct ShortcutPreferenceRow: View {
     private let statusText: String?
     private let statusIsActive: Bool
     private let showsSuperKeyAlternative: Bool
+    private let superKeyModifiers: GlobalShortcutModifiers
     private let includeInactiveConflicts: Bool
     private let onChange: () -> Void
     private let additionalConflict: (GlobalShortcut) -> String?
@@ -283,6 +284,7 @@ struct ShortcutPreferenceRow: View {
          statusText: String? = nil,
          statusIsActive: Bool = false,
          showsSuperKeyAlternative: Bool = false,
+         superKeyModifiers: GlobalShortcutModifiers = .validMask,
          includeInactiveConflicts: Bool = false,
          additionalConflict: @escaping (GlobalShortcut) -> String? = { _ in nil },
          onChange: @escaping () -> Void) {
@@ -294,6 +296,7 @@ struct ShortcutPreferenceRow: View {
         self.statusText = statusText
         self.statusIsActive = statusIsActive
         self.showsSuperKeyAlternative = showsSuperKeyAlternative
+        self.superKeyModifiers = superKeyModifiers
         self.includeInactiveConflicts = includeInactiveConflicts
         self.additionalConflict = additionalConflict
         self.onChange = onChange
@@ -362,7 +365,8 @@ struct ShortcutPreferenceRow: View {
     private var superKeyAlternative: String? {
         guard showsSuperKeyAlternative else { return nil }
         return shortcut.superKeyAlternative(
-            capsLockLabel: FeatureStrings.superKey(l10n.language).capsLockKey)
+            capsLockLabel: FeatureStrings.superKey(l10n.language).capsLockKey,
+            superKeyModifiers: superKeyModifiers)
     }
 
     private func save(_ shortcut: GlobalShortcut) {

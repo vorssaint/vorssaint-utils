@@ -447,7 +447,7 @@ final class ScreenshotService: ObservableObject {
     }
 
     func openEditor(with capture: ScreenshotSelectionController.Capture) {
-        EditorActivationPolicy.retain()
+        WindowActivationPolicy.retain()
         let editor = ScreenshotEditorController(capture: capture)
         editors.append(editor)
         editor.show()
@@ -501,7 +501,7 @@ final class ScreenshotService: ObservableObject {
     func editorDidClose(_ editor: ScreenshotEditorController) {
         guard editors.contains(where: { $0 === editor }) else { return }
         editors.removeAll { $0 === editor }
-        EditorActivationPolicy.release()
+        WindowActivationPolicy.release()
     }
 
     /// Automatic copy stays quiet on success: the preview or the editor is

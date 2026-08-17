@@ -219,7 +219,7 @@ final class ScreenRecorderService: ObservableObject {
     // MARK: - Editor
 
     func openEditor(with take: RecorderTakeStore.Take) {
-        EditorActivationPolicy.retain()
+        WindowActivationPolicy.retain()
         let editor = RecorderEditorController(take: take)
         editors.append(editor)
         editor.show()
@@ -228,7 +228,7 @@ final class ScreenRecorderService: ObservableObject {
     func editorDidClose(_ editor: RecorderEditorController) {
         guard editors.contains(where: { $0 === editor }) else { return }
         editors.removeAll { $0 === editor }
-        EditorActivationPolicy.release()
+        WindowActivationPolicy.release()
     }
 
     // MARK: - Entry

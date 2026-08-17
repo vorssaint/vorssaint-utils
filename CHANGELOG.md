@@ -11,9 +11,10 @@ Vorssaint 3.3.2 adds unified screen capture, batch image conversion,
 imported-video editing, local Command Bar scripts, recent captures, desktop
 window controls, edge-activated Shelf access and faster access to recording
 and maintenance tools. It also improves Clipboard access, capture, app discovery,
-conversions, volume, Switcher behavior, menu bar sizing, setup screens,
-command-line setup, accidental middle clicks while typing and compatibility
-with older development tools.
+conversions, volume, Switcher behavior, Settings reachability, menu bar sizing,
+setup screens, customizable Super key combinations, command-line setup,
+accidental middle clicks while typing and
+compatibility with older development tools.
 
 ### Added
 - One screen-capture shortcut now opens a shared selector for screenshots,
@@ -75,6 +76,11 @@ with older development tools.
   Shelf. Thanks to @tenbux.
 - The simple App Switcher now shows and cycles through individual windows without
   previews. Turn on Show one entry per app to group them.
+- The App Switcher now marks windows that are on another desktop.
+  Thanks to @AB-boi.
+- Hidden apps now keep their windows in the App Switcher and show a clear hidden-state badge.
+- Super key can now use the modifier combination you choose.
+  Thanks to @AB-boi.
 - Foot conversions in the Command Bar now show localized feet and inches while
   keeping small measurements precise. Thanks to @tenbux.
 
@@ -129,6 +135,10 @@ with older development tools.
   Thanks to @liuxxxu.
 - The App Switcher now keeps its shortcut working after your Mac wakes from sleep.
 - The App Switcher now restores minimized windows when selected.
+- The App Switcher selection now stays neatly inside the icon row at every size.
+  Thanks to @AB-boi.
+- The Settings window now remains reachable from the app switcher while open.
+  Thanks to @danpalmer.
 - The App Switcher can now close windows kept on another desktop. Thanks to @AB-boi.
 - Full-screen video windows now remain available in App Switcher and Dock Preview.
 - The app no longer quits while typing when the Switcher's Windows shortcut uses a

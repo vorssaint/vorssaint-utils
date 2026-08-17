@@ -8,15 +8,14 @@ import CoreGraphics
 import IOKit
 import IOKit.hidsystem
 
-/// Turns Caps Lock into one key that holds Shift, Control, Option and Command
-/// together, so shortcuts built on it collide with nothing else.
+/// Turns Caps Lock into one key that holds the user's chosen modifiers.
 ///
 /// Two halves make it work. The keyboard mapping table turns Caps Lock into
 /// F18, because a lock key never reports going down and up and so can never be
-/// held; the event tap then keeps that key to itself and adds the four
-/// modifiers to whatever is pressed while it is down. Nothing is installed
-/// while the feature is off, and the mapping is always taken back out, both
-/// when the feature goes off and when the app quits. Requires Accessibility:
+/// held; the event tap then keeps that key to itself and adds the user's
+/// chosen modifiers to whatever is pressed while it is down. Nothing is
+/// installed while the feature is off, and the mapping is always taken back
+/// out when the feature goes off or the app quits. Requires Accessibility:
 /// without it the tap cannot modify events, and the mapping is not applied
 /// either, so Caps Lock is never left as a key that does nothing.
 final class SuperKeyService: ObservableObject {
@@ -24,6 +23,7 @@ final class SuperKeyService: ObservableObject {
 
     /// True while the key is actually working: tap up and mapping applied.
     @Published private(set) var isRunning = false
+    @Published private(set) var modifiers = SuperKeySupport.defaultModifiers
 
     /// Read by the shortcut recording tap, which sits ahead of this one while a
     /// field is listening and would otherwise see the bare trigger key instead
@@ -51,6 +51,7 @@ final class SuperKeyService: ObservableObject {
     private let stateLock = NSLock()
     private var state = SuperKeySupport.State()
     private var soloAction: SuperKeySoloAction = .none
+    private var eventModifiers = SuperKeySupport.defaultModifiers
     private var wakeObserver: NSObjectProtocol?
     /// The mapping is written off the main thread, and in the order it was
     /// asked for: a queue of one keeps an apply and a clear from crossing.
@@ -59,7 +60,7 @@ final class SuperKeyService: ObservableObject {
     /// is repaired once and not on every keystroke.
     private var lastMappingAt: TimeInterval = 0
     private let mappingRepairInterval: TimeInterval = 3
-    /// Lets go of a press whose release never arrived. Without it the four
+    /// Lets go of a press whose release never arrived. Without it the chosen
     /// modifiers would ride every keystroke from then on, with no way back but
     /// pressing the key again, and typing would be dead in the meantime.
     private var heldKeyWatchdog: DispatchWorkItem?
@@ -83,7 +84,14 @@ final class SuperKeyService: ObservableObject {
         let action = SuperKeySoloAction.sanitized(
             defaults.string(forKey: DefaultsKey.superKeySoloAction)
         )
-        stateLock.withLock { soloAction = action }
+        let modifiers = SuperKeySupport.modifiers(
+            from: defaults.string(forKey: DefaultsKey.superKeyModifiers)
+        )
+        stateLock.withLock {
+            soloAction = action
+            eventModifiers = modifiers
+        }
+        self.modifiers = modifiers
         let enabled = AppFeature.superKey.isAvailable
             && defaults.bool(forKey: DefaultsKey.superKeyEnabled)
         guard enabled else {
@@ -373,7 +381,8 @@ final class SuperKeyService: ObservableObject {
         case .swallow:
             return nil
         case .addModifiers:
-            event.flags = event.flags.union(SuperKeyService.superFlags)
+            let modifierFlags = stateLock.withLock { eventModifiers.cgFlags }
+            event.flags = event.flags.union(modifierFlags)
             return Unmanaged.passUnretained(event)
         case .soloTap:
             DispatchQueue.main.async { [weak self] in self?.performSoloAction() }
@@ -427,10 +436,6 @@ final class SuperKeyService: ObservableObject {
         }
         return .triggerUp
     }
-
-    private static let superFlags: CGEventFlags = [
-        .maskShift, .maskControl, .maskAlternate, .maskCommand,
-    ]
 
     // MARK: - Tapped on its own
 

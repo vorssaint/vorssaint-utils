@@ -31,25 +31,31 @@ enum WindowEnumerator {
     private static let maximumConcurrentQueries = 24
 
     static func listWindows() -> [SwitcherItem] {
-        listWindows(appRules: SwitcherAppRule.rules(
-            storedValue: UserDefaults.standard.dictionary(forKey: DefaultsKey.switcherAppRules)))
+        listWindows(
+            appRules: SwitcherAppRule.rules(
+                storedValue: UserDefaults.standard.dictionary(forKey: DefaultsKey.switcherAppRules)),
+            marksHiddenSpaces: true
+        )
     }
 
     /// The Command Bar shares the window walk, not the Switcher's visibility
     /// preferences. An app hidden from ⌘Tab must remain searchable there.
     static func listWindowsForCommandBar() -> [SwitcherItem] {
-        listWindows(appRules: [:])
+        listWindows(appRules: [:], marksHiddenSpaces: false)
     }
 
-    private static func listWindows(appRules: [String: SwitcherAppRule]) -> [SwitcherItem] {
+    private static func listWindows(appRules: [String: SwitcherAppRule],
+                                    marksHiddenSpaces: Bool) -> [SwitcherItem] {
         let windowlessApps = SwitcherWindowlessApps.mode(
             storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherWindowlessApps))
+        let currentSpaceOnly = UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
         return listWindows(filterPID: nil,
                            maximumCount: maximumCount,
                            windowlessApps: windowlessApps,
                            appRules: appRules,
                            groupByApp: UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs),
-                           currentSpaceOnly: UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly))
+                           currentSpaceOnly: currentSpaceOnly,
+                           marksHiddenSpaces: marksHiddenSpaces && !currentSpaceOnly)
     }
 
     static func listWindows(for pid: pid_t, maximumCount: Int = 12) -> [SwitcherItem] {
@@ -68,7 +74,8 @@ enum WindowEnumerator {
                     windowlessApps: .off,
                     appRules: [:],
                     groupByApp: false,
-                    currentSpaceOnly: false)
+                    currentSpaceOnly: false,
+                    marksHiddenSpaces: false)
     }
 
     private static func listWindows(filterPID: pid_t?,
@@ -76,11 +83,15 @@ enum WindowEnumerator {
                                     windowlessApps: SwitcherWindowlessApps,
                                     appRules: [String: SwitcherAppRule],
                                     groupByApp: Bool,
-                                    currentSpaceOnly: Bool) -> [SwitcherItem] {
+                                    currentSpaceOnly: Bool,
+                                    marksHiddenSpaces: Bool) -> [SwitcherItem] {
         let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
 
         let ownPid = ProcessInfo.processInfo.processIdentifier
         let runningApps = NSWorkspace.shared.runningApplications
+        let hiddenAppPIDs = Set(runningApps.lazy
+            .filter { $0.isHidden }
+            .map(\.processIdentifier))
         let bundleIdentifiers = SwitcherSupport.firstValuesByPID(runningApps.compactMap { app in
             app.bundleIdentifier.map { (app.processIdentifier, $0) }
         })
@@ -151,7 +162,14 @@ enum WindowEnumerator {
         // Resolved lazily and cached, so fully Accessibility-confirmed lists
         // pay nothing.
         var visibleSpaces: Set<UInt64>?
+        var windowSpaces: [CGWindowID: [UInt64]] = [:]
         var hiddenSpaceVerdicts: [CGWindowID: Bool] = [:]
+        func spaces(of windowID: CGWindowID) -> [UInt64] {
+            if let cached = windowSpaces[windowID] { return cached }
+            let resolved = SpaceWindowBridge.spaces(of: windowID)
+            windowSpaces[windowID] = resolved
+            return resolved
+        }
         func isOnHiddenSpace(_ windowID: CGWindowID) -> Bool {
             if let verdict = hiddenSpaceVerdicts[windowID] { return verdict }
             if visibleSpaces == nil {
@@ -159,7 +177,7 @@ enum WindowEnumerator {
             }
             guard let visible = visibleSpaces, !visible.isEmpty else { return false }
             let verdict = SpaceHopSupport.isParkedOnHiddenSpace(
-                windowSpaces: SpaceWindowBridge.spaces(of: windowID),
+                windowSpaces: spaces(of: windowID),
                 visibleSpaces: visible
             )
             hiddenSpaceVerdicts[windowID] = verdict
@@ -195,9 +213,14 @@ enum WindowEnumerator {
                 withheldPIDs.insert(appPID)
                 continue
             }
+            let isAppHidden = hiddenAppPIDs.contains(appPID)
+            let isConfirmedHiddenAppWindow = isAppHidden
+                && SwitcherSupport.isConfirmedHiddenAppWindow(
+                    appIsHidden: isAppHidden,
+                    windowSpaces: spaces(of: CGWindowID(windowID)))
             let axWindow = accessibilityWindows[windowOwnerPID]?.byID[CGWindowID(windowID)]
             if accessibilityWindows[windowOwnerPID] != nil, axWindow == nil,
-               (!isOnHiddenSpace(CGWindowID(windowID))
+               ((!isOnHiddenSpace(CGWindowID(windowID)) && !isConfirmedHiddenAppWindow)
                 || SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID))) {
                 continue
             }
@@ -211,7 +234,8 @@ enum WindowEnumerator {
                 continue
             }
 
-            if let alpha = (info[kCGWindowAlpha as String] as? NSNumber)?.doubleValue, alpha == 0, !isMinimized {
+            if let alpha = (info[kCGWindowAlpha as String] as? NSNumber)?.doubleValue,
+               alpha == 0, !isMinimized, !isConfirmedHiddenAppWindow {
                 continue
             }
 
@@ -240,7 +264,7 @@ enum WindowEnumerator {
             // Windows the window server places on a hidden Space are equally
             // real even when untitled (their titles need Screen Recording).
             if !isOnScreen && displayTitle.isEmpty && axWindow == nil
-                && !isOnHiddenSpace(windowID) { continue }
+                && !isOnHiddenSpace(windowID) && !isConfirmedHiddenAppWindow { continue }
 
             seen.insert(windowID)
             windows.append(.window(id: windowID,
@@ -249,6 +273,7 @@ enum WindowEnumerator {
                                    pid: appPID,
                                    windowOwnerPID: windowOwnerPID,
                                    isOnScreen: isOnScreen,
+                                   isAppHidden: isAppHidden,
                                    isMinimized: isMinimized,
                                    isFullscreen: isFullscreen,
                                    frame: frame))
@@ -257,6 +282,7 @@ enum WindowEnumerator {
                                        snapshots: accessibilityWindows,
                                        regularApps: regularApps,
                                        embeddedHostPIDs: embeddedHostPIDs,
+                                       hiddenAppPIDs: hiddenAppPIDs,
                                        seen: &seen,
                                        filterPID: filterPID,
                                        excludeWindow: { windowID, appPID in
@@ -275,6 +301,12 @@ enum WindowEnumerator {
                              ownPID: pid_t(ownPid),
                              withheldPIDs: withheldPIDs,
                              appRules: appRules)
+        if marksHiddenSpaces {
+            windows = windows.map { window in
+                guard let windowID = window.windowID else { return window }
+                return window.withHiddenSpaceState(isOnHiddenSpace(windowID))
+            }
+        }
         if groupByApp {
             windows = groupWindowsByApp(windows)
         }
@@ -416,6 +448,7 @@ enum WindowEnumerator {
                                                        snapshots: [pid_t: AccessibilityWindowSnapshotList],
                                                        regularApps: [pid_t: String],
                                                        embeddedHostPIDs: [pid_t: pid_t],
+                                                       hiddenAppPIDs: Set<pid_t>,
                                                        seen: inout Set<CGWindowID>,
                                                        filterPID: pid_t?,
                                                        excludeWindow: (CGWindowID, pid_t) -> Bool = { _, _ in false }) {
@@ -452,6 +485,7 @@ enum WindowEnumerator {
                                        pid: appPID,
                                        windowOwnerPID: windowOwnerPID,
                                        isOnScreen: false,
+                                       isAppHidden: hiddenAppPIDs.contains(appPID),
                                        isMinimized: entry.snapshot.isMinimized,
                                        isFullscreen: entry.snapshot.isFullscreen,
                                        frame: frame))
@@ -616,7 +650,8 @@ enum WindowEnumerator {
             appRules: appRules)
         for pid in chosen {
             guard let name = regularApps[pid] else { continue }
-            windows.append(.appOnly(appName: name, pid: pid))
+            let isAppHidden = runningApps.first { $0.processIdentifier == pid }?.isHidden ?? false
+            windows.append(.appOnly(appName: name, pid: pid, isAppHidden: isAppHidden))
         }
     }
 

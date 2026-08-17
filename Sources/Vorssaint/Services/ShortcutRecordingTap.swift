@@ -31,7 +31,7 @@ enum ShortcutRecordingTap {
     /// This tap is created after the super key's and therefore sits ahead of
     /// it, so the trigger key arrives here bare. Reading it the same way the
     /// super key does lets a field record the combination the way it will be
-    /// pressed later, instead of asking for the four modifiers by hand.
+    /// pressed later, instead of asking for the chosen modifiers by hand.
     private static var superState = SuperKeySupport.State()
 
     /// Starts swallowing key events and delivering each fresh press to the
@@ -122,7 +122,7 @@ enum ShortcutRecordingTap {
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
         if let handler {
-            // Holding the super key while recording means the four modifiers it
+            // Holding the super key while recording means the modifiers it
             // stands for, and the key holding them is never the shortcut.
             var heldModifiers: GlobalShortcutModifiers = []
             if SuperKeyService.isEngaged {
@@ -134,7 +134,7 @@ enum ShortcutRecordingTap {
                 }
                 switch superState.decide(superEvent) {
                 case .swallow, .soloTap: return nil
-                case .addModifiers: heldModifiers = .validMask
+                case .addModifiers: heldModifiers = SuperKeyService.shared.modifiers
                 case .pass, .remapNeeded: break
                 }
             }

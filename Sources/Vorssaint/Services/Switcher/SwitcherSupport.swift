@@ -126,8 +126,17 @@ struct SwitcherIconRowLayout: Equatable {
     static var scale: CGFloat { min(PreviewSizing.scale, 1.15) }
     static var iconSize: CGFloat { 68 * scale }
     static var selectedIconSize: CGFloat { 78 * scale }
+    static let iconTileSpacing: CGFloat = 5
+    static let iconTitleHeight: CGFloat = 14
+    static let iconTileVerticalPadding: CGFloat = 5
+    static let iconTileVerticalMargin: CGFloat = 3
     static var iconLabelWidth: CGFloat { max(selectedIconSize + 12, 86 * scale) }
-    static var rowHeight: CGFloat { 108 * scale }
+    /// Text and padding stay legible instead of shrinking with preview size, so
+    /// the row follows the tile's real height and never clips its selection.
+    static var rowHeight: CGFloat {
+        selectedIconSize + iconTileSpacing + iconTitleHeight
+            + 2 * (iconTileVerticalPadding + iconTileVerticalMargin)
+    }
     static var appTileWidth: CGFloat { iconLabelWidth + 12 }
     static var windowLabelWidth: CGFloat { 120 * scale }
     static var windowTileWidth: CGFloat { windowLabelWidth + 12 }
@@ -435,6 +444,13 @@ enum SwitcherSupport {
                          appRules: [String: SwitcherAppRule]) -> Bool {
         guard let bundleIdentifier else { return false }
         return appRules[bundleIdentifier] == .hidden
+    }
+
+    /// When Accessibility does not match a hidden app's WindowServer surface,
+    /// its Space assignment distinguishes a real window from a leftover.
+    static func isConfirmedHiddenAppWindow(appIsHidden: Bool,
+                                           windowSpaces: [UInt64]) -> Bool {
+        appIsHidden && !windowSpaces.isEmpty
     }
 
     /// Downsamples a capture into a small alpha grid for classification.
