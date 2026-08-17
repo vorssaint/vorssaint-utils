@@ -27,6 +27,10 @@ compatibility with older development tools.
   reach those speakers too, while the sound is actually leaving through that
   monitor, instead of moving a level macOS cannot change. Under Displays, and
   off until you switch it on.
+- Displays can now switch HDR on or off per monitor, the same switch System
+  Settings offers, on the monitors that have modes to switch between. A monitor
+  in HDR mode takes its brightness over, so its slider moves to dimming the
+  picture for as long as HDR is on.
 - Extra brightness now works on external HDR monitors as well as the XDR panel
   of a MacBook Pro, using whatever headroom each display reports and scaling
   down when it grants less.

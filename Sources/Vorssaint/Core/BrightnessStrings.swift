@@ -37,6 +37,8 @@ struct BrightnessFeatureStrings {
     let combinedCaption: String
     let syncToggle: String
     let syncCaption: String
+    let turnOnHDR: String
+    let turnOffHDR: String
 }
 
 extension FeatureStrings {
@@ -90,7 +92,9 @@ extension BrightnessFeatureStrings {
         combinedToggle: "One slider for every display",
         combinedCaption: "Adds a slider that moves every display at once, keeping the differences between them.",
         syncToggle: "External displays follow the built-in screen",
-        syncCaption: "When the built-in screen changes brightness, by hand or by ambient light, external monitors move with it."
+        syncCaption: "When the built-in screen changes brightness, by hand or by ambient light, external monitors move with it.",
+        turnOnHDR: "Turn on HDR",
+        turnOffHDR: "Turn off HDR"
     )
 
     static let ptBR = BrightnessFeatureStrings(
@@ -123,7 +127,9 @@ extension BrightnessFeatureStrings {
         combinedToggle: "Um controle para todas as telas",
         combinedCaption: "Adiciona um controle que move todas as telas de uma vez, mantendo as diferenças entre elas.",
         syncToggle: "Telas externas seguem a tela do Mac",
-        syncCaption: "Quando a tela do Mac muda de brilho, manualmente ou pela luz do ambiente, os monitores externos acompanham."
+        syncCaption: "Quando a tela do Mac muda de brilho, manualmente ou pela luz do ambiente, os monitores externos acompanham.",
+        turnOnHDR: "Ativar HDR",
+        turnOffHDR: "Desativar HDR"
     )
 
     static let tr = BrightnessFeatureStrings(
@@ -156,7 +162,9 @@ extension BrightnessFeatureStrings {
         combinedToggle: "Tüm ekranlar için tek kaydırıcı",
         combinedCaption: "Tüm ekranları aynı anda hareket ettiren, aralarındaki farkları koruyan bir kaydırıcı ekler.",
         syncToggle: "Harici ekranlar yerleşik ekranı izler",
-        syncCaption: "Yerleşik ekranın parlaklığı elle veya ortam ışığıyla değiştiğinde, harici monitörler de onunla birlikte değişir."
+        syncCaption: "Yerleşik ekranın parlaklığı elle veya ortam ışığıyla değiştiğinde, harici monitörler de onunla birlikte değişir.",
+        turnOnHDR: "HDR'yi aç",
+        turnOffHDR: "HDR'yi kapat"
     )
 
     static let ru = BrightnessFeatureStrings(
@@ -189,7 +197,9 @@ extension BrightnessFeatureStrings {
         combinedToggle: "Один ползунок для всех экранов",
         combinedCaption: "Добавляет ползунок, который двигает все экраны сразу, сохраняя разницу между ними.",
         syncToggle: "Внешние экраны следуют за встроенным",
-        syncCaption: "Когда яркость встроенного экрана меняется вручную или по внешнему освещению, внешние мониторы меняются вместе с ним."
+        syncCaption: "Когда яркость встроенного экрана меняется вручную или по внешнему освещению, внешние мониторы меняются вместе с ним.",
+        turnOnHDR: "Включить HDR",
+        turnOffHDR: "Выключить HDR"
     )
 
     static let es = BrightnessFeatureStrings(
@@ -222,7 +232,9 @@ extension BrightnessFeatureStrings {
         combinedToggle: "Un control para todas las pantallas",
         combinedCaption: "Añade un control que mueve todas las pantallas a la vez y mantiene las diferencias entre ellas.",
         syncToggle: "Las pantallas externas siguen a la integrada",
-        syncCaption: "Cuando la pantalla integrada cambia de brillo, a mano o por la luz del entorno, los monitores externos la acompañan."
+        syncCaption: "Cuando la pantalla integrada cambia de brillo, a mano o por la luz del entorno, los monitores externos la acompañan.",
+        turnOnHDR: "Activar HDR",
+        turnOffHDR: "Desactivar HDR"
     )
 
     static let de = BrightnessFeatureStrings(
@@ -255,7 +267,9 @@ extension BrightnessFeatureStrings {
         combinedToggle: "Ein Regler für alle Displays",
         combinedCaption: "Fügt einen Regler hinzu, der alle Displays zugleich bewegt und ihre Unterschiede beibehält.",
         syncToggle: "Externe Displays folgen dem eingebauten",
-        syncCaption: "Ändert das eingebaute Display seine Helligkeit, von Hand oder durch das Umgebungslicht, ziehen externe Monitore mit."
+        syncCaption: "Ändert das eingebaute Display seine Helligkeit, von Hand oder durch das Umgebungslicht, ziehen externe Monitore mit.",
+        turnOnHDR: "HDR einschalten",
+        turnOffHDR: "HDR ausschalten"
     )
 
     static let fr = BrightnessFeatureStrings(
@@ -288,7 +302,9 @@ extension BrightnessFeatureStrings {
         combinedToggle: "Un seul curseur pour tous les écrans",
         combinedCaption: "Ajoute un curseur qui déplace tous les écrans à la fois en conservant leurs écarts.",
         syncToggle: "Les écrans externes suivent l'écran intégré",
-        syncCaption: "Quand la luminosité de l'écran intégré change, à la main ou selon la lumière ambiante, les moniteurs externes suivent."
+        syncCaption: "Quand la luminosité de l'écran intégré change, à la main ou selon la lumière ambiante, les moniteurs externes suivent.",
+        turnOnHDR: "Activer le HDR",
+        turnOffHDR: "Désactiver le HDR"
     )
 
     static let it = BrightnessFeatureStrings(
@@ -321,7 +337,9 @@ extension BrightnessFeatureStrings {
         combinedToggle: "Un cursore per tutti gli schermi",
         combinedCaption: "Aggiunge un cursore che muove tutti gli schermi insieme, mantenendo le differenze fra loro.",
         syncToggle: "Gli schermi esterni seguono quello integrato",
-        syncCaption: "Quando lo schermo integrato cambia luminosità, a mano o per la luce dell'ambiente, i monitor esterni lo seguono."
+        syncCaption: "Quando lo schermo integrato cambia luminosità, a mano o per la luce dell'ambiente, i monitor esterni lo seguono.",
+        turnOnHDR: "Attiva HDR",
+        turnOffHDR: "Disattiva HDR"
     )
 
     static let ja = BrightnessFeatureStrings(
@@ -354,7 +372,9 @@ extension BrightnessFeatureStrings {
         combinedToggle: "すべてのディスプレイをまとめて操作",
         combinedCaption: "すべてのディスプレイを一度に動かすスライダを追加します。ディスプレイ間の差はそのまま保たれます。",
         syncToggle: "外部ディスプレイを内蔵画面に合わせる",
-        syncCaption: "内蔵画面の明るさが手動または周囲の明るさで変わると、外部モニタもそれに合わせて変わります。"
+        syncCaption: "内蔵画面の明るさが手動または周囲の明るさで変わると、外部モニタもそれに合わせて変わります。",
+        turnOnHDR: "HDRをオンにする",
+        turnOffHDR: "HDRをオフにする"
     )
 
     static let ko = BrightnessFeatureStrings(
@@ -387,7 +407,9 @@ extension BrightnessFeatureStrings {
         combinedToggle: "모든 디스플레이를 한 슬라이더로",
         combinedCaption: "모든 디스플레이를 한 번에 움직이는 슬라이더를 추가하며, 디스플레이 사이의 차이는 그대로 유지합니다.",
         syncToggle: "외부 디스플레이가 내장 화면을 따름",
-        syncCaption: "내장 화면의 밝기가 직접 또는 주변 밝기에 따라 바뀌면 외부 모니터도 함께 바뀝니다."
+        syncCaption: "내장 화면의 밝기가 직접 또는 주변 밝기에 따라 바뀌면 외부 모니터도 함께 바뀝니다.",
+        turnOnHDR: "HDR 켜기",
+        turnOffHDR: "HDR 끄기"
     )
 
     static let zhHans = BrightnessFeatureStrings(
@@ -420,7 +442,9 @@ extension BrightnessFeatureStrings {
         combinedToggle: "用一个滑块控制所有显示器",
         combinedCaption: "添加一个同时调节所有显示器的滑块，并保留它们之间的差异。",
         syncToggle: "外接显示器跟随内置屏幕",
-        syncCaption: "当内置屏幕的亮度手动或随环境光改变时，外接显示器随之改变。"
+        syncCaption: "当内置屏幕的亮度手动或随环境光改变时，外接显示器随之改变。",
+        turnOnHDR: "打开 HDR",
+        turnOffHDR: "关闭 HDR"
     )
 
     static let zhTW = BrightnessFeatureStrings(
@@ -453,7 +477,9 @@ extension BrightnessFeatureStrings {
         combinedToggle: "用一個滑桿控制所有顯示器",
         combinedCaption: "新增一個同時調整所有顯示器的滑桿，並保留它們之間的差異。",
         syncToggle: "外接顯示器跟隨內建螢幕",
-        syncCaption: "當內建螢幕的亮度手動或隨環境光改變時，外接顯示器隨之改變。"
+        syncCaption: "當內建螢幕的亮度手動或隨環境光改變時，外接顯示器隨之改變。",
+        turnOnHDR: "開啟 HDR",
+        turnOffHDR: "關閉 HDR"
     )
 
     static let zhHK = BrightnessFeatureStrings(
@@ -486,6 +512,8 @@ extension BrightnessFeatureStrings {
         combinedToggle: "用一個滑桿控制所有顯示器",
         combinedCaption: "新增一個同時調整所有顯示器的滑桿，並保留它們之間的差異。",
         syncToggle: "外接顯示器跟隨內置螢幕",
-        syncCaption: "當內置螢幕的亮度手動或隨環境光改變時，外接顯示器隨之改變。"
+        syncCaption: "當內置螢幕的亮度手動或隨環境光改變時，外接顯示器隨之改變。",
+        turnOnHDR: "開啟 HDR",
+        turnOffHDR: "關閉 HDR"
     )
 }

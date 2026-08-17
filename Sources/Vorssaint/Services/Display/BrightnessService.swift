@@ -45,6 +45,10 @@ struct BrightnessDisplay: Identifiable, Equatable {
     /// applied here instead of the monitor's own.
     let readable: Bool
     var audio: Audio? = nil
+    /// Whether this display's HDR mode is on, or nil when it has none to
+    /// switch: the built-in panel, which System Settings does not offer it
+    /// for either, and every monitor with no HDR modes of its own.
+    var hdrEnabled: Bool? = nil
 }
 
 /// Brightness sliders for every display, built-in and external. The built-in
@@ -249,6 +253,10 @@ final class BrightnessService: ObservableObject {
     private var keyboardLightLevel: Float?
     private var lastKeyboardLightLevel: Float = BrightnessSupport.defaultKeyboardLightLevel
     private lazy var keyboardLightBridge = KeyboardLightBridge()
+    private lazy var hdrBridge = HDRBridge()
+    /// How long the window server is given to bring a display up in its new
+    /// mode before the routes are read again.
+    private static let hdrSettleDelay: TimeInterval = 2
     /// Stale rebuilds (an unplug mid-scan) must not overwrite fresh state.
     private var rebuildGeneration = 0
     /// The topology a queued or running rebuild already covers. Opening the
@@ -387,8 +395,49 @@ final class BrightnessService: ObservableObject {
         let generation = rebuildGeneration
         rebuildingTopology = topology
         stateLock.unlock()
+        let hdrStates = currentHDRStates()
         workQueue.async { [weak self] in
-            self?.rebuild(generation: generation, previousDisplays: previousDisplays)
+            self?.rebuild(generation: generation, previousDisplays: previousDisplays,
+                          hdrStates: hdrStates)
+        }
+    }
+
+    // MARK: - HDR mode
+
+    /// Sampled here, on the main thread, rather than inside the scan: the
+    /// display manager behind this is a window server client whose reads are
+    /// synchronous round-trips, and the scan runs on the I2C work queue.
+    private func currentHDRStates() -> [CGDirectDisplayID: Bool] {
+        guard let hdrBridge else { return [:] }
+        var ids = [CGDirectDisplayID](repeating: 0, count: 16)
+        var count: UInt32 = 0
+        CGGetOnlineDisplayList(16, &ids, &count)
+        var states: [CGDirectDisplayID: Bool] = [:]
+        for id in ids.prefix(Int(count)) where CGDisplayIsBuiltin(id) == 0 {
+            guard hdrBridge.supportsHDR(id) else { continue }
+            states[id] = hdrBridge.isHDREnabled(id)
+        }
+        return states
+    }
+
+    /// Switches one display's HDR mode, the same switch System Settings
+    /// offers. Only displays that answered with a mode to switch have the
+    /// control at all.
+    func setHDR(_ enabled: Bool, for id: CGDirectDisplayID) {
+        guard let hdrBridge, hdrBridge.setHDREnabled(enabled, for: id) else { return }
+        Self.log.log("display \(id) hdr set to \(enabled)")
+        if let index = displays.firstIndex(where: { $0.id == id }),
+           displays[index].hdrEnabled != nil {
+            displays[index].hdrEnabled = enabled
+        }
+        // The window server takes a moment to bring the display up in the new
+        // mode, and the brightness route has to move with it. An HDR flip
+        // changes no topology, so nothing else here would ask for a scan.
+        pendingDisplayIDs.insert(id)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.hdrSettleDelay) { [weak self] in
+            guard let self else { return }
+            self.pendingDisplayIDs.remove(id)
+            self.refresh(force: true)
         }
     }
 
@@ -1465,7 +1514,8 @@ final class BrightnessService: ObservableObject {
 
     // MARK: - Rebuild (work queue)
 
-    private func rebuild(generation: Int, previousDisplays: [BrightnessDisplay]) {
+    private func rebuild(generation: Int, previousDisplays: [BrightnessDisplay],
+                         hdrStates: [CGDirectDisplayID: Bool]) {
         var ids = [CGDirectDisplayID](repeating: 0, count: 16)
         var count: UInt32 = 0
         CGGetOnlineDisplayList(16, &ids, &count)
@@ -1571,7 +1621,8 @@ final class BrightnessService: ObservableObject {
                                          method: previous.method, isActive: true,
                                          brightness: previous.brightness,
                                          readable: previous.readable,
-                                         audio: previous.audio)
+                                         audio: previous.audio,
+                                         hdrEnabled: display.hdrEnabled)
             }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.running, generation == self.rebuildGeneration else { return }
@@ -1583,6 +1634,12 @@ final class BrightnessService: ObservableObject {
         // remaining displays and read each matched monitor's brightness.
         // Whatever ends up without a live DDC channel falls back to gamma
         // dimming, so every real display keeps a working slider.
+        // HDR mode, for every display that has one to switch. Carried on the
+        // display so nothing has to ask the window server again to draw it.
+        for index in built.indices where built[index].isActive && !built[index].isBuiltIn {
+            built[index].hdrEnabled = hdrStates[built[index].id]
+        }
+
         var softwareIndices = Set(ddcCandidates.map(\.index))
         // Sampled once, so every monitor in one scan is treated alike even if
         // the preference is toggled while the scan is running.
@@ -1604,6 +1661,16 @@ final class BrightnessService: ObservableObject {
                 assignment = [ddcCandidates[0].index: services[0].identity.ordinal]
             }
             for candidate in ddcCandidates {
+                // A monitor in HDR mode owns its own luminance: it takes DDC
+                // brightness writes, acknowledges them and quietly drops
+                // them, so a slider driven that way looks connected and does
+                // nothing. Leaving it out of this pass is what hands it to
+                // gamma dimming below, which keeps its slider working for as
+                // long as HDR is on.
+                if built[candidate.index].hdrEnabled == true {
+                    Self.log.log("display \(built[candidate.index].id) is in HDR mode; dimming in software")
+                    continue
+                }
                 guard let ordinal = assignment[candidate.index],
                       let matched = services.first(where: { $0.identity.ordinal == ordinal }) else {
                     continue
@@ -1643,7 +1710,8 @@ final class BrightnessService: ObservableObject {
                         brightness: BrightnessSupport.normalized(current: current,
                                                                  maximum: ceiling),
                         readable: true,
-                        audio: audio?.state)
+                        audio: audio?.state,
+                        hdrEnabled: built[candidate.index].hdrEnabled)
                     newRoutes[id] = Route(method: .ddc, service: matched.service,
                                           maximum: ceiling, ddcReadable: true,
                                           ddcPathKey: pathKey, audio: audio?.route)
@@ -1660,7 +1728,8 @@ final class BrightnessService: ObservableObject {
                     stateLock.unlock()
                     built[candidate.index] = BrightnessDisplay(
                         id: id, name: built[candidate.index].name, isBuiltIn: false,
-                        method: .ddc, isActive: true, brightness: seed, readable: false)
+                        method: .ddc, isActive: true, brightness: seed, readable: false,
+                        hdrEnabled: built[candidate.index].hdrEnabled)
                     newRoutes[id] = Route(method: .ddc, service: matched.service,
                                           maximum: 100, ddcPathKey: pathKey)
                     softwareIndices.remove(candidate.index)
@@ -1705,7 +1774,8 @@ final class BrightnessService: ObservableObject {
             }
             built[index] = BrightnessDisplay(
                 id: id, name: built[index].name, isBuiltIn: false,
-                method: .software, isActive: true, brightness: value, readable: true)
+                method: .software, isActive: true, brightness: value, readable: true,
+                hdrEnabled: built[index].hdrEnabled)
             newRoutes[id] = Route(method: .software, service: nil, maximum: 100)
             if value < 0.999 { _ = applySoftwareDim(id, value: value) }
         }
@@ -2221,6 +2291,62 @@ private enum BrightnessBridge {
     private static func symbol<T>(_ handle: UnsafeMutableRawPointer?, _ name: String) -> T? {
         guard let handle, let pointer = dlsym(handle, name) else { return nil }
         return unsafeBitCast(pointer, to: T.self)
+    }
+}
+
+/// Per-display HDR mode, which macOS exposes through no public API at all.
+/// MonitorPanel's display manager is what the System Settings checkbox itself
+/// drives, so this throws the same switch.
+///
+/// Every step is resolved at runtime and every read is guarded by the
+/// selector actually existing, so a macOS where the framework, the class or
+/// the properties are not what this expects simply offers no HDR control
+/// instead of raising an unknown-key exception that Swift cannot catch.
+///
+/// Main thread only: the manager is a window server client and its reads are
+/// synchronous round-trips.
+private final class HDRBridge {
+    private let manager: NSObject
+
+    init?() {
+        guard dlopen("/System/Library/PrivateFrameworks/MonitorPanel.framework/MonitorPanel",
+                     RTLD_LAZY) != nil,
+              let managerClass = NSClassFromString("MPDisplayMgr") as? NSObject.Type,
+              managerClass.instancesRespond(to: NSSelectorFromString("displays"))
+        else { return nil }
+        manager = managerClass.init()
+    }
+
+    private static func value<T>(_ object: NSObject, _ key: String, as type: T.Type) -> T? {
+        guard object.responds(to: NSSelectorFromString(key)) else { return nil }
+        return object.value(forKey: key) as? T
+    }
+
+    /// The manager's entry for a display number, matched on the same number
+    /// CoreGraphics hands out.
+    private func display(_ id: CGDirectDisplayID) -> NSObject? {
+        guard let displays = Self.value(manager, "displays", as: [NSObject].self) else { return nil }
+        return displays.first { Self.value($0, "displayID", as: UInt32.self) == id }
+    }
+
+    /// Whether the display has HDR modes to switch between at all.
+    func supportsHDR(_ id: CGDirectDisplayID) -> Bool {
+        guard let display = display(id) else { return false }
+        return Self.value(display, "hasHDRModes", as: Bool.self) == true
+    }
+
+    func isHDREnabled(_ id: CGDirectDisplayID) -> Bool {
+        guard let display = display(id) else { return false }
+        return Self.value(display, "preferHDRModes", as: Bool.self) == true
+    }
+
+    func setHDREnabled(_ enabled: Bool, for id: CGDirectDisplayID) -> Bool {
+        guard let display = display(id) else { return false }
+        let selector = NSSelectorFromString("setPreferHDRModes:")
+        guard display.responds(to: selector) else { return false }
+        typealias SetFn = @convention(c) (NSObject, Selector, Bool) -> Void
+        unsafeBitCast(display.method(for: selector), to: SetFn.self)(display, selector, enabled)
+        return true
     }
 }
 

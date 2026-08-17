@@ -141,6 +141,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 
 - **Keep awake.** Keep the Mac up for a timer, until you say stop or automatically with an external display or power connection, including with the lid closed, let displays sleep without stopping local work, choose the active menu bar icon and color, see the remaining time beside it, and optionally toggle it with a right click.
 - **Displays.** Adjust brightness or turn individual displays on and off. External screens use their own control channel when available and fall back to dimming the picture, while the keyboard brightness keys can follow the pointer and show the brightness percentage. One slider can move every display at once, keeping the gaps between them, and external monitors can follow the built-in screen wherever it goes.
+- **HDR.** Switch HDR on or off for a monitor that has modes to switch between, the same switch System Settings offers. While HDR is on the monitor takes its own brightness over, so the slider dims the picture instead.
 - **Monitor speakers.** Monitors with speakers of their own get a volume slider and a mute button, over the same channel their buttons use, and the keyboard volume keys can reach them instead of a level macOS cannot change.
 - **Extra brightness.** Pushes a display past its regular maximum using its HDR headroom, on the XDR panel of a MacBook Pro and on external HDR monitors.
 

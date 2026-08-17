@@ -97,6 +97,7 @@ struct BrightnessSection: View {
                         .font(.system(size: 10.5, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
+                DisplayHDRButton(display: display, compact: true)
                 DisplayPowerButton(display: display, compact: true)
             }
             if display.isActive, display.method != nil {
@@ -148,6 +149,36 @@ struct BrightnessSection: View {
         Binding(get: { display.brightness },
                 set: { service.setBrightness($0, for: display.id,
                                              showOSD: brightnessOSDEnabled) })
+    }
+}
+
+/// Shared HDR affordance, shown only for displays that have an HDR mode to
+/// switch. Switching modes takes the display down and back up for a moment,
+/// so the control waits with the rest of the row while that settles.
+struct DisplayHDRButton: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var service = BrightnessService.shared
+    let display: BrightnessDisplay
+    var compact = false
+
+    private var strings: BrightnessFeatureStrings { FeatureStrings.brightness(l10n.language) }
+
+    var body: some View {
+        if let enabled = display.hdrEnabled {
+            let label = enabled ? strings.turnOffHDR : strings.turnOnHDR
+            Button {
+                service.setHDR(!enabled, for: display.id)
+            } label: {
+                Image(systemName: "sparkles.tv.fill")
+                    .font(.system(size: compact ? 10 : 11.5, weight: .semibold))
+                    .foregroundStyle(enabled ? AnyShapeStyle(.purple) : AnyShapeStyle(.secondary))
+                    .frame(width: compact ? 16 : 20, height: 18)
+            }
+            .buttonStyle(.plain)
+            .disabled(service.isDisplayPending(display.id))
+            .help(label)
+            .accessibilityLabel(label)
+        }
     }
 }
 
