@@ -801,6 +801,15 @@ enum CommandBarCatalog {
         return apps.filter { $0.bundleID != ownBundleID }.map { app in
             let isRunning = app.bundleID.map { runningBundleIDs.contains($0) } ?? false
                 || runningPaths.contains(app.url.standardizedFileURL.path)
+             // The title is what Finder localizes it to, which is Chinese on a
+            // Chinese Mac, but the person may know the app by its English
+            // spelling or only by sound. The bundle's own file name ("WeChat")
+            // and the title's pinyin ("weixin", "wx") make both find 微信.
+            let diskName = app.url.deletingPathExtension().lastPathComponent
+            var keywords = CommandBarSearch.pinyinKeywords(app.name)
+            if !diskName.isEmpty, diskName.caseInsensitiveCompare(app.name) != .orderedSame {
+                keywords += keywords.isEmpty ? diskName : " " + diskName
+            }
             return CommandBarEntry(
                 id: "app.\(app.id)",
                 // Two copies of one app need two rows, so the row is keyed by
@@ -808,6 +817,7 @@ enum CommandBarCatalog {
                 stableKey: app.bundleID.map { "app.bundle.\($0)" } ?? "app.\(app.id)",
                 title: app.name,
                 subtitle: bar.kindApp,
+                keywords: keywords,
                 icon: .appIcon(path: app.url.path),
                 isActive: isRunning,
                 run: { _ in

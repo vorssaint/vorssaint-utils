@@ -146,6 +146,33 @@ enum CommandBarSearch {
         scalar.value >= 0x00AD && scalar.properties.generalCategory == .format
     }
 
+    /// The Latin spellings a Chinese title also answers to, so a person who
+    /// cannot type the characters can still reach the row by sound: "weixin"
+    /// and "wx" both find 微信. The pinyin comes back run together (the way
+    /// it is typed) plus its initials; a title without a Han character gets
+    /// nothing back, because romanizing "Safari" would only repeat it.
+    static func pinyinKeywords(_ title: String) -> String {
+        guard title.unicodeScalars.contains(where: isHan) else { return "" }
+        let romanized = NSMutableString(string: title)
+        CFStringTransform(romanized, nil, kCFStringTransformMandarinLatin, false)
+        CFStringTransform(romanized, nil, kCFStringTransformStripDiacritics, false)
+        let syllables = (romanized as String)
+            .split(whereSeparator: \.isWhitespace)
+            .map { $0.lowercased() }
+        guard !syllables.isEmpty else { return "" }
+        let joined = syllables.joined()
+        let initials = String(syllables.compactMap(\.first))
+        return joined == initials ? joined : joined + " " + initials
+    }
+
+    /// The Han blocks a real app name can reach: the common block, its
+    /// extension and the compatibility ideographs.
+    private static func isHan(_ scalar: Unicode.Scalar) -> Bool {
+        (0x4E00...0x9FFF).contains(scalar.value)
+            || (0x3400...0x4DBF).contains(scalar.value)
+            || (0xF900...0xFAFF).contains(scalar.value)
+    }
+
     /// Whether the query names the verb of a format like "Quit %@". Used to
     /// keep a heavy, rare command out of the list until it is asked for, in
     /// every language: the verb is whatever the format says around the name,

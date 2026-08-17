@@ -13354,6 +13354,16 @@ struct MetricsTests {
                                         keywords: "Recent captures screenshot recording",
                                         query: "recent captures"),
                "recent captures stays searchable by its familiar English name")
+        expect(CommandBarSearch.pinyinKeywords("微信") == "weixin wx",
+               "pinyin keywords run the syllables together and add the initials")
+        expect(CommandBarSearch.pinyinKeywords("Safari").isEmpty,
+               "a name without Han characters gets no pinyin keywords")
+        expect(CommandBarSearch.matches(title: "微信", keywords: CommandBarSearch.pinyinKeywords("微信"), query: "weixin"),
+               "a Chinese title is found by its pinyin")
+        expect(CommandBarSearch.matches(title: "微信", keywords: CommandBarSearch.pinyinKeywords("微信"), query: "wx"),
+               "a Chinese title is found by its pinyin initials")
+        expect(CommandBarSearch.matches(title: "微信", keywords: CommandBarSearch.pinyinKeywords("微信") + " WeChat", query: "wechat"),
+               "a Chinese title is found by the English name carried as a keyword")
         expect(CommandBarSearch.matches(title: "Silenciar microfone", query: "silenciar micro"),
                "tokens match in any order as prefixes")
         expect(!CommandBarSearch.matches(title: "Silenciar microfone", query: "silenciar tela"),
