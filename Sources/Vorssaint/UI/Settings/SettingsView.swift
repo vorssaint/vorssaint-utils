@@ -377,6 +377,10 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
+    @AppStorage(DefaultsKey.brightnessCombinedEnabled) private var brightnessCombined = false
+    @AppStorage(DefaultsKey.brightnessSyncEnabled) private var brightnessSync = false
+    @AppStorage(DefaultsKey.displayVolumeEnabled) private var displayVolume = false
+    @AppStorage(DefaultsKey.displayVolumeKeysEnabled) private var displayVolumeKeys = false
     @AppStorage(DefaultsKey.extraBrightnessEnabled) private var extraBrightnessEnabled = false
     @AppStorage(DefaultsKey.extraBrightnessLevel) private var extraBrightnessLevel = 100
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration = 0
@@ -503,7 +507,33 @@ struct EnergySettings: View {
                                     BrightnessService.shared.syncWithPreferences()
                                 }
                         }
-                        if (brightnessKeysEnabled || brightnessOSDEnabled),
+                        SettingsToggleWithCaption(title: strings.combinedToggle,
+                                                  caption: strings.combinedCaption,
+                                                  isOn: $brightnessCombined)
+                        if brightness.displays.contains(where: { $0.isBuiltIn }) {
+                            SettingsToggleWithCaption(title: strings.syncToggle,
+                                                      caption: strings.syncCaption,
+                                                      isOn: $brightnessSync)
+                                .onChange(of: brightnessSync) { _, _ in
+                                    BrightnessService.shared.syncWithPreferences()
+                                }
+                        }
+                        SettingsToggleWithCaption(title: strings.volumeToggle,
+                                                  caption: strings.volumeCaption,
+                                                  isOn: $displayVolume)
+                            .onChange(of: displayVolume) { _, _ in
+                                BrightnessService.shared.syncWithPreferences()
+                            }
+                        if displayVolume {
+                            SettingsToggleWithCaption(title: strings.volumeKeysToggle,
+                                                      caption: strings.volumeKeysCaption,
+                                                      isOn: $displayVolumeKeys)
+                                .onChange(of: displayVolumeKeys) { _, isOn in
+                                    if isOn { Permissions.shared.requestAccessibility() }
+                                    BrightnessService.shared.syncWithPreferences()
+                                }
+                        }
+                        if (brightnessKeysEnabled || brightnessOSDEnabled || displayVolumeKeys),
                            !permissions.accessibility {
                             PermissionRow(kind: .accessibility)
                         }
@@ -580,6 +610,7 @@ struct EnergySettings: View {
                         .frame(width: 52, alignment: .trailing)
                 }
             }
+            DisplayHDRButton(display: display)
             DisplayPowerButton(display: display)
         }
     }

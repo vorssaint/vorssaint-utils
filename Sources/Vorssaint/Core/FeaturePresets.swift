@@ -110,8 +110,14 @@ extension AppFeature {
              .monitorCPU, .monitorGPU, .monitorMemory,
              .monitorNetwork, .monitorDisk, .monitorPower:
             return .periodic
+        case .brightness:
+            // Sliders, keys and monitor speakers all wait to be used. The one
+            // standing cost is the sampler that lets external displays follow
+            // the built-in panel, which has no notification to wait on.
+            return UserDefaults.standard.bool(forKey: DefaultsKey.brightnessSyncEnabled)
+                ? .periodic : .idle
         case .pastePlain, .mixer, .soundOutputSwitcher, .micMute,
-             .musicBlock, .keepAwake, .brightness, .quickLauncher, .quickToggles, .colorPicker,
+             .musicBlock, .keepAwake, .quickLauncher, .quickToggles, .colorPicker,
              .screenOCR, .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew, .screenshot,
              .cameraPreview, .scratchpad, .commandBar, .screenRecorder, .fanControl,
              .diskImageInstaller:

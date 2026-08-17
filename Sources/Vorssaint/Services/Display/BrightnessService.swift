@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import CoreAudio
 import IOKit.graphics
 import ObjectiveC.runtime
 import os
@@ -20,6 +21,16 @@ struct BrightnessDisplay: Identifiable, Equatable {
         case software
     }
 
+    /// The speakers built into a monitor, when its DDC channel answers the
+    /// audio controls. Nil for the built-in panel and for every monitor with
+    /// no speakers of its own, which is most of them.
+    struct Audio: Equatable {
+        /// 0...1 for the UI slider.
+        var volume: Double
+        /// Nil when the monitor carries sound but offers no mute control.
+        var muted: Bool?
+    }
+
     let id: CGDirectDisplayID
     let name: String
     let isBuiltIn: Bool
@@ -33,6 +44,11 @@ struct BrightnessDisplay: Identifiable, Equatable {
     /// still works (writes go through), it just starts from the last value
     /// applied here instead of the monitor's own.
     let readable: Bool
+    var audio: Audio? = nil
+    /// Whether this display's HDR mode is on, or nil when it has none to
+    /// switch: the built-in panel, which System Settings does not offer it
+    /// for either, and every monitor with no HDR modes of its own.
+    var hdrEnabled: Bool? = nil
 }
 
 /// Brightness sliders for every display, built-in and external. The built-in
@@ -43,8 +59,11 @@ struct BrightnessDisplay: Identifiable, Equatable {
 /// While display control is off there are no display observers, services or
 /// I2C traffic. Keyboard light state is read only when Quick toggles opens.
 /// While display control is on, the standing resources are one screen change
-/// observer and a pair of wake observers, and no timers; everything else
-/// happens when a slider moves, a panel opens or the Mac wakes. All I2C work
+/// observer and a pair of wake observers; everything else happens when a
+/// slider moves, a panel opens or the Mac wakes. Two optional additions have
+/// a cost of their own and exist only while their option is on: an observer
+/// for which device the Mac plays through, and the one timer here, which
+/// samples the built-in panel so external displays can follow it. All I2C work
 /// runs on a serial queue with the pacing displays need, and slider drags
 /// coalesce to the newest value per display.
 final class BrightnessService: ObservableObject {
@@ -69,12 +88,21 @@ final class BrightnessService: ObservableObject {
         case failed
     }
 
+    /// What a monitor's speakers accept, once its channel has been asked.
+    private struct AudioRoute {
+        var maximum: UInt16
+        var supportsMute: Bool
+    }
+
     private struct Route {
         var method: BrightnessDisplay.Method
         var service: CFTypeRef?
         var maximum: UInt16
         var ddcReadable = false
         var ddcPathKey: String?
+        /// Nil until the audio controls are probed, and for every monitor
+        /// whose answer said there is nothing to control.
+        var audio: AudioRoute?
     }
 
     private var screenObserver: NSObjectProtocol?
@@ -122,6 +150,28 @@ final class BrightnessService: ObservableObject {
         let sequence: UInt64
     }
     private var pendingLevels: [CGDirectDisplayID: PendingWrite] = [:]
+    /// Speaker changes waiting for the work queue. They ride the same queue
+    /// and the same command pacing as brightness on purpose: a second client
+    /// on a monitor's I2C channel would interleave commands with the
+    /// brightness writes, which is exactly what makes monitors drop their
+    /// signal until they are power cycled (issue #301).
+    private struct PendingAudio {
+        var volume: Double?
+        var muted: Bool?
+    }
+    private var pendingAudio: [CGDirectDisplayID: PendingAudio] = [:]
+    /// Whether the last completed scan asked the monitors about their
+    /// speakers. The routes cannot answer this on their own: a desk where no
+    /// monitor has speakers looks exactly like a scan that never asked, and
+    /// taking one for the other would rescan on every preference read.
+    private var scannedAudio = false
+    /// The monitor the volume keys reach, or nil while the sound is not
+    /// leaving through one. Recomputed when the default output changes and
+    /// after every scan, never inside the tap: the window server holds every
+    /// keystroke in the session until the tap answers, and asking CoreAudio
+    /// there would put the HAL in that path.
+    private var audioKeyTarget: CGDirectDisplayID?
+    private var audioOutputListener: AudioObjectPropertyListenerBlock?
     private var writeSequence: UInt64 = 0
     /// Keeps fast system-key repeats based on the newest requested value while
     /// DisplayServices is still applying the previous asynchronous write.
@@ -203,6 +253,10 @@ final class BrightnessService: ObservableObject {
     private var keyboardLightLevel: Float?
     private var lastKeyboardLightLevel: Float = BrightnessSupport.defaultKeyboardLightLevel
     private lazy var keyboardLightBridge = KeyboardLightBridge()
+    private lazy var hdrBridge = HDRBridge()
+    /// How long the window server is given to bring a display up in its new
+    /// mode before the routes are read again.
+    private static let hdrSettleDelay: TimeInterval = 2
     /// Stale rebuilds (an unplug mid-scan) must not overwrite fresh state.
     private var rebuildGeneration = 0
     /// The topology a queued or running rebuild already covers. Opening the
@@ -239,11 +293,25 @@ final class BrightnessService: ObservableObject {
         keyboardLightEnabled = level > 0
     }
 
+    /// Whether the monitor speaker controls are wanted at all. Read on the
+    /// work queue during a scan, so it stays a plain defaults lookup.
+    private var wantsMonitorVolume: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.displayVolumeEnabled)
+    }
+
     func syncWithPreferences() {
         let wanted = AppFeature.brightness.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.brightnessControlEnabled)
         if wanted { start() } else { stop() }
+        // Switching the speaker controls on has to ask the monitors about
+        // them, and switching it off has to drop what was found: neither is
+        // a topology change, so the scan has to be forced.
+        stateLock.lock()
+        let covered = scannedAudio
+        stateLock.unlock()
+        if wanted, wantsMonitorVolume != covered { refresh(force: true) }
         syncKeyTap()
+        syncBuiltInFollowing()
     }
 
     private func start() {
@@ -263,6 +331,8 @@ final class BrightnessService: ObservableObject {
         running = false
         removeKeyTap()
         removeFunctionKeyTap()
+        removeAudioOutputObserver()
+        stopBuiltInSync()
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         screenObserver = nil
         removeWakeObservers()
@@ -273,6 +343,8 @@ final class BrightnessService: ObservableObject {
         rebuildingTopology = nil
         routes = [:]
         pendingLevels = [:]
+        pendingAudio = [:]
+        scannedAudio = false
         writeSequence = 0
         systemWritesInFlight = []
         lastApplied = [:]
@@ -323,8 +395,49 @@ final class BrightnessService: ObservableObject {
         let generation = rebuildGeneration
         rebuildingTopology = topology
         stateLock.unlock()
+        let hdrStates = currentHDRStates()
         workQueue.async { [weak self] in
-            self?.rebuild(generation: generation, previousDisplays: previousDisplays)
+            self?.rebuild(generation: generation, previousDisplays: previousDisplays,
+                          hdrStates: hdrStates)
+        }
+    }
+
+    // MARK: - HDR mode
+
+    /// Sampled here, on the main thread, rather than inside the scan: the
+    /// display manager behind this is a window server client whose reads are
+    /// synchronous round-trips, and the scan runs on the I2C work queue.
+    private func currentHDRStates() -> [CGDirectDisplayID: Bool] {
+        guard let hdrBridge else { return [:] }
+        var ids = [CGDirectDisplayID](repeating: 0, count: 16)
+        var count: UInt32 = 0
+        CGGetOnlineDisplayList(16, &ids, &count)
+        var states: [CGDirectDisplayID: Bool] = [:]
+        for id in ids.prefix(Int(count)) where CGDisplayIsBuiltin(id) == 0 {
+            guard hdrBridge.supportsHDR(id) else { continue }
+            states[id] = hdrBridge.isHDREnabled(id)
+        }
+        return states
+    }
+
+    /// Switches one display's HDR mode, the same switch System Settings
+    /// offers. Only displays that answered with a mode to switch have the
+    /// control at all.
+    func setHDR(_ enabled: Bool, for id: CGDirectDisplayID) {
+        guard let hdrBridge, hdrBridge.setHDREnabled(enabled, for: id) else { return }
+        Self.log.log("display \(id) hdr set to \(enabled)")
+        if let index = displays.firstIndex(where: { $0.id == id }),
+           displays[index].hdrEnabled != nil {
+            displays[index].hdrEnabled = enabled
+        }
+        // The window server takes a moment to bring the display up in the new
+        // mode, and the brightness route has to move with it. An HDR flip
+        // changes no topology, so nothing else here would ask for a scan.
+        pendingDisplayIDs.insert(id)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.hdrSettleDelay) { [weak self] in
+            guard let self else { return }
+            self.pendingDisplayIDs.remove(id)
+            self.refresh(force: true)
         }
     }
 
@@ -353,6 +466,236 @@ final class BrightnessService: ObservableObject {
         workQueue.async { [weak self] in
             self?.drainPendingLevels()
         }
+    }
+
+    // MARK: - Monitor speakers
+
+    /// Moves one monitor's own speakers, the same way the slider moves its
+    /// backlight: the published value updates on the spot and a drag folds
+    /// into one write of the newest value.
+    func setVolume(_ value: Double, for id: CGDirectDisplayID) {
+        let clamped = min(max(value, 0), 1)
+        if let index = displays.firstIndex(where: { $0.id == id }),
+           displays[index].audio?.volume != clamped {
+            displays[index].audio?.volume = clamped
+        }
+        queueAudio(for: id) { $0.volume = clamped }
+    }
+
+    /// Mutes or unmutes a monitor that offers the control. Monitors without
+    /// one keep their volume slider and never show a mute button.
+    func setMuted(_ muted: Bool, for id: CGDirectDisplayID) {
+        if let index = displays.firstIndex(where: { $0.id == id }),
+           displays[index].audio?.muted != nil {
+            displays[index].audio?.muted = muted
+        }
+        queueAudio(for: id) { $0.muted = muted }
+    }
+
+    /// Folds one change into whatever is already waiting for this monitor, so
+    /// a drag and a mute click never queue behind each other as separate
+    /// commands on a bus that is paced in tens of milliseconds.
+    private func queueAudio(for id: CGDirectDisplayID,
+                            _ change: (inout PendingAudio) -> Void) {
+        stateLock.lock()
+        var pending = pendingAudio[id] ?? PendingAudio()
+        change(&pending)
+        pendingAudio[id] = pending
+        let schedule = !drainScheduled
+        if schedule { drainScheduled = true }
+        stateLock.unlock()
+        guard schedule else { return }
+        workQueue.async { [weak self] in
+            self?.drainPendingLevels()
+        }
+    }
+
+    // MARK: - One slider for every display
+
+    /// Where the combined slider sits. It is a handle, not a reading: what it
+    /// carries is the distance it moves, so every display shifts by the same
+    /// amount and a desk deliberately set with one screen dimmer keeps that
+    /// gap. Only a drag all the way to an end flattens the gaps, because a
+    /// display that has hit black or full cannot fall further behind.
+    @Published private(set) var combinedBrightness: Double = 1
+
+    var adjustableDisplays: [BrightnessDisplay] {
+        displays.filter { $0.isActive && $0.method != nil }
+    }
+
+    func setCombinedBrightness(_ value: Double) {
+        let clamped = min(max(value, 0), 1)
+        let delta = clamped - combinedBrightness
+        if combinedBrightness != clamped { combinedBrightness = clamped }
+        guard delta != 0 else { return }
+        for display in adjustableDisplays {
+            let level = BrightnessSupport.steppedLevel(display.brightness, delta: delta)
+            setBrightness(level, for: display.id)
+            // This slider already moved the externals itself. Letting the
+            // follower read the panel's new level as news would move them a
+            // second time, so it is told where the panel landed.
+            if display.isBuiltIn, syncTimer != nil { lastSyncedBuiltIn = level }
+        }
+    }
+
+    /// Puts the handle back where the displays actually are after a scan, so
+    /// a monitor arriving or leaving does not make the next drag jump.
+    private func reseatCombinedBrightness() {
+        let levels = adjustableDisplays.map(\.brightness)
+        guard !levels.isEmpty else { return }
+        let average = levels.reduce(0, +) / Double(levels.count)
+        if combinedBrightness != average { combinedBrightness = average }
+    }
+
+    // MARK: - External displays following the built-in panel
+
+    /// The built-in panel moves on its own, through the ambient light sensor
+    /// and through paths this app never sees (the system's own key handling,
+    /// System Settings), and none of them announce themselves through any
+    /// public API. So the panel is sampled while the option is on, and the
+    /// externals are moved by whatever distance it travelled: matching its
+    /// number outright would be wrong, since a monitor is rarely comfortable
+    /// at the same level as a laptop panel a foot closer to the face.
+    ///
+    /// This is the one timer the display feature keeps, it exists only while
+    /// the option is on and there is both a panel to follow and an external
+    /// display to follow it, and a tick costs a single brightness read.
+    private var syncTimer: Timer?
+    private static let syncInterval: TimeInterval = 2
+    /// The panel level the externals were last matched to. Nil until the
+    /// first tick, which only learns where the panel is: acting on that
+    /// first reading would move every monitor by the distance between the
+    /// panel and nothing at all.
+    private var lastSyncedBuiltIn: Double?
+    /// Smaller moves than this are the panel's own smoothing, not a level
+    /// somebody chose.
+    private static let syncThreshold = 0.01
+
+    private func syncBuiltInFollowing() {
+        let wanted = running
+            && UserDefaults.standard.bool(forKey: DefaultsKey.brightnessSyncEnabled)
+            && displays.contains { $0.isBuiltIn && $0.isActive && $0.method == .system }
+            && displays.contains { !$0.isBuiltIn && $0.isActive && $0.method != nil }
+        if wanted { startBuiltInSync() } else { stopBuiltInSync() }
+    }
+
+    private func startBuiltInSync() {
+        guard syncTimer == nil else { return }
+        let timer = Timer.scheduledTimer(withTimeInterval: Self.syncInterval,
+                                         repeats: true) { [weak self] _ in
+            self?.followBuiltInBrightness()
+        }
+        timer.tolerance = Self.syncInterval / 4
+        syncTimer = timer
+    }
+
+    private func stopBuiltInSync() {
+        syncTimer?.invalidate()
+        syncTimer = nil
+        lastSyncedBuiltIn = nil
+    }
+
+    private func followBuiltInBrightness() {
+        guard running,
+              let builtIn = displays.first(where: {
+                  $0.isBuiltIn && $0.isActive && $0.method == .system
+              }),
+              let read = BrightnessBridge.getBrightness else { return }
+        // A sleeping panel answers a number it cannot honour, and dragging
+        // every monitor to meet it is exactly the wrong thing to do.
+        var level: Float = -1
+        guard CGDisplayIsAsleep(builtIn.id) == 0,
+              read(builtIn.id, &level) == 0, level >= 0, level <= 1 else { return }
+        let current = Double(level)
+        defer { lastSyncedBuiltIn = current }
+        guard let previous = lastSyncedBuiltIn else { return }
+        let delta = current - previous
+        guard abs(delta) >= Self.syncThreshold else { return }
+        if let index = displays.firstIndex(where: { $0.id == builtIn.id }) {
+            displays[index].brightness = current
+        }
+        for display in adjustableDisplays where !display.isBuiltIn {
+            setBrightness(BrightnessSupport.steppedLevel(display.brightness, delta: delta),
+                          for: display.id)
+        }
+    }
+
+    // MARK: - Which monitor the sound leaves through
+
+    private static var defaultOutputAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain)
+
+    /// Watches which device the Mac plays through, so the volume keys know
+    /// whether they are aimed at a monitor before one is pressed.
+    private func installAudioOutputObserver() {
+        guard audioOutputListener == nil else { return }
+        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            self?.refreshAudioKeyTarget()
+        }
+        guard AudioObjectAddPropertyListenerBlock(
+            AudioObjectID(kAudioObjectSystemObject), &Self.defaultOutputAddress,
+            DispatchQueue.main, listener) == noErr else { return }
+        audioOutputListener = listener
+        refreshAudioKeyTarget()
+    }
+
+    private func removeAudioOutputObserver() {
+        guard let listener = audioOutputListener else { return }
+        AudioObjectRemovePropertyListenerBlock(
+            AudioObjectID(kAudioObjectSystemObject), &Self.defaultOutputAddress,
+            DispatchQueue.main, listener)
+        audioOutputListener = nil
+        stateLock.lock()
+        audioKeyTarget = nil
+        stateLock.unlock()
+    }
+
+    /// Main thread only: it reads the published display list.
+    private func refreshAudioKeyTarget() {
+        var target: CGDirectDisplayID?
+        if running, UserDefaults.standard.bool(forKey: DefaultsKey.displayVolumeKeysEnabled),
+           let output = Self.defaultOutputDevice(),
+           BrightnessSupport.isDisplayAudioTransport(output.transport) {
+            let candidates = displays.compactMap { display -> (id: UInt32, name: String)? in
+                guard display.isActive, display.audio != nil else { return nil }
+                return (display.id, display.name)
+            }
+            target = BrightnessSupport.displayForAudioOutput(deviceName: output.name,
+                                                             candidates: candidates)
+        }
+        stateLock.lock()
+        let changed = audioKeyTarget != target
+        audioKeyTarget = target
+        stateLock.unlock()
+        if changed {
+            Self.log.log("volume keys now reach display \(target.map(String.init) ?? "none", privacy: .public)")
+        }
+    }
+
+    private static func defaultOutputDevice() -> (name: String, transport: UInt32)? {
+        var deviceID = AudioObjectID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioObjectID>.size)
+        var address = defaultOutputAddress
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address,
+                                         0, nil, &size, &deviceID) == noErr,
+              deviceID != AudioObjectID(kAudioObjectUnknown) else { return nil }
+        var transport: UInt32 = 0
+        size = UInt32(MemoryLayout<UInt32>.size)
+        address.mSelector = kAudioDevicePropertyTransportType
+        guard AudioObjectGetPropertyData(deviceID, &address, 0, nil,
+                                         &size, &transport) == noErr else { return nil }
+        // A device with no readable name still routes by being the only
+        // monitor with speakers, so the transport alone is enough to answer.
+        // CoreAudio hands the name over already retained, so it is taken as
+        // such rather than read into a bridged CFString and leaked.
+        var name: Unmanaged<CFString>?
+        size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        address.mSelector = kAudioObjectPropertyName
+        guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &name) == noErr,
+              let name else { return ("", transport) }
+        return (name.takeRetainedValue() as String, transport)
     }
 
     // MARK: - Display power
@@ -571,10 +914,14 @@ final class BrightnessService: ObservableObject {
         let wantsBrightnessOSD = defaults.bool(
             forKey: DefaultsKey.brightnessOSDEnabled
         ) && brightnessOSDSupported
+        let wantsVolumeKeys = defaults.bool(forKey: DefaultsKey.displayVolumeKeysEnabled)
         let wanted = running
-            && (wantsKeyRouting || wantsBrightnessOSD)
+            && (wantsKeyRouting || wantsBrightnessOSD || wantsVolumeKeys)
             && Permissions.shared.accessibility
         if wanted { installKeyTap() } else { removeKeyTap() }
+        // Knowing which monitor carries the sound is only worth a CoreAudio
+        // observer while the keys are actually aimed at it.
+        if running, wantsVolumeKeys { installAudioOutputObserver() } else { removeAudioOutputObserver() }
         // The plain key press path only earns its keystroke tap when the
         // pointer actually decides the target.
         if wanted, wantsKeyRouting {
@@ -844,7 +1191,8 @@ final class BrightnessService: ObservableObject {
         // the main thread and the step follows the answer.
         workQueue.async { [weak self] in
             guard let self else { return }
-            let probe = self.ddcProbeLuminance(for: displayID, service: service)
+            let probe = self.ddcProbe(BrightnessSupport.luminanceCode,
+                                      for: displayID, service: service)
             if case .replied = probe {
                 self.forgetWriteOnlyDDCPath(route.ddcPathKey)
             } else {
@@ -896,8 +1244,14 @@ final class BrightnessService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
         guard type.rawValue == CleaningSystemKeyEvent.systemDefinedEventTypeRawValue,
-              let nsEvent = NSEvent(cgEvent: event),
-              let press = BrightnessSupport.brightnessKeyEvent(subtype: Int(nsEvent.subtype.rawValue),
+              let nsEvent = NSEvent(cgEvent: event)
+        else { return Unmanaged.passUnretained(event) }
+        // The volume keys ride the same system-defined events, so they are
+        // caught here rather than on a tap of their own.
+        let modified = !event.flags.intersection([.maskCommand, .maskControl,
+                                                  .maskAlternate, .maskShift]).isEmpty
+        if consumesVolumeKey(nsEvent, hasModifiers: modified) { return nil }
+        guard let press = BrightnessSupport.brightnessKeyEvent(subtype: Int(nsEvent.subtype.rawValue),
                                                                data1: nsEvent.data1)
         else { return Unmanaged.passUnretained(event) }
 
@@ -971,6 +1325,60 @@ final class BrightnessService: ObservableObject {
             step(displayID, method: route.method, delta: press.delta, showOSD: wantsBrightnessOSD)
         }
         return nil
+    }
+
+    /// Whether a volume key press belongs to a monitor's own speakers.
+    ///
+    /// The system's volume keys move the output device's level, and a monitor
+    /// reached over its display cable has none macOS can touch: the keys draw
+    /// their overlay and nothing gets louder. Taking them over here sends the
+    /// step down the same channel the monitor's own buttons use.
+    ///
+    /// Whether a press is consumed rests only on facts that cannot change
+    /// between a press and its release, so the system never receives half a
+    /// key without any release tracking: which monitor carries the sound, and
+    /// whether it has a mute control at all.
+    private func consumesVolumeKey(_ nsEvent: NSEvent, hasModifiers: Bool) -> Bool {
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.displayVolumeKeysEnabled),
+              let press = BrightnessSupport.volumeKeyEvent(subtype: Int(nsEvent.subtype.rawValue),
+                                                           data1: nsEvent.data1,
+                                                           hasModifiers: hasModifiers)
+        else { return false }
+        stateLock.lock()
+        let target = audioKeyTarget
+        stateLock.unlock()
+        guard let target,
+              let audio = displays.first(where: { $0.id == target })?.audio else { return false }
+        // A monitor with no mute control of its own leaves the mute key to
+        // the system, so that key never goes dead merely because the sound
+        // happens to be leaving through this monitor.
+        if case .toggleMute = press.action, audio.muted == nil { return false }
+        guard press.isKeyDown else { return true }
+        // The system's own volume overlay never gets to appear, since the
+        // press is taken before it, so this one always shows: a step with no
+        // feedback reads as a key that stopped working. It is drawn straight
+        // away rather than after the write, because a DDC command is paced in
+        // tens of milliseconds and the key should not feel like it.
+        let level: Double
+        var muted = audio.muted
+        switch press.action {
+        case .step(let delta):
+            level = BrightnessSupport.steppedLevel(audio.volume, delta: delta)
+            setVolume(level, for: target)
+            // Turning the volume up on a muted monitor is what its own keys
+            // do, and a slider climbing in silence reads as broken.
+            if delta > 0, muted == true {
+                muted = false
+                setMuted(false, for: target)
+            }
+        case .toggleMute:
+            level = audio.volume
+            muted = !(audio.muted ?? false)
+            setMuted(muted == true, for: target)
+        }
+        BrightnessOSD.show(displayID: target, level: level,
+                           kind: muted == true ? .mutedVolume : .volume)
+        return true
     }
 
     private func currentSystemBrightness(for id: CGDirectDisplayID,
@@ -1106,7 +1514,8 @@ final class BrightnessService: ObservableObject {
 
     // MARK: - Rebuild (work queue)
 
-    private func rebuild(generation: Int, previousDisplays: [BrightnessDisplay]) {
+    private func rebuild(generation: Int, previousDisplays: [BrightnessDisplay],
+                         hdrStates: [CGDirectDisplayID: Bool]) {
         var ids = [CGDirectDisplayID](repeating: 0, count: 16)
         var count: UInt32 = 0
         CGGetOnlineDisplayList(16, &ids, &count)
@@ -1211,7 +1620,9 @@ final class BrightnessService: ObservableObject {
                                          isBuiltIn: display.isBuiltIn,
                                          method: previous.method, isActive: true,
                                          brightness: previous.brightness,
-                                         readable: previous.readable)
+                                         readable: previous.readable,
+                                         audio: previous.audio,
+                                         hdrEnabled: display.hdrEnabled)
             }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.running, generation == self.rebuildGeneration else { return }
@@ -1223,7 +1634,16 @@ final class BrightnessService: ObservableObject {
         // remaining displays and read each matched monitor's brightness.
         // Whatever ends up without a live DDC channel falls back to gamma
         // dimming, so every real display keeps a working slider.
+        // HDR mode, for every display that has one to switch. Carried on the
+        // display so nothing has to ask the window server again to draw it.
+        for index in built.indices where built[index].isActive && !built[index].isBuiltIn {
+            built[index].hdrEnabled = hdrStates[built[index].id]
+        }
+
         var softwareIndices = Set(ddcCandidates.map(\.index))
+        // Sampled once, so every monitor in one scan is treated alike even if
+        // the preference is toggled while the scan is running.
+        let probesAudio = wantsMonitorVolume
         if !ddcCandidates.isEmpty, BrightnessBridge.ddcAvailable {
             let services = Self.externalServices()
             var scores: [(displayIndex: Int, serviceOrdinal: Int, score: Int)] = []
@@ -1241,6 +1661,16 @@ final class BrightnessService: ObservableObject {
                 assignment = [ddcCandidates[0].index: services[0].identity.ordinal]
             }
             for candidate in ddcCandidates {
+                // A monitor in HDR mode owns its own luminance: it takes DDC
+                // brightness writes, acknowledges them and quietly drops
+                // them, so a slider driven that way looks connected and does
+                // nothing. Leaving it out of this pass is what hands it to
+                // gamma dimming below, which keeps its slider working for as
+                // long as HDR is on.
+                if built[candidate.index].hdrEnabled == true {
+                    Self.log.log("display \(built[candidate.index].id) is in HDR mode; dimming in software")
+                    continue
+                }
                 guard let ordinal = assignment[candidate.index],
                       let matched = services.first(where: { $0.identity.ordinal == ordinal }) else {
                     continue
@@ -1252,30 +1682,39 @@ final class BrightnessService: ObservableObject {
                 let pathKey = BrightnessSupport.ddcPathKey(
                     displayFingerprint: Self.displayFingerprint(id),
                     ioDisplayLocation: ioDisplayLocation)
-                let rememberedWriteOnly = !BrightnessSupport.shouldProbeDDC(
-                    pathKey: pathKey, writeOnlyPaths: writeOnlyDDCPaths())
+                let rememberedWriteOnly = !BrightnessSupport.shouldProbe(
+                    pathKey: pathKey, rememberedPaths: writeOnlyDDCPaths())
                 let probe: DDCProbe
                 if rememberedWriteOnly {
                     probe = .writeOnly
                     Self.log.log("ddc cached display \(id): writeOnly")
                 } else {
-                    probe = ddcProbeLuminance(for: id, service: matched.service,
-                                              classifyingChannel: true)
+                    probe = ddcProbe(BrightnessSupport.luminanceCode,
+                                     for: id, service: matched.service,
+                                     classifyingChannel: true)
                     Self.log.log("ddc probe display \(id): \(String(describing: probe), privacy: .public)")
                 }
                 switch probe {
                 case .replied(let current, let maximum):
                     forgetWriteOnlyDDCPath(pathKey)
                     let ceiling = BrightnessSupport.sanitizedMaximum(maximum)
+                    // The speakers cost two more reads on a bus paced in tens
+                    // of milliseconds, so they are only asked about when the
+                    // feature that shows them is switched on.
+                    let audio = probesAudio
+                        ? probeAudio(for: id, service: matched.service, pathKey: pathKey)
+                        : nil
                     built[candidate.index] = BrightnessDisplay(
                         id: id, name: built[candidate.index].name, isBuiltIn: false,
                         method: .ddc, isActive: true,
                         brightness: BrightnessSupport.normalized(current: current,
                                                                  maximum: ceiling),
-                        readable: true)
+                        readable: true,
+                        audio: audio?.state,
+                        hdrEnabled: built[candidate.index].hdrEnabled)
                     newRoutes[id] = Route(method: .ddc, service: matched.service,
                                           maximum: ceiling, ddcReadable: true,
-                                          ddcPathKey: pathKey)
+                                          ddcPathKey: pathKey, audio: audio?.route)
                     stateLock.lock()
                     levelKnownAt[id] = Date()
                     stateLock.unlock()
@@ -1289,7 +1728,8 @@ final class BrightnessService: ObservableObject {
                     stateLock.unlock()
                     built[candidate.index] = BrightnessDisplay(
                         id: id, name: built[candidate.index].name, isBuiltIn: false,
-                        method: .ddc, isActive: true, brightness: seed, readable: false)
+                        method: .ddc, isActive: true, brightness: seed, readable: false,
+                        hdrEnabled: built[candidate.index].hdrEnabled)
                     newRoutes[id] = Route(method: .ddc, service: matched.service,
                                           maximum: 100, ddcPathKey: pathKey)
                     softwareIndices.remove(candidate.index)
@@ -1334,7 +1774,8 @@ final class BrightnessService: ObservableObject {
             }
             built[index] = BrightnessDisplay(
                 id: id, name: built[index].name, isBuiltIn: false,
-                method: .software, isActive: true, brightness: value, readable: true)
+                method: .software, isActive: true, brightness: value, readable: true,
+                hdrEnabled: built[index].hdrEnabled)
             newRoutes[id] = Route(method: .software, service: nil, maximum: 100)
             if value < 0.999 { _ = applySoftwareDim(id, value: value) }
         }
@@ -1372,6 +1813,7 @@ final class BrightnessService: ObservableObject {
                 }
             }
             routes = newRoutes
+            scannedAudio = probesAudio
             knownTopology = seenTopology
             knownActiveTopology = activeTopology
             rebuildingTopology = nil
@@ -1399,6 +1841,12 @@ final class BrightnessService: ObservableObject {
             }
             self.refreshKeyboardLight()
             self.syncKeyTap()
+            self.reseatCombinedBrightness()
+            // A monitor arriving or leaving changes both what the sound can
+            // come out of and whether there is anything left to follow the
+            // built-in panel.
+            self.refreshAudioKeyTarget()
+            self.syncBuiltInFollowing()
         }
     }
 
@@ -1408,6 +1856,17 @@ final class BrightnessService: ObservableObject {
         while true {
             stateLock.lock()
             guard let (id, pending) = pendingLevels.first else {
+                // Speaker changes share this queue so they are paced against
+                // the brightness writes to the same monitor, not raced with
+                // them. Brightness drains first: it is the one a held key
+                // repeats, and the one a stalled monitor makes visible.
+                if let (audioID, audio) = pendingAudio.first {
+                    pendingAudio.removeValue(forKey: audioID)
+                    let route = routes[audioID]
+                    stateLock.unlock()
+                    writePendingAudio(audio, to: audioID, route: route)
+                    continue
+                }
                 drainScheduled = false
                 stateLock.unlock()
                 return
@@ -1460,10 +1919,34 @@ final class BrightnessService: ObservableObject {
                     self.stateLock.unlock()
                     guard current == writeGeneration,
                           latestWrite == pending.sequence else { return }
-                    BrightnessOSD.show(displayID: id,
-                                       brightness: osdLevel)
+                    BrightnessOSD.show(displayID: id, level: osdLevel)
                 }
             }
+        }
+    }
+
+    /// Writes one monitor's queued speaker changes. Mute goes first, so
+    /// unmuting and setting a level in the same gesture lands audible rather
+    /// than silent at the new volume.
+    private func writePendingAudio(_ pending: PendingAudio,
+                                   to id: CGDirectDisplayID,
+                                   route: Route?) {
+        guard let route, route.method == .ddc,
+              let service = route.service, let audio = route.audio else { return }
+        if let muted = pending.muted, audio.supportsMute {
+            let written = ddcSend(to: id, service: service,
+                                  packet: BrightnessSupport.writePacket(
+                                      code: BrightnessSupport.audioMuteCode,
+                                      value: BrightnessSupport.muteDeviceValue(muted)))
+            Self.log.log("wrote display \(id) mute \(muted) ok \(written)")
+        }
+        if let volume = pending.volume {
+            let written = ddcSend(to: id, service: service,
+                                  packet: BrightnessSupport.writePacket(
+                                      code: BrightnessSupport.audioVolumeCode,
+                                      value: BrightnessSupport.deviceValue(
+                                          for: volume, maximum: audio.maximum)))
+            Self.log.log("wrote display \(id) volume \(volume) ok \(written)")
         }
     }
 
@@ -1564,46 +2047,75 @@ final class BrightnessService: ObservableObject {
         case dead
     }
 
+    private func rememberedPaths(_ key: String) -> Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: key) ?? [])
+    }
+
+    private func rememberPath(_ path: String?, key: String, remembered: Bool) {
+        guard let path else { return }
+        let defaults = UserDefaults.standard
+        let stored = defaults.stringArray(forKey: key) ?? []
+        let updated = BrightnessSupport.updatedRememberedPaths(
+            stored, path: path, remembered: remembered)
+        if updated != stored { defaults.set(updated, forKey: key) }
+    }
+
     private func writeOnlyDDCPaths() -> Set<String> {
-        Set(UserDefaults.standard.stringArray(
-            forKey: DefaultsKey.brightnessDDCWriteOnlyPaths
-        ) ?? [])
+        rememberedPaths(DefaultsKey.brightnessDDCWriteOnlyPaths)
     }
 
     private func rememberWriteOnlyDDCPath(_ path: String?) {
-        guard let path else { return }
-        let defaults = UserDefaults.standard
-        let stored = defaults.stringArray(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths) ?? []
-        let updated = BrightnessSupport.updatedWriteOnlyDDCPaths(
-            stored, path: path, isWriteOnly: true)
-        if updated != stored {
-            defaults.set(updated, forKey: DefaultsKey.brightnessDDCWriteOnlyPaths)
-        }
+        rememberPath(path, key: DefaultsKey.brightnessDDCWriteOnlyPaths, remembered: true)
     }
 
     private func forgetWriteOnlyDDCPath(_ path: String?) {
-        guard let path else { return }
-        let defaults = UserDefaults.standard
-        let stored = defaults.stringArray(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths) ?? []
-        let updated = BrightnessSupport.updatedWriteOnlyDDCPaths(
-            stored, path: path, isWriteOnly: false)
-        if updated != stored {
-            defaults.set(updated, forKey: DefaultsKey.brightnessDDCWriteOnlyPaths)
-        }
+        rememberPath(path, key: DefaultsKey.brightnessDDCWriteOnlyPaths, remembered: false)
     }
 
-    /// Reads the monitor's luminance while also judging the channel itself:
-    /// the request write's own return value is the only reliable signal of a
-    /// path that cannot carry DDC at all (HDMI conversions reject every
-    /// write, while their reads "succeed" with cached EDID bytes).
-    private func ddcProbeLuminance(for id: CGDirectDisplayID,
-                                   service: CFTypeRef,
-                                   classifyingChannel: Bool = false) -> DDCProbe {
+    /// Asks a monitor about its speakers. Only channels that already answered
+    /// a brightness read are asked at all: a write-only channel would take
+    /// every volume write without ever saying whether there is a speaker
+    /// behind it, and a slider that silently does nothing is worse than no
+    /// slider. A monitor that answers with an empty range is remembered as
+    /// silent, so the two extra reads are not repeated on every scan.
+    private func probeAudio(for id: CGDirectDisplayID,
+                            service: CFTypeRef,
+                            pathKey: String?) -> (route: AudioRoute,
+                                                  state: BrightnessDisplay.Audio)? {
+        guard BrightnessSupport.shouldProbe(
+            pathKey: pathKey,
+            rememberedPaths: rememberedPaths(DefaultsKey.displayAudioSilentPaths)) else { return nil }
+        guard case let .replied(current, maximum) = ddcProbe(BrightnessSupport.audioVolumeCode,
+                                                             for: id, service: service),
+              let volume = BrightnessSupport.audioReply(current: current, maximum: maximum) else {
+            rememberPath(pathKey, key: DefaultsKey.displayAudioSilentPaths, remembered: true)
+            Self.log.log("ddc audio probe display \(id): no speakers")
+            return nil
+        }
+        rememberPath(pathKey, key: DefaultsKey.displayAudioSilentPaths, remembered: false)
+        var muted: Bool?
+        if case let .replied(muteCurrent, muteMaximum) = ddcProbe(BrightnessSupport.audioMuteCode,
+                                                                  for: id, service: service) {
+            muted = BrightnessSupport.muteReply(current: muteCurrent, maximum: muteMaximum)
+        }
+        Self.log.log("ddc audio probe display \(id): volume \(volume) mute \(String(describing: muted), privacy: .public)")
+        return (AudioRoute(maximum: maximum, supportsMute: muted != nil),
+                BrightnessDisplay.Audio(volume: volume, muted: muted))
+    }
+
+    /// Reads one VCP control while also judging the channel itself: the
+    /// request write's own return value is the only reliable signal of a path
+    /// that cannot carry DDC at all (HDMI conversions reject every write,
+    /// while their reads "succeed" with cached EDID bytes).
+    private func ddcProbe(_ code: UInt8,
+                          for id: CGDirectDisplayID,
+                          service: CFTypeRef,
+                          classifyingChannel: Bool = false) -> DDCProbe {
         guard let write = BrightnessBridge.writeI2C,
               let read = BrightnessBridge.readI2C else { return .dead }
         paceDDCCommand(for: id)
         defer { recordDDCCommandEnd(for: id) }
-        var request = BrightnessSupport.readRequestPacket(code: BrightnessSupport.luminanceCode)
+        var request = BrightnessSupport.readRequestPacket(code: code)
         var writeAccepted = false
         let attempts = BrightnessSupport.ddcProbeAttempts()
         let writeCycles = BrightnessSupport.ddcProbeWriteCycles(
@@ -1779,6 +2291,62 @@ private enum BrightnessBridge {
     private static func symbol<T>(_ handle: UnsafeMutableRawPointer?, _ name: String) -> T? {
         guard let handle, let pointer = dlsym(handle, name) else { return nil }
         return unsafeBitCast(pointer, to: T.self)
+    }
+}
+
+/// Per-display HDR mode, which macOS exposes through no public API at all.
+/// MonitorPanel's display manager is what the System Settings checkbox itself
+/// drives, so this throws the same switch.
+///
+/// Every step is resolved at runtime and every read is guarded by the
+/// selector actually existing, so a macOS where the framework, the class or
+/// the properties are not what this expects simply offers no HDR control
+/// instead of raising an unknown-key exception that Swift cannot catch.
+///
+/// Main thread only: the manager is a window server client and its reads are
+/// synchronous round-trips.
+private final class HDRBridge {
+    private let manager: NSObject
+
+    init?() {
+        guard dlopen("/System/Library/PrivateFrameworks/MonitorPanel.framework/MonitorPanel",
+                     RTLD_LAZY) != nil,
+              let managerClass = NSClassFromString("MPDisplayMgr") as? NSObject.Type,
+              managerClass.instancesRespond(to: NSSelectorFromString("displays"))
+        else { return nil }
+        manager = managerClass.init()
+    }
+
+    private static func value<T>(_ object: NSObject, _ key: String, as type: T.Type) -> T? {
+        guard object.responds(to: NSSelectorFromString(key)) else { return nil }
+        return object.value(forKey: key) as? T
+    }
+
+    /// The manager's entry for a display number, matched on the same number
+    /// CoreGraphics hands out.
+    private func display(_ id: CGDirectDisplayID) -> NSObject? {
+        guard let displays = Self.value(manager, "displays", as: [NSObject].self) else { return nil }
+        return displays.first { Self.value($0, "displayID", as: UInt32.self) == id }
+    }
+
+    /// Whether the display has HDR modes to switch between at all.
+    func supportsHDR(_ id: CGDirectDisplayID) -> Bool {
+        guard let display = display(id) else { return false }
+        return Self.value(display, "hasHDRModes", as: Bool.self) == true
+    }
+
+    func isHDREnabled(_ id: CGDirectDisplayID) -> Bool {
+        guard let display = display(id) else { return false }
+        return Self.value(display, "preferHDRModes", as: Bool.self) == true
+    }
+
+    func setHDREnabled(_ enabled: Bool, for id: CGDirectDisplayID) -> Bool {
+        guard let display = display(id) else { return false }
+        let selector = NSSelectorFromString("setPreferHDRModes:")
+        guard display.responds(to: selector) else { return false }
+        typealias SetFn = @convention(c) (NSObject, Selector, Bool) -> Void
+        unsafeBitCast(display.method(for: selector), to: SetFn.self)(display, selector, enabled)
+        return true
     }
 }
 

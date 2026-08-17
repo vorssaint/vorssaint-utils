@@ -84,6 +84,29 @@ enum ExtraBrightnessSupport {
         return (2.66, 0.48)
     }
 
+    /// Whether an external display can really exceed its SDR brightness. The
+    /// floor is the same one the built-in panels are judged by: a display
+    /// that only fakes EDR reports a potential of exactly 2.0, and anything
+    /// past the floor is headroom the panel actually has. There is no model
+    /// list here on purpose, because an external monitor's panel is not
+    /// knowable from its name the way a Mac's is from its identifier.
+    static func isBoostableExternal(potentialEDR: Double) -> Bool {
+        potentialEDR > capabilityFloor
+    }
+
+    /// The curve for an external HDR monitor. Its own claimed headroom is the
+    /// reference, so a panel granting less than it promises scales the boost
+    /// down in proportion, exactly as thermal pressure does on a built-in
+    /// panel. The bonus is a flat, deliberately small share: the built-in
+    /// curves are tuned per panel generation against measured hardware, and
+    /// nothing equivalent can be known here, while asking for more than a
+    /// panel sustains is what makes macOS claw the whole grant back.
+    static let externalBonus: Double = 0.35
+
+    static func externalReference(potentialEDR: Double) -> (referenceEDR: Double, bonus: Double) {
+        (max(potentialEDR, capabilityFloor), externalBonus)
+    }
+
     /// How strong the multiplier is for a user level of 0...1 given the
     /// panel's currently available EDR headroom. Level 0 means no boost;
     /// level 1 applies the panel's full sustainable bonus, scaled down

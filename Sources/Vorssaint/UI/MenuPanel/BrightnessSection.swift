@@ -11,6 +11,7 @@ struct BrightnessSection: View {
     @ObservedObject private var service = BrightnessService.shared
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
+    @AppStorage(DefaultsKey.brightnessCombinedEnabled) private var combinedEnabled = false
     var collapsible = true
 
     private var strings: BrightnessFeatureStrings { FeatureStrings.brightness(l10n.language) }
@@ -23,6 +24,12 @@ struct BrightnessSection: View {
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
                 } else {
+                    // One handle for the whole desk only earns its space
+                    // when there is more than one display under it.
+                    if combinedEnabled, service.adjustableDisplays.count > 1 {
+                        combinedRow
+                        Divider()
+                    }
                     ForEach(service.displays) { display in
                         row(display)
                     }
@@ -50,6 +57,25 @@ struct BrightnessSection: View {
         }
     }
 
+    private var combinedRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: "rectangle.on.rectangle")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+                Text(strings.allDisplays)
+                    .font(.system(size: 11.5, weight: .medium))
+                Spacer(minLength: 4)
+            }
+            Slider(value: Binding(get: { service.combinedBrightness },
+                                  set: { service.setCombinedBrightness($0) }),
+                   in: 0...1)
+                .controlSize(.small)
+                .accessibilityLabel(strings.allDisplays)
+        }
+    }
+
     private func row(_ display: BrightnessDisplay) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
@@ -71,6 +97,7 @@ struct BrightnessSection: View {
                         .font(.system(size: 10.5, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
+                DisplayHDRButton(display: display, compact: true)
                 DisplayPowerButton(display: display, compact: true)
             }
             if display.isActive, display.method != nil {
@@ -79,6 +106,42 @@ struct BrightnessSection: View {
                     .disabled(service.isDisplayPending(display.id))
                     .accessibilityLabel(display.name)
             }
+            if display.isActive, let audio = display.audio {
+                volumeRow(display, audio: audio)
+            }
+        }
+    }
+
+    private func volumeRow(_ display: BrightnessDisplay,
+                           audio: BrightnessDisplay.Audio) -> some View {
+        HStack(spacing: 6) {
+            if let muted = audio.muted {
+                Button {
+                    service.setMuted(!muted, for: display.id)
+                } label: {
+                    Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(muted ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+                        .frame(width: 16)
+                }
+                .buttonStyle(.plain)
+                .help(muted ? strings.unmute : strings.mute)
+                .accessibilityLabel(muted ? strings.unmute : strings.mute)
+            } else {
+                Image(systemName: "speaker.wave.2.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+            }
+            Slider(value: Binding(get: { audio.volume },
+                                  set: { service.setVolume($0, for: display.id) }),
+                   in: 0...1)
+                .controlSize(.small)
+                .accessibilityLabel("\(display.name) \(strings.volumeLabel)")
+            Text("\(Int((audio.volume * 100).rounded()))%")
+                .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 30, alignment: .trailing)
         }
     }
 
@@ -86,6 +149,36 @@ struct BrightnessSection: View {
         Binding(get: { display.brightness },
                 set: { service.setBrightness($0, for: display.id,
                                              showOSD: brightnessOSDEnabled) })
+    }
+}
+
+/// Shared HDR affordance, shown only for displays that have an HDR mode to
+/// switch. Switching modes takes the display down and back up for a moment,
+/// so the control waits with the rest of the row while that settles.
+struct DisplayHDRButton: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var service = BrightnessService.shared
+    let display: BrightnessDisplay
+    var compact = false
+
+    private var strings: BrightnessFeatureStrings { FeatureStrings.brightness(l10n.language) }
+
+    var body: some View {
+        if let enabled = display.hdrEnabled {
+            let label = enabled ? strings.turnOffHDR : strings.turnOnHDR
+            Button {
+                service.setHDR(!enabled, for: display.id)
+            } label: {
+                Image(systemName: "sparkles.tv.fill")
+                    .font(.system(size: compact ? 10 : 11.5, weight: .semibold))
+                    .foregroundStyle(enabled ? AnyShapeStyle(.purple) : AnyShapeStyle(.secondary))
+                    .frame(width: compact ? 16 : 20, height: 18)
+            }
+            .buttonStyle(.plain)
+            .disabled(service.isDisplayPending(display.id))
+            .help(label)
+            .accessibilityLabel(label)
+        }
     }
 }
 

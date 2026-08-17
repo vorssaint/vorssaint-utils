@@ -12,10 +12,12 @@ enum BrightnessOSD {
     private static var dismissWork: DispatchWorkItem?
     private static var generation = 0
 
-    static func show(displayID: CGDirectDisplayID, brightness: Double) {
+    static func show(displayID: CGDirectDisplayID,
+                     level: Double,
+                     kind: BrightnessOSDView.Kind = .brightness) {
         guard Thread.isMainThread else {
             DispatchQueue.main.async {
-                show(displayID: displayID, brightness: brightness)
+                show(displayID: displayID, level: level, kind: kind)
             }
             return
         }
@@ -30,10 +32,10 @@ enum BrightnessOSD {
         let panel = ensurePanel()
         let host: NSHostingController<BrightnessOSDView>
         if let existing = Self.host {
-            existing.rootView = BrightnessOSDView(brightness: brightness)
+            existing.rootView = BrightnessOSDView(level: level, kind: kind)
             host = existing
         } else {
-            host = NSHostingController(rootView: BrightnessOSDView(brightness: brightness))
+            host = NSHostingController(rootView: BrightnessOSDView(level: level, kind: kind))
             Self.host = host
             panel.contentViewController = host
         }
@@ -126,19 +128,38 @@ enum BrightnessOSD {
 /// Kept separate from the transient panel so the mandatory UI preview can
 /// host and inspect the exact shipped surface.
 struct BrightnessOSDView: View {
-    let brightness: Double
+    /// What the overlay is reporting. Volume shares this surface because the
+    /// system's own volume overlay never appears for a monitor's speakers:
+    /// the keys are taken over before it can, and a step with no feedback at
+    /// all reads as a key that stopped working.
+    enum Kind {
+        case brightness
+        case volume
+        case mutedVolume
+    }
+
+    let level: Double
+    var kind: Kind = .brightness
+
+    private var symbol: String {
+        switch kind {
+        case .brightness: return "sun.max.fill"
+        case .volume: return "speaker.wave.2.fill"
+        case .mutedVolume: return "speaker.slash.fill"
+        }
+    }
 
     private var percentage: Int {
-        BrightnessSupport.wholePercent(brightness)
+        BrightnessSupport.wholePercent(level)
     }
 
     private var filledSegments: Int {
-        BrightnessSupport.filledBrightnessSegments(brightness)
+        BrightnessSupport.filledBrightnessSegments(level)
     }
 
     var body: some View {
         VStack(spacing: 11) {
-            Image(systemName: "sun.max.fill")
+            Image(systemName: symbol)
                 .font(.system(size: 39, weight: .regular))
                 .symbolRenderingMode(.monochrome)
                 .foregroundStyle(.white.opacity(0.82))

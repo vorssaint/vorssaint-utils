@@ -486,7 +486,7 @@ extension Strings {
         extraBrightnessName: "Brillo extra",
         extraBrightnessCaption: "Usa la reserva HDR de la pantalla para superar el brillo máximo. Consume más batería y el Mac puede calentarse.",
         extraBrightnessLevelLabel: "Intensidad",
-        extraBrightnessUnsupported: "Disponible solo en pantallas XDR, como las del MacBook Pro de 14 y 16 pulgadas.",
+        extraBrightnessUnsupported: "Disponible solo en pantallas con reserva HDR: las pantallas XDR del MacBook Pro de 14 y 16 pulgadas y los monitores HDR externos.",
         shelfHotkeyLabel: "Atajo",
         shelfOpenNow: "Abrir ahora",
         shelfNoPermission: "No requiere ningún permiso.",
