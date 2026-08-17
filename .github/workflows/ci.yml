@@ -53,7 +53,7 @@ jobs:
         run: ./Tools/make-dmg.sh
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: Vorssaint-dmg
           path: dist/*.dmg
