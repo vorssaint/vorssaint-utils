@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import CoreAudio
-import CoreGraphics
+import AppKit
 import Carbon.HIToolbox
 import Combine
+import CoreAudio
+import CoreGraphics
 import Darwin
 import Foundation
 import ImageIO
@@ -4293,6 +4294,45 @@ struct MetricsTests {
         expectClose(Defaults.sanitizedAppVolume(3), 2, "high app volume clamps to boost maximum")
         expectClose(Defaults.sanitizedAppVolume(-1), 0, "negative app volume clamps to mute")
         expectClose(Defaults.sanitizedAppVolume(.infinity), 1, "non-finite app volume falls back to unity")
+        expectClose(MixerRoutingSupport.volumeFraction(fromPercentageText: "40",
+                                                       maximumPercent: 200) ?? -1,
+                    0.4,
+                    "mixer percentage input becomes app gain")
+        expectClose(MixerRoutingSupport.volumeFraction(fromPercentageText: " 75% ",
+                                                       maximumPercent: 100) ?? -1,
+                    0.75,
+                    "mixer percentage input accepts a percent sign")
+        expectClose(MixerRoutingSupport.volumeFraction(fromPercentageText: "250",
+                                                       maximumPercent: 200) ?? -1,
+                    2,
+                    "mixer percentage input clamps to the row maximum")
+        expectClose(MixerRoutingSupport.volumeFraction(fromPercentageText: "-10",
+                                                       maximumPercent: 100) ?? -1,
+                    0,
+                    "mixer percentage input clamps negative values")
+        expect(MixerRoutingSupport.volumeFraction(fromPercentageText: "loud",
+                                                  maximumPercent: 100) == nil,
+               "mixer percentage input rejects non-numbers")
+        expect(MixerRoutingSupport.volumeFraction(fromPercentageText: "nan",
+                                                  maximumPercent: 100) == nil,
+               "mixer percentage input rejects non-finite numbers")
+        let percentWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 80, height: 24),
+                                     styleMask: .borderless,
+                                     backing: .buffered,
+                                     defer: false)
+        let percentField = MixerPercentNativeTextField(frame: percentWindow.contentView!.bounds)
+        percentField.stringValue = "37"
+        var percentFieldAttached = false
+        percentField.didAttachToWindow = { percentFieldAttached = true }
+        percentWindow.contentView?.addSubview(percentField)
+        expect(percentFieldAttached,
+               "mixer percentage field notices when it joins its popover window")
+        expect(percentField.focusAndSelectAll(),
+               "mixer percentage field becomes the native first responder")
+        expect((percentField.currentEditor() as? NSTextView)?.selectedRange()
+                == NSRange(location: 0, length: 2),
+               "mixer percentage field selects its existing value for direct replacement")
+        percentWindow.orderOut(nil)
         expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(35) == 35,
                "headphone disconnect volume preserves valid percentages")
         expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(-5)
