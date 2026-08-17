@@ -5498,6 +5498,15 @@ struct MetricsTests {
                    == ShelfPersistenceSupport.maxLeaves,
                "shelf restore caps the number of items")
 
+        expect(ShelfBatchSupport.orderedItems(from: [(Int, String)]()).isEmpty,
+               "shelf batch resolve with nothing resolved produces nothing")
+        expect(ShelfBatchSupport.orderedItems(from: [(0, "a"), (1, "b"), (2, "c")]) == ["a", "b", "c"],
+               "shelf batch resolve keeps drop order when providers finish in order")
+        expect(ShelfBatchSupport.orderedItems(from: [(2, "c"), (0, "a"), (1, "b")]) == ["a", "b", "c"],
+               "shelf batch resolve restores drop order when providers finish out of order")
+        expect(ShelfBatchSupport.orderedItems(from: [(3, "z")]) == ["z"],
+               "shelf batch resolve with a single provider produces that one item")
+
         expect(ClipboardHistoryBatch.listOwnsCopyShortcut(batchCount: 2)
                    && !ClipboardHistoryBatch.listOwnsCopyShortcut(batchCount: 0),
                "the list only claims command-C over an explicit selection")

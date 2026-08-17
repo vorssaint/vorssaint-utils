@@ -948,7 +948,7 @@ final class ShelfService: ObservableObject {
 
         group.notify(queue: .main) { [weak self] in
             guard let self else { return }
-            let items = resolved.sorted { $0.0 < $1.0 }.map(\.1)
+            let items = ShelfBatchSupport.orderedItems(from: resolved)
             guard !items.isEmpty else { return }
             self.append(items.count == 1 ? items[0] : self.batchItem(children: items))
         }
