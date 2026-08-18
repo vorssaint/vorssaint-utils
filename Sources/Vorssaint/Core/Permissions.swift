@@ -26,12 +26,19 @@ final class Permissions: ObservableObject {
     /// Camera access for the preview mirror. The status read is free, so it
     /// rides the same refresh() moments as the rest.
     @Published private(set) var camera: CameraPermissionState = .unknown
+    /// Optional microphone access, used only while a recording that asked for
+    /// it is active.
+    @Published private(set) var microphone: MicrophonePermissionState = .unknown
 
     enum NotificationPermissionState {
         case granted, denied, undetermined, unknown
     }
 
     enum CameraPermissionState {
+        case granted, denied, undetermined, unknown
+    }
+
+    enum MicrophonePermissionState {
         case granted, denied, undetermined, unknown
     }
 
@@ -99,6 +106,7 @@ final class Permissions: ObservableObject {
         refreshActivePermissions()
         refreshNotificationPermission()
         refreshCameraPermission()
+        refreshMicrophonePermission()
         // Checking Full Disk Access means asking the system about protected
         // folders, and every refused answer costs time. Doing that where the
         // app is starting up holds back the menu bar icon, so it moves off
@@ -121,6 +129,19 @@ final class Permissions: ObservableObject {
         }
         DispatchQueue.main.async {
             if self.camera != state { self.camera = state }
+        }
+    }
+
+    private func refreshMicrophonePermission() {
+        let state: MicrophonePermissionState
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized: state = .granted
+        case .denied, .restricted: state = .denied
+        case .notDetermined: state = .undetermined
+        @unknown default: state = .unknown
+        }
+        DispatchQueue.main.async {
+            if self.microphone != state { self.microphone = state }
         }
     }
 
@@ -162,6 +183,18 @@ final class Permissions: ObservableObject {
         }
     }
 
+    /// Protected directories safe to use both as access probes and as
+    /// registration attempts. Request-only paths stay separate because every
+    /// entry here must remain a reliable signal that access was granted.
+    private static let fdaGatedDirectories = [
+        "Library/Safari",
+        "Library/Mail",
+        "Library/Messages",
+        "Library/Cookies",
+        "Library/Suggestions",
+        "Library/Application Support/MobileSync",
+    ]
+
     /// Detects Full Disk Access without a prompt. Reading the TCC database is the
     /// classic signal, but that file is absent on some macOS versions (so a
     /// missing file would read as "no access" forever, even once granted). The
@@ -182,14 +215,7 @@ final class Permissions: ObservableObject {
 
         // Works on every version: each of these is gated by Full Disk Access, so
         // a successful listing (even of an empty directory) means it is granted.
-        let gatedDirs = [
-            "Library/Safari",
-            "Library/Mail",
-            "Library/Messages",
-            "Library/Cookies",
-            "Library/Suggestions",
-            "Library/Application Support/MobileSync",
-        ].map { (home as NSString).appendingPathComponent($0) }
+        let gatedDirs = fdaGatedDirectories.map { (home as NSString).appendingPathComponent($0) }
         return gatedDirs.contains { (try? fm.contentsOfDirectory(atPath: $0)) != nil }
     }
 
@@ -248,15 +274,10 @@ final class Permissions: ObservableObject {
                 _ = try? handle.read(upToCount: 1)
                 try? handle.close()
             }
-            // A few more protected locations, harmless when absent.
-            let dirs = [
-                "Library/Application Support/com.apple.TCC",
-                "Library/Safari",
-                "Library/Mail",
-                "Library/Messages",
-                "Library/Cookies",
-                "Library/Application Support/MobileSync",
-            ].map { (home as NSString).appendingPathComponent($0) }
+            // Protected locations, harmless when absent. The TCC directory is
+            // useful for registration but is not part of the access probe.
+            let dirs = (["Library/Application Support/com.apple.TCC"] + Self.fdaGatedDirectories)
+                .map { (home as NSString).appendingPathComponent($0) }
             for path in dirs { _ = try? fm.contentsOfDirectory(atPath: path) }
 
             // Let tccd persist the denial before the pane loads its list.
@@ -274,8 +295,21 @@ final class Permissions: ObservableObject {
         }
     }
 
+    func requestMicrophone(completion: ((Bool) -> Void)? = nil) {
+        AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
+            DispatchQueue.main.async {
+                self?.microphone = granted ? .granted : .denied
+                completion?(granted)
+            }
+        }
+    }
+
     func openCameraSettings() {
         open(pane: "Privacy_Camera")
+    }
+
+    func openMicrophoneSettings() {
+        open(pane: "Privacy_Microphone")
     }
 
     func openNotificationSettings() {
@@ -289,6 +323,17 @@ final class Permissions: ObservableObject {
 
     func openAudioCaptureSettings() {
         open(pane: "Privacy_AudioCapture")
+    }
+
+    func openAppManagementSettings() {
+        let pane = URL(string:
+            "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AppBundles")!
+        if NSWorkspace.shared.open(pane) { return }
+
+        // A general Privacy & Security page is still useful if a future macOS
+        // version stops accepting the pane identifier.
+        let fallback = URL(string: "x-apple.systempreferences:com.apple.preference.security")!
+        NSWorkspace.shared.open(fallback)
     }
 
     private func open(pane: String) {

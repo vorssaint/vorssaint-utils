@@ -167,7 +167,7 @@ final class RecorderCursorCatalog {
                                   bytesPerRow: Int,
                                   rect: CGRect,
                                   hotSpot: CGPoint) -> Shape? {
-        var width = Int(rect.width)
+        let width = Int(rect.width)
         var height = Int(rect.height)
         guard width > 0, height > 0 else { return nil }
 

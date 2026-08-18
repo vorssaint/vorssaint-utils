@@ -32,13 +32,18 @@ extension RecorderComposer {
         let padding = hasBackdrop ? style.padding * 0.18 : 0
         let fullCanvas = RecorderSupport.canvasSize(source: sourceSize,
                                                     padding: padding,
-                                                    aspect: aspect)
+                                                    aspect: aspect,
+                                                    cropsToAspect: !hasBackdrop)
         let scale = outputScale.isFinite ? min(1, max(0.1, outputScale)) : 1
         let canvas = scale == 1
             ? fullCanvas
             : RecorderSupport.evenSize(CGSize(width: fullCanvas.width * scale,
                                               height: fullCanvas.height * scale))
-        let card = RecorderSupport.cardRect(canvas: canvas, source: sourceSize, padding: padding)
+        let card = RecorderSupport.cardRect(
+            canvas: canvas,
+            source: sourceSize,
+            padding: padding,
+            fillsCanvas: !hasBackdrop && aspect != .original)
 
         let showsPointer = document.showsPointer && !track.samples.isEmpty
         let segments = document.activeZoomSegments(duration: duration)
@@ -241,6 +246,13 @@ extension RecorderComposer {
         context.setFillColor(CGColor(gray: 0, alpha: 1))
         context.fill(CGRect(origin: .zero, size: canvas))
         drawFill(style: style, in: context, canvas: canvas)
+        if style.blur > 0, let background = context.makeImage() {
+            let bounds = CGRect(origin: .zero, size: canvas)
+            let blurred = ScreenshotRenderer.blurredBackdrop(
+                background, factor: CGFloat(style.blur))
+            context.clear(bounds)
+            context.draw(blurred, in: bounds)
+        }
 
         if corner > 0 || style.kind != .none {
             // The recording sits on the background rather than in it, and a

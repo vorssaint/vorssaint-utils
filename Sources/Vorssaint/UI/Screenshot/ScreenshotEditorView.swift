@@ -19,12 +19,19 @@ struct ScreenshotEditorView: View {
     @State private var backdropPopoverShown = false
     @State private var hoveredTool: ScreenshotSupport.Tool?
     @State private var toolOptionsShown = false
+    @State private var sharing = false
+    @State private var sharedRecord: ScreenshotShareRecord?
     @AppStorage(DefaultsKey.screenshotToolOrder) private var toolOrderRaw =
         ScreenshotSupport.Tool.defaultOrderStorage
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
+    @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
 
     private var strings: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(l10n.language)
+    }
+
+    private var recentCapturesTitle: String {
+        FeatureStrings.recentCaptures(l10n.language).title
     }
 
     var body: some View {
@@ -56,6 +63,11 @@ struct ScreenshotEditorView: View {
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: model.tool)
         .animation(.easeOut(duration: 0.16), value: model.annotationShadowsEnabled)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: model.backdropStyle)
+        .sheet(item: $sharedRecord) { record in
+            ScreenshotEditorSharedLinkView(record: record,
+                                           strings: strings,
+                                           close: { sharedRecord = nil })
+        }
     }
 
     /// The window's crown: the brand centered like the menu bar panel, the
@@ -155,6 +167,10 @@ struct ScreenshotEditorView: View {
         return ZStack {
             if model.showsBackdrop {
                 backdropFillView
+                    .scaleEffect(1 + CGFloat(model.backdropStyle.blur) * 0.08)
+                    .blur(radius: ScreenshotSupport.backdropBlurRadius(
+                        for: contentPixelSize,
+                        factor: CGFloat(model.backdropStyle.blur)) * zoom)
             }
             Canvas { context, size in
                 context.withCGContext { cg in
@@ -180,9 +196,12 @@ struct ScreenshotEditorView: View {
         .onContinuousHover { phase in
             switch phase {
             case .active(let location):
-                if model.tool != .select {
+                let point = imagePoint(from: location, zoom: zoom)
+                if model.tool != .select, model.selectedAnnotationOwns(point) {
+                    NSCursor.openHand.set()
+                } else if model.tool != .select {
                     NSCursor.crosshair.set()
-                } else if model.wordIndex(at: imagePoint(from: location, zoom: zoom)) != nil {
+                } else if model.wordIndex(at: point) != nil {
                     // Recognized text under the cursor reads as text.
                     NSCursor.iBeam.set()
                 } else {
@@ -243,6 +262,9 @@ struct ScreenshotEditorView: View {
             cg.saveGState()
             cg.setShadow(offset: CGSize(width: 0, height: -5), blur: 18,
                          color: CGColor(gray: 0, alpha: 0.38))
+            cg.addRect(CGRect(origin: .zero, size: size))
+            cg.addPath(path)
+            cg.clip(using: .evenOdd)
             cg.addPath(path)
             cg.setFillColor(CGColor(gray: 1, alpha: 1))
             cg.fillPath()
@@ -647,6 +669,18 @@ struct ScreenshotEditorView: View {
     private var actionCluster: some View {
         HStack(spacing: 4) {
             Button {
+                RecentCaptureService.shared.showHistoryWindow()
+            } label: {
+                Image(systemName: "clock.arrow.circlepath")
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.borderless)
+            .screenshotSafeHelp(recentCapturesTitle)
+            .accessibilityLabel(recentCapturesTitle)
+
+            Divider().frame(height: 16).padding(.horizontal, 3)
+
+            Button {
                 controller.discardAndClose()
             } label: {
                 Image(systemName: "trash")
@@ -698,6 +732,11 @@ struct ScreenshotEditorView: View {
 
             Divider().frame(height: 16).padding(.horizontal, 3)
 
+            if sharingEnabled {
+                shareMenu
+                Divider().frame(height: 16).padding(.horizontal, 3)
+            }
+
             Menu {
                 Button(strings.saveButton) {
                     commitEditingTextIfNeeded()
@@ -733,6 +772,36 @@ struct ScreenshotEditorView: View {
         .shadow(color: .black.opacity(0.16), radius: 14, y: 4)
     }
 
+    private var shareMenu: some View {
+        Menu {
+            ForEach(ScreenshotShareDuration.allCases) { duration in
+                Button(duration.title(strings)) {
+                    commitEditingTextIfNeeded()
+                    sharing = true
+                    controller.share(duration: duration) { record in
+                        sharing = false
+                        sharedRecord = record
+                    }
+                }
+            }
+        } label: {
+            Group {
+                if sharing {
+                    ProgressView()
+                        .controlSize(.mini)
+                } else {
+                    Image(systemName: "link")
+                }
+            }
+            .frame(width: 24, height: 24)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .disabled(sharing)
+        .screenshotSafeHelp(sharing ? strings.sharingHUD : strings.shareButton)
+        .accessibilityLabel(strings.shareButton)
+    }
+
     // MARK: - Bottom row
 
     private var showsColorControls: Bool {
@@ -748,6 +817,35 @@ struct ScreenshotEditorView: View {
         case .sticker, .pixelate, .crop:
             return false
         }
+    }
+
+    /// Depth only means something once a shape is picked, and only when there
+    /// is something else for it to pass.
+    private var showsLayerControls: Bool {
+        model.selectedID != nil && model.annotations.count > 1
+    }
+
+    /// Each direction dims on its own once the shape reaches that end, so the
+    /// buttons never offer a move that would do nothing.
+    private func canMoveSelected(_ move: ScreenshotSupport.LayerMove) -> Bool {
+        guard let selectedID = model.selectedID else { return false }
+        return ScreenshotSupport.canReorder(model.annotations, moving: selectedID, move)
+    }
+
+    private func layerButton(_ move: ScreenshotSupport.LayerMove,
+                             symbol: String,
+                             label: String) -> some View {
+        Button {
+            commitEditingTextIfNeeded()
+            model.moveSelected(move)
+        } label: {
+            Image(systemName: symbol)
+                .frame(width: 24, height: 24)
+        }
+        .buttonStyle(.borderless)
+        .disabled(!canMoveSelected(move))
+        .screenshotSafeHelp(label)
+        .accessibilityLabel(label)
     }
 
     private var showsStickerControls: Bool {
@@ -793,6 +891,13 @@ struct ScreenshotEditorView: View {
                         strokeGlyph(stroke)
                     }
                 }
+                Divider().frame(height: 16)
+            }
+            if showsLayerControls {
+                layerButton(.backward, symbol: "square.2.layers.3d.bottom.filled",
+                            label: strings.sendBackward)
+                layerButton(.forward, symbol: "square.2.layers.3d.top.filled",
+                            label: strings.bringForward)
                 Divider().frame(height: 16)
             }
             annotationShadowButton
@@ -1079,21 +1184,101 @@ struct ScreenshotEditorView: View {
             .onDrag {
                 commitEditingTextIfNeeded()
                 guard let image = model.exportImage(),
-                      let data = ScreenshotRenderer.pngData(from: image)
+                      let provider = ScreenshotService.dragItemProvider(image: image,
+                                                                        strings: strings)
                 else { return NSItemProvider() }
-                let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
-                let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
-                do {
-                    try data.write(to: url, options: .atomic)
-                } catch {
-                    return NSItemProvider()
-                }
                 model.markExported()
-                return NSItemProvider(contentsOf: url) ?? NSItemProvider()
+                return provider
             }
             .screenshotSafeHelp(strings.editorTitle)
     }
 
+}
+
+private struct ScreenshotEditorSharedLinkView: View {
+    let record: ScreenshotShareRecord
+    let strings: ScreenshotFeatureStrings
+    let close: () -> Void
+    @State private var deleting = false
+    @State private var showingDeleteError = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Label(strings.sharedLinksTitle, systemImage: "link")
+                    .font(.title3.weight(.semibold))
+                Spacer()
+                Button(strings.done, action: close)
+                    .keyboardShortcut(.defaultAction)
+            }
+
+            VStack(alignment: .leading, spacing: 7) {
+                Text(record.url.absoluteString)
+                    .font(.system(.body, design: .rounded))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                HStack(spacing: 4) {
+                    Text(strings.expiresLabel)
+                    Text(record.expiresAt, style: .relative)
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.primary.opacity(0.055),
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
+            }
+
+            HStack {
+                Spacer()
+                Button {
+                    if ScreenshotShareService.shared.copy(record.url) {
+                        QuickToolHUD.show(icon: "link", message: strings.sharedHUD)
+                    } else {
+                        NSSound.beep()
+                    }
+                } label: {
+                    Label(strings.copyLink, systemImage: "doc.on.doc")
+                }
+                .keyboardShortcut("c", modifiers: .command)
+                Button(role: .destructive) {
+                    deleteLink()
+                } label: {
+                    if deleting {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Label(strings.deleteLink, systemImage: "trash")
+                    }
+                }
+                .disabled(deleting)
+            }
+        }
+        .padding(20)
+        .frame(width: 480)
+        .alert(strings.deleteFailedHUD, isPresented: $showingDeleteError) {
+            Button(strings.done, role: .cancel) {}
+        }
+    }
+
+    private func deleteLink() {
+        deleting = true
+        Task { @MainActor in
+            do {
+                try await ScreenshotShareService.shared.delete(record)
+                QuickToolHUD.show(icon: "link", message: strings.linkDeletedHUD)
+                close()
+            } catch {
+                deleting = false
+                showingDeleteError = true
+            }
+        }
+    }
 }
 
 extension ScreenshotSupport.Tool {

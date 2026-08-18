@@ -9,7 +9,7 @@ import Foundation
 /// value. Submenus keep their actions in `children`.
 struct RadialMenuItem: Codable, Identifiable, Equatable {
     enum Kind: String, Codable, CaseIterable {
-        case app, file, url, shortcut, tool, windowLayout, media, submenu
+        case app, file, url, shortcut, tool, quickToggle, windowLayout, media, submenu
     }
 
     var id = UUID()
@@ -27,6 +27,10 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
         kind == .media ? RadialMenuMediaKey(rawValue: payload) : nil
     }
 
+    var quickToggle: RadialMenuQuickToggle? {
+        kind == .quickToggle ? RadialMenuQuickToggle(rawValue: payload) : nil
+    }
+
     var windowLayoutAction: WindowLayoutAction? {
         kind == .windowLayout ? WindowLayoutAction(rawValue: payload) : nil
     }
@@ -40,6 +44,7 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
         case .url: return "link"
         case .shortcut: return "command"
         case .tool: return tool?.symbolName ?? "wrench.and.screwdriver"
+        case .quickToggle: return quickToggle?.symbolName ?? "togglepower"
         case .windowLayout: return windowLayoutAction?.symbolName ?? AppFeature.windowLayout.symbolName
         case .media:
             switch mediaKey {
@@ -53,6 +58,28 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
 
     var effectiveSymbolName: String {
         symbolName.isEmpty ? defaultSymbolName : symbolName
+    }
+}
+
+/// Quick toggle actions a slice can trigger. Raw values persist inside the
+/// items blob; never rename them.
+enum RadialMenuQuickToggle: String, Codable, CaseIterable, Identifiable {
+    case darkMode, emptyTrash, ejectDisks, hiddenFiles, desktopIcons,
+         lockScreen, displayOff, screenSaver
+
+    var id: String { rawValue }
+
+    var symbolName: String {
+        switch self {
+        case .darkMode: return "moon.fill"
+        case .emptyTrash: return "trash"
+        case .ejectDisks: return "eject.fill"
+        case .hiddenFiles: return "eye"
+        case .desktopIcons: return "desktopcomputer"
+        case .lockScreen: return "lock.fill"
+        case .displayOff: return "display"
+        case .screenSaver: return "sparkles.tv"
+        }
     }
 }
 
@@ -89,14 +116,15 @@ private struct FailableRadialMenuItem: Decodable {
 /// Vorssaint tools a slice can trigger. Raw values persist inside the items
 /// blob; never rename them.
 enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
-    case screenshot, colorPicker, screenOCR, micMute, clipboardHistory, quickLauncher, cameraPreview,
-         scratchpad, shelf, cleaningMode, keepAwake
+    case screenshot, screenRecorder, colorPicker, screenOCR, micMute, clipboardHistory, quickLauncher,
+         cameraPreview, scratchpad, shelf, cleaner, uninstaller, appUpdates, cleaningMode, keepAwake
 
     var id: String { rawValue }
 
     var feature: AppFeature {
         switch self {
         case .screenshot: return .screenshot
+        case .screenRecorder: return .screenRecorder
         case .colorPicker: return .colorPicker
         case .screenOCR: return .screenOCR
         case .micMute: return .micMute
@@ -105,6 +133,9 @@ enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
         case .cameraPreview: return .cameraPreview
         case .scratchpad: return .scratchpad
         case .shelf: return .shelf
+        case .cleaner: return .cleaner
+        case .uninstaller: return .uninstaller
+        case .appUpdates: return .appUpdates
         case .cleaningMode: return .cleaningMode
         case .keepAwake: return .keepAwake
         }
@@ -122,24 +153,44 @@ enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-/// The optional second summoner: a spare side mouse button. Raw values are
-/// persisted; button numbers follow the HID convention the side buttons
-/// report (3 back, 4 forward).
-enum RadialMenuMouseTrigger: String, CaseIterable, Identifiable {
-    case off, back, forward
+/// The optional second summoner: any extra mouse button. The original raw
+/// values stay stable for existing settings; newer buttons use their
+/// CoreGraphics number, which follows USB order from 3 through 31.
+enum RadialMenuMouseTrigger: Equatable, Identifiable {
+    case off
+    case button(Int64)
+
+    static let back = button(MouseButtonShortcutSupport.backButtonNumber)
+    static let forward = button(MouseButtonShortcutSupport.forwardButtonNumber)
 
     var id: String { rawValue }
 
-    var buttonNumber: Int64? {
+    var rawValue: String {
         switch self {
-        case .off: return nil
-        case .back: return 3
-        case .forward: return 4
+        case .off: return "off"
+        case .button(let number):
+            if number == MouseButtonShortcutSupport.backButtonNumber { return "back" }
+            if number == MouseButtonShortcutSupport.forwardButtonNumber { return "forward" }
+            return "button:\(number)"
         }
     }
 
+    var buttonNumber: Int64? {
+        guard case .button(let number) = self else { return nil }
+        return number
+    }
+
     static func sanitized(_ raw: String?) -> RadialMenuMouseTrigger {
-        RadialMenuMouseTrigger(rawValue: raw ?? "") ?? .off
+        switch raw {
+        case "back": return .back
+        case "forward": return .forward
+        case let value?:
+            guard value.hasPrefix("button:"),
+                  let number = Int64(value.dropFirst("button:".count)),
+                  MouseButtonShortcutSupport.buttonRange.contains(number) else { return .off }
+            return .button(number)
+        default: return .off
+        }
     }
 }
 
@@ -178,7 +229,13 @@ enum RadialMenuReleaseAction: Equatable {
 }
 
 extension RadialMenuSupport {
-    /// Whether the radial menu currently owns this side button as its
+    /// The Super Key is a virtual modifier: it decorates the summoning key but
+    /// never appears in the system's current physical-modifier state.
+    static func shortcutIsStillHeld(modifiersHeld: Bool, superKeyHeld: Bool) -> Bool {
+        modifiersHeld || superKeyHeld
+    }
+
+    /// Whether the radial menu currently owns this extra button as its
     /// summoner. Mouse navigation asks this from its own tap and lets a
     /// claimed button through; pure defaults reads, so asking never wakes
     /// the radial menu service.
@@ -221,6 +278,7 @@ enum RadialMenuSupport {
         case .url: return normalizedURL(item.payload) != nil
         case .shortcut: return GlobalShortcut(storageValue: item.payload) != nil
         case .tool: return item.tool != nil
+        case .quickToggle: return item.quickToggle != nil
         case .windowLayout: return item.windowLayoutAction != nil
         case .media: return item.mediaKey != nil
         case .submenu: return true

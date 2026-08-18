@@ -241,7 +241,9 @@ struct CleanerView: View {
             // the panel gets this one-line home so the feature is findable
             // without opening Settings.
             if compact { whatsAppCard }
-            if !permissions.fullDiskAccess { fdaNote }
+            if !permissions.fullDiskAccess {
+                FullDiskAccessNote(compact: compact).frame(maxWidth: 380)
+            }
             if !compact { Spacer() }
         }
         .padding(compact ? 14 : 28)
@@ -319,7 +321,7 @@ struct CleanerView: View {
                     }
                     Button(whatsAppStrings.manageButton) {
                         SettingsRouter.shared.cleanerTool = "whatsApp"
-                        SettingsRouter.shared.page = .cleaner
+                        SettingsRouter.shared.request(FeatureSettingsDestination(.cleaner))
                         appDelegate()?.openSettingsWindow()
                     }
                     .controlSize(.small)
@@ -627,26 +629,6 @@ struct CleanerView: View {
                 }
             }
         }
-    }
-
-    private var fdaNote: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "info.circle").foregroundStyle(.secondary)
-                Text(l10n.s.uninstallerFDANote)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            HStack(spacing: 8) {
-                Button(l10n.s.uninstallerFDAGrant) { permissions.requestFullDiskAccess() }
-                Button(l10n.s.uninstallerFDARelaunch) { appDelegate()?.relaunchApp() }
-            }
-            .controlSize(.small)
-        }
-        .padding(11)
-        .frame(maxWidth: 380)
-        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(0.05)))
     }
 
     // MARK: Busy

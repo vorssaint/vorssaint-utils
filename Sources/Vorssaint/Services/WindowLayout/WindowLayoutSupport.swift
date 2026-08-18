@@ -4,13 +4,20 @@
 import CoreGraphics
 import Foundation
 
+enum WindowLayoutTargetCapability: Equatable {
+    case position
+    case frame
+    case fullScreen
+}
+
 enum WindowLayoutAction: String, CaseIterable, Identifiable {
     case leftHalf, rightHalf, topHalf, bottomHalf
     case leftThird, centerThird, rightThird, leftTwoThirds, rightTwoThirds
     case topLeftSixth, topCenterSixth, topRightSixth
     case bottomLeftSixth, bottomCenterSixth, bottomRightSixth
     case topLeft, topRight, bottomLeft, bottomRight
-    case maximize, fullScreen, center, nextDisplay, restore
+    case maximize, marginMaximize, fullScreen, center
+    case previousDisplay, nextDisplay, previousSpace, nextSpace, restore
 
     var id: String { rawValue }
 
@@ -20,11 +27,23 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         .topLeftSixth, .topCenterSixth, .topRightSixth,
         .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
         .topLeft, .topRight, .bottomLeft, .bottomRight,
-        .maximize, .fullScreen, .center, .restore, .nextDisplay,
+        .maximize, .marginMaximize, .fullScreen, .center, .restore,
+        .previousDisplay, .nextDisplay, .previousSpace, .nextSpace,
     ]
 
     var supportsShortcut: Bool {
         Self.shortcutActions.contains(self)
+    }
+
+    var targetCapability: WindowLayoutTargetCapability {
+        switch self {
+        case .center, .previousSpace, .nextSpace:
+            return .position
+        case .fullScreen:
+            return .fullScreen
+        default:
+            return .frame
+        }
     }
 
     var shortcutID: UInt32 {
@@ -53,6 +72,10 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .bottomCenterSixth: return 51
         case .bottomRightSixth: return 52
         case .fullScreen: return 53
+        case .previousDisplay: return 54
+        case .marginMaximize: return 55
+        case .previousSpace: return 56
+        case .nextSpace: return 57
         }
     }
 
@@ -72,6 +95,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .bottomLeft: return DefaultsKey.windowLayoutShortcutBottomLeft
         case .bottomRight: return DefaultsKey.windowLayoutShortcutBottomRight
         case .maximize: return DefaultsKey.windowLayoutShortcutMaximize
+        case .marginMaximize: return DefaultsKey.windowLayoutShortcutMarginMaximize
         case .fullScreen: return DefaultsKey.windowLayoutShortcutFullScreen
         case .center: return DefaultsKey.windowLayoutShortcutCenter
         case .restore: return DefaultsKey.windowLayoutShortcutRestore
@@ -80,7 +104,10 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .rightThird: return DefaultsKey.windowLayoutShortcutRightThird
         case .leftTwoThirds: return DefaultsKey.windowLayoutShortcutLeftTwoThirds
         case .rightTwoThirds: return DefaultsKey.windowLayoutShortcutRightTwoThirds
+        case .previousDisplay: return DefaultsKey.windowLayoutShortcutPreviousDisplay
         case .nextDisplay: return DefaultsKey.windowLayoutShortcutNextDisplay
+        case .previousSpace: return DefaultsKey.windowLayoutShortcutPreviousSpace
+        case .nextSpace: return DefaultsKey.windowLayoutShortcutNextSpace
         case .topLeftSixth: return DefaultsKey.windowLayoutShortcutTopLeftSixth
         case .topCenterSixth: return DefaultsKey.windowLayoutShortcutTopCenterSixth
         case .topRightSixth: return DefaultsKey.windowLayoutShortcutTopRightSixth
@@ -90,9 +117,9 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Existing actions keep their established shortcuts. New sixth actions
-    /// start unassigned so enabling Window Layout never claims six extra
-    /// system-wide combinations without an explicit choice.
+    /// Existing actions keep their established shortcuts. New actions start
+    /// unassigned so enabling Window Layout never claims extra system-wide
+    /// combinations without an explicit choice.
     var defaultShortcut: GlobalShortcut? {
         switch self {
         case .leftHalf: return .windowLayoutLeftDefault
@@ -114,9 +141,8 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .nextDisplay: return .windowLayoutNextDisplayDefault
         case .topLeftSixth, .topCenterSixth, .topRightSixth,
                 .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
-                // Native full screen starts unassigned like the sixths: a new
-                // action must never claim a system-wide combination unasked.
-                .fullScreen:
+                .marginMaximize, .fullScreen, .previousDisplay, .previousSpace, .nextSpace:
+            // New actions must never claim a system-wide combination unasked.
             return nil
         }
     }
@@ -168,6 +194,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .bottomLeft: return text.bottomLeft
         case .bottomRight: return text.bottomRight
         case .maximize: return text.maximize
+        case .marginMaximize: return text.marginMaximize
         case .fullScreen: return text.fullScreen
         case .center: return text.center
         case .restore: return text.restore
@@ -182,7 +209,10 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .bottomLeftSixth: return text.bottomLeftSixth
         case .bottomCenterSixth: return text.bottomCenterSixth
         case .bottomRightSixth: return text.bottomRightSixth
+        case .previousDisplay: return text.previousDisplay
         case .nextDisplay: return text.nextDisplay
+        case .previousSpace: return text.previousSpace
+        case .nextSpace: return text.nextSpace
         }
     }
 
@@ -205,9 +235,13 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .bottomCenterSixth: return "arrow.down"
         case .bottomRightSixth, .bottomRight: return "arrow.down.right"
         case .maximize: return "arrow.up.left.and.arrow.down.right"
+        case .marginMaximize: return "rectangle.inset.filled"
         case .fullScreen: return "rectangle.fill"
         case .center: return "scope"
+        case .previousDisplay: return "arrow.left.to.line"
         case .nextDisplay: return "arrow.right.to.line"
+        case .previousSpace: return "arrow.left.square"
+        case .nextSpace: return "arrow.right.square"
         case .restore: return "arrow.uturn.backward"
         }
     }
@@ -291,6 +325,9 @@ enum WindowLayoutGeometry {
                           width: halfWidth, height: halfHeight).integral
         case .maximize:
             return visibleFrame.integral
+        case .marginMaximize:
+            return visibleFrame.insetBy(dx: visibleFrame.width * 0.05,
+                                        dy: visibleFrame.height * 0.05).integral
         case .center:
             let width = min(current.width, visibleFrame.width)
             let height = min(current.height, visibleFrame.height)
@@ -298,7 +335,7 @@ enum WindowLayoutGeometry {
                           y: visibleFrame.midY - height / 2,
                           width: width,
                           height: height).integral
-        case .nextDisplay:
+        case .previousDisplay, .nextDisplay, .previousSpace, .nextSpace:
             return current.integral
         case .restore:
             return current.integral
@@ -312,7 +349,9 @@ enum WindowLayoutGeometry {
                              targetRect: CGRect,
                              actualSize: CGSize,
                              visibleFrame: CGRect) -> CGRect {
-        guard action != .maximize, action != .restore, action != .nextDisplay,
+        guard action != .maximize, action != .restore,
+              action != .previousDisplay, action != .nextDisplay,
+              action != .previousSpace, action != .nextSpace,
               action != .fullScreen else { return targetRect.integral }
 
         let size = CGSize(width: max(1, actualSize.width),
@@ -371,10 +410,10 @@ enum WindowLayoutGeometry {
         case .bottomRight:
             origin.x = targetRect.maxX - size.width
             origin.y = targetRect.minY
-        case .center:
+        case .marginMaximize, .center:
             origin.x = targetRect.midX - size.width / 2
             origin.y = targetRect.midY - size.height / 2
-        case .maximize, .nextDisplay, .restore, .fullScreen:
+        case .maximize, .previousDisplay, .nextDisplay, .previousSpace, .nextSpace, .restore, .fullScreen:
             break
         }
 
@@ -476,10 +515,14 @@ enum WindowLayoutGeometry {
                 && overlap > 0.35
         case .maximize:
             return overlap > 0.90
+        case .marginMaximize:
+            return abs(actualRect.midX - targetRect.midX) <= anchorTolerance
+                && abs(actualRect.midY - targetRect.midY) <= anchorTolerance
+                && overlap > 0.82
         case .center:
             return abs(actualRect.midX - targetRect.midX) <= anchorTolerance
                 && abs(actualRect.midY - targetRect.midY) <= anchorTolerance
-        case .nextDisplay:
+        case .previousDisplay, .nextDisplay, .previousSpace, .nextSpace:
             return overlap > 0.72
         case .restore:
             return false
@@ -488,9 +531,9 @@ enum WindowLayoutGeometry {
         }
     }
 
-    static func rectForNextDisplay(current: CGRect,
-                                   sourceVisibleFrame: CGRect,
-                                   destinationVisibleFrame: CGRect) -> CGRect {
+    static func rectForDisplay(current: CGRect,
+                               sourceVisibleFrame: CGRect,
+                               destinationVisibleFrame: CGRect) -> CGRect {
         guard sourceVisibleFrame.width > 0,
               sourceVisibleFrame.height > 0,
               destinationVisibleFrame.width > 0,
@@ -512,9 +555,94 @@ enum WindowLayoutGeometry {
         return CGRect(x: x, y: y, width: width, height: height).integral
     }
 
+    static func adjacentDisplayIndex(currentIndex: Int,
+                                     frames: [CGRect],
+                                     movingForward: Bool) -> Int? {
+        guard frames.count > 1, frames.indices.contains(currentIndex) else { return nil }
+        let ordered = frames.indices.sorted { lhsIndex, rhsIndex in
+            let lhs = frames[lhsIndex]
+            let rhs = frames[rhsIndex]
+            if lhs.minX != rhs.minX { return lhs.minX < rhs.minX }
+            if lhs.minY != rhs.minY { return lhs.minY < rhs.minY }
+            if lhs.width != rhs.width { return lhs.width < rhs.width }
+            if lhs.height != rhs.height { return lhs.height < rhs.height }
+            return lhsIndex < rhsIndex
+        }
+        guard let position = ordered.firstIndex(of: currentIndex) else { return nil }
+        let destination = (position + (movingForward ? 1 : ordered.count - 1)) % ordered.count
+        return ordered[destination]
+    }
+
     private static func area(_ rect: CGRect) -> CGFloat {
         guard !rect.isNull, !rect.isEmpty else { return 0 }
         return rect.width * rect.height
     }
 
+}
+
+struct WindowLayoutFrame: Equatable {
+    var origin: CGPoint
+    var size: CGSize
+
+    func isClose(to other: WindowLayoutFrame, tolerance: CGFloat) -> Bool {
+        abs(origin.x - other.origin.x) <= tolerance
+            && abs(origin.y - other.origin.y) <= tolerance
+            && abs(size.width - other.size.width) <= tolerance
+            && abs(size.height - other.size.height) <= tolerance
+    }
+}
+
+struct WindowLayoutWindowKey: Hashable {
+    let processID: pid_t
+    let processLaunchTime: TimeInterval
+    let windowID: CGWindowID
+}
+
+/// Recent placements for each window. It stays in memory for this app session
+/// and is bounded so repeated layout shortcuts cannot grow it indefinitely.
+struct WindowLayoutHistory {
+    static let perWindowLimit = 20
+
+    private var framesByWindow: [WindowLayoutWindowKey: [WindowLayoutFrame]] = [:]
+
+    mutating func record(_ frame: WindowLayoutFrame, for window: WindowLayoutWindowKey) {
+        var frames = framesByWindow[window] ?? []
+        frames.append(frame)
+        if frames.count > Self.perWindowLimit {
+            frames.removeFirst(frames.count - Self.perWindowLimit)
+        }
+        framesByWindow[window] = frames
+    }
+
+    mutating func popPrevious(for window: WindowLayoutWindowKey,
+                              current: WindowLayoutFrame) -> WindowLayoutFrame? {
+        guard var frames = framesByWindow[window] else { return nil }
+        defer {
+            if frames.isEmpty {
+                framesByWindow.removeValue(forKey: window)
+            } else {
+                framesByWindow[window] = frames
+            }
+        }
+        while let previous = frames.popLast() {
+            if !previous.isClose(to: current, tolerance: 1) {
+                return previous
+            }
+        }
+        return nil
+    }
+
+    mutating func discardLatest(for window: WindowLayoutWindowKey) {
+        guard var frames = framesByWindow[window] else { return }
+        frames.removeLast()
+        if frames.isEmpty {
+            framesByWindow.removeValue(forKey: window)
+        } else {
+            framesByWindow[window] = frames
+        }
+    }
+
+    mutating func removeStaleWindows(keeping activeWindows: Set<WindowLayoutWindowKey>) {
+        framesByWindow = framesByWindow.filter { activeWindows.contains($0.key) }
+    }
 }

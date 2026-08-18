@@ -69,8 +69,12 @@ struct PanelQuickTogglesView: View {
 struct QuickTogglesList: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var toggles = QuickTogglesService.shared
+    @ObservedObject private var micMute = MicMuteService.shared
+    @ObservedObject private var brightness = BrightnessService.shared
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(DefaultsKey.panelToggleDarkMode) private var showDarkMode = true
+    @AppStorage(DefaultsKey.panelToggleKeyboardLight) private var showKeyboardLight = true
+    @AppStorage(DefaultsKey.panelToggleMicMute) private var showMicMute = true
     @AppStorage(DefaultsKey.panelToggleEmptyTrash) private var showEmptyTrash = true
     @AppStorage(DefaultsKey.panelToggleEjectDisks) private var showEjectDisks = true
     @AppStorage(DefaultsKey.panelToggleHiddenFiles) private var showHiddenFiles = true
@@ -100,13 +104,16 @@ struct QuickTogglesList: View {
         }
         .onAppear {
             toggles.refreshPermissionStates()
+            brightness.refreshKeyboardLight()
         }
     }
 
     static func resetPanelDefaults() {
         PanelLayout.resetItemOrder(key: DefaultsKey.panelToggleOrder)
         let defaults = UserDefaults.standard
-        for key in [DefaultsKey.panelToggleDarkMode, DefaultsKey.panelToggleEmptyTrash,
+        for key in [DefaultsKey.panelToggleDarkMode, DefaultsKey.panelToggleKeyboardLight,
+                    DefaultsKey.panelToggleMicMute,
+                    DefaultsKey.panelToggleEmptyTrash,
                     DefaultsKey.panelToggleEjectDisks, DefaultsKey.panelToggleHiddenFiles,
                     DefaultsKey.panelToggleDesktopIcons, DefaultsKey.panelToggleLockScreen,
                     DefaultsKey.panelToggleDisplayOff, DefaultsKey.panelToggleScreenSaver] {
@@ -130,7 +137,11 @@ struct QuickTogglesList: View {
     }
 
     private var items: [QuickToggleAction] {
-        orderedItems.filter { editing || isVisible($0) }
+        orderedItems.filter {
+            $0.feature.isAvailable
+                && ($0 != .keyboardLight || brightness.keyboardLightEnabled != nil)
+                && (editing || isVisible($0))
+        }
     }
 
     private func isVisible(_ item: QuickToggleAction) -> Bool {
@@ -140,6 +151,8 @@ struct QuickTogglesList: View {
     private func visibilityBinding(_ item: QuickToggleAction) -> Binding<Bool> {
         switch item {
         case .darkMode: return $showDarkMode
+        case .keyboardLight: return $showKeyboardLight
+        case .micMute: return $showMicMute
         case .emptyTrash: return $showEmptyTrash
         case .ejectDisks: return $showEjectDisks
         case .hiddenFiles: return $showHiddenFiles
@@ -165,6 +178,29 @@ struct QuickTogglesList: View {
                                 visibility: visibilityBinding(item),
                                 action: {
                                     QuickTogglesService.shared.toggleDarkMode()
+                                })
+        case .keyboardLight:
+            let brightnessStrings = FeatureStrings.brightness(l10n.language)
+            PanelToggleRow(title: brightnessStrings.keyboardLight,
+                           caption: brightnessStrings.keyboardLightCaption,
+                           systemImage: "keyboard",
+                           isOn: Binding(
+                               get: { brightness.keyboardLightEnabled ?? false },
+                               set: { brightness.setKeyboardLightEnabled($0) }
+                           ),
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: visibilityBinding(item))
+        case .micMute:
+            UtilityActionButton(title: micMute.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName,
+                                caption: l10n.s.micMuteCaption,
+                                systemImage: micMute.isMuted ? "mic.slash.fill" : "mic",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showMicMute,
+                                shortcutHint: shortcutHint(.micMute),
+                                action: {
+                                    MicMuteService.shared.toggle()
                                 })
         case .emptyTrash:
             UtilityActionButton(title: strings.emptyTrashTitle,
@@ -265,6 +301,12 @@ struct QuickTogglesList: View {
             return "\(l10n.s.permissionRequired): \(permissionName(item))"
         case .running, .none: return idle
         }
+    }
+
+    private func shortcutHint(_ role: GlobalShortcutRole) -> String? {
+        guard role.requiredEnableKeys.allSatisfy({ UserDefaults.standard.bool(forKey: $0) })
+        else { return nil }
+        return role.savedShortcut.displayString
     }
 
     private func ejectCaption(_ strings: QuickToggleFeatureStrings) -> String {

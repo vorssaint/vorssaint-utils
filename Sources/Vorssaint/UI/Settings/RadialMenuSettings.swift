@@ -23,7 +23,6 @@ struct RadialMenuSettings: View {
     /// The submenu being edited; empty means the root wheel.
     @State private var openSubmenuID: UUID?
     @State private var editing: RadialMenuItem?
-    @State private var editingIsNew = false
     @State private var dragging: RadialMenuItem?
 
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
@@ -69,8 +68,10 @@ struct RadialMenuSettings: View {
                     .foregroundStyle(.secondary)
                 Picker(text.mouseTriggerLabel, selection: $mouseTriggerRaw) {
                     Text(text.mouseTriggerOff).tag(RadialMenuMouseTrigger.off.rawValue)
-                    Text(text.mouseTriggerBack).tag(RadialMenuMouseTrigger.back.rawValue)
-                    Text(text.mouseTriggerForward).tag(RadialMenuMouseTrigger.forward.rawValue)
+                    ForEach(Array(MouseButtonShortcutSupport.buttonRange), id: \.self) { button in
+                        Text(mouseTriggerName(for: button))
+                            .tag(RadialMenuMouseTrigger.button(button).rawValue)
+                    }
                 }
                 .disabled(!enabled)
                 .onChange(of: mouseTriggerRaw) { _, raw in
@@ -80,9 +81,13 @@ struct RadialMenuSettings: View {
                     }
                 }
                 if RadialMenuMouseTrigger.sanitized(mouseTriggerRaw) != .off {
-                    Text(text.mouseTriggerWarning)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if let button = RadialMenuMouseTrigger.sanitized(mouseTriggerRaw).buttonNumber,
+                       button == MouseButtonShortcutSupport.backButtonNumber
+                        || button == MouseButtonShortcutSupport.forwardButtonNumber {
+                        Text(text.mouseTriggerWarning)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     // A button the mouse's own software has turned into
                     // something else never reaches any app, and from the
                     // outside that looks exactly like a wrong setting. This
@@ -136,7 +141,6 @@ struct RadialMenuSettings: View {
                                   text: text,
                                   dragging: $dragging,
                                   edit: {
-                                      editingIsNew = false
                                       editing = item
                                   },
                                   remove: { remove(id: item.id) },
@@ -149,7 +153,6 @@ struct RadialMenuSettings: View {
                         // to the item id, so state can never leak from one
                         // add into the next (a leaked id made every save
                         // replace the previous action instead of appending).
-                        editingIsNew = true
                         editing = RadialMenuItem(kind: .app)
                     } label: {
                         Label(text.addButton, systemImage: "plus")
@@ -168,12 +171,18 @@ struct RadialMenuSettings: View {
         // never stays stuck at reduced opacity.
         .onDrop(of: [UTType.text], delegate: RadialDragCleanupDelegate(dragging: $dragging))
         .sheet(item: $editing) { item in
+            let isNew = !level.contains { $0.id == item.id }
             RadialItemEditor(text: text,
                              item: item,
-                             isNew: editingIsNew,
+                             isNew: isNew,
                              allowsSubmenu: openSubmenuID == nil,
-                             save: { upsert($0) },
-                             delete: editingIsNew ? nil : { remove(id: item.id) })
+                             save: { saved in
+                                 upsert(saved)
+                                 if isNew, saved.kind == .submenu {
+                                     openSubmenuID = saved.id
+                                 }
+                             },
+                             delete: isNew ? nil : { remove(id: item.id) })
         }
         .onChange(of: enabled) { _, on in
             RadialMenuService.shared.syncWithPreferences()
@@ -223,6 +232,16 @@ struct RadialMenuSettings: View {
     private func requestAccessibilityIfNeeded(_ on: Bool) {
         guard on, RadialMenuSupport.needsAccessibility(items), !permissions.accessibility else { return }
         permissions.requestAccessibility()
+    }
+
+    private func mouseTriggerName(for button: Int64) -> String {
+        switch button {
+        case MouseButtonShortcutSupport.backButtonNumber: return text.mouseTriggerBack
+        case MouseButtonShortcutSupport.forwardButtonNumber: return text.mouseTriggerForward
+        default:
+            return MouseButtonShortcutSupport.buttonName(
+                for: button, strings: FeatureStrings.mouseButtons(l10n.language))
+        }
     }
 
     private var buttonTestRow: some View {
@@ -276,6 +295,7 @@ private struct RadialItemRow: View {
         case .url: return text.kindURL
         case .shortcut: return text.kindShortcut
         case .tool: return text.kindTool
+        case .quickToggle: return FeatureStrings.quickToggles(L10n.shared.language).pageTitle
         case .windowLayout: return FeatureStrings.windowLayout(L10n.shared.language).title
         case .media: return text.kindMedia
         case .submenu: return text.kindSubmenu
@@ -302,9 +322,10 @@ private struct RadialItemRow: View {
             .buttonStyle(.plain)
             if let openChildren {
                 Button(action: openChildren) {
-                    Label(text.editActionsButton, systemImage: "chevron.forward")
-                        .labelStyle(.iconOnly)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 5) {
+                        Text(text.editActionsButton)
+                        Image(systemName: "chevron.forward")
+                    }
                 }
                 .buttonStyle(.borderless)
                 .help(text.editActionsButton)
@@ -419,6 +440,10 @@ private struct RadialItemEditor: View {
         RadialMenuTool.allCases.filter { $0.isRunnable() }
     }
 
+    private var availableQuickToggles: [RadialMenuQuickToggle] {
+        AppFeature.quickToggles.isAvailable ? RadialMenuQuickToggle.allCases : []
+    }
+
     private var urlIsInvalid: Bool {
         item.kind == .url && RadialMenuSupport.normalizedURL(item.payload) == nil
     }
@@ -442,6 +467,10 @@ private struct RadialItemEditor: View {
                     Text(text.kindShortcut).tag(RadialMenuItem.Kind.shortcut)
                     if !availableTools.isEmpty {
                         Text(text.kindTool).tag(RadialMenuItem.Kind.tool)
+                    }
+                    if !availableQuickToggles.isEmpty {
+                        Text(FeatureStrings.quickToggles(l10n.language).pageTitle)
+                            .tag(RadialMenuItem.Kind.quickToggle)
                     }
                     if AppFeature.windowLayout.isAvailable {
                         Text(FeatureStrings.windowLayout(l10n.language).title)
@@ -513,6 +542,7 @@ private struct RadialItemEditor: View {
             shortcutMessage = nil
             switch kind {
             case .tool: item.payload = availableTools.first?.rawValue ?? ""
+            case .quickToggle: item.payload = availableQuickToggles.first?.rawValue ?? ""
             case .windowLayout: item.payload = WindowLayoutAction.leftHalf.rawValue
             case .media: item.payload = RadialMenuMediaKey.playPause.rawValue
             default: item.payload = ""
@@ -566,6 +596,14 @@ private struct RadialItemEditor: View {
                 ForEach(availableTools) { tool in
                     Text(tool.feature.hubTitle(l10n.s, hub: FeatureStrings.hub(l10n.language)))
                         .tag(tool.rawValue)
+                }
+            }
+        case .quickToggle:
+            let quickToggleText = FeatureStrings.quickToggles(l10n.language)
+            Picker(quickToggleText.pageTitle, selection: $item.payload) {
+                ForEach(availableQuickToggles) { action in
+                    Label(action.radialTitle, systemImage: action.symbolName)
+                        .tag(action.rawValue)
                 }
             }
         case .windowLayout:

@@ -18,6 +18,10 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         didSet {
             UserDefaults.standard.set(tool.rawValue, forKey: DefaultsKey.screenshotLastTool)
             if tool != .select { clearTextSelection() }
+            if tool != oldValue, tool != .select {
+                selectedID = nil
+                editingTextID = nil
+            }
             if tool == .crop, oldValue != .crop {
                 selectedID = nil
                 cropDraft = CGRect(origin: .zero, size: imageSize)
@@ -114,7 +118,9 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     private var activeHandle: ScreenshotSupport.Handle?
     private var cropResizeOrigin: CGRect?
     private var cropMoveOrigin: CGRect?
+    private var cropSelectionOrigin: CGRect?
     private var dragRegistered = false
+    private var editingSelectedAnnotation = false
     private var newTextID: UUID?
 
     var imageSize: CGSize {
@@ -232,10 +238,12 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         // A preset is the look, not this capture's sliders.
         snapshot.padding = 0.5
         snapshot.cornerRadius = 0.1
+        snapshot.blur = 0
         guard !backdropPresets.contains(where: {
             var candidate = $0
             candidate.padding = 0.5
             candidate.cornerRadius = 0.1
+            candidate.blur = 0
             return candidate == snapshot
         }) else { return }
         backdropPresets = Array((backdropPresets + [snapshot])
@@ -461,16 +469,27 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     func beginDrag(at point: CGPoint) {
         dragStart = point
         dragRegistered = false
+        editingSelectedAnnotation = false
+        if tool != .select, tool != .crop, selectedAnnotationOwns(point) {
+            editingSelectedAnnotation = true
+            beginSelectDrag(at: point)
+            return
+        }
         switch tool {
         case .select:
             beginSelectDrag(at: point)
         case .crop:
+            let bounds = CGRect(origin: .zero, size: imageSize)
             if let draft = cropDraft,
                let handle = ScreenshotSupport.handle(at: point, rect: draft,
                                                      tolerance: 14 * scale) {
                 activeHandle = handle
                 cropResizeOrigin = draft
                 cropLoupePoint = handle.position(in: draft)
+            } else if let draft = cropDraft,
+                      ScreenshotSupport.startsNewCropSelection(
+                        at: point, draft: draft, within: bounds) {
+                cropSelectionOrigin = draft
             } else if let draft = cropDraft, draft.contains(point) {
                 cropMoveOrigin = draft
             }
@@ -544,6 +563,10 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     }
 
     func continueDrag(to point: CGPoint) {
+        if editingSelectedAnnotation {
+            continueSelectDrag(to: point)
+            return
+        }
         switch tool {
         case .select:
             continueSelectDrag(to: point)
@@ -554,6 +577,10 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 let clamped = ScreenshotSupport.clamp(rect, to: bounds)
                 cropDraft = clamped
                 cropLoupePoint = handle.position(in: clamped)
+            } else if cropSelectionOrigin != nil {
+                cropDraft = ScreenshotSupport.clamp(
+                    ScreenshotSupport.selectionRect(from: dragStart, to: point),
+                    to: bounds)
             } else if let origin = cropMoveOrigin {
                 let delta = CGPoint(x: point.x - dragStart.x, y: point.y - dragStart.y)
                 cropDraft = ScreenshotSupport.movedRect(origin, by: delta, within: bounds)
@@ -612,8 +639,14 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             activeHandle = nil
             cropResizeOrigin = nil
             cropMoveOrigin = nil
+            cropSelectionOrigin = nil
             cropLoupePoint = nil
             dragRegistered = false
+            editingSelectedAnnotation = false
+        }
+        if editingSelectedAnnotation {
+            finishSelectDrag(at: point, isTap: isTap)
+            return
         }
         switch tool {
         case .text:
@@ -667,21 +700,46 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 selectedID = draftID
             }
         case .select:
-            textSelectionAnchor = nil
-            if isTap, !dragRegistered {
-                selectedID = hitTest(point)
-                if let selectedID,
-                   let hit = annotations.first(where: { $0.id == selectedID }),
-                   hit.tool == .text {
-                    editingTextID = selectedID
-                } else if selectedID == nil, let word = wordIndex(at: point) {
-                    selectedWordIndexes = [word]
-                } else if selectedID == nil {
-                    clearTextSelection()
-                }
-            }
+            finishSelectDrag(at: point, isTap: isTap)
         case .crop:
-            break
+            if isTap, let origin = cropSelectionOrigin {
+                cropDraft = origin
+            }
+        }
+    }
+
+    /// The visible selection remains directly editable after creation. A new
+    /// tool or a gesture outside it ends that priority and creates normally.
+    func selectedAnnotationOwns(_ point: CGPoint) -> Bool {
+        guard let selectedID,
+              let selected = annotations.first(where: { $0.id == selectedID })
+        else { return false }
+        let tolerance = 12 * scale
+        if selected.tool.resizesWithHandles,
+           ScreenshotSupport.handle(at: point, rect: selected.rect,
+                                    tolerance: tolerance) != nil {
+            return true
+        }
+        if selected.points.prefix(2).contains(where: {
+            hypot(point.x - $0.x, point.y - $0.y) < tolerance
+        }) {
+            return true
+        }
+        return hitTest(point) == selectedID
+    }
+
+    private func finishSelectDrag(at point: CGPoint, isTap: Bool) {
+        textSelectionAnchor = nil
+        guard isTap, !dragRegistered else { return }
+        selectedID = hitTest(point)
+        if let selectedID,
+           let hit = annotations.first(where: { $0.id == selectedID }),
+           hit.tool == .text {
+            editingTextID = selectedID
+        } else if selectedID == nil, let word = wordIndex(at: point) {
+            selectedWordIndexes = [word]
+        } else if selectedID == nil {
+            clearTextSelection()
         }
     }
 
@@ -778,6 +836,18 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         self.selectedID = nil
         editingTextID = nil
         if newTextID == selectedID { newTextID = nil }
+    }
+
+    /// Moves the selected annotation one step through the drawing order, so a
+    /// box drawn last can sit behind text written first. Counters are numbered
+    /// by their place in the array, so moving one past another renumbers both,
+    /// the same way deleting one already does.
+    func moveSelected(_ move: ScreenshotSupport.LayerMove) {
+        guard let selectedID else { return }
+        let reordered = ScreenshotSupport.reordering(annotations, moving: selectedID, move)
+        guard reordered.map(\.id) != annotations.map(\.id) else { return }
+        registerUndo()
+        annotations = ScreenshotSupport.renumberingCounters(reordered)
     }
 
     func commitText(_ id: UUID, text: String) {
@@ -893,6 +963,11 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private var keyMonitor: Any?
     private var scrollMonitor: Any?
+
+    var protectedWindowIDs: Set<CGWindowID> {
+        guard let window, window.isVisible, window.windowNumber > 0 else { return [] }
+        return [CGWindowID(window.windowNumber)]
+    }
     private var strings: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(L10n.shared.language)
     }
@@ -1055,11 +1130,51 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
 
     // MARK: Export actions
 
-    /// Every terminal output closes the editor: the capture leaves the app
+    /// Uploads the rendered editor result without copying the URL or closing
+    /// the editor. The view presents the owner controls after it succeeds.
+    func share(duration: ScreenshotShareDuration,
+               completion: @escaping (ScreenshotShareRecord?) -> Void) {
+        guard let image = model.exportImage() else {
+            QuickToolHUD.show(icon: "link", message: strings.shareFailedHUD)
+            completion(nil)
+            return
+        }
+        Task { @MainActor [weak self] in
+            guard let self else {
+                completion(nil)
+                return
+            }
+            let data = await Task.detached(priority: .userInitiated) {
+                ScreenshotRenderer.pngData(from: image)
+            }.value
+            guard let data else {
+                QuickToolHUD.show(icon: "link", message: self.strings.shareFailedHUD)
+                completion(nil)
+                return
+            }
+            do {
+                let record = try await ScreenshotShareService.shared.createLink(
+                    pngData: data, duration: duration)
+                guard self.window != nil else {
+                    try? await ScreenshotShareService.shared.delete(record)
+                    completion(nil)
+                    return
+                }
+                self.model.markExported()
+                completion(record)
+            } catch {
+                QuickToolHUD.show(icon: "link", message: self.strings.shareFailedHUD)
+                NSSound.beep()
+                completion(nil)
+            }
+        }
+    }
+
+    /// Every final output closes the editor: the capture leaves the app
     /// and the window's job is done, so nothing lingers to tidy up.
     func copyToClipboard() {
         guard let image = model.exportImage() else { return }
-        guard Self.copyImage(image) else {
+        guard Self.copyImage(image, fileNamePrefix: strings.fileNamePrefix) else {
             NSSound.beep()
             return
         }
@@ -1069,15 +1184,53 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     @discardableResult
-    static func copyImage(_ image: CGImage) -> Bool {
+    static func copyImage(_ image: CGImage, fileNamePrefix: String) -> Bool {
+        guard let data = ScreenshotRenderer.pngData(from: image),
+              let base = FileManager.default.urls(for: .cachesDirectory,
+                                                  in: .userDomainMask).first,
+              let bundleID = Bundle.main.bundleIdentifier
+        else { return false }
+        let folder = base.appendingPathComponent(bundleID, isDirectory: true)
+            .appendingPathComponent("Copied Screenshots", isDirectory: true)
+        let name = ScreenshotSupport.fileName(prefix: fileNamePrefix, date: Date())
+        guard let url = try? ScreenshotSupport.copiedFile(data: data, name: name,
+                                                         directory: folder) else {
+            return false
+        }
+        guard copyFile(url) else {
+            try? FileManager.default.removeItem(at: url)
+            return false
+        }
+        return true
+    }
+
+    @discardableResult
+    static func copyFile(_ url: URL) -> Bool {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        return pasteboard.writeObjects([url as NSURL])
+    }
+
+    struct ClipboardPayload: Sendable {
+        let png: Data?
+        let tiff: Data?
+    }
+
+    static func clipboardPayload(from image: CGImage) -> ClipboardPayload {
+        let png = ScreenshotRenderer.pngData(from: image)
+        let bitmap = NSBitmapImageRep(cgImage: image)
+        return ClipboardPayload(png: png, tiff: bitmap.tiffRepresentation)
+    }
+
+    @discardableResult
+    static func copyClipboardPayload(_ payload: ClipboardPayload) -> Bool {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         let item = NSPasteboardItem()
-        if let png = ScreenshotRenderer.pngData(from: image) {
+        if let png = payload.png {
             item.setData(png, forType: .png)
         }
-        let bitmap = NSBitmapImageRep(cgImage: image)
-        if let tiff = bitmap.tiffRepresentation {
+        if let tiff = payload.tiff {
             item.setData(tiff, forType: .tiff)
         }
         return pasteboard.writeObjects([item])

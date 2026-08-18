@@ -16,11 +16,15 @@ struct CommandBarLink: Codable, Identifiable, Equatable {
         case link
         /// A folder or a file on this Mac.
         case place
+        /// A local executable, run with whatever follows the name as its one
+        /// argument.
+        case script
 
         var symbolName: String {
             switch self {
             case .link: return "link"
             case .place: return "folder"
+            case .script: return "terminal"
             }
         }
     }
@@ -35,6 +39,13 @@ struct CommandBarLink: Codable, Identifiable, Equatable {
     /// which is what turns a link into a search.
     var takesQuery: Bool {
         destination.contains(CommandBarLinkPlaceholder.query.token)
+    }
+
+    /// True for anything that reads whatever follows its name: every query
+    /// link, and every script, which always takes its argument implicitly
+    /// rather than through a destination placeholder.
+    var takesArgument: Bool {
+        kind == .script || takesQuery
     }
 }
 
@@ -90,6 +101,19 @@ enum CommandBarLinks {
         return result
     }
 
+    /// Where a saved place sits on the disk, for the rows that can be shown
+    /// in Finder. Only a destination that is already a finished path
+    /// qualifies: one still holding a placeholder is a different folder every
+    /// time it runs, and there is nothing to reveal until it does.
+    static func revealPath(for link: CommandBarLink) -> String? {
+        guard link.kind == .place else { return nil }
+        let trimmed = link.destination.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty,
+              !CommandBarLinkPlaceholder.allCases.contains(where: { trimmed.contains($0.token) })
+        else { return nil }
+        return (trimmed as NSString).expandingTildeInPath
+    }
+
     /// What a value has to look like inside a web address. Everything that is
     /// not unreserved is escaped, including the "+" and "&" that would
     /// otherwise change the meaning of a search.
@@ -110,8 +134,11 @@ enum CommandBarLinks {
         let normalizedQuery = CommandBarSearch.normalized(query)
         guard normalizedQuery.hasPrefix(normalizedName + " ") else { return nil }
         // The remainder comes from the ORIGINAL text: what someone searches for
-        // keeps its capitals and its accents.
-        let words = query.split(separator: " ", omittingEmptySubsequences: true)
+        // keeps its capitals and its accents. Splitting on any whitespace — not
+        // just the ASCII space — keeps a full-width space (U+3000), which some
+        // input methods produce, in step with the width-insensitive prefix check
+        // above.
+        let words = query.split(whereSeparator: \.isWhitespace)
         let nameWords = normalizedName.split(separator: " ").count
         guard words.count > nameWords else { return nil }
         return words.dropFirst(nameWords).joined(separator: " ")
@@ -128,6 +155,28 @@ enum CommandBarLinks {
         trailingArgument(query: query, name: name) != nil ? query : name
     }
 
+    /// The most specific script-kind link the query names, with what follows
+    /// its name as the argument, or nil when nothing matches. A longer name
+    /// wins over one that is only its prefix.
+    static func matchingScriptLink(in links: [CommandBarLink],
+                                   query: String) -> (link: CommandBarLink, argument: String)? {
+        var best: (link: CommandBarLink, argument: String, nameLength: Int)?
+        for link in links where link.kind == .script {
+            guard let argument = trailingArgument(query: query, name: link.name) else { continue }
+            let nameLength = CommandBarSearch.normalized(link.name).count
+            if let best, nameLength <= best.nameLength { continue }
+            best = (link, argument, nameLength)
+        }
+        return best.map { ($0.link, $0.argument) }
+    }
+
+    /// What a script printed, reduced to what the answer row shows: no
+    /// wrapping whitespace, and empty output means nothing is ready yet.
+    static func resultText(_ output: String) -> String? {
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     /// The URL a link opens, or nil when what was saved cannot be opened. A
     /// destination without a scheme is treated as a site, which is what people
     /// mean when they paste one in.
@@ -140,6 +189,41 @@ enum CommandBarLinks {
         case .link:
             if let url = URL(string: trimmed), url.scheme != nil { return url }
             return URL(string: "https://" + trimmed)
+        case .script:
+            // A script runs; it does not open anything.
+            return nil
         }
     }
+
+    /// A web address typed on its own, or nil when the text should remain a
+    /// search. The system detector keeps ordinary filenames, numbers and email
+    /// addresses out; parsing the result again rejects incomplete URLs.
+    static func typedURL(_ text: String) -> URL? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let linkDetector else { return nil }
+        let wholeValue = NSRange(location: 0, length: trimmed.utf16.count)
+        guard let match = linkDetector.firstMatch(in: trimmed, options: [], range: wholeValue),
+              match.range == wholeValue,
+              let detectedScheme = match.url?.scheme?.lowercased(),
+              detectedScheme == "http" || detectedScheme == "https"
+        else { return nil }
+
+        let url: URL?
+        if let explicit = URL(string: trimmed),
+           let scheme = explicit.scheme?.lowercased(),
+           scheme == "http" || scheme == "https" {
+            url = explicit
+        } else {
+            url = URL(string: "https://" + trimmed)
+        }
+        guard let url,
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              url.host?.isEmpty == false
+        else { return nil }
+        return url
+    }
+
+    private static let linkDetector = try? NSDataDetector(
+        types: NSTextCheckingResult.CheckingType.link.rawValue)
 }

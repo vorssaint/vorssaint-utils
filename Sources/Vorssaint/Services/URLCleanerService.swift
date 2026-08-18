@@ -56,7 +56,7 @@ final class URLCleanerService: ObservableObject {
     }
 
     func clean(_ text: String) -> String? {
-        URLCleaning.cleanedString(from: text)
+        URLCleaning.cleanedString(from: text, customParameters: Self.customParameters)
     }
 
     func copy(_ urlString: String) {
@@ -144,7 +144,7 @@ final class URLCleanerService: ObservableObject {
         }
 
         guard let text = pasteboard.string(forType: .string),
-              let cleaned = URLCleaning.cleanedString(from: text),
+              let cleaned = URLCleaning.cleanedString(from: text, customParameters: customParameters),
               cleaned != text.trimmingCharacters(in: .whitespacesAndNewlines),
               canSafelyRewriteAutomatically(pasteboard),
               !token.isCancelled else {
@@ -158,6 +158,11 @@ final class URLCleanerService: ObservableObject {
     private static func canSafelyRewriteAutomatically(_ pasteboard: NSPasteboard) -> Bool {
         guard let types = pasteboard.types, !types.isEmpty else { return false }
         return Set(types).isSubset(of: automaticRewriteTypes)
+    }
+
+    private static var customParameters: Set<String> {
+        URLCleaning.customParameters(from: UserDefaults.standard.string(
+            forKey: DefaultsKey.urlCleanerCustomParameters))
     }
 
     @discardableResult

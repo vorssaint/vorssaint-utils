@@ -34,7 +34,10 @@ final class MonitorAlertService {
 
     static func anyEnabled(in defaults: UserDefaults) -> Bool {
         AppFeature.anyMonitorAlertEnabled(
-            isAvailable: { defaults.bool(forKey: $0.availabilityKey) },
+            isAvailable: {
+                defaults.bool(forKey: $0.availabilityKey)
+                    && ($0 != .monitorPower || PowerSampler.hasInternalBattery)
+            },
             boolFor: { defaults.bool(forKey: $0) }
         )
     }
@@ -65,7 +68,9 @@ final class MonitorAlertService {
         let strings = FeatureStrings.monitorAlerts(L10n.shared.language)
 
         func alertOn(_ key: String, _ feature: AppFeature) -> Bool {
-            defaults.bool(forKey: key) && defaults.bool(forKey: feature.availabilityKey)
+            defaults.bool(forKey: key)
+                && defaults.bool(forKey: feature.availabilityKey)
+                && (feature != .monitorPower || PowerSampler.hasInternalBattery)
         }
 
         if alertOn(DefaultsKey.monitorAlertCPU, .monitorCPU) {

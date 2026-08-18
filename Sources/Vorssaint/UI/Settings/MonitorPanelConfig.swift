@@ -46,7 +46,7 @@ struct MonitorPanelConfig: View {
         if PanelSectionID.system.isAvailable {
             block(.system, title: l10n.s.systemSection, master: $showSystem) {
                 if AppFeature.monitorCPU.isAvailable || AppFeature.monitorGPU.isAvailable
-                    || AppFeature.monitorPower.isAvailable {
+                    || (AppFeature.monitorPower.isAvailable && PowerSampler.hasInternalBattery) {
                     Toggle(l10n.s.temperatures, isOn: $sysTemps)
                 }
                 if AppFeature.monitorCPU.isAvailable {
@@ -55,7 +55,7 @@ struct MonitorPanelConfig: View {
                 if AppFeature.monitorGPU.isAvailable {
                     Toggle(l10n.s.gpuLabel, isOn: $sysGPU)
                 }
-                if AppFeature.monitorPower.isAvailable {
+                if AppFeature.monitorPower.isAvailable, PowerSampler.hasInternalBattery {
                     Toggle(l10n.s.batteryLabel, isOn: $sysBattery)
                 }
                 if AppFeature.monitorMemory.isAvailable {
@@ -85,9 +85,11 @@ struct MonitorPanelConfig: View {
             block(.power, title: l10n.s.powerSection, master: $showPower) {
                 Toggle(l10n.s.powerSystem, isOn: $pwrSystem)
                 Toggle(l10n.s.powerAdapter, isOn: $pwrAdapter)
-                Toggle(l10n.s.powerBattery, isOn: $pwrBattery)
-                Toggle(FeatureStrings.batteryTime(l10n.language).title, isOn: $pwrTimeRemaining)
-                Toggle(l10n.s.powerHealth, isOn: $pwrHealth)
+                if PowerSampler.hasInternalBattery {
+                    Toggle(l10n.s.powerBattery, isOn: $pwrBattery)
+                    Toggle(FeatureStrings.batteryTime(l10n.language).title, isOn: $pwrTimeRemaining)
+                    Toggle(l10n.s.powerHealth, isOn: $pwrHealth)
+                }
             }
         }
         // The mixer is a per-app list, so it has no sub-items — just show/hide.

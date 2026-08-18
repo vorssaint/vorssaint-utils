@@ -10,6 +10,48 @@ struct NetworkCounters: Equatable {
     var sent: UInt64 = 0
 }
 
+/// Detects the macOS failure mode where outbound interface counters keep moving
+/// while inbound counters stay frozen. The first suspect sample only primes the
+/// process reader; a second consecutive sample is required before using it.
+struct NetworkCounterFallback {
+    private(set) var isActive = false
+    private var missingInboundSamples = 0
+
+    mutating func observe(previous: NetworkCounters,
+                          current: NetworkCounters) -> (sampleProcesses: Bool, useProcessDownload: Bool) {
+        guard current.received >= previous.received,
+              current.sent >= previous.sent else {
+            reset()
+            return (false, false)
+        }
+
+        if current.received > previous.received {
+            reset()
+            return (false, false)
+        }
+
+        let outgoingAdvanced = current.sent > previous.sent
+        if isActive {
+            return (outgoingAdvanced, true)
+        }
+
+        if outgoingAdvanced {
+            missingInboundSamples += 1
+        } else {
+            missingInboundSamples = 0
+        }
+        if missingInboundSamples >= 2 {
+            isActive = true
+        }
+        return (outgoingAdvanced, isActive)
+    }
+
+    mutating func reset() {
+        isActive = false
+        missingInboundSamples = 0
+    }
+}
+
 struct DiskIOCounters: Equatable {
     var read: UInt64 = 0
     var written: UInt64 = 0
@@ -39,6 +81,26 @@ enum MetricFormat {
         let availableBytes = availablePages.partialValue.multipliedReportingOverflow(by: pageSize)
         guard !availableBytes.overflow else { return 0 }
         return availableBytes.partialValue >= totalBytes ? 0 : totalBytes - availableBytes.partialValue
+    }
+
+    /// Purgeable internal pages do not count because the system can reclaim
+    /// them on demand.
+    static func appMemory(totalBytes: UInt64,
+                          pageSize: UInt64,
+                          internalPages: UInt64,
+                          purgeablePages: UInt64) -> UInt64 {
+        guard totalBytes > 0, pageSize > 0 else { return 0 }
+        let activePages = internalPages.subtractingReportingOverflow(purgeablePages)
+        guard !activePages.overflow else { return 0 }
+        let activeBytes = activePages.partialValue.multipliedReportingOverflow(by: pageSize)
+        guard !activeBytes.overflow else { return 0 }
+        return min(activeBytes.partialValue, totalBytes)
+    }
+
+    /// Keeps every memory surface on the same persisted choice. Unknown
+    /// values intentionally fall back to total memory in use.
+    static func selectedMemory<Value>(used: Value, app: Value, metric: String) -> Value {
+        metric == "app" ? app : used
     }
 
     /// Menu bar memory should keep its slot even while a transient sample is
@@ -158,6 +220,14 @@ enum MetricFormat {
     /// Compact power for the menu bar, e.g. "9W".
     static func wattsCompact(_ value: Double) -> String {
         String(format: "%.0fW", value.rounded())
+    }
+
+    static func systemPowerWatts(measured: Double?,
+                                 batteryWatts: Double?,
+                                 externalConnected: Bool) -> Double? {
+        if let measured { return measured }
+        guard !externalConnected, let batteryWatts, batteryWatts < 0 else { return nil }
+        return -batteryWatts
     }
 
     /// A 0...1 fraction as a rounded percentage, e.g. "12%".

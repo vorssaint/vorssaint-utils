@@ -6,10 +6,23 @@ import AppKit
 import Carbon.HIToolbox
 import Combine
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// What the editor view watches. Holds the document, the player and the
 /// filmstrip; every change goes through here so undo has one thing to record.
 final class RecorderEditorModel: ObservableObject, BackdropEditing {
+    enum ExportPhase: Equatable {
+        case saving
+        case compressing
+        case uploading
+    }
+
+    enum ShareFailure: Error {
+        case tooLarge
+        case failed
+        case cancelled
+    }
+
     let take: RecorderTakeStore.Take
     let player: AVPlayer
 
@@ -19,9 +32,12 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     @Published private(set) var thumbnails: [CGImage] = []
     @Published private(set) var isExporting = false
     @Published private(set) var exportProgress: Double = 0
+    @Published private(set) var exportPhase: ExportPhase = .saving
     /// The last file this recording produced. Kept so the editor can hand it
     /// over: a HUD naming a folder is not the same as giving somebody the file.
     @Published private(set) var lastExportedURL: URL?
+    @Published private(set) var editPresets: [RecorderEditPreset] = []
+    @Published private(set) var audioWaveforms: [RecorderAudioSource: [Float]] = [:]
     @Published var document: RecorderEditDocument {
         didSet { documentDidChange(from: oldValue) }
     }
@@ -38,6 +54,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
 
     private var timeObserver: Any?
     private var thumbnailTask: Task<Void, Never>?
+    private var waveformTask: Task<Void, Never>?
     private var previewTask: Task<Void, Never>?
     private var compositionTask: Task<Void, Never>?
     private lazy var sourceAsset = AVURLAsset(url: take.videoURL)
@@ -45,11 +62,17 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     @Published private(set) var outputDuration: Double = 0
     private(set) var sourceSize: CGSize = .zero
     private var sourceFrameRate = 60
+    private var audioTrackIDs: [RecorderAudioSource: CMPersistentTrackID] = [:]
+    private(set) var audioSources: Set<RecorderAudioSource> = []
     private(set) var pointerTrack = RecorderPointerTrack()
+    private(set) var typingTrack = RecorderTypingTrack()
     /// True when the recording carries a pointer track at all. Without one the
     /// pointer and zoom controls have nothing to act on and are hidden rather
     /// than shown doing nothing.
     var hasPointerTrack: Bool { !pointerTrack.isEmpty }
+    private var typingTimes: [Double] {
+        document.zoomsOnTyping ? typingTrack.times : []
+    }
 
     var trim: RecorderSupport.Trim {
         document.trim(duration: duration)
@@ -74,10 +97,13 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
                 gifSize: RecorderSupport.sanitizedGIFSize(
                     defaults.string(forKey: DefaultsKey.recorderGIFSize)).rawValue,
                 gifFrameRate: RecorderSupport.sanitizedGIFFrameRate(
-                    defaults.integer(forKey: DefaultsKey.recorderGIFFrameRate)))
+                    defaults.integer(forKey: DefaultsKey.recorderGIFFrameRate)),
+                zoomEnabled: defaults.bool(forKey: DefaultsKey.recorderAutomaticZoom))
         }
-        player.isMuted = !document.keepsSystemAudio
+        player.isMuted = false
         pointerTrack = RecorderPointerTrack.decoded(try? Data(contentsOf: take.pointerURL))
+        typingTrack = RecorderTypingTrack.decoded(try? Data(contentsOf: take.typingURL))
+        loadEditPresets()
         loadBackdropPresets()
         observeTime()
         load()
@@ -88,6 +114,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
             player.removeTimeObserver(timeObserver)
         }
         thumbnailTask?.cancel()
+        waveformTask?.cancel()
         previewTask?.cancel()
         compositionTask?.cancel()
     }
@@ -101,10 +128,17 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
             else { return }
             self.duration = max(0, CMTimeGetSeconds(seconds))
             if let track = try? await self.sourceAsset.loadTracks(withMediaType: .video).first {
-                self.sourceSize = (try? await track.load(.naturalSize)) ?? .zero
+                let naturalSize = (try? await track.load(.naturalSize)) ?? .zero
+                let preferredTransform = (try? await track.load(.preferredTransform)) ?? .identity
+                self.sourceSize = RecorderSupport.videoGeometry(
+                    naturalSize: naturalSize,
+                    preferredTransform: preferredTransform).size
                 let rate = (try? await track.load(.nominalFrameRate)) ?? 60
                 self.sourceFrameRate = RecorderSupport.sanitizedFrameRate(Int(rate.rounded()))
             }
+            let audioTracks = await RecorderAudioSource.tracks(in: self.sourceAsset)
+            self.audioSources = Set(audioTracks.keys)
+            self.loadAudioWaveforms(audioTracks)
             self.document = self.document.sanitized(duration: self.duration)
             self.generateZoomsIfNeeded()
             self.loadThumbnails()
@@ -121,16 +155,39 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         let ranges = document.keptRanges(duration: duration)
         let asset = sourceAsset
         compositionTask = Task { @MainActor [weak self] in
-            guard let timeline = await RecorderComposition.build(from: asset,
-                                                                 ranges: ranges,
-                                                                 includesAudio: true),
+            guard let result = await RecorderComposition.build(from: asset,
+                                                               ranges: ranges,
+                                                               includesAudio: true),
                   let self, !Task.isCancelled
             else { return }
-            let item = AVPlayerItem(asset: timeline)
+            let item = AVPlayerItem(asset: result.asset)
+            self.audioTrackIDs = result.audioTrackIDs
+            item.audioMix = RecorderComposition.audioMix(trackIDs: result.audioTrackIDs,
+                                                         document: self.document)
             self.player.replaceCurrentItem(with: item)
-            self.player.isMuted = !self.document.keepsSystemAudio
-            self.outputDuration = CMTimeGetSeconds((try? await timeline.load(.duration)) ?? .zero)
+            self.player.isMuted = false
+            self.outputDuration = CMTimeGetSeconds(
+                (try? await result.asset.load(.duration)) ?? .zero)
             self.rebuildPreview()
+        }
+    }
+
+    private func loadAudioWaveforms(_ tracks: [RecorderAudioSource: AVAssetTrack]) {
+        waveformTask?.cancel()
+        let duration = duration
+        let asset = sourceAsset
+        waveformTask = Task.detached(priority: .utility) { [weak self] in
+            var waveforms: [RecorderAudioSource: [Float]] = [:]
+            for source in RecorderAudioSource.allCases {
+                guard let track = tracks[source], !Task.isCancelled else { continue }
+                waveforms[source] = RecorderAudioWaveform.load(asset: asset,
+                                                               track: track,
+                                                               duration: duration,
+                                                               count: 220)
+            }
+            guard !Task.isCancelled else { return }
+            let result = waveforms
+            await MainActor.run { [weak self] in self?.audioWaveforms = result }
         }
     }
 
@@ -250,10 +307,48 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     }
 
     func toggleSound() {
+        toggleAudio(.system)
+    }
+
+    func toggleAudio(_ source: RecorderAudioSource) {
         var next = document
-        next.keepsSystemAudio.toggle()
+        switch source {
+        case .system: next.keepsSystemAudio.toggle()
+        case .microphone: next.keepsMicrophone.toggle()
+        }
         document = next
-        player.isMuted = !next.keepsSystemAudio
+    }
+
+    func setAudioGain(_ gain: Double, for source: RecorderAudioSource) {
+        var next = document
+        switch source {
+        case .system: next.systemAudioGain = RecorderSupport.sanitizedAudioGain(gain)
+        case .microphone: next.microphoneGain = RecorderSupport.sanitizedAudioGain(gain)
+        }
+        document = next
+    }
+
+    func keepsAudio(_ source: RecorderAudioSource) -> Bool {
+        switch source {
+        case .system: return document.keepsSystemAudio
+        case .microphone: return document.keepsMicrophone
+        }
+    }
+
+    func audioGain(_ source: RecorderAudioSource) -> Double {
+        switch source {
+        case .system: return document.systemAudioGain
+        case .microphone: return document.microphoneGain
+        }
+    }
+
+    func hasAudio(_ source: RecorderAudioSource) -> Bool {
+        audioSources.contains(source)
+    }
+
+    private func applyAudioMix() {
+        player.currentItem?.audioMix = RecorderComposition.audioMix(trackIDs: audioTrackIDs,
+                                                                    document: document)
     }
 
     private func documentDidChange(from previous: RecorderEditDocument) {
@@ -263,6 +358,8 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         persist()
         if previous.affectsTiming(document) {
             rebuildComposition()
+        } else if previous.affectsAudio(document) {
+            applyAudioMix()
         } else if previous.affectsPicture(document) {
             rebuildPreview()
         }
@@ -325,10 +422,12 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         suppressUndo = true
         document = next
         suppressUndo = false
-        player.isMuted = !next.keepsSystemAudio
+        player.isMuted = false
         persist()
         if previous.affectsTiming(next) {
             rebuildComposition()
+        } else if previous.affectsAudio(next) {
+            applyAudioMix()
         } else if previous.affectsPicture(next) {
             rebuildPreview()
         }
@@ -336,7 +435,51 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     }
 
     func applyLook(_ look: RecorderEditDocument.Look) {
-        document = document.applying(look)
+        document = document.applying(look).restoringAutomaticZooms(
+            clicks: pointerTrack.clicks,
+            typingTimes: typingTimes,
+            duration: duration)
+    }
+
+    func applyPreset(_ preset: RecorderEditPreset) {
+        document = preset.applying(to: document)
+            .restoringAutomaticZooms(clicks: pointerTrack.clicks,
+                                     typingTimes: typingTimes,
+                                     duration: duration)
+            .sanitized(duration: duration)
+    }
+
+    func savePreset(named name: String) {
+        let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+        if let index = editPresets.firstIndex(where: {
+            $0.name.compare(clean, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        }) {
+            editPresets[index] = RecorderEditPreset(id: editPresets[index].id,
+                                                    name: clean,
+                                                    document: document)
+        } else {
+            editPresets.append(RecorderEditPreset(name: clean, document: document))
+            editPresets = Array(editPresets.suffix(12))
+        }
+        persistEditPresets()
+    }
+
+    func removePreset(_ preset: RecorderEditPreset) {
+        editPresets.removeAll { $0.id == preset.id }
+        persistEditPresets()
+    }
+
+    private func loadEditPresets() {
+        guard let data = UserDefaults.standard.data(forKey: DefaultsKey.recorderEditorPresets),
+              let presets = try? JSONDecoder().decode([RecorderEditPreset].self, from: data)
+        else { return }
+        editPresets = Array(presets.suffix(12))
+    }
+
+    private func persistEditPresets() {
+        guard let data = try? JSONEncoder().encode(editPresets) else { return }
+        UserDefaults.standard.set(data, forKey: DefaultsKey.recorderEditorPresets)
     }
 
     /// The edit lives next to the master, so reopening a recording finds it
@@ -353,7 +496,8 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         let padding = style.kind == .none ? 0 : style.padding * 0.18
         let canvas = RecorderSupport.canvasSize(source: sourceSize,
                                                 padding: padding,
-                                                aspect: document.resolvedAspect)
+                                                aspect: document.resolvedAspect,
+                                                cropsToAspect: style.kind == .none)
         return RecorderSupport.outputSize(source: canvas, quality: document.resolvedQuality)
     }
 
@@ -432,6 +576,38 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         return zoom(selectedZoomID)
     }
 
+    var canCreateAutomaticZooms: Bool {
+        !RecorderTimeline.generatedSegments(
+            clicks: pointerTrack.clicks,
+            typingTimes: typingTimes,
+            duration: duration,
+            amount: document.zoomAmount).isEmpty
+    }
+
+    func setAutomaticZoomEnabled(_ enabled: Bool) {
+        var next = document
+        next.zoomEnabled = enabled
+        if enabled {
+            next = next.restoringAutomaticZooms(clicks: pointerTrack.clicks,
+                                                typingTimes: typingTimes,
+                                                duration: duration)
+        }
+        document = next
+    }
+
+    func setTypingZoomEnabled(_ enabled: Bool) {
+        var next = document
+        next.zoomsOnTyping = enabled
+        next.zoomSegments = RecorderTimeline.generatedSegments(
+            clicks: pointerTrack.clicks,
+            typingTimes: enabled ? typingTrack.times : [],
+            duration: duration,
+            amount: RecorderSupport.sanitizedZoomAmount(next.zoomAmount))
+        next.zoomEnabled = true
+        next.zoomsGenerated = true
+        document = next
+    }
+
     func zoom(_ id: UUID) -> RecorderTimeline.ZoomSegment? {
         document.zoomSegments.first { $0.id == id }
     }
@@ -445,11 +621,9 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     /// including the edit of having deleted them all.
     private func generateZoomsIfNeeded() {
         guard !document.zoomsGenerated, duration > 0 else { return }
-        var next = document
-        next.zoomSegments = RecorderTimeline.generatedSegments(
-            clicks: pointerTrack.clicks,
-            duration: duration,
-            amount: RecorderSupport.sanitizedZoomAmount(document.zoomAmount))
+        var next = document.restoringAutomaticZooms(clicks: pointerTrack.clicks,
+                                                    typingTimes: typingTimes,
+                                                    duration: duration)
         next.zoomsGenerated = true
         suppressUndo = true
         document = next
@@ -470,6 +644,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
             amount: lastZoomAmount ?? RecorderSupport.sanitizedZoomAmount(document.zoomAmount))
         var next = document
         next.zoomSegments.append(segment)
+        next.zoomEnabled = true
         next.zoomsGenerated = true
         applyDuringInteraction(next)
         selectedZoomID = segment.id
@@ -550,8 +725,10 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         var next = document
         next.zoomSegments = RecorderTimeline.generatedSegments(
             clicks: pointerTrack.clicks,
+            typingTimes: typingTimes,
             duration: duration,
             amount: RecorderSupport.sanitizedZoomAmount(document.zoomAmount))
+        next.zoomEnabled = true
         next.zoomsGenerated = true
         applyDuringInteraction(next)
         selectedZoomID = nil
@@ -786,10 +963,12 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         // A saved look is the look, not this recording's sliders.
         snapshot.padding = 0.5
         snapshot.cornerRadius = 0.1
+        snapshot.blur = 0
         guard !backdropPresets.contains(where: {
             var candidate = $0
             candidate.padding = 0.5
             candidate.cornerRadius = 0.1
+            candidate.blur = 0
             return candidate == snapshot
         }) else { return }
         backdropPresets = Array((backdropPresets + [snapshot])
@@ -811,14 +990,17 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     // MARK: - Export
 
     private var exporter: RecorderExporter?
+    private var shareTask: Task<Void, Never>?
 
     func export(_ output: RecorderExporter.Output,
                 to destination: URL,
+                rememberDestination: Bool = true,
                 completion: @escaping (RecorderExporter.Failure?) -> Void) {
         guard !isExporting else { return }
         pause()
         isExporting = true
         exportProgress = 0
+        exportPhase = .saving
         let exporter = RecorderExporter()
         self.exporter = exporter
         let document = document
@@ -835,13 +1017,81 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
             guard let self else { return }
             self.isExporting = false
             self.exporter = nil
-            if failure == nil { self.lastExportedURL = destination }
+            if failure == nil, rememberDestination { self.lastExportedURL = destination }
             completion(failure)
         }
     }
 
+    func share(_ duration: RecordingShareDuration,
+               completion: @escaping (Result<RecordingShareRecord, ShareFailure>) -> Void) {
+        guard !isExporting else { return }
+        pause()
+        isExporting = true
+        exportProgress = 0
+        exportPhase = .compressing
+        let exporter = RecorderExporter()
+        self.exporter = exporter
+        let document = document
+        let take = take
+        shareTask = Task { @MainActor [weak self] in
+            let result = await exporter.exportForSharing(
+                take: take,
+                document: document) { value in
+                    DispatchQueue.main.async { [weak self] in
+                        self?.exportProgress = value
+                    }
+                }
+            guard let self else {
+                result.artifact?.discard()
+                return
+            }
+            if let failure = result.failure {
+                self.finishSharing()
+                switch failure {
+                case .cancelled:
+                    completion(.failure(.cancelled))
+                case .tooLargeForSharing:
+                    completion(.failure(.tooLarge))
+                default:
+                    completion(.failure(.failed))
+                }
+                return
+            }
+            guard let artifact = result.artifact else {
+                self.finishSharing()
+                completion(.failure(.failed))
+                return
+            }
+            if Task.isCancelled {
+                artifact.discard()
+                self.finishSharing()
+                completion(.failure(.cancelled))
+                return
+            }
+            self.exportPhase = .uploading
+            self.exportProgress = 1
+            do {
+                let record = try await RecordingShareService.shared.createLink(
+                    artifact: artifact,
+                    duration: duration)
+                self.finishSharing()
+                completion(.success(record))
+            } catch {
+                self.finishSharing()
+                completion(.failure(Task.isCancelled ? .cancelled : .failed))
+            }
+        }
+    }
+
+    private func finishSharing() {
+        isExporting = false
+        exporter = nil
+        shareTask = nil
+    }
+
     func cancelExport() {
         exporter?.cancel()
+        shareTask?.cancel()
     }
 }
 
@@ -864,6 +1114,10 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
 
     private var strings: RecorderFeatureStrings {
         FeatureStrings.recorder(L10n.shared.language)
+    }
+
+    private var shareStrings: RecorderShareStrings {
+        FeatureStrings.recorderShare(L10n.shared.language)
     }
 
     init(take: RecorderTakeStore.Take) {
@@ -918,18 +1172,145 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
         run(.gif, to: destination)
     }
 
-    private func run(_ output: RecorderExporter.Output, to destination: URL) {
-        model.export(output, to: destination) { [weak self] failure in
+    func saveVideoAs() {
+        guard let window else { return }
+        let suggested = ScreenRecorderService.saveDestination(strings: strings,
+                                                               fileExtension: "mp4")
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.mpeg4Movie]
+        panel.canCreateDirectories = true
+        panel.directoryURL = suggested.deletingLastPathComponent()
+        panel.nameFieldStringValue = suggested.lastPathComponent
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            self?.run(.video, to: url)
+        }
+    }
+
+    func chooseSaveFolder() {
+        guard let window else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.beginSheetModal(for: window) { response in
+            guard response == .OK, let url = panel.url else { return }
+            UserDefaults.standard.set(url.path, forKey: DefaultsKey.recorderSaveFolder)
+        }
+    }
+
+    func copyVideo() {
+        copyVideoAndDelete(false)
+    }
+
+    func copyAndDelete() {
+        copyVideoAndDelete(true)
+    }
+
+    func share(_ duration: RecordingShareDuration,
+               completion: @escaping (RecordingShareRecord) -> Void) {
+        model.share(duration) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case let .success(record):
+                completion(record)
+            case .failure(.cancelled):
+                break
+            case .failure(.tooLarge):
+                NSSound.beep()
+                QuickToolHUD.show(icon: "link", message: self.shareStrings.tooLarge)
+            case .failure(.failed):
+                NSSound.beep()
+                QuickToolHUD.show(icon: "link", message: self.shareStrings.failed)
+            }
+        }
+    }
+
+    private func copyVideoAndDelete(_ deletesRecording: Bool) {
+        guard let destination = copyDestination() else {
+            QuickToolHUD.show(icon: "record.circle", message: strings.exportFailed)
+            return
+        }
+        run(.video, to: destination, rememberDestination: false) { [weak self] url in
+            guard let self else { return }
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            guard pasteboard.writeObjects([url as NSURL]) else {
+                NSSound.beep()
+                QuickToolHUD.show(icon: "record.circle", message: self.strings.exportFailed)
+                return
+            }
+            QuickToolHUD.show(icon: "doc.on.doc", message: self.strings.copiedHUD)
+            if deletesRecording {
+                self.confirmedClose = true
+                self.window?.close()
+            }
+        }
+    }
+
+    func saveCurrentPreset() {
+        guard let window else { return }
+        let field = NSTextField(string: "")
+        field.placeholderString = strings.presetNamePlaceholder
+        field.frame = NSRect(x: 0, y: 0, width: 260, height: 24)
+        let alert = NSAlert()
+        alert.messageText = strings.savePreset
+        alert.accessoryView = field
+        alert.addButton(withTitle: strings.saveButton)
+        alert.addButton(withTitle: strings.cancelButton)
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard response == .alertFirstButtonReturn else { return }
+            self?.model.savePreset(named: field.stringValue)
+        }
+    }
+
+    private func copyDestination() -> URL? {
+        let manager = FileManager.default
+        guard let base = manager.urls(for: .cachesDirectory, in: .userDomainMask).first,
+              let bundleID = Bundle.main.bundleIdentifier
+        else { return nil }
+        let folder = base.appendingPathComponent(bundleID, isDirectory: true)
+            .appendingPathComponent("Copied Recordings", isDirectory: true)
+        guard (try? manager.createDirectory(at: folder, withIntermediateDirectories: true)) != nil
+        else { return nil }
+        if let files = try? manager.contentsOfDirectory(
+            at: folder, includingPropertiesForKeys: [.contentModificationDateKey]) {
+            let cutoff = Date().addingTimeInterval(-24 * 3600)
+            for file in files where (try? file.resourceValues(
+                forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantFuture < cutoff {
+                try? manager.removeItem(at: file)
+            }
+        }
+        let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix,
+                                              date: Date(), fileExtension: "mp4")
+        let unique = ScreenshotSupport.uniqueFileName(name) { candidate in
+            manager.fileExists(atPath: folder.appendingPathComponent(candidate).path)
+        }
+        return folder.appendingPathComponent(unique)
+    }
+
+    private func run(_ output: RecorderExporter.Output,
+                     to destination: URL,
+                     rememberDestination: Bool = true,
+                     onSuccess: ((URL) -> Void)? = nil) {
+        model.export(output, to: destination, rememberDestination: rememberDestination) {
+            [weak self] failure in
             guard let self else { return }
             switch failure {
             case nil:
                 // The window stays: exports are slow and plural, and a person
                 // who just made a video often wants the GIF of it too.
                 self.exported = true
-                QuickToolHUD.show(
-                    icon: "record.circle",
-                    message: String(format: self.strings.savedHUDFormat,
-                                    destination.deletingLastPathComponent().lastPathComponent))
+                RecentCaptureService.shared.recordRecording(at: destination)
+                if let onSuccess {
+                    onSuccess(destination)
+                } else {
+                    QuickToolHUD.show(
+                        icon: "record.circle",
+                        message: String(format: self.strings.savedHUDFormat,
+                                        destination.deletingLastPathComponent().lastPathComponent))
+                }
             case .cancelled:
                 break
             case .tooLongForGIF:
@@ -958,7 +1339,7 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
         model.pause()
         let alert = NSAlert()
         alert.messageText = strings.discardTitle
-        alert.informativeText = strings.discardMessage
+        alert.informativeText = exported ? strings.discardSavedMessage : strings.discardMessage
         alert.alertStyle = .warning
         alert.addButton(withTitle: strings.discardButton)
         alert.addButton(withTitle: strings.cancelButton)
@@ -1007,6 +1388,12 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                     editorIsKey: window.isKeyWindow)
             else { return event }
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            let editsText = window.firstResponder is NSTextView
+            if editsText,
+               !(flags == .command && Int(event.keyCode) == kVK_ANSI_S),
+               !(flags == [.command, .shift] && Int(event.keyCode) == kVK_ANSI_S) {
+                return event
+            }
             if flags == .command {
                 switch Int(event.keyCode) {
                 case kVK_ANSI_S:
@@ -1015,12 +1402,23 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                 case kVK_ANSI_Z:
                     self.model.undo()
                     return nil
+                case kVK_ANSI_C:
+                    self.copyVideo()
+                    return nil
                 default:
                     return event
                 }
             }
             if flags == [.command, .shift], Int(event.keyCode) == kVK_ANSI_Z {
                 self.model.redo()
+                return nil
+            }
+            if flags == [.command, .shift], Int(event.keyCode) == kVK_ANSI_S {
+                self.saveVideoAs()
+                return nil
+            }
+            if flags == [.command, .option], Int(event.keyCode) == kVK_ANSI_C {
+                self.copyAndDelete()
                 return nil
             }
             guard flags.isEmpty else { return event }

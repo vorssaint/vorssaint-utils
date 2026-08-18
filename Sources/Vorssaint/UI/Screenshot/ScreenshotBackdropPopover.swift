@@ -86,6 +86,7 @@ protocol BackdropEditing: ObservableObject {
 struct ScreenshotBackdropPopover<Model: BackdropEditing>: View {
     @ObservedObject var model: Model
     @ObservedObject private var l10n = L10n.shared
+    let showsAdjustments: Bool
 
     @State private var wallpapers: [URL] = []
     @State private var customIsGradient = false
@@ -96,6 +97,10 @@ struct ScreenshotBackdropPopover<Model: BackdropEditing>: View {
     /// 1 = gradient end.
     @State private var activeWell = 0
 
+    init(model: Model, showsAdjustments: Bool = true) {
+        self.model = model
+        self.showsAdjustments = showsAdjustments
+    }
 
     private var strings: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(l10n.language)
@@ -106,8 +111,10 @@ struct ScreenshotBackdropPopover<Model: BackdropEditing>: View {
             swatchGrid
             Divider()
             customSection
-            Divider()
-            slidersSection
+            if showsAdjustments {
+                Divider()
+                slidersSection
+            }
         }
         .padding(14)
         .frame(width: 292)
@@ -366,6 +373,15 @@ struct ScreenshotBackdropPopover<Model: BackdropEditing>: View {
                 Slider(value: cornerBinding, in: 0...1)
                     .controlSize(.small)
             }
+            HStack(spacing: 8) {
+                Text(strings.backdropBlurLabel)
+                    .font(.system(size: 12))
+                    .frame(width: 64, alignment: .leading)
+                    .foregroundStyle(model.showsBackdrop ? .secondary : .tertiary)
+                Slider(value: blurBinding, in: 0...1)
+                    .controlSize(.small)
+                    .disabled(!model.showsBackdrop)
+            }
         }
     }
 
@@ -385,6 +401,14 @@ struct ScreenshotBackdropPopover<Model: BackdropEditing>: View {
         }
     }
 
+    private var blurBinding: Binding<Double> {
+        Binding {
+            model.backdropStyle.blur
+        } set: { value in
+            model.backdropStyle.blur = value
+        }
+    }
+
     // MARK: - Actions
 
     /// Applies a look while keeping the user's slider positions.
@@ -392,6 +416,7 @@ struct ScreenshotBackdropPopover<Model: BackdropEditing>: View {
         var applied = style
         applied.padding = model.backdropStyle.padding
         applied.cornerRadius = model.backdropStyle.cornerRadius
+        applied.blur = model.backdropStyle.blur
         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
             model.backdropStyle = applied
         }
@@ -457,8 +482,8 @@ struct ScreenshotBackdropPopover<Model: BackdropEditing>: View {
                          _ rhs: ScreenshotSupport.BackdropStyle) -> Bool {
         var left = lhs.sanitized()
         var right = rhs.sanitized()
-        left.padding = 0; left.cornerRadius = 0
-        right.padding = 0; right.cornerRadius = 0
+        left.padding = 0; left.cornerRadius = 0; left.blur = 0
+        right.padding = 0; right.cornerRadius = 0; right.blur = 0
         return left == right
     }
 

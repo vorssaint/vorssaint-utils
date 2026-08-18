@@ -43,6 +43,7 @@ final class AppUpdatesService: ObservableObject {
     private var timer: Timer?
     private var wakeObserver: NSObjectProtocol?
     private var scanGeneration = 0
+    private var sourceRefreshPending = false
     private var knownIDs = Set<String>()
     /// The person was sent to the store to finish an update, so the list is
     /// about to be wrong until it is read again.
@@ -111,6 +112,16 @@ final class AppUpdatesService: ObservableObject {
 
     // MARK: - Checking
 
+    /// A source switch changes the answer. Let an in-flight scan finish its
+    /// read, discard that answer and immediately run once with the new choice.
+    func sourceSelectionDidChange() {
+        if isChecking {
+            sourceRefreshPending = true
+        } else {
+            check()
+        }
+    }
+
     /// Scans both sources. `automatic` marks the background pass, which is
     /// the only one that can post a notification and re-arm the schedule.
     func check(automatic: Bool = false) {
@@ -119,13 +130,17 @@ final class AppUpdatesService: ObservableObject {
         lastError = nil
         scanGeneration += 1
         let generation = scanGeneration
+        let includeHomebrewApps = UserDefaults.standard.bool(
+            forKey: DefaultsKey.appUpdatesIncludeHomebrewApps)
         let includeAppStore = UserDefaults.standard.bool(forKey: DefaultsKey.appUpdatesIncludeAppStore)
         let country = Locale.current.region?.identifier
 
         workQueue.async { [weak self] in
             guard let self else { return }
             let apps = Self.scanInstalledApps()
-            let packageResult = self.packageManagerFindings(apps: apps)
+            let packageResult = includeHomebrewApps
+                ? self.packageManagerFindings(apps: apps)
+                : PackageResult(items: [], available: true)
             let coveredPaths = Set(packageResult.items.compactMap(\.bundlePath))
             let storeCandidates = includeAppStore
                 ? AppUpdatesSupport.appStoreCandidates(
@@ -150,6 +165,13 @@ final class AppUpdatesService: ObservableObject {
         // flight; its findings belong to a surface that no longer exists.
         guard AppFeature.appUpdates.isAvailable else {
             isChecking = false
+            sourceRefreshPending = false
+            return
+        }
+        if sourceRefreshPending {
+            sourceRefreshPending = false
+            isChecking = false
+            check()
             return
         }
         // What was already announced survives relaunches, unlike knownIDs:
@@ -231,6 +253,7 @@ final class AppUpdatesService: ObservableObject {
         let items = AppUpdatesSupport.packageUpdates(
             outdated: Array(updates.values),
             installed: records,
+            ignoredTokens: Self.ownPackageTokens,
             bundleVersion: { fileName in
                 guard let app = byFileName[fileName], !app.record.version.isEmpty else { return nil }
                 return (name: app.record.name, version: app.record.version, path: app.record.path)
@@ -268,7 +291,11 @@ final class AppUpdatesService: ObservableObject {
         }
 
         group.notify(queue: workQueue) {
-            completion(AppUpdatesSupport.appStoreUpdates(apps: candidates, storeVersions: merged))
+            let os = ProcessInfo.processInfo.operatingSystemVersion
+            let version = "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"
+            completion(AppUpdatesSupport.appStoreUpdates(apps: candidates,
+                                                         storeVersions: merged,
+                                                         operatingSystemVersion: version))
         }
     }
 
@@ -300,7 +327,10 @@ final class AppUpdatesService: ObservableObject {
         if !tokens.isEmpty {
             startUpgrade(tokens)
         }
-        if AppUpdatesSupport.hasStoreSelection(in: items, selection: selection) {
+        if let page = AppUpdatesSupport.singleStorePage(in: items, selection: selection),
+           let url = URL(string: page) {
+            handOffToStore(url)
+        } else if AppUpdatesSupport.hasStoreSelection(in: items, selection: selection) {
             openAppStoreUpdates()
         }
     }
@@ -390,34 +420,44 @@ final class AppUpdatesService: ObservableObject {
         let record: AppUpdatesSupport.InstalledApp
     }
 
-    /// Reads the Applications folders directly instead of going through
-    /// AppKit, so the whole scan can stay off the main thread.
+    /// Reads the normal Applications folders plus shallow app results from
+    /// Spotlight in the user's home, all off the main thread.
     private static func scanInstalledApps() -> [ScannedApp] {
+        InstalledApps.applicationScanPaths(
+            folderPaths: folderApplicationPaths(),
+            spotlightPaths: spotlightApplicationPaths(),
+            homeDirectory: NSHomeDirectory()
+        ).compactMap { scannedApp(at: URL(fileURLWithPath: $0)) }
+    }
+
+    private static func folderApplicationPaths() -> [String] {
         let fm = FileManager.default
         let roots = [
             URL(fileURLWithPath: "/Applications", isDirectory: true),
             URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Applications",
                                                                           isDirectory: true),
         ]
-        var seen = Set<String>()
-        var apps: [ScannedApp] = []
+        var paths: [String] = []
         for root in roots where fm.fileExists(atPath: root.path) {
             guard let enumerator = fm.enumerator(at: root,
                                                  includingPropertiesForKeys: [.isDirectoryKey],
                                                  options: [.skipsPackageDescendants]) else { continue }
             for case let url as URL in enumerator {
                 guard url.pathExtension == "app" else { continue }
-                let resolved = url.resolvingSymlinksInPath().standardizedFileURL
-                // Apps that live on the system volume belong to macOS and are
-                // updated with it.
-                guard !resolved.path.hasPrefix("/System/"),
-                      !resolved.path.hasPrefix("/Library/Apple/"),
-                      seen.insert(resolved.path).inserted,
-                      let app = scannedApp(at: url) else { continue }
-                apps.append(app)
+                paths.append(url.path)
             }
         }
-        return apps
+        return paths
+    }
+
+    private static func spotlightApplicationPaths() -> [String] {
+        let command = HomebrewCommand(
+            executable: "/usr/bin/mdfind",
+            arguments: ["-onlyin", NSHomeDirectory(),
+                        "kMDItemContentType == 'com.apple.application-bundle'"])
+        let result = runCommand(command)
+        guard result.status == 0 else { return [] }
+        return result.output.split(separator: "\n").map(String.init)
     }
 
     private static func scannedApp(at url: URL) -> ScannedApp? {
@@ -451,6 +491,8 @@ final class AppUpdatesService: ObservableObject {
     private static func isOwnBundle(_ bundleID: String) -> Bool {
         bundleID == Bundle.main.bundleIdentifier || bundleID.hasPrefix("com.vorssaint")
     }
+
+    private static let ownPackageTokens: Set<String> = ["vorssaint"]
 
     /// The package manager refreshes its own catalog on the way, which can sit
     /// on a slow network. A ceiling keeps a stalled command from leaving the

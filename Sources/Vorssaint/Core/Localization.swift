@@ -329,6 +329,7 @@ struct Strings {
     let switcherWindowlessAppsFinder: String
     let switcherWindowlessAppsAll: String
     let switcherNoOpenWindow: String
+    let switcherOtherDesktop: String
     let dockPreviewName: String
     let dockPreviewEnable: String
     let dockPreviewEnableCaption: String
@@ -757,13 +758,6 @@ struct Strings {
     let panelNavigationCaption: String
     let panelFooterSections: String
     let panelFooterList: String
-    let fanControlBetaShow: String
-    let fanControlBetaSection: String
-    let fanControlBetaTitle: String
-    let fanControlBetaStatus: String
-    let fanControlBetaCaption: String
-    let fanControlModeAutomatic: String
-    let fanControlModeManual: String
     let betaBadge: String
     let betaFeatureWarning: String
 
@@ -847,7 +841,6 @@ struct Strings {
     let memoryStyleDot: String
     let memoryStylePercent: String
     let memoryStyleBoth: String
-
     // MARK: System uptime, battery health, speed test
     let systemUptime: String
     let batteryCharge: String
@@ -1033,6 +1026,29 @@ struct Strings {
     let switcherCurrentSpaceOnly: String
     let switcherCurrentSpaceOnlyCaption: String
     let shelfFileMissing: String
+    let previewSizeSmall: String
+    let mixerSoundEffectsOutputTitle: String
+    let mixerSoundEffectsOutputTooltip: String
+    let monitorOpenActivityMonitor: String
+    let dockClickHide: String
+    let dockClickHideCaption: String
+    let monitorMemoryMetricLabel: String
+    let memoryMetricUsed: String
+    let memoryMetricApp: String
+    let keepAwakeRightClickToggle: String
+    let keepAwakeRightClickToggleCaption: String
+    let urlCleanerCustomTitle: String
+    let urlCleanerCustomPlaceholder: String
+    let urlCleanerCustomCaption: String
+    let switcherSearchPin: String
+    let switcherSearchPinCaption: String
+    let invertVerticalScroll: String
+    let invertHorizontalScroll: String
+    let switcherShowShortcutHints: String
+    let switcherShowShortcutHintsCaption: String
+    let uninstallerHomebrewPackageFormat: String
+    let shelfEdgeToggle: String
+    let shelfEdgeCaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -1199,7 +1215,7 @@ extension Strings {
         middleClickTapThreeFingers: "3 dedos",
         middleClickTapFourFingers: "4 dedos",
         middleClickTapCaption: "Um toque leve com esse número de dedos, sem pressionar, também dispara o clique do meio. Deslizar nunca conta. Se o toque de três dedos do macOS estiver atribuído à Busca, desative-o para os dois não abrirem juntos.",
-        quickToolsTab: "Ferramentas rápidas",
+        quickToolsTab: "Painel rápido",
         quickToolShortcutToggle: "Atalho global",
         ocrName: "Copiar texto da tela",
         ocrCaption: "Selecione uma área da tela e o texto reconhecido é copiado, pronto para colar.",
@@ -1232,13 +1248,13 @@ extension Strings {
         switcherEnableCaption: "Troque de app ou janela, inclusive janelas minimizadas e várias janelas do mesmo app.",
         switcherUsageHint: "Segure o atalho para navegar; solte para ativar a janela. Shift ou ← volta; W fecha a janela; Q encerra o app; Esc cancela.",
         switcherNoWindows: "Nenhuma janela aberta",
-        switcherIconRowMode: "Mostrar ⌘Tab com ícones grandes",
+        switcherIconRowMode: "Mostrar %@ com ícones grandes",
         switcherIconRowModeCaption: "Mostra um ícone por app com os previews das janelas do app acima.",
         switcherSimpleMode: "Alternador simples",
         switcherSimpleModeCaption: "Mostra ícones de apps e títulos das janelas, sem previews nem captura da tela pelo alternador.",
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Janelas",
-        switcherWindowShortcutCaption: "Com o seletor aberto, pula entre as janelas do app selecionado.",
+        switcherWindowShortcutCaption: "Abre um seletor das janelas do app em primeiro plano. Com o seletor de apps aberto, pula entre as janelas do app selecionado.",
         switcherMergeTabs: "Mostrar uma entrada por app",
         switcherMergeTabsCaption: "Junta todas as janelas de um app em uma só entrada no alternador, em vez de uma por janela.",
         switcherWindowlessApps: "Apps sem janela aberta",
@@ -1247,9 +1263,10 @@ extension Strings {
         switcherWindowlessAppsFinder: "Só o Finder",
         switcherWindowlessAppsAll: "Todos os apps",
         switcherNoOpenWindow: "Sem janela aberta",
+        switcherOtherDesktop: "Outra Mesa",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Pré-visualizar janelas no Dock",
-        dockPreviewEnableCaption: "Passe o mouse em um app aberto no Dock para ver e espiar suas janelas.",
+        dockPreviewEnableCaption: "Passe o mouse em um app aberto no Dock para ver suas janelas e clique na que quiser abrir.",
         dockPreviewBackgroundOpacity: "Fundo do painel",
         dockPreviewBackgroundOpacityCaption: "Diminua para ver mais do que está atrás do painel.",
         dockClickMinimize: "Clicar no Dock minimiza",
@@ -1442,7 +1459,7 @@ extension Strings {
         homebrewOperationProgressUnknown: "O Homebrew ainda não informou uma porcentagem.",
 
         mediaName: "Media",
-        mediaEnableCaption: "Comprima vídeos e imagens, crie GIFs e extraia texto localmente.",
+        mediaEnableCaption: "Comprima vídeos, converta e processe imagens, crie GIFs e extraia texto localmente.",
         mediaLocalNote: "Local. Sem rede.",
         mediaToolVideo: "Vídeo",
         mediaToolGIF: "GIF",
@@ -1455,7 +1472,7 @@ extension Strings {
         mediaChooseOutput: "Destino",
         mediaStartVideo: "Comprimir vídeo",
         mediaStartGIF: "Criar GIF",
-        mediaStartImage: "Comprimir imagem",
+        mediaStartImage: "Processar imagem",
         mediaStartConvertPDF: "Converter em PDF",
         mediaStartText: "Extrair texto",
         mediaCancel: "Cancelar",
@@ -1637,8 +1654,8 @@ extension Strings {
         obLanguageUpdateTitle: "Agora no seu idioma",
         obLanguageUpdateBody: "O Vorssaint agora fala vários idiomas. Escolha o que você prefere usar; dá para mudar quando quiser nos Ajustes.",
         obPurposeTitle: "O que te trouxe aqui?",
-        obPurposeBody: "Escolha uma opção e o app se monta sozinho. O resto continua a um clique nos Ajustes.",
-        obPurposeSkip: "Deixar tudo à mão",
+        obPurposeBody: "Escolha uma configuração pronta ou marque exatamente o que quer usar.",
+        obPurposeSkip: "Você pode adicionar ou remover recursos depois nos Ajustes.",
 
         tabMonitor: "Monitor",
         monitorMenuBarSection: "Na barra de menus",
@@ -1661,13 +1678,6 @@ extension Strings {
         panelNavigationCaption: "Mostra uma seção por vez. Escolha Lista para ver tudo em uma rolagem contínua.",
         panelFooterSections: "Seções",
         panelFooterList: "Lista",
-        fanControlBetaShow: "Mostrar Fan Control (Beta) no painel",
-        fanControlBetaSection: "Fan Control",
-        fanControlBetaTitle: "Fan Control",
-        fanControlBetaStatus: "Automático",
-        fanControlBetaCaption: "Beta. O controle manual fica desativado até validação por modelo de Mac.",
-        fanControlModeAutomatic: "Automático",
-        fanControlModeManual: "Manual",
         betaBadge: "BETA",
         betaFeatureWarning: "Beta. Você pode encontrar alguns bugs.",
 
@@ -1747,7 +1757,6 @@ extension Strings {
         memoryStyleDot: "Ponto",
         memoryStylePercent: "%",
         memoryStyleBoth: "Ambos",
-
         systemUptime: "Ativo há",
         batteryCharge: "Carga",
         powerHealth: "Saúde da bateria",
@@ -1803,14 +1812,14 @@ extension Strings {
         keyDebounceRemoveKey: "Remover tecla",
         cleaningPanelCaption: "Bloqueia o teclado para limpar com segurança.",
         cleaningOverlayTitle: "Teclado bloqueado para limpeza",
-        cleaningOverlaySubtitle: "Pressione a mesma tecla 5 vezes para desbloquear",
+        cleaningOverlaySubtitle: "Pressione Esc 5 vezes para desbloquear",
         cleaningOverlayUnlock: "Desbloquear",
         cleaningOverlayMouseHint: "O mouse e o trackpad continuam funcionando",
         cleaningNeedsAxTitle: "Precisa de Acessibilidade",
         cleaningNeedsAxBody: "Para bloquear o teclado com segurança, o Vorssaint precisa da permissão de Acessibilidade. Conceda em Ajustes do Sistema e tente de novo.",
 
         tabSupport: "Apoiar",
-        shortcutsPageCaption: "Todos os atalhos globais ativos no app agora. Cada um é configurado na página do próprio recurso.",
+        shortcutsPageCaption: "Edite aqui todos os atalhos globais dos recursos instalados neste Mac. Os inativos continuam salvos, mas não funcionam.",
         shortcutsPageTitle: "Atalhos de teclado",
         settingsSearchPlaceholder: "Buscar ajustes",
         donateHeading: "Apoie o Vorssaint",
@@ -1922,7 +1931,30 @@ extension Strings {
         highlightsSeeAll: "Ver todas as mudanças",
         switcherCurrentSpaceOnly: "Mostrar só a Mesa atual",
         switcherCurrentSpaceOnlyCaption: "Mostra no alternador apenas as janelas da Mesa em que você está. Escolher uma janela nunca leva você para outra Mesa.",
-        shelfFileMissing: "O arquivo não existe mais"
+        shelfFileMissing: "O arquivo não existe mais",
+        previewSizeSmall: "Pequeno",
+        mixerSoundEffectsOutputTitle: "Sons do sistema",
+        mixerSoundEffectsOutputTooltip: "Escolher onde alertas e efeitos sonoros tocam",
+        monitorOpenActivityMonitor: "Abrir o Monitor de Atividade",
+        dockClickHide: "Clicar no Dock oculta o app",
+        dockClickHideCaption: "O app ativo é ocultado ao clicar no ícone dele no Dock. Clique de novo para trazê-lo de volta.",
+        monitorMemoryMetricLabel: "Medir memória como",
+        memoryMetricUsed: "Memória usada",
+        memoryMetricApp: "Memória de apps",
+        keepAwakeRightClickToggle: "Clique com o botão direito no ícone da barra de menus para alternar “Manter acordado”",
+        keepAwakeRightClickToggleCaption: "Substitui o menu de contexto do clique com o botão direito.",
+        urlCleanerCustomTitle: "Mais nomes para remover",
+        urlCleanerCustomPlaceholder: "ref, origem",
+        urlCleanerCustomCaption: "Separe os nomes dos parâmetros com vírgulas. Eles serão removidos de todos os links.",
+        switcherSearchPin: "Fixar busca com S",
+        switcherSearchPinCaption: "S inicia uma busca e fixa o alternador aberto, assim digitar não produz mais caracteres especiais quando o atalho usa ⌥, e uma busca que comece com Q ou W não fecha a janela nem encerra o app por engano.",
+        invertVerticalScroll: "Inverter rolagem vertical",
+        invertHorizontalScroll: "Inverter rolagem horizontal",
+        switcherShowShortcutHints: "Mostrar dicas de atalhos",
+        switcherShowShortcutHintsCaption: "Exibe os atalhos de apps e janelas abaixo dos ícones.",
+        uninstallerHomebrewPackageFormat: "%@ também será removido do Homebrew.",
+        shelfEdgeToggle: "Abrir perto de uma borda da tela",
+        shelfEdgeCaption: "Ao arrastar um arquivo para perto da borda da tela, a área espia para dentro. Solte ali, ou puxe de volta e ela recua."
     )
 }
 
@@ -2090,7 +2122,7 @@ extension Strings {
         middleClickTapThreeFingers: "3 fingers",
         middleClickTapFourFingers: "4 fingers",
         middleClickTapCaption: "A light tap with that many fingers, without pressing, also fires the middle click. Sliding never counts. If the macOS three-finger tap is assigned to Look Up, turn it off so both do not fire together.",
-        quickToolsTab: "Quick tools",
+        quickToolsTab: "Quick panel",
         quickToolShortcutToggle: "Global shortcut",
         ocrName: "Copy text from screen",
         ocrCaption: "Select an area of the screen and the recognized text is copied, ready to paste.",
@@ -2123,13 +2155,13 @@ extension Strings {
         switcherEnableCaption: "Switch between apps and windows, including minimized windows and multiple windows from the same app.",
         switcherUsageHint: "Hold the shortcut to navigate; release to activate the window. Shift or ← goes back; W closes the window; Q quits the app; Esc cancels.",
         switcherNoWindows: "No open windows",
-        switcherIconRowMode: "Show ⌘Tab with large icons",
+        switcherIconRowMode: "Show %@ with large icons",
         switcherIconRowModeCaption: "Shows one icon per app with that app's window previews above it.",
         switcherSimpleMode: "Simple app switcher",
         switcherSimpleModeCaption: "Shows app icons and window titles, without previews or screen capture by the switcher.",
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Windows",
-        switcherWindowShortcutCaption: "While the switcher is open, jumps between the selected app's windows.",
+        switcherWindowShortcutCaption: "Opens a switcher for the frontmost app's windows. While the Apps switcher is open, jumps between the selected app's windows.",
         switcherMergeTabs: "Show one entry per app",
         switcherMergeTabsCaption: "Collapses all of an app's windows into one entry in the switcher, instead of one entry per window.",
         switcherWindowlessApps: "Apps with no open window",
@@ -2138,9 +2170,10 @@ extension Strings {
         switcherWindowlessAppsFinder: "Finder only",
         switcherWindowlessAppsAll: "All apps",
         switcherNoOpenWindow: "No open window",
+        switcherOtherDesktop: "Other desktop",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Preview windows from the Dock",
-        dockPreviewEnableCaption: "Hover over an open app in the Dock to preview and peek at its windows.",
+        dockPreviewEnableCaption: "Hover over an open app in the Dock to see its windows, then click the one you want.",
         dockPreviewBackgroundOpacity: "Panel background",
         dockPreviewBackgroundOpacityCaption: "Turn it down to see more of what sits behind the panel.",
         dockClickMinimize: "Click the Dock icon to minimize",
@@ -2333,7 +2366,7 @@ extension Strings {
         homebrewOperationProgressUnknown: "Homebrew has not reported a percentage yet.",
 
         mediaName: "Media",
-        mediaEnableCaption: "Compress videos and images, make GIFs and extract text locally.",
+        mediaEnableCaption: "Compress videos, convert and process images, make GIFs and extract text locally.",
         mediaLocalNote: "Local. No network.",
         mediaToolVideo: "Video",
         mediaToolGIF: "GIF",
@@ -2346,7 +2379,7 @@ extension Strings {
         mediaChooseOutput: "Destination",
         mediaStartVideo: "Compress video",
         mediaStartGIF: "Make GIF",
-        mediaStartImage: "Compress image",
+        mediaStartImage: "Process image",
         mediaStartConvertPDF: "Convert to PDF",
         mediaStartText: "Extract text",
         mediaCancel: "Cancel",
@@ -2528,8 +2561,8 @@ extension Strings {
         obLanguageUpdateTitle: "Now in your language",
         obLanguageUpdateBody: "Vorssaint now speaks several languages. Choose the one you’d like to use; you can change it anytime in Settings.",
         obPurposeTitle: "What brought you here?",
-        obPurposeBody: "Pick one and the app sets itself up. Everything else stays one click away in Settings.",
-        obPurposeSkip: "Keep everything at hand",
+        obPurposeBody: "Choose a ready setup or select exactly what you want to use.",
+        obPurposeSkip: "You can add or remove features later in Settings.",
 
         tabMonitor: "Monitor",
         monitorMenuBarSection: "In the menu bar",
@@ -2552,13 +2585,6 @@ extension Strings {
         panelNavigationCaption: "Shows one section at a time. Choose List to see everything in one continuous scroll.",
         panelFooterSections: "Sections",
         panelFooterList: "List",
-        fanControlBetaShow: "Show Fan Control (Beta) in the panel",
-        fanControlBetaSection: "Fan Control",
-        fanControlBetaTitle: "Fan Control",
-        fanControlBetaStatus: "Automatic",
-        fanControlBetaCaption: "Beta. Manual control stays disabled until each Mac model is validated.",
-        fanControlModeAutomatic: "Automatic",
-        fanControlModeManual: "Manual",
         betaBadge: "BETA",
         betaFeatureWarning: "Beta. You may run into some bugs.",
 
@@ -2638,7 +2664,6 @@ extension Strings {
         memoryStyleDot: "Dot",
         memoryStylePercent: "%",
         memoryStyleBoth: "Both",
-
         systemUptime: "Up for",
         batteryCharge: "Charge",
         powerHealth: "Battery health",
@@ -2694,14 +2719,14 @@ extension Strings {
         keyDebounceRemoveKey: "Remove key",
         cleaningPanelCaption: "Locks the keyboard so you can clean safely.",
         cleaningOverlayTitle: "Keyboard locked for cleaning",
-        cleaningOverlaySubtitle: "Press the same key 5 times to unlock",
+        cleaningOverlaySubtitle: "Press Escape 5 times to unlock",
         cleaningOverlayUnlock: "Unlock",
         cleaningOverlayMouseHint: "Your mouse and trackpad still work",
         cleaningNeedsAxTitle: "Accessibility needed",
         cleaningNeedsAxBody: "To lock the keyboard safely, Vorssaint needs Accessibility permission. Grant it in System Settings and try again.",
 
         tabSupport: "Support",
-        shortcutsPageCaption: "Every global shortcut active in the app right now. Each one is configured on its feature's own page.",
+        shortcutsPageCaption: "Edit every global shortcut from the features installed on this Mac. Inactive shortcuts stay saved but do not run.",
         shortcutsPageTitle: "Keyboard shortcuts",
         settingsSearchPlaceholder: "Search settings",
         donateHeading: "Support Vorssaint",
@@ -2813,6 +2838,29 @@ extension Strings {
         highlightsSeeAll: "See all changes",
         switcherCurrentSpaceOnly: "Show only the current desktop",
         switcherCurrentSpaceOnlyCaption: "Lists only windows from the desktop you are on. Picking a window never moves you to another desktop.",
-        shelfFileMissing: "The file no longer exists"
+        shelfFileMissing: "The file no longer exists",
+        previewSizeSmall: "Small",
+        mixerSoundEffectsOutputTitle: "System sounds",
+        mixerSoundEffectsOutputTooltip: "Choose where alerts and sound effects play",
+        monitorOpenActivityMonitor: "Open Activity Monitor",
+        dockClickHide: "Click the Dock icon to hide the app",
+        dockClickHideCaption: "The active app hides when you click its Dock icon. Click again to bring it back.",
+        monitorMemoryMetricLabel: "Measure memory as",
+        memoryMetricUsed: "Memory Used",
+        memoryMetricApp: "App Memory",
+        keepAwakeRightClickToggle: "Right-click the menu bar icon to toggle Keep Awake",
+        keepAwakeRightClickToggleCaption: "Replaces the right-click context menu.",
+        urlCleanerCustomTitle: "More names to remove",
+        urlCleanerCustomPlaceholder: "ref, source",
+        urlCleanerCustomCaption: "Separate parameter names with commas. They are removed from every link.",
+        switcherSearchPin: "Pin search with S",
+        switcherSearchPinCaption: "S starts a search and pins the switcher open, so typing no longer produces special characters when your shortcut uses ⌥, and a search starting with Q or W no longer closes the window or quits the app by mistake.",
+        invertVerticalScroll: "Invert vertical scrolling",
+        invertHorizontalScroll: "Invert horizontal scrolling",
+        switcherShowShortcutHints: "Show shortcut hints",
+        switcherShowShortcutHintsCaption: "Shows the app and window shortcuts below the icons.",
+        uninstallerHomebrewPackageFormat: "%@ will also be removed from Homebrew.",
+        shelfEdgeToggle: "Open near a screen edge",
+        shelfEdgeCaption: "Drag a file toward the screen edge to peek the shelf in. Drop it there, or pull back and it retreats."
     )
 }

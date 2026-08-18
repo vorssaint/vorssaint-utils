@@ -263,10 +263,14 @@ final class RecorderComposer {
                                  sourceSize: CGSize,
                                  outputSize: CGSize) async -> AVMutableVideoComposition {
         if let composer {
+            // The handler may run concurrently; this composer only reads
+            // immutable state while rendering each frame.
+            nonisolated(unsafe) let threadSafeComposer = composer
             let composition = try? await AVMutableVideoComposition.videoComposition(
                 with: asset) { request in
-                    let rendered = composer.render(request.sourceImage,
-                                                   at: CMTimeGetSeconds(request.compositionTime))
+                    let rendered = threadSafeComposer.render(
+                        request.sourceImage,
+                        at: CMTimeGetSeconds(request.compositionTime))
                     request.finish(with: rendered, context: nil)
                 }
             if let composition {
@@ -277,15 +281,19 @@ final class RecorderComposer {
                 return composition
             }
         }
+        let naturalSize = (try? await track.load(.naturalSize)) ?? sourceSize
+        let preferredTransform = (try? await track.load(.preferredTransform)) ?? .identity
         return plainComposition(track: track,
-                                sourceSize: sourceSize,
+                                naturalSize: naturalSize,
+                                preferredTransform: preferredTransform,
                                 outputSize: outputSize,
                                 frameRate: frameRate,
                                 duration: duration)
     }
 
     static func plainComposition(track: AVAssetTrack,
-                                 sourceSize: CGSize,
+                                 naturalSize: CGSize,
+                                 preferredTransform: CGAffineTransform,
                                  outputSize: CGSize,
                                  frameRate: Int,
                                  duration: CMTime) -> AVMutableVideoComposition {
@@ -297,10 +305,13 @@ final class RecorderComposer {
         let instruction = AVMutableVideoCompositionInstruction()
         instruction.timeRange = CMTimeRange(start: .zero, duration: duration)
         let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: track)
-        if sourceSize.width > 0, sourceSize.height > 0 {
-            layer.setTransform(CGAffineTransform(scaleX: outputSize.width / sourceSize.width,
-                                                 y: outputSize.height / sourceSize.height),
-                               at: .zero)
+        let geometry = RecorderSupport.videoGeometry(
+            naturalSize: naturalSize,
+            preferredTransform: preferredTransform)
+        if geometry.size.width > 0, geometry.size.height > 0 {
+            let scale = CGAffineTransform(scaleX: outputSize.width / geometry.size.width,
+                                          y: outputSize.height / geometry.size.height)
+            layer.setTransform(geometry.transform.concatenating(scale), at: .zero)
         }
         instruction.layerInstructions = [layer]
         composition.instructions = [instruction]

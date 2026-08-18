@@ -11,15 +11,16 @@ import Foundation
 /// and then a video file wherever they chose to save it. The folder lives
 /// exactly as long as the editor that owns it, so there is never a pile of
 /// intermediates nobody asked for.
-final class RecorderTakeStore {
+final class RecorderTakeStore: @unchecked Sendable {
     static let shared = RecorderTakeStore()
 
-    struct Take: Equatable {
+    struct Take: Equatable, Sendable {
         let id: UUID
         let folder: URL
 
         var videoURL: URL { folder.appendingPathComponent(RecorderSupport.takeVideoName) }
         var pointerURL: URL { folder.appendingPathComponent(RecorderSupport.takePointerName) }
+        var typingURL: URL { folder.appendingPathComponent(RecorderSupport.takeTypingName) }
         var editURL: URL { folder.appendingPathComponent(RecorderSupport.takeEditName) }
     }
 
@@ -62,8 +63,72 @@ final class RecorderTakeStore {
         return Take(id: id, folder: folder)
     }
 
+    /// Gives an ordinary movie the same private, disposable master a screen
+    /// recording gets. The copy is intentionally independent: edits or
+    /// external changes to either file can never affect the other one.
+    func importVideo(at sourceURL: URL) -> Take? {
+        guard let take = makeTake() else { return nil }
+        guard importVideo(at: sourceURL, into: take) else {
+            delete(take)
+            return nil
+        }
+        return take
+    }
+
+    /// The file operation is separate from choosing the private folder so the
+    /// transactional contract can be exercised without touching app storage.
+    func importVideo(at sourceURL: URL, into take: Take) -> Bool {
+        guard let values = try? sourceURL.resourceValues(
+            forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
+              values.isRegularFile == true,
+              values.isSymbolicLink != true,
+              (values.fileSize ?? 0) > 0
+        else { return false }
+
+        do {
+            try manager.copyItem(at: sourceURL, to: take.videoURL)
+            return true
+        } catch {
+            try? manager.removeItem(at: take.videoURL)
+            return false
+        }
+    }
+
+    /// Sharing never accepts a raw caller-supplied URL. The staged master must
+    /// still be the regular file inside the exact private recording folder
+    /// this store assigned to its id, with no symbolic-link escape.
+    func owns(_ take: Take) -> Bool {
+        guard let root else { return false }
+        let expected = root.appendingPathComponent(RecorderSupport.takeFolderName(id: take.id),
+                                                    isDirectory: true)
+        guard take.folder.standardizedFileURL == expected.standardizedFileURL,
+              let folderValues = try? take.folder.resourceValues(
+                forKeys: [.isDirectoryKey, .isSymbolicLinkKey]),
+              folderValues.isDirectory == true,
+              folderValues.isSymbolicLink != true,
+              let videoValues = try? take.videoURL.resourceValues(
+                forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
+              videoValues.isRegularFile == true,
+              videoValues.isSymbolicLink != true,
+              (videoValues.fileSize ?? 0) > 0
+        else { return false }
+        return true
+    }
+
     func delete(_ take: Take) {
         try? manager.removeItem(at: take.folder)
+    }
+
+    /// Turns a finished take into the file the person keeps. The take stays
+    /// intact if either step fails, so the editor can still recover it.
+    func saveDirectly(_ take: Take, to destination: URL) throws {
+        try manager.copyItem(at: take.videoURL, to: destination)
+        do {
+            try manager.removeItem(at: take.folder)
+        } catch {
+            try? manager.removeItem(at: destination)
+            throw error
+        }
     }
 
     func takes() -> [Take] {

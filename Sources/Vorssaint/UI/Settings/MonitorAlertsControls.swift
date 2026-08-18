@@ -57,7 +57,7 @@ struct MonitorAlertsControls: View {
                             step: 5)
                 }
             }
-            if AppFeature.monitorPower.isAvailable {
+            if AppFeature.monitorPower.isAvailable, PowerSampler.hasInternalBattery {
                 Toggle(text.battery, isOn: $alertBattery)
                 if alertBattery {
                     Stepper("\(text.batteryThreshold) \(alertBatteryPercent)%",
@@ -106,7 +106,8 @@ struct MonitorAlertsControls: View {
     }
 
     private var anyAlertEnabled: Bool {
-        alertCPU || alertCPUTemperature || alertMemory || alertDisk || alertBattery
+        alertCPU || alertCPUTemperature || alertMemory || alertDisk
+            || (PowerSampler.hasInternalBattery && alertBattery)
     }
 
     /// Checked slightly delayed so a just-fired authorization prompt has a

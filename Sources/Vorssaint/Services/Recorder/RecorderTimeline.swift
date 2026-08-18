@@ -226,9 +226,12 @@ enum RecorderTimeline {
     /// Produced ONCE, when a recording is opened and has none; after that they
     /// are the person's, and only an explicit ask rebuilds them.
     static func generatedSegments(clicks: [RecorderMotion.Click],
+                                  typingTimes: [Double] = [],
                                   duration: Double,
                                   amount: Double) -> [ZoomSegment] {
-        RecorderMotion.zoomSegments(clicks: clicks, duration: duration).map {
+        RecorderMotion.zoomSegments(clicks: clicks,
+                                    typingTimes: typingTimes,
+                                    duration: duration).map {
             ZoomSegment(start: $0.start, end: $0.end, amount: amount)
         }
     }

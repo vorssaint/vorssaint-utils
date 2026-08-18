@@ -30,6 +30,7 @@ enum SettingsBackupSupport {
         DefaultsKey.shelfEnabled,
         DefaultsKey.finderCutPasteEnabled,
         DefaultsKey.textSnippets,
+        DefaultsKey.scratchpadDocument,
         DefaultsKey.radialMenuItems,
         DefaultsKey.commandBarLinks,
         DefaultsKey.commandBarRowShortcuts,
@@ -100,11 +101,27 @@ enum SettingsBackupSupport {
         DefaultsKey.whatsAppOrganizerLastFailed,
         // What one person runs most is habit, not configuration.
         DefaultsKey.commandBarUsage,
+        // A chosen folder is authority on one Mac, not portable configuration.
+        // Restoring it elsewhere could search a different volume or trigger a
+        // protected-folder prompt without a fresh choice.
+        DefaultsKey.commandBarFileScopes,
         DefaultsKey.simulateUpdate,
         DefaultsKey.updateShowcaseIntroVersion,
         DefaultsKey.updateShowcaseMediaOverride,
+        DefaultsKey.unifiedScreenCaptureShortcutMigrated,
+        DefaultsKey.recorderShortcutEnabled,
+        DefaultsKey.recorderShortcut,
+        DefaultsKey.screenOCRShortcutEnabled,
+        DefaultsKey.screenOCRShortcut,
+        DefaultsKey.colorPickerShortcutEnabled,
+        DefaultsKey.colorPickerShortcut,
         DefaultsKey.settingsWindowWidth,
         DefaultsKey.settingsWindowHeight,
+        DefaultsKey.screenshotSharingDeveloperEndpoint,
+        DefaultsKey.fanControlRecoveryNeeded,
+        DefaultsKey.fanControlHelperVersion,
+        // DDC capability belongs to one physical monitor on one Mac port.
+        DefaultsKey.brightnessDDCWriteOnlyPaths,
     ]
 
     /// The file's content: an envelope with the format version, the app
@@ -143,19 +160,45 @@ enum SettingsBackupSupport {
     /// switch belongs, or text where a number belongs, would otherwise reach
     /// code that trusts its own settings.
     static func valueLooksRight(_ key: String, _ value: Any) -> Bool {
+        if key == DefaultsKey.scratchpadDocument {
+            return ScratchpadDocument.decoded(value as? Data, defaultName: "Scratchpad") != nil
+        }
         guard let expected = Defaults.registeredDefaults[key] else {
             // Not a registered setting, so there is nothing to compare
             // against; the allowed list is the only gate for these.
             return true
         }
         switch expected {
-        case is Bool: return value is Bool
-        case is Int: return value is Int
-        case is Double: return (value is Double) || (value is Int)
+        case is Bool: return isBoolean(value)
+        case is Int: return isInteger(value)
+        case is Double: return isNumber(value)
         case is String: return value is String
+        case is [String]: return value is [String]
+        case is [String: String]: return value is [String: String]
         case is [Any]: return value is [Any]
         case is [String: Any]: return value is [String: Any]
         default: return true
         }
+    }
+
+    private static func number(_ value: Any) -> NSNumber? {
+        value as? NSNumber
+    }
+
+    private static func isBoolean(_ value: Any) -> Bool {
+        guard let value = number(value) else { return false }
+        return CFGetTypeID(value) == CFBooleanGetTypeID()
+    }
+
+    private static func isInteger(_ value: Any) -> Bool {
+        guard let value = number(value), CFGetTypeID(value) != CFBooleanGetTypeID() else {
+            return false
+        }
+        return !CFNumberIsFloatType(unsafeBitCast(value, to: CFNumber.self))
+    }
+
+    private static func isNumber(_ value: Any) -> Bool {
+        guard let value = number(value) else { return false }
+        return CFGetTypeID(value) != CFBooleanGetTypeID()
     }
 }

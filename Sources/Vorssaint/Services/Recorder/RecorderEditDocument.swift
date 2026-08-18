@@ -30,6 +30,8 @@ struct RecorderEditDocument: Codable, Equatable {
     var showsClickRing: Bool
     var zoomEnabled: Bool
     var zoomAmount: Double
+    /// Whether automatic click zooms stay on the clicked field while typing.
+    var zoomsOnTyping: Bool
     /// Stretches thrown away from the middle, in the recording's own time.
     var cuts: [RecorderTimeline.Cut]
     /// The lean-ins. Filled once from the clicks when a recording is first
@@ -41,6 +43,9 @@ struct RecorderEditDocument: Codable, Equatable {
     var zoomsGenerated: Bool
     /// Lines of text laid over the recording, in the recording's own time.
     var texts: [RecorderTextOverlay]
+    var keepsMicrophone: Bool
+    var systemAudioGain: Double
+    var microphoneGain: Double
 
     init(trimStart: Double = 0,
          trimEnd: Double = 0,
@@ -56,10 +61,14 @@ struct RecorderEditDocument: Codable, Equatable {
          showsClickRing: Bool = true,
          zoomEnabled: Bool = true,
          zoomAmount: Double = 1.8,
+         zoomsOnTyping: Bool = false,
          cuts: [RecorderTimeline.Cut] = [],
          zoomSegments: [RecorderTimeline.ZoomSegment] = [],
          zoomsGenerated: Bool = false,
-         texts: [RecorderTextOverlay] = []) {
+         texts: [RecorderTextOverlay] = [],
+         keepsMicrophone: Bool = true,
+         systemAudioGain: Double = 1,
+         microphoneGain: Double = 1) {
         self.trimStart = trimStart
         self.trimEnd = trimEnd
         self.quality = quality
@@ -74,10 +83,14 @@ struct RecorderEditDocument: Codable, Equatable {
         self.showsClickRing = showsClickRing
         self.zoomEnabled = zoomEnabled
         self.zoomAmount = zoomAmount
+        self.zoomsOnTyping = zoomsOnTyping
         self.cuts = cuts
         self.zoomSegments = zoomSegments
         self.zoomsGenerated = zoomsGenerated
         self.texts = texts
+        self.keepsMicrophone = keepsMicrophone
+        self.systemAudioGain = systemAudioGain
+        self.microphoneGain = microphoneGain
     }
 
     /// A document written before these fields existed still opens: every one
@@ -102,11 +115,15 @@ struct RecorderEditDocument: Codable, Equatable {
         showsClickRing = try container.decodeIfPresent(Bool.self, forKey: .showsClickRing) ?? true
         zoomEnabled = try container.decodeIfPresent(Bool.self, forKey: .zoomEnabled) ?? true
         zoomAmount = try container.decodeIfPresent(Double.self, forKey: .zoomAmount) ?? 1.8
+        zoomsOnTyping = try container.decodeIfPresent(Bool.self, forKey: .zoomsOnTyping) ?? false
         cuts = try container.decodeIfPresent([RecorderTimeline.Cut].self, forKey: .cuts) ?? []
         zoomSegments = try container.decodeIfPresent([RecorderTimeline.ZoomSegment].self,
                                                      forKey: .zoomSegments) ?? []
         zoomsGenerated = try container.decodeIfPresent(Bool.self, forKey: .zoomsGenerated) ?? false
         texts = try container.decodeIfPresent([RecorderTextOverlay].self, forKey: .texts) ?? []
+        keepsMicrophone = try container.decodeIfPresent(Bool.self, forKey: .keepsMicrophone) ?? true
+        systemAudioGain = try container.decodeIfPresent(Double.self, forKey: .systemAudioGain) ?? 1
+        microphoneGain = try container.decodeIfPresent(Double.self, forKey: .microphoneGain) ?? 1
     }
 
     // MARK: - Timeline
@@ -132,6 +149,24 @@ struct RecorderEditDocument: Codable, Equatable {
     func activeZoomSegments(duration: Double) -> [RecorderTimeline.ZoomSegment] {
         guard zoomEnabled else { return [] }
         return RecorderTimeline.normalized(segments: zoomSegments, duration: duration)
+    }
+
+    /// Turning automatic zoom back on is an explicit request to recover the
+    /// click-based zooms when the timeline was emptied by mistake.
+    func restoringAutomaticZooms(clicks: [RecorderMotion.Click],
+                                 typingTimes: [Double] = [],
+                                 duration: Double) -> RecorderEditDocument {
+        guard zoomEnabled, zoomSegments.isEmpty else { return self }
+        let generated = RecorderTimeline.generatedSegments(
+            clicks: clicks,
+            typingTimes: typingTimes,
+            duration: duration,
+            amount: RecorderSupport.sanitizedZoomAmount(zoomAmount))
+        guard !generated.isEmpty else { return self }
+        var next = self
+        next.zoomSegments = generated
+        next.zoomsGenerated = true
+        return next
     }
 
     var resolvedBackdrop: ScreenshotSupport.BackdropStyle {
@@ -187,6 +222,16 @@ struct RecorderEditDocument: Codable, Equatable {
         return next
     }
 
+    func matches(_ look: Look) -> Bool {
+        let expected = applying(look)
+        return backdrop == expected.backdrop
+            && aspect == expected.aspect
+            && showsPointer == expected.showsPointer
+            && pointerSmoothing == expected.pointerSmoothing
+            && showsClickRing == expected.showsClickRing
+            && zoomEnabled == expected.zoomEnabled
+    }
+
     var resolvedQuality: RecorderSupport.Quality {
         RecorderSupport.sanitizedQuality(quality)
     }
@@ -226,11 +271,19 @@ struct RecorderEditDocument: Codable, Equatable {
         cuts != other.cuts || trimStart != other.trimStart || trimEnd != other.trimEnd
     }
 
+    func affectsAudio(_ other: RecorderEditDocument) -> Bool {
+        keepsSystemAudio != other.keepsSystemAudio
+            || keepsMicrophone != other.keepsMicrophone
+            || systemAudioGain != other.systemAudioGain
+            || microphoneGain != other.microphoneGain
+    }
+
     /// True once the person has actually changed something worth warning about
     /// before the window closes.
     func isEdited(duration: Double) -> Bool {
         let trim = trim(duration: duration)
         return trim.start > 0.01 || trim.end < duration - 0.01 || !keepsSystemAudio
+            || !keepsMicrophone || systemAudioGain != 1 || microphoneGain != 1
             || !cuts.isEmpty || !zoomSegments.isEmpty || !texts.isEmpty
     }
 
@@ -248,6 +301,8 @@ struct RecorderEditDocument: Codable, Equatable {
         document.pointerSmoothing = resolvedSmoothing.rawValue
         document.pointerSize = RecorderSupport.sanitizedPointerSize(pointerSize)
         document.zoomAmount = RecorderSupport.sanitizedZoomAmount(zoomAmount)
+        document.systemAudioGain = RecorderSupport.sanitizedAudioGain(systemAudioGain)
+        document.microphoneGain = RecorderSupport.sanitizedAudioGain(microphoneGain)
         let backdropStyle = resolvedBackdrop
         document.backdrop = backdropStyle.kind == .none ? "" : backdropStyle.encoded()
         document.cuts = RecorderTimeline.normalized(cuts: cuts, duration: duration)
@@ -265,5 +320,46 @@ struct RecorderEditDocument: Codable, Equatable {
         guard let data, let document = try? JSONDecoder().decode(RecorderEditDocument.self, from: data)
         else { return RecorderEditDocument() }
         return document
+    }
+}
+
+/// A named visual starting point. Timeline edits, captions and sound are never
+/// part of a preset, so applying one cannot undo real editing work.
+struct RecorderEditPreset: Codable, Equatable, Identifiable {
+    let id: UUID
+    var name: String
+    let backdrop: String
+    let aspect: String
+    let showsPointer: Bool
+    let pointerSmoothing: String
+    let pointerSize: Double
+    let showsClickRing: Bool
+    let zoomEnabled: Bool
+    let zoomAmount: Double
+
+    init(id: UUID = UUID(), name: String, document: RecorderEditDocument) {
+        self.id = id
+        self.name = name
+        backdrop = document.backdrop
+        aspect = document.aspect
+        showsPointer = document.showsPointer
+        pointerSmoothing = document.pointerSmoothing
+        pointerSize = document.pointerSize
+        showsClickRing = document.showsClickRing
+        zoomEnabled = document.zoomEnabled
+        zoomAmount = document.zoomAmount
+    }
+
+    func applying(to document: RecorderEditDocument) -> RecorderEditDocument {
+        var next = document
+        next.backdrop = backdrop
+        next.aspect = aspect
+        next.showsPointer = showsPointer
+        next.pointerSmoothing = pointerSmoothing
+        next.pointerSize = pointerSize
+        next.showsClickRing = showsClickRing
+        next.zoomEnabled = zoomEnabled
+        next.zoomAmount = zoomAmount
+        return next
     }
 }

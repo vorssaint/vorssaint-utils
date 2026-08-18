@@ -7,22 +7,14 @@
 // Usage: swift Tools/MakeIcon.swift <output-folder.iconset>
 import AppKit
 
-let iconSizes: [(name: String, px: Int)] = [
-    ("icon_16x16", 16), ("icon_16x16@2x", 32),
-    ("icon_32x32", 32), ("icon_32x32@2x", 64),
-    ("icon_128x128", 128), ("icon_128x128@2x", 256),
-    ("icon_256x256", 256), ("icon_256x256@2x", 512),
-    ("icon_512x512", 512), ("icon_512x512@2x", 1024),
-]
-
-let icnsTypesByPixelSize: [Int: String] = [
-    16: "icp4",
-    32: "icp5",
-    64: "icp6",
-    128: "ic07",
-    256: "ic08",
-    512: "ic09",
-    1024: "ic10",
+// Current macOS misreads PNG payloads in the legacy small chunks. It downsamples
+// ic07 for 1x and uses the explicit ic11/ic12 representations on Retina displays.
+let iconSizes: [(name: String, px: Int, icnsType: String?)] = [
+    ("icon_16x16", 16, nil), ("icon_16x16@2x", 32, "ic11"),
+    ("icon_32x32", 32, nil), ("icon_32x32@2x", 64, "ic12"),
+    ("icon_128x128", 128, "ic07"), ("icon_128x128@2x", 256, "ic13"),
+    ("icon_256x256", 256, "ic08"), ("icon_256x256@2x", 512, "ic14"),
+    ("icon_512x512", 512, "ic09"), ("icon_512x512@2x", 1024, "ic10"),
 ]
 
 let outDir = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "AppIcon.iconset"
@@ -111,15 +103,32 @@ func renderAppIcon(px: Int) -> Data? {
 
 // MARK: - Menu bar glyph (template)
 
+// The mark is ~1.97:1, so fitting it into a fixed box made the width the
+// limiting side and left the height unused, rendering it far shorter than the
+// menu bar icons around it. Size from the height and let the width follow.
+let menuBarGlyphHeight: CGFloat = 12.5
+// Centered geometrically the mark reads high, since the thin ring tails carry
+// the bounding box below the planet body. Drop it onto the same visual floor
+// as its neighbours.
+let menuBarGlyphDrop: CGFloat = 1
+// Taller than the mark needs: the same canvas holds the compact Keep Awake
+// symbols. Keep in sync with BlackHoleGlyph.pointSize in
+// Sources/Vorssaint/App/StatusItemController.swift; `--selftest` enforces it.
+let menuBarCanvas = (width: 26, height: 20)
+
 func renderMenuBarIcon(scale: Int) -> Data? {
-    // 20×14 pt canvas fits the wide mark nicely in a 24 pt menu bar.
-    let width = 20 * scale, height = 14 * scale
+    let width = menuBarCanvas.width * scale, height = menuBarCanvas.height * scale
     guard let rep = bitmapCanvas(width, height), let ctx = NSGraphicsContext(bitmapImageRep: rep) else { return nil }
-    rep.size = NSSize(width: 20, height: 14)
+    rep.size = NSSize(width: menuBarCanvas.width, height: menuBarCanvas.height)
 
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = ctx
-    drawMark(into: CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height)))
+    // Height-limited target spanning the full canvas width: drawMark keeps the
+    // aspect ratio and centers, landing the mark at 24.6×12.5 pt. Coordinates
+    // are bottom-up, so dropping it lowers y.
+    let ink = menuBarGlyphHeight * CGFloat(scale)
+    let y = (CGFloat(height) - ink) / 2 - menuBarGlyphDrop * CGFloat(scale)
+    drawMark(into: CGRect(x: 0, y: y, width: CGFloat(width), height: ink))
     NSGraphicsContext.restoreGraphicsState()
     return rep.representation(using: .png, properties: [:])
 }
@@ -151,15 +160,14 @@ func writeICNS(entries: [(type: String, data: Data)], to url: URL) throws {
 
 try? FileManager.default.createDirectory(atPath: outDir, withIntermediateDirectories: true)
 var icnsEntries: [(type: String, data: Data)] = []
-var usedICNSTypes = Set<String>()
-for (name, px) in iconSizes {
+for (name, px, icnsType) in iconSizes {
     guard let data = renderAppIcon(px: px) else {
         print("failed to render \(name)")
         exit(1)
     }
     try data.write(to: URL(fileURLWithPath: "\(outDir)/\(name).png"))
-    if let type = icnsTypesByPixelSize[px], usedICNSTypes.insert(type).inserted {
-        icnsEntries.append((type: type, data: data))
+    if let icnsType {
+        icnsEntries.append((type: icnsType, data: data))
     }
 }
 try writeICNS(entries: icnsEntries, to: URL(fileURLWithPath: "\(outDir)/../AppIcon.icns"))

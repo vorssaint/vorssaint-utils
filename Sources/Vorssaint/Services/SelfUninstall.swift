@@ -75,6 +75,7 @@ enum SelfUninstall {
         DockPreviewService.shared.stop()
         AutoQuitService.shared.suspend()
         FinderCutPaste.shared.suspend()
+        FinderRenameService.shared.suspend()
         KeyboardDebounceService.shared.suspend()
         // Also takes the Caps Lock mapping back out, synchronously, so the
         // key is never left remapped behind a tap that is about to die.
@@ -83,7 +84,7 @@ enum SelfUninstall {
         MiddleClickService.shared.suspend()
         PastePlainService.shared.suspend()
         SnippetLibraryService.shared.suspend()
-        ColorSamplerService.shared.suspend()
+        ScreenCaptureService.shared.suspend()
         QuickLauncherService.shared.suspend()
         ScreenTextService.shared.suspend()
         CameraPreviewService.shared.suspend()
@@ -97,6 +98,7 @@ enum SelfUninstall {
     }
 
     private static func detachFromSystem() {
+        FanControlService.restoreAndUnregisterForRemoval()
         // Restore normal sleep if a closed-lid session left it disabled.
         if UserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag) {
             _ = Sudoers.pmsetDisableSleep(false)

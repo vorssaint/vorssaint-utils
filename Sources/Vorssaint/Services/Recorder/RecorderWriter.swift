@@ -10,14 +10,16 @@ import CoreMedia
 /// nothing and every decision about how the recording finally looks stays
 /// open until the editor makes it.
 ///
-/// Everything except `start()` and `finish()` runs on the capture engine's
-/// serial queue. `finish()` is only called once the stream has been stopped
+/// Everything except `start()` and `finish()` runs on the session's serial
+/// writer queue. `finish()` is only called once every source has been stopped
 /// and awaited, so no buffer can still be in flight.
 final class RecorderWriter {
 
     private let writer: AVAssetWriter
     private let videoInput: AVAssetWriterInput
     private let systemAudioInput: AVAssetWriterInput?
+    private let microphoneInput: AVAssetWriterInput?
+    private let pauseClock: RecorderPauseClock
 
     /// Everything is re-timed against the first sample that arrives, so the
     /// file starts at zero instead of at the machine's uptime.
@@ -33,7 +35,12 @@ final class RecorderWriter {
 
     var url: URL { writer.outputURL }
 
-    init?(url: URL, pixelSize: CGSize, frameRate: Int, capturesSystemAudio: Bool) {
+    init?(url: URL,
+          pixelSize: CGSize,
+          frameRate: Int,
+          capturesSystemAudio: Bool,
+          capturesMicrophone: Bool,
+          pauseClock: RecorderPauseClock) {
         guard let writer = try? AVAssetWriter(outputURL: url, fileType: .mov) else { return nil }
         // A recording that outlives a crash is worth the few extra bytes a
         // fragmented file costs.
@@ -63,15 +70,30 @@ final class RecorderWriter {
             let input = AVAssetWriterInput(mediaType: .audio,
                                            outputSettings: Self.audioSettings)
             input.expectsMediaDataInRealTime = true
+            input.metadata = RecorderAudioSource.system.trackMetadata
             if writer.canAdd(input) {
                 writer.add(input)
                 systemAudioInput = input
             }
         }
 
+        var microphoneInput: AVAssetWriterInput?
+        if capturesMicrophone {
+            let input = AVAssetWriterInput(mediaType: .audio,
+                                           outputSettings: Self.audioSettings)
+            input.expectsMediaDataInRealTime = true
+            input.metadata = RecorderAudioSource.microphone.trackMetadata
+            if writer.canAdd(input) {
+                writer.add(input)
+                microphoneInput = input
+            }
+        }
+
         self.writer = writer
         self.videoInput = videoInput
         self.systemAudioInput = systemAudioInput
+        self.microphoneInput = microphoneInput
+        self.pauseClock = pauseClock
     }
 
     // MARK: - Settings
@@ -135,8 +157,12 @@ final class RecorderWriter {
             started = true
         }
         guard let origin, started else { return }
-        let shifted = CMTimeSubtract(presentation, origin)
-        guard shifted >= .zero else { return }
+        let duration = CMSampleBufferGetDuration(sampleBuffer)
+        let seconds = duration.isValid && !duration.isIndefinite ? max(0, duration.seconds) : 0
+        guard let mapped = pauseClock.sampleTime(start: presentation.seconds,
+                                                 duration: seconds,
+                                                 since: origin.seconds) else { return }
+        let shifted = CMTime(seconds: mapped, preferredTimescale: 600_000_000)
 
         switch kind {
         case .video:
@@ -157,6 +183,13 @@ final class RecorderWriter {
             if !systemAudioInput.append(retimed) {
                 failed = true
             }
+        case .microphone:
+            guard let microphoneInput, microphoneInput.isReadyForMoreMediaData,
+                  let retimed = Self.retimed(sampleBuffer, to: shifted)
+            else { return }
+            if !microphoneInput.append(retimed) {
+                failed = true
+            }
         }
     }
 
@@ -169,7 +202,9 @@ final class RecorderWriter {
             return false
         }
         if let origin, let lastVideoSample {
-            let end = CMTimeSubtract(wallClockEnd, origin)
+            let end = CMTime(
+                seconds: pauseClock.elapsed(since: origin.seconds, at: wallClockEnd.seconds),
+                preferredTimescale: 600_000_000)
             if end > lastVideoTime, videoInput.isReadyForMoreMediaData,
                let tail = Self.retimed(lastVideoSample, to: end) {
                 videoInput.append(tail)
@@ -178,6 +213,7 @@ final class RecorderWriter {
         lastVideoSample = nil
         videoInput.markAsFinished()
         systemAudioInput?.markAsFinished()
+        microphoneInput?.markAsFinished()
         await writer.finishWriting()
         return writer.status == .completed
     }

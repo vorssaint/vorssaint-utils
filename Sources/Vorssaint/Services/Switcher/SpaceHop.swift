@@ -12,7 +12,9 @@ import AppKit
 ///  1. The window server is asked to front the exact window and the app is
 ///     activated cooperatively. When the app has no window on any visible
 ///     Space, macOS itself travels to one that has (standard system behavior),
-///     and older macOS also honors the Space of the fronted window.
+///     and older macOS also honors the Space of the fronted window. When the
+///     app does have a window here, that travel cannot happen, so this stage
+///     is not waited on at all.
 ///  2. If the Space still is not visible, the user's own "move a space"
 ///     shortcut is replayed (key and modifiers read from the system, honoring
 ///     remaps; skipped entirely when the user disabled it), one step at a
@@ -20,12 +22,24 @@ import AppKit
 ///  3. Once the window's Space is visible, Accessibility can finally see the
 ///     window and the regular focus pass raises it.
 ///
+/// Waiting is done by watching the window server, never by sleeping a fixed
+/// amount. The new Space is only reported once its animation finishes, so a
+/// single check at a chosen moment either fires before the arrival or costs
+/// more time than the switch actually took.
+///
 /// Every stage degrades to plain app activation, which is what happened before
 /// these windows were listed at all. The object only exists for the couple of
 /// seconds an activation takes and cancels itself when a newer activation
 /// starts.
 final class SpaceHop {
     private static var current: SpaceHop?
+
+    /// How often the window server is asked whether the Space arrived, and how
+    /// long a single switch is given before the hop escalates or gives up. The
+    /// switch animation is reported after roughly half a second, so the window
+    /// leaves room for a slower machine without ever pressing again mid flight.
+    private static let arrivalPollInterval: TimeInterval = 0.05
+    private static let arrivalTimeout: TimeInterval = 1.2
 
     /// Hands the activation over to a hop when the selected window sits on a
     /// hidden Space and Accessibility cannot resolve it (a minimized window
@@ -72,28 +86,60 @@ final class SpaceHop {
         // Activating every window would drag the app's windows on the current
         // Space forward too; when the app has one here, activate quietly and
         // let the travel decide what comes up.
-        let activateAllWindows = !appHasWindowOnVisibleSpace()
+        let appIsAlreadyHere = appHasWindowOnVisibleSpace()
         NSApp.yieldActivation(to: app)
         if !app.activate(from: NSRunningApplication.current,
-                         options: activateAllWindows ? [.activateAllWindows] : []) {
-            app.activate(options: activateAllWindows ? [.activateAllWindows] : [])
+                         options: appIsAlreadyHere ? [] : [.activateAllWindows]) {
+            app.activate(options: appIsAlreadyHere ? [] : [.activateAllWindows])
         }
-        // Native travel (and older-macOS window-server travel) animates for
-        // roughly half a second; check twice before replaying shortcuts.
-        schedule(after: 0.5) { self.verifyTravel(remainingChecks: 1) }
+        switch SpaceHopSupport.firstStage(appHasWindowOnVisibleSpace: appIsAlreadyHere) {
+        case .moveASpace:
+            stepWithSpaceShortcut()
+        case .waitForActivationTravel:
+            let visibleBefore = SpaceWindowBridge.topology()?.visibleSpaces ?? []
+            waitForTravel(from: visibleBefore) { outcome in
+                if outcome == .arrived {
+                    self.focusOnArrival()
+                } else {
+                    self.stepWithSpaceShortcut()
+                }
+            }
+        }
     }
 
-    private func verifyTravel(remainingChecks: Int) {
-        guard !cancelled else { return }
-        if windowSpaceIsVisible() {
-            focusOnArrival()
-            return
+    /// How a travel attempt ended.
+    private enum TravelOutcome {
+        /// The window's Space is the one showing now.
+        case arrived
+        /// Another Space came up, so the attempt worked but landed short.
+        case landedShort
+        /// Nothing moved in the time a switch takes.
+        case stalled
+    }
+
+    /// Watches the window server after a travel attempt. The new Space is only
+    /// reported once its animation ends, so this waits for the outcome instead
+    /// of guessing how long that takes.
+    private func waitForTravel(from visibleBefore: Set<UInt64>,
+                               deadline: DispatchTime? = nil,
+                               then completion: @escaping (TravelOutcome) -> Void) {
+        let deadline = deadline ?? .now() + Self.arrivalTimeout
+        schedule(after: Self.arrivalPollInterval) {
+            guard !self.cancelled else { return }
+            guard let visibleNow = SpaceWindowBridge.topology()?.visibleSpaces else {
+                completion(.stalled)
+                return
+            }
+            if !SpaceWindowBridge.isParkedOnHiddenSpace(self.windowID, visibleSpaces: visibleNow) {
+                completion(.arrived)
+            } else if visibleNow != visibleBefore {
+                completion(.landedShort)
+            } else if .now() < deadline {
+                self.waitForTravel(from: visibleBefore, deadline: deadline, then: completion)
+            } else {
+                completion(.stalled)
+            }
         }
-        if remainingChecks > 0 {
-            schedule(after: 0.45) { self.verifyTravel(remainingChecks: remainingChecks - 1) }
-            return
-        }
-        stepWithSpaceShortcut()
     }
 
     /// The hop is over (arrived, gave up or was replaced); drop the keep-alive.
@@ -106,7 +152,12 @@ final class SpaceHop {
     /// the moment a press changes nothing (shortcut intercepted, edge of the
     /// row, topology changed under us).
     private func stepWithSpaceShortcut() {
-        guard !cancelled, arrowPressesLeft > 0 else { finish(); return }
+        guard !cancelled else { return }
+        if windowSpaceIsVisible() {
+            focusOnArrival()
+            return
+        }
+        guard arrowPressesLeft > 0 else { finish(); return }
         arrowPressesLeft -= 1
         guard let topology = SpaceWindowBridge.topology(),
               let targetSpace = SpaceWindowBridge.spaces(of: windowID).first,
@@ -117,17 +168,17 @@ final class SpaceHop {
         else { finish(); return }
         let visibleBefore = topology.visibleSpaces
         SpaceWindowBridge.pressSpaceShortcut(shortcut)
-        schedule(after: 0.5) {
-            guard !self.cancelled else { return }
-            if self.windowSpaceIsVisible() {
+        waitForTravel(from: visibleBefore) { outcome in
+            switch outcome {
+            case .arrived:
                 self.focusOnArrival()
-                return
-            }
-            guard SpaceWindowBridge.topology()?.visibleSpaces != visibleBefore else {
+            case .landedShort:
+                self.stepWithSpaceShortcut()
+            case .stalled:
+                // A press that moved nothing means the shortcut went elsewhere
+                // or the row ended; stop instead of drumming on the keyboard.
                 self.finish()
-                return
             }
-            self.stepWithSpaceShortcut()
         }
     }
 

@@ -18,33 +18,54 @@ enum NetworkProcessSupport {
         "-L", "1",
         "-s", "1",
     ]
+    static let externalNettopArguments = [
+        "-P", "-d", "-x",
+        "-t", "external",
+        "-J", "bytes_in,bytes_out",
+        "-L", "1",
+        "-s", "1",
+    ]
 
     static func currentActivitySamples(timeout: TimeInterval = 5.5) -> [NetworkProcessSample] {
+        currentActivitySamples(arguments: nettopArguments, timeout: timeout) ?? []
+    }
+
+    /// Uses socket-flow counters instead of interface counters. This stays idle
+    /// unless NetworkSampler detects that macOS stopped reporting inbound bytes.
+    static func currentExternalActivitySamples(timeout: TimeInterval = 1) -> [NetworkProcessSample]? {
+        currentActivitySamples(arguments: externalNettopArguments, timeout: timeout)
+    }
+
+    private static func currentActivitySamples(arguments: [String],
+                                               timeout: TimeInterval) -> [NetworkProcessSample]? {
         let process = Process()
         let pipe = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
-        process.arguments = nettopArguments
+        process.arguments = arguments
         process.standardOutput = pipe
         process.standardError = pipe
 
         do {
             try process.run()
         } catch {
-            return []
+            return nil
         }
 
         let deadline = Date().addingTimeInterval(timeout)
         while process.isRunning && Date() < deadline {
             Thread.sleep(forTimeInterval: 0.05)
         }
-        if process.isRunning {
+        let timedOut = process.isRunning
+        if timedOut {
             process.terminate()
         }
 
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
-        guard !data.isEmpty,
-              let output = String(data: data, encoding: .utf8) else { return [] }
+        guard !timedOut,
+              process.terminationStatus == 0,
+              !data.isEmpty,
+              let output = String(data: data, encoding: .utf8) else { return nil }
         return parseNettopCSV(output)
     }
 

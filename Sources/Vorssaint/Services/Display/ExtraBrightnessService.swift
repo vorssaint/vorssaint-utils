@@ -250,6 +250,11 @@ final class ExtraBrightnessService: ObservableObject {
         .canJoinAllSpaces, .stationary,
     ]
 
+    /// Desktop and window-overview transitions composite above ordinary
+    /// screen-saver windows. Keep the multiplier and its headroom trigger at
+    /// the display-shield level so both remain in the final picture.
+    private static let overlayWindowLevel = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
+
     // MARK: - Overlay
 
     private func showOverlay(on screen: NSScreen) {
@@ -261,7 +266,7 @@ final class ExtraBrightnessService: ObservableObject {
                               backing: .buffered, defer: false)
         // Above regular windows and the menu bar so the whole picture is
         // boosted evenly; it ignores clicks, so it is never in the way.
-        window.level = .screenSaver
+        window.level = Self.overlayWindowLevel
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = false
@@ -315,7 +320,7 @@ final class ExtraBrightnessService: ObservableObject {
 
         let window = NSWindow(contentRect: Self.triggerFrame(on: screen), styleMask: [.borderless],
                               backing: .buffered, defer: false)
-        window.level = .screenSaver
+        window.level = Self.overlayWindowLevel
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = false

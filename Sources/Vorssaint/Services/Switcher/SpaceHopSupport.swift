@@ -12,6 +12,22 @@ enum SpaceHopSupport {
     /// with synthetic shortcuts.
     static let maximumArrowSteps = 16
 
+    /// What a hop does right after activating the app.
+    enum FirstStage: Equatable {
+        /// Activating the app travels on its own, so wait for it to land.
+        case waitForActivationTravel
+        /// Activation cannot travel; the move has to be asked for right away.
+        case moveASpace
+    }
+
+    /// macOS follows an activation to another Space only when the app has no
+    /// window where the user is already looking. With one there, activating
+    /// just raises that window, so waiting for a travel that cannot happen is
+    /// pure delay and the hop asks for the move immediately (issue #422).
+    static func firstStage(appHasWindowOnVisibleSpace: Bool) -> FirstStage {
+        appHasWindowOnVisibleSpace ? .moveASpace : .waitForActivationTravel
+    }
+
     /// A window the window server places on at least one Space, none of which
     /// is visible right now, is a real window parked elsewhere. A window on no
     /// Space at all is a leftover surface (the ghosts the Accessibility veto
@@ -19,6 +35,14 @@ enum SpaceHopSupport {
     static func isParkedOnHiddenSpace(windowSpaces: [UInt64], visibleSpaces: Set<UInt64>) -> Bool {
         guard !windowSpaces.isEmpty, !visibleSpaces.isEmpty else { return false }
         return !windowSpaces.contains { visibleSpaces.contains($0) }
+    }
+
+    /// The window server marks surfaces that must stay out of app window
+    /// cycling. This remains meaningful when Accessibility cannot inspect a
+    /// window because it lives on another Space.
+    static func isExcludedFromWindowCycle(windowTagsLow: UInt32) -> Bool {
+        let ignoresCycleTag: UInt32 = 1 << 18
+        return windowTagsLow & ignoresCycleTag != 0
     }
 
     /// How many "move a space" presses take the user from the visible Space to
@@ -54,5 +78,24 @@ enum SpaceHopSupport {
         if modifiers & 0x100000 != 0 { flags.insert(.maskCommand) }
         if modifiers & 0x800000 != 0 { flags.insert(.maskSecondaryFn) }
         return flags
+    }
+}
+
+enum WindowSpaceMoveDirection {
+    case previous
+    case next
+}
+
+enum WindowSpaceMoveSupport {
+    static func destination(windowSpaces: [UInt64],
+                            orderedUserSpacesPerDisplay: [[UInt64]],
+                            direction: WindowSpaceMoveDirection) -> UInt64? {
+        guard windowSpaces.count == 1, let current = windowSpaces.first else { return nil }
+        for row in orderedUserSpacesPerDisplay where row.count > 1 {
+            guard let index = row.firstIndex(of: current) else { continue }
+            let offset = direction == .next ? 1 : row.count - 1
+            return row[(index + offset) % row.count]
+        }
+        return nil
     }
 }

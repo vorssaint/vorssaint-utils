@@ -50,6 +50,7 @@ enum AppUpdatesSupport {
     struct StoreEntry: Hashable {
         let bundleID: String
         let version: String
+        let minimumOSVersion: String?
         let page: String?
     }
 
@@ -149,44 +150,43 @@ enum AppUpdatesSupport {
 
     /// Turns what the package manager reports into rows a person can act on.
     ///
-    /// The reported "installed" version is the receipt written when the
-    /// package manager last touched the app, and plenty of apps update
-    /// themselves afterwards, leaving the receipt behind. Measured on a real
-    /// Mac: an editor sat at 1.130 on disk while the receipt still said
-    /// 1.129, so the manager alone would have offered an update that had
-    /// already happened. Whenever the app bundle can be read, the bundle is
-    /// the truth and a row only survives if the app really is behind.
+    /// Package receipts can outlive an app that was removed by hand, and
+    /// plenty of apps update themselves without refreshing that receipt.
+    /// A row therefore only survives when its app bundle is still on disk,
+    /// and the version from that bundle is the truth.
     static func packageUpdates(outdated: [HomebrewPackageUpdate],
                                installed: [HomebrewCaskRecord],
+                               ignoredTokens: Set<String> = [],
                                bundleVersion: (String) -> (name: String, version: String, path: String)?)
         -> [Item] {
         let recordsByToken = Dictionary(installed.map { ($0.token, $0) }, uniquingKeysWith: { first, _ in first })
         return outdated.compactMap { update -> Item? in
             guard update.kind == .cask, !update.isPinned else { return nil }
+            guard !ignoredTokens.contains(update.name) else { return nil }
             guard !isUncomparable(update.currentVersion) else { return nil }
             let record = recordsByToken[update.name]
-            let bundle = candidateBundleNames(for: record).lazy.compactMap(bundleVersion).first
-            let receipt = update.installedVersions.first ?? record?.installedVersion ?? ""
-            let installedVersion = bundle?.version ?? versionCore(receipt)
+            guard let bundle = candidateBundleNames(for: record).lazy.compactMap(bundleVersion).first else {
+                return nil
+            }
+            let installedVersion = bundle.version
             guard !installedVersion.isEmpty else { return nil }
             guard isNewer(update.currentVersion, than: installedVersion) else { return nil }
             return Item(id: "\(Source.packageManager.rawValue):\(update.name)",
                         source: .packageManager,
-                        name: bundle?.name ?? record?.displayName ?? update.name,
+                        name: bundle.name,
                         installedVersion: installedVersion,
                         latestVersion: versionCore(update.currentVersion),
                         token: update.name,
-                        bundlePath: bundle?.path,
+                        bundlePath: bundle.path,
                         storePage: nil)
         }
     }
 
     /// App bundles a package might have put in place. Some packages install
     /// through an installer instead of dropping a bundle, so they declare no
-    /// app at all; for those the catalog name is tried as a bundle name,
-    /// which is how apps like a cloud drive client get matched. A name that
-    /// matches nothing simply falls back to the package receipt, so the
-    /// guess can only ever help.
+    /// app at all; for those the catalog name is tried as a bundle name.
+    /// A name that matches nothing is left out because there is no installed
+    /// app to update.
     private static func candidateBundleNames(for record: HomebrewCaskRecord?) -> [String] {
         guard let record else { return [] }
         guard record.appFileNames.isEmpty else { return record.appFileNames }
@@ -231,21 +231,29 @@ enum AppUpdatesSupport {
               let results = root["results"] as? [[String: Any]] else { return [:] }
         var entries: [String: StoreEntry] = [:]
         for result in results {
+            // A bundle-ID lookup can ignore `entity` and return another
+            // platform's listing. Its version and minimum OS then describe
+            // a different binary, so only accept records identified as Mac.
+            guard result["kind"] as? String == "mac-software" else { continue }
             guard let bundleID = result["bundleId"] as? String,
                   let version = result["version"] as? String,
                   !version.isEmpty else { continue }
             entries[bundleID] = StoreEntry(bundleID: bundleID,
                                            version: version,
+                                           minimumOSVersion: result["minimumOsVersion"] as? String,
                                            page: result["trackViewUrl"] as? String)
         }
         return entries
     }
 
     static func appStoreUpdates(apps: [InstalledApp],
-                                storeVersions: [String: StoreEntry]) -> [Item] {
+                                storeVersions: [String: StoreEntry],
+                                operatingSystemVersion: String) -> [Item] {
         apps.compactMap { app in
-            guard let entry = storeVersions[app.bundleID],
-                  isNewer(entry.version, than: app.version) else { return nil }
+            guard let entry = storeVersions[app.bundleID] else { return nil }
+            if let minimum = entry.minimumOSVersion,
+               compare(operatingSystemVersion, minimum) == .orderedAscending { return nil }
+            guard isNewer(entry.version, than: app.version) else { return nil }
             return Item(id: "\(Source.appStore.rawValue):\(app.bundleID)",
                         source: .appStore,
                         name: app.name,
@@ -275,6 +283,16 @@ enum AppUpdatesSupport {
 
     static func hasStoreSelection(in items: [Item], selection: Set<String>) -> Bool {
         items.contains { selection.contains($0.id) && $0.source == .appStore }
+    }
+
+    /// The page a store hand-off can land on. With one store row ticked that is
+    /// its product page, the same place the row's own button goes; the store
+    /// shows one product at a time, so several rows have no such page and the
+    /// hand-off falls back to the updates page.
+    static func singleStorePage(in items: [Item], selection: Set<String>) -> String? {
+        let store = items.filter { selection.contains($0.id) && $0.source == .appStore }
+        guard store.count == 1 else { return nil }
+        return store[0].storePage
     }
 
     /// Selection kept honest against a list that just changed: rows that are

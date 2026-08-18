@@ -34,6 +34,7 @@ final class RecorderCaptureEngine: NSObject {
     enum Kind {
         case video
         case systemAudio
+        case microphone
     }
 
     weak var delegate: RecorderCaptureEngineDelegate?
@@ -52,9 +53,8 @@ final class RecorderCaptureEngine: NSObject {
 
     // MARK: - Lifecycle
 
-    /// Builds the filter and starts the stream. The app's own windows are
-    /// always excluded, so the recording indicator, the countdown and any
-    /// panel of ours can never appear inside the video.
+    /// Builds the filter and starts the stream. Existing ordinary Vorssaint
+    /// windows remain recordable, while new app chrome stays excluded.
     func start(region: RecorderSupport.Region,
                frameRate: Int,
                capturesSystemAudio: Bool,
@@ -81,7 +81,10 @@ final class RecorderCaptureEngine: NSObject {
                                                     timescale: CMTimeScale(frameRate))
         configuration.pixelFormat = kCVPixelFormatType_32BGRA
         configuration.colorSpaceName = CGColorSpace.sRGB
-        configuration.scalesToFit = false
+        // An independent window keeps the output dimensions chosen when the
+        // recording starts. Scaling it into that output makes later window
+        // resizes follow the recording instead of leaving an empty frame.
+        configuration.scalesToFit = region.windowID != nil
         configuration.preservesAspectRatio = true
         configuration.captureResolution = .best
         // The pointer is drawn by us afterwards, from the track the sampler
@@ -144,14 +147,19 @@ final class RecorderCaptureEngine: NSObject {
         }
         guard let display = content.displays.first(where: { $0.displayID == region.displayID })
         else { return nil }
-        // Only this recording's own chrome is left out, and it is named window
-        // by window. Excluding the whole application would be simpler, and it
-        // was wrong: it also removed the menu panel, the settings and the
-        // command bar, which are exactly the things somebody records when they
-        // want to show what the app does.
         let excluded = Set(windowNumbers.map { CGWindowID($0) })
-        let chrome = content.windows.filter { excluded.contains($0.windowID) }
-        return SCContentFilter(display: display, excludingWindows: chrome)
+        let ownPID = NSRunningApplication.current.processIdentifier
+        let ownWindows = content.windows.filter { $0.owningApplication?.processID == ownPID }
+        guard let ownApplication = content.applications.first(where: { $0.processID == ownPID })
+                ?? ownWindows.compactMap(\.owningApplication).first else { return nil }
+        let exceptedIDs = RecorderSupport.exceptedOwnWindowIDs(
+            ownWindowIDs: Set(ownWindows.map(\.windowID)),
+            protectedWindowIDs: excluded
+        )
+        let ordinaryWindows = ownWindows.filter { exceptedIDs.contains($0.windowID) }
+        return SCContentFilter(display: display,
+                               excludingApplications: [ownApplication],
+                               exceptingWindows: ordinaryWindows)
     }
 
     /// The recorded area inside the display, in points with a top-left origin,
@@ -179,6 +187,92 @@ final class RecorderCaptureEngine: NSObject {
         default:
             return .streamFailed
         }
+    }
+}
+
+/// Captures the default microphone only while a recording asks for it. Its
+/// sample timestamps are converted onto ScreenCaptureKit's clock before the
+/// writer sees them, so system sound, voice and picture keep one timeline.
+final class RecorderMicrophoneCapture: NSObject,
+                                       AVCaptureAudioDataOutputSampleBufferDelegate,
+                                       @unchecked Sendable {
+    var onSample: ((CMSampleBuffer) -> Void)?
+
+    private let queue = DispatchQueue(label: "com.vorssaint.recorder.microphone",
+                                      qos: .userInitiated)
+    private let session = AVCaptureSession()
+    private var targetClock: CMClock?
+    private var configured = false
+
+    func start(synchronizingTo clock: CMClock) async -> Bool {
+        await withCheckedContinuation { continuation in
+            queue.async { [self] in
+                guard configureIfNeeded() else {
+                    continuation.resume(returning: false)
+                    return
+                }
+                targetClock = clock
+                session.startRunning()
+                continuation.resume(returning: session.isRunning)
+            }
+        }
+    }
+
+    func stop() async {
+        await withCheckedContinuation { continuation in
+            queue.async { [self] in
+                if session.isRunning { session.stopRunning() }
+                targetClock = nil
+                continuation.resume()
+            }
+        }
+    }
+
+    private func configureIfNeeded() -> Bool {
+        if configured { return true }
+        guard let device = AVCaptureDevice.default(for: .audio),
+              let input = try? AVCaptureDeviceInput(device: device)
+        else { return false }
+
+        let output = AVCaptureAudioDataOutput()
+        session.beginConfiguration()
+        defer { session.commitConfiguration() }
+        guard session.canAddInput(input), session.canAddOutput(output) else { return false }
+        session.addInput(input)
+        session.addOutput(output)
+        output.setSampleBufferDelegate(self, queue: queue)
+        configured = true
+        return true
+    }
+
+    func captureOutput(_ output: AVCaptureOutput,
+                       didOutput sampleBuffer: CMSampleBuffer,
+                       from connection: AVCaptureConnection) {
+        guard let sourceClock = session.synchronizationClock,
+              let targetClock,
+              CMSampleBufferIsValid(sampleBuffer)
+        else { return }
+        let sourceTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        let targetTime = CMSyncConvertTime(sourceTime, from: sourceClock, to: targetClock)
+        guard targetTime.isValid,
+              let synchronized = Self.retimed(sampleBuffer, to: targetTime)
+        else { return }
+        onSample?(synchronized)
+    }
+
+    private static func retimed(_ sampleBuffer: CMSampleBuffer,
+                                to time: CMTime) -> CMSampleBuffer? {
+        var timing = CMSampleTimingInfo(duration: CMSampleBufferGetDuration(sampleBuffer),
+                                        presentationTimeStamp: time,
+                                        decodeTimeStamp: .invalid)
+        var copy: CMSampleBuffer?
+        let status = CMSampleBufferCreateCopyWithNewTiming(
+            allocator: kCFAllocatorDefault,
+            sampleBuffer: sampleBuffer,
+            sampleTimingEntryCount: 1,
+            sampleTimingArray: &timing,
+            sampleBufferOut: &copy)
+        return status == noErr ? copy : nil
     }
 }
 

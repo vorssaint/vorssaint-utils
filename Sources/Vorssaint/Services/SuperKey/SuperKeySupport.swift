@@ -32,8 +32,37 @@ struct SuperKeyMapping: Equatable {
 /// go down and up. The mapping table below turns it into an ordinary key
 /// first, which is what makes holding it possible at all.
 enum SuperKeySupport {
+    static let defaultModifiers: GlobalShortcutModifiers = .validMask
+
+    static var defaultModifierStorageValue: String {
+        storageValue(for: defaultModifiers)
+    }
+
+    static func modifiers(from storedValue: String?) -> GlobalShortcutModifiers {
+        guard let storedValue else { return defaultModifiers }
+        var modifiers: GlobalShortcutModifiers = []
+        for token in storedValue.split(separator: "+", omittingEmptySubsequences: false) {
+            switch token {
+            case "control": modifiers.insert(.control)
+            case "option": modifiers.insert(.option)
+            case "shift": modifiers.insert(.shift)
+            case "command": modifiers.insert(.command)
+            default: return defaultModifiers
+            }
+        }
+        return modifiers.hasPrimaryModifier ? modifiers : defaultModifiers
+    }
+
+    static func storageValue(for modifiers: GlobalShortcutModifiers) -> String {
+        let sanitized = modifiers.intersection(.validMask)
+        return (sanitized.hasPrimaryModifier ? sanitized : defaultModifiers)
+            .storageTokens.joined(separator: "+")
+    }
+
     /// HID usage values (page 7, keyboard) of the two keys involved.
     static let capsLockUsage: UInt64 = 0x700000039
+    /// Modifier Keys represents “No Action” with this sentinel.
+    static let noActionUsage = UInt64.max
     /// F18 is the destination: a key defined by the standard, so the system
     /// delivers it like any other, and one no portable keyboard carries.
     static let triggerUsage: UInt64 = 0x70000006D
@@ -45,13 +74,32 @@ enum SuperKeySupport {
     // MARK: - Key mapping table
 
     /// The table to write for the wanted state. A mapping the user set up
-    /// elsewhere stays as it is; only the entry for Caps Lock belongs to this
-    /// feature, which is also why turning it off leaves the rest untouched.
+    /// elsewhere stays as it is; only the entries created for this feature are
+    /// removed when it is turned off.
     static func mappings(enablingSuperKey enabled: Bool,
-                         existing: [SuperKeyMapping]) -> [SuperKeyMapping] {
-        let others = existing.filter { $0.source != capsLockUsage }
+                         existing: [SuperKeyMapping],
+                         includeNoAction: Bool = false) -> [SuperKeyMapping] {
+        let others = existing.filter {
+            $0.source != capsLockUsage
+                && !($0.source == noActionUsage && $0.destination == triggerUsage)
+        }
         guard enabled else { return others }
-        return [SuperKeyMapping(source: capsLockUsage, destination: triggerUsage)] + others
+        var owned = [SuperKeyMapping(source: capsLockUsage, destination: triggerUsage)]
+        if includeNoAction, !others.contains(where: { $0.source == noActionUsage }) {
+            owned.append(SuperKeyMapping(source: noActionUsage, destination: triggerUsage))
+        }
+        return owned + others
+    }
+
+    /// “No Action” has one shared sentinel after Modifier Keys. It is safe to
+    /// recover only when Caps Lock is the sole modifier using that sentinel.
+    static func canMapNoAction(from modifierMappings: [SuperKeyMapping]) -> Bool {
+        let disabledSources = Set(
+            modifierMappings.lazy
+                .filter { $0.destination == noActionUsage }
+                .map(\.source)
+        )
+        return disabledSources == [capsLockUsage]
     }
 
     /// The mapping table as the command line takes it.
@@ -79,8 +127,13 @@ enum SuperKeySupport {
 
     private static func number(after field: String, in body: String) -> UInt64? {
         guard let range = body.range(of: field) else { return nil }
-        let rest = body[range.upperBound...].drop { $0 == " " || $0 == "=" }
-        return UInt64(rest.prefix { $0.isNumber })
+        let rest = body[range.upperBound...].drop {
+            $0 == " " || $0 == "=" || $0 == "\""
+        }
+        let token = rest.prefix { $0.isNumber || $0 == "-" }
+        if let value = UInt64(token) { return value }
+        guard let value = Int64(token) else { return nil }
+        return UInt64(bitPattern: value)
     }
 
     // MARK: - What each event means
@@ -101,14 +154,14 @@ enum SuperKeySupport {
     enum Decision: Equatable {
         /// The event belongs to the super key and goes no further.
         case swallow
-        /// The four modifiers ride along with this key.
+        /// The configured modifiers ride along with this key.
         case addModifiers
         /// The event carries on untouched.
         case pass
         /// The key was tapped with nothing else, so its solo action runs.
         case soloTap
-        /// A keyboard is not mapped: the mapping needs to be applied again.
-        case remapNeeded
+        /// A raw Caps Lock is kept out while its keyboard mapping is repaired.
+        case interceptAndRemap
     }
 
     /// Holding the key is the whole feature, so the state is just whether it is
@@ -141,7 +194,7 @@ enum SuperKeySupport {
                 if isHeld { isAlone = false }
                 return .pass
             case .capsLock:
-                return .remapNeeded
+                return .interceptAndRemap
             }
         }
 
