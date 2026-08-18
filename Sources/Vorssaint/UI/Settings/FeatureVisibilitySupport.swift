@@ -7,7 +7,7 @@ import Foundation
 /// The Settings pages. Lives here (without SwiftUI) so the visibility rules
 /// below and the unit tests can reason about pages without pulling UI in.
 enum SettingsPage: Hashable {
-    case general, features, energy, monitor
+    case general, features, energy, monitor, menuBarOrganizer
     case mouse, switcher, keyDebounce, superKey, cutPaste, autoQuit, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar
     case shortcuts, advanced, about, releaseNotes, support
 }
@@ -202,6 +202,7 @@ extension AppFeature {
         case .scratchpad:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .scratchpad)
         case .commandBar: return FeatureSettingsDestination(.commandBar)
+        case .menuBarOrganizer: return FeatureSettingsDestination(.menuBarOrganizer)
         case .screenRecorder:
             return FeatureSettingsDestination(.screenshot, sectionAnchor: .screenRecorder)
 
@@ -227,6 +228,7 @@ enum FeatureVisibilitySupport {
         switch page {
         case .energy: return [.keepAwake, .brightness, .extraBrightness]
         case .monitor: return monitorFeatures
+        case .menuBarOrganizer: return [.menuBarOrganizer]
         case .mouse: return [.scrollInverter, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts,
                              .middleClick]
         case .switcher: return [.switcher, .dockPreview, .dockClick]

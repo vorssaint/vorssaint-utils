@@ -6,7 +6,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 | Permission | Optional | Powers |
 |---|---|---|
-| Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions |
+| Accessibility | Yes | Menu bar item arrangement, Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions |
 | Screen Recording | Yes | Window previews, screenshots, copy text from screen and screen recordings |
 | System Audio Recording | Yes | Per app volume and output routing in the mixer |
 | Microphone | Yes | Your voice in a screen recording, only when you turn it on |
@@ -35,8 +35,12 @@ You can review or change every grant in System Settings, under Privacy and Secur
 - **Radial menu**, for wheel actions that press a key combo or a media key
   for you and for the optional side button trigger; opening apps, files and
   links with the keyboard shortcut alone needs nothing.
+- **Menu bar organizer**, which performs the same Command-drag gesture you
+  can do manually when you reorder or move an item between sections.
 
-**If you say no.** These features stay off. Vorssaint sees the moment you grant the permission and brings them to life with no relaunch.
+**If you say no.** Automatic menu bar arrangement and the other affected
+features stay off. Vorssaint sees the moment you grant the permission and
+brings them to life with no relaunch.
 
 **Optional.** Yes. macOS shows its prompt the first time a feature needs it, and you can also grant it later in System Settings, under Privacy and Security, Accessibility.
 
@@ -44,9 +48,15 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 **Why it comes up.** On macOS, reading other windows' titles and grabbing their thumbnails counts as screen recording.
 
-**What uses it.** The window switcher and Dock Preview for live thumbnails and titles, screenshots and copy text from screen for the area you select, and the screen recorder for the area, window or display you choose.
+**What uses it.** The window switcher and Dock Preview, for live thumbnails
+and window titles; screenshots and copy text from screen for the area you
+select; and the screen recorder for the area, window or display you choose.
 
-**If you say no.** The switcher falls back to app icons. Dock Preview, screenshots, copy text from screen and screen recording stay unavailable. Previews and text recognition remain local. A screenshot or recording is written only when you ask, and leaves your Mac only if you explicitly create a temporary link.
+**If you say no.** The switcher falls back to app icons. Dock Preview,
+screenshots, copy text from screen and screen recording stay unavailable.
+Previews and text recognition remain local. A screenshot or recording is
+written only when you ask, and leaves your Mac only if you explicitly create
+a temporary link.
 
 **Optional.** Yes.
 

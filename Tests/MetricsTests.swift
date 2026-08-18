@@ -8519,7 +8519,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 51, "feature catalog has 51 features")
+        expect(AppFeature.allCases.count == 52, "feature catalog has 52 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -8529,7 +8529,7 @@ struct MetricsTests {
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
             "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
-            "keepAwake", "brightness", "extraBrightness",
+            "keepAwake", "brightness", "extraBrightness", "menuBarOrganizer",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
             "radialMenu", "scratchpad", "commandBar", "screenRecorder",
@@ -8541,8 +8541,9 @@ struct MetricsTests {
         expect(AppFeature.availabilityDefaults.count == AppFeature.allCases.count
                 && (AppFeature.availabilityDefaults[AppFeature.fanControl.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.diskImageInstaller.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.menuBarOrganizer.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
-                    $0 != .fanControl && $0 != .diskImageInstaller
+                    $0 != .fanControl && $0 != .diskImageInstaller && $0 != .menuBarOrganizer
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
@@ -8552,6 +8553,23 @@ struct MetricsTests {
                "every feature belongs to exactly one group")
         expect(!FeatureGroup.allCases.contains { AppFeature.features(in: $0).isEmpty },
                "no hub group is empty")
+
+        // MARK: macOS support gate
+
+        expect(AppFeature.isSupported(.menuBarOrganizer, onOperatingSystemMajorVersion: 14)
+                && AppFeature.isSupported(.menuBarOrganizer, onOperatingSystemMajorVersion: 15)
+                && AppFeature.isSupported(.menuBarOrganizer, onOperatingSystemMajorVersion: 26),
+               "menu bar organizer stays available on macOS 14/15/26")
+        expect(!AppFeature.isSupported(.menuBarOrganizer, onOperatingSystemMajorVersion: 27)
+                && !AppFeature.isSupported(.menuBarOrganizer, onOperatingSystemMajorVersion: 28),
+               "menu bar organizer is blocked on macOS 27 and later")
+        expect(!FeatureVisibilitySupport.isPageVisible(.menuBarOrganizer) {
+            AppFeature.isSupported($0, onOperatingSystemMajorVersion: 27)
+        }, "unsupported organizer settings stay out of navigation on macOS 27")
+        expect(AppFeature.isSupported(.switcher, onOperatingSystemMajorVersion: 27)
+                && AppFeature.isSupported(.fanControl, onOperatingSystemMajorVersion: 27),
+               "the macOS 27 gate only affects the menu bar organizer")
+
         expect(AppPermission.allCases.map(\.rawValue) == [
             "accessibility", "screenRecording", "fullDiskAccess", "filesAndFolders", "notifications",
             "automationFinder", "automationTerminal", "audioCapture", "microphone", "camera",
@@ -8828,6 +8846,9 @@ struct MetricsTests {
         expect(!activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled])
                 .contains(.brightness),
                "brightness sliders alone never use accessibility")
+        expect(activeSet(.accessibility, on: [DefaultsKey.menuBarOrganizerEnabled])
+                .contains(.menuBarOrganizer),
+               "the enabled menu bar organizer uses accessibility for Command-drag")
         expect(activeSet(.accessibility).contains(.screenRecorder),
                "the recorder uses accessibility for anonymous typing timing while active")
 
@@ -8842,6 +8863,169 @@ struct MetricsTests {
                          on: [DefaultsKey.switcherSimpleMode, DefaultsKey.dockPreviewEnabled])
                 .contains(.dockPreview),
                "dock preview keeps screen recording in use regardless of switcher mode")
+        expect(!activeSet(.screenRecording, on: [DefaultsKey.menuBarOrganizerEnabled])
+                .contains(.menuBarOrganizer),
+               "the organizer never requests screen recording")
+
+        // MARK: Menu bar organizer
+
+        expect(MenuBarOrganizerPresentationMode.sanitized("secondaryBar") == .secondaryBar
+                && MenuBarOrganizerPresentationMode.sanitized("invalid") == .automatic,
+               "menu bar presentation storage sanitizes to the safe automatic fallback")
+        expect(MenuBarOrganizerSupport.collapsedLength(screenWidths: []) == 4_096
+                && MenuBarOrganizerSupport.collapsedLength(screenWidths: [1_440, 3_000]) == 6_000
+                && MenuBarOrganizerSupport.collapsedLength(screenWidths: [10_000]) == 16_384,
+               "collapsed dividers cover ordinary, multi-display and extreme layouts")
+        expect(MenuBarOrganizerSupport.section(itemMidX: 500,
+                                               hiddenDividerMidX: 400,
+                                               alwaysHiddenDividerMidX: 200) == .visible
+                && MenuBarOrganizerSupport.section(itemMidX: 300,
+                                                   hiddenDividerMidX: 400,
+                                                   alwaysHiddenDividerMidX: 200) == .hidden
+                && MenuBarOrganizerSupport.section(itemMidX: 100,
+                                                   hiddenDividerMidX: 400,
+                                                   alwaysHiddenDividerMidX: 200) == .alwaysHidden,
+               "divider boundaries classify all three menu bar sections")
+        expect(MenuBarOrganizerSupport.shouldUseSecondaryBar(
+                mode: .automatic, hiddenWidth: 600, availableWidth: 500, hasNotch: false)
+                && MenuBarOrganizerSupport.shouldUseSecondaryBar(
+                    mode: .automatic, hiddenWidth: 10, availableWidth: 500, hasNotch: true)
+                && !MenuBarOrganizerSupport.shouldUseSecondaryBar(
+                    mode: .menuBar, hiddenWidth: 900, availableWidth: 100, hasNotch: true),
+               "automatic presentation handles overflow and notches while explicit mode wins")
+
+        func menuBarRecord(_ windowID: CGWindowID,
+                           ownerPID: pid_t = 1,
+                           ownerName: String = "App",
+                           ownerBundleIdentifier: String,
+                           title: String,
+                           x: CGFloat) -> MenuBarOrganizerWindowRecord {
+            MenuBarOrganizerWindowRecord(
+                windowID: windowID,
+                ownerPID: ownerPID,
+                ownerName: ownerName,
+                ownerBundleIdentifier: ownerBundleIdentifier,
+                title: title,
+                frame: CGRect(x: x, y: 0, width: 20, height: 22),
+                layer: 0,
+                alpha: 1,
+                isOnScreen: true)
+        }
+        let duplicateMenuRecords = [
+            menuBarRecord(1, ownerBundleIdentifier: "com.example.app", title: "State", x: 40),
+            menuBarRecord(2, ownerBundleIdentifier: "com.example.app", title: "State", x: 10),
+        ]
+        let duplicateIdentities = MenuBarOrganizerSupport.identities(
+            for: duplicateMenuRecords, sources: [:])
+        expect(duplicateIdentities[1]?.id.occurrence == 0
+                && duplicateIdentities[2]?.id.occurrence == 1,
+               "duplicate menu bar items keep stable identities while reordered")
+
+        let hostedRecord = menuBarRecord(
+            3,
+            ownerPID: 42,
+            ownerName: "Control Center",
+            ownerBundleIdentifier: MenuBarOrganizerSupport.controlCenterBundleIdentifier,
+            title: "Item-0",
+            x: 70)
+        let unresolvedHosted = MenuBarOrganizerSupport.identities(
+            for: [hostedRecord], sources: [:])
+        expect(unresolvedHosted[3]?.state == .provisional,
+               "a Control Center-hosted item without a source stays provisional")
+        let hostedSource = MenuBarItemSourceIdentity(
+            pid: 99,
+            bundleIdentifier: "com.example.hosted",
+            name: "Hosted App",
+            axIdentifier: "com.example.hosted.status",
+            axTitle: "Hosted")
+        let resolvedHosted = MenuBarOrganizerSupport.identities(
+            for: [hostedRecord], sources: [3: hostedSource])
+        expect(resolvedHosted[3]?.state == .stable
+                && resolvedHosted[3]?.id.bundleIdentifier == "com.example.hosted"
+                && resolvedHosted[3]?.id.title == "com.example.hosted.status",
+               "the resolved source app supplies a stable macOS 26 identity")
+        let anonymousHostedSource = MenuBarItemSourceIdentity(
+            pid: 100,
+            bundleIdentifier: "com.example.anonymous",
+            name: "Anonymous App",
+            axIdentifier: nil,
+            axTitle: nil)
+        expect(MenuBarOrganizerSupport.identities(
+                    for: [hostedRecord],
+                    sources: [3: anonymousHostedSource])[3]?.state == .provisional,
+               "a resolved process without a stable AX item name remains provisional")
+        let controlCenterHostSource = MenuBarItemSourceIdentity(
+            pid: 42,
+            bundleIdentifier: MenuBarOrganizerSupport.controlCenterBundleIdentifier,
+            name: "Control Center",
+            axIdentifier: "Item-0",
+            axTitle: "Item-0")
+        let hostOnlyIdentity = MenuBarOrganizerSupport.identities(
+            for: [hostedRecord], sources: [3: controlCenterHostSource])[3]
+        expect(hostOnlyIdentity?.state == .provisional
+                && hostOnlyIdentity?.source == nil,
+               "a generic Control Center AX match identifies only the host")
+        expect(MenuBarOrganizerSupport.frameMatchScore(
+                    CGRect(x: 10, y: 0, width: 20, height: 22),
+                    CGRect(x: 11, y: 0, width: 20, height: 22)) != nil
+                && MenuBarOrganizerSupport.frameMatchScore(
+                    CGRect(x: 10, y: 0, width: 20, height: 22),
+                    CGRect(x: 100, y: 0, width: 20, height: 22)) == nil,
+               "AX and WindowServer frames match only at the same menu bar slot")
+        expect(MenuBarOrganizerSupport.isGenericControlCenterHostedTitle("Item-0")
+                && MenuBarOrganizerSupport.isGenericControlCenterHostedTitle("item-42")
+                && MenuBarOrganizerSupport.isGenericControlCenterHostedTitle("  ")
+                && !MenuBarOrganizerSupport.isGenericControlCenterHostedTitle("Clock"),
+               "generic Control Center slots never become stable source identities")
+        expect(MenuBarOrganizerSupport.eventTargetPID(
+                    ownerPID: 42,
+                    ownerBundleIdentifier:
+                        MenuBarOrganizerSupport.controlCenterBundleIdentifier,
+                    sourcePID: 99) == 42
+                && MenuBarOrganizerSupport.eventTargetPID(
+                    ownerPID: 7,
+                    ownerBundleIdentifier: "com.example.direct",
+                    sourcePID: 99) == 99
+                && MenuBarOrganizerSupport.eventTargetPID(
+                    ownerPID: 7,
+                    ownerBundleIdentifier: "com.example.direct",
+                    sourcePID: nil) == 7,
+               "synthetic events target the window host on macOS 26 and otherwise prefer the source")
+        let menuBarFurniture = menuBarRecord(
+            4,
+            ownerName: "Window Server",
+            ownerBundleIdentifier: "",
+            title: "Menubar",
+            x: 0)
+        expect(!MenuBarOrganizerSupport.isMenuBarItemCandidate(
+                    menuBarFurniture, mainMenuLevel: menuBarFurniture.layer)
+                && MenuBarOrganizerSupport.isMenuBarItemCandidate(
+                    duplicateMenuRecords[0], mainMenuLevel: 24),
+               "the WindowServer menu bar window is never exposed as a movable item")
+        expect(MenuBarOrganizerSupport.shouldKeepPreviousSnapshot(
+                    previousCount: 4, newCount: 0, enumerationSucceeded: true)
+                && MenuBarOrganizerSupport.shouldKeepPreviousSnapshot(
+                    previousCount: 4, newCount: 2, enumerationSucceeded: false)
+                && !MenuBarOrganizerSupport.shouldKeepPreviousSnapshot(
+                    previousCount: 4, newCount: 2, enumerationSucceeded: true),
+               "transient empty or failed enumerations never replace a valid snapshot")
+        expect(MenuBarOrganizerSupport.isSystemImmovable(
+                bundleIdentifier: "com.apple.controlcenter", title: "Clock")
+                && MenuBarOrganizerSupport.isSystemImmovable(
+                    bundleIdentifier: "com.apple.controlcenter", title: "Item-14")
+                && !MenuBarOrganizerSupport.isSystemImmovable(
+                    bundleIdentifier: "com.example.app", title: "Clock"),
+               "protected system items are not offered to automatic movement")
+        expect(MenuBarManagerDetection.isKnownManager(bundleIdentifier: "com.stonerl.Thaw")
+                && MenuBarManagerDetection.isKnownManager(
+                    bundleIdentifier: "com.jordanbaird.Ice.beta")
+                && !MenuBarManagerDetection.isKnownManager(
+                    bundleIdentifier: "com.example.unrelated"),
+               "known menu bar managers are detected before Vorssaint starts")
+        expect(AppFeature.menuBarOrganizer.permissions == [.accessibility]
+                && AppFeature.menuBarOrganizer.onboardingPermissions.isEmpty
+                && AppFeature.menuBarOrganizer.isBeta,
+               "the beta organizer requests accessibility only when enabled and never screen recording")
         expect(AppFeature.dockClick.enabledKeys == [DefaultsKey.dockClickMinimize,
                                                     DefaultsKey.dockClickHide,
                                                     DefaultsKey.dockClickCycleWindows],
@@ -9066,6 +9250,18 @@ struct MetricsTests {
                    "every appearance string is set for \(language.rawValue)")
             expect(appearanceValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible appearance strings (\(language.rawValue))")
+            let menuBarOrganizerValues = Mirror(
+                reflecting: FeatureStrings.menuBarOrganizer(language)).children
+                .compactMap { $0.value as? String }
+            expect(!menuBarOrganizerValues.isEmpty
+                    && menuBarOrganizerValues.allSatisfy { !$0.isEmpty },
+                   "every menu bar organizer string is set for \(language.rawValue)")
+            expect(menuBarOrganizerValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in menu bar organizer strings (\(language.rawValue))")
+            expect(FeatureStrings.menuBarOrganizer(language).unsupportedSystem.contains("27")
+                    && FeatureStrings.menuBarOrganizer(language).unresolvedCountFormat.contains("%d")
+                    && FeatureStrings.menuBarOrganizer(language).conflictFormat.contains("%@"),
+                   "organizer compatibility and formats stay explicit (\(language.rawValue))")
             let screenshotValues = Mirror(reflecting: FeatureStrings.screenshot(language)).children
                 .compactMap { $0.value as? String }
             expect(!screenshotValues.isEmpty && screenshotValues.allSatisfy { !$0.isEmpty },
@@ -9856,6 +10052,14 @@ struct MetricsTests {
         let roleDefaults = GlobalShortcutRole.allCases.map(\.defaultShortcut)
         expect(Set(roleDefaults).count == roleDefaults.count,
                "no two shortcut roles ship the same default combination")
+        expect(Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerEnabled] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerSetupComplete] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerAlwaysHiddenEnabled] as? Bool == false,
+               "the menu bar organizer and destructive hiding state ship off")
+        expect(Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerShowDividers] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.menuBarOrganizerPresentationMode] as? String
+                    == MenuBarOrganizerPresentationMode.automatic.rawValue,
+               "the MVP organizer has only conservative presentation defaults")
 
         // MARK: Radial menu (issue #220)
 

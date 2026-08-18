@@ -79,6 +79,16 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Network.** Live rates, session totals and a built in speed test.
 - **Alerts.** Optional notifications for sustained CPU load, high temperature, memory pressure, low disk space and low battery.
 
+### Menu bar
+
+- **Menu bar organizer, beta.** Split status items into visible, hidden and
+  always-hidden sections, then reorder them from Settings with drag and drop.
+  Reveal items in the real menu bar or in a secondary bar that avoids the
+  MacBook notch. Accessibility enables the same Command-drag gesture used for
+  manual arrangement; Screen Recording is not required. The design is informed
+  by [Ice](https://github.com/jordanbaird/Ice) and
+  [Thaw](https://github.com/thaw-app/Thaw).
+
 ### Windows and the Dock
 
 - **App switcher.** A richer take on pressing ⌘Tab, with adjustable live window thumbnails, minimized windows included, and more than one window per app. Simple mode keeps every window and its title without previews or screen capture, with optional grouping to one entry per app. Optionally press S to keep search open after releasing the switcher shortcut, or hide the shortcut hints below the large icon row. Press the window shortcut directly to move between windows of the app in front. Set per-app rules to include windowless apps, keep them window-only or hide them. Choose apps where Vorssaint pauses both switcher and Dock thumbnail capture while they are in front.
@@ -181,7 +191,7 @@ Permissions get the same treatment. Every one is optional, the app explains each
 
 | Permission | Used by | Without it |
 |---|---|---|
-| Accessibility | Switcher, Dock features, window controls, mouse and keyboard features, snippets, cut and paste | Those features stay off |
+| Accessibility | Switcher, Dock features, menu bar organizer, window controls, mouse and keyboard features, snippets, cut and paste | Automatic movement and the other affected features stay off |
 | Screen Recording | Window previews, screenshots, copy text and screen recordings | Those captures stay unavailable |
 | System Audio Recording | Per app volume and output routing | Apps stay on normal system audio |
 | Microphone | Optional voice track in screen recordings | Recordings continue without your voice |

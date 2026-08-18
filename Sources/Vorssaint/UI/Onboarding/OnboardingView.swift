@@ -385,6 +385,7 @@ private struct PurposeStep: View {
     private func groupTitle(_ group: FeatureGroup) -> String {
         switch group {
         case .windowsDock: return hub.groupWindowsDock
+        case .menuBar: return FeatureStrings.menuBarOrganizer(l10n.language).pageTitle
         case .mouseKeyboard: return hub.groupMouseKeyboard
         case .clipboardFiles: return hub.groupClipboardFiles
         case .sound: return hub.groupSound

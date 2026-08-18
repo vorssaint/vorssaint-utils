@@ -50,9 +50,15 @@ enum SettingsDirectory {
                                                  FeatureStrings.keepAwakeDisplaySleep(language)
                                                      .allowDisplaySleep]),
                 SettingsDirectoryItem(page: .monitor, title: s.tabMonitor, icon: "chart.line.uptrend.xyaxis",
-                                      keywords: [s.menuBarSpacingLabel, s.menuBarHideIconToggle,
+                                     keywords: [s.menuBarSpacingLabel, s.menuBarHideIconToggle,
                                                  s.monitorMemoryPressureDot,
                                                  FeatureStrings.fanControl(language).menuBarTitle]),
+                SettingsDirectoryItem(page: .menuBarOrganizer,
+                                      title: FeatureStrings.menuBarOrganizer(language).pageTitle,
+                                      icon: "menubar.rectangle",
+                                      keywords: [FeatureStrings.menuBarOrganizer(language).enable,
+                                                 FeatureStrings.menuBarOrganizer(language).hidden,
+                                                 FeatureStrings.menuBarOrganizer(language).secondaryBar]),
             ]),
             (categories.windowsControls, [
                 SettingsDirectoryItem(page: .mouse, title: s.tabMouse, icon: "computermouse",
