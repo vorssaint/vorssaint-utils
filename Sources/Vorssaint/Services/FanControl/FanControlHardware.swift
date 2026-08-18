@@ -2,6 +2,12 @@
 // Copyright (C) 2026 Vorssaint
 
 import Foundation
+import os
+
+private let fanControlHardwareLog = Logger(
+    subsystem: FanControlIdentifiers.helperID,
+    category: "FanControlHardware"
+)
 
 enum FanControlHardwareError: Error {
     case noFans
@@ -81,33 +87,55 @@ final class FanControlHardware {
             throw FanControlHardwareError.alreadyControlled
         }
 
+        // Write the target immediately after manual mode. On macOS 27 the
+        // thermal controller can reclaim mode 0 between separate mode
+        // verification and target-write phases, even though the mode write
+        // itself succeeded. Keeping the pair together removes that reclaim
+        // window while the verification below still proves both values stuck.
         var directSucceeded = true
-        for fan in fans where !setMode(1, for: fan, attempts: 1) {
+        for fan in fans where !writeDirectMaximumPair(for: fan) {
             directSucceeded = false
         }
 
         if directSucceeded {
             Thread.sleep(forTimeInterval: 0.25)
             directSucceeded = fans.allSatisfy { (try? modeValue($0.mode)) == 1 }
+            if !directSucceeded {
+                fanControlHardwareLog.error("Manual mode did not persist after direct writes")
+            }
         }
 
         if !directSucceeded {
-            guard let forceTest = forceTestKey(), setByte(1, for: forceTest, attempts: 20) else {
+            guard let forceTest = forceTestKey() else {
+                fanControlHardwareLog.error(
+                    "Direct manual mode failed and this Mac exposes no Ftst fallback"
+                )
+                throw FanControlHardwareError.operationFailed
+            }
+            guard setByte(1, for: forceTest, attempts: 20) else {
+                fanControlHardwareLog.error("Could not enable the Ftst fallback")
                 throw FanControlHardwareError.operationFailed
             }
             let deadline = ProcessInfo.processInfo.systemUptime + 10
             Thread.sleep(forTimeInterval: 3)
             guard fans.allSatisfy({ setMode(1, for: $0, untilUptime: deadline) }) else {
+                fanControlHardwareLog.error("Manual-mode writes timed out after the Ftst fallback")
                 throw FanControlHardwareError.operationFailed
             }
         }
 
-        for fan in fans {
-            guard setValue(fan.maximumRPM, for: fan.target, attempts: 10) else {
-                throw FanControlHardwareError.operationFailed
+        if !directSucceeded {
+            for fan in fans {
+                guard setValue(fan.maximumRPM, for: fan.target, attempts: 10) else {
+                    fanControlHardwareLog.error(
+                        "Maximum target write failed for fan \(fan.index, privacy: .public)"
+                    )
+                    throw FanControlHardwareError.operationFailed
+                }
             }
         }
         guard verifyMaximumCooling(fans) else {
+            fanControlHardwareLog.error("Maximum-cooling verification failed")
             throw FanControlHardwareError.operationFailed
         }
         return try readings(for: fans)
@@ -276,6 +304,19 @@ final class FanControlHardware {
         return (try? modeValue(fan.mode)) == value
     }
 
+    private func writeDirectMaximumPair(for fan: Fan) -> Bool {
+        do {
+            try client.writeBytes([1], to: fan.mode)
+            try client.writeValue(fan.maximumRPM, to: fan.target)
+            return true
+        } catch {
+            fanControlHardwareLog.error(
+                "Direct mode-target pair failed for fan \(fan.index, privacy: .public) error=\(String(describing: error), privacy: .public)"
+            )
+            return false
+        }
+    }
+
     private func setMode(_ value: UInt8, for fan: Fan, untilUptime deadline: TimeInterval) -> Bool {
         repeat {
             if setMode(value, for: fan, attempts: 1) { return true }
@@ -287,24 +328,36 @@ final class FanControlHardware {
     }
 
     private func setByte(_ value: UInt8, for key: SMCClient.Key, attempts: Int) -> Bool {
+        var lastError: Error?
         for attempt in 0..<attempts {
             do {
                 try client.writeBytes([value], to: key)
                 if (try? byteValue(key)) == value { return true }
-            } catch {}
+            } catch {
+                lastError = error
+            }
             if attempt + 1 < attempts { Thread.sleep(forTimeInterval: 0.05) }
         }
+        fanControlHardwareLog.error(
+            "SMC byte write failed key=\(key.name, privacy: .public) value=\(value, privacy: .public) error=\(String(describing: lastError), privacy: .public)"
+        )
         return false
     }
 
     private func setValue(_ value: Double, for key: SMCClient.Key, attempts: Int) -> Bool {
+        var lastError: Error?
         for attempt in 0..<attempts {
             do {
                 try client.writeValue(value, to: key)
                 return true
-            } catch {}
+            } catch {
+                lastError = error
+            }
             if attempt + 1 < attempts { Thread.sleep(forTimeInterval: 0.05) }
         }
+        fanControlHardwareLog.error(
+            "SMC value write failed key=\(key.name, privacy: .public) value=\(value, privacy: .public) error=\(String(describing: lastError), privacy: .public)"
+        )
         return false
     }
 }

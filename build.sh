@@ -46,11 +46,22 @@ developer_id_identity() {
         | sed -E 's/.*"(.*)".*/\1/' || true
 }
 
+apple_development_identity() {
+    security find-identity -v -p codesigning 2>/dev/null \
+        | grep 'Apple Development' \
+        | head -1 \
+        | sed -E 's/.*"(.*)".*/\1/' || true
+}
+
 finalize_installed_bundle_after_child() {
     local bundle="$1"
     local helper="$bundle/Contents/Library/LaunchServices/$FAN_HELPER_ID"
-    local devid
+    local devid appledev
     devid="$(developer_id_identity)"
+    appledev=""
+    if [[ -z "$devid" ]]; then
+        appledev="$(apple_development_identity)"
+    fi
 
     echo "▸ Finalizing installed signature…"
     sleep 3
@@ -59,6 +70,11 @@ finalize_installed_bundle_after_child() {
             --options runtime --timestamp --identifier "$FAN_HELPER_ID" --sign "$devid" "$helper"
         /usr/bin/codesign --force --strip-disallowed-xattrs --options runtime --timestamp \
             --entitlements "$ENTITLEMENTS" --sign "$devid" "$bundle"
+    elif [[ -n "$appledev" ]]; then
+        [[ -f "$helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
+            --options runtime --identifier "$FAN_HELPER_ID" --sign "$appledev" "$helper"
+        /usr/bin/codesign --force --strip-disallowed-xattrs --options runtime \
+            --entitlements "$ENTITLEMENTS" --sign "$appledev" "$bundle"
     elif security find-identity -p codesigning 2>/dev/null | grep -q "$LEGACY_IDENTITY"; then
         [[ -f "$helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
             --identifier "$FAN_HELPER_ID" --sign "$LEGACY_IDENTITY" "$helper"
@@ -133,6 +149,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/PermissionGuideStrings.swift \
         Sources/Vorssaint/Core/FanControlStrings.swift \
         Sources/Vorssaint/Services/FanControl/FanControlSupport.swift \
+        Sources/Vorssaint/Services/FanControl/FanControlXPC.swift \
         Sources/Vorssaint/Services/Snippets/TextSnippetSupport.swift \
         Sources/Vorssaint/Services/RadialMenu/RadialMenuSupport.swift \
         Sources/Vorssaint/Services/QuickTools/ScratchpadSupport.swift \
@@ -318,11 +335,17 @@ xattr -c -r "$STAGE" 2>/dev/null || true
 #      notarization), the app's entitlements and a secure timestamp. Gives a
 #      stable, team-based designated requirement, so permissions persist across
 #      updates AND Gatekeeper shows no "unverified developer" warning.
-#   2. "Vorssaint Utils Signing" — the legacy stable self-signed identity, kept
-#      as a fallback so contributors without a Developer ID still get a constant
-#      designated requirement across their local builds.
-#   3. Ad-hoc — fresh clone with no identity at all.
+#   2. Apple Development — local builds can register and authenticate their
+#      helper by pinning both processes to the contributor's Apple team.
+#   3. "Vorssaint Utils Signing" — the legacy stable self-signed identity, kept
+#      as a fallback so contributors without an Apple identity still get a
+#      constant designated requirement across their local builds.
+#   4. Ad-hoc — fresh clone with no identity at all.
 DEVID="$(developer_id_identity)"
+APPLEDEV=""
+if [[ -z "$DEVID" ]]; then
+    APPLEDEV="$(apple_development_identity)"
+fi
 codesign_with_timestamp_retry() {
     local attempt
     for attempt in 1 2 3; do
@@ -342,6 +365,9 @@ codesign_app() {
     if [[ -n "$DEVID" ]]; then
         codesign_with_timestamp_retry --force --strip-disallowed-xattrs --options runtime --timestamp \
             --entitlements "$ENTITLEMENTS" --sign "$DEVID" "$target"
+    elif [[ -n "$APPLEDEV" ]]; then
+        codesign --force --strip-disallowed-xattrs --options runtime \
+            --entitlements "$ENTITLEMENTS" --sign "$APPLEDEV" "$target"
     elif security find-identity -p codesigning 2>/dev/null | grep -q "$LEGACY_IDENTITY"; then
         codesign --force --strip-disallowed-xattrs --sign "$LEGACY_IDENTITY" "$target"
     else
@@ -354,6 +380,9 @@ codesign_fan_helper() {
     if [[ -n "$DEVID" ]]; then
         codesign_with_timestamp_retry --force --strip-disallowed-xattrs --options runtime --timestamp \
             --identifier "$FAN_HELPER_ID" --sign "$DEVID" "$target"
+    elif [[ -n "$APPLEDEV" ]]; then
+        codesign --force --strip-disallowed-xattrs --options runtime \
+            --identifier "$FAN_HELPER_ID" --sign "$APPLEDEV" "$target"
     elif security find-identity -p codesigning 2>/dev/null | grep -q "$LEGACY_IDENTITY"; then
         codesign --force --strip-disallowed-xattrs --identifier "$FAN_HELPER_ID" \
             --sign "$LEGACY_IDENTITY" "$target"
@@ -369,6 +398,8 @@ sign_bundle() {
 
     if [[ -n "$DEVID" ]]; then
         echo "  signing with Developer ID (hardened runtime): $DEVID"
+    elif [[ -n "$APPLEDEV" ]]; then
+        echo "  signing local build with Apple Development identity: $APPLEDEV"
     elif security find-identity -p codesigning 2>/dev/null | grep -q "$LEGACY_IDENTITY"; then
         echo "  signing with legacy self-signed identity: $LEGACY_IDENTITY"
     else
@@ -388,6 +419,17 @@ sign_bundle() {
     [[ -f "$executable" ]] && codesign --verify --strict "$executable"
     [[ -f "$helper" ]] && codesign --verify --strict "$helper"
     codesign --verify --deep --strict "$bundle"
+
+    if [[ -n "$APPLEDEV" && -f "$helper" ]]; then
+        local app_team helper_team
+        app_team="$(codesign -dvvv "$bundle" 2>&1 | awk -F= '/^TeamIdentifier=/{print $2; exit}')"
+        helper_team="$(codesign -dvvv "$helper" 2>&1 | awk -F= '/^TeamIdentifier=/{print $2; exit}')"
+        if [[ -z "$app_team" || "$app_team" != "$helper_team" ]]; then
+            echo "✗ App and fan helper must share an Apple signing team" >&2
+            return 1
+        fi
+        echo "  XPC team pinned: $app_team"
+    fi
 }
 
 sign_installed_bundle() {

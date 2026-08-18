@@ -7906,6 +7906,19 @@ struct MetricsTests {
         expect(FanControlPolicy.coolingDuration == 15 * 60
                 && FanControlPolicy.heartbeatLimit < 10,
                "maximum cooling is time-bounded and loses control quickly with its client")
+        let releaseAppRequirement = FanControlIdentifiers.codeRequirement(
+            teamID: "3D485NHW29", identifier: "com.vorssaint.utils"
+        )
+        let releaseHelperRequirement = FanControlIdentifiers.codeRequirement(
+            teamID: "3D485NHW29", identifier: "com.vorssaint.utils.fan-control"
+        )
+        expect(FanControlIdentifiers.teamID == "3D485NHW29"
+                && FanControlIdentifiers.appCodeRequirement == releaseAppRequirement
+                && FanControlIdentifiers.helperCodeRequirement == releaseHelperRequirement
+                && releaseAppRequirement.contains("anchor apple generic")
+                && releaseAppRequirement.contains("certificate leaf[subject.OU] = \"3D485NHW29\"")
+                && releaseHelperRequirement.hasSuffix("identifier \"com.vorssaint.utils.fan-control\""),
+               "unsigned release tests preserve the release team and exact peer identifiers")
         expect(FanControlPolicy.isAutomaticMode(0)
                 && FanControlPolicy.isAutomaticMode(3)
                 && !FanControlPolicy.isAutomaticMode(1)
