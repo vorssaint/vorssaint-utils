@@ -73,6 +73,7 @@ struct ScratchpadView: View {
                     }
                     .padding(.vertical, 3)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .onAppear {
                     guard let selected = service.selectedPadID else { return }
                     proxy.scrollTo(selected, anchor: .center)

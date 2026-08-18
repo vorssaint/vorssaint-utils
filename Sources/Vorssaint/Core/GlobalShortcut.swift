@@ -248,10 +248,12 @@ struct GlobalShortcut: Equatable, Hashable {
         modifiers.keyCaps + [keyLabel ?? "Key \(keyCode)"]
     }
 
-    /// The shorter way to press a four-modifier shortcut while the Super key
-    /// is running. Shortcuts with any other modifier set have no equivalent.
-    func superKeyAlternative(capsLockLabel: String) -> String? {
-        guard modifiers == .validMask, let key = keyCaps.last else { return nil }
+    /// The shorter way to press a shortcut matching the configured Super key.
+    func superKeyAlternative(capsLockLabel: String,
+                             superKeyModifiers: GlobalShortcutModifiers) -> String? {
+        guard superKeyModifiers.hasPrimaryModifier,
+              modifiers == superKeyModifiers,
+              let key = keyCaps.last else { return nil }
         return "\(capsLockLabel) + \(key)"
     }
 
@@ -664,7 +666,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenOCR: return strings.ocrName
         case .micMute: return strings.micMuteName
         case .quickLauncher: return strings.launcherName
-        case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).pageTitle
+        case .screenshot:
+            return FeatureStrings.screenshot(L10n.shared.language).screenCaptureTitle
         case .screenshotFullScreen:
             return FeatureStrings.screenshot(L10n.shared.language).fullScreenShortcutTitle
         case .screenshotLastCapture:
@@ -751,6 +754,26 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         }
     }
 
+    /// The main capture role survives while any mode in its chooser is
+    /// installed. The former dedicated shortcuts stay readable for migration
+    /// but no longer appear or register as separate commands.
+    var availabilityFeatures: [AppFeature] {
+        switch self {
+        case .screenshot:
+            return [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
+        default:
+            return [feature]
+        }
+    }
+
+    var isLegacyUnifiedCaptureShortcut: Bool {
+        self == .screenRecorder || self == .screenOCR || self == .colorPicker
+    }
+
+    func isAvailable(using isAvailable: (AppFeature) -> Bool) -> Bool {
+        !isLegacyUnifiedCaptureShortcut && availabilityFeatures.contains(where: isAvailable)
+    }
+
     /// The features whose own shortcuts have to go quiet while the user is
     /// recording a new one, or the combination being typed fires the feature
     /// instead of landing in the field. Derived from the roles, so a shortcut
@@ -771,7 +794,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     static func activeRoles(isOn: (String) -> Bool,
                             isAvailable: (AppFeature) -> Bool = { _ in true }) -> [GlobalShortcutRole] {
         allCases.filter { role in
-            isAvailable(role.feature) && role.requiredEnableKeys.allSatisfy(isOn)
+            role.isAvailable(using: isAvailable) && role.requiredEnableKeys.allSatisfy(isOn)
         }
     }
 
@@ -780,7 +803,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     /// later on the central shortcuts page.
     static func availableRoles(isAvailable: (AppFeature) -> Bool = { $0.isAvailable })
         -> [GlobalShortcutRole] {
-        allCases.filter { isAvailable($0.feature) }
+        allCases.filter { $0.isAvailable(using: isAvailable) }
     }
 }
 

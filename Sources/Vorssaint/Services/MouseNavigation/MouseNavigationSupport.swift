@@ -100,9 +100,21 @@ enum MouseNavigationSupport {
     /// family, including its mail client.
     static let passThroughBundleIDPrefixes = ["org.mozilla."]
 
-    static func shouldPassThrough(bundleIdentifier: String?) -> Bool {
+    static func nativeWebHandlers(urlHandlers: Set<String>,
+                                  documentHandlers: Set<String>) -> Set<String> {
+        urlHandlers.intersection(documentHandlers)
+    }
+
+    static func shouldPassThrough(bundleIdentifier: String?,
+                                  webURLHandlers: Set<String> = []) -> Bool {
         guard let bundleIdentifier else { return false }
         if passThroughBundleIDs.contains(bundleIdentifier) { return true }
-        return passThroughBundleIDPrefixes.contains { bundleIdentifier.hasPrefix($0) }
+        if passThroughBundleIDPrefixes.contains(where: { bundleIdentifier.hasPrefix($0) }) {
+            return true
+        }
+        // Third-party browsers normally own Back and Forward themselves.
+        // Apple apps stay on the menu-command path, including the system browser.
+        return !bundleIdentifier.hasPrefix("com.apple.")
+            && webURLHandlers.contains(bundleIdentifier)
     }
 }

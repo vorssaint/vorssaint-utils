@@ -66,7 +66,16 @@ struct CommandBarEntry: Identifiable {
     /// moment it was about to run. A row that does nothing with those words
     /// goes on answering to its name alone.
     let takesArgument: Bool
+    /// Where this row lives on the disk, for the rows that are a real file:
+    /// an app, one of the Mac's own folders, a place the person saved. The
+    /// rows the bar makes up have no such place, and saying so here is what
+    /// keeps ⌘Return and the actions list from ever disagreeing about it.
+    let revealPath: String?
     let run: (Int?) -> Void
+
+    /// Whether this row can be shown where it lives. One rule, read by the
+    /// combination and by the actions list alike.
+    var canRevealInFinder: Bool { revealPath != nil }
 
     /// Whether running this row asks the person something first. A row that
     /// would confirm, or wait for a number, or send them to a Settings page
@@ -88,7 +97,7 @@ struct CommandBarEntry: Identifiable {
                         confirmationPrompt: confirmationPrompt, answerValue: answerValue,
                         isAnswer: isAnswer, countsUsage: countsUsage,
                         matchTitle: matchTitle, keepsBarOpen: keepsBarOpen,
-                        takesArgument: takesArgument, run: run)
+                        takesArgument: takesArgument, revealPath: revealPath, run: run)
     }
 
     /// Glyph rows get a tinted plate behind the icon; real app, file and
@@ -118,6 +127,7 @@ struct CommandBarEntry: Identifiable {
          matchTitle: String? = nil,
          keepsBarOpen: Bool = false,
          takesArgument: Bool = false,
+         revealPath: String? = nil,
          run: @escaping (Int?) -> Void) {
         self.id = id
         self.stableKey = stableKey ?? id
@@ -138,6 +148,7 @@ struct CommandBarEntry: Identifiable {
         self.matchTitle = matchTitle
         self.keepsBarOpen = keepsBarOpen
         self.takesArgument = takesArgument
+        self.revealPath = revealPath
         self.run = run
     }
 }
@@ -262,7 +273,7 @@ enum CommandBarCatalog {
         /// A shortcut is only shown while it actually fires (its enables on),
         /// so the bar never teaches a dead combination.
         func roleShortcut(_ role: GlobalShortcutRole) -> GlobalShortcut? {
-            guard role.feature.isAvailable,
+            guard role.isAvailable(using: { $0.isAvailable }),
                   role.requiredEnableKeys.allSatisfy({ UserDefaults.standard.bool(forKey: $0) })
             else { return nil }
             return role.savedShortcut
@@ -299,9 +310,22 @@ enum CommandBarCatalog {
                 title: running ? recorder.stopButton : recorder.pageTitle,
                 subtitle: area(.screenRecorder, under: recorder.pageTitle),
                 icon: .symbol(running ? "stop.circle" : "record.circle"),
-                shortcut: roleShortcut(.screenRecorder),
+                shortcut: roleShortcut(.screenshot),
                 trouble: Permissions.shared.screenRecording ? nil : .needsPermission,
                 run: { _ in afterBeat { ScreenRecorderService.shared.toggle() } }))
+        }
+        if AppFeature.screenshot.isAvailable || AppFeature.screenRecorder.isAvailable {
+            let recent = FeatureStrings.recentCaptures(language)
+            entries.append(CommandBarEntry(
+                id: "action.recentCaptures",
+                title: recent.title,
+                subtitle: groupTitle(.tools, hub: hub),
+                keywords: [recent.screenshot, recent.recording,
+                           RecentCaptureStrings.enUS.title].joined(separator: " "),
+                icon: .symbol("clock.arrow.circlepath"),
+                run: { _ in afterBeat(0.1) {
+                    RecentCaptureService.shared.showHistoryWindow()
+                } }))
         }
         if AppFeature.screenOCR.isAvailable {
             entries.append(CommandBarEntry(
@@ -309,7 +333,7 @@ enum CommandBarCatalog {
                 title: s.ocrName,
                 subtitle: area(.screenOCR, under: s.ocrName),
                 icon: .symbol("text.viewfinder"),
-                shortcut: roleShortcut(.screenOCR),
+                shortcut: roleShortcut(.screenshot),
                 trouble: Permissions.shared.screenRecording ? nil : .needsPermission,
                 run: { _ in afterBeat { ScreenTextService.shared.capture() } }))
         }
@@ -319,7 +343,7 @@ enum CommandBarCatalog {
                 title: s.colorPickerName,
                 subtitle: area(.colorPicker, under: s.colorPickerName),
                 icon: .symbol("eyedropper"),
-                shortcut: roleShortcut(.colorPicker),
+                shortcut: roleShortcut(.screenshot),
                 run: { _ in afterBeat { ColorSamplerService.shared.pick() } }))
         }
         if AppFeature.clipboardHistory.isAvailable {
@@ -709,6 +733,7 @@ enum CommandBarCatalog {
                 keywords: bar.kindFolder,
                 icon: .filePath(folder.url.path),
                 countsUsage: true,
+                revealPath: folder.url.path,
                 run: { _ in NSWorkspace.shared.open(folder.url) }))
         }
 
@@ -749,6 +774,64 @@ enum CommandBarCatalog {
                     icon: .symbol(item.icon),
                     run: { _ in openSettings(at: item.page) })
             }
+    }
+
+    // MARK: - Files
+
+    /// One row per file Spotlight found in the folders the person named.
+    ///
+    /// A found file is a passing thing, like something copied: it is not
+    /// pinned, named or learned from, because the row exists for exactly as
+    /// long as the words that found it. What it does keep is where it lives,
+    /// so ⌘Return shows it in Finder.
+    static func fileEntries(_ paths: [String],
+                            bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
+        let home = NSHomeDirectory()
+        return paths.map { path in
+            let url = URL(fileURLWithPath: path)
+            let folder = CommandBarFileSearchSupport.abbreviating(
+                url.deletingLastPathComponent().path, homeDirectory: home)
+            return CommandBarEntry(
+                id: "file.\(path)",
+                title: url.lastPathComponent,
+                subtitle: folder,
+                keywords: bar.sourceFiles,
+                icon: .filePath(path),
+                countsUsage: false,
+                revealPath: path,
+                run: { _ in
+                    guard FileManager.default.fileExists(atPath: path) else {
+                        QuickToolHUD.show(icon: "doc.questionmark", message: url.lastPathComponent)
+                        return
+                    }
+                    NSWorkspace.shared.open(url)
+                })
+        }
+    }
+
+    // MARK: - The Mac's own Settings panes
+
+    /// One row per pane System Settings shows, opened by the address macOS
+    /// gives it. The names come from macOS and are the ones it shows itself;
+    /// the words underneath them are translated, so the pane answers in the
+    /// language the person is typing even where its name does not.
+    static func macSettingsEntries(_ panes: [CommandBarSystemSettings.Pane],
+                                   bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
+        panes.map { pane in
+            CommandBarEntry(
+                id: "macsettings.\(pane.bundleID)",
+                title: pane.name,
+                subtitle: bar.sourceMacSettings,
+                keywords: pane.keywords,
+                icon: .symbol("gearshape.2"),
+                run: { _ in
+                    guard let url = CommandBarSystemSettings.url(for: pane.bundleID) else {
+                        NSSound.beep()
+                        return
+                    }
+                    NSWorkspace.shared.open(url)
+                })
+        }
     }
 
     // MARK: - Snippets
@@ -795,8 +878,13 @@ enum CommandBarCatalog {
                 stableKey: app.bundleID.map { "app.bundle.\($0)" } ?? "app.\(app.id)",
                 title: app.name,
                 subtitle: bar.kindApp,
+                // Alternate names from macOS let an older or translated name
+                // find the same app. They rank as keywords, under any title
+                // that really holds what was typed.
+                keywords: app.alternateNames.joined(separator: " "),
                 icon: .appIcon(path: app.url.path),
                 isActive: isRunning,
+                revealPath: app.url.path,
                 run: { _ in
                     NSWorkspace.shared.openApplication(at: app.url,
                                                        configuration: NSWorkspace.OpenConfiguration()) { _, error in
@@ -1068,16 +1156,25 @@ enum CommandBarCatalog {
             CommandBarEntry(
                 id: "link.\(link.id.uuidString)",
                 title: link.name,
-                subtitle: link.takesQuery ? bar.linkSearchHint : bar.kindLink,
+                subtitle: link.kind == .script
+                    ? bar.scriptSearchHint
+                    : (link.takesArgument ? bar.linkSearchHint : bar.kindLink),
                 keywords: bar.kindLink,
                 icon: .symbol(link.kind.symbolName),
-                // A saved search may still need to be told what to look for,
-                // and it cannot ask from behind a closed panel.
-                keepsBarOpen: link.takesQuery,
-                // Only a search reads the words that follow its name; a plain
-                // site or folder opens the same either way.
-                takesArgument: link.takesQuery,
-                run: { _ in open(link) })
+                // A saved search, or a script, may still need to be told what
+                // to look for, and it cannot ask from behind a closed panel.
+                keepsBarOpen: link.takesArgument,
+                // Only a search or a script reads the words that follow its
+                // name; a plain site or folder opens the same either way.
+                takesArgument: link.takesArgument,
+                revealPath: CommandBarLinks.revealPath(for: link),
+                run: { _ in
+                    if link.kind == .script {
+                        runScript(link)
+                    } else {
+                        open(link)
+                    }
+                })
         }
     }
 
@@ -1118,6 +1215,40 @@ enum CommandBarCatalog {
             return
         }
         NSWorkspace.shared.open(url)
+    }
+
+    /// Return pressed before a script's debounced run has answered yet: runs
+    /// at once instead of waiting, and leaves the bar open the way a search
+    /// does, since there is nothing to copy until the row shows an answer.
+    private static func runScript(_ link: CommandBarLink) {
+        let service = CommandBarService.shared
+        let typed = service.queryWhenRun.trimmingCharacters(in: .whitespaces)
+        let argument = CommandBarLinks.trailingArgument(query: typed, name: link.name) ?? ""
+        if argument.isEmpty {
+            service.prefill(link.name + " ")
+            return
+        }
+        if let cached = service.scriptRunner.cachedResult(linkID: link.id, argument: argument) {
+            copyAnswer(cached.text)
+            service.hide()
+            return
+        }
+        service.scriptRunner.runNow(link: link, argument: argument)
+    }
+
+    /// The row a saved script shows once it has answered: the same shape as
+    /// the calculator's own answer, so Return copies it the same way.
+    static func scriptAnswerEntry(link: CommandBarLink,
+                                  result: CommandBarScriptRunner.Result,
+                                  bar: CommandBarFeatureStrings) -> CommandBarEntry {
+        CommandBarEntry(
+            id: "link.\(link.id.uuidString)",
+            title: result.text,
+            subtitle: bar.copyHint,
+            icon: .symbol(link.kind.symbolName),
+            isAnswer: true,
+            countsUsage: false,
+            run: { _ in copyAnswer(result.text) })
     }
 
     // MARK: - What is selected right now

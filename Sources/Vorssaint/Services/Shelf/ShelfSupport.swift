@@ -3,6 +3,26 @@
 
 import Foundation
 
+enum ShelfSelectionSupport {
+    /// Escape clears the Shelf selection only when pressed on its own. Keeping
+    /// modifier-bearing variants available avoids swallowing future shortcuts.
+    static func isClearSelectionShortcut(keyCode: UInt16,
+                                         hasSelectionModifiers: Bool) -> Bool {
+        keyCode == 53 && !hasSelectionModifiers
+    }
+
+    /// The visible ids covered by a shift-click, from the last tile the user
+    /// touched to the clicked tile, inclusive and in either direction.
+    static func rangeSelectionIDs<ID: Equatable>(allIDs: [ID],
+                                                 anchorID: ID?,
+                                                 targetID: ID) -> [ID] {
+        guard let target = allIDs.firstIndex(of: targetID) else { return [] }
+        let anchor = anchorID.flatMap { allIDs.firstIndex(of: $0) } ?? target
+        let bounds = min(anchor, target)...max(anchor, target)
+        return Array(allIDs[bounds])
+    }
+}
+
 enum ShelfInteractionSupport {
     /// App exclusions only suppress automatic Shelf appearances. A deliberate
     /// shortcut or "Open now" action remains an escape hatch everywhere.
@@ -44,6 +64,111 @@ enum ShelfInteractionSupport {
                                       draggedItemCount: Int,
                                       removeAfterDrop: Bool) -> Bool {
         dropAccepted && draggedItemCount > 0 && removeAfterDrop
+    }
+}
+
+/// Which side of the screen a drag is being aimed at, for the "open near a
+/// screen edge" trigger. Only left and right: top and bottom already belong
+/// to the menu bar and the Dock, wherever it sits.
+enum ShelfEdge: Equatable {
+    case left, right
+}
+
+/// A resolved edge match: which side, and the screen it belongs to, kept
+/// together so a later retreat check tests the same edge instead of
+/// accidentally resolving a different screen's edge.
+struct ShelfEdgeMatch: Equatable {
+    let edge: ShelfEdge
+    let screen: CGRect
+}
+
+/// A screen's physical frame paired with its visible frame (the physical
+/// frame minus the menu bar and Dock), so `ShelfEdgeDragSupport.match` can
+/// tell "near the physical edge" apart from "over the Dock's own reserved
+/// space" when a Dock is mounted on the left or right. When nothing is
+/// reserved there (Dock at the bottom or auto-hidden), `visibleFrame`'s
+/// horizontal bounds equal `frame`'s and this carries no effect.
+struct ShelfEdgeScreen: Equatable {
+    let frame: CGRect
+    let visibleFrame: CGRect
+}
+
+enum ShelfEdgeDragSupport {
+    /// How close the pointer has to be to a screen's outer edge to count as
+    /// heading for it.
+    static let triggerDistance: CGFloat = 200
+    /// Wider than the trigger distance on purpose: the boundary needs its
+    /// own hysteresis, or hovering right at the edge would flicker between
+    /// shown and retracted.
+    static let retreatDistance: CGFloat = 330
+    /// How long the pointer has to stay within the trigger distance before
+    /// it counts as heading for the edge, so a fast pass through the zone
+    /// (e.g. flicking the pointer past it on the way elsewhere) does not
+    /// fire. `match`'s Dock-margin exclusion keeps parking on a Dock icon
+    /// from triggering it at all; a slow approach through the rest of the
+    /// zone before ever reaching the Dock can still dwell long enough to
+    /// fire, the same as approaching any other point near the edge would.
+    static let dwell: TimeInterval = 0.15
+
+    /// The left or right edge of whichever screen the point is closest to,
+    /// within `distance` of that edge, or nil when nothing qualifies. A
+    /// seam shared by two adjacent displays never counts as either
+    /// screen's own outer edge, so a drag crossing between displays there
+    /// is never caught. A point resting inside a side-mounted Dock's own
+    /// reserved margin (`frame` minus `visibleFrame`, horizontally) never
+    /// counts either, so parking over a Dock icon to drop there doesn't
+    /// also peek the shelf.
+    static func match(at point: CGPoint, screens: [ShelfEdgeScreen], distance: CGFloat) -> ShelfEdgeMatch? {
+        let ordered = screens.enumerated().sorted {
+            distanceSquared(from: point, to: $0.element.frame) < distanceSquared(from: point, to: $1.element.frame)
+        }
+        for (index, screen) in ordered {
+            let frame = screen.frame
+            guard frame.width > 0, frame.height > 0,
+                  point.x >= frame.minX - distance, point.x <= frame.maxX + distance,
+                  point.y >= frame.minY - distance, point.y <= frame.maxY + distance
+            else { continue }
+            let others = screens.enumerated().compactMap { $0.offset == index ? nil : $0.element.frame }
+            let nearLeft = point.x <= frame.minX + distance
+                && point.x >= screen.visibleFrame.minX
+                && !hasNeighbor(at: CGPoint(x: frame.minX - distance - 1, y: point.y), frames: others)
+            if nearLeft { return ShelfEdgeMatch(edge: .left, screen: frame) }
+            let nearRight = point.x >= frame.maxX - distance
+                && point.x <= screen.visibleFrame.maxX
+                && !hasNeighbor(at: CGPoint(x: frame.maxX + distance + 1, y: point.y), frames: others)
+            if nearRight { return ShelfEdgeMatch(edge: .right, screen: frame) }
+        }
+        return nil
+    }
+
+    /// Whether the point is still within `distance` of the same edge and
+    /// screen an earlier match resolved, without re-resolving which screen
+    /// or edge is nearest now. Used to check retreat against the edge that
+    /// is actually showing, not whichever edge happens to be closest.
+    static func stillNear(_ match: ShelfEdgeMatch, point: CGPoint, distance: CGFloat) -> Bool {
+        let withinHeight = point.y >= match.screen.minY - distance && point.y <= match.screen.maxY + distance
+        guard withinHeight else { return false }
+        switch match.edge {
+        case .left: return point.x <= match.screen.minX + distance
+        case .right: return point.x >= match.screen.maxX - distance
+        }
+    }
+
+    /// Whether a dwell that began at `since` has lasted long enough, given
+    /// the current time, to count as heading for the edge rather than
+    /// passing near it.
+    static func hasDwelled(since: TimeInterval, now: TimeInterval, required: TimeInterval = dwell) -> Bool {
+        now - since >= required
+    }
+
+    private static func distanceSquared(from point: CGPoint, to frame: CGRect) -> CGFloat {
+        let dx = max(frame.minX - point.x, 0, point.x - frame.maxX)
+        let dy = max(frame.minY - point.y, 0, point.y - frame.maxY)
+        return dx * dx + dy * dy
+    }
+
+    private static func hasNeighbor(at point: CGPoint, frames: [CGRect]) -> Bool {
+        frames.contains { $0.insetBy(dx: -1, dy: -1).contains(point) }
     }
 }
 

@@ -64,18 +64,11 @@ enum QuickToolHUD {
             DispatchQueue.main.async { showCountdown(value) }
             return
         }
-        let content = ZStack {
-            Circle()
-                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
-            Circle()
-                .trim(from: 0.04, to: 0.96)
-                .stroke(Color.accentColor,
-                        style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .padding(6)
-            Text("\(value)")
-                .font(.system(size: 32, weight: .bold, design: .rounded))
-                .monospacedDigit()
+        let startedAt = Date()
+        let content = TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+            let progress = ScreenshotSupport.countdownRingProgress(
+                elapsed: context.date.timeIntervalSince(startedAt))
+            QuickToolCountdownView(value: value, progress: progress)
         }
         .frame(width: 82, height: 82)
         .background(.regularMaterial, in: Circle())
@@ -221,6 +214,27 @@ enum QuickToolHUD {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
+    }
+}
+
+private struct QuickToolCountdownView: View {
+    let value: Int
+    let progress: CGFloat
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+            Circle()
+                .trim(from: 0.04, to: 0.04 + progress * 0.92)
+                .stroke(Color.accentColor,
+                        style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .padding(6)
+            Text("\(value)")
+                .font(.system(size: 32, weight: .bold, design: .rounded))
+                .monospacedDigit()
+        }
     }
 }
 

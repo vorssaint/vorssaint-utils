@@ -220,8 +220,6 @@ struct RecorderInspector: View {
                 Text(strings.shapeVertical).tag(RecorderSupport.Aspect.vertical.rawValue)
             }
             .pickerStyle(.menu)
-            .disabled(!model.showsBackdrop)
-            .opacity(model.showsBackdrop ? 1 : 0.45)
 
             if model.showsBackdrop {
                 VStack(spacing: 7) {

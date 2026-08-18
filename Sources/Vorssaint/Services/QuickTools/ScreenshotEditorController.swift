@@ -118,6 +118,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     private var activeHandle: ScreenshotSupport.Handle?
     private var cropResizeOrigin: CGRect?
     private var cropMoveOrigin: CGRect?
+    private var cropSelectionOrigin: CGRect?
     private var dragRegistered = false
     private var editingSelectedAnnotation = false
     private var newTextID: UUID?
@@ -478,12 +479,17 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         case .select:
             beginSelectDrag(at: point)
         case .crop:
+            let bounds = CGRect(origin: .zero, size: imageSize)
             if let draft = cropDraft,
                let handle = ScreenshotSupport.handle(at: point, rect: draft,
                                                      tolerance: 14 * scale) {
                 activeHandle = handle
                 cropResizeOrigin = draft
                 cropLoupePoint = handle.position(in: draft)
+            } else if let draft = cropDraft,
+                      ScreenshotSupport.startsNewCropSelection(
+                        at: point, draft: draft, within: bounds) {
+                cropSelectionOrigin = draft
             } else if let draft = cropDraft, draft.contains(point) {
                 cropMoveOrigin = draft
             }
@@ -571,6 +577,10 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 let clamped = ScreenshotSupport.clamp(rect, to: bounds)
                 cropDraft = clamped
                 cropLoupePoint = handle.position(in: clamped)
+            } else if cropSelectionOrigin != nil {
+                cropDraft = ScreenshotSupport.clamp(
+                    ScreenshotSupport.selectionRect(from: dragStart, to: point),
+                    to: bounds)
             } else if let origin = cropMoveOrigin {
                 let delta = CGPoint(x: point.x - dragStart.x, y: point.y - dragStart.y)
                 cropDraft = ScreenshotSupport.movedRect(origin, by: delta, within: bounds)
@@ -629,6 +639,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             activeHandle = nil
             cropResizeOrigin = nil
             cropMoveOrigin = nil
+            cropSelectionOrigin = nil
             cropLoupePoint = nil
             dragRegistered = false
             editingSelectedAnnotation = false
@@ -691,7 +702,9 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         case .select:
             finishSelectDrag(at: point, isTap: isTap)
         case .crop:
-            break
+            if isTap, let origin = cropSelectionOrigin {
+                cropDraft = origin
+            }
         }
     }
 
@@ -1157,11 +1170,11 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         }
     }
 
-    /// Every terminal output closes the editor: the capture leaves the app
+    /// Every final output closes the editor: the capture leaves the app
     /// and the window's job is done, so nothing lingers to tidy up.
     func copyToClipboard() {
         guard let image = model.exportImage() else { return }
-        guard Self.copyImage(image) else {
+        guard Self.copyImage(image, fileNamePrefix: strings.fileNamePrefix) else {
             NSSound.beep()
             return
         }
@@ -1171,8 +1184,31 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     @discardableResult
-    static func copyImage(_ image: CGImage) -> Bool {
-        copyClipboardPayload(clipboardPayload(from: image))
+    static func copyImage(_ image: CGImage, fileNamePrefix: String) -> Bool {
+        guard let data = ScreenshotRenderer.pngData(from: image),
+              let base = FileManager.default.urls(for: .cachesDirectory,
+                                                  in: .userDomainMask).first,
+              let bundleID = Bundle.main.bundleIdentifier
+        else { return false }
+        let folder = base.appendingPathComponent(bundleID, isDirectory: true)
+            .appendingPathComponent("Copied Screenshots", isDirectory: true)
+        let name = ScreenshotSupport.fileName(prefix: fileNamePrefix, date: Date())
+        guard let url = try? ScreenshotSupport.copiedFile(data: data, name: name,
+                                                         directory: folder) else {
+            return false
+        }
+        guard copyFile(url) else {
+            try? FileManager.default.removeItem(at: url)
+            return false
+        }
+        return true
+    }
+
+    @discardableResult
+    static func copyFile(_ url: URL) -> Bool {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        return pasteboard.writeObjects([url as NSURL])
     }
 
     struct ClipboardPayload: Sendable {

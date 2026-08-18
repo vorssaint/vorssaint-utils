@@ -70,6 +70,10 @@ struct CommandBarDeferredRowShortcut {
         pending = nil
     }
 
+    func key(for presentationID: UUID) -> String? {
+        pending?.presentationID == presentationID ? pending?.stableKey : nil
+    }
+
     mutating func take(for presentationID: UUID) -> String? {
         guard pending?.presentationID == presentationID else { return nil }
         defer { pending = nil }

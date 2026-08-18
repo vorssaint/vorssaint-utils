@@ -116,14 +116,15 @@ private struct FailableRadialMenuItem: Decodable {
 /// Vorssaint tools a slice can trigger. Raw values persist inside the items
 /// blob; never rename them.
 enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
-    case screenshot, colorPicker, screenOCR, micMute, clipboardHistory, quickLauncher, cameraPreview,
-         scratchpad, shelf, cleaningMode, keepAwake
+    case screenshot, screenRecorder, colorPicker, screenOCR, micMute, clipboardHistory, quickLauncher,
+         cameraPreview, scratchpad, shelf, cleaner, uninstaller, appUpdates, cleaningMode, keepAwake
 
     var id: String { rawValue }
 
     var feature: AppFeature {
         switch self {
         case .screenshot: return .screenshot
+        case .screenRecorder: return .screenRecorder
         case .colorPicker: return .colorPicker
         case .screenOCR: return .screenOCR
         case .micMute: return .micMute
@@ -132,6 +133,9 @@ enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
         case .cameraPreview: return .cameraPreview
         case .scratchpad: return .scratchpad
         case .shelf: return .shelf
+        case .cleaner: return .cleaner
+        case .uninstaller: return .uninstaller
+        case .appUpdates: return .appUpdates
         case .cleaningMode: return .cleaningMode
         case .keepAwake: return .keepAwake
         }

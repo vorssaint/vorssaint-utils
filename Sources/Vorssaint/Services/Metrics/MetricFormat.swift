@@ -10,6 +10,48 @@ struct NetworkCounters: Equatable {
     var sent: UInt64 = 0
 }
 
+/// Detects the macOS failure mode where outbound interface counters keep moving
+/// while inbound counters stay frozen. The first suspect sample only primes the
+/// process reader; a second consecutive sample is required before using it.
+struct NetworkCounterFallback {
+    private(set) var isActive = false
+    private var missingInboundSamples = 0
+
+    mutating func observe(previous: NetworkCounters,
+                          current: NetworkCounters) -> (sampleProcesses: Bool, useProcessDownload: Bool) {
+        guard current.received >= previous.received,
+              current.sent >= previous.sent else {
+            reset()
+            return (false, false)
+        }
+
+        if current.received > previous.received {
+            reset()
+            return (false, false)
+        }
+
+        let outgoingAdvanced = current.sent > previous.sent
+        if isActive {
+            return (outgoingAdvanced, true)
+        }
+
+        if outgoingAdvanced {
+            missingInboundSamples += 1
+        } else {
+            missingInboundSamples = 0
+        }
+        if missingInboundSamples >= 2 {
+            isActive = true
+        }
+        return (outgoingAdvanced, isActive)
+    }
+
+    mutating func reset() {
+        isActive = false
+        missingInboundSamples = 0
+    }
+}
+
 struct DiskIOCounters: Equatable {
     var read: UInt64 = 0
     var written: UInt64 = 0

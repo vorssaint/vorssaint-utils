@@ -285,52 +285,14 @@ enum AppUpdatesSupport {
         items.contains { selection.contains($0.id) && $0.source == .appStore }
     }
 
-    // MARK: - Application discovery
-
-    /// Merges the normal Applications folders with shallow Spotlight results
-    /// from the user's home. Deep build products, hidden folders, nested apps
-    /// and system-owned bundles are not installed apps a person should update.
-    static func applicationScanPaths(folderPaths: [String],
-                                     spotlightPaths: [String],
-                                     homeDirectory: String) -> [String] {
-        let home = URL(fileURLWithPath: homeDirectory)
-            .resolvingSymlinksInPath()
-            .standardizedFileURL.path
-        let homePrefix = home.hasSuffix("/") ? home : home + "/"
-        var seen = Set<String>()
-        var result: [String] = []
-
-        func append(_ path: String, fromSpotlight: Bool) {
-            let url = URL(fileURLWithPath: path)
-                .resolvingSymlinksInPath()
-                .standardizedFileURL
-            let normalized = url.path
-            guard url.pathExtension.lowercased() == "app",
-                  !isSystemApplicationPath(normalized),
-                  !normalized.split(separator: "/").dropLast().contains(where: {
-                      $0.lowercased().hasSuffix(".app")
-                  }) else { return }
-
-            if fromSpotlight {
-                guard normalized.hasPrefix(homePrefix) else { return }
-                let components = normalized.dropFirst(homePrefix.count).split(separator: "/")
-                let folders = components.dropLast()
-                guard (1...3).contains(components.count),
-                      components.first?.lowercased() != "library",
-                      !folders.contains(where: { $0.hasPrefix(".") }) else { return }
-            }
-
-            guard seen.insert(normalized).inserted else { return }
-            result.append(normalized)
-        }
-
-        folderPaths.forEach { append($0, fromSpotlight: false) }
-        spotlightPaths.forEach { append($0, fromSpotlight: true) }
-        return result
-    }
-
-    static func isSystemApplicationPath(_ path: String) -> Bool {
-        path.hasPrefix("/System/") || path.hasPrefix("/Library/Apple/")
+    /// The page a store hand-off can land on. With one store row ticked that is
+    /// its product page, the same place the row's own button goes; the store
+    /// shows one product at a time, so several rows have no such page and the
+    /// hand-off falls back to the updates page.
+    static func singleStorePage(in items: [Item], selection: Set<String>) -> String? {
+        let store = items.filter { selection.contains($0.id) && $0.source == .appStore }
+        guard store.count == 1 else { return nil }
+        return store[0].storePage
     }
 
     /// Selection kept honest against a list that just changed: rows that are

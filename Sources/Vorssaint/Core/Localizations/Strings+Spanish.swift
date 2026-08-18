@@ -213,6 +213,7 @@ extension Strings {
         switcherWindowlessAppsFinder: "Solo Finder",
         switcherWindowlessAppsAll: "Todas las apps",
         switcherNoOpenWindow: "Sin ventanas abiertas",
+        switcherOtherDesktop: "Otro escritorio",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Previsualizar ventanas en el Dock",
         dockPreviewEnableCaption: "Pasa el cursor sobre una app abierta en el Dock para ver sus ventanas y haz clic en la que quieras abrir.",
@@ -408,7 +409,7 @@ extension Strings {
         homebrewOperationProgressUnknown: "Homebrew aún no informó un porcentaje.",
 
         mediaName: "Media",
-        mediaEnableCaption: "Comprime videos e imágenes, crea GIFs y extrae texto localmente.",
+        mediaEnableCaption: "Comprime videos, convierte y procesa imágenes, crea GIFs y extrae texto localmente.",
         mediaLocalNote: "Local. Sin red.",
         mediaToolVideo: "Video",
         mediaToolGIF: "GIF",
@@ -421,7 +422,7 @@ extension Strings {
         mediaChooseOutput: "Destino",
         mediaStartVideo: "Comprimir video",
         mediaStartGIF: "Crear GIF",
-        mediaStartImage: "Comprimir imagen",
+        mediaStartImage: "Procesar imagen",
         mediaStartConvertPDF: "Convertir a PDF",
         mediaStartText: "Extraer texto",
         mediaCancel: "Cancelar",
@@ -900,6 +901,8 @@ extension Strings {
         invertHorizontalScroll: "Invertir el desplazamiento horizontal",
         switcherShowShortcutHints: "Mostrar indicaciones de atajos",
         switcherShowShortcutHintsCaption: "Muestra los atajos de apps y ventanas debajo de los iconos.",
-        uninstallerHomebrewPackageFormat: "%@ también se eliminará de Homebrew."
+        uninstallerHomebrewPackageFormat: "%@ también se eliminará de Homebrew.",
+        shelfEdgeToggle: "Abrir cerca de un borde de la pantalla",
+        shelfEdgeCaption: "Arrastra un archivo hacia el borde de la pantalla para que el estante asome. Suéltalo ahí, o retíralo y el estante se repliega."
     )
 }

@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import Foundation
+import CoreBluetooth
 import IOKit
 
 final class PeripheralBatterySampler {
@@ -13,6 +14,7 @@ final class PeripheralBatterySampler {
     private var bluetoothStartedAt: TimeInterval = -.greatestFiniteMagnitude
     private var bluetoothFinishedAt: TimeInterval = -.greatestFiniteMagnitude
     private var bluetoothRefreshRunning = false
+    private var bluetoothBatteryRead: BluetoothBatteryRead?
     private let fastCacheInterval: TimeInterval = 15
     private let bluetoothCacheInterval: TimeInterval = 300
 
@@ -55,16 +57,36 @@ final class PeripheralBatterySampler {
         lock.unlock()
 
         bluetoothQueue.async { [weak self] in
-            let devices = Self.readBluetoothSystemProfilerDevices()
-            let finishedAt = ProcessInfo.processInfo.systemUptime
             guard let self else { return }
-            lock.lock()
-            cachedBluetoothDevices = devices
-            bluetoothFinishedAt = finishedAt
-            bluetoothRefreshRunning = false
-            cachedAt = -.greatestFiniteMagnitude
-            lock.unlock()
+            let profilerData = Self.readBluetoothSystemProfilerData()
+            let profilerDevices = PeripheralBatterySupport.bluetoothDevices(
+                fromSystemProfilerJSON: profilerData
+            )
+            let knownKinds = PeripheralBatterySupport.bluetoothKindsByName(
+                fromSystemProfilerJSON: profilerData
+            )
+            let batteryRead = BluetoothBatteryRead(queue: bluetoothQueue) { [weak self] readings in
+                guard let self else { return }
+                let devices = PeripheralBatterySupport.mergingBluetoothReadings(
+                    readings,
+                    into: profilerDevices,
+                    knownKinds: knownKinds
+                )
+                finishBluetoothRefresh(with: devices)
+                bluetoothBatteryRead = nil
+            }
+            bluetoothBatteryRead = batteryRead
+            batteryRead.start()
         }
+    }
+
+    private func finishBluetoothRefresh(with devices: [PeripheralBatteryDevice]) {
+        lock.lock()
+        cachedBluetoothDevices = devices
+        bluetoothFinishedAt = ProcessInfo.processInfo.systemUptime
+        bluetoothRefreshRunning = false
+        cachedAt = -.greatestFiniteMagnitude
+        lock.unlock()
     }
 
     private static func readFastDevices() -> [PeripheralBatteryDevice] {
@@ -73,7 +95,7 @@ final class PeripheralBatterySampler {
         return uniqueDevices(from: devices)
     }
 
-    private static func readBluetoothSystemProfilerDevices(timeout: TimeInterval = 2) -> [PeripheralBatteryDevice] {
+    private static func readBluetoothSystemProfilerData(timeout: TimeInterval = 2) -> Data {
         let process = Process()
         let output = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
@@ -84,7 +106,7 @@ final class PeripheralBatterySampler {
         do {
             try process.run()
         } catch {
-            return []
+            return Data()
         }
 
         let deadline = Date().addingTimeInterval(timeout)
@@ -97,7 +119,7 @@ final class PeripheralBatterySampler {
 
         let data = output.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
-        return PeripheralBatterySupport.bluetoothDevices(fromSystemProfilerJSON: data)
+        return data
     }
 
     private static func readMatchingServices(named className: String) -> [PeripheralBatteryDevice] {
@@ -188,5 +210,139 @@ final class PeripheralBatterySampler {
             result.append(device)
         }
         return result
+    }
+}
+
+private final class BluetoothBatteryRead: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
+    private static let batteryService = CBUUID(string: "180F")
+    private static let batteryLevel = CBUUID(string: "2A19")
+
+    private let queue: DispatchQueue
+    private let completion: ([BluetoothBatteryReading]) -> Void
+    private var central: CBCentralManager?
+    private var peripherals: [UUID: CBPeripheral] = [:]
+    private var pending = Set<UUID>()
+    private var readings: [BluetoothBatteryReading] = []
+    private var didRetrieve = false
+    private var finished = false
+    private var timeout: DispatchWorkItem?
+
+    init(queue: DispatchQueue, completion: @escaping ([BluetoothBatteryReading]) -> Void) {
+        self.queue = queue
+        self.completion = completion
+    }
+
+    func start() {
+        central = CBCentralManager(delegate: self,
+                                   queue: queue,
+                                   options: [CBCentralManagerOptionShowPowerAlertKey: false])
+        let timeout = DispatchWorkItem { [weak self] in self?.finish() }
+        self.timeout = timeout
+        queue.asyncAfter(deadline: .now() + 5, execute: timeout)
+    }
+
+    func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        guard !finished else { return }
+        switch central.state {
+        case .poweredOn:
+            guard !didRetrieve else { return }
+            didRetrieve = true
+            let connected = central.retrieveConnectedPeripherals(withServices: [Self.batteryService])
+            guard !connected.isEmpty else {
+                finish()
+                return
+            }
+            for peripheral in connected {
+                peripherals[peripheral.identifier] = peripheral
+                pending.insert(peripheral.identifier)
+                peripheral.delegate = self
+                central.connect(peripheral)
+            }
+        case .unknown, .resetting:
+            break
+        case .unsupported, .unauthorized, .poweredOff:
+            finish()
+        @unknown default:
+            finish()
+        }
+    }
+
+    func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        guard pending.contains(peripheral.identifier) else { return }
+        peripheral.discoverServices([Self.batteryService])
+    }
+
+    func centralManager(_ central: CBCentralManager,
+                        didFailToConnect peripheral: CBPeripheral,
+                        error: Error?) {
+        complete(peripheral)
+    }
+
+    func centralManager(_ central: CBCentralManager,
+                        didDisconnectPeripheral peripheral: CBPeripheral,
+                        error: Error?) {
+        complete(peripheral)
+    }
+
+    func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+        guard error == nil,
+              let service = peripheral.services?.first(where: { $0.uuid == Self.batteryService }) else {
+            complete(peripheral)
+            return
+        }
+        peripheral.discoverCharacteristics([Self.batteryLevel], for: service)
+    }
+
+    func peripheral(_ peripheral: CBPeripheral,
+                    didDiscoverCharacteristicsFor service: CBService,
+                    error: Error?) {
+        guard error == nil,
+              let characteristic = service.characteristics?.first(where: { $0.uuid == Self.batteryLevel }) else {
+            complete(peripheral)
+            return
+        }
+        peripheral.readValue(for: characteristic)
+    }
+
+    func peripheral(_ peripheral: CBPeripheral,
+                    didUpdateValueFor characteristic: CBCharacteristic,
+                    error: Error?) {
+        defer { complete(peripheral) }
+        guard error == nil,
+              characteristic.uuid == Self.batteryLevel,
+              let data = characteristic.value,
+              data.count == 1,
+              let name = peripheral.name?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !name.isEmpty else {
+            return
+        }
+        let percent = Int(data[data.startIndex])
+        guard percent <= 100 else { return }
+        readings.append(BluetoothBatteryReading(id: peripheral.identifier.uuidString,
+                                                name: name,
+                                                percent: percent))
+    }
+
+    private func complete(_ peripheral: CBPeripheral) {
+        guard pending.remove(peripheral.identifier) != nil else { return }
+        central?.cancelPeripheralConnection(peripheral)
+        peripherals[peripheral.identifier] = nil
+        if pending.isEmpty {
+            finish()
+        }
+    }
+
+    private func finish() {
+        guard !finished else { return }
+        finished = true
+        timeout?.cancel()
+        timeout = nil
+        for peripheral in peripherals.values {
+            central?.cancelPeripheralConnection(peripheral)
+        }
+        peripherals.removeAll()
+        pending.removeAll()
+        central = nil
+        completion(readings)
     }
 }

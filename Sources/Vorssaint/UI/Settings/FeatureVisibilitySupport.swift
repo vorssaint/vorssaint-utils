@@ -8,7 +8,7 @@ import Foundation
 /// below and the unit tests can reason about pages without pulling UI in.
 enum SettingsPage: Hashable {
     case general, features, energy, monitor
-    case mouse, switcher, keyDebounce, superKey, cutPaste, autoQuit, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, screenRecorder, radialMenu, commandBar
+    case mouse, switcher, keyDebounce, superKey, cutPaste, autoQuit, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar
     case shortcuts, advanced, about, releaseNotes, support
 }
 
@@ -34,6 +34,8 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case pastePlain
     case quickLauncher
     case quickToggles
+    case screenshot
+    case screenRecorder
     case colorPicker
     case screenOCR
     case micMute
@@ -52,9 +54,10 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         case .switcher, .dock: return .switcher
         case .finderCutPaste, .finderRename: return .cutPaste
         case .clipboardHistory, .pastePlain: return .clipboard
-        case .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .micMute, .cameraPreview,
-             .scratchpad:
+        case .quickLauncher, .quickToggles, .micMute, .cameraPreview, .scratchpad:
             return .quickTools
+        case .screenshot, .screenRecorder, .colorPicker, .screenOCR:
+            return .screenshot
         case .soundOutputSwitcher: return .shortcuts
         case .fanControl: return .monitor
         }
@@ -181,9 +184,9 @@ extension AppFeature {
         case .quickToggles:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .quickToggles)
         case .colorPicker:
-            return FeatureSettingsDestination(.quickTools, sectionAnchor: .colorPicker)
+            return FeatureSettingsDestination(.screenshot, sectionAnchor: .colorPicker)
         case .screenOCR:
-            return FeatureSettingsDestination(.quickTools, sectionAnchor: .screenOCR)
+            return FeatureSettingsDestination(.screenshot, sectionAnchor: .screenOCR)
         case .cleaningMode:
             return FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
         case .mediaTools: return FeatureSettingsDestination(.media)
@@ -191,14 +194,16 @@ extension AppFeature {
         case .uninstaller: return FeatureSettingsDestination(.uninstaller)
         case .homebrew: return FeatureSettingsDestination(.homebrew)
         case .appUpdates: return FeatureSettingsDestination(.appUpdates)
-        case .screenshot: return FeatureSettingsDestination(.screenshot)
+        case .screenshot:
+            return FeatureSettingsDestination(.screenshot, sectionAnchor: .screenshot)
         case .cameraPreview:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .cameraPreview)
         case .radialMenu: return FeatureSettingsDestination(.radialMenu)
         case .scratchpad:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .scratchpad)
         case .commandBar: return FeatureSettingsDestination(.commandBar)
-        case .screenRecorder: return FeatureSettingsDestination(.screenRecorder)
+        case .screenRecorder:
+            return FeatureSettingsDestination(.screenshot, sectionAnchor: .screenRecorder)
 
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
             return FeatureSettingsDestination(.monitor)
@@ -231,7 +236,7 @@ enum FeatureVisibilitySupport {
         case .cutPaste: return [.finderCutPaste, .finderRename]
         case .shelf: return [.shelf]
         case .media: return [.mediaTools]
-        case .quickTools: return [.quickLauncher, .quickToggles, .colorPicker, .screenOCR, .micMute,
+        case .quickTools: return [.quickLauncher, .quickToggles, .micMute,
                                   .cameraPreview, .scratchpad]
         case .urlCleaner: return [.urlCleaner]
         case .cleaner: return [.cleaner]
@@ -241,8 +246,7 @@ enum FeatureVisibilitySupport {
         case .keyDebounce: return [.keyboardDebounce]
         case .superKey: return [.superKey]
         case .textSnippets: return [.textSnippets]
-        case .screenshot: return [.screenshot]
-        case .screenRecorder: return [.screenRecorder]
+        case .screenshot: return [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
         case .radialMenu: return [.radialMenu]
         case .commandBar: return [.commandBar]
         case .general, .features, .shortcuts, .advanced, .about, .releaseNotes, .support:

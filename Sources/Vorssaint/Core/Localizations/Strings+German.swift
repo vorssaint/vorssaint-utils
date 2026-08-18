@@ -213,6 +213,7 @@ extension Strings {
         switcherWindowlessAppsFinder: "Nur Finder",
         switcherWindowlessAppsAll: "Alle Apps",
         switcherNoOpenWindow: "Kein geöffnetes Fenster",
+        switcherOtherDesktop: "Anderer Schreibtisch",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Fenster im Dock vorab anzeigen",
         dockPreviewEnableCaption: "Zeige auf eine geöffnete App im Dock, um ihre Fenster zu sehen, und klicke dann auf das gewünschte.",
@@ -408,7 +409,7 @@ extension Strings {
         homebrewOperationProgressUnknown: "Homebrew hat noch keinen Prozentsatz gemeldet.",
 
         mediaName: "Medien",
-        mediaEnableCaption: "Komprimiere Videos und Bilder, erstelle GIFs und extrahiere Text lokal.",
+        mediaEnableCaption: "Komprimiere Videos, konvertiere und bearbeite Bilder, erstelle GIFs und extrahiere Text lokal.",
         mediaLocalNote: "Lokal. Kein Netzwerk.",
         mediaToolVideo: "Video",
         mediaToolGIF: "GIF",
@@ -421,7 +422,7 @@ extension Strings {
         mediaChooseOutput: "Ziel",
         mediaStartVideo: "Video komprimieren",
         mediaStartGIF: "GIF erstellen",
-        mediaStartImage: "Bild komprimieren",
+        mediaStartImage: "Bild bearbeiten",
         mediaStartConvertPDF: "In PDF umwandeln",
         mediaStartText: "Text extrahieren",
         mediaCancel: "Abbrechen",
@@ -900,6 +901,8 @@ extension Strings {
         invertHorizontalScroll: "Horizontales Scrollen umkehren",
         switcherShowShortcutHints: "Kurzbefehlhinweise anzeigen",
         switcherShowShortcutHintsCaption: "Zeigt die Kurzbefehle für Apps und Fenster unter den Symbolen.",
-        uninstallerHomebrewPackageFormat: "%@ wird auch aus Homebrew entfernt."
+        uninstallerHomebrewPackageFormat: "%@ wird auch aus Homebrew entfernt.",
+        shelfEdgeToggle: "In der Nähe eines Bildschirmrands öffnen",
+        shelfEdgeCaption: "Ziehe eine Datei in Richtung Bildschirmrand, damit die Ablage kurz hervorschaut. Lass sie dort los, oder zieh zurück, und die Ablage verschwindet wieder."
     )
 }

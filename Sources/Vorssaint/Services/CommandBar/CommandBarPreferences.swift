@@ -13,6 +13,9 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
     case windows
     case quitApps
     case settingsPages
+    /// The Mac's own Settings panes, which are not Vorssaint's and can be
+    /// switched off on their own.
+    case macSettings
     case snippets
     case clipboard
     case emoji
@@ -23,6 +26,9 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
     case selection
     /// The links, folders and searches the person saved themselves.
     case links
+    /// Files found by name in the folders the person named. Last, because it
+    /// is the one source that has to go and look.
+    case files
 
     var id: String { rawValue }
 
@@ -38,6 +44,7 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
         case .windows: return "macwindow"
         case .quitApps: return "xmark.circle"
         case .settingsPages: return "gearshape"
+        case .macSettings: return "gearshape.2"
         case .snippets: return "text.append"
         case .clipboard: return "doc.on.clipboard"
         case .emoji: return "face.smiling"
@@ -46,6 +53,7 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
         case .calculator: return "equal.square"
         case .selection: return "text.cursor"
         case .links: return "bookmark"
+        case .files: return "doc.text.magnifyingglass"
         }
     }
 
@@ -58,6 +66,7 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
         case .windows: return "window."
         case .quitApps: return "quit."
         case .settingsPages: return "settings."
+        case .macSettings: return "macsettings."
         case .snippets: return "snippet."
         case .clipboard: return "clipboard."
         case .emoji: return "emoji."
@@ -66,6 +75,7 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
         case .calculator: return nil
         case .selection: return "selection."
         case .links: return "link."
+        case .files: return "file."
         }
     }
 }
@@ -116,8 +126,12 @@ enum CommandBarPreferences {
     static func rankBias(for source: CommandBarSource) -> Int {
         switch source {
         case .menus: return -80
-        case .actions, .apps, .windows, .quitApps, .settingsPages, .snippets, .clipboard,
-             .emoji, .folders, .answers, .calculator, .selection, .links:
+        // A file is the deepest and most numerous thing the bar can find, and
+        // a bar is for running things first. So a file has to be a plainly
+        // better match than a command to lead the list, never merely as good.
+        case .files: return -40
+        case .actions, .apps, .windows, .quitApps, .settingsPages, .macSettings, .snippets,
+             .clipboard, .emoji, .folders, .answers, .calculator, .selection, .links:
             return 0
         }
     }
@@ -146,9 +160,9 @@ enum CommandBarPreferences {
     /// pinned to one would silently point somewhere else tomorrow.
     static func acceptsAlias(rowID: String) -> Bool {
         switch source(ofRowID: rowID) {
-        case .menus, .windows, .clipboard, .selection: return false
-        case .actions, .apps, .quitApps, .settingsPages, .snippets, .emoji, .folders,
-             .answers, .calculator, .links:
+        case .menus, .windows, .clipboard, .selection, .files: return false
+        case .actions, .apps, .quitApps, .settingsPages, .macSettings, .snippets, .emoji,
+             .folders, .answers, .calculator, .links:
             return true
         }
     }
@@ -214,9 +228,9 @@ enum CommandBarPreferences {
     /// again, which reads as the pin being broken.
     static func acceptsPin(rowID: String) -> Bool {
         switch source(ofRowID: rowID) {
-        case .menus, .quitApps, .clipboard, .emoji, .selection: return false
-        case .actions, .apps, .windows, .settingsPages, .snippets, .folders, .links,
-             .answers, .calculator:
+        case .menus, .quitApps, .clipboard, .emoji, .selection, .files: return false
+        case .actions, .apps, .windows, .settingsPages, .macSettings, .snippets, .folders,
+             .links, .answers, .calculator:
             return true
         }
     }
@@ -272,5 +286,44 @@ enum CommandBarPreferences {
         var next = hidden
         if next.contains(key) { next.remove(key) } else { next.insert(key) }
         return next
+    }
+
+    // MARK: - Position
+
+    /// How far the person dragged the bar from the spot it opens on by
+    /// default, stored as an offset rather than a place: "a hand's width
+    /// lower and to the left" means the same thing on every display, and
+    /// a place remembered from a monitor that is no longer plugged in
+    /// would put the bar where nobody can see it.
+    static func decodePositionOffset(_ raw: String) -> CGSize {
+        let parts = raw.split(separator: ",", omittingEmptySubsequences: false)
+        guard parts.count == 2,
+              let width = Double(parts[0]), width.isFinite,
+              let height = Double(parts[1]), height.isFinite
+        else { return .zero }
+        return CGSize(width: width, height: height)
+    }
+
+    static func encodePositionOffset(_ offset: CGSize) -> String {
+        let rounded = CGSize(width: offset.width.rounded(), height: offset.height.rounded())
+        guard rounded != .zero else { return "" }
+        guard let width = Int(exactly: rounded.width),
+              let height = Int(exactly: rounded.height)
+        else { return "" }
+        return "\(width),\(height)"
+    }
+
+    static func clampedPanelOrigin(size: CGSize, in visibleFrame: CGRect,
+                                   offset: CGSize) -> CGPoint {
+        let margin: CGFloat = 16
+        let wanted = CGPoint(x: visibleFrame.midX - size.width / 2 + offset.width,
+                             y: visibleFrame.minY + visibleFrame.height * 0.72
+                                - size.height + offset.height)
+        let minX = visibleFrame.minX + margin
+        let maxX = max(minX, visibleFrame.maxX - size.width - margin)
+        let minY = visibleFrame.minY + margin
+        let maxY = max(minY, visibleFrame.maxY - size.height - margin)
+        return CGPoint(x: min(max(wanted.x, minX), maxX),
+                       y: min(max(wanted.y, minY), maxY))
     }
 }

@@ -65,6 +65,18 @@ enum SpaceWindowBridge {
         return unsafeBitCast(symbol, to: CopyDisplaySpacesFunction.self)
     }()
 
+    private typealias SpaceTypeFunction = @convention(c) (ConnectionID, UInt64) -> Int32
+    private static let spaceType: SpaceTypeFunction? = {
+        guard let symbol = symbol("CGSSpaceGetType") else { return nil }
+        return unsafeBitCast(symbol, to: SpaceTypeFunction.self)
+    }()
+
+    private typealias MoveWindowsFunction = @convention(c) (ConnectionID, CFArray, UInt64) -> Void
+    private static let moveWindowsToManagedSpace: MoveWindowsFunction? = {
+        guard let symbol = symbol("CGSMoveWindowsToManagedSpace") else { return nil }
+        return unsafeBitCast(symbol, to: MoveWindowsFunction.self)
+    }()
+
     struct Topology {
         /// Space ids in left-to-right order, one row per display.
         let orderedSpacesPerDisplay: [[UInt64]]
@@ -114,6 +126,24 @@ enum SpaceWindowBridge {
             else { return false }
             return SpaceHopSupport.isExcludedFromWindowCycle(windowTagsLow: buffer[0])
         }
+    }
+
+    /// Sends a visible window to the neighboring user desktop on its own
+    /// display. Full-screen and system Spaces are skipped, and the order wraps
+    /// just like moving a window between displays.
+    static func moveWindow(_ windowID: CGWindowID, direction: WindowSpaceMoveDirection) -> Bool {
+        guard connection != 0, let topology = topology(), let spaceType,
+              let moveWindowsToManagedSpace else { return false }
+        let userSpaces = topology.orderedSpacesPerDisplay.map { row in
+            row.filter { spaceType(connection, $0) == 0 }
+        }
+        guard let destination = WindowSpaceMoveSupport.destination(
+            windowSpaces: spaces(of: windowID),
+            orderedUserSpacesPerDisplay: userSpaces,
+            direction: direction
+        ) else { return false }
+        moveWindowsToManagedSpace(connection, [NSNumber(value: windowID)] as CFArray, destination)
+        return spaces(of: windowID).contains(destination)
     }
 
     // MARK: - Fronting a specific window

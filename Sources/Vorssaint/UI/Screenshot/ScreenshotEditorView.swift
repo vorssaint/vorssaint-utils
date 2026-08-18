@@ -30,6 +30,10 @@ struct ScreenshotEditorView: View {
         FeatureStrings.screenshot(l10n.language)
     }
 
+    private var recentCapturesTitle: String {
+        FeatureStrings.recentCaptures(l10n.language).title
+    }
+
     var body: some View {
         // Real rows and columns, not overlays: the canvas scrolls in its own
         // region, so zoomed content can never slide under the controls.
@@ -258,6 +262,9 @@ struct ScreenshotEditorView: View {
             cg.saveGState()
             cg.setShadow(offset: CGSize(width: 0, height: -5), blur: 18,
                          color: CGColor(gray: 0, alpha: 0.38))
+            cg.addRect(CGRect(origin: .zero, size: size))
+            cg.addPath(path)
+            cg.clip(using: .evenOdd)
             cg.addPath(path)
             cg.setFillColor(CGColor(gray: 1, alpha: 1))
             cg.fillPath()
@@ -661,6 +668,18 @@ struct ScreenshotEditorView: View {
 
     private var actionCluster: some View {
         HStack(spacing: 4) {
+            Button {
+                RecentCaptureService.shared.showHistoryWindow()
+            } label: {
+                Image(systemName: "clock.arrow.circlepath")
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.borderless)
+            .screenshotSafeHelp(recentCapturesTitle)
+            .accessibilityLabel(recentCapturesTitle)
+
+            Divider().frame(height: 16).padding(.horizontal, 3)
+
             Button {
                 controller.discardAndClose()
             } label: {

@@ -140,6 +140,8 @@ struct ScreenshotFeatureStrings {
     let shareEnabledToggle: String
     let editClipboardImage: String
     let clipboardImageMissing: String
+    let screenCaptureTitle: String
+    let screenCaptureCaption: String
 }
 
 extension FeatureStrings {
@@ -298,7 +300,9 @@ extension ScreenshotFeatureStrings {
         hideVorssaintWindowsToggle: "Hide Vorssaint windows",
         shareEnabledToggle: "Allow temporary links",
         editClipboardImage: "Edit clipboard image",
-        clipboardImageMissing: "Copy an image first"
+        clipboardImageMissing: "Copy an image first",
+        screenCaptureTitle: "Screen capture",
+        screenCaptureCaption: "One shortcut opens screenshots, recordings, screen text and colors."
     )
 
     static let ptBR = ScreenshotFeatureStrings(
@@ -436,7 +440,9 @@ extension ScreenshotFeatureStrings {
         hideVorssaintWindowsToggle: "Ocultar janelas do Vorssaint",
         shareEnabledToggle: "Permitir links temporários",
         editClipboardImage: "Editar imagem copiada",
-        clipboardImageMissing: "Copie uma imagem primeiro"
+        clipboardImageMissing: "Copie uma imagem primeiro",
+        screenCaptureTitle: "Captura de tela",
+        screenCaptureCaption: "Um só atalho abre capturas, gravações, texto da tela e cores."
     )
 
     static let tr = ScreenshotFeatureStrings(
@@ -574,7 +580,9 @@ extension ScreenshotFeatureStrings {
         hideVorssaintWindowsToggle: "Vorssaint pencerelerini gizle",
         shareEnabledToggle: "Geçici bağlantılara izin ver",
         editClipboardImage: "Panodaki resmi düzenle",
-        clipboardImageMissing: "Önce bir resim kopyalayın"
+        clipboardImageMissing: "Önce bir resim kopyalayın",
+        screenCaptureTitle: "Ekran yakalama",
+        screenCaptureCaption: "Tek bir kısayol ekran görüntülerini, kayıtları, metni ve renkleri açar."
     )
 
     static let ru = ScreenshotFeatureStrings(
@@ -712,7 +720,9 @@ extension ScreenshotFeatureStrings {
         hideVorssaintWindowsToggle: "Скрывать окна Vorssaint",
         shareEnabledToggle: "Разрешить временные ссылки",
         editClipboardImage: "Редактировать изображение из буфера",
-        clipboardImageMissing: "Сначала скопируйте изображение"
+        clipboardImageMissing: "Сначала скопируйте изображение",
+        screenCaptureTitle: "Захват экрана",
+        screenCaptureCaption: "Одна клавиша открывает снимки, запись, текст на экране и цвета."
     )
 
     static let es = ScreenshotFeatureStrings(
@@ -850,7 +860,9 @@ extension ScreenshotFeatureStrings {
         hideVorssaintWindowsToggle: "Ocultar ventanas de Vorssaint",
         shareEnabledToggle: "Permitir enlaces temporales",
         editClipboardImage: "Editar imagen copiada",
-        clipboardImageMissing: "Copia una imagen primero"
+        clipboardImageMissing: "Copia una imagen primero",
+        screenCaptureTitle: "Captura de pantalla",
+        screenCaptureCaption: "Un solo atajo abre capturas, grabaciones, texto en pantalla y colores."
     )
 
     static let de = ScreenshotFeatureStrings(
@@ -988,7 +1000,9 @@ extension ScreenshotFeatureStrings {
         hideVorssaintWindowsToggle: "Vorssaint-Fenster ausblenden",
         shareEnabledToggle: "Temporäre Links erlauben",
         editClipboardImage: "Kopiertes Bild bearbeiten",
-        clipboardImageMissing: "Kopiere zuerst ein Bild"
+        clipboardImageMissing: "Kopiere zuerst ein Bild",
+        screenCaptureTitle: "Bildschirm erfassen",
+        screenCaptureCaption: "Ein Kurzbefehl öffnet Screenshots, Aufnahmen, Bildschirmtext und Farben."
     )
 
     static let fr = ScreenshotFeatureStrings(
@@ -1126,7 +1140,9 @@ extension ScreenshotFeatureStrings {
         hideVorssaintWindowsToggle: "Masquer les fenêtres Vorssaint",
         shareEnabledToggle: "Autoriser les liens temporaires",
         editClipboardImage: "Modifier l’image copiée",
-        clipboardImageMissing: "Copiez d’abord une image"
+        clipboardImageMissing: "Copiez d’abord une image",
+        screenCaptureTitle: "Capture d’écran",
+        screenCaptureCaption: "Un seul raccourci ouvre les captures, enregistrements, textes et couleurs."
     )
 
     static let it = ScreenshotFeatureStrings(
@@ -1264,7 +1280,9 @@ extension ScreenshotFeatureStrings {
         hideVorssaintWindowsToggle: "Nascondi le finestre di Vorssaint",
         shareEnabledToggle: "Consenti link temporanei",
         editClipboardImage: "Modifica immagine copiata",
-        clipboardImageMissing: "Copia prima un'immagine"
+        clipboardImageMissing: "Copia prima un'immagine",
+        screenCaptureTitle: "Acquisizione schermo",
+        screenCaptureCaption: "Un solo tasto apre schermate, registrazioni, testo e colori dello schermo."
     )
 
     static let ja = ScreenshotFeatureStrings(
@@ -1402,7 +1420,9 @@ extension ScreenshotFeatureStrings {
         hideVorssaintWindowsToggle: "Vorssaintのウインドウを隠す",
         shareEnabledToggle: "一時リンクを許可",
         editClipboardImage: "コピーした画像を編集",
-        clipboardImageMissing: "先に画像をコピーしてください"
+        clipboardImageMissing: "先に画像をコピーしてください",
+        screenCaptureTitle: "画面キャプチャ",
+        screenCaptureCaption: "1つのショートカットで画像、収録、画面の文字、色を選べます。"
     )
 
     static let ko = ScreenshotFeatureStrings(
@@ -1540,7 +1560,9 @@ extension ScreenshotFeatureStrings {
         hideVorssaintWindowsToggle: "Vorssaint 윈도우 가리기",
         shareEnabledToggle: "임시 링크 허용",
         editClipboardImage: "복사한 이미지 편집",
-        clipboardImageMissing: "먼저 이미지를 복사하세요"
+        clipboardImageMissing: "먼저 이미지를 복사하세요",
+        screenCaptureTitle: "화면 캡처",
+        screenCaptureCaption: "하나의 단축키로 스크린샷, 녹화, 화면 텍스트와 색상을 엽니다."
     )
 
     static let zhHans = ScreenshotFeatureStrings(
@@ -1678,7 +1700,9 @@ extension ScreenshotFeatureStrings {
         hideVorssaintWindowsToggle: "隐藏 Vorssaint 窗口",
         shareEnabledToggle: "允许临时链接",
         editClipboardImage: "编辑已复制的图像",
-        clipboardImageMissing: "请先复制一张图像"
+        clipboardImageMissing: "请先复制一张图像",
+        screenCaptureTitle: "屏幕捕捉",
+        screenCaptureCaption: "一个快捷键即可打开截图、录屏、屏幕文字和取色。"
     )
 
     static let zhTW = ScreenshotFeatureStrings(
@@ -1816,7 +1840,9 @@ extension ScreenshotFeatureStrings {
         hideVorssaintWindowsToggle: "隱藏 Vorssaint 視窗",
         shareEnabledToggle: "允許暫時連結",
         editClipboardImage: "編輯已複製的影像",
-        clipboardImageMissing: "請先複製一張影像"
+        clipboardImageMissing: "請先複製一張影像",
+        screenCaptureTitle: "螢幕擷取",
+        screenCaptureCaption: "一個快捷鍵即可開啟截圖、錄影、螢幕文字與取色。"
     )
 
     static let zhHK = ScreenshotFeatureStrings(
@@ -1954,6 +1980,8 @@ extension ScreenshotFeatureStrings {
         hideVorssaintWindowsToggle: "隱藏 Vorssaint 視窗",
         shareEnabledToggle: "允許暫時連結",
         editClipboardImage: "編輯已複製的影像",
-        clipboardImageMissing: "請先複製一張影像"
+        clipboardImageMissing: "請先複製一張影像",
+        screenCaptureTitle: "螢幕擷取",
+        screenCaptureCaption: "一個快捷鍵即可開啟截圖、錄影、螢幕文字及取色。"
     )
 }

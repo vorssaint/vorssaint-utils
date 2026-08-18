@@ -4,6 +4,9 @@
 /* macOS Screen & System Audio Recording permission prompt. */
 "NSAudioCaptureUsageDescription" = "Vorssaint 僅取用各個 App 的音訊，用來在混音器中調整它們的音量。不會錄製任何內容，也不會有任何資料離開你的 Mac。";
 
+/* macOS Bluetooth permission prompt. */
+"NSBluetoothAlwaysUsageDescription" = "Vorssaint 僅使用藍牙讀取已連接周邊裝置的電池電量。不會有任何資料離開你的 Mac。";
+
 /* macOS Microphone permission prompt. */
 "NSMicrophoneUsageDescription" = "Vorssaint 只會在你為螢幕錄製開啟麥克風時錄音。除非你選擇建立暫時連結，否則音訊只會保留在 Mac 上。";
 

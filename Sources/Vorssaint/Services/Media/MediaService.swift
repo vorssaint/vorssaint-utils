@@ -26,17 +26,19 @@ struct MediaGIFOptions: Equatable {
     var loops: Bool
 }
 
-struct MediaImageOptions: Equatable {
-    var quality: Double
-    var maxDimension: Int
-    var format: MediaImageFormat
-    var stripMetadata: Bool
-}
-
 struct MediaTextOptions: Equatable {
     var accurate: Bool
     var languageCorrection: Bool
     var recognitionLanguages: [String]
+}
+
+struct MediaImageBatchItemResult: Identifiable, Equatable {
+    let id = UUID()
+    let inputURL: URL
+    let outputURL: URL?
+    let originalBytes: Int64
+    let outputBytes: Int64
+    let failure: MediaFailure?
 }
 
 struct MediaResult: Identifiable, Equatable {
@@ -44,10 +46,40 @@ struct MediaResult: Identifiable, Equatable {
     let tool: MediaTool
     let inputURL: URL
     let outputURL: URL?
+    let outputURLs: [URL]
     let originalBytes: Int64
     let outputBytes: Int64
     let elapsed: TimeInterval
     let text: String?
+    let imageBatchItems: [MediaImageBatchItemResult]
+
+    init(tool: MediaTool,
+         inputURL: URL,
+         outputURL: URL?,
+         outputURLs: [URL]? = nil,
+         originalBytes: Int64,
+         outputBytes: Int64,
+         elapsed: TimeInterval,
+         text: String?,
+         imageBatchItems: [MediaImageBatchItemResult] = []) {
+        self.tool = tool
+        self.inputURL = inputURL
+        self.outputURL = outputURL
+        self.outputURLs = outputURLs ?? outputURL.map { [$0] } ?? []
+        self.originalBytes = originalBytes
+        self.outputBytes = outputBytes
+        self.elapsed = elapsed
+        self.text = text
+        self.imageBatchItems = imageBatchItems
+    }
+
+    var processedCount: Int {
+        imageBatchItems.isEmpty ? (outputURL == nil && text == nil ? 0 : 1) : imageBatchItems.filter { $0.outputURL != nil }.count
+    }
+
+    var failedCount: Int {
+        imageBatchItems.filter { $0.failure != nil }.count
+    }
 }
 
 enum MediaFailure: Equatable {
@@ -55,6 +87,7 @@ enum MediaFailure: Equatable {
     case noVideoTrack
     case sameOutput
     case unsupported
+    case imageTooLarge
     case cancelled
     case failed(String)
 }
@@ -132,8 +165,23 @@ final class MediaService: ObservableObject {
 
     func compressImage(inputURL: URL, outputURL: URL, options: MediaImageOptions) {
         run(.imageCompressor) { [weak self] id, token in
-            try self?.compressImageWork(inputURL: inputURL, outputURL: outputURL, options: options,
-                                        operationID: id, token: token)
+            try self?.processImagesWork(inputURLs: [inputURL],
+                                        outputDirectory: outputURL.deletingLastPathComponent(),
+                                        explicitOutputURL: outputURL,
+                                        options: options,
+                                        operationID: id,
+                                        token: token)
+        }
+    }
+
+    func processImages(inputURLs: [URL], outputDirectory: URL, options: MediaImageOptions) {
+        run(.imageCompressor) { [weak self] id, token in
+            try self?.processImagesWork(inputURLs: inputURLs,
+                                        outputDirectory: outputDirectory,
+                                        explicitOutputURL: nil,
+                                        options: options,
+                                        operationID: id,
+                                        token: token)
         }
     }
 
@@ -303,25 +351,142 @@ final class MediaService: ObservableObject {
         publish(.completed(result), operationID: operationID)
     }
 
-    private func compressImageWork(inputURL: URL, outputURL: URL, options: MediaImageOptions,
-                                   operationID: UUID, token: MediaCancellationToken) throws {
+    private func processImagesWork(inputURLs: [URL],
+                                   outputDirectory: URL,
+                                   explicitOutputURL: URL?,
+                                   options: MediaImageOptions,
+                                   operationID: UUID,
+                                   token: MediaCancellationToken) throws {
         let started = Date()
-        try prepareOutput(inputURL: inputURL, outputURL: outputURL)
+        let inputs = inputURLs.filter { !$0.path.isEmpty }
+        guard !inputs.isEmpty else { throw MediaFailureBox(.noInput) }
+        if explicitOutputURL == nil {
+            try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+        }
+
+        var itemResults: [MediaImageBatchItemResult] = []
+        var outputURLs: [URL] = []
+        var reservedOutputPaths = Set<String>()
+        var originalBytes: Int64 = 0
+        var outputBytes: Int64 = 0
+
+        for (offset, inputURL) in inputs.enumerated() {
+            try checkCancellation(token)
+            let inputBytes = fileSize(inputURL)
+            do {
+                let prepared = try makeProcessedImage(inputURL: inputURL, options: options, token: token)
+                let outputURL = explicitOutputURL ?? MediaSupport.imageOutputURL(for: inputURL,
+                                                                                 outputDirectory: outputDirectory,
+                                                                                 options: options,
+                                                                                 index: offset + 1,
+                                                                                 outputSize: prepared.size,
+                                                                                 reservedPaths: reservedOutputPaths)
+                reservedOutputPaths.insert(outputURL.standardizedFileURL.path)
+                try prepareOutput(inputURL: inputURL, outputURL: outputURL)
+                try writeImage(prepared.image,
+                               properties: prepared.properties,
+                               outputURL: outputURL,
+                               options: options)
+                MediaSupport.makeVisibleIfNeeded(outputURL)
+                preserveModificationDateIfNeeded(from: inputURL, to: outputURL, options: options)
+                let itemOutputBytes = fileSize(outputURL)
+                originalBytes += inputBytes
+                outputBytes += itemOutputBytes
+                outputURLs.append(outputURL)
+                itemResults.append(MediaImageBatchItemResult(inputURL: inputURL,
+                                                             outputURL: outputURL,
+                                                             originalBytes: inputBytes,
+                                                             outputBytes: itemOutputBytes,
+                                                             failure: nil))
+            } catch let failure as MediaFailureBox {
+                if inputs.count == 1 { throw failure }
+                itemResults.append(MediaImageBatchItemResult(inputURL: inputURL,
+                                                             outputURL: nil,
+                                                             originalBytes: inputBytes,
+                                                             outputBytes: 0,
+                                                             failure: failure.failure))
+            } catch {
+                if inputs.count == 1 { throw error }
+                itemResults.append(MediaImageBatchItemResult(inputURL: inputURL,
+                                                             outputURL: nil,
+                                                             originalBytes: inputBytes,
+                                                             outputBytes: 0,
+                                                             failure: .failed(error.localizedDescription)))
+            }
+            publish(.running(progress: Double(offset + 1) / Double(inputs.count), message: "image"),
+                    operationID: operationID)
+        }
+
+        guard !outputURLs.isEmpty else {
+            throw MediaFailureBox(itemResults.compactMap(\.failure).first ?? .unsupported)
+        }
+
+        let result = MediaResult(tool: .imageCompressor,
+                                 inputURL: inputs[0],
+                                 outputURL: outputURLs.first,
+                                 outputURLs: outputURLs,
+                                 originalBytes: originalBytes,
+                                 outputBytes: outputBytes,
+                                 elapsed: Date().timeIntervalSince(started),
+                                 text: nil,
+                                 imageBatchItems: itemResults)
+        publish(.completed(result), operationID: operationID)
+    }
+
+    private struct PreparedImage {
+        let image: CGImage
+        let properties: [CFString: Any]
+        let size: CGSize
+    }
+
+    private func makeProcessedImage(inputURL: URL,
+                                    options: MediaImageOptions,
+                                    token: MediaCancellationToken) throws -> PreparedImage {
         guard let source = CGImageSourceCreateWithURL(inputURL as CFURL, nil),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else {
             throw MediaFailureBox(.unsupported)
         }
         try checkCancellation(token)
-        let maxPixel = MediaSupport.sanitizedPixelDimension(Double(options.maxDimension), fallback: 1600)
+        guard let sourceSize = MediaSupport.imageDisplaySize(properties: properties) else {
+            throw MediaFailureBox(.unsupported)
+        }
+        let expectedSize = options.resizeMode.targetSize(for: sourceSize)
+        guard MediaSupport.imageRenderSizeIsSafe(expectedSize) else {
+            throw MediaFailureBox(.imageTooLarge)
+        }
+        let maxPixel = max(1, max(Int(expectedSize.width.rounded()), Int(expectedSize.height.rounded())))
         let imageOptions: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceShouldCacheImmediately: true,
             kCGImageSourceThumbnailMaxPixelSize: maxPixel,
         ]
-        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, imageOptions as CFDictionary) else {
+        guard let sourceImage = CGImageSourceCreateThumbnailAtIndex(source, 0, imageOptions as CFDictionary) else {
             throw MediaFailureBox(.unsupported)
         }
+        let targetSize = options.resizeMode.targetSize(
+            for: CGSize(width: sourceImage.width, height: sourceImage.height)
+        )
+        guard MediaSupport.imageRenderSizeIsSafe(targetSize) else {
+            throw MediaFailureBox(.imageTooLarge)
+        }
+        guard let image = renderImage(sourceImage,
+                                      targetSize: targetSize,
+                                      resizeMode: options.resizeMode,
+                                      watermark: options.watermark,
+                                      background: options.background,
+                                      forceOpaque: options.format == .jpeg || options.format == .pdf) else {
+            throw MediaFailureBox(.unsupported)
+        }
+        return PreparedImage(image: image,
+                             properties: properties,
+                             size: CGSize(width: image.width, height: image.height))
+    }
+
+    private func writeImage(_ image: CGImage,
+                            properties: [CFString: Any],
+                            outputURL: URL,
+                            options: MediaImageOptions) throws {
         if options.format == .pdf {
             try writePDF(image: image, outputURL: outputURL,
                          quality: MediaSupport.sanitizedQuality(options.quality))
@@ -334,20 +499,11 @@ final class MediaService: ObservableObject {
                 kCGImageDestinationLossyCompressionQuality: MediaSupport.sanitizedQuality(options.quality),
             ]
             if !options.stripMetadata {
-                outputProperties.merge(properties) { current, _ in current }
+                outputProperties.merge(sanitizedImageProperties(properties, image: image)) { current, _ in current }
             }
             CGImageDestinationAddImage(destination, image, outputProperties as CFDictionary)
             guard CGImageDestinationFinalize(destination) else { throw MediaFailureBox(.unsupported) }
         }
-        MediaSupport.makeVisibleIfNeeded(outputURL)
-        let result = MediaResult(tool: .imageCompressor,
-                                 inputURL: inputURL,
-                                 outputURL: outputURL,
-                                 originalBytes: fileSize(inputURL),
-                                 outputBytes: fileSize(outputURL),
-                                 elapsed: Date().timeIntervalSince(started),
-                                 text: nil)
-        publish(.completed(result), operationID: operationID)
     }
 
     private func extractTextWork(inputURL: URL, outputURL: URL?, options: MediaTextOptions,
@@ -430,6 +586,188 @@ final class MediaService: ObservableObject {
         context.interpolationQuality = .high
         context.draw(image, in: CGRect(origin: .zero, size: size))
         return context.makeImage()
+    }
+
+    private func renderImage(_ image: CGImage,
+                             targetSize: CGSize,
+                             resizeMode: MediaImageResizeMode,
+                             watermark: MediaImageWatermark,
+                             background: MediaImageBackground,
+                             forceOpaque: Bool) -> CGImage? {
+        let width = max(1, Int(targetSize.width.rounded()))
+        let height = max(1, Int(targetSize.height.rounded()))
+        guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil,
+                                         pixelsWide: width,
+                                         pixelsHigh: height,
+                                         bitsPerSample: 8,
+                                         samplesPerPixel: 4,
+                                         hasAlpha: true,
+                                         isPlanar: false,
+                                         colorSpaceName: .deviceRGB,
+                                         bytesPerRow: 0,
+                                         bitsPerPixel: 0),
+              let context = NSGraphicsContext(bitmapImageRep: rep) else {
+            return nil
+        }
+
+        let previous = NSGraphicsContext.current
+        NSGraphicsContext.current = context
+        context.imageInterpolation = .high
+        let size = NSSize(width: CGFloat(width), height: CGFloat(height))
+        let rect = NSRect(origin: .zero, size: size)
+        if let fill = backgroundColor(background, forceOpaque: forceOpaque) {
+            fill.setFill()
+            rect.fill()
+        }
+        let drawRect = imageDrawRect(sourceSize: CGSize(width: image.width, height: image.height),
+                                     canvasSize: size,
+                                     resizeMode: resizeMode)
+        NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height)).draw(in: drawRect,
+                                                 from: .zero,
+                                                 operation: .sourceOver,
+                                                 fraction: 1,
+                                                 respectFlipped: false,
+                                                 hints: [.interpolation: NSImageInterpolation.high.rawValue])
+        drawWatermark(watermark, canvasSize: size)
+        NSGraphicsContext.current = previous
+        return rep.cgImage
+    }
+
+    private func imageDrawRect(sourceSize: CGSize,
+                               canvasSize: NSSize,
+                               resizeMode: MediaImageResizeMode) -> NSRect {
+        let canvasRect = NSRect(origin: .zero, size: canvasSize)
+        guard resizeMode.kind == .exact, resizeMode.exactMode != .stretch else { return canvasRect }
+        let sourceWidth = max(1, sourceSize.width)
+        let sourceHeight = max(1, sourceSize.height)
+        let scale: CGFloat
+        switch resizeMode.exactMode {
+        case .stretch:
+            return canvasRect
+        case .fit:
+            scale = min(canvasSize.width / sourceWidth, canvasSize.height / sourceHeight)
+        case .fill:
+            scale = max(canvasSize.width / sourceWidth, canvasSize.height / sourceHeight)
+        }
+        let width = sourceWidth * scale
+        let height = sourceHeight * scale
+        return NSRect(x: (canvasSize.width - width) / 2,
+                      y: (canvasSize.height - height) / 2,
+                      width: width,
+                      height: height)
+    }
+
+    private func backgroundColor(_ background: MediaImageBackground, forceOpaque: Bool) -> NSColor? {
+        switch background {
+        case .transparent:
+            return forceOpaque ? .white : nil
+        case .white:
+            return .white
+        case .black:
+            return .black
+        }
+    }
+
+    private func drawWatermark(_ watermark: MediaImageWatermark, canvasSize: NSSize) {
+        guard watermark.isEnabled, let context = NSGraphicsContext.current else { return }
+        let side = max(1, min(canvasSize.width, canvasSize.height))
+        let margin = CGFloat(watermark.margin)
+        let gap = max(6, side * 0.015)
+        var logoImage: NSImage?
+        var logoSize = NSSize.zero
+        if watermark.usesLogo,
+           let image = NSImage(contentsOfFile: watermark.logoPath),
+           image.size.width > 0,
+           image.size.height > 0 {
+            let maxLogoSide = max(12, side * CGFloat(watermark.scale))
+            let scale = min(maxLogoSide / image.size.width, maxLogoSide / image.size.height)
+            logoImage = image
+            logoSize = NSSize(width: image.size.width * scale, height: image.size.height * scale)
+        }
+
+        let text = watermark.usesText ? watermark.text.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        var attributedText: NSAttributedString?
+        var textSize = NSSize.zero
+        if !text.isEmpty {
+            let fontSize = max(12, min(96, side * 0.045))
+            let shadow = NSShadow()
+            shadow.shadowBlurRadius = max(2, fontSize * 0.14)
+            shadow.shadowOffset = NSSize(width: 0, height: -1)
+            shadow.shadowColor = NSColor.black.withAlphaComponent(0.45)
+            attributedText = NSAttributedString(string: text, attributes: [
+                .font: NSFont.systemFont(ofSize: fontSize, weight: .semibold),
+                .foregroundColor: NSColor.white,
+                .shadow: shadow,
+            ])
+            textSize = attributedText?.size() ?? .zero
+        }
+
+        guard logoImage != nil || attributedText != nil else { return }
+        let maxContentWidth = max(1, canvasSize.width - margin * 2)
+        let rawContentWidth = logoSize.width + (logoImage != nil && attributedText != nil ? gap : 0) + textSize.width
+        let shrink = rawContentWidth > maxContentWidth ? maxContentWidth / rawContentWidth : 1
+        var resolvedText = attributedText
+        if shrink < 1 {
+            logoSize = NSSize(width: logoSize.width * shrink, height: logoSize.height * shrink)
+            if let attributedText {
+                let fontSize = max(8, (attributedText.attribute(.font, at: 0, effectiveRange: nil) as? NSFont)?.pointSize ?? 12)
+                let shadow = NSShadow()
+                shadow.shadowBlurRadius = max(1, fontSize * shrink * 0.14)
+                shadow.shadowOffset = NSSize(width: 0, height: -1)
+                shadow.shadowColor = NSColor.black.withAlphaComponent(0.45)
+                let scaled = NSAttributedString(string: attributedText.string, attributes: [
+                    .font: NSFont.systemFont(ofSize: max(8, fontSize * shrink), weight: .semibold),
+                    .foregroundColor: NSColor.white,
+                    .shadow: shadow,
+                ])
+                resolvedText = scaled
+            }
+        }
+        textSize = resolvedText?.size() ?? .zero
+        let contentWidth = logoSize.width + (logoImage != nil && resolvedText != nil ? gap : 0) + textSize.width
+        let contentHeight = max(logoSize.height, textSize.height)
+        let origin = watermarkOrigin(position: watermark.position,
+                                     contentSize: NSSize(width: contentWidth, height: contentHeight),
+                                     canvasSize: canvasSize,
+                                     margin: margin)
+
+        context.saveGraphicsState()
+        context.cgContext.setAlpha(CGFloat(watermark.opacity))
+        var cursorX = origin.x
+        if let logoImage {
+            let y = origin.y + (contentHeight - logoSize.height) / 2
+            logoImage.draw(in: NSRect(x: cursorX, y: y, width: logoSize.width, height: logoSize.height),
+                           from: .zero,
+                           operation: .sourceOver,
+                           fraction: 1)
+            cursorX += logoSize.width + (resolvedText != nil ? gap : 0)
+        }
+        if let attributedText = resolvedText {
+            let y = origin.y + (contentHeight - textSize.height) / 2
+            attributedText.draw(at: NSPoint(x: cursorX, y: y))
+        }
+        context.restoreGraphicsState()
+    }
+
+    private func watermarkOrigin(position: MediaImageWatermarkPosition,
+                                 contentSize: NSSize,
+                                 canvasSize: NSSize,
+                                 margin: CGFloat) -> NSPoint {
+        let maxX = max(margin, canvasSize.width - contentSize.width - margin)
+        let maxY = max(margin, canvasSize.height - contentSize.height - margin)
+        switch position {
+        case .topLeft:
+            return NSPoint(x: margin, y: maxY)
+        case .topRight:
+            return NSPoint(x: maxX, y: maxY)
+        case .center:
+            return NSPoint(x: max(margin, (canvasSize.width - contentSize.width) / 2),
+                           y: max(margin, (canvasSize.height - contentSize.height) / 2))
+        case .bottomLeft:
+            return NSPoint(x: margin, y: margin)
+        case .bottomRight:
+            return NSPoint(x: maxX, y: margin)
+        }
     }
 
     private func avconvertPreset(codec: MediaVideoCodec, maxDimension: Int, quality: Double) -> String {
@@ -521,6 +859,14 @@ final class MediaService: ObservableObject {
         return try result.get()
     }
 
+    private func sanitizedImageProperties(_ properties: [CFString: Any], image: CGImage) -> [CFString: Any] {
+        var clean = properties
+        clean.removeValue(forKey: kCGImagePropertyOrientation)
+        clean[kCGImagePropertyPixelWidth] = image.width
+        clean[kCGImagePropertyPixelHeight] = image.height
+        return clean
+    }
+
     /// CGImageDestination accepts com.adobe.pdf but ignores the lossy quality,
     /// embedding the bitmap losslessly. Re-encoding as JPEG at the chosen
     /// quality and drawing that image into a PDF context makes Quartz embed
@@ -560,6 +906,27 @@ final class MediaService: ObservableObject {
     private func fileSize(_ url: URL) -> Int64 {
         let values = try? url.resourceValues(forKeys: [.fileSizeKey])
         return Int64(values?.fileSize ?? 0)
+    }
+
+    private func preserveModificationDateIfNeeded(from inputURL: URL,
+                                                  to outputURL: URL,
+                                                  options: MediaImageOptions) {
+        guard options.preserveModificationDate,
+              let date = try? inputURL.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        else { return }
+        try? FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: outputURL.path)
+    }
+
+    private func message(for failure: MediaFailure) -> String {
+        switch failure {
+        case .noInput: return "Choose a file first."
+        case .noVideoTrack: return "This file has no video track."
+        case .sameOutput: return "Choose a destination different from the original file."
+        case .unsupported: return "This format is not supported by macOS."
+        case .imageTooLarge: return "These dimensions are too large to process safely."
+        case .cancelled: return "Cancelled."
+        case let .failed(message): return message.isEmpty ? "This format is not supported by macOS." : message
+        }
     }
 
     private func checkCancellation(_ token: MediaCancellationToken) throws {

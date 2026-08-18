@@ -213,6 +213,7 @@ extension Strings {
         switcherWindowlessAppsFinder: "Finder のみ",
         switcherWindowlessAppsAll: "すべてのアプリ",
         switcherNoOpenWindow: "ウインドウなし",
+        switcherOtherDesktop: "別のデスクトップ",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Dock でウインドウをプレビュー",
         dockPreviewEnableCaption: "Dock の開いているアプリにポインタを重ねてウインドウを確認し、開きたいウインドウをクリックします。",
@@ -408,7 +409,7 @@ extension Strings {
         homebrewOperationProgressUnknown: "Homebrew はまだ割合を報告していません。",
 
         mediaName: "メディア",
-        mediaEnableCaption: "動画と画像を圧縮し、GIF を作成し、テキストをローカルで抽出します。",
+        mediaEnableCaption: "動画を圧縮し、画像の変換と加工、GIF の作成、テキストの抽出をローカルで行います。",
         mediaLocalNote: "ローカル。ネットワークなし。",
         mediaToolVideo: "動画",
         mediaToolGIF: "GIF",
@@ -421,7 +422,7 @@ extension Strings {
         mediaChooseOutput: "保存先",
         mediaStartVideo: "動画を圧縮",
         mediaStartGIF: "GIF を作成",
-        mediaStartImage: "画像を圧縮",
+        mediaStartImage: "画像を加工",
         mediaStartConvertPDF: "PDFに変換",
         mediaStartText: "テキストを抽出",
         mediaCancel: "キャンセル",
@@ -900,6 +901,8 @@ extension Strings {
         invertHorizontalScroll: "横スクロールを反転",
         switcherShowShortcutHints: "ショートカットのヒントを表示",
         switcherShowShortcutHintsCaption: "アイコンの下にアプリとウインドウのショートカットを表示します。",
-        uninstallerHomebrewPackageFormat: "%@ も Homebrew から削除されます。"
+        uninstallerHomebrewPackageFormat: "%@ も Homebrew から削除されます。",
+        shelfEdgeToggle: "画面の端に近づけたら開く",
+        shelfEdgeCaption: "ファイルを画面の端に向けてドラッグすると、シェルフが少しだけ現れます。そこでドロップするか、手を戻すとシェルフは引っ込みます。"
     )
 }

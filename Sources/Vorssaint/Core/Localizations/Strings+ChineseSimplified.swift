@@ -213,6 +213,7 @@ extension Strings {
         switcherWindowlessAppsFinder: "仅访达",
         switcherWindowlessAppsAll: "全部 App",
         switcherNoOpenWindow: "无打开的窗口",
+        switcherOtherDesktop: "其他桌面",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "在 Dock 中预览窗口",
         dockPreviewEnableCaption: "将指针悬停在 Dock 中已打开的 App 上查看窗口，然后点按要打开的窗口。",
@@ -408,7 +409,7 @@ extension Strings {
         homebrewOperationProgressUnknown: "Homebrew 尚未报告百分比。",
 
         mediaName: "媒体",
-        mediaEnableCaption: "本地压缩视频和图像、制作 GIF，并从图像中提取文字。",
+        mediaEnableCaption: "在本地压缩视频、转换和处理图像、制作 GIF，并从图像中提取文字。",
         mediaLocalNote: "本地。无网络。",
         mediaToolVideo: "视频",
         mediaToolGIF: "GIF",
@@ -421,7 +422,7 @@ extension Strings {
         mediaChooseOutput: "目标位置",
         mediaStartVideo: "压缩视频",
         mediaStartGIF: "制作 GIF",
-        mediaStartImage: "压缩图像",
+        mediaStartImage: "处理图像",
         mediaStartConvertPDF: "转换为 PDF",
         mediaStartText: "提取文字",
         mediaCancel: "取消",
@@ -900,6 +901,8 @@ extension Strings {
         invertHorizontalScroll: "反转水平滚动",
         switcherShowShortcutHints: "显示快捷键提示",
         switcherShowShortcutHintsCaption: "在图标下方显示 App 和窗口快捷键。",
-        uninstallerHomebrewPackageFormat: "%@ 也会从 Homebrew 中移除。"
+        uninstallerHomebrewPackageFormat: "%@ 也会从 Homebrew 中移除。",
+        shelfEdgeToggle: "靠近屏幕边缘时打开",
+        shelfEdgeCaption: "将文件拖向屏幕边缘，暂存架就会探出一角。放在那里即可放下，往回拖则会收回去。"
     )
 }

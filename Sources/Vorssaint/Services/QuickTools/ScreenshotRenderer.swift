@@ -468,16 +468,21 @@ enum ScreenshotRenderer {
 
         let imageRect = CGRect(x: padding, y: padding,
                                width: imageSize.width, height: imageSize.height)
+        context.saveGState()
         context.setShadow(offset: CGSize(width: 0, height: -6 * scale),
                           blur: 22 * scale,
                           color: CGColor(gray: 0, alpha: 0.4))
         let path = CGPath(roundedRect: imageRect,
                           cornerWidth: corner, cornerHeight: corner, transform: nil)
-        // Fill under the shadow, then clip the image to the same rounding.
+        // Keep the shadow outside the card without painting an opaque plate
+        // behind translucent captures.
+        context.addRect(CGRect(x: 0, y: 0, width: width, height: height))
+        context.addPath(path)
+        context.clip(using: .evenOdd)
         context.addPath(path)
         context.setFillColor(CGColor(gray: 1, alpha: 1))
         context.fillPath()
-        context.setShadow(offset: .zero, blur: 0, color: nil)
+        context.restoreGState()
         context.saveGState()
         context.addPath(path)
         context.clip()

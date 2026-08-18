@@ -6,6 +6,7 @@ import ApplicationServices
 import Carbon.HIToolbox
 import Combine
 import CoreGraphics
+import UniformTypeIdentifiers
 
 /// Turns the standard Back and Forward side buttons into the matching app
 /// commands. File managers and browsers expose those commands as Command-[ and
@@ -30,6 +31,9 @@ final class MouseNavigationService: ObservableObject {
     private var passThroughButtons: Set<Int64> = []
     /// Alive only while the tap is, like every other resource here.
     private var keyboardObserver: NSObjectProtocol?
+    /// Registered web handlers that should keep their native side-button events.
+    /// Resolved before the tap starts so its callback never asks Launch Services.
+    private var webURLHandlers: Set<String> = []
 
     private init() {}
 
@@ -50,6 +54,7 @@ final class MouseNavigationService: ObservableObject {
             isRunning = true
             return
         }
+        webURLHandlers = Self.registeredWebURLHandlers()
         let mask = CGEventMask(1 << CGEventType.otherMouseDown.rawValue)
             | CGEventMask(1 << CGEventType.otherMouseUp.rawValue)
             | CGEventMask(1 << CGEventType.otherMouseDragged.rawValue)
@@ -95,6 +100,7 @@ final class MouseNavigationService: ObservableObject {
         }
         keyboardObserver = nil
         MouseNavigationKeys.reset()
+        webURLHandlers.removeAll()
         tap = nil
         runLoopSource = nil
         passThroughButtons.removeAll()
@@ -134,7 +140,8 @@ final class MouseNavigationService: ObservableObject {
             // Checked only on Down (never per Drag), and both answers come
             // from cached state, so the tap callback stays cheap.
             if MouseNavigationSupport.shouldPassThrough(
-                bundleIdentifier: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
+                bundleIdentifier: NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
+                webURLHandlers: webURLHandlers)
                 || MouseAppExceptions.shared.excludesActionTarget(.navigation, at: event.location) {
                 passThroughButtons.insert(buttonNumber)
                 return Unmanaged.passUnretained(event)
@@ -155,6 +162,18 @@ final class MouseNavigationService: ObservableObject {
         // Swallow the full side-button gesture. Letting its Up or Drag through
         // after replacing the Down leaves apps with an unmatched mouse event.
         return nil
+    }
+
+    private static func registeredWebURLHandlers() -> Set<String> {
+        guard let url = URL(string: "https://example.invalid") else { return [] }
+        let urlHandlers = Set(NSWorkspace.shared.urlsForApplications(toOpen: url).compactMap {
+            Bundle(url: $0)?.bundleIdentifier
+        })
+        let documentHandlers = Set(NSWorkspace.shared.urlsForApplications(toOpen: UTType.html).compactMap {
+            Bundle(url: $0)?.bundleIdentifier
+        })
+        return MouseNavigationSupport.nativeWebHandlers(
+            urlHandlers: urlHandlers, documentHandlers: documentHandlers)
     }
 
     private enum MenuPressOutcome {

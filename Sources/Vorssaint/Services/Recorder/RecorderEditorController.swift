@@ -97,7 +97,8 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
                 gifSize: RecorderSupport.sanitizedGIFSize(
                     defaults.string(forKey: DefaultsKey.recorderGIFSize)).rawValue,
                 gifFrameRate: RecorderSupport.sanitizedGIFFrameRate(
-                    defaults.integer(forKey: DefaultsKey.recorderGIFFrameRate)))
+                    defaults.integer(forKey: DefaultsKey.recorderGIFFrameRate)),
+                zoomEnabled: defaults.bool(forKey: DefaultsKey.recorderAutomaticZoom))
         }
         player.isMuted = false
         pointerTrack = RecorderPointerTrack.decoded(try? Data(contentsOf: take.pointerURL))
@@ -127,7 +128,11 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
             else { return }
             self.duration = max(0, CMTimeGetSeconds(seconds))
             if let track = try? await self.sourceAsset.loadTracks(withMediaType: .video).first {
-                self.sourceSize = (try? await track.load(.naturalSize)) ?? .zero
+                let naturalSize = (try? await track.load(.naturalSize)) ?? .zero
+                let preferredTransform = (try? await track.load(.preferredTransform)) ?? .identity
+                self.sourceSize = RecorderSupport.videoGeometry(
+                    naturalSize: naturalSize,
+                    preferredTransform: preferredTransform).size
                 let rate = (try? await track.load(.nominalFrameRate)) ?? 60
                 self.sourceFrameRate = RecorderSupport.sanitizedFrameRate(Int(rate.rounded()))
             }
@@ -491,7 +496,8 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         let padding = style.kind == .none ? 0 : style.padding * 0.18
         let canvas = RecorderSupport.canvasSize(source: sourceSize,
                                                 padding: padding,
-                                                aspect: document.resolvedAspect)
+                                                aspect: document.resolvedAspect,
+                                                cropsToAspect: style.kind == .none)
         return RecorderSupport.outputSize(source: canvas, quality: document.resolvedQuality)
     }
 
@@ -615,12 +621,9 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     /// including the edit of having deleted them all.
     private func generateZoomsIfNeeded() {
         guard !document.zoomsGenerated, duration > 0 else { return }
-        var next = document
-        next.zoomSegments = RecorderTimeline.generatedSegments(
-            clicks: pointerTrack.clicks,
-            typingTimes: typingTimes,
-            duration: duration,
-            amount: RecorderSupport.sanitizedZoomAmount(document.zoomAmount))
+        var next = document.restoringAutomaticZooms(clicks: pointerTrack.clicks,
+                                                    typingTimes: typingTimes,
+                                                    duration: duration)
         next.zoomsGenerated = true
         suppressUndo = true
         document = next
@@ -1299,6 +1302,7 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                 // The window stays: exports are slow and plural, and a person
                 // who just made a video often wants the GIF of it too.
                 self.exported = true
+                RecentCaptureService.shared.recordRecording(at: destination)
                 if let onSuccess {
                     onSuccess(destination)
                 } else {

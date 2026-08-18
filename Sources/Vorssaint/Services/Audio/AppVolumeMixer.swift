@@ -1803,9 +1803,13 @@ private final class TapGainEngine: GainEngine {
     /// One limiter per output buffer, preallocated so the realtime thread
     /// never allocates. Touched only by the IO proc once rendering starts.
     private final class LimiterBox {
-        var limiters: ContiguousArray<BoostLimiter>
-        init(bufferCount: Int) {
-            limiters = ContiguousArray(repeating: BoostLimiter(), count: bufferCount)
+        let limiters: [BoostLookaheadLimiter]
+        var fallback: ContiguousArray<BoostLimiter>
+        init(bufferCount: Int, channelCapacity: Int) {
+            limiters = (0..<bufferCount).map { _ in
+                BoostLookaheadLimiter(channels: channelCapacity)
+            }
+            fallback = ContiguousArray(repeating: BoostLimiter(), count: bufferCount)
         }
     }
 
@@ -1861,7 +1865,7 @@ private final class TapGainEngine: GainEngine {
         // overshoot flattens every peak into audible crackle (issue #326).
         // The limiter turns the whole signal down for just the moment a peak
         // would not fit, so a boosted app gets louder without distorting.
-        let limiterBox = LimiterBox(bufferCount: 8)
+        let limiterBox = LimiterBox(bufferCount: 8, channelCapacity: 32)
         releaseBox.value = BoostLimiter.release(sampleRate: Self.nominalSampleRate(of: aggregateID))
         let release = releaseBox
         let cycles = cycleBox
@@ -1876,7 +1880,10 @@ private final class TapGainEngine: GainEngine {
             let frames = MixerRender.render(source: inputBuffers[tapIndex],
                                             into: outputBuffers,
                                             gain: gain)
-            guard gain > 1, frames > 0 else { return }
+            // Keep the tiny delay filled for every live engine. Crossing from
+            // attenuation into boost then changes level without inserting a
+            // fresh block of silence into audio that is already playing.
+            guard frames > 0 else { return }
             let releaseCoefficient = release.value
             var low: Float = -1, high: Float = 1
             for (index, outputBuffer) in outputBuffers.enumerated() {
@@ -1884,14 +1891,17 @@ private final class TapGainEngine: GainEngine {
                 guard channels > 0,
                       let destination = outputBuffer.mData?.assumingMemoryBound(to: Float.self)
                 else { continue }
-                if index < limiterBox.limiters.count {
-                    limiterBox.limiters[index].process(destination,
+                let usedLookahead = index < limiterBox.limiters.count
+                    && limiterBox.limiters[index].process(destination,
+                                                          frames: frames,
+                                                          channels: channels,
+                                                          release: releaseCoefficient)
+                if !usedLookahead, index < limiterBox.fallback.count {
+                    limiterBox.fallback[index].process(destination,
                                                        frames: frames,
                                                        channels: channels,
                                                        release: releaseCoefficient)
-                } else {
-                    // A device with more streams than the limiter was built
-                    // for still must not receive samples out of range.
+                } else if !usedLookahead {
                     vDSP_vclip(destination, 1, &low, &high, destination, 1,
                                vDSP_Length(frames * channels))
                 }

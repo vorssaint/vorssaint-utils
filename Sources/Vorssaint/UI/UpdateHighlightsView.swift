@@ -57,7 +57,7 @@ struct UpdateHighlightsView: View {
                 title: screenshot.shareSectionTitle,
                 caption: recorderShare.tourCaption,
                 actionLabel: s.highlightsConfigure,
-                action: { openSettings(.screenRecorder) }),
+                action: { openSettings(AppFeature.screenRecorder.settingsDestination) }),
             Highlight(
                 id: "disk-image-installer",
                 kind: .installer(diskInstaller, cancelTitle: s.uninstallerCancel),
@@ -199,6 +199,11 @@ struct UpdateHighlightsView: View {
 
     private func openSettings(_ page: SettingsPage) {
         SettingsRouter.shared.page = page
+        appDelegate()?.openSettingsWindow()
+    }
+
+    private func openSettings(_ destination: FeatureSettingsDestination) {
+        SettingsRouter.shared.request(destination)
         appDelegate()?.openSettingsWindow()
     }
 }

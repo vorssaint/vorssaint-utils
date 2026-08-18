@@ -139,7 +139,13 @@ extension ClipboardFeatureStrings {
         previewLabel: "미리보기",
         edit: "편집",
         cancel: "취소",
-        save: "저장"
+        save: "저장",
+        autoClearEnable: "클립보드 자동 지우기 대기 시간",
+        autoClearSecondsSuffix: "초",
+        autoClearOnSleep: "Mac이 잠자기에 들어갈 때 클립보드 지우기",
+        autoClearOnDisplaySleep: "디스플레이가 꺼질 때 클립보드 지우기",
+        autoClearOnScreenLock: "화면이 잠길 때 클립보드 지우기",
+        autoClearCaption: "시스템 클립보드만 지웁니다. 이미 저장된 항목은 기록에 남습니다."
     )
 }
 
@@ -201,7 +207,10 @@ extension WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS가 같은 가장자리를 사용 중입니다. 데스크탑 및 Dock에서 윈도우 타일링을 끄면 Vorssaint가 사용할 수 있습니다.",
         edgeSnapOpenSystemSettings: "데스크탑 및 Dock 열기",
         edgeSnapWaitingForSystem: "Vorssaint에서 켜졌습니다. macOS 타일링을 끄면 바로 작동합니다.",
-        marginMaximize: "여백 두고 최대화"
+        marginMaximize: "여백 두고 최대화",
+        spaces: "데스크탑",
+        previousSpace: "이전 데스크탑",
+        nextSpace: "다음 데스크탑"
     )
 }
 
@@ -402,6 +411,12 @@ struct ClipboardFeatureStrings {
     let edit: String
     let cancel: String
     let save: String
+    let autoClearEnable: String
+    let autoClearSecondsSuffix: String
+    let autoClearOnSleep: String
+    let autoClearOnDisplaySleep: String
+    let autoClearOnScreenLock: String
+    let autoClearCaption: String
 
     static let enUS = ClipboardFeatureStrings(
         title: "Clipboard",
@@ -449,7 +464,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "Preview",
         edit: "Edit",
         cancel: "Cancel",
-        save: "Save"
+        save: "Save",
+        autoClearEnable: "Auto clear clipboard with a delay of",
+        autoClearSecondsSuffix: "seconds",
+        autoClearOnSleep: "Clear clipboard on computer sleep",
+        autoClearOnDisplaySleep: "Clear clipboard on display sleep",
+        autoClearOnScreenLock: "Clear clipboard on screen lock",
+        autoClearCaption: "Clears the system clipboard only. Items already saved stay in the history."
     )
 
     static let ptBR = ClipboardFeatureStrings(
@@ -498,7 +519,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "Prévia",
         edit: "Editar",
         cancel: "Cancelar",
-        save: "Salvar"
+        save: "Salvar",
+        autoClearEnable: "Limpar o clipboard automaticamente após",
+        autoClearSecondsSuffix: "segundos",
+        autoClearOnSleep: "Limpar o clipboard quando o Mac dormir",
+        autoClearOnDisplaySleep: "Limpar o clipboard quando a tela apagar",
+        autoClearOnScreenLock: "Limpar o clipboard ao bloquear a tela",
+        autoClearCaption: "Limpa apenas o clipboard do sistema. Os itens já guardados continuam no histórico."
     )
 
     static let tr = ClipboardFeatureStrings(
@@ -547,7 +574,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "Önizleme",
         edit: "Düzenle",
         cancel: "İptal",
-        save: "Kaydet"
+        save: "Kaydet",
+        autoClearEnable: "Panoyu otomatik temizle, gecikme",
+        autoClearSecondsSuffix: "saniye",
+        autoClearOnSleep: "Mac uykuya geçince panoyu temizle",
+        autoClearOnDisplaySleep: "Ekran uykuya geçince panoyu temizle",
+        autoClearOnScreenLock: "Ekran kilitlenince panoyu temizle",
+        autoClearCaption: "Yalnızca sistem panosunu temizler. Kaydedilmiş ögeler geçmişte kalır."
     )
 
     static let ru = ClipboardFeatureStrings(
@@ -596,7 +629,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "Просмотр",
         edit: "Редактировать",
         cancel: "Отмена",
-        save: "Сохранить"
+        save: "Сохранить",
+        autoClearEnable: "Очищать буфер обмена через",
+        autoClearSecondsSuffix: "секунд",
+        autoClearOnSleep: "Очищать буфер обмена при переходе в режим сна",
+        autoClearOnDisplaySleep: "Очищать буфер обмена при выключении экрана",
+        autoClearOnScreenLock: "Очищать буфер обмена при блокировке экрана",
+        autoClearCaption: "Очищается только системный буфер обмена. Сохранённые элементы остаются в истории."
     )
 
     static let es = ClipboardFeatureStrings(
@@ -645,7 +684,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "Vista previa",
         edit: "Editar",
         cancel: "Cancelar",
-        save: "Guardar"
+        save: "Guardar",
+        autoClearEnable: "Vaciar el portapapeles automáticamente tras",
+        autoClearSecondsSuffix: "segundos",
+        autoClearOnSleep: "Vaciar el portapapeles al suspender el Mac",
+        autoClearOnDisplaySleep: "Vaciar el portapapeles al apagarse la pantalla",
+        autoClearOnScreenLock: "Vaciar el portapapeles al bloquear la pantalla",
+        autoClearCaption: "Solo se vacía el portapapeles del sistema. Los elementos guardados siguen en el historial."
     )
 
     static let de = ClipboardFeatureStrings(
@@ -694,7 +739,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "Vorschau",
         edit: "Bearbeiten",
         cancel: "Abbrechen",
-        save: "Sichern"
+        save: "Sichern",
+        autoClearEnable: "Zwischenablage automatisch leeren nach",
+        autoClearSecondsSuffix: "Sekunden",
+        autoClearOnSleep: "Zwischenablage beim Ruhezustand leeren",
+        autoClearOnDisplaySleep: "Zwischenablage beim Ausschalten des Bildschirms leeren",
+        autoClearOnScreenLock: "Zwischenablage beim Sperren des Bildschirms leeren",
+        autoClearCaption: "Leert nur die Zwischenablage des Systems. Bereits gesicherte Einträge bleiben im Verlauf."
     )
 
     static let fr = ClipboardFeatureStrings(
@@ -743,7 +794,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "Aperçu",
         edit: "Modifier",
         cancel: "Annuler",
-        save: "Enregistrer"
+        save: "Enregistrer",
+        autoClearEnable: "Vider le presse-papiers automatiquement après",
+        autoClearSecondsSuffix: "secondes",
+        autoClearOnSleep: "Vider le presse-papiers à la mise en veille du Mac",
+        autoClearOnDisplaySleep: "Vider le presse-papiers à l'extinction de l'écran",
+        autoClearOnScreenLock: "Vider le presse-papiers au verrouillage de l'écran",
+        autoClearCaption: "Seul le presse-papiers du système est vidé. Les éléments enregistrés restent dans l'historique."
     )
 
     static let it = ClipboardFeatureStrings(
@@ -792,7 +849,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "Anteprima",
         edit: "Modifica",
         cancel: "Annulla",
-        save: "Salva"
+        save: "Salva",
+        autoClearEnable: "Svuota gli appunti automaticamente dopo",
+        autoClearSecondsSuffix: "secondi",
+        autoClearOnSleep: "Svuota gli appunti quando il Mac va in stop",
+        autoClearOnDisplaySleep: "Svuota gli appunti quando lo schermo si spegne",
+        autoClearOnScreenLock: "Svuota gli appunti al blocco dello schermo",
+        autoClearCaption: "Svuota solo gli appunti di sistema. Gli elementi salvati restano nella cronologia."
     )
 
     static let ja = ClipboardFeatureStrings(
@@ -841,7 +904,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "プレビュー",
         edit: "編集",
         cancel: "キャンセル",
-        save: "保存"
+        save: "保存",
+        autoClearEnable: "クリップボードを自動消去するまでの時間",
+        autoClearSecondsSuffix: "秒",
+        autoClearOnSleep: "システムスリープ時にクリップボードを消去",
+        autoClearOnDisplaySleep: "ディスプレイスリープ時にクリップボードを消去",
+        autoClearOnScreenLock: "画面ロック時にクリップボードを消去",
+        autoClearCaption: "システムのクリップボードのみを消去します。保存済みの項目は履歴に残ります。"
     )
 
     static let zhHans = ClipboardFeatureStrings(
@@ -890,7 +959,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "预览",
         edit: "编辑",
         cancel: "取消",
-        save: "保存"
+        save: "保存",
+        autoClearEnable: "自动清空剪贴板，延迟",
+        autoClearSecondsSuffix: "秒",
+        autoClearOnSleep: "睡眠时清空剪贴板",
+        autoClearOnDisplaySleep: "显示器睡眠时清空剪贴板",
+        autoClearOnScreenLock: "锁定屏幕时清空剪贴板",
+        autoClearCaption: "仅清空系统剪贴板，已保存的条目仍保留在历史记录中。"
     )
 
     static let zhTW = ClipboardFeatureStrings(
@@ -939,7 +1014,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "預覽",
         edit: "編輯",
         cancel: "取消",
-        save: "儲存"
+        save: "儲存",
+        autoClearEnable: "自動清除剪貼簿，延遲",
+        autoClearSecondsSuffix: "秒",
+        autoClearOnSleep: "睡眠時清除剪貼簿",
+        autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
+        autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
+        autoClearCaption: "僅清除系統剪貼簿，已儲存的項目仍保留在記錄中。"
     )
 
     static let zhHK = ClipboardFeatureStrings(
@@ -988,7 +1069,13 @@ struct ClipboardFeatureStrings {
         previewLabel: "預覽",
         edit: "編輯",
         cancel: "取消",
-        save: "儲存"
+        save: "儲存",
+        autoClearEnable: "自動清除剪貼簿，延遲",
+        autoClearSecondsSuffix: "秒",
+        autoClearOnSleep: "睡眠時清除剪貼簿",
+        autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
+        autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
+        autoClearCaption: "只會清除系統剪貼簿，已儲存的項目仍會保留在記錄中。"
     )
 }
 
@@ -1050,6 +1137,9 @@ struct WindowLayoutFeatureStrings {
     let edgeSnapOpenSystemSettings: String
     let edgeSnapWaitingForSystem: String
     let marginMaximize: String
+    let spaces: String
+    let previousSpace: String
+    let nextSpace: String
 
     static let enUS = WindowLayoutFeatureStrings(
         title: "Window layout",
@@ -1108,7 +1198,10 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS is using the same edges. Turn off window tiling in Desktop & Dock so Vorssaint can take over.",
         edgeSnapOpenSystemSettings: "Open Desktop & Dock",
         edgeSnapWaitingForSystem: "Enabled in Vorssaint. It starts working as soon as macOS tiling is off.",
-        marginMaximize: "Maximize with Margin"
+        marginMaximize: "Maximize with Margin",
+        spaces: "Desktops",
+        previousSpace: "Previous desktop",
+        nextSpace: "Next desktop"
     )
 
     static let ptBR = WindowLayoutFeatureStrings(
@@ -1168,7 +1261,10 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "O macOS está usando as mesmas bordas. Desligue o encaixe em Mesa e Dock para o Vorssaint assumir.",
         edgeSnapOpenSystemSettings: "Abrir Mesa e Dock",
         edgeSnapWaitingForSystem: "Ativado no Vorssaint. Começa a funcionar assim que o encaixe do macOS for desligado.",
-        marginMaximize: "Maximizar com margem"
+        marginMaximize: "Maximizar com margem",
+        spaces: "Mesas",
+        previousSpace: "Mesa anterior",
+        nextSpace: "Próxima mesa"
     )
 
     static let tr = WindowLayoutFeatureStrings(
@@ -1228,7 +1324,10 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS aynı kenarları kullanıyor. Vorssaint’ın devralması için Masaüstü ve Dock’taki pencere döşemeyi kapatın.",
         edgeSnapOpenSystemSettings: "Masaüstü ve Dock’u Aç",
         edgeSnapWaitingForSystem: "Vorssaint’ta açık. macOS döşemesi kapanınca çalışmaya başlar.",
-        marginMaximize: "Kenar boşluklu büyüt"
+        marginMaximize: "Kenar boşluklu büyüt",
+        spaces: "Masaüstleri",
+        previousSpace: "Önceki masaüstü",
+        nextSpace: "Sonraki masaüstü"
     )
 
     static let ru = WindowLayoutFeatureStrings(
@@ -1288,7 +1387,10 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS использует те же края. Отключите размещение окон в разделе «Рабочий стол и Dock», чтобы их использовал Vorssaint.",
         edgeSnapOpenSystemSettings: "Открыть «Рабочий стол и Dock»",
         edgeSnapWaitingForSystem: "Включено в Vorssaint. Заработает сразу после отключения размещения окон macOS.",
-        marginMaximize: "Развернуть с отступом"
+        marginMaximize: "Развернуть с отступом",
+        spaces: "Рабочие столы",
+        previousSpace: "Предыдущий рабочий стол",
+        nextSpace: "Следующий рабочий стол"
     )
 
     static let es = WindowLayoutFeatureStrings(
@@ -1348,7 +1450,10 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS usa los mismos bordes. Desactiva el ajuste de ventanas en Escritorio y Dock para que Vorssaint tome el control.",
         edgeSnapOpenSystemSettings: "Abrir Escritorio y Dock",
         edgeSnapWaitingForSystem: "Activado en Vorssaint. Funcionará en cuanto se desactive el ajuste de ventanas de macOS.",
-        marginMaximize: "Maximizar con margen"
+        marginMaximize: "Maximizar con margen",
+        spaces: "Escritorios",
+        previousSpace: "Escritorio anterior",
+        nextSpace: "Escritorio siguiente"
     )
 
     static let de = WindowLayoutFeatureStrings(
@@ -1408,7 +1513,10 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS verwendet dieselben Ränder. Deaktiviere die Fensteranordnung unter Schreibtisch & Dock, damit Vorssaint übernimmt.",
         edgeSnapOpenSystemSettings: "Schreibtisch & Dock öffnen",
         edgeSnapWaitingForSystem: "In Vorssaint aktiviert. Es funktioniert, sobald die Fensteranordnung von macOS aus ist.",
-        marginMaximize: "Mit Rand maximieren"
+        marginMaximize: "Mit Rand maximieren",
+        spaces: "Schreibtische",
+        previousSpace: "Vorheriger Schreibtisch",
+        nextSpace: "Nächster Schreibtisch"
     )
 
     static let fr = WindowLayoutFeatureStrings(
@@ -1468,7 +1576,10 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS utilise les mêmes bords. Désactivez le placement des fenêtres dans Bureau et Dock pour laisser Vorssaint prendre le relais.",
         edgeSnapOpenSystemSettings: "Ouvrir Bureau et Dock",
         edgeSnapWaitingForSystem: "Activé dans Vorssaint. Il fonctionnera dès que le placement des fenêtres de macOS sera désactivé.",
-        marginMaximize: "Agrandir avec marge"
+        marginMaximize: "Agrandir avec marge",
+        spaces: "Bureaux",
+        previousSpace: "Bureau précédent",
+        nextSpace: "Bureau suivant"
     )
 
     static let it = WindowLayoutFeatureStrings(
@@ -1528,7 +1639,10 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS usa gli stessi bordi. Disattiva l’affiancamento in Scrivania e Dock per lasciare il controllo a Vorssaint.",
         edgeSnapOpenSystemSettings: "Apri Scrivania e Dock",
         edgeSnapWaitingForSystem: "Attivato in Vorssaint. Funzionerà appena l’affiancamento di macOS sarà disattivato.",
-        marginMaximize: "Massimizza con margine"
+        marginMaximize: "Massimizza con margine",
+        spaces: "Scrivanie",
+        previousSpace: "Scrivania precedente",
+        nextSpace: "Scrivania successiva"
     )
 
     static let ja = WindowLayoutFeatureStrings(
@@ -1588,7 +1702,10 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOSが同じ画面端を使用しています。Vorssaintで使うには「デスクトップとDock」でウインドウのタイル表示をオフにしてください。",
         edgeSnapOpenSystemSettings: "デスクトップとDockを開く",
         edgeSnapWaitingForSystem: "Vorssaintでオンになっています。macOSのタイル表示をオフにすると動作します。",
-        marginMaximize: "余白付きで最大化"
+        marginMaximize: "余白付きで最大化",
+        spaces: "デスクトップ",
+        previousSpace: "前のデスクトップ",
+        nextSpace: "次のデスクトップ"
     )
 
     static let zhHans = WindowLayoutFeatureStrings(
@@ -1648,7 +1765,10 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS 正在使用相同的屏幕边缘。请在“桌面与程序坞”中关闭窗口平铺，让 Vorssaint 接管。",
         edgeSnapOpenSystemSettings: "打开桌面与程序坞",
         edgeSnapWaitingForSystem: "已在 Vorssaint 中开启。关闭 macOS 窗口平铺后即可使用。",
-        marginMaximize: "带边距最大化"
+        marginMaximize: "带边距最大化",
+        spaces: "桌面",
+        previousSpace: "上一个桌面",
+        nextSpace: "下一个桌面"
     )
 
     static let zhTW = WindowLayoutFeatureStrings(
@@ -1708,7 +1828,10 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS 正在使用相同的螢幕邊緣。請在「桌面與 Dock」關閉視窗並排，讓 Vorssaint 接管。",
         edgeSnapOpenSystemSettings: "開啟桌面與 Dock",
         edgeSnapWaitingForSystem: "已在 Vorssaint 中開啟。關閉 macOS 視窗並排後即可使用。",
-        marginMaximize: "保留邊距最大化"
+        marginMaximize: "保留邊距最大化",
+        spaces: "桌面",
+        previousSpace: "上一個桌面",
+        nextSpace: "下一個桌面"
     )
 
     static let zhHK = WindowLayoutFeatureStrings(
@@ -1768,7 +1891,10 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS 正在使用相同的螢幕邊緣。請在「桌面與 Dock」關閉視窗並排，讓 Vorssaint 接管。",
         edgeSnapOpenSystemSettings: "開啟桌面與 Dock",
         edgeSnapWaitingForSystem: "已在 Vorssaint 中開啟。關閉 macOS 視窗並排後即可使用。",
-        marginMaximize: "保留邊距最大化"
+        marginMaximize: "保留邊距最大化",
+        spaces: "桌面",
+        previousSpace: "上一個桌面",
+        nextSpace: "下一個桌面"
     )
 }
 
