@@ -285,6 +285,16 @@ enum AppUpdatesSupport {
         items.contains { selection.contains($0.id) && $0.source == .appStore }
     }
 
+    /// The page a store hand-off can land on. With one store row ticked that is
+    /// its product page, the same place the row's own button goes; the store
+    /// shows one product at a time, so several rows have no such page and the
+    /// hand-off falls back to the updates page.
+    static func singleStorePage(in items: [Item], selection: Set<String>) -> String? {
+        let store = items.filter { selection.contains($0.id) && $0.source == .appStore }
+        guard store.count == 1 else { return nil }
+        return store[0].storePage
+    }
+
     /// Selection kept honest against a list that just changed: rows that are
     /// gone drop out, and rows that appeared arrive already ticked, which is
     /// what "update everything" expects without any extra click.

@@ -70,6 +70,10 @@ struct CommandBarDeferredRowShortcut {
         pending = nil
     }
 
+    func key(for presentationID: UUID) -> String? {
+        pending?.presentationID == presentationID ? pending?.stableKey : nil
+    }
+
     mutating func take(for presentationID: UUID) -> String? {
         guard pending?.presentationID == presentationID else { return nil }
         defer { pending = nil }
@@ -144,6 +148,36 @@ enum CommandBarSearch {
     /// for the lookup.
     private static func isInvisible(_ scalar: Unicode.Scalar) -> Bool {
         scalar.value >= 0x00AD && scalar.properties.generalCategory == .format
+    }
+
+    /// The Latin spellings an ideographic title also answers to. The pinyin
+    /// comes back run together, the way it is typed, plus its initials. A
+    /// title without a Han character gets nothing because romanizing it would
+    /// only repeat the title.
+    static func pinyinKeywords(_ title: String) -> String {
+        let romanized = NSMutableString(string: title)
+        guard CFStringTransform(romanized, nil, kCFStringTransformMandarinLatin, false),
+              romanized as String != title else { return "" }
+        CFStringTransform(romanized, nil, kCFStringTransformStripDiacritics, false)
+        let syllables = (romanized as String)
+            .split { !$0.isLetter && !$0.isNumber }
+            .map { $0.lowercased() }
+        guard !syllables.isEmpty else { return "" }
+        let joined = syllables.joined()
+        let initials = String(syllables.compactMap(\.first))
+        return joined == initials ? joined : joined + " " + initials
+    }
+
+    static func applicationKeywords(title: String,
+                                    diskName: String,
+                                    alternateNames: [String]) -> String {
+        var names = alternateNames
+        if !diskName.isEmpty, normalized(diskName) != normalized(title) {
+            names.append(diskName)
+        }
+        let pinyin = pinyinKeywords(title)
+        if !pinyin.isEmpty { names.append(pinyin) }
+        return names.joined(separator: " ")
     }
 
     /// Whether the query names the verb of a format like "Quit %@". Used to

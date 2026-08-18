@@ -213,6 +213,7 @@ extension Strings {
         switcherWindowlessAppsFinder: "Finder uniquement",
         switcherWindowlessAppsAll: "Toutes les apps",
         switcherNoOpenWindow: "Sans fenêtre ouverte",
+        switcherOtherDesktop: "Autre bureau",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Prévisualiser les fenêtres dans le Dock",
         dockPreviewEnableCaption: "Survolez une app ouverte dans le Dock pour voir ses fenêtres, puis cliquez sur celle à ouvrir.",
@@ -408,7 +409,7 @@ extension Strings {
         homebrewOperationProgressUnknown: "Homebrew n'a pas encore indiqué de pourcentage.",
 
         mediaName: "Médias",
-        mediaEnableCaption: "Compressez vidéos et images, créez des GIFs et extrayez du texte localement.",
+        mediaEnableCaption: "Compressez les vidéos, convertissez et traitez les images, créez des GIFs et extrayez du texte localement.",
         mediaLocalNote: "Local. Sans réseau.",
         mediaToolVideo: "Vidéo",
         mediaToolGIF: "GIF",
@@ -421,7 +422,7 @@ extension Strings {
         mediaChooseOutput: "Destination",
         mediaStartVideo: "Compresser la vidéo",
         mediaStartGIF: "Créer un GIF",
-        mediaStartImage: "Compresser l’image",
+        mediaStartImage: "Traiter l’image",
         mediaStartConvertPDF: "Convertir en PDF",
         mediaStartText: "Extraire le texte",
         mediaCancel: "Annuler",
@@ -497,6 +498,15 @@ extension Strings {
         shelfSelectedFormat: "%d sélectionnés",
         shelfHint: "Cliquez pour sélectionner. Glissez pour utiliser ou faites un clic droit pour plus d’actions.",
         shelfItemImage: "Image",
+        shelfTooltipItemsFormat: "%d éléments",
+        shelfTooltipImageSingular: "%d image",
+        shelfTooltipImagePlural: "%d images",
+        shelfTooltipFileSingular: "%d fichier",
+        shelfTooltipFilePlural: "%d fichiers",
+        shelfTooltipNoteSingular: "%d note",
+        shelfTooltipNotePlural: "%d notes",
+        shelfTooltipLinkSingular: "%d lien",
+        shelfTooltipLinkPlural: "%d liens",
         shelfActionOpen: "Ouvrir",
         shelfActionOpenWith: "Ouvrir avec",
         shelfActionAirDrop: "Partager par AirDrop",
@@ -900,6 +910,8 @@ extension Strings {
         invertHorizontalScroll: "Inverser le défilement horizontal",
         switcherShowShortcutHints: "Afficher les raccourcis",
         switcherShowShortcutHintsCaption: "Affiche les raccourcis des apps et des fenêtres sous les icônes.",
-        uninstallerHomebrewPackageFormat: "%@ sera aussi retiré de Homebrew."
+        uninstallerHomebrewPackageFormat: "%@ sera aussi retiré de Homebrew.",
+        shelfEdgeToggle: "Ouvrir près d’un bord de l’écran",
+        shelfEdgeCaption: "Faites glisser un fichier vers le bord de l’écran pour entrevoir l’étagère. Déposez-le là, ou reculez et elle se retire."
     )
 }

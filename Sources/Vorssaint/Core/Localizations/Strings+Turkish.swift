@@ -213,6 +213,7 @@ extension Strings {
         switcherWindowlessAppsFinder: "Yalnızca Finder",
         switcherWindowlessAppsAll: "Tüm uygulamalar",
         switcherNoOpenWindow: "Açık penceresi yok",
+        switcherOtherDesktop: "Başka masaüstü",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Dock'tan pencereleri önizle",
         dockPreviewEnableCaption: "Pencerelerini görmek için Dock'taki açık bir uygulamanın üzerine gel, ardından açmak istediğin pencereye tıkla.",
@@ -408,7 +409,7 @@ extension Strings {
         homebrewOperationProgressUnknown: "Homebrew henüz yüzde bildirmedi.",
 
         mediaName: "Medya",
-        mediaEnableCaption: "Videoları ve görselleri sıkıştır, GIF oluştur ve metni yerel olarak çıkar.",
+        mediaEnableCaption: "Videoları sıkıştır, görselleri dönüştür ve işle, GIF oluştur ve metni yerel olarak çıkar.",
         mediaLocalNote: "Yerel. Ağ yok.",
         mediaToolVideo: "Video",
         mediaToolGIF: "GIF",
@@ -421,7 +422,7 @@ extension Strings {
         mediaChooseOutput: "Hedef",
         mediaStartVideo: "Videoyu sıkıştır",
         mediaStartGIF: "GIF oluştur",
-        mediaStartImage: "Görseli sıkıştır",
+        mediaStartImage: "Görseli işle",
         mediaStartConvertPDF: "PDF'ye dönüştür",
         mediaStartText: "Metni çıkar",
         mediaCancel: "İptal",
@@ -497,6 +498,15 @@ extension Strings {
         shelfSelectedFormat: "%d seçili",
         shelfHint: "Seçmek için tıkla. Kullanmak için sürükle veya diğer eylemler için sağ tıkla.",
         shelfItemImage: "Görsel",
+        shelfTooltipItemsFormat: "%d öğe",
+        shelfTooltipImageSingular: "%d resim",
+        shelfTooltipImagePlural: "%d resim",
+        shelfTooltipFileSingular: "%d dosya",
+        shelfTooltipFilePlural: "%d dosya",
+        shelfTooltipNoteSingular: "%d not",
+        shelfTooltipNotePlural: "%d not",
+        shelfTooltipLinkSingular: "%d bağlantı",
+        shelfTooltipLinkPlural: "%d bağlantı",
         shelfActionOpen: "Aç",
         shelfActionOpenWith: "Birlikte aç",
         shelfActionAirDrop: "AirDrop ile paylaş",
@@ -900,6 +910,8 @@ extension Strings {
         invertHorizontalScroll: "Yatay kaydırmayı ters çevir",
         switcherShowShortcutHints: "Kısayol ipuçlarını göster",
         switcherShowShortcutHintsCaption: "Simge sırasının altında uygulama ve pencere kısayollarını gösterir.",
-        uninstallerHomebrewPackageFormat: "%@, Homebrew'den de kaldırılacak."
+        uninstallerHomebrewPackageFormat: "%@, Homebrew'den de kaldırılacak.",
+        shelfEdgeToggle: "Ekran kenarına yaklaşınca aç",
+        shelfEdgeCaption: "Bir dosyayı ekran kenarına doğru sürüklediğinde raf belirmeye başlar. Bıraktığın yerde kalır, ya da geri çekersen raf da geri çekilir."
     )
 }

@@ -32,6 +32,33 @@ struct SuperKeyMapping: Equatable {
 /// go down and up. The mapping table below turns it into an ordinary key
 /// first, which is what makes holding it possible at all.
 enum SuperKeySupport {
+    static let defaultModifiers: GlobalShortcutModifiers = .validMask
+
+    static var defaultModifierStorageValue: String {
+        storageValue(for: defaultModifiers)
+    }
+
+    static func modifiers(from storedValue: String?) -> GlobalShortcutModifiers {
+        guard let storedValue else { return defaultModifiers }
+        var modifiers: GlobalShortcutModifiers = []
+        for token in storedValue.split(separator: "+", omittingEmptySubsequences: false) {
+            switch token {
+            case "control": modifiers.insert(.control)
+            case "option": modifiers.insert(.option)
+            case "shift": modifiers.insert(.shift)
+            case "command": modifiers.insert(.command)
+            default: return defaultModifiers
+            }
+        }
+        return modifiers.hasPrimaryModifier ? modifiers : defaultModifiers
+    }
+
+    static func storageValue(for modifiers: GlobalShortcutModifiers) -> String {
+        let sanitized = modifiers.intersection(.validMask)
+        return (sanitized.hasPrimaryModifier ? sanitized : defaultModifiers)
+            .storageTokens.joined(separator: "+")
+    }
+
     /// HID usage values (page 7, keyboard) of the two keys involved.
     static let capsLockUsage: UInt64 = 0x700000039
     /// Modifier Keys represents “No Action” with this sentinel.
@@ -127,14 +154,14 @@ enum SuperKeySupport {
     enum Decision: Equatable {
         /// The event belongs to the super key and goes no further.
         case swallow
-        /// The four modifiers ride along with this key.
+        /// The configured modifiers ride along with this key.
         case addModifiers
         /// The event carries on untouched.
         case pass
         /// The key was tapped with nothing else, so its solo action runs.
         case soloTap
-        /// A keyboard is not mapped: the mapping needs to be applied again.
-        case remapNeeded
+        /// A raw Caps Lock is kept out while its keyboard mapping is repaired.
+        case interceptAndRemap
     }
 
     /// Holding the key is the whole feature, so the state is just whether it is
@@ -167,7 +194,7 @@ enum SuperKeySupport {
                 if isHeld { isAlone = false }
                 return .pass
             case .capsLock:
-                return .remapNeeded
+                return .interceptAndRemap
             }
         }
 

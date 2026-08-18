@@ -14,11 +14,15 @@ struct CommandBarSettings: View {
     @AppStorage(DefaultsKey.commandBarHidden) private var hiddenRaw = ""
     @AppStorage(DefaultsKey.commandBarLinks) private var linksData = Data()
     @AppStorage(DefaultsKey.commandBarRowShortcuts) private var rowShortcutsRaw = ""
+    @AppStorage(DefaultsKey.commandBarFileScopes) private var fileScopesRaw = ""
+    @AppStorage(DefaultsKey.commandBarFileIgnores) private var fileIgnoresRaw = ""
     @State private var editing: CommandBarLink?
+    @State private var ignoreDraft = ""
+    @State private var showsFileOptions = false
 
     private var text: CommandBarFeatureStrings { FeatureStrings.commandBar(l10n.language) }
-    /// The snippet library already says "add", "save", "delete" and "name" in
-    /// every language; saying them twice would only mean two things to keep.
+    /// The snippet library already says "save", "delete" and "name" in every
+    /// language; saying them twice would only mean two things to keep.
     private var common: SnippetFeatureStrings { FeatureStrings.snippets(l10n.language) }
     private var editLabel: String { FeatureStrings.screenshot(l10n.language).editButton }
 
@@ -38,6 +42,15 @@ struct CommandBarSettings: View {
                 } label: {
                     Label(text.openButton, systemImage: "command")
                 }
+                Button {
+                    CommandBarService.shared.resetPanelPosition()
+                } label: {
+                    Label(text.resetPositionButton, systemImage: "arrow.uturn.backward")
+                }
+                .disabled(!service.hasCustomPosition)
+                Text(text.positionCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Text(text.settingsCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -89,6 +102,70 @@ struct CommandBarSettings: View {
             }
 
             Section {
+                Text(text.filesCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if fileScopes.isEmpty {
+                    Text(text.filesEmpty)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(fileScopes, id: \.self) { scope in
+                    HStack(spacing: 8) {
+                        Image(systemName: "folder")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.accentColor)
+                            .frame(width: 16)
+                        Text(scope)
+                            .font(.system(size: 12))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer()
+                        Button(text.removeButton) { removeFileScope(scope) }
+                            .buttonStyle(.bordered)
+                            .controlSize(.mini)
+                    }
+                }
+                Button {
+                    addFileScope()
+                } label: {
+                    Label(text.filesAddFolder, systemImage: "plus")
+                }
+                DisclosureGroup(FeatureStrings.recorder(l10n.language).moreOptions,
+                                isExpanded: $showsFileOptions) {
+                    Text(text.filesIgnoreCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    ForEach(fileIgnores, id: \.self) { pattern in
+                        HStack(spacing: 8) {
+                            Image(systemName: "eye.slash")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 16)
+                            Text(pattern)
+                                .font(.system(size: 12))
+                                .lineLimit(1)
+                            Spacer()
+                            Button(text.removeButton) { removeFileIgnore(pattern) }
+                                .buttonStyle(.bordered)
+                                .controlSize(.mini)
+                        }
+                    }
+                    HStack(spacing: 8) {
+                        TextField(text.filesIgnorePlaceholder, text: $ignoreDraft)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit { addFileIgnore() }
+                        Button(text.filesIgnoreAdd) { addFileIgnore() }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(ignoreDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                }
+            } header: {
+                Text(text.filesTitle)
+            }
+
+            Section {
                 if links.isEmpty {
                     Text(text.linksEmpty)
                         .font(.caption)
@@ -119,7 +196,7 @@ struct CommandBarSettings: View {
                 Button {
                     editing = CommandBarLink()
                 } label: {
-                    Label(common.addButton, systemImage: "plus")
+                    Label(text.linkAddButton, systemImage: "plus")
                 }
             } header: {
                 Text(text.linksTitle)
@@ -221,7 +298,7 @@ struct CommandBarSettings: View {
                     }
                 }
                 Button(text.forgetAllButton) {
-                    UserDefaults.standard.removeObject(forKey: DefaultsKey.commandBarUsage)
+                    CommandBarService.shared.forgetLearnedRanking()
                 }
             } header: {
                 Text(text.hiddenTitle)
@@ -319,6 +396,7 @@ struct CommandBarSettings: View {
         case .windows: return text.sourceWindows
         case .quitApps: return text.sourceQuitApps
         case .settingsPages: return text.sourceSettingsPages
+        case .macSettings: return text.sourceMacSettings
         case .snippets: return text.sourceSnippets
         case .clipboard: return text.sourceClipboard
         case .emoji: return text.sourceEmoji
@@ -327,7 +405,57 @@ struct CommandBarSettings: View {
         case .calculator: return text.sourceCalculator
         case .selection: return text.sourceSelection
         case .links: return text.linksTitle
+        case .files: return text.sourceFiles
         }
+    }
+
+    // MARK: - The folders a file search looks in
+
+    private var fileScopes: [String] {
+        CommandBarFileSearchSupport.decodeList(fileScopesRaw)
+    }
+
+    private var fileIgnores: [String] {
+        CommandBarFileSearchSupport.decodeList(fileIgnoresRaw)
+    }
+
+    /// Stored with a tilde, so a list made on one Mac still points somewhere
+    /// on another and a settings export stays portable.
+    private func addFileScope() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        guard panel.runModal() == .OK else { return }
+        let added = panel.urls.map { ($0.path as NSString).abbreviatingWithTildeInPath }
+        writeFileScopes(fileScopes + added)
+    }
+
+    private func removeFileScope(_ scope: String) {
+        writeFileScopes(fileScopes.filter { $0 != scope })
+    }
+
+    private func addFileIgnore() {
+        let pattern = ignoreDraft.trimmingCharacters(in: .whitespaces)
+        guard !pattern.isEmpty else { return }
+        ignoreDraft = ""
+        writeFileIgnores(fileIgnores + [pattern])
+    }
+
+    private func removeFileIgnore(_ pattern: String) {
+        writeFileIgnores(fileIgnores.filter { $0 != pattern })
+    }
+
+    /// Both lists are resolved once and kept, so typing never pays for
+    /// reading them; the service is told the moment they change.
+    private func writeFileScopes(_ scopes: [String]) {
+        fileScopesRaw = CommandBarFileSearchSupport.encodeList(scopes)
+        CommandBarService.shared.syncWithPreferences()
+    }
+
+    private func writeFileIgnores(_ patterns: [String]) {
+        fileIgnoresRaw = CommandBarFileSearchSupport.encodeList(patterns)
+        CommandBarService.shared.syncWithPreferences()
     }
 
     private func removeAlias(_ key: String) {
@@ -373,6 +501,7 @@ private struct CommandBarLinkEditor: View {
             Picker("", selection: $draft.kind) {
                 Text(text.linkKindLink).tag(CommandBarLink.Kind.link)
                 Text(text.linkKindPlace).tag(CommandBarLink.Kind.place)
+                Text(text.linkKindScript).tag(CommandBarLink.Kind.script)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -392,37 +521,45 @@ private struct CommandBarLinkEditor: View {
                 HStack(spacing: 6) {
                     TextField("", text: $draft.destination)
                         .textFieldStyle(.roundedBorder)
-                    if draft.kind == .place {
+                    if draft.kind == .place || draft.kind == .script {
                         // Typing a path by hand is how people get it wrong.
-                        Button(FeatureStrings.radialMenu(l10n.language).chooseButton) { choosePlace() }
+                        Button(FeatureStrings.radialMenu(l10n.language).chooseButton) {
+                            chooseDestination()
+                        }
                     }
                 }
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(text.linkPlaceholdersHint)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                HStack(spacing: 6) {
-                    ForEach(CommandBarLinkPlaceholder.allCases) { placeholder in
-                        Button {
-                            draft.destination += placeholder.token
-                        } label: {
-                            VStack(spacing: 1) {
-                                Text(placeholder.token)
-                                    .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-                                Text(meaning(of: placeholder))
-                                    .font(.system(size: 9))
-                                    .foregroundStyle(.secondary)
+            if draft.kind != .script {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(text.linkPlaceholdersHint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: 6) {
+                        ForEach(CommandBarLinkPlaceholder.allCases) { placeholder in
+                            Button {
+                                draft.destination += placeholder.token
+                            } label: {
+                                VStack(spacing: 1) {
+                                    Text(placeholder.token)
+                                        .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                                    Text(meaning(of: placeholder))
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Capsule().fill(Color.primary.opacity(0.06)))
                             }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Capsule().fill(Color.primary.opacity(0.06)))
+                            .buttonStyle(.plain)
+                            .help(meaning(of: placeholder))
                         }
-                        .buttonStyle(.plain)
-                        .help(meaning(of: placeholder))
                     }
                 }
+            } else {
+                Text(text.scriptHint)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             HStack {
@@ -451,10 +588,11 @@ private struct CommandBarLinkEditor: View {
         }
     }
 
-    private func choosePlace() {
+    private func chooseDestination() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
-        panel.canChooseDirectories = true
+        // A script is a file, never a folder; a place can be either.
+        panel.canChooseDirectories = draft.kind == .place
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
         draft.destination = url.path

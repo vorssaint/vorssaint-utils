@@ -17,6 +17,33 @@ enum SettingsSearchSupport {
         return keywords.contains { fold($0).contains(folded) }
     }
 
+    /// Every former screen-tool page remains discoverable after those settings
+    /// move behind the single Screen capture destination.
+    static func screenCaptureKeywords(_ strings: Strings,
+                                      language: AppLanguage) -> [String] {
+        let screenshot = FeatureStrings.screenshot(language)
+        let recorder = FeatureStrings.recorder(language)
+        return [
+            screenshot.pageTitle,
+            recorder.pageTitle,
+            strings.ocrName,
+            strings.colorPickerName,
+            screenshot.freezeToggle,
+            screenshot.fullScreenShortcutTitle,
+            screenshot.previewPositionLabel,
+            screenshot.pinButton,
+            screenshot.toolPixelate,
+            screenshot.toolArrow,
+            recorder.startButton,
+            recorder.systemAudioToggle,
+            recorder.microphoneToggle,
+            recorder.qualityLabel,
+            recorder.frameRateLabel,
+            strings.ocrQRToggle,
+            strings.colorPickerFormatLabel,
+        ]
+    }
+
     /// Keeps only the sections that still have items for the query, so an
     /// empty section never renders just its header.
     static func filteredIndices(query: String,

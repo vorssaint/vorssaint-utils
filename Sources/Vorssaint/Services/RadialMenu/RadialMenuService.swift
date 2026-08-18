@@ -603,6 +603,7 @@ final class RadialMenuService: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             switch tool {
             case .screenshot: ScreenshotService.shared.capture()
+            case .screenRecorder: ScreenRecorderService.shared.toggle()
             case .colorPicker: ColorSamplerService.shared.pick()
             case .screenOCR: ScreenTextService.shared.capture()
             case .micMute: MicMuteService.shared.toggle()
@@ -611,10 +612,20 @@ final class RadialMenuService: ObservableObject {
             case .cameraPreview: CameraPreviewService.shared.show()
             case .scratchpad: ScratchpadService.shared.show()
             case .shelf: ShelfService.shared.summon()
+            case .cleaner: Self.openSettings(at: .cleaner)
+            case .uninstaller: Self.openSettings(at: .uninstaller)
+            case .appUpdates:
+                AppUpdatesService.shared.check()
+                Self.openSettings(at: .appUpdates)
             case .cleaningMode: CleaningModeManager.shared.activate()
             case .keepAwake: KeepAwakeManager.shared.toggle()
             }
         }
+    }
+
+    private static func openSettings(at page: SettingsPage) {
+        SettingsRouter.shared.page = page
+        appDelegate()?.openSettingsWindow()
     }
 
     private func run(_ action: RadialMenuQuickToggle) {

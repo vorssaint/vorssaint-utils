@@ -3,35 +3,22 @@
 
 import AppKit
 
-/// System eyedropper: picks the color of any pixel on screen with the native
-/// magnifier loupe and copies it in the configured format. The clipboard
-/// history keeps every picked color automatically.
+/// Picks the color of any pixel from the shared capture surface and copies it
+/// in the configured format. The native sampler remains the permission-free
+/// fallback. Clipboard history keeps every picked color automatically.
 final class ColorSamplerService: ObservableObject {
     static let shared = ColorSamplerService()
 
-    @Published private(set) var shortcutRegistrationFailed = false
-
-    private let hotkey = QuickToolHotkey(id: 11)
     /// The system sampler must stay referenced while its loupe is up.
     private var activeSampler: NSColorSampler?
 
-    private init() {
-        hotkey.onPress = { [weak self] in self?.pick() }
-    }
-
-    func syncWithPreferences() {
-        let enabled = AppFeature.colorPicker.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.colorPickerShortcutEnabled)
-        let shortcut = GlobalShortcut.saved(for: DefaultsKey.colorPickerShortcut,
-                                            fallback: .colorPickerDefault)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
-    }
-
-    func suspend() {
-        hotkey.unregister()
-    }
+    private init() {}
 
     func pick() {
+        ScreenCaptureService.shared.capture(initial: .color)
+    }
+
+    func pickNative() {
         guard activeSampler == nil else { return }
         let sampler = NSColorSampler()
         activeSampler = sampler
@@ -42,6 +29,10 @@ final class ColorSamplerService: ObservableObject {
                 self?.copy(color)
             }
         }
+    }
+
+    func receiveUnifiedColor(_ color: NSColor) {
+        copy(color)
     }
 
     private func copy(_ color: NSColor) {

@@ -214,6 +214,7 @@ extension Strings {
         switcherWindowlessAppsFinder: "僅 Finder",
         switcherWindowlessAppsAll: "所有 App",
         switcherNoOpenWindow: "沒有開啟視窗",
+        switcherOtherDesktop: "其他桌面",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "在 Dock 中預覽視窗",
         dockPreviewEnableCaption: "將指標停在 Dock 中已開啟的 App 上查看視窗，然後點按要開啟的視窗。",
@@ -409,7 +410,7 @@ extension Strings {
         homebrewOperationProgressUnknown: "Homebrew 尚未回報百分比。",
 
         mediaName: "媒體",
-        mediaEnableCaption: "在本機壓縮影片和圖片、製作 GIF，並從圖片中擷取文字。",
+        mediaEnableCaption: "在本機壓縮影片、轉換和處理圖片、製作 GIF，並從圖片中擷取文字。",
         mediaLocalNote: "本機處理，不會連接網絡。",
         mediaToolVideo: "影片",
         mediaToolGIF: "GIF",
@@ -422,7 +423,7 @@ extension Strings {
         mediaChooseOutput: "目的地",
         mediaStartVideo: "壓縮影片",
         mediaStartGIF: "製作 GIF",
-        mediaStartImage: "壓縮圖片",
+        mediaStartImage: "處理圖片",
         mediaStartConvertPDF: "轉換為 PDF",
         mediaStartText: "擷取文字",
         mediaCancel: "取消",
@@ -498,6 +499,15 @@ extension Strings {
         shelfSelectedFormat: "已選取 %d 項",
         shelfHint: "按一下以選取，拖出即可使用，或按右鍵查看更多操作。",
         shelfItemImage: "圖片",
+        shelfTooltipItemsFormat: "%d 個項目",
+        shelfTooltipImageSingular: "%d 張圖片",
+        shelfTooltipImagePlural: "%d 張圖片",
+        shelfTooltipFileSingular: "%d 個檔案",
+        shelfTooltipFilePlural: "%d 個檔案",
+        shelfTooltipNoteSingular: "%d 則備註",
+        shelfTooltipNotePlural: "%d 則備註",
+        shelfTooltipLinkSingular: "%d 個連結",
+        shelfTooltipLinkPlural: "%d 個連結",
         shelfActionOpen: "開啟",
         shelfActionOpenWith: "開啟方式",
         shelfActionAirDrop: "透過 AirDrop 分享",
@@ -901,6 +911,8 @@ extension Strings {
         invertHorizontalScroll: "反轉水平捲動",
         switcherShowShortcutHints: "顯示快速鍵提示",
         switcherShowShortcutHintsCaption: "在圖示下方顯示 App 和視窗快速鍵。",
-        uninstallerHomebrewPackageFormat: "%@ 亦會從 Homebrew 移除。"
+        uninstallerHomebrewPackageFormat: "%@ 亦會從 Homebrew 移除。",
+        shelfEdgeToggle: "接近螢幕邊緣時開啟",
+        shelfEdgeCaption: "將檔案拖曳至螢幕邊緣，暫存架便會探出一角。放在那裡即可放低，往回拖曳暫存架便會縮回去。"
     )
 }

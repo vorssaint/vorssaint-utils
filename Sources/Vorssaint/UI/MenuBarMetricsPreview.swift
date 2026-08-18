@@ -60,7 +60,8 @@ struct MenuBarMetricsPreview: View {
             }
             HStack(spacing: 5) {
                 glyph
-                    .frame(width: 20, height: 14)
+                    .frame(width: BlackHoleGlyph.pointSize.width,
+                           height: BlackHoleGlyph.pointSize.height)
                 if !lines.isEmpty {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(lines.enumerated()), id: \.offset) { _, line in

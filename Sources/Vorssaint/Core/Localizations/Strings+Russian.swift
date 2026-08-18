@@ -214,6 +214,7 @@ extension Strings {
         switcherWindowlessAppsFinder: "Только Finder",
         switcherWindowlessAppsAll: "Все приложения",
         switcherNoOpenWindow: "Без открытых окон",
+        switcherOtherDesktop: "Другой рабочий стол",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Показывать окна из Dock",
         dockPreviewEnableCaption: "Наведите указатель на открытое приложение в Dock, чтобы увидеть его окна, затем нажмите нужное.",
@@ -409,7 +410,7 @@ extension Strings {
         homebrewOperationProgressUnknown: "Homebrew ещё не сообщил процент выполнения.",
 
         mediaName: "Медиа",
-        mediaEnableCaption: "Сжимайте видео и изображения, создавайте GIF и извлекайте текст локально.",
+        mediaEnableCaption: "Сжимайте видео, преобразуйте и обрабатывайте изображения, создавайте GIF и извлекайте текст локально.",
         mediaLocalNote: "Локально. Без сети.",
         mediaToolVideo: "Видео",
         mediaToolGIF: "GIF",
@@ -422,7 +423,7 @@ extension Strings {
         mediaChooseOutput: "Папка назначения",
         mediaStartVideo: "Сжать видео",
         mediaStartGIF: "Создать GIF",
-        mediaStartImage: "Сжать изображение",
+        mediaStartImage: "Обработать изображение",
         mediaStartConvertPDF: "Конвертировать в PDF",
         mediaStartText: "Извлечь текст",
         mediaCancel: "Отмена",
@@ -498,6 +499,15 @@ extension Strings {
         shelfSelectedFormat: "Выбрано: %d",
         shelfHint: "Нажмите для выбора. Перетащите для использования или щёлкните правой кнопкой для других действий.",
         shelfItemImage: "Изображение",
+        shelfTooltipItemsFormat: "%d элементов",
+        shelfTooltipImageSingular: "%d изображение",
+        shelfTooltipImagePlural: "%d изображений",
+        shelfTooltipFileSingular: "%d файл",
+        shelfTooltipFilePlural: "%d файлов",
+        shelfTooltipNoteSingular: "%d заметка",
+        shelfTooltipNotePlural: "%d заметок",
+        shelfTooltipLinkSingular: "%d ссылка",
+        shelfTooltipLinkPlural: "%d ссылок",
         shelfActionOpen: "Открыть",
         shelfActionOpenWith: "Открыть с помощью",
         shelfActionAirDrop: "Поделиться через AirDrop",
@@ -901,6 +911,8 @@ extension Strings {
         invertHorizontalScroll: "Инвертировать горизонтальную прокрутку",
         switcherShowShortcutHints: "Показывать подсказки сочетаний клавиш",
         switcherShowShortcutHintsCaption: "Показывает сочетания клавиш для приложений и окон под значками.",
-        uninstallerHomebrewPackageFormat: "%@ также будет удалён из Homebrew."
+        uninstallerHomebrewPackageFormat: "%@ также будет удалён из Homebrew.",
+        shelfEdgeToggle: "Открывать у края экрана",
+        shelfEdgeCaption: "Перетащите файл к краю экрана, чтобы полка выглянула. Отпустите его там, или потяните обратно, и полка уберётся."
     )
 }

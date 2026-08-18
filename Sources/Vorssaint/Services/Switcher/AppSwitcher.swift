@@ -108,6 +108,7 @@ final class AppSwitcher: ObservableObject {
     /// gone. Releasing the shortcut skips them, so they are never raised on
     /// the way out.
     private var closingItemIDs: Set<String> = []
+    private var commitPendingForClose = false
 
     // Virtual key codes handled during a session.
     private enum KeyCode {
@@ -687,7 +688,10 @@ final class AppSwitcher: ObservableObject {
                                        hasForegroundItem: Bool,
                                        frontmostPID: pid_t) -> Int {
         guard !items.isEmpty else { return 0 }
-        guard usesIconRowLayout else {
+        guard SwitcherSupport.usesAppGroupsForMainShortcut(
+            iconRowLayout: usesIconRowLayout,
+            windowRow: usesWindowRow
+        ) else {
             return SwitcherSupport.initialSelectionPosition(pids: items.map(\.pid),
                                                             hasForegroundEntry: hasForegroundItem,
                                                             frontmostPID: frontmostPID,
@@ -802,24 +806,32 @@ final class AppSwitcher: ObservableObject {
         guard sessionActive,
               windows.contains(where: { $0.id == item.id }),
               !closingItemIDs.contains(item.id),
-              let windowID = item.windowID,
-              WindowActivator.closeWindow(windowID: windowID,
-                                           appPID: item.pid,
-                                           windowOwnerPID: item.windowOwnerPID)
+              let windowID = item.windowID
         else { return }
 
         closingItemIDs.insert(item.id)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
-            self?.finishClosingWindow(itemID: item.id,
-                                      windowID: windowID,
-                                      pid: item.pid,
-                                      attempt: 0)
+        WindowActivator.closeWindowIncludingHiddenSpace(item) { [weak self] didClose in
+            guard let self else { return }
+            guard didClose else {
+                self.closingItemIDs.remove(item.id)
+                self.resumePendingCommitAfterClose()
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
+                self?.finishClosingWindow(itemID: item.id,
+                                          windowID: windowID,
+                                          pid: item.pid,
+                                          attempt: 0)
+            }
         }
     }
 
     private func advanceSelection(by delta: Int, wrapping: Bool = true) {
         guard !windows.isEmpty else { return }
-        if usesIconRowLayout, sessionScope == .allApps {
+        if SwitcherSupport.usesAppGroupsForMainShortcut(
+            iconRowLayout: usesIconRowLayout,
+            windowRow: usesWindowRow
+        ), sessionScope == .allApps {
             advanceAppSelection(by: delta, wrapping: wrapping)
             return
         }
@@ -894,6 +906,7 @@ final class AppSwitcher: ObservableObject {
             // normal entry again and the release may raise it.
             guard attempt < 2 else {
                 closingItemIDs.remove(itemID)
+                resumePendingCommitAfterClose()
                 return
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
@@ -932,6 +945,7 @@ final class AppSwitcher: ObservableObject {
                 selectedIndex = 0
                 recomputeLayouts(for: windows)
                 resizePanel()
+                resumePendingCommitAfterClose()
             }
             return
         }
@@ -939,6 +953,7 @@ final class AppSwitcher: ObservableObject {
         selectedIndex = state.selectedIndex
         recomputeLayouts(for: windows)
         resizePanel()
+        resumePendingCommitAfterClose()
     }
 
     /// Row jump (↑/↓): moves without wrapping so the selection stays put at
@@ -961,6 +976,10 @@ final class AppSwitcher: ObservableObject {
     /// Activates the current selection. Also used by the panel on click.
     func commitSession() {
         guard sessionActive else { return }
+        guard closingItemIDs.isEmpty else {
+            commitPendingForClose = true
+            return
+        }
         // A window that was just closed is still listed for a moment; letting
         // go right after must land on what takes its place, never on it.
         let selection = SwitcherSupport.commitTargetID(itemIDs: windows.map(\.id),
@@ -978,6 +997,12 @@ final class AppSwitcher: ObservableObject {
                                      sourceWindowID: source?.isFullscreen == true ? nil : source?.windowID,
                                      sourceWindowOwnerPID: source?.windowOwnerPID)
         }
+    }
+
+    private func resumePendingCommitAfterClose() {
+        guard commitPendingForClose, closingItemIDs.isEmpty, sessionActive else { return }
+        commitPendingForClose = false
+        commitSession()
     }
 
     private func cancelSession() {
@@ -1008,6 +1033,7 @@ final class AppSwitcher: ObservableObject {
         sessionScope = .allApps
         shiftBackNavigationHeld = false
         closingItemIDs = []
+        commitPendingForClose = false
     }
 
     // MARK: - Panel
@@ -1062,7 +1088,9 @@ final class AppSwitcher: ObservableObject {
 
     private var currentPanelSize: CGSize {
         usesIconRowLayout
-            ? (simpleModeEnabled ? iconRowLayout.simplePanelSize : iconRowLayout.panelSize)
+            ? (simpleModeEnabled
+                ? (usesWindowRow ? iconRowLayout.simpleWindowPanelSize : iconRowLayout.simplePanelSize)
+                : iconRowLayout.panelSize)
             : grid.panelSize
     }
 
@@ -1072,6 +1100,13 @@ final class AppSwitcher: ObservableObject {
 
     private var simpleModeEnabled: Bool {
         UserDefaults.standard.bool(forKey: DefaultsKey.switcherSimpleMode)
+    }
+
+    private var usesWindowRow: Bool {
+        SwitcherSupport.usesWindowRow(
+            simpleMode: simpleModeEnabled,
+            mergeWindowsByApp: UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs)
+        )
     }
 
     private var searchPinEnabled: Bool {
@@ -1096,10 +1131,12 @@ final class AppSwitcher: ObservableObject {
         grid = SwitcherGrid.compute(count: max(items.count, 1), on: screen)
         let appGroups = SwitcherSupport.appGroups(items: items)
         iconRowLayout = SwitcherIconRowLayout.compute(
-            appCount: appGroups.count,
-            selectedWindowCount: selectedAppWindowCount(in: items),
+            appCount: usesWindowRow ? items.count : appGroups.count,
+            selectedWindowCount: usesWindowRow ? 1 : selectedAppWindowCount(in: items),
             screenVisibleFrame: screen.visibleFrame,
-            showsShortcutHints: showsShortcutHints
+            showsShortcutHints: showsShortcutHints,
+            tileWidth: usesWindowRow ? SwitcherIconRowLayout.windowTileWidth
+                                     : SwitcherIconRowLayout.appTileWidth
         )
     }
 
@@ -1107,10 +1144,12 @@ final class AppSwitcher: ObservableObject {
         guard !windows.isEmpty else { return }
         let appGroups = SwitcherSupport.appGroups(items: windows)
         iconRowLayout = SwitcherIconRowLayout.compute(
-            appCount: appGroups.count,
-            selectedWindowCount: selectedAppWindowCount(in: windows),
+            appCount: usesWindowRow ? windows.count : appGroups.count,
+            selectedWindowCount: usesWindowRow ? 1 : selectedAppWindowCount(in: windows),
             screenVisibleFrame: NSScreen.pointerVisibleFrame,
-            showsShortcutHints: showsShortcutHints
+            showsShortcutHints: showsShortcutHints,
+            tileWidth: usesWindowRow ? SwitcherIconRowLayout.windowTileWidth
+                                     : SwitcherIconRowLayout.appTileWidth
         )
     }
 

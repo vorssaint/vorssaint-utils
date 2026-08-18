@@ -26,6 +26,10 @@ struct RecorderEditorView: View {
         FeatureStrings.screenshot(l10n.language)
     }
 
+    private var recentCapturesTitle: String {
+        FeatureStrings.recentCaptures(l10n.language).title
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             topBand
@@ -59,6 +63,14 @@ struct RecorderEditorView: View {
             BrandMark(width: 24, tint: Color(white: 0.92))
             Text(strings.editorTitle)
                 .font(.system(size: 13, weight: .semibold))
+            Button {
+                RecentCaptureService.shared.showHistoryWindow()
+            } label: {
+                Image(systemName: "clock.arrow.circlepath")
+            }
+            .buttonStyle(RecorderToolbarButtonStyle(compact: true))
+            .screenshotSafeHelp(recentCapturesTitle)
+            .accessibilityLabel(recentCapturesTitle)
             Divider().frame(height: 18).padding(.horizontal, 3)
             Button(action: model.undo) {
                 Image(systemName: "arrow.uturn.backward")

@@ -32,13 +32,18 @@ extension RecorderComposer {
         let padding = hasBackdrop ? style.padding * 0.18 : 0
         let fullCanvas = RecorderSupport.canvasSize(source: sourceSize,
                                                     padding: padding,
-                                                    aspect: aspect)
+                                                    aspect: aspect,
+                                                    cropsToAspect: !hasBackdrop)
         let scale = outputScale.isFinite ? min(1, max(0.1, outputScale)) : 1
         let canvas = scale == 1
             ? fullCanvas
             : RecorderSupport.evenSize(CGSize(width: fullCanvas.width * scale,
                                               height: fullCanvas.height * scale))
-        let card = RecorderSupport.cardRect(canvas: canvas, source: sourceSize, padding: padding)
+        let card = RecorderSupport.cardRect(
+            canvas: canvas,
+            source: sourceSize,
+            padding: padding,
+            fillsCanvas: !hasBackdrop && aspect != .original)
 
         let showsPointer = document.showsPointer && !track.samples.isEmpty
         let segments = document.activeZoomSegments(duration: duration)

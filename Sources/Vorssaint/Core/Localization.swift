@@ -329,6 +329,7 @@ struct Strings {
     let switcherWindowlessAppsFinder: String
     let switcherWindowlessAppsAll: String
     let switcherNoOpenWindow: String
+    let switcherOtherDesktop: String
     let dockPreviewName: String
     let dockPreviewEnable: String
     let dockPreviewEnableCaption: String
@@ -620,6 +621,15 @@ struct Strings {
     let shelfSelectedFormat: String      // + count
     let shelfHint: String
     let shelfItemImage: String
+    let shelfTooltipItemsFormat: String      // + count, always plural: a pile always has 2+
+    let shelfTooltipImageSingular: String    // + count == 1
+    let shelfTooltipImagePlural: String      // + count
+    let shelfTooltipFileSingular: String     // + count == 1
+    let shelfTooltipFilePlural: String       // + count
+    let shelfTooltipNoteSingular: String     // + count == 1
+    let shelfTooltipNotePlural: String       // + count
+    let shelfTooltipLinkSingular: String     // + count == 1
+    let shelfTooltipLinkPlural: String       // + count
     let shelfActionOpen: String
     let shelfActionOpenWith: String
     let shelfActionAirDrop: String
@@ -1045,6 +1055,8 @@ struct Strings {
     let switcherShowShortcutHints: String
     let switcherShowShortcutHintsCaption: String
     let uninstallerHomebrewPackageFormat: String
+    let shelfEdgeToggle: String
+    let shelfEdgeCaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -1259,6 +1271,7 @@ extension Strings {
         switcherWindowlessAppsFinder: "Só o Finder",
         switcherWindowlessAppsAll: "Todos os apps",
         switcherNoOpenWindow: "Sem janela aberta",
+        switcherOtherDesktop: "Outra Mesa",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Pré-visualizar janelas no Dock",
         dockPreviewEnableCaption: "Passe o mouse em um app aberto no Dock para ver suas janelas e clique na que quiser abrir.",
@@ -1454,7 +1467,7 @@ extension Strings {
         homebrewOperationProgressUnknown: "O Homebrew ainda não informou uma porcentagem.",
 
         mediaName: "Media",
-        mediaEnableCaption: "Comprima vídeos e imagens, crie GIFs e extraia texto localmente.",
+        mediaEnableCaption: "Comprima vídeos, converta e processe imagens, crie GIFs e extraia texto localmente.",
         mediaLocalNote: "Local. Sem rede.",
         mediaToolVideo: "Vídeo",
         mediaToolGIF: "GIF",
@@ -1467,7 +1480,7 @@ extension Strings {
         mediaChooseOutput: "Destino",
         mediaStartVideo: "Comprimir vídeo",
         mediaStartGIF: "Criar GIF",
-        mediaStartImage: "Comprimir imagem",
+        mediaStartImage: "Processar imagem",
         mediaStartConvertPDF: "Converter em PDF",
         mediaStartText: "Extrair texto",
         mediaCancel: "Cancelar",
@@ -1543,6 +1556,15 @@ extension Strings {
         shelfSelectedFormat: "%d selecionados",
         shelfHint: "Clique para selecionar. Arraste para usar ou clique com o botão direito para mais ações.",
         shelfItemImage: "Imagem",
+        shelfTooltipItemsFormat: "%d itens",
+        shelfTooltipImageSingular: "%d imagem",
+        shelfTooltipImagePlural: "%d imagens",
+        shelfTooltipFileSingular: "%d arquivo",
+        shelfTooltipFilePlural: "%d arquivos",
+        shelfTooltipNoteSingular: "%d nota",
+        shelfTooltipNotePlural: "%d notas",
+        shelfTooltipLinkSingular: "%d link",
+        shelfTooltipLinkPlural: "%d links",
         shelfActionOpen: "Abrir",
         shelfActionOpenWith: "Abrir com",
         shelfActionAirDrop: "Compartilhar por AirDrop",
@@ -1946,7 +1968,9 @@ extension Strings {
         invertHorizontalScroll: "Inverter rolagem horizontal",
         switcherShowShortcutHints: "Mostrar dicas de atalhos",
         switcherShowShortcutHintsCaption: "Exibe os atalhos de apps e janelas abaixo dos ícones.",
-        uninstallerHomebrewPackageFormat: "%@ também será removido do Homebrew."
+        uninstallerHomebrewPackageFormat: "%@ também será removido do Homebrew.",
+        shelfEdgeToggle: "Abrir perto de uma borda da tela",
+        shelfEdgeCaption: "Ao arrastar um arquivo para perto da borda da tela, a área espia para dentro. Solte ali, ou puxe de volta e ela recua."
     )
 }
 
@@ -2162,6 +2186,7 @@ extension Strings {
         switcherWindowlessAppsFinder: "Finder only",
         switcherWindowlessAppsAll: "All apps",
         switcherNoOpenWindow: "No open window",
+        switcherOtherDesktop: "Other desktop",
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Preview windows from the Dock",
         dockPreviewEnableCaption: "Hover over an open app in the Dock to see its windows, then click the one you want.",
@@ -2357,7 +2382,7 @@ extension Strings {
         homebrewOperationProgressUnknown: "Homebrew has not reported a percentage yet.",
 
         mediaName: "Media",
-        mediaEnableCaption: "Compress videos and images, make GIFs and extract text locally.",
+        mediaEnableCaption: "Compress videos, convert and process images, make GIFs and extract text locally.",
         mediaLocalNote: "Local. No network.",
         mediaToolVideo: "Video",
         mediaToolGIF: "GIF",
@@ -2370,7 +2395,7 @@ extension Strings {
         mediaChooseOutput: "Destination",
         mediaStartVideo: "Compress video",
         mediaStartGIF: "Make GIF",
-        mediaStartImage: "Compress image",
+        mediaStartImage: "Process image",
         mediaStartConvertPDF: "Convert to PDF",
         mediaStartText: "Extract text",
         mediaCancel: "Cancel",
@@ -2446,6 +2471,15 @@ extension Strings {
         shelfSelectedFormat: "%d selected",
         shelfHint: "Click to select. Drag out to use or right-click for more actions.",
         shelfItemImage: "Image",
+        shelfTooltipItemsFormat: "%d items",
+        shelfTooltipImageSingular: "%d image",
+        shelfTooltipImagePlural: "%d images",
+        shelfTooltipFileSingular: "%d file",
+        shelfTooltipFilePlural: "%d files",
+        shelfTooltipNoteSingular: "%d note",
+        shelfTooltipNotePlural: "%d notes",
+        shelfTooltipLinkSingular: "%d link",
+        shelfTooltipLinkPlural: "%d links",
         shelfActionOpen: "Open",
         shelfActionOpenWith: "Open With",
         shelfActionAirDrop: "Share with AirDrop",
@@ -2849,6 +2883,8 @@ extension Strings {
         invertHorizontalScroll: "Invert horizontal scrolling",
         switcherShowShortcutHints: "Show shortcut hints",
         switcherShowShortcutHintsCaption: "Shows the app and window shortcuts below the icons.",
-        uninstallerHomebrewPackageFormat: "%@ will also be removed from Homebrew."
+        uninstallerHomebrewPackageFormat: "%@ will also be removed from Homebrew.",
+        shelfEdgeToggle: "Open near a screen edge",
+        shelfEdgeCaption: "Drag a file toward the screen edge to peek the shelf in. Drop it there, or pull back and it retreats."
     )
 }

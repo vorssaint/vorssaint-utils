@@ -64,7 +64,11 @@ final class RecorderExporter {
         let duration = CMTimeGetSeconds(durationTime)
         let trim = document.trim(duration: duration)
         guard trim.duration > 0 else { return .noVideo }
-        let sourceSize = (try? await videoTrack.load(.naturalSize)) ?? .zero
+        let naturalSize = (try? await videoTrack.load(.naturalSize)) ?? .zero
+        let preferredTransform = (try? await videoTrack.load(.preferredTransform)) ?? .identity
+        let sourceSize = RecorderSupport.videoGeometry(
+            naturalSize: naturalSize,
+            preferredTransform: preferredTransform).size
         guard sourceSize.width > 0, sourceSize.height > 0 else { return .noVideo }
         let frameRate = Int(((try? await videoTrack.load(.nominalFrameRate)) ?? 60).rounded())
 
@@ -110,7 +114,11 @@ final class RecorderExporter {
         let duration = CMTimeGetSeconds(durationTime)
         let trim = document.trim(duration: duration)
         guard trim.duration > 0 else { return (nil, .noVideo) }
-        let sourceSize = (try? await videoTrack.load(.naturalSize)) ?? .zero
+        let naturalSize = (try? await videoTrack.load(.naturalSize)) ?? .zero
+        let preferredTransform = (try? await videoTrack.load(.preferredTransform)) ?? .identity
+        let sourceSize = RecorderSupport.videoGeometry(
+            naturalSize: naturalSize,
+            preferredTransform: preferredTransform).size
         guard sourceSize.width > 0, sourceSize.height > 0 else {
             return (nil, .noVideo)
         }
@@ -188,7 +196,8 @@ final class RecorderExporter {
         let padding = style.kind == .none ? 0 : style.padding * 0.18
         let fullCanvas = RecorderSupport.canvasSize(source: sourceSize,
                                                     padding: padding,
-                                                    aspect: document.resolvedAspect)
+                                                    aspect: document.resolvedAspect,
+                                                    cropsToAspect: style.kind == .none)
         let regularSize = RecorderSupport.evenSize(CGSize(
             width: fullCanvas.width * document.resolvedQuality.outputScale,
             height: fullCanvas.height * document.resolvedQuality.outputScale))

@@ -214,6 +214,7 @@ extension Strings {
         switcherWindowlessAppsFinder: "Finder만",
         switcherWindowlessAppsAll: "모든 앱",
         switcherNoOpenWindow: "열린 윈도우 없음",
+        switcherOtherDesktop: "다른 데스크탑",
         dockPreviewName: "Dock 미리보기",
         dockPreviewEnable: "Dock에서 윈도우 미리보기",
         dockPreviewEnableCaption: "Dock의 열린 앱 위에 포인터를 올려 윈도우를 확인한 다음 원하는 윈도우를 클릭하세요.",
@@ -409,7 +410,7 @@ extension Strings {
         homebrewOperationProgressUnknown: "Homebrew가 아직 진행률을 보고하지 않았습니다.",
 
         mediaName: "미디어",
-        mediaEnableCaption: "동영상과 이미지를 압축하고, GIF를 만들고, 텍스트를 로컬에서 추출합니다.",
+        mediaEnableCaption: "동영상을 압축하고 이미지를 변환 및 처리하며, GIF를 만들고 텍스트를 로컬에서 추출합니다.",
         mediaLocalNote: "로컬 처리. 네트워크 없음.",
         mediaToolVideo: "동영상",
         mediaToolGIF: "GIF",
@@ -422,7 +423,7 @@ extension Strings {
         mediaChooseOutput: "저장 위치",
         mediaStartVideo: "동영상 압축",
         mediaStartGIF: "GIF 만들기",
-        mediaStartImage: "이미지 압축",
+        mediaStartImage: "이미지 처리",
         mediaStartConvertPDF: "PDF로 변환",
         mediaStartText: "텍스트 추출",
         mediaCancel: "취소",
@@ -498,6 +499,15 @@ extension Strings {
         shelfSelectedFormat: "%d개 선택됨",
         shelfHint: "클릭하여 선택하고 드래그하여 사용하거나, 보조 클릭하여 더 많은 동작을 표시하세요.",
         shelfItemImage: "이미지",
+        shelfTooltipItemsFormat: "%d개 항목",
+        shelfTooltipImageSingular: "%d개 이미지",
+        shelfTooltipImagePlural: "%d개 이미지",
+        shelfTooltipFileSingular: "%d개 파일",
+        shelfTooltipFilePlural: "%d개 파일",
+        shelfTooltipNoteSingular: "%d개 메모",
+        shelfTooltipNotePlural: "%d개 메모",
+        shelfTooltipLinkSingular: "%d개 링크",
+        shelfTooltipLinkPlural: "%d개 링크",
         shelfActionOpen: "열기",
         shelfActionOpenWith: "다음으로 열기",
         shelfActionAirDrop: "AirDrop으로 공유",
@@ -901,6 +911,8 @@ extension Strings {
         invertHorizontalScroll: "가로 스크롤 반전",
         switcherShowShortcutHints: "단축키 힌트 보기",
         switcherShowShortcutHintsCaption: "아이콘 아래에 앱 및 윈도우 단축키를 표시합니다.",
-        uninstallerHomebrewPackageFormat: "%@도 Homebrew에서 제거됩니다."
+        uninstallerHomebrewPackageFormat: "%@도 Homebrew에서 제거됩니다.",
+        shelfEdgeToggle: "화면 가장자리 근처에서 열기",
+        shelfEdgeCaption: "파일을 화면 가장자리 쪽으로 드래그하면 선반이 살짝 나타납니다. 그 자리에 놓거나, 다시 뒤로 당기면 선반이 들어갑니다."
     )
 }

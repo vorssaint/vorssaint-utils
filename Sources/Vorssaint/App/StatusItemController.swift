@@ -621,8 +621,16 @@ final class StatusItemController {
 /// The official mark, bundled as a template image so the idle state adapts to
 /// light and dark menu bars. Active states can use real colors for attention.
 enum BlackHoleGlyph {
-    /// Logical size of the glyph in the menu bar, in points.
-    private static let pointSize = NSSize(width: 20, height: 14)
+    /// Logical size of the glyph in the menu bar, in points. Wide because the
+    /// mark is ~1.97:1 and sized from its height. Tools/MakeIcon.swift writes
+    /// the bundled PNGs at this size; `--selftest` checks the two still agree.
+    static let pointSize = NSSize(width: 26, height: 20)
+
+    /// Requested ink height for the active states' system symbols. A compact
+    /// symbol has to stand taller than the wide mark to read as the same size,
+    /// matching the menu bar's other compact icons at ~15 pt. Antialiasing
+    /// costs about a point of what is asked for here.
+    private static let symbolHeight: CGFloat = 16
 
     /// Both scale representations go into one NSImage — loading the 1x file
     /// alone would render blurry on Retina menu bars.
@@ -651,7 +659,7 @@ enum BlackHoleGlyph {
                             tint: KeepAwakeIconTint = .orange) -> NSImage? {
         let source: NSImage?
         if let symbolName = style.systemSymbolName {
-            source = fixedSizeSymbol(named: symbolName)
+            source = fixedSizeSymbol(named: symbolName, drop: style.menuBarDrop)
         } else {
             source = base
         }
@@ -665,19 +673,26 @@ enum BlackHoleGlyph {
 
     /// System symbols have different natural widths. Center them inside the
     /// same canvas as the app glyph so activation never shifts nearby items.
-    private static func fixedSizeSymbol(named name: String) -> NSImage? {
+    ///
+    /// Sized by the symbol's ink rather than its bounding box: SF Symbols pad
+    /// their box by different amounts, so fitting the box leaves each style a
+    /// different, smaller size than asked for.
+    private static func fixedSizeSymbol(named name: String, drop: CGFloat = 0) -> NSImage? {
         guard let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-            .withSymbolConfiguration(.init(pointSize: 13, weight: .semibold)),
+            .withSymbolConfiguration(.init(pointSize: 15, weight: .semibold)),
               symbol.size.width > 0,
-              symbol.size.height > 0 else { return nil }
-        let available = NSSize(width: pointSize.width - 2, height: pointSize.height)
-        let scale = min(available.width / symbol.size.width,
-                        available.height / symbol.size.height)
+              symbol.size.height > 0,
+              let ink = inkBounds(of: symbol),
+              ink.width > 0, ink.height > 0 else { return nil }
+        let scale = min(symbolHeight / ink.height, (pointSize.width - 2) / ink.width)
         let drawSize = NSSize(width: symbol.size.width * scale,
                               height: symbol.size.height * scale)
+        // Offsets used to center the ink rather than the padded box.
+        let inkOrigin = NSPoint(x: ink.minX * scale, y: ink.minY * scale)
+        let inkSize = NSSize(width: ink.width * scale, height: ink.height * scale)
         let image = NSImage(size: pointSize, flipped: false) { rect in
-            let target = NSRect(x: rect.midX - drawSize.width / 2,
-                                y: rect.midY - drawSize.height / 2,
+            let target = NSRect(x: rect.midX - inkOrigin.x - inkSize.width / 2,
+                                y: rect.midY - inkOrigin.y - inkSize.height / 2 - drop,
                                 width: drawSize.width,
                                 height: drawSize.height)
             symbol.draw(in: target, from: .zero, operation: .sourceOver, fraction: 1)
@@ -685,6 +700,42 @@ enum BlackHoleGlyph {
         }
         image.isTemplate = true
         return image
+    }
+
+    /// Bounding box of an image's visible pixels, in its own (bottom-up) point
+    /// space. Only runs when the menu bar icon changes, so rasterizing is cheap.
+    private static func inkBounds(of image: NSImage) -> NSRect? {
+        let sampling = 2
+        let wide = Int(ceil(image.size.width)) * sampling
+        let high = Int(ceil(image.size.height)) * sampling
+        guard wide > 0, high > 0,
+              let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: wide, pixelsHigh: high,
+                                         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+                                         isPlanar: false, colorSpaceName: .deviceRGB,
+                                         bytesPerRow: 0, bitsPerPixel: 0),
+              let context = NSGraphicsContext(bitmapImageRep: rep) else { return nil }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        // The context comes from the rep's pixel dimensions, so it draws in
+        // pixels; fill the whole bitmap and scale the bounds back down. A
+        // point-sized rect here would only cover a corner of it.
+        image.draw(in: NSRect(x: 0, y: 0, width: CGFloat(wide), height: CGFloat(high)))
+        NSGraphicsContext.restoreGraphicsState()
+
+        var minX = wide, minY = high, maxX = -1, maxY = -1
+        for y in 0..<high {
+            for x in 0..<wide where (rep.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.05 {
+                minX = min(minX, x); maxX = max(maxX, x)
+                minY = min(minY, y); maxY = max(maxY, y)
+            }
+        }
+        guard maxX >= minX, maxY >= minY else { return nil }
+        // colorAt() reads top-down; NSImage coordinates run bottom-up.
+        let unit = CGFloat(sampling)
+        return NSRect(x: CGFloat(minX) / unit,
+                      y: CGFloat(high - 1 - maxY) / unit,
+                      width: CGFloat(maxX - minX + 1) / unit,
+                      height: CGFloat(maxY - minY + 1) / unit)
     }
 
     /// A blue, full-strength glyph used to flag an available update. Non-template
@@ -703,7 +754,7 @@ enum BlackHoleGlyph {
         guard let underlying else { return nil }
         guard let badge = NSImage(systemSymbolName: "mic.slash.fill",
                                   accessibilityDescription: nil)?
-            .withSymbolConfiguration(.init(pointSize: 11, weight: .semibold)) else { return nil }
+            .withSymbolConfiguration(.init(pointSize: 12, weight: .semibold)) else { return nil }
         let gap: CGFloat = 2
         let badgeSize = badge.size
         let height = max(underlying.size.height, badgeSize.height)

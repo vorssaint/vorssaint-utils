@@ -146,7 +146,13 @@ final class FeatureRuntime: ObservableObject {
             TextSnippetService.shared.syncWithPreferences()
             SnippetLibraryService.shared.syncWithPreferences()
         },
-        .clipboardHistory: { ClipboardHistoryService.shared.syncWithPreferences() },
+        .clipboardHistory: {
+            ClipboardHistoryService.shared.syncWithPreferences()
+            // Auto clear rides the clipboard feature's availability but not its
+            // capture toggle: uninstalling the feature stops it, turning history
+            // off does not.
+            ClipboardAutoClearService.shared.syncWithPreferences()
+        },
         .pastePlain: { PastePlainService.shared.syncWithPreferences() },
         .finderCutPaste: { FinderCutPaste.shared.syncWithPreferences() },
         .finderRename: { FinderRenameService.shared.syncWithPreferences() },
@@ -167,10 +173,21 @@ final class FeatureRuntime: ObservableObject {
         .brightness: { BrightnessService.shared.syncWithPreferences() },
         .extraBrightness: { ExtraBrightnessService.shared.syncWithPreferences() },
         .quickLauncher: { QuickLauncherService.shared.syncWithPreferences() },
-        .colorPicker: { ColorSamplerService.shared.syncWithPreferences() },
-        .screenOCR: { ScreenTextService.shared.syncWithPreferences() },
-        .screenshot: { ScreenshotService.shared.syncWithPreferences() },
-        .screenRecorder: { ScreenRecorderService.shared.syncWithPreferences() },
+        .colorPicker: {
+            ScreenCaptureService.shared.syncWithPreferences()
+        },
+        .screenOCR: {
+            ScreenCaptureService.shared.syncWithPreferences()
+            ScreenTextService.shared.syncWithPreferences()
+        },
+        .screenshot: {
+            ScreenCaptureService.shared.syncWithPreferences()
+            ScreenshotService.shared.syncWithPreferences()
+        },
+        .screenRecorder: {
+            ScreenCaptureService.shared.syncWithPreferences()
+            ScreenRecorderService.shared.syncWithPreferences()
+        },
         .cameraPreview: { CameraPreviewService.shared.syncWithPreferences() },
         .radialMenu: { RadialMenuService.shared.syncWithPreferences() },
         .scratchpad: { ScratchpadService.shared.syncWithPreferences() },

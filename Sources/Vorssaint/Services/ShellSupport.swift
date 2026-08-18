@@ -3,6 +3,7 @@
 
 import AppKit
 import CoreServices
+import Darwin
 
 enum Shell {
     /// A command that stops answering must not keep a thread forever. Nothing
@@ -38,7 +39,13 @@ enum Shell {
         }
         if finished.wait(timeout: .now() + timeout) == .timedOut {
             p.terminate()
-            _ = finished.wait(timeout: .now() + 1)
+            // Some executables deliberately ignore SIGTERM. Give them one
+            // second to clean up, then make the timeout a real upper bound
+            // instead of leaving a hidden process behind.
+            if finished.wait(timeout: .now() + 1) == .timedOut {
+                kill(p.processIdentifier, SIGKILL)
+                _ = finished.wait(timeout: .now() + 1)
+            }
             _ = drained.wait(timeout: .now() + 1)
             return (-1, String(data: data, encoding: .utf8) ?? "")
         }

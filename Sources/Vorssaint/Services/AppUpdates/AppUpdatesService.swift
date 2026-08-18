@@ -327,7 +327,10 @@ final class AppUpdatesService: ObservableObject {
         if !tokens.isEmpty {
             startUpgrade(tokens)
         }
-        if AppUpdatesSupport.hasStoreSelection(in: items, selection: selection) {
+        if let page = AppUpdatesSupport.singleStorePage(in: items, selection: selection),
+           let url = URL(string: page) {
+            handOffToStore(url)
+        } else if AppUpdatesSupport.hasStoreSelection(in: items, selection: selection) {
             openAppStoreUpdates()
         }
     }

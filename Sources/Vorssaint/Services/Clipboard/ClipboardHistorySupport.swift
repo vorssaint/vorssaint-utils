@@ -238,6 +238,12 @@ enum ClipboardHistorySelection {
     }
 }
 
+enum ClipboardHistoryPreview {
+    static func handlesSpace(selectionIsVisible: Bool, hasModifiers: Bool) -> Bool {
+        selectionIsVisible && !hasModifiers
+    }
+}
+
 enum ClipboardHistoryBatch {
     static func combinedText(_ texts: [String]) -> String {
         texts.joined(separator: "\n")

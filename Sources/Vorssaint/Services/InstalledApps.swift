@@ -13,6 +13,10 @@ enum InstalledApps {
         let bundleID: String?
         let url: URL
         let isSystem: Bool
+        /// The other names macOS knows this app by. Filled in only where a
+        /// search wants them; every other picker leaves them empty rather than
+        /// paying Spotlight for a list nobody is going to type into.
+        var alternateNames: [String] = []
 
         var icon: NSImage {
             NSWorkspace.shared.icon(forFile: url.path)
