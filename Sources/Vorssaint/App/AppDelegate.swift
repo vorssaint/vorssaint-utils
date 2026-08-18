@@ -690,7 +690,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             if let panel = window as? NSPanel {
                 panel.hidesOnDeactivate = false
             }
-            window.contentView?.layoutSubtreeIfNeeded()
+            // Defer any fitting-size work off the in-flight show layout. Calling
+            // layoutSubtreeIfNeeded synchronously here logged AppKit's
+            // "already being laid out" recursion warning on first open.
             window.makeKey()
             if animate {
                 animatePopoverOpen(window)
@@ -1224,7 +1226,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func positionSettingsWindow(_ window: NSWindow, force: Bool) {
-        window.contentView?.layoutSubtreeIfNeeded()
+        // Never call layoutSubtreeIfNeeded here: Settings is often mid-layout
+        // when this runs (first show + the follow-up async pass), and a nested
+        // layoutSubtreeIfNeeded logs a recursion warning and can stall the
+        // first paint of Mouse & Trackpad. The content size is already set.
         let popoverWindow = popover.contentViewController?.view.window
         let visible = (popoverWindow?.screen ?? window.screen)?.visibleFrame ?? NSScreen.pointerVisibleFrame
         let margin: CGFloat = 40
@@ -1557,7 +1562,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// inside the visible area, so a window taller than the screen starts at
     /// the top instead of hanging below it.
     private func centerIntroWindow(_ window: NSWindow) {
-        window.contentView?.layoutSubtreeIfNeeded()
+        // Prefer the already-resolved fitting size. Forcing layout here races
+        // SwiftUI's own pass and trips AppKit's layoutSubtreeIfNeeded warning.
         if let fitting = window.contentViewController?.view.fittingSize,
            fitting.width > 0, fitting.height > 0 {
             window.setContentSize(fitting)

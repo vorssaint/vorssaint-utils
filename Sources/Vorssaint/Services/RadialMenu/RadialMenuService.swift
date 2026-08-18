@@ -95,9 +95,13 @@ final class RadialMenuService: ObservableObject {
         mouseTrigger = RadialMenuMouseTrigger.sanitized(
             defaults.string(forKey: DefaultsKey.radialMenuMouseButton))
         syncMouseTap()
-        // First render of a hosting view costs real time; pay it now so the
-        // wheel appears the instant the shortcut fires.
-        ensurePanel().contentView?.layoutSubtreeIfNeeded()
+        // First render of a hosting view costs real time; pay it soon so the
+        // wheel appears the instant the shortcut fires — but not inside the
+        // launch layout pass, which AppKit flags as recursive layout.
+        let panel = ensurePanel()
+        DispatchQueue.main.async {
+            panel.contentView?.layoutSubtreeIfNeeded()
+        }
     }
 
     func suspend() {

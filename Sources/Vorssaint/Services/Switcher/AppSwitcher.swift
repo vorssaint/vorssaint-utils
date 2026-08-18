@@ -147,7 +147,11 @@ final class AppSwitcher: ObservableObject {
             // render costs hundreds of milliseconds, far too slow to pay on
             // the first ⌘Tab.
             let panel = ensurePanel()
-            panel.contentViewController?.view.layoutSubtreeIfNeeded()
+            // Warm the hosting view on the next turn so syncAtLaunch never
+            // nests layoutSubtreeIfNeeded inside AppKit's first layout pass.
+            DispatchQueue.main.async {
+                panel.contentViewController?.view.layoutSubtreeIfNeeded()
+            }
             if !capturesPreviews {
                 WindowPreviewProvider.shared.stopWarming()
             } else {

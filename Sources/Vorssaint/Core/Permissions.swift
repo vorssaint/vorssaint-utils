@@ -85,7 +85,10 @@ final class Permissions: ObservableObject {
     private var desiredPollInterval: TimeInterval {
         if NSApp.isActive { return 2.5 }
         if !accessibility || !screenRecording { return 2.5 }
-        return 60
+        // Accessibility can be revoked from System Settings while we sit in
+        // the background. A full minute left event taps swallowing input with
+        // nothing to re-sync them; keep a modest pulse instead.
+        return 10
     }
 
     private func scheduleActivePermissionPolling() {

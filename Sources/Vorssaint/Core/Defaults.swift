@@ -38,7 +38,12 @@ enum DefaultsKey {
     static let scrollInverterEnabled = "scrollInverterEnabled"
     static let scrollInverterHorizontalEnabled = "scrollInverterHorizontalEnabled"
     static let smoothScrollEnabled = "smoothScrollEnabled"
-    static let smoothScrollStep = "smoothScrollStep"      // pixels per wheel tick
+    static let smoothScrollVertical = "smoothScrollVertical"     // glide the vertical wheel axis
+    static let smoothScrollHorizontal = "smoothScrollHorizontal" // glide the horizontal wheel axis
+    static let smoothScrollStep = "smoothScrollStep"      // minimum stride per wheel tick
+    static let smoothScrollSpeed = "smoothScrollSpeed"    // impulse multiplier
+    static let smoothScrollDuration = "smoothScrollDuration" // coast length (maps to lerp α)
+    static let smoothScrollAcceleration = "smoothScrollAcceleration" // 0…1 blend with accelerated point delta
     static let mouseNavigationEnabled = "mouseNavigationEnabled" // side buttons trigger Back and Forward
     static let mouseButtonShortcutsEnabled = "mouseButtonShortcutsEnabled" // extra buttons press a key combination (issue #282)
     static let mouseButtonShortcuts = "mouseButtonShortcuts" // [button number: GlobalShortcut storage value]
@@ -48,7 +53,9 @@ enum DefaultsKey {
     // Machine state, never exported: whether the keyboard mapping is in place,
     // so a launch after a crash can take it back out.
     static let superKeyMappingApplied = "superKeyMappingApplied"
-    // One list of bundle ids per mouse feature: apps it leaves alone (issue #358).
+    // Bundle ids of apps each mouse behavior leaves alone (issue #358).
+    static let mouseScrollingExceptions = "mouseScrollingExceptions"
+    // Legacy split scrolling lists, retained for migration and old backups.
     static let smoothScrollExceptions = "smoothScrollExceptions"
     static let scrollInverterExceptions = "scrollInverterExceptions"
     static let mouseNavigationExceptions = "mouseNavigationExceptions"
@@ -733,16 +740,22 @@ enum Defaults {
         DefaultsKey.keepAwakeIconTint: KeepAwakeIconTint.orange.rawValue,
         DefaultsKey.keepAwakeActiveIcon: KeepAwakeActiveIcon.vorssaint.rawValue,
         DefaultsKey.showCountdown: false,
-        DefaultsKey.scrollInverterEnabled: false,
-        DefaultsKey.scrollInverterHorizontalEnabled: false,
-        DefaultsKey.smoothScrollEnabled: false,
-        DefaultsKey.smoothScrollStep: 40,
+        DefaultsKey.scrollInverterEnabled: true,
+        DefaultsKey.scrollInverterHorizontalEnabled: true,
+        DefaultsKey.smoothScrollEnabled: true,
+        DefaultsKey.smoothScrollVertical: true,
+        DefaultsKey.smoothScrollHorizontal: true,
+        DefaultsKey.smoothScrollStep: SmoothScrollSupport.defaultStep,
+        DefaultsKey.smoothScrollSpeed: SmoothScrollSupport.defaultSpeed,
+        DefaultsKey.smoothScrollDuration: SmoothScrollSupport.defaultDuration,
+        DefaultsKey.smoothScrollAcceleration: SmoothScrollSupport.defaultScrollAcceleration,
         DefaultsKey.mouseNavigationEnabled: false,
         DefaultsKey.mouseButtonShortcutsEnabled: false,
         DefaultsKey.mouseButtonShortcuts: [String: String](),
         DefaultsKey.superKeyEnabled: false,
         DefaultsKey.superKeyModifiers: SuperKeySupport.defaultModifierStorageValue,
         DefaultsKey.superKeySoloAction: SuperKeySoloAction.none.rawValue,
+        DefaultsKey.mouseScrollingExceptions: [String](),
         DefaultsKey.smoothScrollExceptions: [String](),
         DefaultsKey.scrollInverterExceptions: [String](),
         DefaultsKey.mouseNavigationExceptions: [String](),
@@ -1160,6 +1173,8 @@ enum Defaults {
         let defaults = UserDefaults.standard
         migrateFanControlVisibility(in: defaults)
         migrateScrollInverterAxes(in: defaults)
+        migrateSmoothScrollNumbers(in: defaults)
+        migrateMouseScrollingExceptions(in: defaults)
         defaults.register(defaults: registeredDefaults)
         defaults.register(defaults: AppFeature.availabilityDefaults)
         migrateLegacyMenuBarTemperatureMetric(in: defaults)
@@ -1182,6 +1197,47 @@ enum Defaults {
         }
         defaults.set(defaults.bool(forKey: DefaultsKey.scrollInverterEnabled),
                      forKey: DefaultsKey.scrollInverterHorizontalEnabled)
+    }
+
+    /// Older builds stored step as an Int. `@AppStorage` Double bindings then
+    /// refuse to read or write the key, so the feel sliders look stuck. Rewrite
+    /// any integer leftovers as Doubles once.
+    static func migrateSmoothScrollNumbers(in defaults: UserDefaults) {
+        rewriteSmoothScrollNumber(in: defaults, key: DefaultsKey.smoothScrollStep,
+                                  sanitize: SmoothScrollSupport.sanitizedStep)
+        rewriteSmoothScrollNumber(in: defaults, key: DefaultsKey.smoothScrollSpeed,
+                                  sanitize: SmoothScrollSupport.sanitizedSpeed)
+        rewriteSmoothScrollNumber(in: defaults, key: DefaultsKey.smoothScrollDuration,
+                                  sanitize: SmoothScrollSupport.sanitizedDuration)
+        rewriteSmoothScrollNumber(in: defaults, key: DefaultsKey.smoothScrollAcceleration,
+                                  sanitize: SmoothScrollSupport.sanitizedScrollAcceleration)
+    }
+
+    /// Smooth scrolling and direction inversion used to keep separate app
+    /// exception lists. Their union becomes the single mouse-scrolling list;
+    /// clearing the legacy values prevents a removed app from reappearing.
+    static func migrateMouseScrollingExceptions(in defaults: UserDefaults) {
+        let current = defaults.stringArray(forKey: DefaultsKey.mouseScrollingExceptions) ?? []
+        let smooth = defaults.stringArray(forKey: DefaultsKey.smoothScrollExceptions) ?? []
+        let direction = defaults.stringArray(forKey: DefaultsKey.scrollInverterExceptions) ?? []
+        let merged = sanitizedBundleIdentifierList(current + smooth + direction)
+
+        if !merged.isEmpty
+            || defaults.object(forKey: DefaultsKey.mouseScrollingExceptions) != nil {
+            defaults.set(merged, forKey: DefaultsKey.mouseScrollingExceptions)
+        }
+        defaults.removeObject(forKey: DefaultsKey.smoothScrollExceptions)
+        defaults.removeObject(forKey: DefaultsKey.scrollInverterExceptions)
+    }
+
+    private static func rewriteSmoothScrollNumber(in defaults: UserDefaults,
+                                                  key: String,
+                                                  sanitize: (Double) -> Double) {
+        guard let value = defaults.object(forKey: key) else { return }
+        if value is Double { return }
+        if let number = value as? NSNumber {
+            defaults.set(sanitize(number.doubleValue), forKey: key)
+        }
     }
 
     static func migrateFanControlVisibility(in defaults: UserDefaults) {

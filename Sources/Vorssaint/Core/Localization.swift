@@ -260,6 +260,7 @@ struct Strings {
 
     // MARK: Settings — mouse
     let scrollSection: String
+    let mouseScrollingSection: String
     let invertMouseScroll: String
     let invertMouseScrollCaption: String
     let scrollTrackpadNote: String
@@ -267,7 +268,19 @@ struct Strings {
     let mouseNavigationActiveNow: String
     let smoothScrollName: String
     let smoothScrollCaption: String
+    let smoothScrollVerticalLabel: String
+    let smoothScrollHorizontalLabel: String
     let smoothScrollStepLabel: String
+    let smoothScrollStepCaption: String
+    let smoothScrollSpeedLabel: String
+    let smoothScrollSpeedCaption: String
+    let smoothScrollDurationLabel: String
+    let smoothScrollDurationCaption: String
+    let smoothScrollAccelerationLabel: String
+    let smoothScrollAccelerationCaption: String
+    let smoothScrollResetDefaults: String
+    let scrollDirectionUnavailableHint: String
+    let scrollDirectionEnableButton: String
     let mouseNavigationSection: String
     let mouseNavigationEnable: String
     let mouseNavigationCaption: String
@@ -1203,14 +1216,27 @@ extension Strings {
         clamshellExplanation: "“Continuar com a tampa fechada” desativa completamente a suspensão enquanto “Manter acordado” estiver ativo e é revertido automaticamente quando a sessão termina ou o app é encerrado. Prefira usá-lo conectado à energia.",
 
         scrollSection: "Rolagem",
+        mouseScrollingSection: "Rolagem do mouse",
         invertMouseScroll: "Inverter rolagem do mouse",
         invertMouseScrollCaption: "Inverte a direção da roda do mouse.",
         scrollTrackpadNote: "O trackpad não muda: continua com a rolagem natural do macOS.",
         scrollActiveNow: "Invertendo a rolagem do mouse agora",
         mouseNavigationActiveNow: "Botões laterais ativos agora",
         smoothScrollName: "Rolagem suave",
-        smoothScrollCaption: "Transforma cada passo da rodinha do mouse em um deslize curto e macio. O trackpad não muda.",
-        smoothScrollStepLabel: "Distância por passo",
+        smoothScrollCaption: "Suaviza a rodinha do mouse como um trackpad. Passo, velocidade e duração são independentes. O trackpad não muda.",
+        smoothScrollVerticalLabel: "Suavizar eixo vertical",
+        smoothScrollHorizontalLabel: "Suavizar eixo horizontal",
+        smoothScrollStepLabel: "Passo",
+        smoothScrollStepCaption: "Define a distância mínima de rolagem",
+        smoothScrollSpeedLabel: "Velocidade",
+        smoothScrollSpeedCaption: "Define a velocidade de rolagem",
+        smoothScrollDurationLabel: "Duração",
+        smoothScrollDurationCaption: "Define a duração da animação de rolagem",
+        smoothScrollAccelerationLabel: "Aceleração de rolagem",
+        smoothScrollAccelerationCaption: "Controla o quanto movimentos rápidos da rodinha são acelerados",
+        smoothScrollResetDefaults: "Restaurar valores padrão",
+        scrollDirectionUnavailableHint: "A inversão de rolagem está desligada em Recursos. Ative-a para alterar a direção.",
+        scrollDirectionEnableButton: "Ativar inversão de rolagem",
         mouseNavigationSection: "Navegação",
         mouseNavigationEnable: "Usar botões laterais para voltar e avançar",
         mouseNavigationCaption: "Converte os botões Voltar e Avançar do mouse em comandos de navegação no Finder, navegadores e apps compatíveis.",
@@ -2118,14 +2144,27 @@ extension Strings {
         clamshellExplanation: "“Keep going with the lid closed” fully disables sleep while “Keep awake” is active and is reverted automatically when the session ends or the app quits. Prefer using it plugged in.",
 
         scrollSection: "Scrolling",
+        mouseScrollingSection: "Mouse scrolling",
         invertMouseScroll: "Invert mouse scrolling",
         invertMouseScrollCaption: "Reverses the mouse wheel direction.",
         scrollTrackpadNote: "The trackpad is untouched: it keeps macOS natural scrolling.",
         scrollActiveNow: "Inverting mouse scrolling right now",
         mouseNavigationActiveNow: "Side buttons active right now",
         smoothScrollName: "Smooth scrolling",
-        smoothScrollCaption: "Turns each mouse wheel step into a short, gentle glide. The trackpad is not affected.",
-        smoothScrollStepLabel: "Distance per step",
+        smoothScrollCaption: "Smooths the mouse wheel like a trackpad. Step, speed and duration are independent. The trackpad is not affected.",
+        smoothScrollVerticalLabel: "Smooth vertical axis",
+        smoothScrollHorizontalLabel: "Smooth horizontal axis",
+        smoothScrollStepLabel: "Step",
+        smoothScrollStepCaption: "Sets the minimum scrolling distance",
+        smoothScrollSpeedLabel: "Speed",
+        smoothScrollSpeedCaption: "Sets the scroll speed",
+        smoothScrollDurationLabel: "Duration",
+        smoothScrollDurationCaption: "Sets the duration of the scrolling animation",
+        smoothScrollAccelerationLabel: "Scroll acceleration",
+        smoothScrollAccelerationCaption: "Controls how strongly fast wheel movements are amplified",
+        smoothScrollResetDefaults: "Reset to default values",
+        scrollDirectionUnavailableHint: "Reverse scrolling is off in Features. Turn it on to change direction.",
+        scrollDirectionEnableButton: "Enable reverse scrolling",
         mouseNavigationSection: "Navigation",
         mouseNavigationEnable: "Use side buttons for Back and Forward",
         mouseNavigationCaption: "Turns the mouse Back and Forward buttons into navigation commands in Finder, browsers and compatible apps.",
