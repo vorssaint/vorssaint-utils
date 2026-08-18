@@ -160,8 +160,8 @@ enum SuperKeySupport {
         case pass
         /// The key was tapped with nothing else, so its solo action runs.
         case soloTap
-        /// A keyboard is not mapped: the mapping needs to be applied again.
-        case remapNeeded
+        /// A raw Caps Lock is kept out while its keyboard mapping is repaired.
+        case interceptAndRemap
     }
 
     /// Holding the key is the whole feature, so the state is just whether it is
@@ -194,7 +194,7 @@ enum SuperKeySupport {
                 if isHeld { isAlone = false }
                 return .pass
             case .capsLock:
-                return .remapNeeded
+                return .interceptAndRemap
             }
         }
 

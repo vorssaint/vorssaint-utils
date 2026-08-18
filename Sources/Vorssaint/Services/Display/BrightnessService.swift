@@ -454,6 +454,17 @@ final class BrightnessService: ObservableObject {
         }
     }
 
+    /// The active list can include virtual devices with no picture a person
+    /// can use. Those must not hide a stranded physical display.
+    private static func drawableDisplayIDs(online: Set<CGDirectDisplayID>,
+                                           active: Set<CGDirectDisplayID>) -> Set<CGDirectDisplayID> {
+        let virtual = Set(online.filter {
+            displayInfoDictionary($0)?["kCGDisplayIsVirtualDevice"] as? Bool ?? false
+        })
+        return BrightnessSupport.drawableDisplayIDs(
+            onlineDisplayIDs: online, activeDisplayIDs: active, virtualDisplayIDs: virtual)
+    }
+
     private static func configureDisplay(_ id: CGDirectDisplayID, enabled: Bool) -> Bool {
         guard let configure = DisplayConfigurationBridge.configureEnabled else { return false }
         var reference: CGDisplayConfigRef?
@@ -1009,7 +1020,9 @@ final class BrightnessService: ObservableObject {
             self.stateLock.unlock()
             if changed {
                 Self.log.log("topology changed to \(topology.online.sorted().map(String.init).joined(separator: ","), privacy: .public); rebuilding")
-                if !self.restoreManagedDisplayIfHeadless(activeDisplayIDs: topology.active) {
+                let drawable = Self.drawableDisplayIDs(online: topology.online,
+                                                       active: topology.active)
+                if !self.restoreManagedDisplayIfHeadless(drawableDisplayIDs: drawable) {
                     self.refresh()
                 }
             }
@@ -1022,10 +1035,10 @@ final class BrightnessService: ObservableObject {
     /// display remains. If that last active display is then unplugged, there
     /// is no UI left to reverse the choice, so restore one display that this
     /// process disabled and leave every unrelated display configuration alone.
-    private func restoreManagedDisplayIfHeadless(activeDisplayIDs: Set<CGDirectDisplayID>) -> Bool {
+    private func restoreManagedDisplayIfHeadless(drawableDisplayIDs: Set<CGDirectDisplayID>) -> Bool {
         stateLock.lock()
         let candidates = BrightnessSupport.headlessRecoveryCandidates(
-            activeDisplayIDs: activeDisplayIDs,
+            drawableDisplayIDs: drawableDisplayIDs,
             managedDisabledIDs: managedDisabledIDs,
             builtInDisabledIDs: Set(managedDisabledDisplays.values
                 .filter(\.isBuiltIn).map(\.id)))

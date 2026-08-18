@@ -871,6 +871,12 @@ enum CommandBarCatalog {
         return apps.filter { $0.bundleID != ownBundleID }.map { app in
             let isRunning = app.bundleID.map { runningBundleIDs.contains($0) } ?? false
                 || runningPaths.contains(app.url.standardizedFileURL.path)
+            // The title may be localized while the bundle keeps the name the
+            // person learned, and an ideographic title may be easier to type
+            // by sound.
+            let diskName = app.url.deletingPathExtension().lastPathComponent
+            let keywords = CommandBarSearch.applicationKeywords(
+                title: app.name, diskName: diskName, alternateNames: app.alternateNames)
             return CommandBarEntry(
                 id: "app.\(app.id)",
                 // Two copies of one app need two rows, so the row is keyed by
@@ -878,10 +884,7 @@ enum CommandBarCatalog {
                 stableKey: app.bundleID.map { "app.bundle.\($0)" } ?? "app.\(app.id)",
                 title: app.name,
                 subtitle: bar.kindApp,
-                // Alternate names from macOS let an older or translated name
-                // find the same app. They rank as keywords, under any title
-                // that really holds what was typed.
-                keywords: app.alternateNames.joined(separator: " "),
+                keywords: keywords,
                 icon: .appIcon(path: app.url.path),
                 isActive: isRunning,
                 revealPath: app.url.path,

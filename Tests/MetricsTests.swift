@@ -8936,7 +8936,7 @@ struct MetricsTests {
                    "no em-dash in visible radial menu strings (\(language.rawValue))")
             let scratchpadValues = Mirror(reflecting: FeatureStrings.scratchpad(language)).children
                 .compactMap { $0.value as? String }
-            expect(scratchpadValues.count == 28 && scratchpadValues.allSatisfy { !$0.isEmpty },
+            expect(scratchpadValues.count == 30 && scratchpadValues.allSatisfy { !$0.isEmpty },
                    "every scratchpad string is set for \(language.rawValue)")
             expect(scratchpadValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible scratchpad strings (\(language.rawValue))")
@@ -9342,17 +9342,23 @@ struct MetricsTests {
                "the final active display can never be disabled")
         expect(!BrightnessSupport.canDisableDisplay(activeDisplayIDs: [1, 3], target: 8),
                "an inactive display cannot enter the disable path")
+        expect(BrightnessSupport.drawableDisplayIDs(
+            onlineDisplayIDs: [1, 2], activeDisplayIDs: [1, 2, 9], virtualDisplayIDs: [2]) == [1],
+               "only online active displays with a visible picture prevent recovery")
+        expect(BrightnessSupport.drawableDisplayIDs(
+            onlineDisplayIDs: [2], activeDisplayIDs: [2], virtualDisplayIDs: [2]).isEmpty,
+               "a virtual-only active display leaves the machine effectively headless")
         expect(BrightnessSupport.headlessRecoveryCandidates(
-            activeDisplayIDs: [3], managedDisabledIDs: [1], builtInDisabledIDs: [1]).isEmpty,
+            drawableDisplayIDs: [3], managedDisabledIDs: [1], builtInDisabledIDs: [1]).isEmpty,
                "an active external display preserves an intentionally disabled built-in panel")
         expect(BrightnessSupport.headlessRecoveryCandidates(
-            activeDisplayIDs: [], managedDisabledIDs: [1, 4], builtInDisabledIDs: [1]) == [1, 4],
+            drawableDisplayIDs: [], managedDisabledIDs: [1, 4], builtInDisabledIDs: [1]) == [1, 4],
                "losing the last active display tries the built-in panel before other managed displays")
         expect(BrightnessSupport.headlessRecoveryCandidates(
-            activeDisplayIDs: [], managedDisabledIDs: [7, 4], builtInDisabledIDs: []) == [4, 7],
+            drawableDisplayIDs: [], managedDisabledIDs: [7, 4], builtInDisabledIDs: []) == [4, 7],
                "a headless desktop Mac can recover one display switched off by this app")
         expect(BrightnessSupport.headlessRecoveryCandidates(
-            activeDisplayIDs: [], managedDisabledIDs: [], builtInDisabledIDs: [1]).isEmpty,
+            drawableDisplayIDs: [], managedDisabledIDs: [], builtInDisabledIDs: [1]).isEmpty,
                "a display disabled elsewhere is never changed during headless recovery")
 
         expect(BrightnessSupport.ddcCommandDelay(nowMicroseconds: 1_000_000,
@@ -10243,6 +10249,26 @@ struct MetricsTests {
         expect(ScreenCaptureTool.available(isAvailable: captureFeatures.contains)
                 == [.screenshot, .recording, .text, .color],
                "the capture chooser keeps a stable order for every installed mode")
+        expect(ScreenCaptureTool.allCases.map(\.shortcutKey) == ["1", "2", "3", "4"]
+                && ScreenCaptureTool.matchingShortcut("1") == .screenshot
+                && ScreenCaptureTool.matchingShortcut("2") == .recording
+                && ScreenCaptureTool.matchingShortcut("3") == .text
+                && ScreenCaptureTool.matchingShortcut("4") == .color
+                && ScreenCaptureTool.matchingShortcut("5") == nil,
+               "number keys select the same capture mode shown in the chooser")
+        expect(ScreenshotSupport.captureGuideIsVisible(pointerOnDisplay: true,
+                                                       selectionInProgress: false,
+                                                       capturePending: false)
+                && !ScreenshotSupport.captureGuideIsVisible(pointerOnDisplay: true,
+                                                            selectionInProgress: true,
+                                                            capturePending: false)
+                && !ScreenshotSupport.captureGuideIsVisible(pointerOnDisplay: true,
+                                                            selectionInProgress: false,
+                                                            capturePending: true)
+                && !ScreenshotSupport.captureGuideIsVisible(pointerOnDisplay: false,
+                                                            selectionInProgress: false,
+                                                            capturePending: false),
+               "the capture chooser disappears for the whole drag and while capture is pending")
 
         let cocoa = ScreenshotSupport.cocoaRect(fromWindowServer: CGRect(x: 10, y: 30, width: 200, height: 100),
                                                 mainScreenHeight: 900)
@@ -10832,6 +10858,27 @@ struct MetricsTests {
                 && !ScratchpadSupport.dismissesOnOutsideClick(isPinned: true, exportModalActive: false)
                 && !ScratchpadSupport.dismissesOnOutsideClick(isPinned: false, exportModalActive: true),
                "the scratchpad pin and export dialog both block outside-click dismissal")
+        let markdownPreview = ScratchpadSupport.markdownPreview(
+            "# Heading\n\n**Bold** and *italic* with [link](https://example.com)\n\n- First\n- Second\n\n1. Third\n\n```\ncode\n```")
+        expect(markdownPreview.map(\.kind) == [
+                    .heading(1), .paragraph,
+                    .unorderedListItem(depth: 1), .unorderedListItem(depth: 1),
+                    .orderedListItem(ordinal: 1, depth: 1), .code
+                ]
+                && String(markdownPreview[0].text.characters) == "Heading"
+                && String(markdownPreview[2].text.characters) == "First"
+                && String(markdownPreview[5].text.characters) == "code"
+                && markdownPreview[2].containerID == markdownPreview[3].containerID
+                && markdownPreview[2].containerID != nil
+                && markdownPreview[3].containerID != markdownPreview[4].containerID
+                && markdownPreview[1].text.runs.contains {
+                    $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true
+                }
+                && markdownPreview[1].text.runs.contains {
+                    $0.inlinePresentationIntent?.contains(.emphasized) == true
+                }
+                && markdownPreview[1].text.runs.contains { $0.link != nil },
+               "the scratchpad preview renders semantic blocks and inline formatting")
         expect(Defaults.registeredDefaults[DefaultsKey.scratchpadBackgroundOpacity] as? Double == 0.0,
                "the scratchpad keeps its familiar translucent background by default")
         expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.scratchpadBackgroundOpacity),
@@ -11356,8 +11403,8 @@ struct MetricsTests {
         expect(strandedState.decide(.otherKey) == .pass,
                "a key held while the tap goes away cannot leave typing stuck in modifiers")
         var unmappedKeyboardState = SuperKeySupport.State()
-        expect(unmappedKeyboardState.decide(.capsLock) == .remapNeeded,
-               "a real caps lock means that keyboard still needs the mapping")
+        expect(unmappedKeyboardState.decide(.capsLock) == .interceptAndRemap,
+               "a raw caps lock is intercepted while that keyboard's mapping is repaired")
 
         // MARK: Mouse app exceptions (issue #358)
 
@@ -13603,6 +13650,25 @@ struct MetricsTests {
                                         keywords: "Recent captures screenshot recording",
                                         query: "recent captures"),
                "recent captures stays searchable by its familiar English name")
+        expect(CommandBarSearch.pinyinKeywords("云笔记") == "yunbiji ybj",
+               "pinyin keywords run the syllables together and add the initials")
+        expect(CommandBarSearch.pinyinKeywords("Reader").isEmpty,
+               "a name without Han characters gets no pinyin keywords")
+        let pinyinKeywords = CommandBarSearch.pinyinKeywords("云笔记")
+        expect(CommandBarSearch.matches(title: "云笔记", keywords: pinyinKeywords,
+                                        query: "yunbiji"),
+               "a Chinese title is found by its pinyin")
+        expect(CommandBarSearch.matches(title: "云笔记", keywords: pinyinKeywords, query: "ybj"),
+               "a Chinese title is found by its pinyin initials")
+        let applicationKeywords = CommandBarSearch.applicationKeywords(
+            title: "云笔记", diskName: "CloudNotes", alternateNames: ["Former Notes"])
+        expect(CommandBarSearch.matches(title: "云笔记", keywords: applicationKeywords,
+                                        query: "cloudnotes")
+                && CommandBarSearch.matches(title: "云笔记", keywords: applicationKeywords,
+                                            query: "former")
+                && CommandBarSearch.matches(title: "云笔记", keywords: applicationKeywords,
+                                            query: "yunbiji"),
+               "an app keeps its disk, alternate and phonetic names searchable")
         expect(CommandBarSearch.matches(title: "Silenciar microfone", query: "silenciar micro"),
                "tokens match in any order as prefixes")
         expect(!CommandBarSearch.matches(title: "Silenciar microfone", query: "silenciar tela"),
