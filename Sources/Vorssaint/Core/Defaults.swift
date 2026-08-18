@@ -407,6 +407,12 @@ enum DefaultsKey {
     static let commandBarHidden = "commandBarHidden"         // row keys the person never wants offered
     static let commandBarLinks = "commandBarLinks"           // Data: [CommandBarLink] JSON
     static let commandBarRowShortcuts = "commandBarRowShortcuts" // {row key: shortcut}
+    static let commandBarPositionOffset = "commandBarPositionOffset" // "dx,dy" from the default spot
+    // The folders a file search looks in, one per line, written with a tilde
+    // so an exported list still points somewhere on another Mac. Empty means
+    // the bar looks for no files at all, which is the setting out of the box.
+    static let commandBarFileScopes = "commandBarFileScopes"
+    static let commandBarFileIgnores = "commandBarFileIgnores" // names a file search never shows
     static let panelUtilityCommandBar = "panelUtilityCommandBar"
     static let scratchpadRetention = "scratchpadRetention"   // never | day | week | month
     static let scratchpadCloseOnClickOutside = "scratchpadCloseOnClickOutside"
@@ -1044,7 +1050,10 @@ enum Defaults {
         DefaultsKey.commandBarAliases: "",
         DefaultsKey.commandBarPins: "",
         DefaultsKey.commandBarHidden: "",
+        DefaultsKey.commandBarFileScopes: "",
+        DefaultsKey.commandBarFileIgnores: "",
         DefaultsKey.commandBarShortcut: GlobalShortcut.commandBarDefault.storageValue,
+        DefaultsKey.commandBarPositionOffset: "",
         DefaultsKey.panelUtilityCommandBar: true,
         DefaultsKey.scratchpadRetention: ScratchpadRetention.never.rawValue,
         DefaultsKey.scratchpadCloseOnClickOutside: true,

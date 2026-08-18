@@ -14,7 +14,11 @@ struct CommandBarSettings: View {
     @AppStorage(DefaultsKey.commandBarHidden) private var hiddenRaw = ""
     @AppStorage(DefaultsKey.commandBarLinks) private var linksData = Data()
     @AppStorage(DefaultsKey.commandBarRowShortcuts) private var rowShortcutsRaw = ""
+    @AppStorage(DefaultsKey.commandBarFileScopes) private var fileScopesRaw = ""
+    @AppStorage(DefaultsKey.commandBarFileIgnores) private var fileIgnoresRaw = ""
     @State private var editing: CommandBarLink?
+    @State private var ignoreDraft = ""
+    @State private var showsFileOptions = false
 
     private var text: CommandBarFeatureStrings { FeatureStrings.commandBar(l10n.language) }
     /// The snippet library already says "save", "delete" and "name" in every
@@ -38,6 +42,15 @@ struct CommandBarSettings: View {
                 } label: {
                     Label(text.openButton, systemImage: "command")
                 }
+                Button {
+                    CommandBarService.shared.resetPanelPosition()
+                } label: {
+                    Label(text.resetPositionButton, systemImage: "arrow.uturn.backward")
+                }
+                .disabled(!service.hasCustomPosition)
+                Text(text.positionCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Text(text.settingsCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -86,6 +99,70 @@ struct CommandBarSettings: View {
                 Text(text.sourcesCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Text(text.filesCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if fileScopes.isEmpty {
+                    Text(text.filesEmpty)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(fileScopes, id: \.self) { scope in
+                    HStack(spacing: 8) {
+                        Image(systemName: "folder")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.accentColor)
+                            .frame(width: 16)
+                        Text(scope)
+                            .font(.system(size: 12))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer()
+                        Button(text.removeButton) { removeFileScope(scope) }
+                            .buttonStyle(.bordered)
+                            .controlSize(.mini)
+                    }
+                }
+                Button {
+                    addFileScope()
+                } label: {
+                    Label(text.filesAddFolder, systemImage: "plus")
+                }
+                DisclosureGroup(FeatureStrings.recorder(l10n.language).moreOptions,
+                                isExpanded: $showsFileOptions) {
+                    Text(text.filesIgnoreCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    ForEach(fileIgnores, id: \.self) { pattern in
+                        HStack(spacing: 8) {
+                            Image(systemName: "eye.slash")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 16)
+                            Text(pattern)
+                                .font(.system(size: 12))
+                                .lineLimit(1)
+                            Spacer()
+                            Button(text.removeButton) { removeFileIgnore(pattern) }
+                                .buttonStyle(.bordered)
+                                .controlSize(.mini)
+                        }
+                    }
+                    HStack(spacing: 8) {
+                        TextField(text.filesIgnorePlaceholder, text: $ignoreDraft)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit { addFileIgnore() }
+                        Button(text.filesIgnoreAdd) { addFileIgnore() }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(ignoreDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                }
+            } header: {
+                Text(text.filesTitle)
             }
 
             Section {
@@ -221,7 +298,7 @@ struct CommandBarSettings: View {
                     }
                 }
                 Button(text.forgetAllButton) {
-                    UserDefaults.standard.removeObject(forKey: DefaultsKey.commandBarUsage)
+                    CommandBarService.shared.forgetLearnedRanking()
                 }
             } header: {
                 Text(text.hiddenTitle)
@@ -319,6 +396,7 @@ struct CommandBarSettings: View {
         case .windows: return text.sourceWindows
         case .quitApps: return text.sourceQuitApps
         case .settingsPages: return text.sourceSettingsPages
+        case .macSettings: return text.sourceMacSettings
         case .snippets: return text.sourceSnippets
         case .clipboard: return text.sourceClipboard
         case .emoji: return text.sourceEmoji
@@ -327,7 +405,57 @@ struct CommandBarSettings: View {
         case .calculator: return text.sourceCalculator
         case .selection: return text.sourceSelection
         case .links: return text.linksTitle
+        case .files: return text.sourceFiles
         }
+    }
+
+    // MARK: - The folders a file search looks in
+
+    private var fileScopes: [String] {
+        CommandBarFileSearchSupport.decodeList(fileScopesRaw)
+    }
+
+    private var fileIgnores: [String] {
+        CommandBarFileSearchSupport.decodeList(fileIgnoresRaw)
+    }
+
+    /// Stored with a tilde, so a list made on one Mac still points somewhere
+    /// on another and a settings export stays portable.
+    private func addFileScope() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        guard panel.runModal() == .OK else { return }
+        let added = panel.urls.map { ($0.path as NSString).abbreviatingWithTildeInPath }
+        writeFileScopes(fileScopes + added)
+    }
+
+    private func removeFileScope(_ scope: String) {
+        writeFileScopes(fileScopes.filter { $0 != scope })
+    }
+
+    private func addFileIgnore() {
+        let pattern = ignoreDraft.trimmingCharacters(in: .whitespaces)
+        guard !pattern.isEmpty else { return }
+        ignoreDraft = ""
+        writeFileIgnores(fileIgnores + [pattern])
+    }
+
+    private func removeFileIgnore(_ pattern: String) {
+        writeFileIgnores(fileIgnores.filter { $0 != pattern })
+    }
+
+    /// Both lists are resolved once and kept, so typing never pays for
+    /// reading them; the service is told the moment they change.
+    private func writeFileScopes(_ scopes: [String]) {
+        fileScopesRaw = CommandBarFileSearchSupport.encodeList(scopes)
+        CommandBarService.shared.syncWithPreferences()
+    }
+
+    private func writeFileIgnores(_ patterns: [String]) {
+        fileIgnoresRaw = CommandBarFileSearchSupport.encodeList(patterns)
+        CommandBarService.shared.syncWithPreferences()
     }
 
     private func removeAlias(_ key: String) {

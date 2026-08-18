@@ -70,6 +70,10 @@ struct CommandBarDeferredRowShortcut {
         pending = nil
     }
 
+    func key(for presentationID: UUID) -> String? {
+        pending?.presentationID == presentationID ? pending?.stableKey : nil
+    }
+
     mutating func take(for presentationID: UUID) -> String? {
         guard pending?.presentationID == presentationID else { return nil }
         defer { pending = nil }
@@ -146,18 +150,17 @@ enum CommandBarSearch {
         scalar.value >= 0x00AD && scalar.properties.generalCategory == .format
     }
 
-    /// The Latin spellings a Chinese title also answers to, so a person who
-    /// cannot type the characters can still reach the row by sound: "weixin"
-    /// and "wx" both find 微信. The pinyin comes back run together (the way
-    /// it is typed) plus its initials; a title without a Han character gets
-    /// nothing back, because romanizing "Safari" would only repeat it.
+    /// The Latin spellings an ideographic title also answers to. The pinyin
+    /// comes back run together, the way it is typed, plus its initials. A
+    /// title without a Han character gets nothing because romanizing it would
+    /// only repeat the title.
     static func pinyinKeywords(_ title: String) -> String {
-        guard title.unicodeScalars.contains(where: isHan) else { return "" }
         let romanized = NSMutableString(string: title)
-        CFStringTransform(romanized, nil, kCFStringTransformMandarinLatin, false)
+        guard CFStringTransform(romanized, nil, kCFStringTransformMandarinLatin, false),
+              romanized as String != title else { return "" }
         CFStringTransform(romanized, nil, kCFStringTransformStripDiacritics, false)
         let syllables = (romanized as String)
-            .split(whereSeparator: \.isWhitespace)
+            .split { !$0.isLetter && !$0.isNumber }
             .map { $0.lowercased() }
         guard !syllables.isEmpty else { return "" }
         let joined = syllables.joined()
@@ -165,12 +168,16 @@ enum CommandBarSearch {
         return joined == initials ? joined : joined + " " + initials
     }
 
-    /// The Han blocks a real app name can reach: the common block, its
-    /// extension and the compatibility ideographs.
-    private static func isHan(_ scalar: Unicode.Scalar) -> Bool {
-        (0x4E00...0x9FFF).contains(scalar.value)
-            || (0x3400...0x4DBF).contains(scalar.value)
-            || (0xF900...0xFAFF).contains(scalar.value)
+    static func applicationKeywords(title: String,
+                                    diskName: String,
+                                    alternateNames: [String]) -> String {
+        var names = alternateNames
+        if !diskName.isEmpty, normalized(diskName) != normalized(title) {
+            names.append(diskName)
+        }
+        let pinyin = pinyinKeywords(title)
+        if !pinyin.isEmpty { names.append(pinyin) }
+        return names.joined(separator: " ")
     }
 
     /// Whether the query names the verb of a format like "Quit %@". Used to

@@ -101,6 +101,19 @@ enum CommandBarLinks {
         return result
     }
 
+    /// Where a saved place sits on the disk, for the rows that can be shown
+    /// in Finder. Only a destination that is already a finished path
+    /// qualifies: one still holding a placeholder is a different folder every
+    /// time it runs, and there is nothing to reveal until it does.
+    static func revealPath(for link: CommandBarLink) -> String? {
+        guard link.kind == .place else { return nil }
+        let trimmed = link.destination.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty,
+              !CommandBarLinkPlaceholder.allCases.contains(where: { trimmed.contains($0.token) })
+        else { return nil }
+        return (trimmed as NSString).expandingTildeInPath
+    }
+
     /// What a value has to look like inside a web address. Everything that is
     /// not unreserved is escaped, including the "+" and "&" that would
     /// otherwise change the meaning of a search.

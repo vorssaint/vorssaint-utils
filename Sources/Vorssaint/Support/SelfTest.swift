@@ -23,8 +23,12 @@ enum SelfTest {
         }
 
         if let memory = SystemInfo.memoryUsage() {
-            if memory.used == 0 || memory.total == 0 || memory.used > memory.total {
+            if memory.total == 0 || memory.used > memory.total || memory.appUsed > memory.total {
                 failures.append("memory bounds")
+            } else if memory.used == 0 {
+                // Virtualized hosts can transiently report every page as
+                // reclaimable cache; the reading is bounded but not useful.
+                warnings.append("memory usage unavailable")
             }
         } else {
             failures.append("memory reading")

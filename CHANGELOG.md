@@ -10,17 +10,19 @@ All notable changes to this project are documented here. The format follows
 Vorssaint 3.3.2 adds unified screen capture, batch image conversion,
 imported-video editing, local Command Bar scripts, recent captures, desktop
 window controls, edge-activated Shelf access and faster access to recording
-and maintenance tools. It also improves Clipboard access, capture, app discovery,
+and maintenance tools. It also improves Clipboard access, Command Bar search and
+placement, capture, app discovery,
 conversions, volume, Switcher behavior, Settings reachability, menu bar sizing,
 setup screens, customizable Super key combinations, command-line setup,
 accidental middle clicks while typing and
 compatibility with older development tools.
 
 ### Added
-- One screen-capture shortcut now opens a shared selector for screenshots,
-  recordings, screen text and colors. It only shows installed tools and keeps
-  recording sound and microphone choices beside the mode selector. Their
-  settings now live on one page with native controls for each installed mode.
+- One screen-capture shortcut now opens a floating palette for screenshots,
+  recordings, screen text and colors, with every installed tool and its 1
+  through 4 key visible at once. It disappears as soon as selection begins,
+  keeps recording sound and microphone choices nearby, and puts every mode's
+  settings on one page.
 - Media now converts images in batches with resizing, watermarks, renaming and
   reusable profiles. Thanks to @ruvelro.
 - Saved Command Bar shortcuts can now run local scripts and show their results as
@@ -39,8 +41,25 @@ compatibility with older development tools.
   Thanks to @MaximilianMauroner.
 - The clipboard can now clear itself after a delay, and when the Mac sleeps, the
   display sleeps or the screen locks. Under Clipboard.
+- The Command Bar can now find files by name in the folders you name, through
+  the Mac's own search. Vorssaint builds no index and searches nowhere beyond
+  the folders you choose. Under Command Bar, and it does nothing until you add
+  a folder. Thanks to @ruvelro.
+- The Command Bar can now open any of the Mac's own System Settings panes, and
+  finds them by what they hold in your language even where macOS only names them
+  in English. It is its own source, so it can be switched off on its own.
+  Thanks to @ruvelro.
+- The Command Bar can now show an app, a folder or a saved place where it lives,
+  with ⌘Return or from the actions key. Thanks to @ruvelro.
 
 ### Changed
+- The Command Bar now remembers which row you picked after which few letters
+  and puts it first when you type them again. It is never written down: like
+  everything you type into the bar, it is forgotten when the app quits.
+  Thanks to @ruvelro.
+- The Command Bar now finds apps by alternate names macOS knows, including
+  older and localized names. Localized Chinese app names also answer to their
+  name on disk, full pronunciation and initials. Thanks to @ruvelro and @tingke.
 - Clipboard history now opens as a compact palette with uncluttered rows and an
   on-demand preview for reading or editing the full item.
 - Menu bar icons now match surrounding icons in size and alignment. Thanks to @bambidotexe.
@@ -71,6 +90,8 @@ compatibility with older development tools.
   consistently. Thanks to @PathGao.
 - The Command Bar now accepts Control-P and Control-N to move through results.
   Thanks to @theafox.
+- The Command Bar can now be placed anywhere on a screen by dragging its mark,
+  with reset controls in the bar and Settings. Thanks to @tingke.
 - Shelf now supports Shift-click ranges, Command-A to select every visible item
   and Escape to clear the selection. Thanks to @cimu233.
 - Shelf can now open when a dragged file reaches a screen edge. Enable it under

@@ -66,7 +66,16 @@ struct CommandBarEntry: Identifiable {
     /// moment it was about to run. A row that does nothing with those words
     /// goes on answering to its name alone.
     let takesArgument: Bool
+    /// Where this row lives on the disk, for the rows that are a real file:
+    /// an app, one of the Mac's own folders, a place the person saved. The
+    /// rows the bar makes up have no such place, and saying so here is what
+    /// keeps ⌘Return and the actions list from ever disagreeing about it.
+    let revealPath: String?
     let run: (Int?) -> Void
+
+    /// Whether this row can be shown where it lives. One rule, read by the
+    /// combination and by the actions list alike.
+    var canRevealInFinder: Bool { revealPath != nil }
 
     /// Whether running this row asks the person something first. A row that
     /// would confirm, or wait for a number, or send them to a Settings page
@@ -88,7 +97,7 @@ struct CommandBarEntry: Identifiable {
                         confirmationPrompt: confirmationPrompt, answerValue: answerValue,
                         isAnswer: isAnswer, countsUsage: countsUsage,
                         matchTitle: matchTitle, keepsBarOpen: keepsBarOpen,
-                        takesArgument: takesArgument, run: run)
+                        takesArgument: takesArgument, revealPath: revealPath, run: run)
     }
 
     /// Glyph rows get a tinted plate behind the icon; real app, file and
@@ -118,6 +127,7 @@ struct CommandBarEntry: Identifiable {
          matchTitle: String? = nil,
          keepsBarOpen: Bool = false,
          takesArgument: Bool = false,
+         revealPath: String? = nil,
          run: @escaping (Int?) -> Void) {
         self.id = id
         self.stableKey = stableKey ?? id
@@ -138,6 +148,7 @@ struct CommandBarEntry: Identifiable {
         self.matchTitle = matchTitle
         self.keepsBarOpen = keepsBarOpen
         self.takesArgument = takesArgument
+        self.revealPath = revealPath
         self.run = run
     }
 }
@@ -722,6 +733,7 @@ enum CommandBarCatalog {
                 keywords: bar.kindFolder,
                 icon: .filePath(folder.url.path),
                 countsUsage: true,
+                revealPath: folder.url.path,
                 run: { _ in NSWorkspace.shared.open(folder.url) }))
         }
 
@@ -764,6 +776,64 @@ enum CommandBarCatalog {
             }
     }
 
+    // MARK: - Files
+
+    /// One row per file Spotlight found in the folders the person named.
+    ///
+    /// A found file is a passing thing, like something copied: it is not
+    /// pinned, named or learned from, because the row exists for exactly as
+    /// long as the words that found it. What it does keep is where it lives,
+    /// so ⌘Return shows it in Finder.
+    static func fileEntries(_ paths: [String],
+                            bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
+        let home = NSHomeDirectory()
+        return paths.map { path in
+            let url = URL(fileURLWithPath: path)
+            let folder = CommandBarFileSearchSupport.abbreviating(
+                url.deletingLastPathComponent().path, homeDirectory: home)
+            return CommandBarEntry(
+                id: "file.\(path)",
+                title: url.lastPathComponent,
+                subtitle: folder,
+                keywords: bar.sourceFiles,
+                icon: .filePath(path),
+                countsUsage: false,
+                revealPath: path,
+                run: { _ in
+                    guard FileManager.default.fileExists(atPath: path) else {
+                        QuickToolHUD.show(icon: "doc.questionmark", message: url.lastPathComponent)
+                        return
+                    }
+                    NSWorkspace.shared.open(url)
+                })
+        }
+    }
+
+    // MARK: - The Mac's own Settings panes
+
+    /// One row per pane System Settings shows, opened by the address macOS
+    /// gives it. The names come from macOS and are the ones it shows itself;
+    /// the words underneath them are translated, so the pane answers in the
+    /// language the person is typing even where its name does not.
+    static func macSettingsEntries(_ panes: [CommandBarSystemSettings.Pane],
+                                   bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
+        panes.map { pane in
+            CommandBarEntry(
+                id: "macsettings.\(pane.bundleID)",
+                title: pane.name,
+                subtitle: bar.sourceMacSettings,
+                keywords: pane.keywords,
+                icon: .symbol("gearshape.2"),
+                run: { _ in
+                    guard let url = CommandBarSystemSettings.url(for: pane.bundleID) else {
+                        NSSound.beep()
+                        return
+                    }
+                    NSWorkspace.shared.open(url)
+                })
+        }
+    }
+
     // MARK: - Snippets
 
     private static func snippetEntries(_ bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
@@ -801,15 +871,12 @@ enum CommandBarCatalog {
         return apps.filter { $0.bundleID != ownBundleID }.map { app in
             let isRunning = app.bundleID.map { runningBundleIDs.contains($0) } ?? false
                 || runningPaths.contains(app.url.standardizedFileURL.path)
-             // The title is what Finder localizes it to, which is Chinese on a
-            // Chinese Mac, but the person may know the app by its English
-            // spelling or only by sound. The bundle's own file name ("WeChat")
-            // and the title's pinyin ("weixin", "wx") make both find 微信.
+            // The title may be localized while the bundle keeps the name the
+            // person learned, and an ideographic title may be easier to type
+            // by sound.
             let diskName = app.url.deletingPathExtension().lastPathComponent
-            var keywords = CommandBarSearch.pinyinKeywords(app.name)
-            if !diskName.isEmpty, diskName.caseInsensitiveCompare(app.name) != .orderedSame {
-                keywords += keywords.isEmpty ? diskName : " " + diskName
-            }
+            let keywords = CommandBarSearch.applicationKeywords(
+                title: app.name, diskName: diskName, alternateNames: app.alternateNames)
             return CommandBarEntry(
                 id: "app.\(app.id)",
                 // Two copies of one app need two rows, so the row is keyed by
@@ -820,6 +887,7 @@ enum CommandBarCatalog {
                 keywords: keywords,
                 icon: .appIcon(path: app.url.path),
                 isActive: isRunning,
+                revealPath: app.url.path,
                 run: { _ in
                     NSWorkspace.shared.openApplication(at: app.url,
                                                        configuration: NSWorkspace.OpenConfiguration()) { _, error in
@@ -1102,6 +1170,7 @@ enum CommandBarCatalog {
                 // Only a search or a script reads the words that follow its
                 // name; a plain site or folder opens the same either way.
                 takesArgument: link.takesArgument,
+                revealPath: CommandBarLinks.revealPath(for: link),
                 run: { _ in
                     if link.kind == .script {
                         runScript(link)
