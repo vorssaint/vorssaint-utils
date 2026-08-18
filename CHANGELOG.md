@@ -12,9 +12,9 @@ imported-video editing, local Command Bar scripts, recent captures, desktop
 window controls, formatted Scratchpad previews, edge-activated Shelf access and
 faster access to recording and maintenance tools. It also improves Clipboard
 access, Command Bar search and placement, capture, app discovery,
-conversions, volume, Switcher behavior, Settings reachability, menu bar sizing,
-setup screens, customizable Super key combinations, command-line setup,
-accidental middle clicks while typing and
+conversions, volume, Shelf drop feedback, Switcher behavior, Settings
+reachability, menu bar sizing, setup screens, customizable Super key
+combinations, command-line setup, accidental middle clicks while typing and
 compatibility with older development tools.
 
 ### Added
@@ -117,6 +117,8 @@ compatibility with older development tools.
 - The screenshot editor now lets you draw a new crop directly over the image.
 - Clipboard history now keeps large copied documents instead of silently
   dropping text after 20,000 characters.
+- Shelf tiles now show their pile count and controls immediately after another
+  item is dropped onto them. Thanks to @tenbux.
 - Window Layout now centers fixed-size windows and stops pending placements from
   undoing Full Screen.
 - The feedback text cursor now lines up with the empty-field hint.
