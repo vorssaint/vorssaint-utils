@@ -513,18 +513,9 @@ final class ShelfTileView: NSView, NSDraggingSource {
 
     override func concludeDragOperation(_ sender: NSDraggingInfo?) {
         setDropTargeted(false)
-        // mergePasteboard mutates ShelfService synchronously (whether the
-        // drag came from outside the app or from another tile), but SwiftUI's
-        // own updateNSView observably lags behind it while this AppKit drag
-        // session is still unwinding, leaving the merged tile visually stale
-        // until some unrelated later event forces a redraw. Rebuilding
-        // directly here, with the service's own current state, bypasses that
-        // lag for the one thing that has to be immediate: showing the drop
-        // actually worked. Deferred to here rather than done inline in
-        // performDragOperation: rebuildTiles tears down every tile,
-        // including self, and concludeDragOperation is the last AppKit
-        // callback expected on self for this drag, so self is safe to
-        // remove from the hierarchy by the time this runs.
+        // Rebuilds here, not in performDragOperation: this is the last
+        // callback AppKit makes on this tile for the drag, so it's safe
+        // for the rebuild to remove it from the view hierarchy.
         guard pendingRebuildAfterDrag, let scroll = superview?.enclosingScrollView else { return }
         pendingRebuildAfterDrag = false
         ShelfTilesView.rebuildTiles(scroll: scroll,
