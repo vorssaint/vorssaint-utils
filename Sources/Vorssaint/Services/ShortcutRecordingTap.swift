@@ -135,7 +135,7 @@ enum ShortcutRecordingTap {
                 switch superState.decide(superEvent) {
                 case .swallow, .soloTap: return nil
                 case .addModifiers: heldModifiers = SuperKeyService.shared.modifiers
-                case .pass, .remapNeeded: break
+                case .pass, .interceptAndRemap: break
                 }
             }
             if type == .keyDown {

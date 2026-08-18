@@ -47,6 +47,23 @@ final class ShelfService: ObservableObject {
 
         static func == (lhs: Item, rhs: Item) -> Bool { lhs.id == rhs.id }
 
+        /// Unlike `==`, which is id-only for selection and lookup purposes,
+        /// this compares what actually determines a tile's appearance.
+        /// Needed because replaceItem swaps in a same-id item with a
+        /// healed URL/title after a moved or renamed file's bookmark
+        /// resolves - an id-only comparison would call that unchanged.
+        func hasSameContent(as other: Item) -> Bool {
+            guard id == other.id, title == other.title, isImage == other.isImage else { return false }
+            switch (payload, other.payload) {
+            case let (.file(lhs), .file(rhs)): return lhs == rhs
+            case let (.text(lhs), .text(rhs)): return lhs == rhs
+            case let (.link(lhs), .link(rhs)): return lhs == rhs
+            case let (.batch(lhs), .batch(rhs)):
+                return lhs.count == rhs.count && zip(lhs, rhs).allSatisfy { $0.hasSameContent(as: $1) }
+            default: return false
+            }
+        }
+
         var isBatch: Bool {
             if case .batch = payload { return true }
             return false
@@ -61,6 +78,18 @@ final class ShelfService: ObservableObject {
             switch payload {
             case .file, .text, .link: return 1
             case let .batch(items): return items.reduce(0) { $0 + $1.leafCount }
+            }
+        }
+
+        /// This item flattened into the kinds ShelfTooltipSupport's pile
+        /// breakdown needs, recursing the same way leafCount does so a pile
+        /// containing another pile still counts every real leaf.
+        var tooltipLeafKinds: [ShelfTooltipLeafKind] {
+            switch payload {
+            case .file: return [isImage ? .image : .file]
+            case .text: return [.note]
+            case .link: return [.link]
+            case let .batch(items): return items.flatMap { $0.tooltipLeafKinds }
             }
         }
     }
@@ -82,6 +111,14 @@ final class ShelfService: ObservableObject {
     /// Last tile explicitly touched, used as the start of a Shift-click range.
     private var selectionAnchor: UUID?
     @Published private(set) var expandedBatches: Set<UUID> = []
+    /// The item most recently put on the shelf, so the tiles can scroll it
+    /// into view. Not persisted: it means "just now", and a relaunch has no
+    /// just now.
+    @Published private var lastAddedID: UUID?
+    /// Counts adds so the tiles can tell a genuine arrival from a redraw.
+    /// The resolved reveal target is not enough on its own: it changes when a
+    /// pile is expanded, and it repeats when two files land in the same pile.
+    @Published private(set) var addSerial = 0
     /// Pinning is intentionally session-only: it means "keep this open while
     /// I work", not "reopen a floating panel on every launch".
     @Published private(set) var isPinned = false
@@ -206,6 +243,25 @@ final class ShelfService: ObservableObject {
     var isVisible: Bool { panel?.isVisible == true }
     var itemCount: Int { items.reduce(0) { $0 + $1.leafCount } }
     var visibleItems: [Item] { visibleItems(in: items) }
+
+    /// The tile the view should scroll into view, or nil when there is
+    /// nothing to reveal. Resolved here because only the service knows the
+    /// item tree and which piles are expanded.
+    var revealTargetID: UUID? {
+        guard let lastAddedID else { return nil }
+        return ShelfRevealSupport.visibleAncestorID(of: lastAddedID,
+                                                    in: revealNodes(for: items),
+                                                    expanded: expandedBatches)
+    }
+
+    private func revealNodes(for items: [Item]) -> [ShelfRevealNode] {
+        items.map { item in
+            guard case let .batch(children) = item.payload else {
+                return ShelfRevealNode(id: item.id)
+            }
+            return ShelfRevealNode(id: item.id, children: revealNodes(for: children))
+        }
+    }
 
     static let tileDropTypes: [NSPasteboard.PasteboardType] = [
         .fileURL,
@@ -754,6 +810,7 @@ final class ShelfService: ObservableObject {
         guard edgePeekMatch != nil else { return }
         resetAutoHide()
         panel?.orderOut(nil)
+        ShelfTooltipPopover.shared.hide()
         scheduleDockedSync()
     }
 
@@ -805,6 +862,7 @@ final class ShelfService: ObservableObject {
     }
 
     func collapseDocked() {
+        ShelfTooltipPopover.shared.hide()
         dockedCollapsed = true
         if itemCount == 0 { dockedForcedOpen = false }
         scheduleDockedSync()
@@ -839,6 +897,7 @@ final class ShelfService: ObservableObject {
     private func hideDocked() {
         dockedForcedOpen = false
         guard let dockedPanel, dockedPanel.isVisible else { return }
+        ShelfTooltipPopover.shared.hide()
         dockedPanel.orderOut(nil)
     }
 
@@ -1005,6 +1064,12 @@ final class ShelfService: ObservableObject {
         cleanSelectionState()
         retireOwnedPayloads(in: removed)
         noteInteraction()
+        // A tooltip already showing for the removed tile, or a sibling
+        // whose pile just changed shape, has nothing left to describe.
+        // None of these removal paths (the close button, the trash
+        // button, a drag-out) go through a tile's own mouseDown, the
+        // only other place a showing tooltip gets hidden.
+        ShelfTooltipPopover.shared.hide()
     }
 
     /// Removes several items at once — used after a successful drag-out so the
@@ -1016,6 +1081,7 @@ final class ShelfService: ObservableObject {
         cleanSelectionState()
         retireOwnedPayloads(in: removed)
         noteInteraction()
+        ShelfTooltipPopover.shared.hide()
     }
 
     func clear() {
@@ -1026,6 +1092,7 @@ final class ShelfService: ObservableObject {
         expandedBatches = []
         retireOwnedPayloads(in: removed)
         noteInteraction()
+        ShelfTooltipPopover.shared.hide()
     }
 
     func toggleSelection(_ id: UUID) {
@@ -1260,7 +1327,13 @@ final class ShelfService: ObservableObject {
         }
         let additions = items(from: pasteboard)
         guard !additions.isEmpty else { return false }
-        return merge(additions, into: targetID)
+        guard merge(additions, into: targetID) else { return false }
+        // Only a genuinely external drop counts as an add: mergeInternalDrag
+        // reaches the shared merge below too, but that path is a removal
+        // plus a reparent of an existing tile, not new content arriving.
+        lastAddedID = dragItems(for: additions).last?.id
+        addSerial &+= 1
+        return true
     }
 
     func canAcceptPasteboard(_ pasteboard: NSPasteboard) -> Bool {
@@ -1276,6 +1349,9 @@ final class ShelfService: ObservableObject {
         let additions = items(from: pasteboard)
         guard !additions.isEmpty else { return false }
         items.append(contentsOf: additions)
+        // The last one is furthest down, so revealing it brings its siblings.
+        lastAddedID = additions.last?.id
+        addSerial &+= 1
         noteInteraction()
         return true
     }
@@ -1364,6 +1440,8 @@ final class ShelfService: ObservableObject {
 
     private func append(_ item: Item) {
         items.append(item)
+        lastAddedID = item.id
+        addSerial &+= 1
         noteInteraction()
     }
 
@@ -1487,6 +1565,12 @@ final class ShelfService: ObservableObject {
         removeItems(sourceIDs, from: &items, removed: &moved)
         guard merge(additions, into: targetID) else { return false }
         internalDragWasMerged = true
+        // Bypasses the public removeItem/removeItems wrappers (it's
+        // reparenting, not a user-facing removal), so it doesn't get the
+        // tooltip-hide those centralize. A drag always starts with
+        // mouseDown on the source tile, which already hides any showing
+        // tooltip, so this is defense in depth rather than a live gap.
+        ShelfTooltipPopover.shared.hide()
         return true
     }
 
@@ -1865,6 +1949,7 @@ final class ShelfService: ObservableObject {
         resetAutoHide()
         isPinned = false
         panel?.orderOut(nil)
+        ShelfTooltipPopover.shared.hide()
         scheduleDockedSync()
     }
 
@@ -2007,6 +2092,7 @@ final class ShelfService: ObservableObject {
             self.autoHideFadeTimer = nil
             self.autoHideFadeStart = nil
             panel.orderOut(nil)
+            ShelfTooltipPopover.shared.hide()
             panel.alphaValue = 1
             self.pointerInsidePanel = false
             self.dropTargeted = false

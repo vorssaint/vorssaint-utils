@@ -5345,6 +5345,104 @@ struct MetricsTests {
             hasDroppableContent: { fatalError("droppable check must stay lazy") }),
                "an unchanged pasteboard outside the Dock skips the content inspection")
 
+        // MARK: Shelf reveal
+
+        let revealChildA = UUID()
+        let revealChildB = UUID()
+        let revealNested = UUID()
+        let revealPile = UUID()
+        let revealDeepPile = UUID()
+        let revealLoose = UUID()
+        let revealTree = [
+            ShelfRevealNode(id: revealLoose),
+            ShelfRevealNode(id: revealPile, children: [
+                ShelfRevealNode(id: revealChildA),
+                ShelfRevealNode(id: revealDeepPile, children: [
+                    ShelfRevealNode(id: revealNested),
+                ]),
+            ]),
+            ShelfRevealNode(id: revealChildB),
+        ]
+
+        expect(ShelfRevealSupport.visibleAncestorID(of: revealLoose,
+                                                    in: revealTree,
+                                                    expanded: []) == revealLoose,
+               "a top level item reveals itself")
+        expect(ShelfRevealSupport.visibleAncestorID(of: revealChildA,
+                                                    in: revealTree,
+                                                    expanded: []) == revealPile,
+               "a child of a collapsed pile reveals the pile, since the child has no tile")
+        expect(ShelfRevealSupport.visibleAncestorID(of: revealChildA,
+                                                    in: revealTree,
+                                                    expanded: [revealPile]) == revealChildA,
+               "a child of an expanded pile reveals the child itself")
+        expect(ShelfRevealSupport.visibleAncestorID(of: revealNested,
+                                                    in: revealTree,
+                                                    expanded: []) == revealPile,
+               "an item two levels down reveals the outermost collapsed ancestor")
+        expect(ShelfRevealSupport.visibleAncestorID(of: revealNested,
+                                                    in: revealTree,
+                                                    expanded: [revealPile]) == revealDeepPile,
+               "expanding only the outer pile reveals the inner pile, not the item inside it")
+        expect(ShelfRevealSupport.visibleAncestorID(of: revealNested,
+                                                    in: revealTree,
+                                                    expanded: [revealPile, revealDeepPile]) == revealNested,
+               "expanding every ancestor reveals the item itself")
+        expect(ShelfRevealSupport.visibleAncestorID(of: UUID(),
+                                                    in: revealTree,
+                                                    expanded: []) == nil,
+               "an id that is not on the shelf reveals nothing")
+
+        expect(ShelfRevealSupport.shouldReveal(serial: 1, lastHonored: nil),
+               "the shelf's first ever add is always revealed")
+        expect(!ShelfRevealSupport.shouldReveal(serial: 1, lastHonored: 1),
+               "an already honored serial does not reveal again, e.g. a pile expanding with nothing added")
+        expect(ShelfRevealSupport.shouldReveal(serial: 2, lastHonored: 1),
+               "a new serial reveals even when the resolved target repeats, e.g. two drops into the same collapsed pile")
+
+        expect(ShelfTileLayout.columnCount(contentWidth: 276,
+                                           tileWidth: 78,
+                                           spacing: 10,
+                                           inset: 4) == 3,
+               "the shelf's own width fits three tile columns")
+        expect(ShelfTileLayout.columnCount(contentWidth: 40,
+                                           tileWidth: 78,
+                                           spacing: 10,
+                                           inset: 4) == 1,
+               "a width too small for one tile still reports a single column")
+
+        let revealTile = CGSize(width: 78, height: 88)
+        expect(ShelfTileLayout.tileFrame(index: 0,
+                                         columns: 3,
+                                         tileSize: revealTile,
+                                         spacing: 10,
+                                         inset: 4) == CGRect(x: 4, y: 4, width: 78, height: 88),
+               "the first tile sits at the inset")
+        expect(ShelfTileLayout.tileFrame(index: 2,
+                                         columns: 3,
+                                         tileSize: revealTile,
+                                         spacing: 10,
+                                         inset: 4) == CGRect(x: 180, y: 4, width: 78, height: 88),
+               "the last tile of the first row advances by the column stride")
+        expect(ShelfTileLayout.tileFrame(index: 3,
+                                         columns: 3,
+                                         tileSize: revealTile,
+                                         spacing: 10,
+                                         inset: 4) == CGRect(x: 4, y: 102, width: 78, height: 88),
+               "the fourth tile wraps to the second row")
+        expect(ShelfTileLayout.tileFrame(index: 6,
+                                         columns: 3,
+                                         tileSize: revealTile,
+                                         spacing: 10,
+                                         inset: 4) == CGRect(x: 4, y: 200, width: 78, height: 88),
+               "the seventh tile lands on the third row, the case this change exists for")
+        expect(ShelfTileLayout.tileFrame(index: 2,
+                                         columns: 1,
+                                         tileSize: revealTile,
+                                         spacing: 10,
+                                         inset: 4) == CGRect(x: 4, y: 200, width: 78, height: 88),
+               "a single column puts every tile in its own row")
+
         let singleScreen = [ShelfEdgeScreen(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
                                             visibleFrame: CGRect(x: 0, y: 0, width: 1920, height: 1080))]
         expect(ShelfEdgeDragSupport.match(at: CGPoint(x: 10, y: 500), screens: singleScreen,
@@ -5514,6 +5612,65 @@ struct MetricsTests {
                    && !ClipboardHistoryBatch.listOwnsSelectAllShortcut(batchCount: 0, queryIsEmpty: false)
                    && ClipboardHistoryBatch.listOwnsSelectAllShortcut(batchCount: 1, queryIsEmpty: false),
                "the list claims command-A over a selection or an empty search field")
+
+        // MARK: Shelf tile tooltip
+
+        let tooltipStrings = ShelfTooltipStrings(itemsFormat: "%d items",
+                                                 imageSingular: "%d image", imagePlural: "%d images",
+                                                 fileSingular: "%d file", filePlural: "%d files",
+                                                 noteSingular: "%d note", notePlural: "%d notes",
+                                                 linkSingular: "%d link", linkPlural: "%d links")
+
+        expectEqual(ShelfTooltipSupport.text(forFileNamed: "risaPOGCHAMP.gif", resolvedKind: "GIF Image"),
+                    "risaPOGCHAMP.gif\nGIF Image",
+                    "file tooltip shows the name and the resolved kind on separate lines")
+        expectEqual(ShelfTooltipSupport.text(forFileNamed: "mystery.xyz", resolvedKind: nil),
+                    "mystery.xyz",
+                    "file tooltip falls back to the name alone when the kind lookup failed")
+        expectEqual(ShelfTooltipSupport.text(forFileNamed: "mystery.xyz", resolvedKind: ""),
+                    "mystery.xyz",
+                    "an empty resolved kind is treated the same as no kind at all")
+
+        expectEqual(ShelfTooltipSupport.text(forText: "hello world"),
+                    "hello world",
+                    "text under the cap is shown unchanged")
+        expectEqual(ShelfTooltipSupport.text(forText: "  padded on both sides  "),
+                    "padded on both sides",
+                    "text tooltip trims the surrounding whitespace the stored payload keeps verbatim")
+        let longText = String(repeating: "a", count: 600)
+        expectEqual(ShelfTooltipSupport.text(forText: longText),
+                    String(repeating: "a", count: ShelfTooltipSupport.textCap) + "…",
+                    "text over the cap is truncated to exactly the cap length with a trailing ellipsis")
+
+        expectEqual(ShelfTooltipSupport.text(forLink: URL(string: "https://example.com/a/b?q=1")!),
+                    "https://example.com/a/b?q=1",
+                    "link tooltip shows the full URL, not just the host the tile's own title shows")
+
+        let emptyBreakdown = ShelfTooltipSupport.breakdown(of: [])
+        expect(emptyBreakdown.total == 0,
+               "an empty leaf list breaks down to all zero counts")
+        expectEqual(ShelfTooltipSupport.text(forPile: emptyBreakdown, strings: tooltipStrings),
+                    "0 items",
+                    "an empty pile's tooltip does not crash and carries no trailing colon with nothing after it")
+
+        let oneOfEachBreakdown = ShelfTooltipSupport.breakdown(of: [.image, .file, .note, .link])
+        expect(oneOfEachBreakdown.images == 1 && oneOfEachBreakdown.files == 1
+                   && oneOfEachBreakdown.notes == 1 && oneOfEachBreakdown.links == 1
+                   && oneOfEachBreakdown.total == 4,
+               "one leaf of each kind counts one of each and totals four")
+        expectEqual(ShelfTooltipSupport.text(forPile: oneOfEachBreakdown, strings: tooltipStrings),
+                    "4 items: 1 image, 1 file, 1 note, 1 link",
+                    "a pile with one of each kind lists all four in a fixed order, each in its singular form")
+
+        let sameKindBreakdown = ShelfTooltipSupport.breakdown(of: [.image, .image, .image])
+        expectEqual(ShelfTooltipSupport.text(forPile: sameKindBreakdown, strings: tooltipStrings),
+                    "3 items: 3 images",
+                    "a pile of only one kind omits the other three from the breakdown entirely")
+
+        let singularPluralBoundary = ShelfTooltipSupport.breakdown(of: [.image, .file, .file, .file])
+        expectEqual(ShelfTooltipSupport.text(forPile: singularPluralBoundary, strings: tooltipStrings),
+                    "4 items: 1 image, 3 files",
+                    "singular and plural forms are chosen per kind, not for the pile as a whole")
 
         // MARK: Middle click tap (issue #161)
 
@@ -8945,7 +9102,7 @@ struct MetricsTests {
                    "no em-dash in visible radial menu strings (\(language.rawValue))")
             let scratchpadValues = Mirror(reflecting: FeatureStrings.scratchpad(language)).children
                 .compactMap { $0.value as? String }
-            expect(scratchpadValues.count == 28 && scratchpadValues.allSatisfy { !$0.isEmpty },
+            expect(scratchpadValues.count == 30 && scratchpadValues.allSatisfy { !$0.isEmpty },
                    "every scratchpad string is set for \(language.rawValue)")
             expect(scratchpadValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible scratchpad strings (\(language.rawValue))")
@@ -9351,17 +9508,23 @@ struct MetricsTests {
                "the final active display can never be disabled")
         expect(!BrightnessSupport.canDisableDisplay(activeDisplayIDs: [1, 3], target: 8),
                "an inactive display cannot enter the disable path")
+        expect(BrightnessSupport.drawableDisplayIDs(
+            onlineDisplayIDs: [1, 2], activeDisplayIDs: [1, 2, 9], virtualDisplayIDs: [2]) == [1],
+               "only online active displays with a visible picture prevent recovery")
+        expect(BrightnessSupport.drawableDisplayIDs(
+            onlineDisplayIDs: [2], activeDisplayIDs: [2], virtualDisplayIDs: [2]).isEmpty,
+               "a virtual-only active display leaves the machine effectively headless")
         expect(BrightnessSupport.headlessRecoveryCandidates(
-            activeDisplayIDs: [3], managedDisabledIDs: [1], builtInDisabledIDs: [1]).isEmpty,
+            drawableDisplayIDs: [3], managedDisabledIDs: [1], builtInDisabledIDs: [1]).isEmpty,
                "an active external display preserves an intentionally disabled built-in panel")
         expect(BrightnessSupport.headlessRecoveryCandidates(
-            activeDisplayIDs: [], managedDisabledIDs: [1, 4], builtInDisabledIDs: [1]) == [1, 4],
+            drawableDisplayIDs: [], managedDisabledIDs: [1, 4], builtInDisabledIDs: [1]) == [1, 4],
                "losing the last active display tries the built-in panel before other managed displays")
         expect(BrightnessSupport.headlessRecoveryCandidates(
-            activeDisplayIDs: [], managedDisabledIDs: [7, 4], builtInDisabledIDs: []) == [4, 7],
+            drawableDisplayIDs: [], managedDisabledIDs: [7, 4], builtInDisabledIDs: []) == [4, 7],
                "a headless desktop Mac can recover one display switched off by this app")
         expect(BrightnessSupport.headlessRecoveryCandidates(
-            activeDisplayIDs: [], managedDisabledIDs: [], builtInDisabledIDs: [1]).isEmpty,
+            drawableDisplayIDs: [], managedDisabledIDs: [], builtInDisabledIDs: [1]).isEmpty,
                "a display disabled elsewhere is never changed during headless recovery")
 
         expect(BrightnessSupport.ddcCommandDelay(nowMicroseconds: 1_000_000,
@@ -10252,6 +10415,37 @@ struct MetricsTests {
         expect(ScreenCaptureTool.available(isAvailable: captureFeatures.contains)
                 == [.screenshot, .recording, .text, .color],
                "the capture chooser keeps a stable order for every installed mode")
+        expect(ScreenCaptureTool.allCases.map(\.shortcutKey) == ["1", "2", "3", "4"]
+                && ScreenCaptureTool.matchingShortcut("1") == .screenshot
+                && ScreenCaptureTool.matchingShortcut("2") == .recording
+                && ScreenCaptureTool.matchingShortcut("3") == .text
+                && ScreenCaptureTool.matchingShortcut("4") == .color
+                && ScreenCaptureTool.matchingShortcut("5") == nil,
+               "number keys select the same capture mode shown in the chooser")
+        expect(ScreenshotSupport.captureGuideIsVisible(pointerOnDisplay: true,
+                                                       selectionInProgress: false,
+                                                       capturePending: false)
+                && !ScreenshotSupport.captureGuideIsVisible(pointerOnDisplay: true,
+                                                            selectionInProgress: true,
+                                                            capturePending: false)
+                && !ScreenshotSupport.captureGuideIsVisible(pointerOnDisplay: true,
+                                                            selectionInProgress: false,
+                                                            capturePending: true)
+                && !ScreenshotSupport.captureGuideIsVisible(pointerOnDisplay: false,
+                                                            selectionInProgress: false,
+                                                            capturePending: false),
+               "the capture chooser disappears for the whole drag and while capture is pending")
+        let captureSelectionSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift",
+            encoding: .utf8)) ?? ""
+        expect(captureSelectionSource.contains(
+            "override func mouseExited(with event: NSEvent) {\n        refreshGuideVisibility()"),
+               "system chrome cannot hide the capture chooser while the pointer remains on its display")
+        expect(captureSelectionSource.contains(
+            "let height: CGFloat = screenCaptureOptions != nil\n            ? 146\n            : 72")
+                && captureSelectionSource.contains(
+                    ".opacity(options.selectedTool == .recording ? 1 : 0)"),
+               "capture modes reserve the recording controls' height so the chooser never jumps")
 
         let cocoa = ScreenshotSupport.cocoaRect(fromWindowServer: CGRect(x: 10, y: 30, width: 200, height: 100),
                                                 mainScreenHeight: 900)
@@ -10841,6 +11035,27 @@ struct MetricsTests {
                 && !ScratchpadSupport.dismissesOnOutsideClick(isPinned: true, exportModalActive: false)
                 && !ScratchpadSupport.dismissesOnOutsideClick(isPinned: false, exportModalActive: true),
                "the scratchpad pin and export dialog both block outside-click dismissal")
+        let markdownPreview = ScratchpadSupport.markdownPreview(
+            "# Heading\n\n**Bold** and *italic* with [link](https://example.com)\n\n- First\n- Second\n\n1. Third\n\n```\ncode\n```")
+        expect(markdownPreview.map(\.kind) == [
+                    .heading(1), .paragraph,
+                    .unorderedListItem(depth: 1), .unorderedListItem(depth: 1),
+                    .orderedListItem(ordinal: 1, depth: 1), .code
+                ]
+                && String(markdownPreview[0].text.characters) == "Heading"
+                && String(markdownPreview[2].text.characters) == "First"
+                && String(markdownPreview[5].text.characters) == "code"
+                && markdownPreview[2].containerID == markdownPreview[3].containerID
+                && markdownPreview[2].containerID != nil
+                && markdownPreview[3].containerID != markdownPreview[4].containerID
+                && markdownPreview[1].text.runs.contains {
+                    $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true
+                }
+                && markdownPreview[1].text.runs.contains {
+                    $0.inlinePresentationIntent?.contains(.emphasized) == true
+                }
+                && markdownPreview[1].text.runs.contains { $0.link != nil },
+               "the scratchpad preview renders semantic blocks and inline formatting")
         expect(Defaults.registeredDefaults[DefaultsKey.scratchpadBackgroundOpacity] as? Double == 0.0,
                "the scratchpad keeps its familiar translucent background by default")
         expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.scratchpadBackgroundOpacity),
@@ -11365,8 +11580,8 @@ struct MetricsTests {
         expect(strandedState.decide(.otherKey) == .pass,
                "a key held while the tap goes away cannot leave typing stuck in modifiers")
         var unmappedKeyboardState = SuperKeySupport.State()
-        expect(unmappedKeyboardState.decide(.capsLock) == .remapNeeded,
-               "a real caps lock means that keyboard still needs the mapping")
+        expect(unmappedKeyboardState.decide(.capsLock) == .interceptAndRemap,
+               "a raw caps lock is intercepted while that keyboard's mapping is repaired")
 
         // MARK: Mouse app exceptions (issue #358)
 
@@ -13612,6 +13827,25 @@ struct MetricsTests {
                                         keywords: "Recent captures screenshot recording",
                                         query: "recent captures"),
                "recent captures stays searchable by its familiar English name")
+        expect(CommandBarSearch.pinyinKeywords("云笔记") == "yunbiji ybj",
+               "pinyin keywords run the syllables together and add the initials")
+        expect(CommandBarSearch.pinyinKeywords("Reader").isEmpty,
+               "a name without Han characters gets no pinyin keywords")
+        let pinyinKeywords = CommandBarSearch.pinyinKeywords("云笔记")
+        expect(CommandBarSearch.matches(title: "云笔记", keywords: pinyinKeywords,
+                                        query: "yunbiji"),
+               "a Chinese title is found by its pinyin")
+        expect(CommandBarSearch.matches(title: "云笔记", keywords: pinyinKeywords, query: "ybj"),
+               "a Chinese title is found by its pinyin initials")
+        let applicationKeywords = CommandBarSearch.applicationKeywords(
+            title: "云笔记", diskName: "CloudNotes", alternateNames: ["Former Notes"])
+        expect(CommandBarSearch.matches(title: "云笔记", keywords: applicationKeywords,
+                                        query: "cloudnotes")
+                && CommandBarSearch.matches(title: "云笔记", keywords: applicationKeywords,
+                                            query: "former")
+                && CommandBarSearch.matches(title: "云笔记", keywords: applicationKeywords,
+                                            query: "yunbiji"),
+               "an app keeps its disk, alternate and phonetic names searchable")
         expect(CommandBarSearch.matches(title: "Silenciar microfone", query: "silenciar micro"),
                "tokens match in any order as prefixes")
         expect(!CommandBarSearch.matches(title: "Silenciar microfone", query: "silenciar tela"),

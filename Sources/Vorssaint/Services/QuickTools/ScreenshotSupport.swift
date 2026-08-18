@@ -13,6 +13,20 @@ enum ScreenCaptureTool: String, CaseIterable {
     case text
     case color
 
+    var shortcutKey: String {
+        switch self {
+        case .screenshot: return "1"
+        case .recording: return "2"
+        case .text: return "3"
+        case .color: return "4"
+        }
+    }
+
+    static func matchingShortcut(_ characters: String?) -> ScreenCaptureTool? {
+        guard let characters else { return nil }
+        return allCases.first { $0.shortcutKey == characters }
+    }
+
     var feature: AppFeature {
         switch self {
         case .screenshot: return .screenshot
@@ -51,6 +65,12 @@ enum ScreenCaptureTool: String, CaseIterable {
 /// pixels, the annotation model and file naming. No AppKit so the unit test
 /// harness compiles it standalone.
 enum ScreenshotSupport {
+
+    static func captureGuideIsVisible(pointerOnDisplay: Bool,
+                                      selectionInProgress: Bool,
+                                      capturePending: Bool) -> Bool {
+        pointerOnDisplay && !selectionInProgress && !capturePending
+    }
 
     // MARK: - Preferences
 

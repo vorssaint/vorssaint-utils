@@ -9,19 +9,23 @@ All notable changes to this project are documented here. The format follows
 ### Summary
 Vorssaint 3.3.2 adds unified screen capture, batch image conversion,
 imported-video editing, local Command Bar scripts, recent captures, desktop
-window controls, edge-activated Shelf access and faster access to recording
-and maintenance tools. It also improves Clipboard access, Command Bar search and
-placement, capture, app discovery,
-conversions, volume, Switcher behavior, Settings reachability, menu bar sizing,
-setup screens, customizable Super key combinations, command-line setup,
-accidental middle clicks while typing and
+window controls, formatted Scratchpad previews, edge-activated Shelf access and
+faster access to recording and maintenance tools. It also improves Clipboard
+access, Command Bar search and placement, capture, app discovery,
+conversions, volume, Shelf details and drop feedback, Switcher behavior, Settings
+reachability, menu bar sizing, setup screens, customizable Super key
+combinations, command-line setup, accidental middle clicks while typing and
 compatibility with older development tools.
 
 ### Added
-- One screen-capture shortcut now opens a shared selector for screenshots,
-  recordings, screen text and colors. It only shows installed tools and keeps
-  recording sound and microphone choices beside the mode selector. Their
-  settings now live on one page with native controls for each installed mode.
+- Scratchpad can now preview Markdown formatting while keeping every note as
+  editable plain text.
+- One screen-capture shortcut now opens a floating palette for screenshots,
+  recordings, screen text and colors, with every installed tool and its 1
+  through 4 key visible at once. It stays available across system edges, keeps
+  its position as modes change and disappears as soon as selection begins. It
+  keeps recording sound and microphone choices nearby and puts every mode's
+  settings on one page.
 - Media now converts images in batches with resizing, watermarks, renaming and
   reusable profiles. Thanks to @ruvelro.
 - Saved Command Bar shortcuts can now run local scripts and show their results as
@@ -57,7 +61,8 @@ compatibility with older development tools.
   everything you type into the bar, it is forgotten when the app quits.
   Thanks to @ruvelro.
 - The Command Bar now finds apps by alternate names macOS knows, including
-  older and localized names. Thanks to @ruvelro.
+  older and localized names. Localized Chinese app names also answer to their
+  name on disk, full pronunciation and initials. Thanks to @ruvelro and @tingke.
 - Clipboard history now opens as a compact palette with uncluttered rows and an
   on-demand preview for reading or editing the full item.
 - Menu bar icons now match surrounding icons in size and alignment. Thanks to @bambidotexe.
@@ -94,6 +99,8 @@ compatibility with older development tools.
   and Escape to clear the selection. Thanks to @cimu233.
 - Shelf can now open when a dragged file reaches a screen edge. Enable it under
   Shelf. Thanks to @tenbux.
+- Shelf tiles now show their full name, file kind or content on hover, and scroll
+  newly added items into view. Thanks to @tenbux.
 - The simple App Switcher now shows and cycles through individual windows without
   previews. Turn on Show one entry per app to group them.
 - The App Switcher now marks windows that are on another desktop.
@@ -113,6 +120,8 @@ compatibility with older development tools.
 - The screenshot editor now lets you draw a new crop directly over the image.
 - Clipboard history now keeps large copied documents instead of silently
   dropping text after 20,000 characters.
+- Shelf tiles now show their pile count and controls immediately after another
+  item is dropped onto them. Thanks to @tenbux.
 - Window Layout now centers fixed-size windows and stops pending placements from
   undoing Full Screen.
 - The feedback text cursor now lines up with the empty-field hint.
@@ -163,7 +172,8 @@ compatibility with older development tools.
 - Full-screen video windows now remain available in App Switcher and Dock Preview.
 - The app no longer quits while typing when the Switcher's Windows shortcut uses a
   key whose label comes from the keyboard layout. Thanks to @eioz.
-- The Super key now works when Caps Lock is set to do nothing.
+- The Super key now works when Caps Lock is set to do nothing and no longer
+  leaves Caps Lock active while repairing a keyboard mapping.
 - Dock Preview controls no longer show an oversized blue effect when focused or
   hovered.
 - The Volume Mixer now restores sound if an app's volume adjustment stops

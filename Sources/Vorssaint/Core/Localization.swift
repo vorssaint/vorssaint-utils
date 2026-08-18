@@ -621,6 +621,15 @@ struct Strings {
     let shelfSelectedFormat: String      // + count
     let shelfHint: String
     let shelfItemImage: String
+    let shelfTooltipItemsFormat: String      // + count, always plural: a pile always has 2+
+    let shelfTooltipImageSingular: String    // + count == 1
+    let shelfTooltipImagePlural: String      // + count
+    let shelfTooltipFileSingular: String     // + count == 1
+    let shelfTooltipFilePlural: String       // + count
+    let shelfTooltipNoteSingular: String     // + count == 1
+    let shelfTooltipNotePlural: String       // + count
+    let shelfTooltipLinkSingular: String     // + count == 1
+    let shelfTooltipLinkPlural: String       // + count
     let shelfActionOpen: String
     let shelfActionOpenWith: String
     let shelfActionAirDrop: String
@@ -1547,6 +1556,15 @@ extension Strings {
         shelfSelectedFormat: "%d selecionados",
         shelfHint: "Clique para selecionar. Arraste para usar ou clique com o botão direito para mais ações.",
         shelfItemImage: "Imagem",
+        shelfTooltipItemsFormat: "%d itens",
+        shelfTooltipImageSingular: "%d imagem",
+        shelfTooltipImagePlural: "%d imagens",
+        shelfTooltipFileSingular: "%d arquivo",
+        shelfTooltipFilePlural: "%d arquivos",
+        shelfTooltipNoteSingular: "%d nota",
+        shelfTooltipNotePlural: "%d notas",
+        shelfTooltipLinkSingular: "%d link",
+        shelfTooltipLinkPlural: "%d links",
         shelfActionOpen: "Abrir",
         shelfActionOpenWith: "Abrir com",
         shelfActionAirDrop: "Compartilhar por AirDrop",
@@ -2453,6 +2471,15 @@ extension Strings {
         shelfSelectedFormat: "%d selected",
         shelfHint: "Click to select. Drag out to use or right-click for more actions.",
         shelfItemImage: "Image",
+        shelfTooltipItemsFormat: "%d items",
+        shelfTooltipImageSingular: "%d image",
+        shelfTooltipImagePlural: "%d images",
+        shelfTooltipFileSingular: "%d file",
+        shelfTooltipFilePlural: "%d files",
+        shelfTooltipNoteSingular: "%d note",
+        shelfTooltipNotePlural: "%d notes",
+        shelfTooltipLinkSingular: "%d link",
+        shelfTooltipLinkPlural: "%d links",
         shelfActionOpen: "Open",
         shelfActionOpenWith: "Open With",
         shelfActionAirDrop: "Share with AirDrop",

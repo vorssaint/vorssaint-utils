@@ -387,9 +387,20 @@ final class SuperKeyService: ObservableObject {
         case .soloTap:
             DispatchQueue.main.async { [weak self] in self?.performSoloAction() }
             return nil
-        case .remapNeeded:
+        case .interceptAndRemap:
             repairMappingIfStale()
-            return Unmanaged.passUnretained(event)
+            // At the session tap the missing mapping may already have flipped
+            // the lock state. Keep that raw event out of apps and put Caps
+            // Lock back off while the keyboard mapping is repaired.
+            DispatchQueue.main.async { [weak self] in
+                guard let self,
+                      self.lifecycleLock.withLock({
+                          self.tap != nil && !self.shouldStopTapThread
+                      })
+                else { return }
+                self.setCapsLock(false)
+            }
+            return nil
         }
     }
 

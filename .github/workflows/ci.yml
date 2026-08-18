@@ -12,7 +12,7 @@ jobs:
     env:
       DEVELOPER_DIR: /Applications/Xcode_16.2.app/Contents/Developer
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Verify toolchain
         run: |
@@ -32,7 +32,7 @@ jobs:
     name: Build & selftest
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Unit tests
         run: ./build.sh --test
@@ -53,7 +53,7 @@ jobs:
         run: ./Tools/make-dmg.sh
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: Vorssaint-dmg
           path: dist/*.dmg
