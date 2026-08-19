@@ -105,6 +105,12 @@ enum MouseNavigationSupport {
         urlHandlers.intersection(documentHandlers)
     }
 
+    static func shouldRefreshWebHandlers(isApplicationActivation: Bool,
+                                         activatedPID: pid_t?,
+                                         ownPID: pid_t) -> Bool {
+        !isApplicationActivation || activatedPID == ownPID
+    }
+
     static func shouldPassThrough(bundleIdentifier: String?,
                                   webURLHandlers: Set<String> = []) -> Bool {
         guard let bundleIdentifier else { return false }

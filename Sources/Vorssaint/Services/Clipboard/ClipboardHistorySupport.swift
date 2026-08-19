@@ -124,6 +124,8 @@ enum ClipboardHistoryEditing {
     /// A copied document should stay available, while a pathological
     /// pasteboard payload still has a firm in-memory and on-disk bound.
     static let maxCharacters = 1_000_000
+    static let maxStoredTextUTF8Bytes = 64 * 1_024 * 1_024
+    static let maxEncodedHistoryBytes = 96 * 1_024 * 1_024
     /// Rows only need enough text to fill their three visible lines. Keeping
     /// this bounded prevents a very large saved document from being copied
     /// again merely to draw its list preview.
@@ -139,6 +141,37 @@ enum ClipboardHistoryEditing {
     static func canSave(original: String, draft: String) -> Bool {
         guard let text = storableText(draft) else { return false }
         return text != original
+    }
+
+    static func retainedEntries(_ entries: [ClipboardHistoryEntry],
+                                recentLimit: Int,
+                                textByteLimit: Int = maxStoredTextUTF8Bytes) -> [ClipboardHistoryEntry] {
+        var remainingBytes = max(0, textByteLimit)
+        func retained(_ candidates: [ClipboardHistoryEntry], limit: Int?) -> [ClipboardHistoryEntry] {
+            var result: [ClipboardHistoryEntry] = []
+            for entry in candidates {
+                if let limit, result.count >= limit { break }
+                let byteCount = entry.kind == .text ? entry.text.utf8.count : 0
+                guard byteCount <= remainingBytes else { continue }
+                remainingBytes -= byteCount
+                result.append(entry)
+            }
+            return result
+        }
+        let pinned = retained(entries.filter(\.isPinned), limit: nil)
+        let recent = retained(entries.filter { !$0.isPinned }, limit: max(0, recentLimit))
+        return pinned + recent
+    }
+
+    static func preservesPinnedEntries(from original: [ClipboardHistoryEntry],
+                                       in retained: [ClipboardHistoryEntry]) -> Bool {
+        let retainedIDs = Set(retained.map(\.id))
+        return original.lazy.filter(\.isPinned).allSatisfy { retainedIDs.contains($0.id) }
+    }
+
+    static func canLoadEncodedHistory(byteCount: Int?) -> Bool {
+        guard let byteCount else { return false }
+        return byteCount >= 0 && byteCount <= maxEncodedHistoryBytes
     }
 }
 
@@ -322,6 +355,14 @@ enum ClipboardHistoryBatch {
             if case let .text(text) = part { return text }
             return nil
         })
+    }
+}
+
+enum ClipboardHistoryCapturePolicy {
+    static func isCopiedScreenshot(_ paths: [String], in directory: URL?) -> Bool {
+        guard paths.count == 1,
+              let directory else { return false }
+        return ScreenshotSupport.isCopiedScreenshot(URL(fileURLWithPath: paths[0]), in: directory)
     }
 }
 

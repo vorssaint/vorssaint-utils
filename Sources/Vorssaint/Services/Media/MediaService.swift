@@ -88,6 +88,8 @@ enum MediaFailure: Equatable {
     case sameOutput
     case unsupported
     case imageTooLarge
+    case gifTooLong(maxSeconds: Int)
+    case watermarkUnavailable
     case cancelled
     case failed(String)
 }
@@ -197,6 +199,9 @@ final class MediaService: ObservableObject {
         let id = UUID()
         let token = MediaCancellationToken()
         lock.lock()
+        self.token?.cancel()
+        self.activeProcess?.terminate()
+        self.activeVisionRequest?.cancel()
         self.operationID = id
         self.token = token
         self.activeProcess = nil
@@ -222,9 +227,10 @@ final class MediaService: ObservableObject {
     private func compressVideoWork(inputURL: URL, outputURL: URL, options: MediaVideoOptions,
                                    operationID: UUID, token: MediaCancellationToken) throws {
         let started = Date()
-        try prepareOutput(inputURL: inputURL, outputURL: outputURL)
+        let stagedOutputURL = try stagedOutput(inputURL: inputURL, outputURL: outputURL)
+        defer { MediaSupport.discardStagedOutput(stagedOutputURL) }
         let asset = AVURLAsset(url: inputURL)
-        let metadata = try loadVideoMetadata(from: asset, includeDisplaySize: true)
+        let metadata = try loadVideoMetadata(from: asset, includeDisplaySize: true, token: token)
         let trim = MediaSupport.sanitizedTrim(start: options.start,
                                               end: options.end,
                                               assetDuration: metadata.duration)
@@ -240,7 +246,7 @@ final class MediaService: ObservableObject {
         process.arguments = [
             "--source", inputURL.path,
             "--preset", preset,
-            "--output", outputURL.path,
+            "--output", stagedOutputURL.path,
             "--replace",
             "--progress",
             "--start", String(format: "%.3f", trim.start),
@@ -262,8 +268,11 @@ final class MediaService: ObservableObject {
             if log.count > 8_000 { log.removeFirst(log.count - 8_000) }
             logLock.unlock()
         }
-        setActive(process: process)
-        try process.run()
+        defer {
+            pipe.fileHandleForReading.readabilityHandler = nil
+            if process.isRunning { process.terminate() }
+        }
+        try launch(process: process, operationID: operationID, token: token)
         while process.isRunning {
             try checkCancellation(token)
             let elapsed = Date().timeIntervalSince(started)
@@ -271,9 +280,7 @@ final class MediaService: ObservableObject {
             publish(.running(progress: min(0.95, elapsed / estimate), message: "video"), operationID: operationID)
             Thread.sleep(forTimeInterval: 0.08)
         }
-        pipe.fileHandleForReading.readabilityHandler = nil
         if token.isCancelled {
-            process.terminate()
             throw MediaFailureBox(.cancelled)
         }
         guard process.terminationStatus == 0 else {
@@ -282,6 +289,7 @@ final class MediaService: ObservableObject {
             logLock.unlock()
             throw MediaFailureBox(.failed(message.isEmpty ? "avconvert failed." : message))
         }
+        try commit(stagedOutputURL, at: outputURL, operationID: operationID, token: token)
         MediaSupport.makeVisibleIfNeeded(outputURL)
         publish(.running(progress: 1, message: "video"), operationID: operationID)
         let result = MediaResult(tool: .videoCompressor,
@@ -297,37 +305,44 @@ final class MediaService: ObservableObject {
     private func makeGIFWork(inputURL: URL, outputURL: URL, options: MediaGIFOptions,
                              operationID: UUID, token: MediaCancellationToken) throws {
         let started = Date()
-        try prepareOutput(inputURL: inputURL, outputURL: outputURL)
+        let stagedOutputURL = try stagedOutput(inputURL: inputURL, outputURL: outputURL)
+        defer { MediaSupport.discardStagedOutput(stagedOutputURL) }
         let asset = AVURLAsset(url: inputURL)
-        let metadata = try loadVideoMetadata(from: asset, includeDisplaySize: false)
+        let metadata = try loadVideoMetadata(from: asset, includeDisplaySize: false, token: token)
         let trim = MediaSupport.sanitizedTrim(start: options.start,
                                               end: options.end,
                                               assetDuration: metadata.duration)
         guard trim.duration > 0 else { throw MediaFailureBox(.unsupported) }
         let fps = MediaSupport.sanitizedFPS(options.fps, fallback: 12, maxFPS: 30)
-        let frameCount = max(1, Int((trim.duration * fps).rounded(.up)))
+        guard let frameCount = MediaSupport.safeGIFFrameCount(duration: trim.duration, fps: fps) else {
+            throw MediaFailureBox(.gifTooLong(maxSeconds: MediaSupport.maximumGIFDuration(fps: fps)))
+        }
         let delay = 1 / fps
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
         generator.requestedTimeToleranceBefore = .zero
         generator.requestedTimeToleranceAfter = .zero
+        let maximumFrameDimension = CGFloat(max(1, options.width))
+        generator.maximumSize = CGSize(width: maximumFrameDimension, height: maximumFrameDimension)
 
-        guard let destination = CGImageDestinationCreateWithURL(outputURL as CFURL,
+        guard let destination = CGImageDestinationCreateWithURL(stagedOutputURL as CFURL,
                                                                UTType.gif.identifier as CFString,
                                                                frameCount,
                                                                nil) else {
             throw MediaFailureBox(.unsupported)
         }
-        CGImageDestinationSetProperties(destination, [
-            kCGImagePropertyGIFDictionary: [
-                kCGImagePropertyGIFLoopCount: options.loops ? 0 : 1,
-            ],
-        ] as CFDictionary)
+        if let loopCount = MediaSupport.gifLoopCount(loops: options.loops) {
+            CGImageDestinationSetProperties(destination, [
+                kCGImagePropertyGIFDictionary: [
+                    kCGImagePropertyGIFLoopCount: loopCount,
+                ],
+            ] as CFDictionary)
+        }
 
         for index in 0..<frameCount {
             try checkCancellation(token)
             let second = min(trim.end, trim.start + Double(index) / fps)
-            let image = try generateCGImage(from: generator, at: seconds(second))
+            let image = try generateCGImage(from: generator, at: seconds(second), token: token)
             let resized = resize(image, maxDimension: options.width) ?? image
             CGImageDestinationAddImage(destination, resized, [
                 kCGImagePropertyGIFDictionary: [
@@ -340,6 +355,7 @@ final class MediaService: ObservableObject {
         }
 
         guard CGImageDestinationFinalize(destination) else { throw MediaFailureBox(.unsupported) }
+        try commit(stagedOutputURL, at: outputURL, operationID: operationID, token: token)
         MediaSupport.makeVisibleIfNeeded(outputURL)
         let result = MediaResult(tool: .gifMaker,
                                  inputURL: inputURL,
@@ -369,12 +385,24 @@ final class MediaService: ObservableObject {
         var reservedOutputPaths = Set<String>()
         var originalBytes: Int64 = 0
         var outputBytes: Int64 = 0
+        let watermarkLogo: CGImage?
+        if options.watermark.usesLogo {
+            guard let logo = MediaSupport.watermarkLogo(atPath: options.watermark.logoPath) else {
+                throw MediaFailureBox(.watermarkUnavailable)
+            }
+            watermarkLogo = logo
+        } else {
+            watermarkLogo = nil
+        }
 
         for (offset, inputURL) in inputs.enumerated() {
             try checkCancellation(token)
             let inputBytes = fileSize(inputURL)
             do {
-                let prepared = try makeProcessedImage(inputURL: inputURL, options: options, token: token)
+                let prepared = try makeProcessedImage(inputURL: inputURL,
+                                                      options: options,
+                                                      watermarkLogo: watermarkLogo,
+                                                      token: token)
                 let outputURL = explicitOutputURL ?? MediaSupport.imageOutputURL(for: inputURL,
                                                                                  outputDirectory: outputDirectory,
                                                                                  options: options,
@@ -382,11 +410,13 @@ final class MediaService: ObservableObject {
                                                                                  outputSize: prepared.size,
                                                                                  reservedPaths: reservedOutputPaths)
                 reservedOutputPaths.insert(outputURL.standardizedFileURL.path)
-                try prepareOutput(inputURL: inputURL, outputURL: outputURL)
+                let stagedOutputURL = try stagedOutput(inputURL: inputURL, outputURL: outputURL)
+                defer { MediaSupport.discardStagedOutput(stagedOutputURL) }
                 try writeImage(prepared.image,
                                properties: prepared.properties,
-                               outputURL: outputURL,
+                               outputURL: stagedOutputURL,
                                options: options)
+                try commit(stagedOutputURL, at: outputURL, operationID: operationID, token: token)
                 MediaSupport.makeVisibleIfNeeded(outputURL)
                 preserveModificationDateIfNeeded(from: inputURL, to: outputURL, options: options)
                 let itemOutputBytes = fileSize(outputURL)
@@ -441,6 +471,7 @@ final class MediaService: ObservableObject {
 
     private func makeProcessedImage(inputURL: URL,
                                     options: MediaImageOptions,
+                                    watermarkLogo: CGImage?,
                                     token: MediaCancellationToken) throws -> PreparedImage {
         guard let source = CGImageSourceCreateWithURL(inputURL as CFURL, nil),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else {
@@ -454,7 +485,11 @@ final class MediaService: ObservableObject {
         guard MediaSupport.imageRenderSizeIsSafe(expectedSize) else {
             throw MediaFailureBox(.imageTooLarge)
         }
-        let maxPixel = max(1, max(Int(expectedSize.width.rounded()), Int(expectedSize.height.rounded())))
+        guard let maxPixel = MediaSupport.imageDecodeMaxPixel(sourceSize: sourceSize,
+                                                              targetSize: expectedSize,
+                                                              resizeMode: options.resizeMode) else {
+            throw MediaFailureBox(.imageTooLarge)
+        }
         let imageOptions: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
@@ -474,6 +509,7 @@ final class MediaService: ObservableObject {
                                       targetSize: targetSize,
                                       resizeMode: options.resizeMode,
                                       watermark: options.watermark,
+                                      watermarkLogo: watermarkLogo,
                                       background: options.background,
                                       forceOpaque: options.format == .jpeg || options.format == .pdf) else {
             throw MediaFailureBox(.unsupported)
@@ -510,7 +546,14 @@ final class MediaService: ObservableObject {
                                  operationID: UUID, token: MediaCancellationToken) throws {
         let started = Date()
         guard let source = CGImageSourceCreateWithURL(inputURL as CFURL, nil),
-              let image = CGImageSourceCreateImageAtIndex(source, 0, [
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let sourceSize = MediaSupport.imageDisplaySize(properties: properties) else {
+            throw MediaFailureBox(.unsupported)
+        }
+        guard MediaSupport.imageRenderSizeIsSafe(sourceSize) else {
+            throw MediaFailureBox(.imageTooLarge)
+        }
+        guard let image = CGImageSourceCreateImageAtIndex(source, 0, [
                   kCGImageSourceShouldCacheImmediately: true,
               ] as CFDictionary) else {
             throw MediaFailureBox(.unsupported)
@@ -524,7 +567,7 @@ final class MediaService: ObservableObject {
             let desired = options.recognitionLanguages.filter { supported.contains($0) }
             if !desired.isEmpty { request.recognitionLanguages = desired }
         }
-        setActiveVisionRequest(request)
+        try setActiveVisionRequest(request, operationID: operationID, token: token)
         let handler = VNImageRequestHandler(cgImage: image, options: [:])
         try handler.perform([request])
         try checkCancellation(token)
@@ -532,8 +575,10 @@ final class MediaService: ObservableObject {
             .compactMap { $0.topCandidates(1).first?.string }
             .joined(separator: "\n")
         if let outputURL {
-            try prepareTextOutput(inputURL: inputURL, outputURL: outputURL)
-            try text.write(to: outputURL, atomically: true, encoding: .utf8)
+            let stagedOutputURL = try stagedOutput(inputURL: inputURL, outputURL: outputURL)
+            defer { MediaSupport.discardStagedOutput(stagedOutputURL) }
+            try text.write(to: stagedOutputURL, atomically: true, encoding: .utf8)
+            try commit(stagedOutputURL, at: outputURL, operationID: operationID, token: token)
             MediaSupport.makeVisibleIfNeeded(outputURL)
         }
         let result = MediaResult(tool: .textExtractor,
@@ -552,22 +597,23 @@ final class MediaService: ObservableObject {
         state = .failed(.unsupported)
     }
 
-    private func prepareOutput(inputURL: URL, outputURL: URL) throws {
-        guard inputURL.standardizedFileURL.path != outputURL.standardizedFileURL.path else {
+    private func stagedOutput(inputURL: URL, outputURL: URL) throws -> URL {
+        guard !MediaSupport.fileURLsReferToSameItem(inputURL, outputURL) else {
             throw MediaFailureBox(.sameOutput)
         }
-        if FileManager.default.fileExists(atPath: outputURL.path) {
-            try FileManager.default.removeItem(at: outputURL)
-        }
+        return try MediaSupport.temporaryOutputURL(for: outputURL)
     }
 
-    private func prepareTextOutput(inputURL: URL, outputURL: URL) throws {
-        guard inputURL.standardizedFileURL.path != outputURL.standardizedFileURL.path else {
-            throw MediaFailureBox(.sameOutput)
+    private func commit(_ stagedURL: URL,
+                        at outputURL: URL,
+                        operationID: UUID,
+                        token: MediaCancellationToken) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard self.operationID == operationID, !token.isCancelled else {
+            throw MediaFailureBox(.cancelled)
         }
-        if FileManager.default.fileExists(atPath: outputURL.path) {
-            try FileManager.default.removeItem(at: outputURL)
-        }
+        try MediaSupport.installStagedOutput(stagedURL, at: outputURL)
     }
 
     private func resize(_ image: CGImage, maxDimension: Int) -> CGImage? {
@@ -592,6 +638,7 @@ final class MediaService: ObservableObject {
                              targetSize: CGSize,
                              resizeMode: MediaImageResizeMode,
                              watermark: MediaImageWatermark,
+                             watermarkLogo: CGImage?,
                              background: MediaImageBackground,
                              forceOpaque: Bool) -> CGImage? {
         let width = max(1, Int(targetSize.width.rounded()))
@@ -628,7 +675,7 @@ final class MediaService: ObservableObject {
                                                  fraction: 1,
                                                  respectFlipped: false,
                                                  hints: [.interpolation: NSImageInterpolation.high.rawValue])
-        drawWatermark(watermark, canvasSize: size)
+        drawWatermark(watermark, logo: watermarkLogo, canvasSize: size)
         NSGraphicsContext.current = previous
         return rep.cgImage
     }
@@ -668,17 +715,18 @@ final class MediaService: ObservableObject {
         }
     }
 
-    private func drawWatermark(_ watermark: MediaImageWatermark, canvasSize: NSSize) {
+    private func drawWatermark(_ watermark: MediaImageWatermark,
+                               logo: CGImage?,
+                               canvasSize: NSSize) {
         guard watermark.isEnabled, let context = NSGraphicsContext.current else { return }
         let side = max(1, min(canvasSize.width, canvasSize.height))
         let margin = CGFloat(watermark.margin)
         let gap = max(6, side * 0.015)
         var logoImage: NSImage?
         var logoSize = NSSize.zero
-        if watermark.usesLogo,
-           let image = NSImage(contentsOfFile: watermark.logoPath),
-           image.size.width > 0,
-           image.size.height > 0 {
+        if watermark.usesLogo, let logo {
+            let image = NSImage(cgImage: logo,
+                                size: NSSize(width: logo.width, height: logo.height))
             let maxLogoSide = max(12, side * CGFloat(watermark.scale))
             let scale = min(maxLogoSide / image.size.width, maxLogoSide / image.size.height)
             logoImage = image
@@ -800,8 +848,9 @@ final class MediaService: ObservableObject {
     }
 
     private func loadVideoMetadata(from asset: AVAsset,
-                                   includeDisplaySize: Bool) throws -> VideoMetadata {
-        try runAsync {
+                                   includeDisplaySize: Bool,
+                                   token: MediaCancellationToken) throws -> VideoMetadata {
+        try runAsync(token: token) {
             let tracks = try await asset.loadTracks(withMediaType: .video)
             guard let track = tracks.first else { throw MediaFailureBox(.noVideoTrack) }
 
@@ -819,7 +868,8 @@ final class MediaService: ObservableObject {
     }
 
     private func generateCGImage(from generator: AVAssetImageGenerator,
-                                 at time: CMTime) throws -> CGImage {
+                                 at time: CMTime,
+                                 token: MediaCancellationToken) throws -> CGImage {
         let semaphore = DispatchSemaphore(value: 0)
         var result: Result<CGImage, Error>?
 
@@ -832,18 +882,25 @@ final class MediaService: ObservableObject {
             semaphore.signal()
         }
 
-        semaphore.wait()
+        while semaphore.wait(timeout: .now() + .milliseconds(50)) == .timedOut {
+            if token.isCancelled {
+                generator.cancelAllCGImageGeneration()
+                throw MediaFailureBox(.cancelled)
+            }
+        }
+        try checkCancellation(token)
         guard let result else {
             throw MediaFailureBox(.failed("Video frame unavailable."))
         }
         return try result.get()
     }
 
-    private func runAsync<T>(_ operation: @escaping () async throws -> T) throws -> T {
+    private func runAsync<T>(token: MediaCancellationToken,
+                             _ operation: @escaping () async throws -> T) throws -> T {
         let semaphore = DispatchSemaphore(value: 0)
         var result: Result<T, Error>?
 
-        Task {
+        let task = Task {
             do {
                 result = .success(try await operation())
             } catch {
@@ -852,7 +909,13 @@ final class MediaService: ObservableObject {
             semaphore.signal()
         }
 
-        semaphore.wait()
+        while semaphore.wait(timeout: .now() + .milliseconds(50)) == .timedOut {
+            if token.isCancelled {
+                task.cancel()
+                throw MediaFailureBox(.cancelled)
+            }
+        }
+        try checkCancellation(token)
         guard let result else {
             throw MediaFailureBox(.failed("Video metadata unavailable."))
         }
@@ -917,32 +980,34 @@ final class MediaService: ObservableObject {
         try? FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: outputURL.path)
     }
 
-    private func message(for failure: MediaFailure) -> String {
-        switch failure {
-        case .noInput: return "Choose a file first."
-        case .noVideoTrack: return "This file has no video track."
-        case .sameOutput: return "Choose a destination different from the original file."
-        case .unsupported: return "This format is not supported by macOS."
-        case .imageTooLarge: return "These dimensions are too large to process safely."
-        case .cancelled: return "Cancelled."
-        case let .failed(message): return message.isEmpty ? "This format is not supported by macOS." : message
-        }
-    }
-
     private func checkCancellation(_ token: MediaCancellationToken) throws {
         if token.isCancelled { throw MediaFailureBox(.cancelled) }
     }
 
-    private func setActive(process: Process) {
+    /// Launch and cancellation share one lock, so a process either starts and
+    /// becomes cancellable before the lock is released, or never starts after
+    /// its operation was replaced or cancelled.
+    private func launch(process: Process,
+                        operationID: UUID,
+                        token: MediaCancellationToken) throws {
         lock.lock()
+        defer { lock.unlock() }
+        guard self.operationID == operationID, !token.isCancelled else {
+            throw MediaFailureBox(.cancelled)
+        }
+        try process.run()
         activeProcess = process
-        lock.unlock()
     }
 
-    private func setActiveVisionRequest(_ request: VNRequest) {
+    private func setActiveVisionRequest(_ request: VNRequest,
+                                        operationID: UUID,
+                                        token: MediaCancellationToken) throws {
         lock.lock()
+        defer { lock.unlock() }
+        guard self.operationID == operationID, !token.isCancelled else {
+            throw MediaFailureBox(.cancelled)
+        }
         activeVisionRequest = request
-        lock.unlock()
     }
 
     private func clearOperation(_ id: UUID) {

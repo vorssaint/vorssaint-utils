@@ -46,6 +46,20 @@ developer_id_identity() {
         | sed -E 's/.*"(.*)".*/\1/' || true
 }
 
+codesign_with_timestamp_retry() {
+    local attempt
+    for attempt in 1 2 3; do
+        if /usr/bin/codesign "$@"; then
+            return 0
+        fi
+        if (( attempt < 3 )); then
+            echo "  Developer ID signing failed; retrying ($((attempt + 1))/3)"
+            sleep "$attempt"
+        fi
+    done
+    return 1
+}
+
 finalize_installed_bundle_after_child() {
     local bundle="$1"
     local helper="$bundle/Contents/Library/LaunchServices/$FAN_HELPER_ID"
@@ -55,9 +69,9 @@ finalize_installed_bundle_after_child() {
     echo "▸ Finalizing installed signature…"
     sleep 3
     if [[ -n "$devid" ]]; then
-        [[ -f "$helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
+        [[ -f "$helper" ]] && codesign_with_timestamp_retry --force --strip-disallowed-xattrs \
             --options runtime --timestamp --identifier "$FAN_HELPER_ID" --sign "$devid" "$helper"
-        /usr/bin/codesign --force --strip-disallowed-xattrs --options runtime --timestamp \
+        codesign_with_timestamp_retry --force --strip-disallowed-xattrs --options runtime --timestamp \
             --entitlements "$ENTITLEMENTS" --sign "$devid" "$bundle"
     elif security find-identity -p codesigning 2>/dev/null | grep -q "$LEGACY_IDENTITY"; then
         [[ -f "$helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
@@ -225,6 +239,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/KeepAwakeAutomationSupport.swift \
         Sources/Vorssaint/Services/SudoersSupport.swift \
         Sources/Vorssaint/Services/Metrics/BatteryTimeSupport.swift \
+        Sources/Vorssaint/Services/BoundedProcessRunner.swift \
         Sources/Vorssaint/Services/Metrics/NetworkProcessSupport.swift \
         Sources/Vorssaint/Services/Metrics/NetworkSampler.swift \
         Sources/Vorssaint/Services/Metrics/PeripheralBatterySupport.swift \

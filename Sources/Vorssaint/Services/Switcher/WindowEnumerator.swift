@@ -311,17 +311,27 @@ enum WindowEnumerator {
             windows = groupWindowsByApp(windows)
         }
         let ordered = orderByUse(windows, frontToBack: frontToBack)
-        guard ordered.count > maximumCount else { return ordered }
-        var trimmed = Array(ordered.prefix(maximumCount))
-        // Asking for the desktop app alone names one entry, so that entry must
-        // not vanish just because the list happens to be full. Asking for every
-        // windowless app is a bulk choice instead, and there the cap keeps
-        // cutting the least recently used tail exactly as it does for windows.
-        if windowlessApps == .finder,
-           let desktopEntry = ordered.dropFirst(maximumCount).first(where: { $0.windowID == nil }) {
-            trimmed.append(desktopEntry)
+        var result = ordered
+        if ordered.count > maximumCount {
+            result = Array(ordered.prefix(maximumCount))
+            // Asking for the desktop app alone names one entry, so that entry must
+            // not vanish just because the list happens to be full. Asking for every
+            // windowless app is a bulk choice instead, and there the cap keeps
+            // cutting the least recently used tail exactly as it does for windows.
+            if windowlessApps == .finder,
+               let desktopEntry = ordered.dropFirst(maximumCount).first(where: { $0.windowID == nil }) {
+                result.append(desktopEntry)
+            }
         }
-        return trimmed
+        // Space lookups are comparatively expensive. Resolve badges only for
+        // the representatives that survived grouping and the visible cap.
+        if marksHiddenSpaces {
+            result = result.map { window in
+                guard let windowID = window.windowID else { return window }
+                return window.withHiddenSpaceState(isOnHiddenSpace(windowID))
+            }
+        }
+        return result
     }
 
     /// WindowServer can keep stale, titled surfaces around after some apps close

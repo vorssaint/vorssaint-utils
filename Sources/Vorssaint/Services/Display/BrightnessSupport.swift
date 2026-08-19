@@ -172,8 +172,28 @@ enum BrightnessSupport {
     /// Turning off the final drawable display would leave no UI path to turn
     /// it back on. The target must be active and another active display must
     /// remain after the transaction.
-    static func canDisableDisplay(activeDisplayIDs: Set<UInt32>, target: UInt32) -> Bool {
-        activeDisplayIDs.contains(target) && activeDisplayIDs.count > 1
+    static func canDisableDisplay(drawableDisplayIDs: Set<UInt32>, target: UInt32) -> Bool {
+        drawableDisplayIDs.contains(target) && drawableDisplayIDs.count > 1
+    }
+
+    /// Active display lists can include virtual devices with no picture a
+    /// person can use. Keep only online, active, non-virtual displays when
+    /// deciding whether the Mac has been left without a visible screen.
+    static func drawableDisplayIDs(onlineDisplayIDs: Set<UInt32>,
+                                   activeDisplayIDs: Set<UInt32>,
+                                   virtualDisplayIDs: Set<UInt32>) -> Set<UInt32> {
+        onlineDisplayIDs.intersection(activeDisplayIDs).subtracting(virtualDisplayIDs)
+    }
+
+    /// If a cable removal leaves the Mac with no drawable display, bring back
+    /// one display this app switched off. Prefer the built-in panel so the
+    /// portable Mac recovers without changing any other disabled display.
+    static func headlessRecoveryCandidates(drawableDisplayIDs: Set<UInt32>,
+                                           managedDisabledIDs: Set<UInt32>,
+                                           builtInDisabledIDs: Set<UInt32>) -> [UInt32] {
+        guard drawableDisplayIDs.isEmpty else { return [] }
+        let builtIn = managedDisabledIDs.intersection(builtInDisabledIDs)
+        return builtIn.sorted() + managedDisabledIDs.subtracting(builtIn).sorted()
     }
 
     /// Active display lists can include virtual devices with no picture a

@@ -32,8 +32,11 @@ final class MouseNavigationService: ObservableObject {
     /// Alive only while the tap is, like every other resource here.
     private var keyboardObserver: NSObjectProtocol?
     /// Registered web handlers that should keep their native side-button events.
-    /// Resolved before the tap starts so its callback never asks Launch Services.
+    /// Resolved outside the tap callback so its hot path only reads memory.
     private var webURLHandlers: Set<String> = []
+    private var webHandlerObservers: [NSObjectProtocol] = []
+    private var webHandlerRefreshWork: DispatchWorkItem?
+    private var webHandlerRefreshGeneration = 0
 
     private init() {}
 
@@ -70,6 +73,7 @@ final class MouseNavigationService: ObservableObject {
             },
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
+            webURLHandlers.removeAll()
             isRunning = false
             return
         }
@@ -79,6 +83,7 @@ final class MouseNavigationService: ObservableObject {
         runLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        observeWebHandlerChanges()
         // Which keys carry Back and Forward depends on the keyboard in use, so
         // the answer is asked for now and again on every keyboard change.
         MouseNavigationKeys.refresh()
@@ -99,12 +104,63 @@ final class MouseNavigationService: ObservableObject {
             DistributedNotificationCenter.default().removeObserver(keyboardObserver)
         }
         keyboardObserver = nil
+        webHandlerRefreshGeneration += 1
+        webHandlerRefreshWork?.cancel()
+        webHandlerRefreshWork = nil
+        let workspaceCenter = NSWorkspace.shared.notificationCenter
+        for observer in webHandlerObservers { workspaceCenter.removeObserver(observer) }
+        webHandlerObservers.removeAll()
         MouseNavigationKeys.reset()
         webURLHandlers.removeAll()
         tap = nil
         runLoopSource = nil
         passThroughButtons.removeAll()
         isRunning = false
+    }
+
+    private func observeWebHandlerChanges() {
+        let center = NSWorkspace.shared.notificationCenter
+        let names: [Notification.Name] = [
+            NSWorkspace.didLaunchApplicationNotification,
+            NSWorkspace.didTerminateApplicationNotification,
+            NSWorkspace.didActivateApplicationNotification,
+            NSWorkspace.didMountNotification,
+            NSWorkspace.didUnmountNotification,
+        ]
+        webHandlerObservers = names.map { name in
+            center.addObserver(forName: name, object: nil, queue: .main) { [weak self] notification in
+                let activatedPID = (notification.userInfo?[NSWorkspace.applicationUserInfoKey]
+                    as? NSRunningApplication)?.processIdentifier
+                guard MouseNavigationSupport.shouldRefreshWebHandlers(
+                    isApplicationActivation: notification.name
+                        == NSWorkspace.didActivateApplicationNotification,
+                    activatedPID: activatedPID,
+                    ownPID: ProcessInfo.processInfo.processIdentifier
+                ) else { return }
+                self?.scheduleWebHandlerRefresh()
+            }
+        }
+    }
+
+    private func scheduleWebHandlerRefresh() {
+        webHandlerRefreshGeneration += 1
+        let generation = webHandlerRefreshGeneration
+        webHandlerRefreshWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.tap != nil,
+                  self.webHandlerRefreshGeneration == generation else { return }
+            self.webHandlerRefreshWork = nil
+            DispatchQueue.global(qos: .utility).async { [weak self] in
+                let handlers = MouseNavigationService.registeredWebURLHandlers()
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.tap != nil,
+                          self.webHandlerRefreshGeneration == generation else { return }
+                    self.webURLHandlers = handlers
+                }
+            }
+        }
+        webHandlerRefreshWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
     }
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {

@@ -4,6 +4,108 @@
 import CoreGraphics
 import Foundation
 
+/// Lets cancellation win while an asynchronous capture start is suspended.
+/// Stop waits for start to leave its await points before closing the writer,
+/// so no late stream can append after the recording file was finalized.
+final class RecorderStartGate: @unchecked Sendable {
+    private enum Finalizer {
+        case startFailure
+        case stop
+    }
+
+    private let lock = NSLock()
+    private var starting = false
+    private var cancelled = false
+    private var finalizer: Finalizer?
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func begin() -> Bool {
+        lock.withLock {
+            guard !cancelled, !starting else { return false }
+            starting = true
+            return true
+        }
+    }
+
+    var isAuthorized: Bool {
+        lock.withLock { !cancelled }
+    }
+
+    /// Start failure and Stop race for exactly one right to terminalize the
+    /// writer. Whichever arrives second must leave it alone.
+    func claimStartFailure() -> Bool {
+        lock.withLock {
+            guard finalizer == nil else { return false }
+            cancelled = true
+            finalizer = .startFailure
+            return true
+        }
+    }
+
+    func cancelAndClaimStop() -> Bool {
+        lock.withLock {
+            cancelled = true
+            guard finalizer == nil else { return false }
+            finalizer = .stop
+            return true
+        }
+    }
+
+    func finish() {
+        let continuations = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            guard starting else { return [] }
+            starting = false
+            defer { waiters.removeAll() }
+            return waiters
+        }
+        continuations.forEach { $0.resume() }
+    }
+
+    func waitUntilFinished() async {
+        await withCheckedContinuation { continuation in
+            let resumeNow = lock.withLock { () -> Bool in
+                guard starting else { return true }
+                waiters.append(continuation)
+                return false
+            }
+            if resumeNow { continuation.resume() }
+        }
+    }
+}
+
+/// One capture engine is used for exactly one recording. Once stopping begins,
+/// queued stream callbacks stay rejected permanently instead of becoming live
+/// again after `stopCapture()` returns.
+struct RecorderCaptureLifecycle {
+    private enum State: Equatable {
+        case idle
+        case starting
+        case running
+        case stopped
+    }
+
+    private var state: State = .idle
+
+    var acceptsSamples: Bool { state == .starting || state == .running }
+    var isRunning: Bool { state == .running }
+
+    mutating func beginStart() -> Bool {
+        guard state == .idle else { return false }
+        state = .starting
+        return true
+    }
+
+    mutating func didStart() -> Bool {
+        guard state == .starting else { return false }
+        state = .running
+        return true
+    }
+
+    mutating func stop() {
+        state = .stopped
+    }
+}
+
 /// Removes pauses from the recording's clock without stopping and rebuilding
 /// the capture stream. Samples inside a pause are discarded; everything after
 /// it moves back by exactly the time that was left out.
@@ -114,6 +216,12 @@ final class RecorderPauseClock {
 /// decided without a stream, a writer or a window, so it can be reasoned about
 /// and tested on its own.
 enum RecorderSupport {
+    static func pendingStartIsAuthorized(requestGeneration: Int,
+                                         currentGeneration: Int,
+                                         featureIsAvailable: Bool) -> Bool {
+        featureIsAvailable && requestGeneration == currentGeneration
+    }
+
 
     // MARK: - What is being recorded
 

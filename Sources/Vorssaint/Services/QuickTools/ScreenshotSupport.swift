@@ -66,6 +66,37 @@ enum ScreenCaptureTool: String, CaseIterable {
 /// harness compiles it standalone.
 enum ScreenshotSupport {
 
+    struct UnifiedCapturePolicy: Equatable {
+        let freeze: Bool
+        let includePointer: Bool
+        let hideVorssaintWindows: Bool
+        let usesGeometry: Bool
+    }
+
+    static func unifiedCapturePolicy(for tool: ScreenCaptureTool,
+                                     screenshotFreeze: Bool,
+                                     screenshotIncludePointer: Bool,
+                                     screenshotHideVorssaintWindows: Bool)
+        -> UnifiedCapturePolicy {
+        UnifiedCapturePolicy(
+            freeze: tool == .screenshot ? screenshotFreeze : true,
+            includePointer: tool == .screenshot && screenshotIncludePointer,
+            hideVorssaintWindows: tool != .recording && screenshotHideVorssaintWindows,
+            usesGeometry: tool == .recording)
+    }
+
+    static func captureAvailabilityChanged(activeTools: [ScreenCaptureTool],
+                                           availableTools: [ScreenCaptureTool]) -> Bool {
+        activeTools != availableTools
+    }
+
+    static func captureRouteIsAuthorized(
+        selected: ScreenCaptureTool,
+        isAvailable: (AppFeature) -> Bool = { $0.isAvailable }
+    ) -> Bool {
+        isAvailable(selected.feature)
+    }
+
     static func captureGuideIsVisible(pointerOnDisplay: Bool,
                                       selectionInProgress: Bool,
                                       capturePending: Bool) -> Bool {
@@ -76,6 +107,16 @@ enum ScreenshotSupport {
 
     static let recentCaptureLimit = 12
     static let recentCaptureMaximumBytes: Int64 = 256 * 1024 * 1024
+
+    static func isRecentCaptureCacheFileName(_ name: String) -> Bool {
+        guard name == URL(fileURLWithPath: name).lastPathComponent,
+              name.lowercased().hasSuffix(".png") else { return false }
+        let stem = String(name.dropLast(4))
+        if UUID(uuidString: stem) != nil { return true }
+        let suffix = "-thumbnail"
+        return stem.hasSuffix(suffix)
+            && UUID(uuidString: String(stem.dropLast(suffix.count))) != nil
+    }
 
     static func cappedRecentCaptureIDs(_ ids: [UUID],
                                        screenshotBytes: [UUID: Int64] = [:]) -> [UUID] {
@@ -594,31 +635,137 @@ enum ScreenshotSupport {
 
     /// Keeps copied captures available long enough for paste targets that read
     /// the file after accepting its URL from the pasteboard.
-    static func copiedFile(data: Data, name: String, directory: URL,
-                           now: Date = Date()) throws -> URL {
-        let manager = FileManager.default
+    static func copiedFile(data: Data, name: String, directory: URL) throws -> URL {
+        guard Int64(data.count) <= copiedFileMaximumBytes else {
+            throw CocoaError(.fileWriteOutOfSpace)
+        }
+        return try copiedFileLock.withLock {
+            let manager = FileManager.default
+            try preparePrivateCacheDirectory(directory, manager: manager)
+            let safeName = (name as NSString).lastPathComponent
+            let uniqueName = uniqueFileName(safeName) { candidate in
+                manager.fileExists(atPath: directory.appendingPathComponent(candidate).path)
+            }
+            let url = directory.appendingPathComponent(uniqueName)
+            try data.write(to: url, options: .atomic)
+            try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+            return url
+        }
+    }
+
+    static func copiedFilesDirectory(fileManager: FileManager = .default,
+                                     bundle: Bundle = .main) -> URL? {
+        guard let base = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first,
+              let bundleID = bundle.bundleIdentifier else { return nil }
+        return base.appendingPathComponent(bundleID, isDirectory: true)
+            .appendingPathComponent("Copied Screenshots", isDirectory: true)
+    }
+
+    static func isCopiedScreenshot(_ url: URL, in directory: URL) -> Bool {
+        let file = url.standardizedFileURL
+        let root = directory.standardizedFileURL
+        guard file.deletingLastPathComponent().path == root.path,
+              file.pathExtension.lowercased() == "png",
+              let rootValues = try? root.resourceValues(
+                forKeys: [.isDirectoryKey, .isSymbolicLinkKey]),
+              rootValues.isDirectory == true,
+              rootValues.isSymbolicLink != true,
+              let values = try? file.resourceValues(
+                forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+        else { return false }
+        return values.isRegularFile == true && values.isSymbolicLink != true
+    }
+
+    struct CopiedFilePruneCandidate: Equatable {
+        let url: URL
+        let date: Date
+        let bytes: Int64
+    }
+
+    private static let copiedFileLock = NSLock()
+    private static let copiedFileMaximumCount = 100
+    private static let copiedFileMaximumBytes: Int64 = 256 * 1024 * 1024
+
+    private static func preparePrivateCacheDirectory(_ directory: URL,
+                                                     manager: FileManager) throws {
         try manager.createDirectory(at: directory, withIntermediateDirectories: true)
-        let cutoff = now.addingTimeInterval(-24 * 3600)
-        if let files = try? manager.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey]
-        ) {
-            for file in files {
-                let values = try? file.resourceValues(
-                    forKeys: [.contentModificationDateKey, .isRegularFileKey])
-                if values?.isRegularFile == true,
-                   (values?.contentModificationDate ?? .distantFuture) < cutoff {
-                    try? manager.removeItem(at: file)
-                }
+        let values = try directory.resourceValues(
+            forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        guard values.isDirectory == true, values.isSymbolicLink != true else {
+            throw CocoaError(.fileWriteInvalidFileName)
+        }
+        try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+    }
+
+    static func copiedFilePruneVictims(_ files: [CopiedFilePruneCandidate],
+                                       preserving current: URL,
+                                       maximumCount: Int,
+                                       maximumBytes: Int64) -> [URL] {
+        let currentPath = current.standardizedFileURL.path
+        guard let currentFile = files.first(where: {
+            $0.url.standardizedFileURL.path == currentPath
+        }) else { return [] }
+        var count = 1
+        var bytes = max(0, currentFile.bytes)
+        var victims: [URL] = []
+        for file in files.sorted(by: {
+            $0.date == $1.date
+                ? $0.url.standardizedFileURL.path < $1.url.standardizedFileURL.path
+                : $0.date > $1.date
+        })
+            where file.url.standardizedFileURL.path != currentPath {
+            if count < maximumCount
+                && file.bytes >= 0
+                && bytes <= maximumBytes
+                && file.bytes <= maximumBytes - bytes {
+                count += 1
+                bytes += file.bytes
+            } else {
+                victims.append(file.url)
             }
         }
-        let safeName = (name as NSString).lastPathComponent
-        let uniqueName = uniqueFileName(safeName) { candidate in
-            manager.fileExists(atPath: directory.appendingPathComponent(candidate).path)
+        return victims
+    }
+
+    /// Applies the cache bounds only after `current` has reached the pasteboard.
+    /// A stale render may finish later, but it can never evict the published URL.
+    static func pruneCopiedFiles(in directory: URL, preserving current: URL,
+                                 now: Date = Date()) {
+        copiedFileLock.withLock {
+            let manager = FileManager.default
+            guard isCopiedScreenshot(current, in: directory) else { return }
+            let keys: Set<URLResourceKey> = [
+                .contentModificationDateKey, .fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey,
+            ]
+            guard let children = try? manager.contentsOfDirectory(
+                at: directory, includingPropertiesForKeys: Array(keys)) else { return }
+            let files = children.compactMap { url -> CopiedFilePruneCandidate? in
+                guard url.pathExtension.lowercased() == "png",
+                      let values = try? url.resourceValues(forKeys: keys),
+                      values.isRegularFile == true,
+                      values.isSymbolicLink != true else { return nil }
+                return CopiedFilePruneCandidate(
+                    url: url,
+                    date: values.contentModificationDate ?? .distantPast,
+                    bytes: Int64(values.fileSize ?? 0))
+            }
+            let currentPath = current.standardizedFileURL.path
+            let cutoff = now.addingTimeInterval(-24 * 3600)
+            let expired = files.filter {
+                $0.url.standardizedFileURL.path != currentPath && $0.date < cutoff
+            }
+            let expiredURLs = Set(expired.map(\.url))
+            let currentFiles = files.filter { !expiredURLs.contains($0.url) }
+            let budgetVictims = copiedFilePruneVictims(
+                currentFiles,
+                preserving: current,
+                maximumCount: copiedFileMaximumCount,
+                maximumBytes: copiedFileMaximumBytes
+            )
+            for victim in expired.map(\.url) + budgetVictims {
+                try? manager.removeItem(at: victim)
+            }
         }
-        let url = directory.appendingPathComponent(uniqueName)
-        try data.write(to: url, options: .atomic)
-        return url
     }
 
     static func removeTemporaryDragDirectories(

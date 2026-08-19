@@ -32,7 +32,10 @@ struct NetworkCounterFallback {
 
         let outgoingAdvanced = current.sent > previous.sent
         if isActive {
-            return (outgoingAdvanced, true)
+            // Once the inbound interface counter is known to be frozen, lack
+            // of upload says nothing about download. Keep sampling socket
+            // flows until the received counter itself proves recovery.
+            return (true, true)
         }
 
         if outgoingAdvanced {

@@ -940,9 +940,11 @@ private struct AutofocusingVolumeTextField: NSViewRepresentable {
         }
 
         func controlTextDidEndEditing(_ notification: Notification) {
-            guard isActive, didFocus, !isFinishing else { return }
+            guard isActive, didFocus, !isFinishing,
+                  let field = notification.object as? NSTextField else { return }
+            text.wrappedValue = field.stringValue
             isFinishing = true
-            onCancel()
+            if !onSubmit() { onCancel() }
         }
 
         func control(_ control: NSControl,

@@ -29,6 +29,8 @@ final class ClipboardAutoClearService {
     /// Each read carries a token, so one that wedged behind a password prompt
     /// can be abandoned without a stale completion ever landing.
     private var readGeneration = 0
+    private let configurationLock = NSLock()
+    private var configurationGeneration = 0
 
     private var sleepObserver: NSObjectProtocol?
     private var displaySleepObserver: NSObjectProtocol?
@@ -40,6 +42,9 @@ final class ClipboardAutoClearService {
     private init() {}
 
     func syncWithPreferences() {
+        configurationLock.lock()
+        configurationGeneration &+= 1
+        configurationLock.unlock()
         let defaults = UserDefaults.standard
         let isAvailable = AppFeature.clipboardHistory.isAvailable
         if isAvailable, defaults.bool(forKey: DefaultsKey.clipboardAutoClearOnDelay) {
@@ -50,14 +55,17 @@ final class ClipboardAutoClearService {
         let workspaceCenter = NSWorkspace.shared.notificationCenter
         syncObserver(&sleepObserver,
                      isWanted: isAvailable && defaults.bool(forKey: DefaultsKey.clipboardAutoClearOnSleep),
+                     preferenceKey: DefaultsKey.clipboardAutoClearOnSleep,
                      name: NSWorkspace.willSleepNotification,
                      center: workspaceCenter)
         syncObserver(&displaySleepObserver,
                      isWanted: isAvailable && defaults.bool(forKey: DefaultsKey.clipboardAutoClearOnDisplaySleep),
+                     preferenceKey: DefaultsKey.clipboardAutoClearOnDisplaySleep,
                      name: NSWorkspace.screensDidSleepNotification,
                      center: workspaceCenter)
         syncObserver(&screenLockObserver,
                      isWanted: isAvailable && defaults.bool(forKey: DefaultsKey.clipboardAutoClearOnScreenLock),
+                     preferenceKey: DefaultsKey.clipboardAutoClearOnScreenLock,
                      name: Self.screenLockNotification,
                      center: DistributedNotificationCenter.default())
     }
@@ -66,12 +74,13 @@ final class ClipboardAutoClearService {
     /// with the delay) switched off.
     private func syncObserver(_ token: inout NSObjectProtocol?,
                               isWanted: Bool,
+                              preferenceKey: String,
                               name: Notification.Name,
                               center: NotificationCenter) {
         if isWanted {
             guard token == nil else { return }
             token = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                self?.clearNow()
+                self?.clearNow(triggerPreferenceKey: preferenceKey)
             }
         } else if let existing = token {
             center.removeObserver(existing)
@@ -122,7 +131,8 @@ final class ClipboardAutoClearService {
                 self.lastChangeCount = count
                 self.lastChangeDate = Date()
             case .clear:
-                self.clearNow(expecting: count)
+                self.clearNow(expecting: count,
+                              triggerPreferenceKey: DefaultsKey.clipboardAutoClearOnDelay)
             case .wait:
                 break
             }
@@ -159,9 +169,24 @@ final class ClipboardAutoClearService {
     /// `expectedChangeCount` lets a caller clear only if the pasteboard state
     /// still matches; leaving it nil means clear whatever is on the pasteboard
     /// right now, which is what the event triggers want.
-    private func clearNow(expecting expectedChangeCount: Int? = nil) {
+    private func clearNow(expecting expectedChangeCount: Int? = nil,
+                          triggerPreferenceKey: String) {
         let alreadyCleared = lastClearedChangeCount
+        configurationLock.lock()
+        let generation = configurationGeneration
+        configurationLock.unlock()
         GeneralPasteboardAccess.shared.async { [weak self] in
+            guard let self else { return }
+            self.configurationLock.lock()
+            let currentGeneration = self.configurationGeneration
+            self.configurationLock.unlock()
+            guard ClipboardAutoClearSupport.clearIsAuthorized(
+                enqueuedGeneration: generation,
+                currentGeneration: currentGeneration,
+                featureIsAvailable: AppFeature.clipboardHistory.isAvailable,
+                triggerIsEnabled: UserDefaults.standard.bool(forKey: triggerPreferenceKey)) else {
+                return
+            }
             let pasteboard = NSPasteboard.general
             let changeCount = pasteboard.changeCount
             // Locking a Mac fires display sleep and screen lock together: with

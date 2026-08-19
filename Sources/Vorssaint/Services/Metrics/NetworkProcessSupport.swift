@@ -38,34 +38,11 @@ enum NetworkProcessSupport {
 
     private static func currentActivitySamples(arguments: [String],
                                                timeout: TimeInterval) -> [NetworkProcessSample]? {
-        let process = Process()
-        let pipe = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
-        process.arguments = arguments
-        process.standardOutput = pipe
-        process.standardError = pipe
-
-        do {
-            try process.run()
-        } catch {
-            return nil
-        }
-
-        let deadline = Date().addingTimeInterval(timeout)
-        while process.isRunning && Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.05)
-        }
-        let timedOut = process.isRunning
-        if timedOut {
-            process.terminate()
-        }
-
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard !timedOut,
-              process.terminationStatus == 0,
-              !data.isEmpty,
-              let output = String(data: data, encoding: .utf8) else { return nil }
+        let result = BoundedProcessRunner.run("/usr/bin/nettop", arguments,
+                                              timeout: timeout,
+                                              maxOutputBytes: 4 * 1024 * 1024)
+        guard !result.timedOut, result.status == 0, !result.output.isEmpty else { return nil }
+        let output = String(decoding: result.output, as: UTF8.self)
         return parseNettopCSV(output)
     }
 
