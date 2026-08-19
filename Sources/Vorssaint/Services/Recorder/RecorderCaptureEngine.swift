@@ -66,7 +66,7 @@ final class RecorderCaptureEngine: NSObject {
                capturesSystemAudio: Bool,
                excludedWindowNumbers: [Int],
                isCancelled: @escaping () -> Bool) async -> RecorderFailure? {
-        guard lifecycleLock.withLock({ stream == nil }), !isCancelled() else {
+        guard lifecycleLock.withLock({ self.stream == nil }), !isCancelled() else {
             return .streamFailed
         }
 
