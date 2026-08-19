@@ -22,6 +22,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case brightness
     case extraBrightness
     case scrollDirection
+    case autoRaise
     case smoothScroll
     case mouseNavigation
     case mouseButtonShortcuts
@@ -48,7 +49,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         switch self {
         case .panelConfiguration, .musicBlocking: return .general
         case .keepAwake, .brightness, .extraBrightness: return .energy
-        case .scrollDirection, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts,
+        case .scrollDirection, .autoRaise, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts,
              .middleClick:
             return .mouse
         case .switcher, .dock: return .switcher
@@ -139,6 +140,8 @@ extension AppFeature {
 
         case .scrollInverter:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .scrollDirection)
+        case .autoRaise:
+            return FeatureSettingsDestination(.mouse, sectionAnchor: .autoRaise)
         case .smoothScroll:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .smoothScroll)
         case .mouseNavigation:
@@ -227,7 +230,7 @@ enum FeatureVisibilitySupport {
         switch page {
         case .energy: return [.keepAwake, .brightness, .extraBrightness]
         case .monitor: return monitorFeatures
-        case .mouse: return [.scrollInverter, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts,
+        case .mouse: return [.scrollInverter, .autoRaise, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts,
                              .middleClick]
         case .switcher: return [.switcher, .dockPreview, .dockClick]
         case .windowLayout: return [.windowLayout]

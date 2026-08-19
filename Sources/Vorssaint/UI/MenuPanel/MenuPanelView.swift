@@ -986,7 +986,7 @@ struct UtilitiesSection: View {
 }
 
 private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
-    case mouseScroll, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
+    case mouseScroll, autoRaise, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
          dockClick, dockClickHide, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts, superKey
 
     var id: String { rawValue }
@@ -996,6 +996,7 @@ private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
     var feature: AppFeature {
         switch self {
         case .mouseScroll: return .scrollInverter
+        case .autoRaise: return .autoRaise
         case .mouseNavigation: return .mouseNavigation
         case .switcher: return .switcher
         case .cutPaste: return .finderCutPaste
@@ -1025,7 +1026,7 @@ private enum ControlCategory: String, CaseIterable, Identifiable {
         switch item {
         case .switcher, .dockPreview, .dockClick, .dockClickHide, .dockClickCycle, .windowMaximize, .autoQuit:
             return .windows
-        case .mouseScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
+        case .mouseScroll, .autoRaise, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
              .textSnippets, .radialMenu, .superKey:
             return .inputDevices
         case .cutPaste, .shelf:
@@ -1049,6 +1050,7 @@ struct QuickControlsSection: View {
     @ObservedObject private var shelf = ShelfService.shared
     @AppStorage(DefaultsKey.scrollInverterEnabled) private var invertVertical = false
     @AppStorage(DefaultsKey.scrollInverterHorizontalEnabled) private var invertHorizontal = false
+    @AppStorage(DefaultsKey.autoRaiseEnabled) private var autoRaiseEnabled = false
     @AppStorage(DefaultsKey.mouseNavigationEnabled) private var mouseNavigationEnabled = false
     @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
     @AppStorage(DefaultsKey.switcherShortcut) private var switcherShortcutStorage = GlobalShortcut.switcherDefault.storageValue
@@ -1072,6 +1074,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.superKeyModifiers) private var superKeyModifierStorage =
         SuperKeySupport.defaultModifierStorageValue
     @AppStorage(DefaultsKey.panelControlMouseScroll) private var showScroll = true
+    @AppStorage(DefaultsKey.panelControlAutoRaise) private var showAutoRaise = true
     @AppStorage(DefaultsKey.panelControlMouseNavigation) private var showMouseNavigation = true
     @AppStorage(DefaultsKey.panelControlSwitcher) private var showSwitcher = true
     @AppStorage(DefaultsKey.panelControlDockPreview) private var showDockPreview = true
@@ -1188,6 +1191,7 @@ struct QuickControlsSection: View {
     private func isEnabled(_ item: ControlPanelItem) -> Bool {
         switch item {
         case .mouseScroll: return scrollDirectionEnabled
+        case .autoRaise: return autoRaiseEnabled
         case .mouseNavigation: return mouseNavigationEnabled
         case .switcher: return switcherEnabled
         case .cutPaste: return cutPasteEnabled
@@ -1262,6 +1266,7 @@ struct QuickControlsSection: View {
     private func isVisible(_ item: ControlPanelItem) -> Bool {
         switch item {
         case .mouseScroll: return showScroll
+        case .autoRaise: return showAutoRaise
         case .mouseNavigation: return showMouseNavigation
         case .switcher: return showSwitcher
         case .keyDebounce: return showKeyDebounce
@@ -1298,6 +1303,28 @@ struct QuickControlsSection: View {
                            permissionAction: accessibilityPermissionAction(scrollDirectionEnabled))
                 .onChange(of: scrollDirectionEnabled) { _, enabled in
                     ScrollInverter.shared.syncWithPreferences()
+                    requestAccessibilityIfNeeded(enabled)
+                }
+        case .autoRaise:
+            PanelToggleRow(title: l10n.s.autoRaiseName,
+                           caption: caption(l10n.s.autoRaiseCaption,
+                                            needsAccessibility: autoRaiseEnabled),
+                           systemImage: "cursorarrow.and.square.on.square.dashed",
+                           isOn: $autoRaiseEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showAutoRaise,
+                           needsAttention: autoRaiseEnabled && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: accessibilityPermissionAction(autoRaiseEnabled),
+                           accessoryTitle: autoRaiseEnabled ? l10n.s.autoRaiseAdvanced : nil,
+                           accessoryAction: {
+                               SettingsRouter.shared.request(
+                                   FeatureSettingsDestination(.mouse, sectionAnchor: .autoRaise))
+                               appDelegate()?.openSettingsWindow()
+                           })
+                .onChange(of: autoRaiseEnabled) { _, enabled in
+                    AutoRaiseService.shared.syncWithPreferences()
                     requestAccessibilityIfNeeded(enabled)
                 }
         case .mouseNavigation:
@@ -1624,6 +1651,7 @@ struct QuickControlsSection: View {
         PanelLayout.resetItemOrder(key: DefaultsKey.panelControlOrder)
         controlOrderRaw = ""
         showScroll = true
+        showAutoRaise = true
         showMouseNavigation = true
         showSwitcher = true
         showCutPaste = true

@@ -8519,12 +8519,12 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 51, "feature catalog has 51 features")
+        expect(AppFeature.allCases.count == 52, "feature catalog has 52 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
             "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit",
-            "scrollInverter", "smoothScroll", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
+            "scrollInverter", "autoRaise", "smoothScroll", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
             "keyboardDebounce", "textSnippets", "superKey",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
@@ -14215,6 +14215,65 @@ struct MetricsTests {
                                              curated: ["c", "b", "a"],
                                              limit: 5) == ["b", "a"],
                "curated suggestions skip whatever is unavailable")
+
+        // MARK: Focus follows mouse
+
+        let autoRaiseConfig = AutoRaiseConfiguration.sanitized(
+            delay: 100, poll: 50, requireMouseStop: true, movementThreshold: 1,
+            pauseModifier: "control", invertPauseModifier: false,
+            ignoreAfterSpaceChange: true, includeOnlyApps: false,
+            appBundleIDs: ["com.example.blocked"], ignoredTitlePatterns: ["^Private"],
+            stayFocusedBundleIDs: ["com.example.sticky"], warpAfterTaskSwitch: true,
+            warpX: 0.25, warpY: 0.75)
+        expect(autoRaiseConfig.delayMilliseconds == 100 && autoRaiseConfig.pollMilliseconds == 50,
+               "auto raise keeps valid timing preferences")
+        let clampedAutoRaiseConfig = AutoRaiseConfiguration.sanitized(
+            delay: -1, poll: 1_000, requireMouseStop: false, movementThreshold: 99,
+            pauseModifier: "unknown", invertPauseModifier: false,
+            ignoreAfterSpaceChange: false, includeOnlyApps: true,
+            appBundleIDs: ["com.example.allowed"], ignoredTitlePatterns: [],
+            stayFocusedBundleIDs: [], warpAfterTaskSwitch: false,
+            warpX: -1, warpY: 2)
+        expect(clampedAutoRaiseConfig.delayMilliseconds == AutoRaiseConfiguration.delayRange.lowerBound
+                && clampedAutoRaiseConfig.pollMilliseconds == AutoRaiseConfiguration.pollRange.upperBound
+                && clampedAutoRaiseConfig.movementThreshold == AutoRaiseConfiguration.movementRange.upperBound
+                && clampedAutoRaiseConfig.warpX == 0 && clampedAutoRaiseConfig.warpY == 1
+                && clampedAutoRaiseConfig.pauseModifier == .control,
+               "auto raise clamps invalid preferences and restores the default pause key")
+        expect(!autoRaiseConfig.allows(bundleID: "com.example.blocked")
+                && autoRaiseConfig.allows(bundleID: "com.example.allowed"),
+               "auto raise excludes listed apps by default")
+        expect(clampedAutoRaiseConfig.allows(bundleID: "com.example.allowed")
+                && !clampedAutoRaiseConfig.allows(bundleID: "com.example.other")
+                && !clampedAutoRaiseConfig.allows(bundleID: nil),
+               "auto raise allowlist mode rejects unlisted and unidentified apps")
+        expect(autoRaiseConfig.ignores(title: "Private document")
+                && !autoRaiseConfig.ignores(title: "Public document"),
+               "auto raise matches ignored titles as regular expressions")
+        expect(AutoRaiseConfiguration.invalidPatterns(["[", "^valid$"]) == ["["],
+               "auto raise reports invalid title expressions")
+        let warpPoint = autoRaiseConfig.warpPoint(in: CGRect(x: -100, y: 20, width: 400, height: 200))
+        expectClose(warpPoint.x, 0, "auto raise warp handles negative display coordinates")
+        expectClose(warpPoint.y, 170, "auto raise warp uses the configured vertical fraction")
+
+        var hover = AutoRaiseHoverState()
+        expect(!hover.sample(windowID: 10, mouseMoved: true, configuration: autoRaiseConfig),
+               "moving pointer does not begin the settled delay")
+        expect(!hover.sample(windowID: 10, mouseMoved: false, configuration: autoRaiseConfig),
+               "first settled sample waits for the full delay")
+        expect(hover.sample(windowID: 10, mouseMoved: false, configuration: autoRaiseConfig),
+               "the same settled window fires when its delay elapses")
+        expect(!hover.sample(windowID: 10, mouseMoved: false, configuration: autoRaiseConfig),
+               "a hovered window fires only once")
+        expect(!hover.sample(windowID: 11, mouseMoved: false, configuration: autoRaiseConfig),
+               "changing windows restarts the delay")
+        var movingHover = AutoRaiseHoverState()
+        expect(movingHover.sample(windowID: 12, mouseMoved: true,
+                                  configuration: clampedAutoRaiseConfig),
+               "pointer movement can trigger immediately when stopping is not required")
+        hover.reset()
+        expect(hover.candidateWindowID == nil && hover.settledMilliseconds == 0,
+               "reset clears the hover candidate and elapsed time")
 
         // MARK: Result
 
