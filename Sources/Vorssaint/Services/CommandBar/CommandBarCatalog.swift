@@ -191,6 +191,7 @@ enum CommandBarCatalog {
         case .clipboardFiles: return hub.groupClipboardFiles
         case .sound: return hub.groupSound
         case .energyDisplay: return hub.groupEnergyDisplay
+        case .menuBar: return FeatureStrings.menuBarOrganizer(L10n.shared.language).pageTitle
         case .tools: return hub.groupTools
         case .monitor: return hub.groupMonitor
         }
@@ -763,7 +764,9 @@ enum CommandBarCatalog {
             .flatMap(\.items)
             .filter { item in
                 !pagesCoveredByActions.contains(item.page)
-                    && FeatureVisibilitySupport.isPageVisible(item.page) { $0.isAvailable }
+                    && FeatureVisibilitySupport.isPageVisible(item.page) {
+                        $0.isAvailable && $0.isSupportedOnCurrentSystem
+                    }
             }
             .map { item in
                 CommandBarEntry(

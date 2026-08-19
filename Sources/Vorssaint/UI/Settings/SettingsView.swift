@@ -72,7 +72,9 @@ struct SettingsView: View {
         List(selection: $router.page) {
             ForEach(sidebarSections, id: \.title) { section in
                 let items = section.items.filter {
-                    FeatureVisibilitySupport.isPageVisible($0.page) { $0.isAvailable }
+                    FeatureVisibilitySupport.isPageVisible($0.page) {
+                        $0.isAvailable && $0.isSupportedOnCurrentSystem
+                    }
                         && SettingsSearchSupport.matches(query: searchQuery, title: $0.title,
                                                          keywords: $0.keywords)
                 }
@@ -92,7 +94,9 @@ struct SettingsView: View {
     /// switched off in the hub; fall back to the hub itself, where the
     /// feature can be brought back.
     private func ensureVisiblePage() {
-        if !FeatureVisibilitySupport.isPageVisible(router.page, isAvailable: { $0.isAvailable }) {
+        if !FeatureVisibilitySupport.isPageVisible(router.page, isAvailable: {
+            $0.isAvailable && $0.isSupportedOnCurrentSystem
+        }) {
             router.page = .features
         }
     }
@@ -107,6 +111,7 @@ struct SettingsView: View {
         case .commandBar: CommandBarSettings()
         case .energy: EnergySettings()
         case .monitor: MonitorSettings()
+        case .menuBarOrganizer: MenuBarOrganizerSettings()
         case .mouse: MouseSettings()
         case .switcher: SwitcherSettings()
         case .keyDebounce: KeyboardDebounceSettings()

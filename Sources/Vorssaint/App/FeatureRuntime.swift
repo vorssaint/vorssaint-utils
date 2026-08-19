@@ -21,7 +21,8 @@ final class FeatureRuntime: ObservableObject {
     /// stops working immediately, but its (inert) singleton only leaves
     /// memory on the next launch — this set is what the hub's restart banner
     /// keys off, including the install-then-uninstall-again case.
-    private var loadedThisSession = Set(AppFeature.allCases.filter(\.isAvailable))
+    private var loadedThisSession = Set(
+        AppFeature.allCases.filter { $0.isAvailable && $0.isSupportedOnCurrentSystem })
 
     private init() {}
 
@@ -45,13 +46,24 @@ final class FeatureRuntime: ObservableObject {
 
     func isAvailable(_ feature: AppFeature) -> Bool { feature.isAvailable }
 
-    var availableCount: Int { AppFeature.allCases.filter(\.isAvailable).count }
+    var availableCount: Int {
+        AppFeature.allCases.filter {
+            $0.isAvailable && $0.isSupportedOnCurrentSystem
+        }.count
+    }
+
+    var supportedCount: Int {
+        AppFeature.allCases.filter(\.isSupportedOnCurrentSystem).count
+    }
 
     /// Flipping availability runs the feature's binding immediately: off
     /// tears every resource down on the spot, on restores whatever enabled
     /// state the feature had (its own keys are never touched).
     func setAvailable(_ feature: AppFeature, _ available: Bool) {
         guard feature.isAvailable != available else { return }
+        // Turning a feature back off is always allowed; installing one that
+        // cannot run on this macOS version would crash on launch.
+        if available, !feature.isSupportedOnCurrentSystem { return }
         UserDefaults.standard.set(available, forKey: feature.availabilityKey)
         if available { loadedThisSession.insert(feature) }
         Self.bindings[feature]?()
@@ -75,7 +87,7 @@ final class FeatureRuntime: ObservableObject {
         }
         for feature in AppFeature.allCases
         where feature.isAvailable != selected.contains(feature) {
-            let joins = selected.contains(feature)
+            let joins = selected.contains(feature) && feature.isSupportedOnCurrentSystem
             UserDefaults.standard.set(joins, forKey: feature.availabilityKey)
             if joins { loadedThisSession.insert(feature) }
             Self.bindings[feature]?()
@@ -83,7 +95,7 @@ final class FeatureRuntime: ObservableObject {
         // Features that stayed installed still need a sync: their enable
         // keys may have just flipped on. Syncs are idempotent, so a repeat
         // for the ones handled above costs nothing.
-        for feature in selected {
+        for feature in selected where feature.isSupportedOnCurrentSystem {
             Self.bindings[feature]?()
         }
         revision += 1
@@ -93,7 +105,9 @@ final class FeatureRuntime: ObservableObject {
     /// bump, every changed feature's binding run.
     func setAllAvailable(_ available: Bool) {
         var changed = false
-        for feature in AppFeature.allCases where feature.isAvailable != available {
+        for feature in AppFeature.allCases
+        where feature.isAvailable != available
+            && (available ? feature.isSupportedOnCurrentSystem : true) {
             UserDefaults.standard.set(available, forKey: feature.availabilityKey)
             if available { loadedThisSession.insert(feature) }
             Self.bindings[feature]?()
@@ -105,7 +119,8 @@ final class FeatureRuntime: ObservableObject {
     /// Launch path: replaces the old unconditional sync block. Only available
     /// features get their binding run, so nothing else even instantiates.
     func syncAtLaunch() {
-        for feature in AppFeature.allCases where feature.isAvailable {
+        for feature in AppFeature.allCases
+        where feature.isAvailable && feature.isSupportedOnCurrentSystem {
             Self.bindings[feature]?()
         }
     }
@@ -113,7 +128,8 @@ final class FeatureRuntime: ObservableObject {
     /// Re-syncs a set of features (used by the permission sinks); skips
     /// unavailable ones so their singletons never come to life.
     func sync(_ features: [AppFeature]) {
-        for feature in features where feature.isAvailable {
+        for feature in features
+        where feature.isAvailable && feature.isSupportedOnCurrentSystem {
             Self.bindings[feature]?()
         }
     }
@@ -172,6 +188,11 @@ final class FeatureRuntime: ObservableObject {
         },
         .brightness: { BrightnessService.shared.syncWithPreferences() },
         .extraBrightness: { ExtraBrightnessService.shared.syncWithPreferences() },
+        .menuBarOrganizer: {
+            MainActor.assumeIsolated {
+                MenuBarOrganizerService.shared.syncWithPreferences()
+            }
+        },
         .quickLauncher: { QuickLauncherService.shared.syncWithPreferences() },
         .colorPicker: {
             ScreenCaptureService.shared.syncWithPreferences()
