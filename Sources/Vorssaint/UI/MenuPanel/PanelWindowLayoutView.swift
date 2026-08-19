@@ -40,7 +40,6 @@ struct PanelWindowLayoutView: View {
             actionGroup(title: text.other, actions: [
                 .maximize, .marginMaximize, .fullScreen, .center, .previousDisplay, .nextDisplay, .restore,
             ])
-            actionGroup(title: text.spaces, actions: [.previousSpace, .nextSpace])
             if let message = resultMessage {
                 Label(message, systemImage: resultSymbol)
                     .font(.system(size: 10.5, weight: .medium))

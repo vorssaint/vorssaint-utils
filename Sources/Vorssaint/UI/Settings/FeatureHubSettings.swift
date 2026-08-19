@@ -357,6 +357,7 @@ struct PermissionsPortalSections: View {
     let hub: FeatureHubStrings
     let visiblePermissions: [AppPermission]
     @State private var automation: [Permissions.AutomationTarget: Permissions.AutomationStatus] = [:]
+    @State private var pollingDemandID = UUID()
 
     init(hub: FeatureHubStrings,
          visiblePermissions: [AppPermission] = AppPermission.allCases) {
@@ -375,6 +376,10 @@ struct PermissionsPortalSections: View {
             // read the moment the portal shows; automation is checked off the
             // main thread because the AE round trip can block briefly.
             permissions.refresh()
+            if visiblePermissions.contains(.accessibility)
+                || visiblePermissions.contains(.screenRecording) {
+                permissions.setActivePermissionSurface(pollingDemandID, visible: true)
+            }
             DispatchQueue.global(qos: .userInitiated).async {
                 let finder = Permissions.automationStatus(for: .finder)
                 let terminal = Permissions.automationStatus(for: .terminal)
@@ -382,6 +387,9 @@ struct PermissionsPortalSections: View {
                     automation = [.finder: finder, .terminal: terminal]
                 }
             }
+        }
+        .onDisappear {
+            permissions.setActivePermissionSurface(pollingDemandID, visible: false)
         }
     }
 
@@ -593,7 +601,6 @@ extension AppFeature {
         case .windowLayout: return FeatureStrings.windowLayout(L10n.shared.language).title
         case .autoQuit: return s.autoQuitName
         case .scrollInverter: return s.invertMouseScroll
-        case .autoRaise: return s.autoRaiseName
         case .smoothScroll: return s.smoothScrollName
         case .mouseNavigation: return hub.titleMouseNavigation
         case .mouseButtonShortcuts: return FeatureStrings.mouseButtons(L10n.shared.language).pageTitle
@@ -651,7 +658,6 @@ extension AppFeature {
         case .windowLayout: return hub.descWindowLayout
         case .autoQuit: return hub.descAutoQuit
         case .scrollInverter: return hub.descScrollInverter
-        case .autoRaise: return L10n.shared.s.autoRaiseCaption
         case .smoothScroll: return hub.descSmoothScroll
         case .mouseNavigation: return hub.descMouseNavigation
         case .mouseButtonShortcuts: return FeatureStrings.mouseButtons(L10n.shared.language).hubDescription

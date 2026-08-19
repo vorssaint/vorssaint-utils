@@ -46,6 +46,20 @@ developer_id_identity() {
         | sed -E 's/.*"(.*)".*/\1/' || true
 }
 
+codesign_with_timestamp_retry() {
+    local attempt
+    for attempt in 1 2 3; do
+        if /usr/bin/codesign "$@"; then
+            return 0
+        fi
+        if (( attempt < 3 )); then
+            echo "  Developer ID signing failed; retrying ($((attempt + 1))/3)"
+            sleep "$attempt"
+        fi
+    done
+    return 1
+}
+
 finalize_installed_bundle_after_child() {
     local bundle="$1"
     local helper="$bundle/Contents/Library/LaunchServices/$FAN_HELPER_ID"
@@ -55,9 +69,9 @@ finalize_installed_bundle_after_child() {
     echo "▸ Finalizing installed signature…"
     sleep 3
     if [[ -n "$devid" ]]; then
-        [[ -f "$helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
+        [[ -f "$helper" ]] && codesign_with_timestamp_retry --force --strip-disallowed-xattrs \
             --options runtime --timestamp --identifier "$FAN_HELPER_ID" --sign "$devid" "$helper"
-        /usr/bin/codesign --force --strip-disallowed-xattrs --options runtime --timestamp \
+        codesign_with_timestamp_retry --force --strip-disallowed-xattrs --options runtime --timestamp \
             --entitlements "$ENTITLEMENTS" --sign "$devid" "$bundle"
     elif security find-identity -p codesigning 2>/dev/null | grep -q "$LEGACY_IDENTITY"; then
         [[ -f "$helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
@@ -106,7 +120,10 @@ if (( TEST )); then
     echo "▸ Building & running unit tests against $(basename "$SDK")…"
     rm -rf build
     mkdir -p build
-    swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
+    # The full app build below remains optimized and is the optimizer gate.
+    # Unit assertions do not need optimization; avoiding it cuts most of the
+    # test harness compile time without reducing the code the tests exercise.
+    swiftc -Onone -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
         Sources/Vorssaint/Services/Media/MediaSupport.swift \
         Sources/Vorssaint/Core/Defaults.swift \
         Sources/Vorssaint/Core/FeatureCatalog.swift \
@@ -217,7 +234,6 @@ if (( TEST )); then
         Sources/Vorssaint/Core/SuperKeyStrings.swift \
         Sources/Vorssaint/Services/ScrollWheelSupport.swift \
         Sources/Vorssaint/Services/SmoothScrollSupport.swift \
-        Sources/Vorssaint/Services/AutoRaise/AutoRaiseSupport.swift \
         Sources/Vorssaint/Services/Switcher/SwitcherModels.swift \
         Sources/Vorssaint/Services/Switcher/SwitcherSupport.swift \
         Sources/Vorssaint/Services/Switcher/SpaceHopSupport.swift \
@@ -226,6 +242,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/KeepAwakeAutomationSupport.swift \
         Sources/Vorssaint/Services/SudoersSupport.swift \
         Sources/Vorssaint/Services/Metrics/BatteryTimeSupport.swift \
+        Sources/Vorssaint/Services/BoundedProcessRunner.swift \
         Sources/Vorssaint/Services/Metrics/NetworkProcessSupport.swift \
         Sources/Vorssaint/Services/Metrics/NetworkSampler.swift \
         Sources/Vorssaint/Services/Metrics/PeripheralBatterySupport.swift \
@@ -338,20 +355,6 @@ xattr -c -r "$STAGE" 2>/dev/null || true
 #      designated requirement across their local builds.
 #   3. Ad-hoc — fresh clone with no identity at all.
 DEVID="$(developer_id_identity)"
-codesign_with_timestamp_retry() {
-    local attempt
-    for attempt in 1 2 3; do
-        if codesign "$@"; then
-            return 0
-        fi
-        if (( attempt < 3 )); then
-            echo "  Developer ID signing failed; retrying ($((attempt + 1))/3)"
-            sleep "$attempt"
-        fi
-    done
-    return 1
-}
-
 codesign_app() {
     local target="$1"
     if [[ -n "$DEVID" ]]; then

@@ -42,6 +42,7 @@ struct SystemSnapshot {
     var memoryUsed: UInt64?
     var memoryAppUsed: UInt64?
     var memoryTotal: UInt64?
+    var memorySwapUsed: UInt64?
     var memoryPressure: MemoryPressure = .unknown
     var fanSpeeds: [Double] = []
 
@@ -421,6 +422,7 @@ final class SystemMonitor: ObservableObject {
         var used: UInt64
         var appUsed: UInt64
         var total: UInt64
+        var swapUsed: UInt64?
         var pressure: MemoryPressure
         var updatedAt: TimeInterval
         var missedSamples: Int
@@ -633,6 +635,7 @@ final class SystemMonitor: ObservableObject {
                     next.memoryUsed = memory.used
                     next.memoryAppUsed = memory.appUsed
                     next.memoryTotal = memory.total
+                    next.memorySwapUsed = memory.swapUsed
                     next.memoryPressure = memory.pressure
                     if memory.isFresh, memory.total > 0 {
                         self.memoryHistory.push(Double(memory.used) / Double(memory.total))
@@ -771,16 +774,26 @@ final class SystemMonitor: ObservableObject {
                 next.fanSpeeds = self.lastFanSpeeds
             }
 
-            next.cpuHistory = plan.needCPU ? self.cpuHistory.values : []
-            next.gpuHistory = plan.needGPUUsage ? self.gpuHistory.values : []
-            next.memoryHistory = plan.needMemory ? self.memoryHistory.values : []
-            next.memoryAppHistory = plan.needMemory ? self.memoryAppHistory.values : []
-            next.netDownHistory = plan.needNetwork ? self.netDownHistory.values : []
-            next.netUpHistory = plan.needNetwork ? self.netUpHistory.values : []
-            next.diskReadHistory = plan.needDisk ? self.diskReadHistory.values : []
-            next.diskWriteHistory = plan.needDisk ? self.diskWriteHistory.values : []
-            next.systemPowerHistory = plan.needPower ? self.powerHistory.values : []
-            next.batteryHistory = plan.needPower ? self.batteryHistory.values : []
+            next.cpuHistory = plan.needCPU
+                ? self.cpuHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.gpuHistory = plan.needGPUUsage
+                ? self.gpuHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.memoryHistory = plan.needMemory
+                ? self.memoryHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.memoryAppHistory = plan.needMemory
+                ? self.memoryAppHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.netDownHistory = plan.needNetwork
+                ? self.netDownHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.netUpHistory = plan.needNetwork
+                ? self.netUpHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.diskReadHistory = plan.needDisk
+                ? self.diskReadHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.diskWriteHistory = plan.needDisk
+                ? self.diskWriteHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.systemPowerHistory = plan.needPower
+                ? self.powerHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.batteryHistory = plan.needPower
+                ? self.batteryHistory.publishedValues(whileVisible: foregroundSampling) : []
 
             DispatchQueue.main.async {
                 // Skip pure carry-over publishes (nothing sampled, same plan,
@@ -804,9 +817,10 @@ final class SystemMonitor: ObservableObject {
         }
     }
 
-    private func stabilizedMemoryReading(now: TimeInterval) -> (used: UInt64, appUsed: UInt64, total: UInt64, pressure: MemoryPressure, isFresh: Bool)? {
+    private func stabilizedMemoryReading(now: TimeInterval) -> (used: UInt64, appUsed: UInt64, total: UInt64, swapUsed: UInt64?, pressure: MemoryPressure, isFresh: Bool)? {
         let pressure = Self.readMemoryPressure()
         if let memory = SystemInfo.memoryUsage(), memory.total > 0 {
+            let swapUsed = memory.swapUsed ?? memoryCache?.swapUsed
             let stablePressure: MemoryPressure
             switch pressure {
             case .unknown:
@@ -817,10 +831,11 @@ final class SystemMonitor: ObservableObject {
             memoryCache = CachedMemoryReading(used: memory.used,
                                               appUsed: memory.appUsed,
                                               total: memory.total,
+                                              swapUsed: swapUsed,
                                               pressure: stablePressure,
                                               updatedAt: now,
                                               missedSamples: 0)
-            return (memory.used, memory.appUsed, memory.total, stablePressure, true)
+            return (memory.used, memory.appUsed, memory.total, swapUsed, stablePressure, true)
         }
 
         guard var cached = memoryCache else { return nil }
@@ -837,7 +852,7 @@ final class SystemMonitor: ObservableObject {
             break
         }
         memoryCache = cached
-        return (cached.used, cached.appUsed, cached.total, cached.pressure, false)
+        return (cached.used, cached.appUsed, cached.total, cached.swapUsed, cached.pressure, false)
     }
 
     // MARK: - Sensor preparation

@@ -1197,18 +1197,27 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
                                                          directory: folder) else {
             return false
         }
-        guard copyFile(url) else {
+        guard copyFile(url, payload: clipboardPayload(from: image, png: data)) else {
             try? FileManager.default.removeItem(at: url)
             return false
         }
+        ScreenshotSupport.pruneCopiedFiles(in: folder, preserving: url)
         return true
     }
 
     @discardableResult
-    static func copyFile(_ url: URL) -> Bool {
+    static func copyFile(_ url: URL, payload: ClipboardPayload? = nil) -> Bool {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        return pasteboard.writeObjects([url as NSURL])
+        let item = NSPasteboardItem()
+        guard item.setString(url.absoluteString, forType: .fileURL) else { return false }
+        if let png = payload?.png {
+            item.setData(png, forType: .png)
+        }
+        if let tiff = payload?.tiff {
+            item.setData(tiff, forType: .tiff)
+        }
+        return pasteboard.writeObjects([item])
     }
 
     struct ClipboardPayload: Sendable {
@@ -1217,7 +1226,10 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     static func clipboardPayload(from image: CGImage) -> ClipboardPayload {
-        let png = ScreenshotRenderer.pngData(from: image)
+        clipboardPayload(from: image, png: ScreenshotRenderer.pngData(from: image))
+    }
+
+    static func clipboardPayload(from image: CGImage, png: Data?) -> ClipboardPayload {
         let bitmap = NSBitmapImageRep(cgImage: image)
         return ClipboardPayload(png: png, tiff: bitmap.tiffRepresentation)
     }

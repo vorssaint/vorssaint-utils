@@ -143,9 +143,6 @@ final class ScreenshotSelectionController {
     func begin(completion: @escaping (Outcome) -> Void) {
         Self.isSessionOnScreen = true
         self.completion = completion
-        screenCaptureOptions?.onSelectionChange = { [weak self] in
-            self?.screenCaptureToolDidChange()
-        }
         if freeze {
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -205,12 +202,12 @@ final class ScreenshotSelectionController {
         NSCursor.crosshair.set()
     }
 
-    private func screenCaptureToolDidChange() {
+    func prepareForCapturePolicyChange() {
         scrollingCaptureEnabled = false
-        loupeEnabled = isPickingColor
-        if isPickingColor, !freeze { loadLiveLoupeImages() }
+        loupeEnabled = false
         panels.forEach { $0.overlayView.captureToolDidChange() }
         if selectionInProgress { selectionInProgress = false }
+        markCapturePending()
     }
 
     /// Live selection stays transparent, but the loupe still needs source

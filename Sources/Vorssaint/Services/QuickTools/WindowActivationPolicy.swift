@@ -26,13 +26,15 @@ enum WindowActivationPolicy {
     private static var promoted = false
 
     static func retain() {
-        guard retention.retain(), NSApp.activationPolicy() != .regular else { return }
+        _ = retention.retain()
+        guard !promoted, NSApp.activationPolicy() != .regular else { return }
         promoted = NSApp.setActivationPolicy(.regular)
     }
 
     static func release() {
         guard retention.release(), promoted else { return }
-        NSApp.setActivationPolicy(.accessory)
-        promoted = false
+        if NSApp.setActivationPolicy(.accessory) {
+            promoted = false
+        }
     }
 }

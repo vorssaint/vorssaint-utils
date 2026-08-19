@@ -75,8 +75,7 @@ enum HomebrewOwnershipSupport {
     /// same-named copy elsewhere must never make an unrelated package eligible
     /// for a destructive command.
     static func packageManagingApplication(atPath rawPath: String,
-                                           installed: [HomebrewCaskRecord],
-                                           homeDirectory: String = NSHomeDirectory()) -> HomebrewPackage? {
+                                           installed: [HomebrewCaskRecord]) -> HomebrewPackage? {
         let path = URL(fileURLWithPath: rawPath).standardizedFileURL.path
         let exact = installed.filter { record in
             record.appPaths.contains {
@@ -86,22 +85,7 @@ enum HomebrewOwnershipSupport {
         if exact.count == 1 {
             return package(from: exact[0])
         }
-        guard exact.isEmpty else { return nil }
-
-        // Older catalog output can omit the final target path. Limit that
-        // fallback to the two ordinary app folders and require one owner.
-        let parent = URL(fileURLWithPath: path).deletingLastPathComponent().standardizedFileURL.path
-        let appFolders = [
-            URL(fileURLWithPath: "/Applications").standardizedFileURL.path,
-            URL(fileURLWithPath: homeDirectory).appendingPathComponent("Applications").standardizedFileURL.path,
-        ]
-        guard appFolders.contains(parent) else { return nil }
-        let name = URL(fileURLWithPath: path).lastPathComponent
-        let fallback = installed.filter {
-            $0.appPaths.isEmpty && $0.appFileNames.contains(name)
-        }
-        guard fallback.count == 1 else { return nil }
-        return package(from: fallback[0])
+        return nil
     }
 
     private static func package(from record: HomebrewCaskRecord) -> HomebrewPackage {

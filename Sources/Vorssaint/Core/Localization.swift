@@ -184,6 +184,7 @@ struct Strings {
     let usageSection: String
     let memorySection: String
     let memoryPressure: String
+    let memorySwapUsed: String
     let pressureNormal: String
     let pressureWarning: String
     let pressureCritical: String
@@ -265,30 +266,6 @@ struct Strings {
     let scrollTrackpadNote: String
     let scrollActiveNow: String
     let mouseNavigationActiveNow: String
-    let autoRaiseName: String
-    let autoRaiseCaption: String
-    let autoRaiseDelay: String
-    let autoRaisePollInterval: String
-    let autoRaiseRequireStop: String
-    let autoRaiseSensitivity: String
-    let autoRaiseAdvanced: String
-    let autoRaisePauseKey: String
-    let autoRaiseInvertPause: String
-    let autoRaiseIgnoreSpace: String
-    let autoRaiseIncludeOnly: String
-    let autoRaiseApps: String
-    let autoRaiseAppsCaption: String
-    let autoRaiseTitlePatterns: String
-    let autoRaiseStayFocusedApps: String
-    let autoRaiseWarp: String
-    let autoRaiseHorizontal: String
-    let autoRaiseVertical: String
-    let autoRaiseInvalidPatterns: String
-    let autoRaiseControlKey: String
-    let autoRaiseOptionKey: String
-    let autoRaiseDisabled: String
-    let autoRaiseAddApp: String
-    let autoRaiseRemoveApp: String
     let smoothScrollName: String
     let smoothScrollCaption: String
     let smoothScrollStepLabel: String
@@ -1160,6 +1137,7 @@ extension Strings {
         usageSection: "Uso de hardware",
         memorySection: "Memória",
         memoryPressure: "Pressão",
+        memorySwapUsed: "Swap em uso",
         pressureNormal: "Normal",
         pressureWarning: "Atenção",
         pressureCritical: "Crítico",
@@ -1232,30 +1210,6 @@ extension Strings {
         scrollTrackpadNote: "O trackpad não muda: continua com a rolagem natural do macOS.",
         scrollActiveNow: "Invertendo a rolagem do mouse agora",
         mouseNavigationActiveNow: "Botões laterais ativos agora",
-        autoRaiseName: "Foco ao passar o mouse",
-        autoRaiseCaption: "Coloca em foco e traz para frente a janela sob o ponteiro após uma breve pausa.",
-        autoRaiseDelay: "Atraso ao passar o mouse",
-        autoRaisePollInterval: "Intervalo de detecção",
-        autoRaiseRequireStop: "Exigir que o ponteiro pare",
-        autoRaiseSensitivity: "Sensibilidade ao movimento",
-        autoRaiseAdvanced: "Opções avançadas",
-        autoRaisePauseKey: "Tecla para pausar",
-        autoRaiseInvertPause: "Pausar quando a tecla não estiver pressionada",
-        autoRaiseIgnoreSpace: "Aguardar após trocar de Mesa",
-        autoRaiseIncludeOnly: "Usar a lista de apps como lista permitida",
-        autoRaiseApps: "Apps",
-        autoRaiseAppsCaption: "Por padrão, estes apps são ignorados. No modo de lista permitida, apenas eles recebem foco.",
-        autoRaiseTitlePatterns: "Títulos de janela ignorados (uma expressão regular por linha)",
-        autoRaiseStayFocusedApps: "Apps que devem permanecer em foco",
-        autoRaiseWarp: "Mover o ponteiro após Command-Tab ou Command-`",
-        autoRaiseHorizontal: "Posição horizontal",
-        autoRaiseVertical: "Posição vertical",
-        autoRaiseInvalidPatterns: "Uma ou mais expressões regulares são inválidas.",
-        autoRaiseControlKey: "Control",
-        autoRaiseOptionKey: "Option",
-        autoRaiseDisabled: "Desativado",
-        autoRaiseAddApp: "Adicionar app",
-        autoRaiseRemoveApp: "Remover app",
         smoothScrollName: "Rolagem suave",
         smoothScrollCaption: "Transforma cada passo da rodinha do mouse em um deslize curto e macio. O trackpad não muda.",
         smoothScrollStepLabel: "Distância por passo",
@@ -2099,6 +2053,7 @@ extension Strings {
         usageSection: "Hardware usage",
         memorySection: "Memory",
         memoryPressure: "Pressure",
+        memorySwapUsed: "Swap used",
         pressureNormal: "Normal",
         pressureWarning: "Caution",
         pressureCritical: "Critical",
@@ -2171,30 +2126,6 @@ extension Strings {
         scrollTrackpadNote: "The trackpad is untouched: it keeps macOS natural scrolling.",
         scrollActiveNow: "Inverting mouse scrolling right now",
         mouseNavigationActiveNow: "Side buttons active right now",
-        autoRaiseName: "Focus follows mouse",
-        autoRaiseCaption: "Focuses and raises the window under the pointer after a short pause.",
-        autoRaiseDelay: "Hover delay",
-        autoRaisePollInterval: "Detection interval",
-        autoRaiseRequireStop: "Require the pointer to stop",
-        autoRaiseSensitivity: "Movement sensitivity",
-        autoRaiseAdvanced: "Advanced options",
-        autoRaisePauseKey: "Pause key",
-        autoRaiseInvertPause: "Pause while the key is not held",
-        autoRaiseIgnoreSpace: "Wait after switching Spaces",
-        autoRaiseIncludeOnly: "Treat the app list as an allowlist",
-        autoRaiseApps: "Apps",
-        autoRaiseAppsCaption: "These apps are ignored by default. In allowlist mode, only these apps receive focus.",
-        autoRaiseTitlePatterns: "Ignored window titles (one regular expression per line)",
-        autoRaiseStayFocusedApps: "Apps that should stay focused",
-        autoRaiseWarp: "Move the pointer after Command-Tab or Command-`",
-        autoRaiseHorizontal: "Horizontal position",
-        autoRaiseVertical: "Vertical position",
-        autoRaiseInvalidPatterns: "One or more regular expressions are invalid.",
-        autoRaiseControlKey: "Control",
-        autoRaiseOptionKey: "Option",
-        autoRaiseDisabled: "Disabled",
-        autoRaiseAddApp: "Add app",
-        autoRaiseRemoveApp: "Remove app",
         smoothScrollName: "Smooth scrolling",
         smoothScrollCaption: "Turns each mouse wheel step into a short, gentle glide. The trackpad is not affected.",
         smoothScrollStepLabel: "Distance per step",

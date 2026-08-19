@@ -172,8 +172,8 @@ enum BrightnessSupport {
     /// Turning off the final drawable display would leave no UI path to turn
     /// it back on. The target must be active and another active display must
     /// remain after the transaction.
-    static func canDisableDisplay(activeDisplayIDs: Set<UInt32>, target: UInt32) -> Bool {
-        activeDisplayIDs.contains(target) && activeDisplayIDs.count > 1
+    static func canDisableDisplay(drawableDisplayIDs: Set<UInt32>, target: UInt32) -> Bool {
+        drawableDisplayIDs.contains(target) && drawableDisplayIDs.count > 1
     }
 
     /// Active display lists can include virtual devices with no picture a

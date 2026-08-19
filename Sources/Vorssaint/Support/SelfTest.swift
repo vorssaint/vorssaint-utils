@@ -30,6 +30,9 @@ enum SelfTest {
                 // reclaimable cache; the reading is bounded but not useful.
                 warnings.append("memory usage unavailable")
             }
+            if memory.swapUsed == nil {
+                failures.append("swap memory reading")
+            }
         } else {
             failures.append("memory reading")
         }

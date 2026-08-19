@@ -66,6 +66,37 @@ enum ScreenCaptureTool: String, CaseIterable {
 /// harness compiles it standalone.
 enum ScreenshotSupport {
 
+    struct UnifiedCapturePolicy: Equatable {
+        let freeze: Bool
+        let includePointer: Bool
+        let hideVorssaintWindows: Bool
+        let usesGeometry: Bool
+    }
+
+    static func unifiedCapturePolicy(for tool: ScreenCaptureTool,
+                                     screenshotFreeze: Bool,
+                                     screenshotIncludePointer: Bool,
+                                     screenshotHideVorssaintWindows: Bool)
+        -> UnifiedCapturePolicy {
+        UnifiedCapturePolicy(
+            freeze: tool == .screenshot ? screenshotFreeze : true,
+            includePointer: tool == .screenshot && screenshotIncludePointer,
+            hideVorssaintWindows: tool != .recording && screenshotHideVorssaintWindows,
+            usesGeometry: tool == .recording)
+    }
+
+    static func captureAvailabilityChanged(activeTools: [ScreenCaptureTool],
+                                           availableTools: [ScreenCaptureTool]) -> Bool {
+        activeTools != availableTools
+    }
+
+    static func captureRouteIsAuthorized(
+        selected: ScreenCaptureTool,
+        isAvailable: (AppFeature) -> Bool = { $0.isAvailable }
+    ) -> Bool {
+        isAvailable(selected.feature)
+    }
+
     static func captureGuideIsVisible(pointerOnDisplay: Bool,
                                       selectionInProgress: Bool,
                                       capturePending: Bool) -> Bool {
@@ -76,6 +107,16 @@ enum ScreenshotSupport {
 
     static let recentCaptureLimit = 12
     static let recentCaptureMaximumBytes: Int64 = 256 * 1024 * 1024
+
+    static func isRecentCaptureCacheFileName(_ name: String) -> Bool {
+        guard name == URL(fileURLWithPath: name).lastPathComponent,
+              name.lowercased().hasSuffix(".png") else { return false }
+        let stem = String(name.dropLast(4))
+        if UUID(uuidString: stem) != nil { return true }
+        let suffix = "-thumbnail"
+        return stem.hasSuffix(suffix)
+            && UUID(uuidString: String(stem.dropLast(suffix.count))) != nil
+    }
 
     static func cappedRecentCaptureIDs(_ ids: [UUID],
                                        screenshotBytes: [UUID: Int64] = [:]) -> [UUID] {
@@ -141,30 +182,44 @@ enum ScreenshotSupport {
 
     enum ScrollingTransition: Equatable {
         case end
-        case advanced(overlap: Int, direction: ScrollingDirection)
+        case advanced(overlap: Int,
+                      direction: ScrollingDirection,
+                      contentColumns: Range<Int>)
         case unmatched
     }
 
     static func scrollingSamplesAreStable(_ previous: ScrollingSample,
-                                          _ current: ScrollingSample) -> Bool {
+                                          _ current: ScrollingSample,
+                                          contentColumns: Range<Int>? = nil) -> Bool {
         previous.isValid && current.isValid
             && previous.width == current.width
             && previous.height == current.height
-            && scrollingDifference(previous, current) <= 1.5
+            && scrollingDifference(previous,
+                                   current,
+                                   columns: contentColumns ?? 0..<previous.width) <= 1.5
     }
 
     /// Finds how many rows two successive views share. The calculation is
     /// deliberately pure: captures only provide small grayscale samples and
     /// the exact same matching policy is exercised by the test harness.
     static func scrollingTransition(previous: ScrollingSample,
-                                    current: ScrollingSample) -> ScrollingTransition {
+                                    current: ScrollingSample,
+                                    contentColumns: Range<Int>? = nil) -> ScrollingTransition {
         guard previous.isValid, current.isValid,
               previous.width == current.width,
               previous.height == current.height,
               previous.height >= 24
         else { return .unmatched }
 
-        if scrollingSamplesAreStable(previous, current) {
+        let columns = contentColumns ?? 0..<previous.width
+        guard columns.lowerBound >= 0,
+              columns.upperBound <= previous.width,
+              !columns.isEmpty
+        else { return .unmatched }
+
+        if scrollingSamplesAreStable(previous,
+                                     current,
+                                     contentColumns: columns) {
             return .end
         }
 
@@ -179,20 +234,31 @@ enum ScreenshotSupport {
         struct Match {
             let advance: Int
             let reversed: Bool
+            let contentColumns: Range<Int>
+            let supportingTiles: Int
             let longestRun: Int
             let matchingRows: Int
             let difference: Double
         }
 
+        let tiles = scrollingColumnTiles(in: columns, sampleWidth: previous.width)
+        let movingTiles = tiles.filter {
+            scrollingDifference(previous, current, columns: $0) > 1.5
+        }
+        guard !movingTiles.isEmpty else { return .unmatched }
+
         var matches: [Match] = []
         for advance in minimumAdvance...maximumAdvance {
             for reversed in [false, true] {
-                guard let match = scrollingMatch(previous: previous,
-                                                 current: current,
-                                                 advance: advance,
-                                                 reversed: reversed) else { continue }
+                guard let match = scrollingCandidate(previous: previous,
+                                                     current: current,
+                                                     advance: advance,
+                                                     reversed: reversed,
+                                                     tiles: movingTiles) else { continue }
                 matches.append(Match(advance: advance,
                                      reversed: reversed,
+                                     contentColumns: match.contentColumns,
+                                     supportingTiles: match.supportingTiles,
                                      longestRun: match.longestRun,
                                      matchingRows: match.matchingRows,
                                      difference: match.difference))
@@ -200,6 +266,12 @@ enum ScreenshotSupport {
         }
         guard !matches.isEmpty else { return .unmatched }
         matches.sort {
+            if $0.contentColumns.count != $1.contentColumns.count {
+                return $0.contentColumns.count > $1.contentColumns.count
+            }
+            if $0.supportingTiles != $1.supportingTiles {
+                return $0.supportingTiles > $1.supportingTiles
+            }
             if $0.longestRun != $1.longestRun { return $0.longestRun > $1.longestRun }
             if $0.matchingRows != $1.matchingRows { return $0.matchingRows > $1.matchingRows }
             return $0.difference < $1.difference
@@ -207,7 +279,7 @@ enum ScreenshotSupport {
 
         let best = matches[0]
         let requiredRun = max(8, min(28, height / 12))
-        guard best.longestRun >= requiredRun, best.difference <= 10 else {
+        guard best.longestRun >= requiredRun else {
             return .unmatched
         }
 
@@ -216,24 +288,30 @@ enum ScreenshotSupport {
         if let rival = matches.dropFirst().first(where: {
             $0.reversed != best.reversed || abs($0.advance - best.advance) > 2
         }),
+           rival.contentColumns.count >= best.contentColumns.count - 1,
+           rival.supportingTiles >= best.supportingTiles - 1,
            rival.longestRun >= best.longestRun - 2,
-           rival.matchingRows >= best.matchingRows - 3,
+           rival.matchingRows >= best.matchingRows - max(3, best.supportingTiles * 3),
            rival.difference <= best.difference + 0.75 {
             return .unmatched
         }
         return .advanced(overlap: height - best.advance,
-                         direction: best.reversed ? .backward : .forward)
+                         direction: best.reversed ? .backward : .forward,
+                         contentColumns: best.contentColumns)
     }
 
     private static func scrollingDifference(_ lhs: ScrollingSample,
-                                            _ rhs: ScrollingSample) -> Double {
-        let sideInset = max(0, lhs.width / 12)
+                                            _ rhs: ScrollingSample,
+                                            columns: Range<Int>) -> Double {
+        guard columns.lowerBound >= 0,
+              columns.upperBound <= lhs.width,
+              !columns.isEmpty else { return .infinity }
         let topInset = max(0, lhs.height / 24)
         var difference = 0
         var count = 0
         for row in topInset..<(lhs.height - topInset) {
             let start = row * lhs.width
-            for column in sideInset..<(lhs.width - sideInset) {
+            for column in columns {
                 difference += abs(Int(lhs.pixels[start + column])
                     - Int(rhs.pixels[start + column]))
                 count += 1
@@ -242,20 +320,117 @@ enum ScreenshotSupport {
         return count > 0 ? Double(difference) / Double(count) : .infinity
     }
 
+    private struct ScrollingCandidate {
+        let contentColumns: Range<Int>
+        let supportingTiles: Int
+        let longestRun: Int
+        let matchingRows: Int
+        let difference: Double
+    }
+
+    private static func scrollingColumnTiles(in columns: Range<Int>,
+                                             sampleWidth: Int) -> [Range<Int>] {
+        let tileWidth = max(2, sampleWidth / 8)
+        var tiles: [Range<Int>] = []
+        var lower = columns.lowerBound
+        while lower < columns.upperBound {
+            let upper = min(columns.upperBound, lower + tileWidth)
+            if upper - lower >= 2 || tiles.isEmpty {
+                tiles.append(lower..<upper)
+            }
+            lower = upper
+        }
+        return tiles
+    }
+
+    private static func scrollingCandidate(previous: ScrollingSample,
+                                           current: ScrollingSample,
+                                           advance: Int,
+                                           reversed: Bool,
+                                           tiles: [Range<Int>]) -> ScrollingCandidate? {
+        let requiredRun = max(8, min(28, previous.height / 12))
+        let matches = tiles.map { tile -> (Range<Int>, ScrollingRowMatch?) in
+            guard let match = scrollingMatch(previous: previous,
+                                              current: current,
+                                              advance: advance,
+                                              reversed: reversed,
+                                              columns: tile),
+                  match.longestRun >= requiredRun,
+                  match.matchingRows >= max(requiredRun, match.comparedRows / 3)
+            else { return (tile, nil) }
+            return (tile, match)
+        }
+
+        let minimumTiles = matches.count >= 3 ? 2 : 1
+        var runs: [[(Range<Int>, ScrollingRowMatch)]] = []
+        var run: [(Range<Int>, ScrollingRowMatch)] = []
+        var skippedOneTile = false
+        for (tile, match) in matches {
+            if let match {
+                run.append((tile, match))
+            } else if !run.isEmpty, !skippedOneTile {
+                skippedOneTile = true
+            } else {
+                if !run.isEmpty { runs.append(run) }
+                run = []
+                skippedOneTile = false
+            }
+        }
+        if !run.isEmpty { runs.append(run) }
+
+        return runs.compactMap { supported -> ScrollingCandidate? in
+            guard supported.count >= minimumTiles,
+                  let first = supported.first,
+                  let last = supported.last else { return nil }
+            let contentColumns = first.0.lowerBound..<last.0.upperBound
+            guard let combined = scrollingMatch(previous: previous,
+                                                 current: current,
+                                                 advance: advance,
+                                                 reversed: reversed,
+                                                 columns: contentColumns),
+                  combined.longestRun >= requiredRun,
+                  combined.matchingRows >= max(requiredRun, combined.comparedRows / 3)
+            else { return nil }
+            return ScrollingCandidate(contentColumns: contentColumns,
+                                      supportingTiles: supported.count,
+                                      longestRun: combined.longestRun,
+                                      matchingRows: combined.matchingRows,
+                                      difference: combined.difference)
+        }.max {
+            if $0.contentColumns.count != $1.contentColumns.count {
+                return $0.contentColumns.count < $1.contentColumns.count
+            }
+            if $0.matchingRows != $1.matchingRows {
+                return $0.matchingRows < $1.matchingRows
+            }
+            return $0.difference > $1.difference
+        }
+    }
+
+    private struct ScrollingRowMatch {
+        let longestRun: Int
+        let matchingRows: Int
+        let comparedRows: Int
+        let difference: Double
+    }
+
     private static func scrollingMatch(previous: ScrollingSample,
                                        current: ScrollingSample,
                                        advance: Int,
-                                       reversed: Bool)
-        -> (longestRun: Int, matchingRows: Int, difference: Double)? {
+                                       reversed: Bool,
+                                       columns: Range<Int>) -> ScrollingRowMatch? {
         let width = previous.width
-        let sideInset = max(1, width / 12)
         let edgeInset = max(2, previous.height / 10)
         let lastRow = previous.height - advance - edgeInset
-        guard lastRow > edgeInset, width - sideInset * 2 > 0 else { return nil }
+        guard lastRow > edgeInset,
+              columns.lowerBound >= 0,
+              columns.upperBound <= width,
+              !columns.isEmpty else { return nil }
 
         var longestRun = 0
         var run = 0
         var matchingRows = 0
+        var comparedRows = 0
         var totalDifference = 0
         var comparedPixels = 0
         for currentRow in edgeInset..<lastRow {
@@ -263,14 +438,15 @@ enum ScreenshotSupport {
             let previousStart = (reversed ? currentRow : previousRow) * width
             let currentStart = (reversed ? previousRow : currentRow) * width
             var rowDifference = 0
-            for column in sideInset..<(width - sideInset) {
+            for column in columns {
                 rowDifference += abs(Int(previous.pixels[previousStart + column])
                     - Int(current.pixels[currentStart + column]))
             }
-            let rowPixels = width - sideInset * 2
+            let rowPixels = columns.count
             let average = Double(rowDifference) / Double(rowPixels)
             totalDifference += rowDifference
             comparedPixels += rowPixels
+            comparedRows += 1
             if average <= 8 {
                 run += 1
                 matchingRows += 1
@@ -280,7 +456,23 @@ enum ScreenshotSupport {
             }
         }
         guard comparedPixels > 0 else { return nil }
-        return (longestRun, matchingRows, Double(totalDifference) / Double(comparedPixels))
+        return ScrollingRowMatch(longestRun: longestRun,
+                                 matchingRows: matchingRows,
+                                 comparedRows: comparedRows,
+                                 difference: Double(totalDifference) / Double(comparedPixels))
+    }
+
+    static func scrollingPixelRange(sampleColumns: Range<Int>,
+                                    sampleWidth: Int,
+                                    imageWidth: Int) -> Range<Int>? {
+        guard sampleWidth > 0, imageWidth > 0,
+              sampleColumns.lowerBound >= 0,
+              sampleColumns.upperBound <= sampleWidth,
+              !sampleColumns.isEmpty else { return nil }
+        let lower = sampleColumns.lowerBound * imageWidth / sampleWidth
+        let upper = (sampleColumns.upperBound * imageWidth + sampleWidth - 1) / sampleWidth
+        guard lower >= 0, upper <= imageWidth, lower < upper else { return nil }
+        return lower..<upper
     }
 
     /// Restores the pixels-per-point scale stored as standard PNG DPI.
@@ -594,31 +786,137 @@ enum ScreenshotSupport {
 
     /// Keeps copied captures available long enough for paste targets that read
     /// the file after accepting its URL from the pasteboard.
-    static func copiedFile(data: Data, name: String, directory: URL,
-                           now: Date = Date()) throws -> URL {
-        let manager = FileManager.default
+    static func copiedFile(data: Data, name: String, directory: URL) throws -> URL {
+        guard Int64(data.count) <= copiedFileMaximumBytes else {
+            throw CocoaError(.fileWriteOutOfSpace)
+        }
+        return try copiedFileLock.withLock {
+            let manager = FileManager.default
+            try preparePrivateCacheDirectory(directory, manager: manager)
+            let safeName = (name as NSString).lastPathComponent
+            let uniqueName = uniqueFileName(safeName) { candidate in
+                manager.fileExists(atPath: directory.appendingPathComponent(candidate).path)
+            }
+            let url = directory.appendingPathComponent(uniqueName)
+            try data.write(to: url, options: .atomic)
+            try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+            return url
+        }
+    }
+
+    static func copiedFilesDirectory(fileManager: FileManager = .default,
+                                     bundle: Bundle = .main) -> URL? {
+        guard let base = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first,
+              let bundleID = bundle.bundleIdentifier else { return nil }
+        return base.appendingPathComponent(bundleID, isDirectory: true)
+            .appendingPathComponent("Copied Screenshots", isDirectory: true)
+    }
+
+    static func isCopiedScreenshot(_ url: URL, in directory: URL) -> Bool {
+        let file = url.standardizedFileURL
+        let root = directory.standardizedFileURL
+        guard file.deletingLastPathComponent().path == root.path,
+              file.pathExtension.lowercased() == "png",
+              let rootValues = try? root.resourceValues(
+                forKeys: [.isDirectoryKey, .isSymbolicLinkKey]),
+              rootValues.isDirectory == true,
+              rootValues.isSymbolicLink != true,
+              let values = try? file.resourceValues(
+                forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+        else { return false }
+        return values.isRegularFile == true && values.isSymbolicLink != true
+    }
+
+    struct CopiedFilePruneCandidate: Equatable {
+        let url: URL
+        let date: Date
+        let bytes: Int64
+    }
+
+    private static let copiedFileLock = NSLock()
+    private static let copiedFileMaximumCount = 100
+    private static let copiedFileMaximumBytes: Int64 = 256 * 1024 * 1024
+
+    private static func preparePrivateCacheDirectory(_ directory: URL,
+                                                     manager: FileManager) throws {
         try manager.createDirectory(at: directory, withIntermediateDirectories: true)
-        let cutoff = now.addingTimeInterval(-24 * 3600)
-        if let files = try? manager.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey]
-        ) {
-            for file in files {
-                let values = try? file.resourceValues(
-                    forKeys: [.contentModificationDateKey, .isRegularFileKey])
-                if values?.isRegularFile == true,
-                   (values?.contentModificationDate ?? .distantFuture) < cutoff {
-                    try? manager.removeItem(at: file)
-                }
+        let values = try directory.resourceValues(
+            forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        guard values.isDirectory == true, values.isSymbolicLink != true else {
+            throw CocoaError(.fileWriteInvalidFileName)
+        }
+        try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+    }
+
+    static func copiedFilePruneVictims(_ files: [CopiedFilePruneCandidate],
+                                       preserving current: URL,
+                                       maximumCount: Int,
+                                       maximumBytes: Int64) -> [URL] {
+        let currentPath = current.standardizedFileURL.path
+        guard let currentFile = files.first(where: {
+            $0.url.standardizedFileURL.path == currentPath
+        }) else { return [] }
+        var count = 1
+        var bytes = max(0, currentFile.bytes)
+        var victims: [URL] = []
+        for file in files.sorted(by: {
+            $0.date == $1.date
+                ? $0.url.standardizedFileURL.path < $1.url.standardizedFileURL.path
+                : $0.date > $1.date
+        })
+            where file.url.standardizedFileURL.path != currentPath {
+            if count < maximumCount
+                && file.bytes >= 0
+                && bytes <= maximumBytes
+                && file.bytes <= maximumBytes - bytes {
+                count += 1
+                bytes += file.bytes
+            } else {
+                victims.append(file.url)
             }
         }
-        let safeName = (name as NSString).lastPathComponent
-        let uniqueName = uniqueFileName(safeName) { candidate in
-            manager.fileExists(atPath: directory.appendingPathComponent(candidate).path)
+        return victims
+    }
+
+    /// Applies the cache bounds only after `current` has reached the pasteboard.
+    /// A stale render may finish later, but it can never evict the published URL.
+    static func pruneCopiedFiles(in directory: URL, preserving current: URL,
+                                 now: Date = Date()) {
+        copiedFileLock.withLock {
+            let manager = FileManager.default
+            guard isCopiedScreenshot(current, in: directory) else { return }
+            let keys: Set<URLResourceKey> = [
+                .contentModificationDateKey, .fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey,
+            ]
+            guard let children = try? manager.contentsOfDirectory(
+                at: directory, includingPropertiesForKeys: Array(keys)) else { return }
+            let files = children.compactMap { url -> CopiedFilePruneCandidate? in
+                guard url.pathExtension.lowercased() == "png",
+                      let values = try? url.resourceValues(forKeys: keys),
+                      values.isRegularFile == true,
+                      values.isSymbolicLink != true else { return nil }
+                return CopiedFilePruneCandidate(
+                    url: url,
+                    date: values.contentModificationDate ?? .distantPast,
+                    bytes: Int64(values.fileSize ?? 0))
+            }
+            let currentPath = current.standardizedFileURL.path
+            let cutoff = now.addingTimeInterval(-24 * 3600)
+            let expired = files.filter {
+                $0.url.standardizedFileURL.path != currentPath && $0.date < cutoff
+            }
+            let expiredURLs = Set(expired.map(\.url))
+            let currentFiles = files.filter { !expiredURLs.contains($0.url) }
+            let budgetVictims = copiedFilePruneVictims(
+                currentFiles,
+                preserving: current,
+                maximumCount: copiedFileMaximumCount,
+                maximumBytes: copiedFileMaximumBytes
+            )
+            for victim in expired.map(\.url) + budgetVictims {
+                try? manager.removeItem(at: victim)
+            }
         }
-        let url = directory.appendingPathComponent(uniqueName)
-        try data.write(to: url, options: .atomic)
-        return url
     }
 
     static func removeTemporaryDragDirectories(

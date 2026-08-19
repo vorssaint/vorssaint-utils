@@ -31,6 +31,10 @@ struct SettingsView: View {
         .frame(minWidth: 772, maxWidth: .infinity, minHeight: 528, maxHeight: .infinity)
         .onAppear { ensureVisiblePage() }
         .onChange(of: features.revision) { _, _ in ensureVisiblePage() }
+        .onChange(of: router.requestID) { _, _ in
+            searchQuery = ""
+            ensureVisiblePage()
+        }
     }
 
     /// macOS 27 backs the pinned sidebar search field with a hard top scroll
@@ -608,27 +612,11 @@ struct MouseSettings: View {
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var inverter = ScrollInverter.shared
-    @ObservedObject private var autoRaise = AutoRaiseService.shared
     @ObservedObject private var smoothScroll = SmoothScrollService.shared
     @ObservedObject private var mouseNavigation = MouseNavigationService.shared
     @ObservedObject private var middleClick = MiddleClickService.shared
     @AppStorage(DefaultsKey.scrollInverterEnabled) private var invertVertical = false
     @AppStorage(DefaultsKey.scrollInverterHorizontalEnabled) private var invertHorizontal = false
-    @AppStorage(DefaultsKey.autoRaiseEnabled) private var autoRaiseEnabled = false
-    @AppStorage(DefaultsKey.autoRaiseDelay) private var autoRaiseDelay = 150
-    @AppStorage(DefaultsKey.autoRaisePollInterval) private var autoRaisePollInterval = 50
-    @AppStorage(DefaultsKey.autoRaiseRequireMouseStop) private var autoRaiseRequireMouseStop = true
-    @AppStorage(DefaultsKey.autoRaiseMovementThreshold) private var autoRaiseMovementThreshold = 1.0
-    @AppStorage(DefaultsKey.autoRaisePauseModifier) private var autoRaisePauseModifier = AutoRaisePauseModifier.control.rawValue
-    @AppStorage(DefaultsKey.autoRaiseInvertPauseModifier) private var autoRaiseInvertPauseModifier = false
-    @AppStorage(DefaultsKey.autoRaiseIgnoreAfterSpaceChange) private var autoRaiseIgnoreAfterSpaceChange = true
-    @AppStorage(DefaultsKey.autoRaiseIncludeOnlyApps) private var autoRaiseIncludeOnlyApps = false
-    @State private var autoRaiseAppBundleIDs: [String] = []
-    @State private var autoRaiseIgnoredTitlePatterns: [String] = []
-    @State private var autoRaiseStayFocusedBundleIDs: [String] = []
-    @AppStorage(DefaultsKey.autoRaiseWarpAfterTaskSwitch) private var autoRaiseWarpAfterTaskSwitch = false
-    @AppStorage(DefaultsKey.autoRaiseWarpX) private var autoRaiseWarpX = 0.5
-    @AppStorage(DefaultsKey.autoRaiseWarpY) private var autoRaiseWarpY = 0.5
     @AppStorage(DefaultsKey.smoothScrollEnabled) private var smoothScrollEnabled = false
     @AppStorage(DefaultsKey.smoothScrollStep) private var smoothScrollStep = SmoothScrollSupport.defaultStep
     @AppStorage(DefaultsKey.mouseNavigationEnabled) private var mouseNavigationEnabled = false
@@ -665,97 +653,6 @@ struct MouseSettings: View {
                     }
                 }
                 .settingsSectionAnchor(.scrollDirection)
-            }
-            if AppFeature.autoRaise.isAvailable {
-                Section(l10n.s.autoRaiseName) {
-                    Toggle(l10n.s.autoRaiseName, isOn: $autoRaiseEnabled)
-                        .onChange(of: autoRaiseEnabled) { _, enabled in
-                            AutoRaiseService.shared.syncWithPreferences()
-                            if enabled { Permissions.shared.requestAccessibility() }
-                        }
-                    SettingsCaptionText(l10n.s.autoRaiseCaption)
-                    if autoRaiseEnabled {
-                        HStack {
-                            Text(l10n.s.autoRaiseDelay)
-                            Slider(value: intBinding($autoRaiseDelay), in: 0...2_000, step: 25)
-                            Text("\(autoRaiseDelay) ms")
-                                .font(.caption.monospacedDigit())
-                                .frame(width: 70, alignment: .trailing)
-                        }
-                        Toggle(l10n.s.autoRaiseRequireStop, isOn: $autoRaiseRequireMouseStop)
-                            .onChange(of: autoRaiseRequireMouseStop) { _, _ in preferencesChanged() }
-                        DisclosureGroup(l10n.s.autoRaiseAdvanced) {
-                            Picker(l10n.s.autoRaisePauseKey, selection: $autoRaisePauseModifier) {
-                                Text(l10n.s.autoRaiseControlKey).tag(AutoRaisePauseModifier.control.rawValue)
-                                Text(l10n.s.autoRaiseOptionKey).tag(AutoRaisePauseModifier.option.rawValue)
-                                Text(l10n.s.autoRaiseDisabled).tag(AutoRaisePauseModifier.disabled.rawValue)
-                            }
-                            Toggle(l10n.s.autoRaiseInvertPause, isOn: $autoRaiseInvertPauseModifier)
-                                .disabled(autoRaisePauseModifier == AutoRaisePauseModifier.disabled.rawValue)
-                            Toggle(l10n.s.autoRaiseIgnoreSpace, isOn: $autoRaiseIgnoreAfterSpaceChange)
-                            HStack {
-                                Text(l10n.s.autoRaisePollInterval)
-                                Slider(value: intBinding($autoRaisePollInterval), in: 20...250, step: 10)
-                                Text("\(autoRaisePollInterval) ms")
-                                    .font(.caption.monospacedDigit())
-                                    .frame(width: 70, alignment: .trailing)
-                            }
-                            HStack {
-                                Text(l10n.s.autoRaiseSensitivity)
-                                Slider(value: $autoRaiseMovementThreshold, in: 0...20, step: 0.5)
-                                Text(autoRaiseMovementThreshold.formatted(.number.precision(.fractionLength(1))))
-                                    .font(.caption.monospacedDigit())
-                                    .frame(width: 36, alignment: .trailing)
-                            }
-                            Toggle(l10n.s.autoRaiseIncludeOnly, isOn: $autoRaiseIncludeOnlyApps)
-                            AppBundleList(title: l10n.s.autoRaiseApps,
-                                          caption: l10n.s.autoRaiseAppsCaption,
-                                          addTitle: l10n.s.autoRaiseAddApp,
-                                          removeLabel: l10n.s.autoRaiseRemoveApp,
-                                          bundleIDs: autoRaiseAppBundleIDs,
-                                          reachesEveryApp: true,
-                                          onAdd: { add($0, to: $autoRaiseAppBundleIDs,
-                                                       key: DefaultsKey.autoRaiseAppBundleIDs) },
-                                          onRemove: { remove($0, from: $autoRaiseAppBundleIDs,
-                                                             key: DefaultsKey.autoRaiseAppBundleIDs) })
-                            Text(l10n.s.autoRaiseTitlePatterns)
-                            TextEditor(text: titlePatternsBinding)
-                                .font(.body.monospaced())
-                                .frame(minHeight: 72)
-                            if !AutoRaiseConfiguration.invalidPatterns(autoRaiseIgnoredTitlePatterns).isEmpty {
-                                Text(l10n.s.autoRaiseInvalidPatterns)
-                                    .font(.caption)
-                                    .foregroundStyle(.red)
-                            }
-                            AppBundleList(title: l10n.s.autoRaiseStayFocusedApps,
-                                          caption: l10n.s.autoRaiseStayFocusedApps,
-                                          addTitle: l10n.s.autoRaiseAddApp,
-                                          removeLabel: l10n.s.autoRaiseRemoveApp,
-                                          bundleIDs: autoRaiseStayFocusedBundleIDs,
-                                          reachesEveryApp: true,
-                                          onAdd: { add($0, to: $autoRaiseStayFocusedBundleIDs,
-                                                       key: DefaultsKey.autoRaiseStayFocusedBundleIDs) },
-                                          onRemove: { remove($0, from: $autoRaiseStayFocusedBundleIDs,
-                                                             key: DefaultsKey.autoRaiseStayFocusedBundleIDs) })
-                            Toggle(l10n.s.autoRaiseWarp, isOn: $autoRaiseWarpAfterTaskSwitch)
-                            if autoRaiseWarpAfterTaskSwitch {
-                                Slider(value: $autoRaiseWarpX, in: 0...1) { Text(l10n.s.autoRaiseHorizontal) }
-                                Slider(value: $autoRaiseWarpY, in: 0...1) { Text(l10n.s.autoRaiseVertical) }
-                            }
-                        }
-                        .onChange(of: autoRaiseDelay) { _, _ in preferencesChanged() }
-                        .onChange(of: autoRaisePollInterval) { _, _ in preferencesChanged() }
-                        .onChange(of: autoRaiseMovementThreshold) { _, _ in preferencesChanged() }
-                        .onChange(of: autoRaisePauseModifier) { _, _ in preferencesChanged() }
-                        .onChange(of: autoRaiseInvertPauseModifier) { _, _ in preferencesChanged() }
-                        .onChange(of: autoRaiseIgnoreAfterSpaceChange) { _, _ in preferencesChanged() }
-                        .onChange(of: autoRaiseIncludeOnlyApps) { _, _ in preferencesChanged() }
-                        .onChange(of: autoRaiseWarpAfterTaskSwitch) { _, _ in preferencesChanged() }
-                        .onChange(of: autoRaiseWarpX) { _, _ in preferencesChanged() }
-                        .onChange(of: autoRaiseWarpY) { _, _ in preferencesChanged() }
-                    }
-                }
-                .settingsSectionAnchor(.autoRaise)
             }
             if AppFeature.smoothScroll.isAvailable {
                 Section(l10n.s.smoothScrollName) {
@@ -848,10 +745,6 @@ struct MouseSettings: View {
         .formStyle(.grouped)
         .onAppear {
             MiddleClickService.shared.refreshDragGestureConflict()
-            let defaults = UserDefaults.standard
-            autoRaiseAppBundleIDs = defaults.stringArray(forKey: DefaultsKey.autoRaiseAppBundleIDs) ?? []
-            autoRaiseIgnoredTitlePatterns = defaults.stringArray(forKey: DefaultsKey.autoRaiseIgnoredTitlePatterns) ?? []
-            autoRaiseStayFocusedBundleIDs = defaults.stringArray(forKey: DefaultsKey.autoRaiseStayFocusedBundleIDs) ?? []
         }
     }
 
@@ -859,7 +752,6 @@ struct MouseSettings: View {
     /// permission note; a hub-disabled one no longer needs anything.
     private var accessibilityNoteVisible: Bool {
         let anyEngaged = (scrollDirectionEnabled && AppFeature.scrollInverter.isAvailable)
-            || (autoRaiseEnabled && AppFeature.autoRaise.isAvailable)
             || (smoothScrollEnabled && AppFeature.smoothScroll.isAvailable)
             || (mouseNavigationEnabled && AppFeature.mouseNavigation.isAvailable)
             || (mouseButtonShortcutsEnabled && AppFeature.mouseButtonShortcuts.isAvailable)
@@ -876,38 +768,6 @@ struct MouseSettings: View {
             get: { Double(SmoothScrollSupport.sanitizedStep(smoothScrollStep)) },
             set: { smoothScrollStep = Int($0) }
         )
-    }
-
-    private func intBinding(_ value: Binding<Int>) -> Binding<Double> {
-        Binding(get: { Double(value.wrappedValue) },
-                set: { value.wrappedValue = Int($0); preferencesChanged() })
-    }
-
-    private var titlePatternsBinding: Binding<String> {
-        Binding(get: { autoRaiseIgnoredTitlePatterns.joined(separator: "\n") },
-                set: { autoRaiseIgnoredTitlePatterns = $0.components(separatedBy: .newlines)
-                    .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-                    UserDefaults.standard.set(autoRaiseIgnoredTitlePatterns,
-                                              forKey: DefaultsKey.autoRaiseIgnoredTitlePatterns)
-                    preferencesChanged()
-                })
-    }
-
-    private func add(_ bundleID: String, to value: Binding<[String]>, key: String) {
-        guard !value.wrappedValue.contains(bundleID) else { return }
-        value.wrappedValue.append(bundleID)
-        UserDefaults.standard.set(value.wrappedValue, forKey: key)
-        preferencesChanged()
-    }
-
-    private func remove(_ bundleID: String, from value: Binding<[String]>, key: String) {
-        value.wrappedValue.removeAll { $0 == bundleID }
-        UserDefaults.standard.set(value.wrappedValue, forKey: key)
-        preferencesChanged()
-    }
-
-    private func preferencesChanged() {
-        AutoRaiseService.shared.preferencesDidChange()
     }
 }
 
@@ -1470,6 +1330,7 @@ enum PermissionKind {
 struct PermissionRow: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
+    @State private var pollingDemandID = UUID()
     let kind: PermissionKind
 
     private var granted: Bool {
@@ -1477,6 +1338,13 @@ struct PermissionRow: View {
         case .accessibility: return permissions.accessibility
         case .screenRecording: return permissions.screenRecording
         case .microphone: return permissions.microphone == .granted
+        }
+    }
+
+    private var monitorsActivePermission: Bool {
+        switch kind {
+        case .accessibility, .screenRecording: return true
+        case .microphone: return false
         }
     }
 
@@ -1525,6 +1393,14 @@ struct PermissionRow: View {
                 }
                 .controlSize(.small)
             }
+        }
+        .onAppear {
+            if monitorsActivePermission {
+                permissions.setActivePermissionSurface(pollingDemandID, visible: true)
+            }
+        }
+        .onDisappear {
+            permissions.setActivePermissionSurface(pollingDemandID, visible: false)
         }
     }
 }

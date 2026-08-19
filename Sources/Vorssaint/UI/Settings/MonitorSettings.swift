@@ -154,16 +154,12 @@ struct MonitorSettings: View {
         }
         .formStyle(.grouped)
         .onAppear {
-            SystemMonitor.shared.panelDidAppear()
             interval = Defaults.sanitizedMonitorInterval(interval)
             metricAppearance = Defaults.sanitizedMenuBarMetricAppearance(metricAppearance)
             if TemperatureUnit(rawValue: temperatureUnit) == nil {
                 temperatureUnit = TemperatureUnit.celsius.rawValue
             }
             memoryMetric = Defaults.sanitizedMonitorMemoryMetric(memoryMetric)
-        }
-        .onDisappear {
-            SystemMonitor.shared.panelDidDisappear()
         }
     }
 

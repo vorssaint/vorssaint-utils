@@ -151,8 +151,8 @@ enum CommandBarDates {
         guard let date = calendar.date(byAdding: component,
                                        value: backwards ? -amount : amount,
                                        to: now) else { return nil }
-        return Result(formatted: longDate(date, calendar: calendar, locale: locale),
-                      detail: weekday(date, calendar: calendar, locale: locale))
+        return Result(formatted: longDate(date, locale: locale),
+                      detail: weekday(date, locale: locale))
     }
 
     /// "days until 25/12", "dias ate 25/12": how far away a written date is.
@@ -179,7 +179,7 @@ enum CommandBarDates {
         formatter.unitsStyle = .full
         guard let counted = formatter.string(from: DateComponents(day: abs(days)))
         else { return nil }
-        return Result(formatted: counted, detail: longDate(target, calendar: calendar, locale: locale))
+        return Result(formatted: counted, detail: longDate(target, locale: locale))
     }
 
     /// "time in tokyo", "hora em londres", "tokyo time".
@@ -213,21 +213,17 @@ enum CommandBarDates {
 
     // MARK: - Writing and reading dates
 
-    private static func longDate(_ date: Date, calendar: Calendar, locale: Locale) -> String {
+    private static func longDate(_ date: Date, locale: Locale) -> String {
         let formatter = DateFormatter()
         formatter.locale = locale
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
         formatter.dateStyle = .long
         formatter.timeStyle = .none
         return formatter.string(from: date)
     }
 
-    private static func weekday(_ date: Date, calendar: Calendar, locale: Locale) -> String {
+    private static func weekday(_ date: Date, locale: Locale) -> String {
         let formatter = DateFormatter()
         formatter.locale = locale
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
         formatter.setLocalizedDateFormatFromTemplate("EEEE")
         return formatter.string(from: date)
     }

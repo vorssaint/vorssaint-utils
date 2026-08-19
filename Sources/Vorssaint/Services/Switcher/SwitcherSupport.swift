@@ -36,6 +36,14 @@ enum SwitcherSessionScope: Equatable {
     case frontmostApp
 }
 
+/// How a key arriving before the asynchronous window list is ready is owned.
+enum SwitcherPendingKeyDecision: Equatable {
+    case handleActiveSession
+    case routeShortcut
+    case swallow
+    case cancelAndSwallow
+}
+
 /// Which running apps earn an entry of their own when they have no window the
 /// switcher can show. The switcher lists windows, so an app that closed all of
 /// them disappears from it while the system switcher still offers it.
@@ -806,11 +814,42 @@ enum SwitcherSupport {
                                          frontmostPID: pid_t?,
                                          targetIsMinimized: Bool,
                                          targetStartedMinimized: Bool,
+                                         targetWasObservedRestored: Bool = false,
                                          ownPID: pid_t = ProcessInfo.processInfo.processIdentifier) -> Bool {
-        guard !targetIsMinimized || targetStartedMinimized else { return false }
+        guard !targetIsMinimized
+                || (targetStartedMinimized && !targetWasObservedRestored)
+        else { return false }
         guard let sourcePID,
               let frontmostPID else { return true }
         return frontmostPID == targetPID || frontmostPID == sourcePID || frontmostPID == ownPID
+    }
+
+    /// Async results belong only to the still-pending shortcut press. A key
+    /// release may turn that pending start into an immediate commit, while a
+    /// teardown or a newer press clears/replaces the generation entirely.
+    static func isCurrentSessionStart(generation: UInt64,
+                                      pendingGeneration: UInt64?) -> Bool {
+        pendingGeneration == generation
+    }
+
+    static func pendingKeyDecision(sessionIsActive: Bool,
+                                   hasPendingStart: Bool,
+                                   commitWhenReady: Bool,
+                                   matchesShortcut: Bool) -> SwitcherPendingKeyDecision {
+        if sessionIsActive { return .handleActiveSession }
+        guard hasPendingStart, !matchesShortcut else { return .routeShortcut }
+        return commitWhenReady ? .cancelAndSwallow : .swallow
+    }
+
+    static func isCurrentActivationGeneration(_ scheduled: UInt64,
+                                              current: UInt64) -> Bool {
+        scheduled == current
+    }
+
+    static func shouldRestoreHiddenApp(revealGeneration: UInt64,
+                                       currentGeneration: UInt64,
+                                       appWasReactivated: Bool) -> Bool {
+        revealGeneration == currentGeneration && !appWasReactivated
     }
 
     static func shouldContinueAppActivationRetry(targetPID: pid_t,

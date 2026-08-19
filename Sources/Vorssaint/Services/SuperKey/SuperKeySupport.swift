@@ -66,6 +66,8 @@ enum SuperKeySupport {
     /// F18 is the destination: a key defined by the standard, so the system
     /// delivers it like any other, and one no portable keyboard carries.
     static let triggerUsage: UInt64 = 0x70000006D
+    static let userMappingProperty = "UserKeyMapping"
+    static let modifierMappingProperty = "HIDKeyboardModifierMappingPairs"
 
     /// Virtual key codes of the same two keys, as they arrive in key events.
     static let triggerKeyCode: Int64 = 79
@@ -78,17 +80,87 @@ enum SuperKeySupport {
     /// removed when it is turned off.
     static func mappings(enablingSuperKey enabled: Bool,
                          existing: [SuperKeyMapping],
-                         includeNoAction: Bool = false) -> [SuperKeyMapping] {
-        let others = existing.filter {
-            $0.source != capsLockUsage
-                && !($0.source == noActionUsage && $0.destination == triggerUsage)
-        }
+                         includeNoAction: Bool = false,
+                         ownsExistingMapping: Bool = false) -> [SuperKeyMapping] {
+        guard enabled || ownsExistingMapping else { return existing }
+        let others = existing.filter { !isOwnedMapping($0) }
         guard enabled else { return others }
+        guard !hasMappingConflict(in: existing, ownsExistingMapping: ownsExistingMapping)
+        else { return existing }
         var owned = [SuperKeyMapping(source: capsLockUsage, destination: triggerUsage)]
         if includeNoAction, !others.contains(where: { $0.source == noActionUsage }) {
             owned.append(SuperKeyMapping(source: noActionUsage, destination: triggerUsage))
         }
         return owned + others
+    }
+
+    /// Caps Lock can have only one destination. A mapping shaped like ours is
+    /// owned only when the persistent marker says a prior confirmed write made
+    /// it; otherwise activation is refused instead of claiming external state.
+    static func hasMappingConflict(in mappings: [SuperKeyMapping],
+                                   ownsExistingMapping: Bool) -> Bool {
+        mappings.contains {
+            ($0.source == capsLockUsage
+                && ($0.destination != triggerUsage || !ownsExistingMapping))
+                || ($0.source == noActionUsage
+                    && $0.destination == triggerUsage
+                    && !ownsExistingMapping)
+        }
+    }
+
+    static func mappingsMatch(_ lhs: [SuperKeyMapping], _ rhs: [SuperKeyMapping]) -> Bool {
+        lhs.count == rhs.count && lhs.allSatisfy(rhs.contains)
+    }
+
+    /// Returns one safe table only when every matched keyboard has the same
+    /// external mappings. A newly connected keyboard may differ solely by the
+    /// entries this feature already owns; those are removed before comparison
+    /// so repair and cleanup can still converge without copying someone else's
+    /// device-specific mapping onto every keyboard.
+    static func consistentMappings(_ report: String,
+                                   property: String,
+                                   ownsExistingMapping: Bool = false) -> [SuperKeyMapping]? {
+        let tables = mappingTables(report, property: property).map { mappings in
+            ownsExistingMapping ? mappings.filter { !isOwnedMapping($0) } : mappings
+        }
+        guard let first = tables.first,
+              tables.dropFirst().allSatisfy({ mappingsMatch($0, first) }) else { return nil }
+        return first
+    }
+
+    static func mappingTables(_ report: String,
+                              property: String) -> [[SuperKeyMapping]] {
+        var tables: [[SuperKeyMapping]] = []
+        var currentBlock = ""
+        for line in report.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let fields = trimmed.split(whereSeparator: \.isWhitespace)
+            let startsKeyboardBlock = fields.count >= 2 && fields[1] == property
+            if startsKeyboardBlock {
+                if !currentBlock.isEmpty { tables.append(parseMappings(currentBlock)) }
+                currentBlock = line
+            } else if !currentBlock.isEmpty {
+                currentBlock += "\n" + line
+            }
+        }
+        if !currentBlock.isEmpty { tables.append(parseMappings(currentBlock)) }
+        return tables
+    }
+
+    /// `hidutil --matching keyboard` reports one table per keyboard. A merged
+    /// set is insufficient: one mapped keyboard and one empty table must not be
+    /// accepted as a successful global write.
+    static func mappingReportConfirms(_ report: String,
+                                      expected: [SuperKeyMapping]) -> Bool {
+        let tables = mappingTables(report, property: userMappingProperty)
+        return !tables.isEmpty && tables.allSatisfy { mappingsMatch($0, expected) }
+    }
+
+    /// An unconfirmed clear never changes the write-ahead machine-state
+    /// marker, so a failed clear remains eligible for retry.
+    static func mappingMarkerAfterClear(previous: Bool,
+                                        readbackConfirmed: Bool) -> Bool {
+        readbackConfirmed ? false : previous
     }
 
     /// “No Action” has one shared sentinel after Modifier Keys. It is safe to
@@ -100,6 +172,14 @@ enum SuperKeySupport {
                 .map(\.source)
         )
         return disabledSources == [capsLockUsage]
+    }
+
+    /// A Modifier Keys rule runs before UserKeyMapping. Caps Lock may proceed
+    /// only when it has no such rule, or when its sole rule is the supported
+    /// no-action sentinel that can be recovered without affecting another key.
+    static func modifierMappingsAllowSuperKey(_ mappings: [SuperKeyMapping]) -> Bool {
+        !mappings.contains { $0.source == capsLockUsage }
+            || canMapNoAction(from: mappings)
     }
 
     /// The mapping table as the command line takes it.
@@ -123,6 +203,11 @@ enum SuperKeySupport {
             if !result.contains(mapping) { result.append(mapping) }
         }
         return result
+    }
+
+    private static func isOwnedMapping(_ mapping: SuperKeyMapping) -> Bool {
+        (mapping.source == capsLockUsage && mapping.destination == triggerUsage)
+            || (mapping.source == noActionUsage && mapping.destination == triggerUsage)
     }
 
     private static func number(after field: String, in body: String) -> UInt64? {

@@ -157,18 +157,17 @@ final class DockPreviewService: ObservableObject {
     func close(_ item: SwitcherItem) {
         guard isVisible,
               windows.contains(item),
-              let windowID = item.windowID,
-              WindowActivator.closeWindow(windowID: windowID,
-                                           appPID: item.pid,
-                                           windowOwnerPID: item.windowOwnerPID)
+              let windowID = item.windowID
         else { return }
 
-        if selectedWindowID == windowID {
-            selectedWindowID = nil
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
-            self?.finishClosing(item, windowID: windowID, attempt: 0)
+        WindowActivator.closeWindowIncludingHiddenState(item) { [weak self] didClose in
+            guard didClose, let self else { return }
+            if self.selectedWindowID == windowID {
+                self.selectedWindowID = nil
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
+                self?.finishClosing(item, windowID: windowID, attempt: 0)
+            }
         }
     }
 
@@ -1167,14 +1166,14 @@ final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
 
     func close(_ item: SwitcherItem) {
         guard windows.contains(item),
-              let windowID = item.windowID,
-              WindowActivator.closeWindow(windowID: windowID,
-                                           appPID: item.pid,
-                                           windowOwnerPID: item.windowOwnerPID)
+              let windowID = item.windowID
         else { return }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
-            self?.finishClosing(item, windowID: windowID, attempt: 0)
+        WindowActivator.closeWindowIncludingHiddenState(item) { [weak self] didClose in
+            guard didClose else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
+                self?.finishClosing(item, windowID: windowID, attempt: 0)
+            }
         }
     }
 

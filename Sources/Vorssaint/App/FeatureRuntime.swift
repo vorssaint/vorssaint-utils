@@ -119,9 +119,8 @@ final class FeatureRuntime: ObservableObject {
     }
 
     /// What each feature must re-evaluate when its availability (or a
-    /// permission it depends on) changes. On-demand tools (media, uninstaller,
-    /// homebrew, cleaning mode) hold no resources, so they have no binding —
-    /// their surfaces simply follow availability in the UI.
+    /// permission it depends on) changes. Most on-demand tools have no binding;
+    /// Media only binds so uninstalling it can cancel work already in flight.
     private static let bindings: [AppFeature: () -> Void] = [
         .switcher: {
             WindowUseTracker.shared.syncWithFeatures()
@@ -136,7 +135,6 @@ final class FeatureRuntime: ObservableObject {
         },
         .autoQuit: { AutoQuitService.shared.syncWithPreferences() },
         .scrollInverter: { ScrollInverter.shared.syncWithPreferences() },
-        .autoRaise: { AutoRaiseService.shared.syncWithPreferences() },
         .smoothScroll: { SmoothScrollService.shared.syncWithPreferences() },
         .mouseNavigation: { MouseNavigationService.shared.syncWithPreferences() },
         .mouseButtonShortcuts: { MouseButtonShortcutService.shared.syncWithPreferences() },
@@ -153,6 +151,11 @@ final class FeatureRuntime: ObservableObject {
             // capture toggle: uninstalling the feature stops it, turning history
             // off does not.
             ClipboardAutoClearService.shared.syncWithPreferences()
+        },
+        .mediaTools: {
+            guard !AppFeature.mediaTools.isAvailable else { return }
+            MediaService.shared.cancel()
+            ScreenRecorderService.shared.closeEditors(ownedBy: .mediaTools)
         },
         .pastePlain: { PastePlainService.shared.syncWithPreferences() },
         .finderCutPaste: { FinderCutPaste.shared.syncWithPreferences() },

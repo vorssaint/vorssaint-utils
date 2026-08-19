@@ -972,7 +972,11 @@ final class ShelfService: ObservableObject {
     /// drag carries both an image and its page URL — prefer the image, and
     /// only fall back to treating a URL as a link when nothing richer exists.
     func accept(providers: [NSItemProvider]) -> Bool {
-        guard providers.contains(where: canResolveItem) else { return false }
+        let candidateLeaves = providers.reduce(0) { count, provider in
+            count + (canResolveItem(from: provider) ? 1 : 0)
+        }
+        guard ShelfPersistenceSupport.canAdd(existingLeaves: itemCount,
+                                             newLeaves: candidateLeaves) else { return false }
         acceptMixedBatch(providers: providers)
         return true
     }
@@ -1009,7 +1013,7 @@ final class ShelfService: ObservableObject {
             guard let self else { return }
             let items = ShelfBatchSupport.orderedItems(from: resolved)
             guard !items.isEmpty else { return }
-            self.append(items.count == 1 ? items[0] : self.batchItem(children: items))
+            _ = self.append(items.count == 1 ? items[0] : self.batchItem(children: items))
         }
     }
 
@@ -1327,7 +1331,10 @@ final class ShelfService: ObservableObject {
         }
         let additions = items(from: pasteboard)
         guard !additions.isEmpty else { return false }
-        guard merge(additions, into: targetID) else { return false }
+        guard merge(additions, into: targetID) else {
+            discardOwnedPayloads(in: additions)
+            return false
+        }
         // Only a genuinely external drop counts as an add: mergeInternalDrag
         // reaches the shared merge below too, but that path is a removal
         // plus a reparent of an existing tile, not new content arriving.
@@ -1343,12 +1350,11 @@ final class ShelfService: ObservableObject {
     func accept(pasteboard: NSPasteboard) -> Bool {
         let fileURLs = fileURLs(from: pasteboard)
         if fileURLs.count > 1 {
-            addFileBatch(fileURLs)
-            return true
+            return addFileBatch(fileURLs)
         }
         let additions = items(from: pasteboard)
         guard !additions.isEmpty else { return false }
-        items.append(contentsOf: additions)
+        guard append(additions) else { return false }
         // The last one is furthest down, so revealing it brings its siblings.
         lastAddedID = additions.last?.id
         addSerial &+= 1
@@ -1368,9 +1374,9 @@ final class ShelfService: ObservableObject {
         }
     }
 
-    private func addFileBatch(_ urls: [URL]) {
+    private func addFileBatch(_ urls: [URL]) -> Bool {
         let children = urls.map { fileItem(for: $0) }
-        append(batchItem(children: children))
+        return append(batchItem(children: children))
     }
 
     private func fileItem(for url: URL, id: UUID = UUID(), title: String? = nil,
@@ -1427,22 +1433,41 @@ final class ShelfService: ObservableObject {
     }
 
     private func textItem(for string: String) -> Item? {
-        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
+        guard let bounded = ShelfPersistenceSupport.boundedLiveText(string) else { return nil }
+        let trimmed = bounded.trimmingCharacters(in: .whitespacesAndNewlines)
         let firstLine = trimmed.split(whereSeparator: \.isNewline).first.map(String.init) ?? trimmed
         let icon = symbol("doc.plaintext")
-        return Item(payload: .text(string), title: String(firstLine.prefix(48)), icon: icon, isImage: false)
+        return Item(payload: .text(bounded), title: String(firstLine.prefix(48)),
+                    icon: icon, isImage: false)
     }
 
     private func linkItem(for url: URL) -> Item {
         Item(payload: .link(url), title: url.host ?? url.absoluteString, icon: symbol("link"), isImage: false)
     }
 
-    private func append(_ item: Item) {
+    @discardableResult
+    private func append(_ item: Item) -> Bool {
+        guard ShelfPersistenceSupport.canAdd(existingLeaves: itemCount,
+                                             newLeaves: item.leafCount) else {
+            discardOwnedPayloads(in: [item])
+            return false
+        }
         items.append(item)
         lastAddedID = item.id
         addSerial &+= 1
         noteInteraction()
+        return true
+    }
+
+    private func append(_ additions: [Item]) -> Bool {
+        let leaves = additions.reduce(0) { $0 + $1.leafCount }
+        guard ShelfPersistenceSupport.canAdd(existingLeaves: itemCount,
+                                             newLeaves: leaves) else {
+            discardOwnedPayloads(in: additions)
+            return false
+        }
+        items.append(contentsOf: additions)
+        return true
     }
 
     private func batchItem(id: UUID = UUID(), children: [Item]) -> Item {
@@ -1577,6 +1602,8 @@ final class ShelfService: ObservableObject {
     private func merge(_ additions: [Item], into targetID: UUID) -> Bool {
         let leaves = dragItems(for: additions)
         guard !leaves.isEmpty,
+              ShelfPersistenceSupport.canAdd(existingLeaves: itemCount,
+                                             newLeaves: leaves.count),
               leaves.allSatisfy({ $0.id != targetID }),
               merge(leaves, into: targetID, in: &items)
         else { return false }
@@ -1614,6 +1641,18 @@ final class ShelfService: ObservableObject {
             for url in urls where self.isShelfOwnedFile(url) {
                 try? fm.removeItem(at: url)
             }
+        }
+    }
+
+    private func discardOwnedPayloads(in removed: [Item]) {
+        let candidates = removed.flatMap { ownedPayloadURLs(in: $0) }
+        let referencedPaths = Set(items.flatMap { ownedPayloadURLs(in: $0) }
+            .map { $0.standardizedFileURL.path })
+        let discardablePaths = ShelfPersistenceSupport.discardablePayloadPaths(
+            candidatePaths: candidates.map { $0.standardizedFileURL.path },
+            referencedPaths: referencedPaths)
+        for url in candidates where discardablePaths.contains(url.standardizedFileURL.path) {
+            try? FileManager.default.removeItem(at: url)
         }
     }
 
@@ -1807,6 +1846,7 @@ final class ShelfService: ObservableObject {
     /// anything added in the meantime, then sweeps payload files that lost
     /// their item (crash between write and save, or dropped at sanitizing).
     private func restoreItems() {
+        let sweepCutoff = Date()
         let data = UserDefaults.standard.data(forKey: DefaultsKey.shelfItems)
         DispatchQueue.global(qos: .utility).async { [weak self] in
             guard let self else { return }
@@ -1832,15 +1872,24 @@ final class ShelfService: ObservableObject {
             }
             DispatchQueue.main.async {
                 let restored = sanitized.compactMap { self.restoredItem(from: $0) }
+                let liveItemCount = self.itemCount
                 self.restoreCompleted = true
-                if restored.isEmpty {
+                if !restored.isEmpty {
+                    var remaining = max(0, ShelfPersistenceSupport.maxLeaves - self.itemCount)
+                    let keptRestored = restored.filter { item in
+                        guard item.leafCount <= remaining else { return false }
+                        remaining -= item.leafCount
+                        return true
+                    }
+                    self.items = keptRestored + self.items
+                }
+                if ShelfPersistenceSupport.needsPersistAfterRestore(
+                    restoredIsEmpty: restored.isEmpty,
+                    liveItemCount: liveItemCount) {
                     self.schedulePersist()
-                } else {
-                    self.items = restored + self.items
                 }
                 let keptPaths = Set(self.items.flatMap { self.ownedPayloadURLs(in: $0) }
                     .map(\.standardizedFileURL.path))
-                let sweepCutoff = Date()
                 DispatchQueue.global(qos: .utility).async {
                     self.sweepOwnedFiles(keeping: keptPaths, writtenBefore: sweepCutoff)
                 }

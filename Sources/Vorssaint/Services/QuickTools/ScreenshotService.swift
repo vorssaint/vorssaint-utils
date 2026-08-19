@@ -510,28 +510,45 @@ final class ScreenshotService: ObservableObject {
     /// would reveal an empty clipboard before the paste.
     private func autoCopy(_ capture: ScreenshotSelectionController.Capture) {
         let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
+        guard let folder = ScreenshotSupport.copiedFilesDirectory() else {
+            NSSound.beep()
+            return
+        }
+        let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
         autoCopyTask?.cancel()
         autoCopyGeneration += 1
         let generation = autoCopyGeneration
         let pasteboardChangeCount = NSPasteboard.general.changeCount
         autoCopyTask = Task { @MainActor [weak self] in
-            let payload = await Task.detached(priority: .userInitiated) {
+            let output = await Task.detached(priority: .userInitiated) {
                 guard let image = Self.flatten(capture, downscaleTo1x: downscale) else {
-                    return nil as ScreenshotEditorController.ClipboardPayload?
+                    return nil as (URL, ScreenshotEditorController.ClipboardPayload)?
                 }
-                return ScreenshotEditorController.clipboardPayload(from: image)
+                let payload = ScreenshotEditorController.clipboardPayload(from: image)
+                guard let png = payload.png,
+                      let url = try? ScreenshotSupport.copiedFile(
+                        data: png, name: name, directory: folder) else { return nil }
+                return (url, payload)
             }.value
+            guard let output else {
+                if !Task.isCancelled { NSSound.beep() }
+                return
+            }
             guard let self, !Task.isCancelled,
                   generation == self.autoCopyGeneration,
                   pasteboardChangeCount == NSPasteboard.general.changeCount,
                   AppFeature.screenshot.isAvailable
-            else { return }
-            guard let payload,
-                  ScreenshotEditorController.copyClipboardPayload(payload)
             else {
+                try? FileManager.default.removeItem(at: output.0)
+                return
+            }
+            guard ScreenshotEditorController.copyFile(output.0, payload: output.1)
+            else {
+                try? FileManager.default.removeItem(at: output.0)
                 NSSound.beep()
                 return
             }
+            ScreenshotSupport.pruneCopiedFiles(in: folder, preserving: output.0)
             self.autoCopyTask = nil
         }
     }
@@ -619,7 +636,8 @@ final class ScreenshotService: ObservableObject {
             return nil
         }
 
-        let copied = ScreenshotEditorController.copyFile(url)
+        let copied = ScreenshotEditorController.copyFile(
+            url, payload: ScreenshotEditorController.clipboardPayload(from: image, png: data))
         let format = copied ? strings.savedAndCopiedHUDFormat : strings.savedHUDFormat
         QuickToolHUD.show(icon: "camera.viewfinder",
                           message: String(format: format,

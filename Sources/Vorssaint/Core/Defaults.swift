@@ -37,21 +37,6 @@ enum DefaultsKey {
     static let sleepDisabledFlag = "vorssDisabledSleep"   // internal guard for pmset disablesleep
     static let scrollInverterEnabled = "scrollInverterEnabled"
     static let scrollInverterHorizontalEnabled = "scrollInverterHorizontalEnabled"
-    static let autoRaiseEnabled = "autoRaiseEnabled"
-    static let autoRaiseDelay = "autoRaiseDelayMilliseconds"
-    static let autoRaisePollInterval = "autoRaisePollIntervalMilliseconds"
-    static let autoRaiseRequireMouseStop = "autoRaiseRequireMouseStop"
-    static let autoRaiseMovementThreshold = "autoRaiseMovementThreshold"
-    static let autoRaisePauseModifier = "autoRaisePauseModifier"
-    static let autoRaiseInvertPauseModifier = "autoRaiseInvertPauseModifier"
-    static let autoRaiseIgnoreAfterSpaceChange = "autoRaiseIgnoreAfterSpaceChange"
-    static let autoRaiseIncludeOnlyApps = "autoRaiseIncludeOnlyApps"
-    static let autoRaiseAppBundleIDs = "autoRaiseAppBundleIDs"
-    static let autoRaiseIgnoredTitlePatterns = "autoRaiseIgnoredTitlePatterns"
-    static let autoRaiseStayFocusedBundleIDs = "autoRaiseStayFocusedBundleIDs"
-    static let autoRaiseWarpAfterTaskSwitch = "autoRaiseWarpAfterTaskSwitch"
-    static let autoRaiseWarpX = "autoRaiseWarpX"
-    static let autoRaiseWarpY = "autoRaiseWarpY"
     static let smoothScrollEnabled = "smoothScrollEnabled"
     static let smoothScrollStep = "smoothScrollStep"      // pixels per wheel tick
     static let mouseNavigationEnabled = "mouseNavigationEnabled" // side buttons trigger Back and Forward
@@ -197,7 +182,6 @@ enum DefaultsKey {
     static let panelUtilityClipboard = "panelUtilityClipboard"
     static let panelUtilityWindowLayout = "panelUtilityWindowLayout"
     static let panelControlMouseScroll = "panelControlMouseScroll"
-    static let panelControlAutoRaise = "panelControlAutoRaise"
     static let panelControlMouseNavigation = "panelControlMouseNavigation"
     static let panelControlSwitcher = "panelControlSwitcher"
     static let panelControlDockPreview = "panelControlDockPreview"
@@ -533,8 +517,6 @@ enum DefaultsKey {
     static let windowLayoutShortcutRightTwoThirds = "windowLayoutShortcutRightTwoThirds"
     static let windowLayoutShortcutPreviousDisplay = "windowLayoutShortcutPreviousDisplay"
     static let windowLayoutShortcutNextDisplay = "windowLayoutShortcutNextDisplay"
-    static let windowLayoutShortcutPreviousSpace = "windowLayoutShortcutPreviousSpace"
-    static let windowLayoutShortcutNextSpace = "windowLayoutShortcutNextSpace"
     static let windowLayoutShortcutFullScreen = "windowLayoutShortcutFullScreen"
     static let windowLayoutShortcutTopLeftSixth = "windowLayoutShortcutTopLeftSixth"
     static let windowLayoutShortcutTopCenterSixth = "windowLayoutShortcutTopCenterSixth"
@@ -751,21 +733,6 @@ enum Defaults {
         DefaultsKey.showCountdown: false,
         DefaultsKey.scrollInverterEnabled: false,
         DefaultsKey.scrollInverterHorizontalEnabled: false,
-        DefaultsKey.autoRaiseEnabled: false,
-        DefaultsKey.autoRaiseDelay: 150,
-        DefaultsKey.autoRaisePollInterval: 50,
-        DefaultsKey.autoRaiseRequireMouseStop: true,
-        DefaultsKey.autoRaiseMovementThreshold: 1.0,
-        DefaultsKey.autoRaisePauseModifier: AutoRaisePauseModifier.control.rawValue,
-        DefaultsKey.autoRaiseInvertPauseModifier: false,
-        DefaultsKey.autoRaiseIgnoreAfterSpaceChange: true,
-        DefaultsKey.autoRaiseIncludeOnlyApps: false,
-        DefaultsKey.autoRaiseAppBundleIDs: [String](),
-        DefaultsKey.autoRaiseIgnoredTitlePatterns: [String](),
-        DefaultsKey.autoRaiseStayFocusedBundleIDs: [String](),
-        DefaultsKey.autoRaiseWarpAfterTaskSwitch: false,
-        DefaultsKey.autoRaiseWarpX: 0.5,
-        DefaultsKey.autoRaiseWarpY: 0.5,
         DefaultsKey.smoothScrollEnabled: false,
         DefaultsKey.smoothScrollStep: 40,
         DefaultsKey.mouseNavigationEnabled: false,
@@ -899,7 +866,6 @@ enum Defaults {
         DefaultsKey.panelUtilityClipboard: true,
         DefaultsKey.panelUtilityWindowLayout: true,
         DefaultsKey.panelControlMouseScroll: true,
-        DefaultsKey.panelControlAutoRaise: true,
         DefaultsKey.panelControlMouseNavigation: true,
         DefaultsKey.panelControlSwitcher: true,
         DefaultsKey.panelControlDockPreview: true,
@@ -1184,8 +1150,6 @@ enum Defaults {
         DefaultsKey.windowLayoutShortcutBottomCenterSixth: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutBottomRightSixth: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutFullScreen: WindowLayoutAction.clearedShortcutStorageValue,
-        DefaultsKey.windowLayoutShortcutPreviousSpace: WindowLayoutAction.clearedShortcutStorageValue,
-        DefaultsKey.windowLayoutShortcutNextSpace: WindowLayoutAction.clearedShortcutStorageValue,
     ]
 
     static func register() {
