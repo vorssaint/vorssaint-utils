@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import ApplicationServices
 import CoreGraphics
 import Foundation
 
@@ -30,7 +31,7 @@ final class EarPodsTeamsMuteService: ObservableObject {
     }
     
     private func start() {
-        guard eventTap == nil else { return }
+        guard eventTap == nil, AXIsProcessTrusted() else { return }
         
         let systemDefinedEventTypeRawValue: UInt32 = 14
         let eventMask = (1 << systemDefinedEventTypeRawValue)
@@ -85,7 +86,7 @@ final class EarPodsTeamsMuteService: ObservableObject {
         let keyState = (keyFlags & 0xFF00) >> 8
         
         if UInt32(keyCode) == NX_KEYTYPE_PLAY {
-            if keyState == 1 { // Key down
+            if keyState == 0x0A { // Key down (NSSystemDefined media-key down state)
                 postTeamsMuteShortcut()
             }
             // Consume the event completely so Apple Music does not launch
