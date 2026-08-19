@@ -69,13 +69,15 @@ enum MixerRender {
 
         var frames = self.frames(bytes: source.mDataByteSize, channels: source.mNumberChannels)
         var outputChannels = 0
+        var hasWritableOutput = false
         for buffer in output where buffer.mNumberChannels > 0 {
             outputChannels += Int(buffer.mNumberChannels)
             guard buffer.mData != nil else { continue }
+            hasWritableOutput = true
             frames = min(frames, self.frames(bytes: buffer.mDataByteSize,
                                              channels: buffer.mNumberChannels))
         }
-        guard frames > 0, outputChannels > 0 else { return 0 }
+        guard frames > 0, outputChannels > 0, hasWritableOutput else { return 0 }
         var gain = gain
 
         // The usual shape: one interleaved buffer wanting exactly what the
@@ -102,6 +104,7 @@ enum MixerRender {
         }
 
         var firstOutputChannel = 0
+        var didWriteSourceChannel = false
         for buffer in output {
             let channels = Int(buffer.mNumberChannels)
             guard channels > 0 else { continue }
@@ -113,10 +116,11 @@ enum MixerRender {
                     vDSP_vclr(destination + channel, vDSP_Stride(channels), vDSP_Length(frames))
                     continue
                 }
+                didWriteSourceChannel = true
                 vDSP_vsmul(samples + sourceChannel, vDSP_Stride(sourceChannels), &gain,
                            destination + channel, vDSP_Stride(channels), vDSP_Length(frames))
             }
         }
-        return frames
+        return didWriteSourceChannel ? frames : 0
     }
 }

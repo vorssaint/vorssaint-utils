@@ -67,11 +67,6 @@ final class StatusItemController {
     init() {
         installStatusItem()
         bind()
-
-        titleTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            self?.refresh()
-        }
-        titleTimer?.tolerance = 5
     }
 
     /// Creates the status item and configures its button. The menu bar item is the
@@ -236,6 +231,27 @@ final class StatusItemController {
         SystemMonitor.shared.setMenuBarActive(MenuBarMetric.anyEnabled(in: defaults))
     }
 
+    private func syncTitleTimer(keepAwakeActive: Bool,
+                                showsCountdown: Bool,
+                                endDate: Date?) {
+        let shouldRun = MenuBarSpacingSupport.needsTitleRefreshTimer(
+            keepAwakeActive: keepAwakeActive,
+            showsCountdown: showsCountdown,
+            hasEndDate: endDate != nil)
+        guard shouldRun else {
+            titleTimer?.invalidate()
+            titleTimer = nil
+            return
+        }
+        guard titleTimer == nil else { return }
+        let timer = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
+            self?.refresh()
+        }
+        timer.tolerance = 5
+        RunLoop.main.add(timer, forMode: .common)
+        titleTimer = timer
+    }
+
     /// Reflects keep-awake state and an available update in the icon. Updates
     /// keep the blue attention glyph; an active session uses the chosen icon.
     /// With the mute indicator option on, a red slashed mic joins the glyph
@@ -338,6 +354,10 @@ final class StatusItemController {
         let snapshot = SystemMonitor.shared.snapshot
         let metrics = MenuBarMetric.enabled(in: defaults)
         let separateMetrics = defaults.bool(forKey: DefaultsKey.menuBarSeparateMetrics)
+
+        syncTitleTimer(keepAwakeActive: manager.isActive,
+                       showsCountdown: defaults.bool(forKey: DefaultsKey.showCountdown),
+                       endDate: manager.endDate)
 
         // Compose the title from the keep-awake countdown (when shown) followed by
         // the pinned live metrics. Built attributed so the memory pressure dot can
@@ -486,18 +506,31 @@ final class StatusItemController {
 
             metricStatusItemFocus[group.id] = group.focusMetric
             let item = metricStatusItems[group.id] ?? installMetricStatusItem(for: group)
-            item.length = NSStatusItem.variableLength
+            if item.length != NSStatusItem.variableLength {
+                item.length = NSStatusItem.variableLength
+            }
             guard let button = item.button else { continue }
 
             let full = NSMutableAttributedString(attributedString: title)
+            let font = MenuBarRenderer.statusFont(stacked: false)
             full.addAttribute(.font,
-                              value: MenuBarRenderer.statusFont(stacked: false),
+                              value: font,
                               range: NSRange(location: 0, length: full.length))
-            button.font = MenuBarRenderer.statusFont(stacked: false)
-            button.attributedTitle = full
-            button.image = Self.emptyStatusImage
-            button.imagePosition = .noImage
-            button.toolTip = group.title
+            if button.font?.isEqual(font) != true {
+                button.font = font
+            }
+            if !full.isEqual(to: button.attributedTitle) {
+                button.attributedTitle = full
+            }
+            if button.image !== Self.emptyStatusImage {
+                button.image = Self.emptyStatusImage
+            }
+            if button.imagePosition != .noImage {
+                button.imagePosition = .noImage
+            }
+            if button.toolTip != group.title {
+                button.toolTip = group.title
+            }
         }
     }
 

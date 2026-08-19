@@ -771,16 +771,26 @@ final class SystemMonitor: ObservableObject {
                 next.fanSpeeds = self.lastFanSpeeds
             }
 
-            next.cpuHistory = plan.needCPU ? self.cpuHistory.values : []
-            next.gpuHistory = plan.needGPUUsage ? self.gpuHistory.values : []
-            next.memoryHistory = plan.needMemory ? self.memoryHistory.values : []
-            next.memoryAppHistory = plan.needMemory ? self.memoryAppHistory.values : []
-            next.netDownHistory = plan.needNetwork ? self.netDownHistory.values : []
-            next.netUpHistory = plan.needNetwork ? self.netUpHistory.values : []
-            next.diskReadHistory = plan.needDisk ? self.diskReadHistory.values : []
-            next.diskWriteHistory = plan.needDisk ? self.diskWriteHistory.values : []
-            next.systemPowerHistory = plan.needPower ? self.powerHistory.values : []
-            next.batteryHistory = plan.needPower ? self.batteryHistory.values : []
+            next.cpuHistory = plan.needCPU
+                ? self.cpuHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.gpuHistory = plan.needGPUUsage
+                ? self.gpuHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.memoryHistory = plan.needMemory
+                ? self.memoryHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.memoryAppHistory = plan.needMemory
+                ? self.memoryAppHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.netDownHistory = plan.needNetwork
+                ? self.netDownHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.netUpHistory = plan.needNetwork
+                ? self.netUpHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.diskReadHistory = plan.needDisk
+                ? self.diskReadHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.diskWriteHistory = plan.needDisk
+                ? self.diskWriteHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.systemPowerHistory = plan.needPower
+                ? self.powerHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.batteryHistory = plan.needPower
+                ? self.batteryHistory.publishedValues(whileVisible: foregroundSampling) : []
 
             DispatchQueue.main.async {
                 // Skip pure carry-over publishes (nothing sampled, same plan,

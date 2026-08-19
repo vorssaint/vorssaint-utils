@@ -131,6 +131,7 @@ enum QuickToolHUD {
             return
         }
         scrollingPanel?.orderOut(nil)
+        scrollingPanel?.contentViewController = nil
         scrollingModel = nil
     }
 
@@ -174,6 +175,8 @@ enum QuickToolHUD {
         }, completionHandler: {
             guard generation == dismissed else { return }
             panel.orderOut(nil)
+            panel.contentViewController = nil
+            dismissWork = nil
         })
     }
 

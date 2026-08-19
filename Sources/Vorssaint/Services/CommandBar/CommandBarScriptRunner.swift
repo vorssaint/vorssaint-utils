@@ -83,7 +83,7 @@ final class CommandBarScriptRunner {
         let path = (link.destination as NSString).expandingTildeInPath
         inFlight.insert(cacheKey)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let (status, output) = Shell.run(path, [argument])
+            let (status, output) = Shell.run(path, [argument], maxOutputBytes: 64 * 1024)
             let text = CommandBarLinks.resultText(output)
             // The hop back happens whatever the script printed: a run that
             // ends with nothing to show still has to stop counting as one in

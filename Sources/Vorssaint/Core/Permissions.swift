@@ -44,19 +44,16 @@ final class Permissions: ObservableObject {
 
     private var activePermissionTimer: Timer?
     private var activationObserver: NSObjectProtocol?
-    private var resignObserver: NSObjectProtocol?
-    private var currentPollInterval: TimeInterval = 0
+    private var defaultsObserver: NSObjectProtocol?
+    private var permissionSurfaceDemands: Set<UUID> = []
+    private var currentPollInterval: TimeInterval?
 
     private init() {
         refresh()
-        // Watch for Accessibility and Screen Recording flips so features come
-        // alive moments after the toggle flips. Both checks are TCC daemon
-        // round-trips, so the cadence adapts: fast only while a flip is
-        // plausible (the app is active — Settings, onboarding or the panel is
-        // up — or a grant is still missing, meaning the user may be in System
-        // Settings right now); slow in the steady state where everything is
-        // granted and the app sits in the background, which is where the app
-        // spends nearly its whole life.
+        // Watch Accessibility and Screen Recording only while a running
+        // feature or visible permission surface can use the result. One-shot
+        // tools refresh when invoked, so their mere availability must not keep
+        // a timer alive in the background.
         // Full Disk Access is deliberately NOT polled here: it can only change
         // across a relaunch (a running process never gains or is meant to lose
         // it mid-session), and probing it touches protected paths, so polling it
@@ -70,8 +67,8 @@ final class Permissions: ObservableObject {
             self?.refresh()
             self?.scheduleActivePermissionPolling()
         }
-        resignObserver = NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification,
-                                                                object: nil, queue: .main) { [weak self] _ in
+        defaultsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
+                                                                  object: nil, queue: .main) { [weak self] _ in
             self?.scheduleActivePermissionPolling()
         }
     }
@@ -79,13 +76,20 @@ final class Permissions: ObservableObject {
     deinit {
         activePermissionTimer?.invalidate()
         if let activationObserver { NotificationCenter.default.removeObserver(activationObserver) }
-        if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
+        if let defaultsObserver { NotificationCenter.default.removeObserver(defaultsObserver) }
     }
 
-    private var desiredPollInterval: TimeInterval {
-        if NSApp.isActive { return 2.5 }
-        if !accessibility || !screenRecording { return 2.5 }
-        return 60
+    private var desiredPollInterval: TimeInterval? {
+        let accessibilityIsNeeded = AppFeature.activeFeatures(using: .accessibility)
+            .contains { $0.monitorsPermissionChanges }
+        let screenRecordingIsNeeded = AppFeature.activeFeatures(using: .screenRecording)
+            .contains { $0.monitorsPermissionChanges }
+        return PermissionPollingSupport.interval(
+            visibleSurfaceCount: permissionSurfaceDemands.count,
+            accessibilityIsNeeded: accessibilityIsNeeded,
+            screenRecordingIsNeeded: screenRecordingIsNeeded,
+            accessibilityIsGranted: accessibility,
+            screenRecordingIsGranted: screenRecording)
     }
 
     private func scheduleActivePermissionPolling() {
@@ -93,12 +97,26 @@ final class Permissions: ObservableObject {
         guard interval != currentPollInterval else { return }
         currentPollInterval = interval
         activePermissionTimer?.invalidate()
+        activePermissionTimer = nil
+        guard let interval else { return }
         let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             self?.refreshActivePermissions()
         }
         timer.tolerance = interval * 0.4
         RunLoop.main.add(timer, forMode: .common)
         activePermissionTimer = timer
+    }
+
+    /// Visible permission UI owns a stable demand identifier so repeated
+    /// SwiftUI appearances cannot accidentally leave an unbalanced timer.
+    func setActivePermissionSurface(_ id: UUID, visible: Bool) {
+        if visible {
+            permissionSurfaceDemands.insert(id)
+            refreshActivePermissions()
+        } else {
+            permissionSurfaceDemands.remove(id)
+        }
+        scheduleActivePermissionPolling()
     }
 
     /// Full refresh including Full Disk Access. Runs at launch and on activation.
@@ -224,6 +242,7 @@ final class Permissions: ObservableObject {
     func requestAccessibility() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
+        refreshActivePermissions()
         if !accessibility {
             PermissionGuideOverlay.shared.show(for: .accessibility)
         }
@@ -233,6 +252,7 @@ final class Permissions: ObservableObject {
     /// floats the guide card, like the Accessibility path.
     func requestScreenRecording() {
         CGRequestScreenCaptureAccess()
+        refreshActivePermissions()
         if !screenRecording {
             PermissionGuideOverlay.shared.show(for: .screenRecording)
         }

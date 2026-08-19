@@ -399,6 +399,25 @@ enum ShelfPersistenceSupport {
     static let maxTextLength = 200_000
     static let maxDepth = 4
 
+    static func boundedLiveText(_ text: String) -> String? {
+        let bounded = String(text.prefix(maxTextLength))
+        guard !bounded.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return bounded
+    }
+
+    static func canAdd(existingLeaves: Int, newLeaves: Int) -> Bool {
+        existingLeaves >= 0 && newLeaves > 0 && existingLeaves <= maxLeaves - newLeaves
+    }
+
+    static func discardablePayloadPaths(candidatePaths: [String],
+                                        referencedPaths: Set<String>) -> Set<String> {
+        Set(candidatePaths).subtracting(referencedPaths)
+    }
+
+    static func needsPersistAfterRestore(restoredIsEmpty: Bool, liveItemCount: Int) -> Bool {
+        restoredIsEmpty || liveItemCount > 0
+    }
+
     /// Drops entries that can no longer be honored (missing files, empty text,
     /// invalid links) and mirrors the live shelf's batch rules: an emptied
     /// batch disappears and a single-child batch collapses to its child, the

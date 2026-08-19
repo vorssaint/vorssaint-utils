@@ -34,6 +34,7 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
     private let typing: RecorderTypingSampler
     private let writerQueue = DispatchQueue(label: "com.vorssaint.recorder.writer",
                                             qos: .userInitiated)
+    private let startGate = RecorderStartGate()
     /// Immutable for the whole session, which is what makes it safe to touch
     /// from the capture queue while the main thread watches the clock.
     private let writer: RecorderWriter
@@ -69,18 +70,39 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
     func start(frameRate: Int,
                capturesSystemAudio: Bool,
                excludedWindowNumbers: [Int]) async -> RecorderFailure? {
-        guard writer.start() else { return .writerFailed }
+        guard startGate.begin() else { return .streamFailed }
+        defer { startGate.finish() }
+        guard writer.start() else {
+            _ = startGate.claimStartFailure()
+            return .writerFailed
+        }
         if let failure = await engine.start(region: region,
                                             frameRate: frameRate,
                                             capturesSystemAudio: capturesSystemAudio,
-                                            excludedWindowNumbers: excludedWindowNumbers) {
-            writer.cancel()
+                                            excludedWindowNumbers: excludedWindowNumbers,
+                                            isCancelled: { [weak self] in
+                                                self?.startGate.isAuthorized != true
+                                            }) {
+            if startGate.claimStartFailure() { writer.cancel() }
             return failure
+        }
+        guard startGate.isAuthorized else {
+            await engine.stop()
+            return .streamFailed
         }
         if let microphone, let clock = engine.synchronizationClock {
             if await microphone.start(synchronizingTo: clock) == false {
                 onMicrophoneUnavailable?()
             }
+            guard startGate.isAuthorized else {
+                await microphone.stop()
+                await engine.stop()
+                return .streamFailed
+            }
+        }
+        guard startGate.isAuthorized else {
+            await engine.stop()
+            return .streamFailed
         }
         pointer.start()
         typing.start()
@@ -104,6 +126,9 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
     /// Stops the stream first and waits for it, so the file is closed knowing
     /// no further frame can arrive.
     func stop() async -> Bool {
+        let ownsFinalization = startGate.cancelAndClaimStop()
+        await startGate.waitUntilFinished()
+        guard ownsFinalization else { return false }
         if let microphone {
             async let microphoneStop: Void = microphone.stop()
             await engine.stop()
@@ -123,20 +148,6 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
             try? data.write(to: take.typingURL, options: .atomic)
         }
         return written
-    }
-
-    func abandon() async {
-        if let microphone {
-            async let microphoneStop: Void = microphone.stop()
-            await engine.stop()
-            await microphoneStop
-        } else {
-            await engine.stop()
-        }
-        _ = pointer.stop()
-        _ = typing.stop()
-        writerQueue.sync {}
-        writer.cancel()
     }
 
     func captureEngine(_ engine: RecorderCaptureEngine,
@@ -171,10 +182,13 @@ final class ScreenRecorderService: ObservableObject {
     private var session: RecorderSession?
     private var indicator: RecorderIndicator?
     private var editors: [RecorderEditorController] = []
+    private var mediaOwnedEditorIDs: Set<ObjectIdentifier> = []
     private var elapsedTimer: Timer?
     private var startedAt: CFTimeInterval = 0
     private var countdown: DispatchWorkItem?
     private var countdownRemaining = 0
+    private var pendingStartGeneration = 0
+    private var isAwaitingMicrophone = false
     private var sleepActivity: NSObjectProtocol?
     /// Set while a stop is being finalized, so a second press of the shortcut
     /// cannot start a recording on top of one still closing its file.
@@ -203,14 +217,13 @@ final class ScreenRecorderService: ObservableObject {
     /// screen, but a recording in progress still finishes into a file: losing
     /// what was already recorded would be worse than the delay.
     private func teardownSurfaces() {
-        countdown?.cancel()
-        countdown = nil
-        indicator?.hide()
-        indicator = nil
-        for editor in editors {
+        invalidatePendingStart()
+        let recorderOwnedEditors = editors.filter {
+            !mediaOwnedEditorIDs.contains(ObjectIdentifier($0))
+        }
+        for editor in recorderOwnedEditors {
             editor.close()
         }
-        editors.removeAll()
         if session != nil {
             stop()
         }
@@ -218,17 +231,29 @@ final class ScreenRecorderService: ObservableObject {
 
     // MARK: - Editor
 
-    func openEditor(with take: RecorderTakeStore.Take) {
+    @discardableResult
+    func openEditor(with take: RecorderTakeStore.Take,
+                    owner: AppFeature = .screenRecorder) -> Bool {
+        guard owner.isAvailable else { return false }
         WindowActivationPolicy.retain()
         let editor = RecorderEditorController(take: take)
         editors.append(editor)
+        if owner == .mediaTools { mediaOwnedEditorIDs.insert(ObjectIdentifier(editor)) }
         editor.show()
+        return true
     }
 
     func editorDidClose(_ editor: RecorderEditorController) {
         guard editors.contains(where: { $0 === editor }) else { return }
         editors.removeAll { $0 === editor }
+        mediaOwnedEditorIDs.remove(ObjectIdentifier(editor))
         WindowActivationPolicy.release()
+    }
+
+    func closeEditors(ownedBy owner: AppFeature) {
+        guard owner == .mediaTools else { return }
+        let targets = editors.filter { mediaOwnedEditorIDs.contains(ObjectIdentifier($0)) }
+        for editor in targets { editor.close() }
     }
 
     // MARK: - Entry
@@ -246,10 +271,11 @@ final class ScreenRecorderService: ObservableObject {
             return true
         }
         if countdown != nil {
-            countdown?.cancel()
-            countdown = nil
-            indicator?.hide()
-            indicator = nil
+            invalidatePendingStart()
+            return true
+        }
+        if isAwaitingMicrophone {
+            invalidatePendingStart()
             return true
         }
         return isFinishing
@@ -257,7 +283,7 @@ final class ScreenRecorderService: ObservableObject {
 
     func prepareForSelection() -> Bool {
         guard AppFeature.screenRecorder.isAvailable, !isFinishing,
-              session == nil, countdown == nil else { return false }
+              session == nil, countdown == nil, !isAwaitingMicrophone else { return false }
         guard Permissions.shared.screenRecording else {
             Permissions.shared.requestScreenRecording()
             return false
@@ -281,56 +307,66 @@ final class ScreenRecorderService: ObservableObject {
             onStop: { [weak self] in self?.stop() })
         indicator.showRegionGuide(for: region)
         self.indicator = indicator
-        prepareCountdown(for: region, wantsMicrophone: audioOptions.microphone)
+        pendingStartGeneration &+= 1
+        let generation = pendingStartGeneration
+        prepareCountdown(for: region, wantsMicrophone: audioOptions.microphone,
+                         generation: generation)
     }
 
-    private func prepareCountdown(for region: RecorderSupport.Region, wantsMicrophone: Bool) {
+    private func prepareCountdown(for region: RecorderSupport.Region,
+                                  wantsMicrophone: Bool,
+                                  generation: Int) {
+        guard pendingStartIsAuthorized(generation) else { return }
         guard wantsMicrophone else {
-            startCountdown(for: region)
+            startCountdown(for: region, generation: generation)
             return
         }
         switch Permissions.shared.microphone {
         case .granted:
-            startCountdown(for: region)
+            startCountdown(for: region, generation: generation)
         case .undetermined:
+            isAwaitingMicrophone = true
             Permissions.shared.requestMicrophone { [weak self] granted in
-                guard let self else { return }
+                guard let self, self.pendingStartIsAuthorized(generation) else { return }
+                self.isAwaitingMicrophone = false
                 if !granted {
                     QuickToolHUD.show(icon: "mic.slash",
                                       message: self.strings.microphoneUnavailableHUD)
                 }
-                self.startCountdown(for: region)
+                self.startCountdown(for: region, generation: generation)
             }
         case .denied, .unknown:
             QuickToolHUD.show(icon: "mic.slash", message: strings.microphoneUnavailableHUD)
-            startCountdown(for: region)
+            startCountdown(for: region, generation: generation)
         }
     }
 
     // MARK: - Countdown
 
-    private func startCountdown(for region: RecorderSupport.Region) {
+    private func startCountdown(for region: RecorderSupport.Region, generation: Int) {
+        guard pendingStartIsAuthorized(generation), session == nil, !isFinishing else { return }
         let delay = ScreenshotSupport.sanitizedDelay(
             UserDefaults.standard.integer(forKey: DefaultsKey.recorderCountdown))
         guard delay > 0 else {
-            beginRecording(region: region)
+            beginRecording(region: region, generation: generation)
             return
         }
         countdownRemaining = delay
-        tickCountdown(region: region)
+        tickCountdown(region: region, generation: generation)
     }
 
-    private func tickCountdown(region: RecorderSupport.Region) {
+    private func tickCountdown(region: RecorderSupport.Region, generation: Int) {
+        guard pendingStartIsAuthorized(generation) else { return }
         guard countdownRemaining > 0 else {
             countdown = nil
-            beginRecording(region: region)
+            beginRecording(region: region, generation: generation)
             return
         }
         QuickToolHUD.showCountdown(countdownRemaining)
         let work = DispatchWorkItem { [weak self] in
-            guard let self else { return }
+            guard let self, self.pendingStartIsAuthorized(generation) else { return }
             self.countdownRemaining -= 1
-            self.tickCountdown(region: region)
+            self.tickCountdown(region: region, generation: generation)
         }
         countdown = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
@@ -338,8 +374,9 @@ final class ScreenRecorderService: ObservableObject {
 
     // MARK: - Recording
 
-    private func beginRecording(region: RecorderSupport.Region) {
-        guard session == nil, let take = RecorderTakeStore.shared.makeTake() else {
+    private func beginRecording(region: RecorderSupport.Region, generation: Int) {
+        guard pendingStartIsAuthorized(generation), session == nil,
+              !isFinishing, let take = RecorderTakeStore.shared.makeTake() else {
             indicator?.hide()
             indicator = nil
             QuickToolHUD.show(icon: "record.circle", message: strings.recordFailed)
@@ -395,13 +432,17 @@ final class ScreenRecorderService: ObservableObject {
             // told to start only once the window server has caught up, so the
             // first frames are of the desktop and not of a fading overlay.
             try? await Task.sleep(nanoseconds: 120_000_000)
-            guard self.session === session else { return }
+            guard self.session === session,
+                  self.pendingStartIsAuthorized(generation) else { return }
             var chrome = Set(ScreenshotService.shared.protectedWindowIDsForCapture.map(Int.init))
             chrome.formUnion(indicator.excludedWindowNumbers)
             if let number = QuickToolHUD.currentWindowNumber { chrome.insert(number) }
-            if let failure = await session.start(frameRate: frameRate,
-                                                 capturesSystemAudio: capturesSystemAudio,
-                                                 excludedWindowNumbers: Array(chrome)) {
+            let failure = await session.start(frameRate: frameRate,
+                                              capturesSystemAudio: capturesSystemAudio,
+                                              excludedWindowNumbers: Array(chrome))
+            guard self.session === session, !self.isFinishing,
+                  self.pendingStartIsAuthorized(generation) else { return }
+            if let failure {
                 self.session = nil
                 self.indicator?.hide()
                 self.indicator = nil
@@ -411,6 +452,22 @@ final class ScreenRecorderService: ObservableObject {
             }
             self.recordingDidStart()
         }
+    }
+
+    private func pendingStartIsAuthorized(_ generation: Int) -> Bool {
+        RecorderSupport.pendingStartIsAuthorized(
+            requestGeneration: generation,
+            currentGeneration: pendingStartGeneration,
+            featureIsAvailable: AppFeature.screenRecorder.isAvailable)
+    }
+
+    private func invalidatePendingStart() {
+        pendingStartGeneration &+= 1
+        isAwaitingMicrophone = false
+        countdown?.cancel()
+        countdown = nil
+        indicator?.hide()
+        indicator = nil
     }
 
     private func recordingDidStart() {
@@ -476,8 +533,13 @@ final class ScreenRecorderService: ObservableObject {
     // MARK: - Stopping
 
     func stop(reason: String? = nil) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in self?.stop(reason: reason) }
+            return
+        }
         guard let session, !isFinishing else { return }
         isFinishing = true
+        invalidatePendingStart()
         endRecordingSurfaces()
 
         Task { @MainActor [weak self] in
@@ -500,8 +562,6 @@ final class ScreenRecorderService: ObservableObject {
         isPaused = false
         elapsedTimer?.invalidate()
         elapsedTimer = nil
-        indicator?.hide()
-        indicator = nil
         if let sleepActivity {
             ProcessInfo.processInfo.endActivity(sleepActivity)
             self.sleepActivity = nil
@@ -515,8 +575,7 @@ final class ScreenRecorderService: ObservableObject {
     /// only wanted the raw recording.
     private func deliver(_ take: RecorderTakeStore.Take, reason: String?) {
         if reason == nil, UserDefaults.standard.bool(forKey: DefaultsKey.recorderOpenEditor) {
-            openEditor(with: take)
-            return
+            if openEditor(with: take) { return }
         }
         saveDirect(take, reason: reason)
     }

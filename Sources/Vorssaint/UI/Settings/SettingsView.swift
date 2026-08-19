@@ -31,6 +31,10 @@ struct SettingsView: View {
         .frame(minWidth: 772, maxWidth: .infinity, minHeight: 528, maxHeight: .infinity)
         .onAppear { ensureVisiblePage() }
         .onChange(of: features.revision) { _, _ in ensureVisiblePage() }
+        .onChange(of: router.requestID) { _, _ in
+            searchQuery = ""
+            ensureVisiblePage()
+        }
     }
 
     /// macOS 27 backs the pinned sidebar search field with a hard top scroll
@@ -1326,6 +1330,7 @@ enum PermissionKind {
 struct PermissionRow: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
+    @State private var pollingDemandID = UUID()
     let kind: PermissionKind
 
     private var granted: Bool {
@@ -1333,6 +1338,13 @@ struct PermissionRow: View {
         case .accessibility: return permissions.accessibility
         case .screenRecording: return permissions.screenRecording
         case .microphone: return permissions.microphone == .granted
+        }
+    }
+
+    private var monitorsActivePermission: Bool {
+        switch kind {
+        case .accessibility, .screenRecording: return true
+        case .microphone: return false
         }
     }
 
@@ -1381,6 +1393,14 @@ struct PermissionRow: View {
                 }
                 .controlSize(.small)
             }
+        }
+        .onAppear {
+            if monitorsActivePermission {
+                permissions.setActivePermissionSurface(pollingDemandID, visible: true)
+            }
+        }
+        .onDisappear {
+            permissions.setActivePermissionSurface(pollingDemandID, visible: false)
         }
     }
 }

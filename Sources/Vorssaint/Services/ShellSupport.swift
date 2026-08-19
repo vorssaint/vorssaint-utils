@@ -14,43 +14,13 @@ enum Shell {
     @discardableResult
     static func run(_ path: String,
                     _ args: [String],
-                    timeout: TimeInterval = defaultTimeout) -> (status: Int32, output: String) {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: path)
-        p.arguments = args
-        let pipe = Pipe()
-        p.standardOutput = pipe
-        p.standardError = pipe
-        do { try p.run() } catch { return (-1, "") }
-        // The pipe is drained on its own thread. Reading after waiting would
-        // deadlock the moment a command writes more than the pipe holds, and
-        // waiting without a limit is what turns a stuck command into a stuck
-        // app.
-        var data = Data()
-        let drained = DispatchSemaphore(value: 0)
-        DispatchQueue.global(qos: .utility).async {
-            data = pipe.fileHandleForReading.readDataToEndOfFile()
-            drained.signal()
-        }
-        let finished = DispatchSemaphore(value: 0)
-        DispatchQueue.global(qos: .utility).async {
-            p.waitUntilExit()
-            finished.signal()
-        }
-        if finished.wait(timeout: .now() + timeout) == .timedOut {
-            p.terminate()
-            // Some executables deliberately ignore SIGTERM. Give them one
-            // second to clean up, then make the timeout a real upper bound
-            // instead of leaving a hidden process behind.
-            if finished.wait(timeout: .now() + 1) == .timedOut {
-                kill(p.processIdentifier, SIGKILL)
-                _ = finished.wait(timeout: .now() + 1)
-            }
-            _ = drained.wait(timeout: .now() + 1)
-            return (-1, String(data: data, encoding: .utf8) ?? "")
-        }
-        _ = drained.wait(timeout: .now() + 1)
-        return (p.terminationStatus, String(data: data, encoding: .utf8) ?? "")
+                    timeout: TimeInterval = defaultTimeout,
+                    maxOutputBytes: Int = 4 * 1024 * 1024)
+        -> (status: Int32, output: String) {
+        let result = BoundedProcessRunner.run(path, args,
+                                              timeout: timeout,
+                                              maxOutputBytes: maxOutputBytes)
+        return (result.status, String(decoding: result.output, as: UTF8.self))
     }
 }
 

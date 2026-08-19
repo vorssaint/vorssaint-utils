@@ -113,6 +113,8 @@ enum ScreenshotScrollingCapture {
             var lastObservedSample = firstSample
             var totalHeight = first.height
             var retainedPixels = first.width * first.height
+            var contentSampleColumns: Range<Int>?
+            var contentPixelColumns: Range<Int>?
             var lastSeenGeneration = startingGeneration
             var lastMatchedGeneration = startingGeneration
             var lastCaptureAt = ProcessInfo.processInfo.systemUptime
@@ -169,29 +171,50 @@ enum ScreenshotScrollingCapture {
                 try Task.checkCancellation()
                 lastCaptureAt = ProcessInfo.processInfo.systemUptime
                 let frameIsStable = ScreenshotSupport.scrollingSamplesAreStable(
-                    lastObservedSample, currentSample)
+                    lastObservedSample,
+                    currentSample,
+                    contentColumns: contentSampleColumns)
                 lastObservedSample = currentSample
                 let transition = ScreenshotSupport.scrollingTransition(
-                    previous: previousSample, current: currentSample)
+                    previous: previousSample,
+                    current: currentSample,
+                    contentColumns: contentSampleColumns)
 
                 switch transition {
                 case .end:
                     lastMatchedGeneration = max(lastMatchedGeneration,
                                                 activityBeforeCapture.generation)
 
-                case .advanced(let sampleOverlap, .forward):
+                case .advanced(let sampleOverlap, .forward, let matchedColumns):
                     let overlap = Int((CGFloat(sampleOverlap) / CGFloat(currentSample.height)
                         * CGFloat(current.height)).rounded())
                     guard overlap > 0, overlap < current.height else { return .failed }
+                    if contentSampleColumns == nil {
+                        guard let pixelColumns = ScreenshotSupport.scrollingPixelRange(
+                            sampleColumns: matchedColumns,
+                            sampleWidth: currentSample.width,
+                            imageWidth: current.width),
+                              let croppedFirst = copiedStrip(from: first,
+                                                            columns: pixelColumns,
+                                                            topCrop: 0)
+                        else { return .failed }
+                        contentSampleColumns = matchedColumns
+                        contentPixelColumns = pixelColumns
+                        slices[0] = croppedFirst
+                        retainedPixels = croppedFirst.width * croppedFirst.height
+                    }
+                    guard let pixelColumns = contentPixelColumns else { return .failed }
                     let stripHeight = current.height - overlap
                     let nextHeight = totalHeight + stripHeight
-                    guard current.width > 0,
+                    guard !pixelColumns.isEmpty,
                           nextHeight <= ScreenshotSupport.scrollingCaptureMaximumPixels
-                            / current.width
+                            / pixelColumns.count
                     else {
                         return completed(slices: slices, region: region, result: .limited)
                     }
-                    guard let strip = copiedStrip(from: current, topCrop: overlap)
+                    guard let strip = copiedStrip(from: current,
+                                                  columns: pixelColumns,
+                                                  topCrop: overlap)
                     else { return .failed }
                     let stripPixels = strip.width * strip.height
                     guard stripPixels <= ScreenshotSupport.scrollingCaptureMaximumRetainedPixels,
@@ -211,7 +234,7 @@ enum ScreenshotScrollingCapture {
                                                 activityBeforeCapture.generation)
                     await onProgress(totalHeight)
 
-                case .advanced(_, .backward):
+                case .advanced(_, .backward, _):
                     // Scrolling back never duplicates pixels already kept. A
                     // later forward movement can continue from the furthest
                     // accepted frame without inventing a seam.
@@ -336,15 +359,20 @@ enum ScreenshotScrollingCapture {
 
     /// A cropped CGImage may keep its full source storage alive. Drawing the
     /// new strip into its own bitmap makes the retained-pixel guard truthful.
-    private static func copiedStrip(from image: CGImage, topCrop: Int) -> CGImage? {
+    private static func copiedStrip(from image: CGImage,
+                                    columns: Range<Int>,
+                                    topCrop: Int) -> CGImage? {
         let height = image.height - topCrop
         guard image.width > 0, height > 0,
-              let source = image.cropping(to: CGRect(x: 0,
+              columns.lowerBound >= 0,
+              columns.upperBound <= image.width,
+              !columns.isEmpty,
+              let source = image.cropping(to: CGRect(x: columns.lowerBound,
                                                      y: topCrop,
-                                                     width: image.width,
+                                                     width: columns.count,
                                                      height: height)),
               let context = CGContext(data: nil,
-                                      width: image.width,
+                                      width: columns.count,
                                       height: height,
                                       bitsPerComponent: 8,
                                       bytesPerRow: 0,
@@ -352,7 +380,8 @@ enum ScreenshotScrollingCapture {
                                       bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
         else { return nil }
         context.interpolationQuality = .none
-        context.draw(source, in: CGRect(x: 0, y: 0, width: image.width, height: height))
+        context.draw(source, in: CGRect(x: 0, y: 0,
+                                       width: columns.count, height: height))
         return context.makeImage()
     }
 

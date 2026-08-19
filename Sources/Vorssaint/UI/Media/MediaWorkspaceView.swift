@@ -52,6 +52,7 @@ private enum MediaCompressionLevel: String, CaseIterable, Identifiable {
 struct MediaWorkspaceView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var media = MediaService.shared
+    @ObservedObject private var featureRuntime = FeatureRuntime.shared
     @Environment(\.colorScheme) private var colorScheme
 
     @AppStorage(DefaultsKey.mediaLastTool) private var toolRaw = MediaTool.videoCompressor.rawValue
@@ -96,6 +97,8 @@ struct MediaWorkspaceView: View {
     @State private var isDropTargeted = false
     @State private var localMessage: String?
     @State private var mediaDefaultsTask: Task<Void, Never>?
+    @State private var videoImportTask: Task<Void, Never>?
+    @State private var videoImportGeneration = 0
     @State private var profileName = ""
     @State private var imageMoreOptionsExpanded = false
     @State private var isImportingVideo = false
@@ -115,6 +118,7 @@ struct MediaWorkspaceView: View {
     private var selectedTool: MediaTool {
         get { MediaSupport.sanitizedTool(toolRaw) }
         nonmutating set {
+            cancelVideoImport()
             toolRaw = newValue.rawValue
             inputImageSize = newValue == .imageCompressor
                 ? inputURL.flatMap { MediaSupport.imageDisplaySize(at: $0) }
@@ -154,12 +158,26 @@ struct MediaWorkspaceView: View {
                 content
             }
         }
-        .onChange(of: currentImageOptions) { _, _ in
-            guard selectedTool == .imageCompressor, !outputWasChosenManually else { return }
+        .onChange(of: currentImageOptions) { oldOptions, newOptions in
+            guard selectedTool == .imageCompressor else { return }
+            if outputWasChosenManually {
+                if inputURLs.count == 1,
+                   oldOptions.format != newOptions.format,
+                   let outputURL {
+                    self.outputURL = MediaSupport.outputURLByReplacingExtension(
+                        outputURL,
+                        fileExtension: newOptions.format.fileExtension)
+                }
+                return
+            }
             outputURL = defaultOutputURL(for: inputURLs, tool: .imageCompressor)
         }
         .onDisappear {
             mediaDefaultsTask?.cancel()
+            cancelVideoImport()
+        }
+        .onChange(of: featureRuntime.revision) {
+            if !AppFeature.mediaTools.isAvailable { cancelVideoImport() }
         }
     }
 
@@ -1137,8 +1155,8 @@ struct MediaWorkspaceView: View {
         }
         let group = DispatchGroup()
         let lock = NSLock()
-        var urls: [URL] = []
-        for provider in fileProviders {
+        var indexedURLs: [(offset: Int, url: URL)] = []
+        for (offset, provider) in fileProviders.enumerated() {
             group.enter()
             provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
             let url: URL?
@@ -1151,13 +1169,14 @@ struct MediaWorkspaceView: View {
             }
                 if let url {
                     lock.lock()
-                    urls.append(url)
+                    indexedURLs.append((offset, url))
                     lock.unlock()
                 }
                 group.leave()
             }
         }
         group.notify(queue: .main) {
+            let urls = MediaSupport.urlsInProviderOrder(indexedURLs)
             let accepted = urls.filter { url in
                 let contentType = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType
                 return MediaSupport.inputMatchesTool(contentType: contentType, inputTypes: inputTypes)
@@ -1176,6 +1195,7 @@ struct MediaWorkspaceView: View {
     }
 
     private func setInputs(_ urls: [URL]) {
+        cancelVideoImport()
         inputURLs = selectedTool == .imageCompressor ? urls : Array(urls.prefix(1))
         inputImageSize = selectedTool == .imageCompressor
             ? inputURL.flatMap { MediaSupport.imageDisplaySize(at: $0) }
@@ -1189,6 +1209,7 @@ struct MediaWorkspaceView: View {
 
     private func clearInput() {
         mediaDefaultsTask?.cancel()
+        cancelVideoImport()
         inputURLs = []
         inputImageSize = nil
         outputURL = nil
@@ -1227,31 +1248,52 @@ struct MediaWorkspaceView: View {
 
     @MainActor
     private func openVideoEditor() {
-        guard let url = inputURL, !isImportingVideo else { return }
+        guard AppFeature.mediaTools.isAvailable, let url = inputURL,
+              !isImportingVideo else { return }
+        cancelVideoImport()
+        videoImportGeneration &+= 1
+        let generation = videoImportGeneration
         isImportingVideo = true
         localMessage = nil
-        Task { @MainActor in
+        videoImportTask = Task { @MainActor in
             let asset = AVURLAsset(url: url)
             let hasVideo = ((try? await asset.loadTracks(withMediaType: .video)) ?? []).isEmpty == false
+            guard !Task.isCancelled, videoImportGeneration == generation,
+                  inputURL == url, selectedTool == .videoCompressor,
+                  AppFeature.mediaTools.isAvailable else { return }
             guard hasVideo else {
                 isImportingVideo = false
+                videoImportTask = nil
                 localMessage = l10n.s.mediaErrorNoVideo
                 return
             }
             let take = await Task.detached(priority: .userInitiated) {
                 RecorderTakeStore.shared.importVideo(at: url)
             }.value
-            isImportingVideo = false
-            guard inputURL == url else {
+            guard !Task.isCancelled, videoImportGeneration == generation,
+                  inputURL == url, selectedTool == .videoCompressor,
+                  AppFeature.mediaTools.isAvailable else {
                 if let take { RecorderTakeStore.shared.delete(take) }
                 return
             }
+            isImportingVideo = false
+            videoImportTask = nil
             guard let take else {
                 localMessage = l10n.s.mediaErrorUnsupported
                 return
             }
-            ScreenRecorderService.shared.openEditor(with: take)
+            if !ScreenRecorderService.shared.openEditor(with: take, owner: .mediaTools) {
+                RecorderTakeStore.shared.delete(take)
+            }
         }
+    }
+
+    @MainActor
+    private func cancelVideoImport() {
+        videoImportGeneration &+= 1
+        videoImportTask?.cancel()
+        videoImportTask = nil
+        isImportingVideo = false
     }
 
     private func run() {
@@ -1355,6 +1397,10 @@ struct MediaWorkspaceView: View {
         case .sameOutput: return l10n.s.mediaErrorSameOutput
         case .unsupported: return l10n.s.mediaErrorUnsupported
         case .imageTooLarge: return imageText.tooLarge
+        case let .gifTooLong(maxSeconds):
+            return String(format: FeatureStrings.recorder(l10n.language).gifTooLongFormat,
+                          maxSeconds)
+        case .watermarkUnavailable: return imageText.noLogo
         case .cancelled: return l10n.s.mediaCancelled
         case let .failed(message): return message.isEmpty ? l10n.s.mediaErrorUnsupported : message
         }

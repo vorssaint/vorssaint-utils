@@ -215,6 +215,7 @@ final class ClipboardHistoryService: ObservableObject {
 
     func togglePin(_ entry: ClipboardHistoryEntry) {
         guard let index = entries.firstIndex(where: { $0.id == entry.id }) else { return }
+        let previousEntries = entries
         var updated = entries.remove(at: index)
         if updated.isPinned {
             updated.pinnedAt = nil
@@ -224,6 +225,13 @@ final class ClipboardHistoryService: ObservableObject {
             entries.insert(updated, at: 0)
         }
         normalizeEntryOrder()
+        trimToLimit()
+        guard entries.contains(where: { $0.id == entry.id }),
+              ClipboardHistoryEditing.preservesPinnedEntries(from: previousEntries, in: entries)
+        else {
+            entries = previousEntries
+            return
+        }
         save()
     }
 
@@ -242,7 +250,15 @@ final class ClipboardHistoryService: ObservableObject {
               let index = entries.firstIndex(where: { $0.id == entry.id })
         else { return false }
         if entries[index].text == text { return true }
+        let previousEntries = entries
         entries[index].text = text
+        trimToLimit()
+        guard entries.contains(where: { $0.id == entry.id }),
+              ClipboardHistoryEditing.preservesPinnedEntries(from: previousEntries, in: entries)
+        else {
+            entries = previousEntries
+            return false
+        }
         save()
         return true
     }
@@ -569,7 +585,14 @@ final class ClipboardHistoryService: ObservableObject {
         // image copy also carries URL text, so richer content wins over its
         // own textual fallbacks.
         if includeImagesFiles {
-            if let paths = copiedFilePaths(from: pasteboard) { return .files(paths) }
+            if let paths = copiedFilePaths(from: pasteboard) {
+                if ClipboardHistoryCapturePolicy.isCopiedScreenshot(
+                    paths, in: ScreenshotSupport.copiedFilesDirectory()) {
+                    guard let image = copiedPNGImage(from: pasteboard) else { return nil }
+                    return .image(image)
+                }
+                return .files(paths)
+            }
             if let image = copiedPNGImage(from: pasteboard) { return .image(image) }
         }
         guard let text = ClipboardHistoryPasteboardText.preferredText(
@@ -709,12 +732,7 @@ final class ClipboardHistoryService: ObservableObject {
         let limit = Defaults.sanitizedClipboardHistoryLimit(
             UserDefaults.standard.integer(forKey: DefaultsKey.clipboardHistoryLimit)
         )
-        let pinned = entries.filter(\.isPinned)
-        var recent = entries.filter { !$0.isPinned }
-        if recent.count > limit {
-            recent.removeSubrange(limit..<recent.count)
-        }
-        entries = pinned + recent
+        entries = ClipboardHistoryEditing.retainedEntries(entries, recentLimit: limit)
     }
 
     private var firstRecentIndex: Int {
@@ -770,8 +788,20 @@ final class ClipboardHistoryService: ObservableObject {
             .appendingPathComponent("ClipboardHistory.json")
     }
 
+    private static func storedHistoryData(at url: URL) -> Data? {
+        guard let values = try? url.resourceValues(
+            forKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey]),
+              values.isRegularFile == true,
+              values.isSymbolicLink != true,
+              ClipboardHistoryEditing.canLoadEncodedHistory(byteCount: values.fileSize),
+              let data = try? Data(contentsOf: url, options: .mappedIfSafe),
+              ClipboardHistoryEditing.canLoadEncodedHistory(byteCount: data.count)
+        else { return nil }
+        return data
+    }
+
     private func load() {
-        let fileData = Self.storeURL.flatMap { try? Data(contentsOf: $0) }
+        let fileData = Self.storeURL.flatMap { Self.storedHistoryData(at: $0) }
         var data = fileData
         if data == nil,
            let legacy = UserDefaults.standard.data(forKey: DefaultsKey.clipboardHistoryEntries) {
@@ -779,6 +809,7 @@ final class ClipboardHistoryService: ObservableObject {
             migrateLegacyBlob = Self.storeURL != nil
         }
         guard let data,
+              ClipboardHistoryEditing.canLoadEncodedHistory(byteCount: data.count),
               let decoded = try? JSONDecoder().decode([ClipboardHistoryEntry].self, from: data)
         else { return }
         if fileData != nil,

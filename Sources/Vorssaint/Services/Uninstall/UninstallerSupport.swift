@@ -29,6 +29,37 @@ enum UninstallerSupport {
         return candidatePath.hasPrefix(appPath + "/")
     }
 
+    static func sharedDataIsExclusive(selectedURL: URL,
+                                      bundleID: String,
+                                      knownApplications: [(url: URL, bundleID: String)]) -> Bool {
+        let selectedPath = selectedURL.resolvingSymlinksInPath().standardizedFileURL.path
+        return !knownApplications.contains { application in
+            let applicationPath = application.url.resolvingSymlinksInPath().standardizedFileURL.path
+            return application.bundleID == bundleID
+                && applicationPath != selectedPath
+                && !applicationPath.hasPrefix(selectedPath + "/")
+        }
+    }
+
+    static func exclusiveBundleIDs(_ candidates: Set<String>,
+                                   selectedURL: URL,
+                                   knownApplications: [(url: URL, bundleID: String)]) -> Set<String> {
+        Set(candidates.filter {
+            sharedDataIsExclusive(selectedURL: selectedURL,
+                                  bundleID: $0,
+                                  knownApplications: knownApplications)
+        })
+    }
+
+    static func applicationIsInTrustedInstallRoot(_ url: URL, home: URL) -> Bool {
+        let path = url.resolvingSymlinksInPath().standardizedFileURL.path
+        let roots = [
+            URL(fileURLWithPath: "/Applications", isDirectory: true),
+            home.appendingPathComponent("Applications", isDirectory: true),
+        ].map { $0.resolvingSymlinksInPath().standardizedFileURL.path }
+        return roots.contains { path.hasPrefix($0 + "/") }
+    }
+
     static func exactDeepCandidates(home: URL,
                                     bundleIDs: Set<String>,
                                     darwinCache: URL?,

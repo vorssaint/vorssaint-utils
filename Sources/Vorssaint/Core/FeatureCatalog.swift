@@ -45,7 +45,45 @@ enum AppPermission: String, CaseIterable {
          automationFinder, automationTerminal, audioCapture, microphone, camera, appManagement
 }
 
+enum PermissionPollingSupport {
+    static func interval(visibleSurfaceCount: Int,
+                         accessibilityIsNeeded: Bool,
+                         screenRecordingIsNeeded: Bool,
+                         accessibilityIsGranted: Bool,
+                         screenRecordingIsGranted: Bool) -> TimeInterval? {
+        guard visibleSurfaceCount > 0 || accessibilityIsNeeded || screenRecordingIsNeeded else {
+            return nil
+        }
+        if visibleSurfaceCount > 0
+            || (accessibilityIsNeeded && !accessibilityIsGranted)
+            || (screenRecordingIsNeeded && !screenRecordingIsGranted) {
+            return 2.5
+        }
+        return 60
+    }
+}
+
 extension AppFeature {
+    /// Whether an engaged feature needs permission changes while it sits in
+    /// the background. One-shot tools ask and refresh at the moment they run;
+    /// polling for those just because their tile is installed wastes wakeups.
+    func monitorsPermissionChanges(boolFor: (String) -> Bool) -> Bool {
+        switch self {
+        case .windowLayout:
+            return boolFor(DefaultsKey.windowLayoutShortcutsEnabled)
+                || boolFor(DefaultsKey.windowGestureEnabled)
+                || boolFor(DefaultsKey.windowEdgeSnapEnabled)
+        case .screenOCR, .cleaningMode, .screenshot, .commandBar, .screenRecorder:
+            return false
+        default:
+            return true
+        }
+    }
+
+    var monitorsPermissionChanges: Bool {
+        monitorsPermissionChanges(boolFor: UserDefaults.standard.bool(forKey:))
+    }
+
     var group: FeatureGroup {
         switch self {
         case .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit:

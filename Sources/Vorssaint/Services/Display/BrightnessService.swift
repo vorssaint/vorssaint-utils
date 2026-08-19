@@ -292,13 +292,15 @@ final class BrightnessService: ObservableObject {
             guard let self else { return }
             self.stateLock.lock()
             let displaysToRestore = self.managedDisabledIDs
-            self.managedDisabledIDs = []
-            self.managedDisabledDisplays = [:]
             self.stateLock.unlock()
             for id in displaysToRestore {
-                _ = Self.configureDisplay(id, enabled: true)
+                guard Self.configureDisplay(id, enabled: true) else { continue }
+                self.stateLock.lock()
+                self.managedDisabledIDs.remove(id)
+                self.managedDisabledDisplays.removeValue(forKey: id)
+                self.stateLock.unlock()
+                Self.forgetDisplaySwitchedOff(id)
             }
-            Self.forgetDisplaysSwitchedOff()
             self.restoreAllGamma()
             self.ddcCommandEnds = [:]
             Self.log.log("brightness service stopped; displays and gamma restored")
@@ -367,9 +369,11 @@ final class BrightnessService: ObservableObject {
         guard displaySwitchingAvailable, !isDisplayPending(display.id) else { return false }
         guard display.isActive else { return true }
         stateLock.lock()
+        let online = knownTopology
         let active = knownActiveTopology
         stateLock.unlock()
-        return BrightnessSupport.canDisableDisplay(activeDisplayIDs: active, target: display.id)
+        let drawable = Self.drawableDisplayIDs(online: online, active: active)
+        return BrightnessSupport.canDisableDisplay(drawableDisplayIDs: drawable, target: display.id)
     }
 
     /// Enables or disables one connected display without changing the saved
@@ -384,9 +388,11 @@ final class BrightnessService: ObservableObject {
         let targetEnabled = !display.isActive
         if !targetEnabled {
             stateLock.lock()
+            let online = knownTopology
             let active = knownActiveTopology
             stateLock.unlock()
-            guard BrightnessSupport.canDisableDisplay(activeDisplayIDs: active,
+            let drawable = Self.drawableDisplayIDs(online: online, active: active)
+            guard BrightnessSupport.canDisableDisplay(drawableDisplayIDs: drawable,
                                                        target: display.id) else {
                 displayControlFailure = .lastActive
                 return
@@ -398,8 +404,10 @@ final class BrightnessService: ObservableObject {
         workQueue.async { [weak self] in
             guard let self else { return }
             if !targetEnabled {
-                let active = Self.activeDisplayIDs()
-                guard BrightnessSupport.canDisableDisplay(activeDisplayIDs: active,
+                let topology = Self.currentTopology()
+                let drawable = Self.drawableDisplayIDs(online: topology.online,
+                                                       active: topology.active)
+                guard BrightnessSupport.canDisableDisplay(drawableDisplayIDs: drawable,
                                                            target: display.id) else {
                     self.finishDisplayToggle(id: display.id, enabled: targetEnabled,
                                              failure: .lastActive)
@@ -413,7 +421,9 @@ final class BrightnessService: ObservableObject {
                 }
             }
 
+            if !targetEnabled { Self.rememberDisplaySwitchedOff(display.id) }
             guard Self.configureDisplay(display.id, enabled: targetEnabled) else {
+                if !targetEnabled { Self.forgetDisplaySwitchedOff(display.id) }
                 self.finishDisplayToggle(id: display.id, enabled: targetEnabled,
                                          failure: .failed)
                 return
@@ -428,7 +438,6 @@ final class BrightnessService: ObservableObject {
                 Self.forgetDisplaySwitchedOff(display.id)
             } else {
                 self.managedDisabledIDs.insert(display.id)
-                Self.rememberDisplaySwitchedOff(display.id)
                 var disabled = display
                 disabled.method = nil
                 disabled.isActive = false
@@ -505,13 +514,15 @@ final class BrightnessService: ObservableObject {
             restoreAllGamma()
             stateLock.lock()
             let ids = managedDisabledIDs
-            managedDisabledIDs = []
-            managedDisabledDisplays = [:]
             stateLock.unlock()
             for id in ids {
-                _ = Self.configureDisplay(id, enabled: true)
+                guard Self.configureDisplay(id, enabled: true) else { continue }
+                stateLock.lock()
+                managedDisabledIDs.remove(id)
+                managedDisabledDisplays.removeValue(forKey: id)
+                stateLock.unlock()
+                Self.forgetDisplaySwitchedOff(id)
             }
-            Self.forgetDisplaysSwitchedOff()
         }
     }
 
@@ -552,16 +563,11 @@ final class BrightnessService: ObservableObject {
         }
     }
 
-    private static func forgetDisplaysSwitchedOff() {
-        UserDefaults.standard.removeObject(forKey: DefaultsKey.displaysSwitchedOff)
-    }
-
     /// Switches back on anything a previous run left off. Called at startup,
     /// before any display work, so a screen is never stranded between runs.
     func restoreDisplaysLeftOff() {
         let stored = UserDefaults.standard.array(forKey: DefaultsKey.displaysSwitchedOff) as? [Int] ?? []
         guard !stored.isEmpty else { return }
-        Self.forgetDisplaysSwitchedOff()
         guard DisplayConfigurationBridge.configureEnabled != nil else { return }
         workQueue.async {
             for id in stored {
@@ -569,7 +575,8 @@ final class BrightnessService: ObservableObject {
                 // imported, so anything that is not a display number is
                 // skipped rather than converted.
                 guard let displayID = CGDirectDisplayID(exactly: id) else { continue }
-                _ = Self.configureDisplay(displayID, enabled: true)
+                guard Self.configureDisplay(displayID, enabled: true) else { continue }
+                Self.forgetDisplaySwitchedOff(displayID)
             }
         }
     }

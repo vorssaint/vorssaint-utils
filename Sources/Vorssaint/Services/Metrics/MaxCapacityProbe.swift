@@ -74,16 +74,10 @@ final class MaxCapacityProbe {
     }
 
     private static func runSystemProfiler() -> (status: Int32, output: String) {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
-        process.arguments = ["SPPowerDataType", "-json"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-        do { try process.run() } catch { return (-1, "") }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        return (process.terminationStatus, String(data: data, encoding: .utf8) ?? "")
+        let result = BoundedProcessRunner.run(
+            "/usr/sbin/system_profiler", ["SPPowerDataType", "-json"],
+            timeout: 5, maxOutputBytes: 1024 * 1024)
+        return (result.status, String(decoding: result.output, as: UTF8.self))
     }
 
     private static func percent(in value: Any) -> Int? {

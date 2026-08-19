@@ -32,7 +32,10 @@ struct NetworkCounterFallback {
 
         let outgoingAdvanced = current.sent > previous.sent
         if isActive {
-            return (outgoingAdvanced, true)
+            // Once the inbound interface counter is known to be frozen, lack
+            // of upload says nothing about download. Keep sampling socket
+            // flows until the received counter itself proves recovery.
+            return (true, true)
         }
 
         if outgoingAdvanced {
@@ -344,5 +347,12 @@ struct MetricHistory {
         if values.count > capacity {
             values.removeFirst(values.count - capacity)
         }
+    }
+
+    /// Graph data is useful only while a graph surface is visible. Returning an
+    /// empty publication at rest leaves this ring intact for the next opening
+    /// without making every background sample copy its retained array.
+    func publishedValues(whileVisible visible: Bool) -> [Double] {
+        visible ? values : []
     }
 }

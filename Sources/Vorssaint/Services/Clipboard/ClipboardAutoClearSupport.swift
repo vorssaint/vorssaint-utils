@@ -14,6 +14,13 @@ enum ClipboardAutoClearDecision: Equatable {
 /// pins it without a pasteboard: the service does the I/O and holds the state,
 /// this decides what the state means.
 enum ClipboardAutoClearSupport {
+    static func clearIsAuthorized(enqueuedGeneration: Int,
+                                  currentGeneration: Int,
+                                  featureIsAvailable: Bool,
+                                  triggerIsEnabled: Bool) -> Bool {
+        enqueuedGeneration == currentGeneration && featureIsAvailable && triggerIsEnabled
+    }
+
     /// - Parameters:
     ///   - changeCount: the count just read from the pasteboard.
     ///   - lastChangeCount: the count this service last acted on.

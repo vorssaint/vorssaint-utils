@@ -96,30 +96,10 @@ final class PeripheralBatterySampler {
     }
 
     private static func readBluetoothSystemProfilerData(timeout: TimeInterval = 2) -> Data {
-        let process = Process()
-        let output = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
-        process.arguments = ["SPBluetoothDataType", "-json"]
-        process.standardOutput = output
-        process.standardError = Pipe()
-
-        do {
-            try process.run()
-        } catch {
-            return Data()
-        }
-
-        let deadline = Date().addingTimeInterval(timeout)
-        while process.isRunning && Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.05)
-        }
-        if process.isRunning {
-            process.terminate()
-        }
-
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        return data
+        let result = BoundedProcessRunner.run(
+            "/usr/sbin/system_profiler", ["SPBluetoothDataType", "-json"],
+            timeout: timeout, maxOutputBytes: 4 * 1024 * 1024)
+        return result.status == 0 ? result.output : Data()
     }
 
     private static func readMatchingServices(named className: String) -> [PeripheralBatteryDevice] {

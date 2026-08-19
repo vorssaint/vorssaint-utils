@@ -65,10 +65,16 @@ final class ExtraBrightnessService: ObservableObject {
 
     func syncWithPreferences() {
         refreshSupported()
-        let wanted = AppFeature.extraBrightness.isAvailable
+        let enabled = AppFeature.extraBrightness.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.extraBrightnessEnabled)
-            && supported
-        if wanted { start() } else { stop() }
+        if enabled, supported {
+            start()
+        } else if enabled {
+            installObserver()
+            stop(preservingObservers: true)
+        } else {
+            stop()
+        }
     }
 
     /// Re-applies a level change immediately instead of waiting for the poll.
@@ -129,10 +135,14 @@ final class ExtraBrightnessService: ObservableObject {
     }
 
     func stop() {
-        guard pollTimer != nil || overlayWindow != nil else { return }
+        stop(preservingObservers: false)
+    }
+
+    private func stop(preservingObservers: Bool) {
+        guard pollTimer != nil || overlayWindow != nil || screenObserver != nil else { return }
         pollTimer?.invalidate()
         pollTimer = nil
-        removeObserver()
+        if !preservingObservers { removeObserver() }
         overlayWindow?.orderOut(nil)
         overlayWindow = nil
         overlayLayer = nil
@@ -205,12 +215,20 @@ final class ExtraBrightnessService: ObservableObject {
 
     private func handleScreenChange() {
         refreshSupported()
-        guard pollTimer != nil else { return }
+        let enabled = AppFeature.extraBrightness.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.extraBrightnessEnabled)
+        guard enabled else {
+            stop()
+            return
+        }
         guard let screen = Self.builtInXDRScreen() else {
             // Built-in display gone (clamshell): release everything; the
             // preference stays on and a later screen change brings it back.
-            stop()
-            syncWithPreferences()
+            stop(preservingObservers: true)
+            return
+        }
+        guard pollTimer != nil else {
+            start()
             return
         }
         // The same panel re-announces itself in storms: an EDR headroom ramp

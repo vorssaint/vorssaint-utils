@@ -335,6 +335,7 @@ struct MediaTrimRange: Equatable {
 enum MediaSupport {
     static let maxImageRenderDimension = 20_000
     static let maxImageRenderPixels = 8_192 * 8_192
+    static let maximumGIFFrames = 300
     private static let maxFilenameBytes = 255
 
     static func sanitizedTool(_ value: String) -> MediaTool {
@@ -379,6 +380,49 @@ enum MediaSupport {
         let proposedEnd = end.isFinite && end > 0 ? end : assetDuration
         let cleanEnd = max(cleanStart, min(proposedEnd, assetDuration))
         return MediaTrimRange(start: cleanStart, end: cleanEnd)
+    }
+
+    static func safeGIFFrameCount(duration: Double, fps: Double) -> Int? {
+        guard duration.isFinite, duration > 0, fps.isFinite, fps > 0 else { return nil }
+        let count = (duration * fps).rounded(.up)
+        guard count.isFinite, count >= 1, count <= Double(maximumGIFFrames) else { return nil }
+        return Int(count)
+    }
+
+    static func maximumGIFDuration(fps: Double) -> Int {
+        guard fps.isFinite, fps > 0 else { return 1 }
+        return max(1, Int(floor(Double(maximumGIFFrames) / fps)))
+    }
+
+    static func gifLoopCount(loops: Bool) -> Int? {
+        loops ? 0 : nil
+    }
+
+    static func imageDecodeMaxPixel(sourceSize: CGSize,
+                                    targetSize: CGSize,
+                                    resizeMode: MediaImageResizeMode) -> Int? {
+        let sourceWidth = max(1, abs(sourceSize.width))
+        let sourceHeight = max(1, abs(sourceSize.height))
+        let targetWidth = max(1, abs(targetSize.width))
+        let targetHeight = max(1, abs(targetSize.height))
+        guard resizeMode.kind == .exact else {
+            let maxPixel = max(1, Int(max(targetWidth, targetHeight).rounded(.up)))
+            return imageRenderSizeIsSafe(targetSize) ? maxPixel : nil
+        }
+        let horizontalScale = targetWidth / sourceWidth
+        let verticalScale = targetHeight / sourceHeight
+        let requiredScale: CGFloat
+        switch resizeMode.exactMode {
+        case .fit:
+            requiredScale = min(horizontalScale, verticalScale)
+        case .fill, .stretch:
+            requiredScale = max(horizontalScale, verticalScale)
+        }
+        let decodeScale = min(1, max(0, requiredScale))
+        let decodedSize = CGSize(width: sourceWidth * decodeScale,
+                                 height: sourceHeight * decodeScale)
+        guard imageRenderSizeIsSafe(decodedSize) else { return nil }
+        return max(1, Int((max(sourceWidth, sourceHeight) * decodeScale).rounded(.up)))
     }
 
     static func scaledEvenSize(source: CGSize, maxDimension: Int) -> CGSize {
@@ -449,6 +493,20 @@ enum MediaSupport {
                                fileManager: fileManager)
     }
 
+    static func outputURLByReplacingExtension(_ outputURL: URL,
+                                              fileExtension: String,
+                                              fileManager: FileManager = .default) -> URL {
+        guard outputURL.pathExtension.caseInsensitiveCompare(fileExtension) != .orderedSame else {
+            return outputURL
+        }
+        let candidate = outputURL.deletingPathExtension().appendingPathExtension(fileExtension)
+        return uniqueOutputURL(candidate: candidate, fileManager: fileManager)
+    }
+
+    static func urlsInProviderOrder(_ indexedURLs: [(offset: Int, url: URL)]) -> [URL] {
+        indexedURLs.sorted { $0.offset < $1.offset }.map(\.url)
+    }
+
     static func sanitizedFileBaseName(_ value: String,
                                       fileExtension: String = "",
                                       uniquenessSuffixByteReservation: Int = 0) -> String {
@@ -475,10 +533,25 @@ enum MediaSupport {
         return imageDisplaySize(properties: properties)
     }
 
+    static func watermarkLogo(atPath path: String, maxPixel: Int = 2_048) -> CGImage? {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: trimmed) as CFURL, nil) else {
+            return nil
+        }
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: max(1, maxPixel),
+        ] as CFDictionary)
+    }
+
     static func imageDisplaySize(properties: [CFString: Any]) -> CGSize? {
         guard let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.doubleValue,
               let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.doubleValue,
-              width.isFinite, height.isFinite, width > 0, height > 0 else { return nil }
+              width.isFinite, height.isFinite, width > 0, height > 0,
+              width < Double(Int.max), height < Double(Int.max) else { return nil }
         let orientation = (properties[kCGImagePropertyOrientation] as? NSNumber)?.intValue ?? 1
         if 5...8 ~= orientation {
             return integralImageSize(width: CGFloat(height), height: CGFloat(width))
@@ -508,9 +581,32 @@ enum MediaSupport {
         }
     }
 
+    static func portableImageProfiles(_ rawValue: String) -> String? {
+        guard let data = rawValue.data(using: .utf8),
+              var profiles = try? JSONDecoder().decode([MediaImageProfile].self, from: data) else {
+            return nil
+        }
+        for index in profiles.indices {
+            var watermark = profiles[index].options.watermark
+            watermark.logoPath = ""
+            switch watermark.kind {
+            case .logo:
+                watermark.kind = .off
+            case .textAndLogo:
+                watermark.kind = watermark.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? .off : .text
+            case .off, .text:
+                break
+            }
+            profiles[index].options.watermark = watermark
+        }
+        guard let portableData = try? JSONEncoder().encode(profiles) else { return nil }
+        return String(data: portableData, encoding: .utf8)
+    }
+
     static func integralImageSize(width: CGFloat, height: CGFloat) -> CGSize {
-        CGSize(width: max(1, Int(width.rounded())),
-               height: max(1, Int(height.rounded())))
+        CGSize(width: max(1, width.rounded()),
+               height: max(1, height.rounded()))
     }
 
     private static func uniqueOutputURL(candidate: URL,
@@ -521,14 +617,65 @@ enum MediaSupport {
             let directory = candidate.deletingLastPathComponent()
             let base = candidate.deletingPathExtension().lastPathComponent
             let ext = candidate.pathExtension
-            for index in 2...999 {
-                let url = directory.appendingPathComponent("\(base) \(index)").appendingPathExtension(ext)
+            var index = 2
+            while true {
+                let suffix = " \(index)"
+                let uniqueBase = sanitizedFileBaseName(base,
+                                                       fileExtension: ext,
+                                                       uniquenessSuffixByteReservation: suffix.utf8.count)
+                let url = directory.appendingPathComponent("\(uniqueBase)\(suffix)").appendingPathExtension(ext)
                 if !reservedPaths.contains(url.standardizedFileURL.path),
                    !fileManager.fileExists(atPath: url.path) { return url }
+                index += 1
             }
-            return candidate
         }
         return candidate
+    }
+
+    static func fileURLsReferToSameItem(_ lhs: URL, _ rhs: URL) -> Bool {
+        var left = stat()
+        var right = stat()
+        let leftExists = lhs.withUnsafeFileSystemRepresentation { path in
+            path.map { stat($0, &left) == 0 } ?? false
+        }
+        let rightExists = rhs.withUnsafeFileSystemRepresentation { path in
+            path.map { stat($0, &right) == 0 } ?? false
+        }
+        if leftExists, rightExists {
+            return left.st_dev == right.st_dev && left.st_ino == right.st_ino
+        }
+        let leftPath = lhs.resolvingSymlinksInPath().standardizedFileURL.path
+        let rightPath = rhs.resolvingSymlinksInPath().standardizedFileURL.path
+        return leftPath == rightPath
+    }
+
+    static func temporaryOutputURL(for outputURL: URL,
+                                   fileManager: FileManager = .default) throws -> URL {
+        let directory = try fileManager.url(for: .itemReplacementDirectory,
+                                            in: .userDomainMask,
+                                            appropriateFor: outputURL,
+                                            create: true)
+        let ext = outputURL.pathExtension
+        var temporary = directory.appendingPathComponent("Output")
+        if !ext.isEmpty { temporary.appendPathExtension(ext) }
+        return temporary
+    }
+
+    static func discardStagedOutput(_ stagedURL: URL,
+                                    fileManager: FileManager = .default) {
+        try? fileManager.removeItem(at: stagedURL.deletingLastPathComponent())
+    }
+
+    static func installStagedOutput(_ stagedURL: URL, at outputURL: URL) throws {
+        let result: Int32 = stagedURL.withUnsafeFileSystemRepresentation { stagedPath in
+            outputURL.withUnsafeFileSystemRepresentation { outputPath in
+                guard let stagedPath, let outputPath else { return Int32(-1) }
+                return rename(stagedPath, outputPath)
+            }
+        }
+        guard result == 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
     }
 
     static func makeVisibleIfNeeded(_ outputURL: URL, fileManager: FileManager = .default) {
