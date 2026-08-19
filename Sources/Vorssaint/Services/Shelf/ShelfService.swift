@@ -47,6 +47,23 @@ final class ShelfService: ObservableObject {
 
         static func == (lhs: Item, rhs: Item) -> Bool { lhs.id == rhs.id }
 
+        /// Unlike `==`, which is id-only for selection and lookup purposes,
+        /// this compares what actually determines a tile's appearance.
+        /// Needed because replaceItem swaps in a same-id item with a
+        /// healed URL/title after a moved or renamed file's bookmark
+        /// resolves - an id-only comparison would call that unchanged.
+        func hasSameContent(as other: Item) -> Bool {
+            guard id == other.id, title == other.title, isImage == other.isImage else { return false }
+            switch (payload, other.payload) {
+            case let (.file(lhs), .file(rhs)): return lhs == rhs
+            case let (.text(lhs), .text(rhs)): return lhs == rhs
+            case let (.link(lhs), .link(rhs)): return lhs == rhs
+            case let (.batch(lhs), .batch(rhs)):
+                return lhs.count == rhs.count && zip(lhs, rhs).allSatisfy { $0.hasSameContent(as: $1) }
+            default: return false
+            }
+        }
+
         var isBatch: Bool {
             if case .batch = payload { return true }
             return false
@@ -61,6 +78,18 @@ final class ShelfService: ObservableObject {
             switch payload {
             case .file, .text, .link: return 1
             case let .batch(items): return items.reduce(0) { $0 + $1.leafCount }
+            }
+        }
+
+        /// This item flattened into the kinds ShelfTooltipSupport's pile
+        /// breakdown needs, recursing the same way leafCount does so a pile
+        /// containing another pile still counts every real leaf.
+        var tooltipLeafKinds: [ShelfTooltipLeafKind] {
+            switch payload {
+            case .file: return [isImage ? .image : .file]
+            case .text: return [.note]
+            case .link: return [.link]
+            case let .batch(items): return items.flatMap { $0.tooltipLeafKinds }
             }
         }
     }
@@ -82,6 +111,14 @@ final class ShelfService: ObservableObject {
     /// Last tile explicitly touched, used as the start of a Shift-click range.
     private var selectionAnchor: UUID?
     @Published private(set) var expandedBatches: Set<UUID> = []
+    /// The item most recently put on the shelf, so the tiles can scroll it
+    /// into view. Not persisted: it means "just now", and a relaunch has no
+    /// just now.
+    @Published private var lastAddedID: UUID?
+    /// Counts adds so the tiles can tell a genuine arrival from a redraw.
+    /// The resolved reveal target is not enough on its own: it changes when a
+    /// pile is expanded, and it repeats when two files land in the same pile.
+    @Published private(set) var addSerial = 0
     /// Pinning is intentionally session-only: it means "keep this open while
     /// I work", not "reopen a floating panel on every launch".
     @Published private(set) var isPinned = false
@@ -206,6 +243,25 @@ final class ShelfService: ObservableObject {
     var isVisible: Bool { panel?.isVisible == true }
     var itemCount: Int { items.reduce(0) { $0 + $1.leafCount } }
     var visibleItems: [Item] { visibleItems(in: items) }
+
+    /// The tile the view should scroll into view, or nil when there is
+    /// nothing to reveal. Resolved here because only the service knows the
+    /// item tree and which piles are expanded.
+    var revealTargetID: UUID? {
+        guard let lastAddedID else { return nil }
+        return ShelfRevealSupport.visibleAncestorID(of: lastAddedID,
+                                                    in: revealNodes(for: items),
+                                                    expanded: expandedBatches)
+    }
+
+    private func revealNodes(for items: [Item]) -> [ShelfRevealNode] {
+        items.map { item in
+            guard case let .batch(children) = item.payload else {
+                return ShelfRevealNode(id: item.id)
+            }
+            return ShelfRevealNode(id: item.id, children: revealNodes(for: children))
+        }
+    }
 
     static let tileDropTypes: [NSPasteboard.PasteboardType] = [
         .fileURL,
@@ -754,6 +810,7 @@ final class ShelfService: ObservableObject {
         guard edgePeekMatch != nil else { return }
         resetAutoHide()
         panel?.orderOut(nil)
+        ShelfTooltipPopover.shared.hide()
         scheduleDockedSync()
     }
 
@@ -805,6 +862,7 @@ final class ShelfService: ObservableObject {
     }
 
     func collapseDocked() {
+        ShelfTooltipPopover.shared.hide()
         dockedCollapsed = true
         if itemCount == 0 { dockedForcedOpen = false }
         scheduleDockedSync()
@@ -839,6 +897,7 @@ final class ShelfService: ObservableObject {
     private func hideDocked() {
         dockedForcedOpen = false
         guard let dockedPanel, dockedPanel.isVisible else { return }
+        ShelfTooltipPopover.shared.hide()
         dockedPanel.orderOut(nil)
     }
 
@@ -913,77 +972,89 @@ final class ShelfService: ObservableObject {
     /// drag carries both an image and its page URL — prefer the image, and
     /// only fall back to treating a URL as a link when nothing richer exists.
     func accept(providers: [NSItemProvider]) -> Bool {
-        let fileProviders = providers.enumerated().filter {
-            $0.element.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
-        }
-        if fileProviders.count > 1, fileProviders.count == providers.count {
-            acceptFileBatch(providers: fileProviders)
-            return true
-        }
-
-        var handled = false
-        for provider in providers {
-            if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-                handled = true
-                _ = provider.loadObject(ofClass: URL.self) { [weak self] url, _ in
-                    guard let url, url.isFileURL else { return }
-                    DispatchQueue.main.async { self?.addFile(url) }
-                }
-            } else if provider.hasItemConformingToTypeIdentifier(UTType.gif.identifier) {
-                handled = true
-                _ = provider.loadDataRepresentation(forTypeIdentifier: UTType.gif.identifier) { [weak self] data, _ in
-                    guard let data, !data.isEmpty else { return }
-                    DispatchQueue.main.async { self?.addGIF(data: data) }
-                }
-            } else if provider.canLoadObject(ofClass: NSImage.self) {
-                handled = true
-                _ = provider.loadObject(ofClass: NSImage.self) { [weak self] image, _ in
-                    guard let image = image as? NSImage else { return }
-                    DispatchQueue.main.async { self?.addImage(image) }
-                }
-            } else if provider.canLoadObject(ofClass: URL.self) {
-                handled = true
-                _ = provider.loadObject(ofClass: URL.self) { [weak self] url, _ in
-                    guard let url else { return }
-                    DispatchQueue.main.async {
-                        url.isFileURL ? self?.addFile(url) : self?.addLink(url)
-                    }
-                }
-            } else if provider.canLoadObject(ofClass: NSString.self) {
-                handled = true
-                _ = provider.loadObject(ofClass: NSString.self) { [weak self] string, _ in
-                    guard let string = string as? String else { return }
-                    DispatchQueue.main.async { self?.addText(string) }
-                }
-            }
-        }
-        return handled
+        guard providers.contains(where: canResolveItem) else { return false }
+        acceptMixedBatch(providers: providers)
+        return true
     }
 
-    private func acceptFileBatch(providers: [(offset: Int, element: NSItemProvider)]) {
-        let group = DispatchGroup()
-        let lock = NSLock()
-        var loaded: [(Int, URL)] = []
+    /// Whether `resolveItem` has any representation it can turn into an item.
+    /// Kept in sync with `resolveItem`'s own branches by hand, since a
+    /// provider load is async and cannot itself be probed synchronously.
+    private func canResolveItem(from provider: NSItemProvider) -> Bool {
+        provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
+            || provider.hasItemConformingToTypeIdentifier(UTType.gif.identifier)
+            || provider.canLoadObject(ofClass: NSImage.self)
+            || provider.canLoadObject(ofClass: URL.self)
+            || provider.canLoadObject(ofClass: NSString.self)
+    }
 
-        for (index, provider) in providers {
+    /// Resolves every provider in a drop and adds them together: one pile
+    /// when more than one item survives, a single plain item otherwise. A
+    /// drop is one gesture, so whatever arrives with it belongs together,
+    /// whether it's files, images, GIFs, links or text: the same rule
+    /// `accept(pasteboard:)` already applies to files.
+    private func acceptMixedBatch(providers: [NSItemProvider]) {
+        let group = DispatchGroup()
+        var resolved: [(Int, Item)] = []
+
+        for (index, provider) in providers.enumerated() {
             group.enter()
-            _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                if let url, url.isFileURL {
-                    lock.lock()
-                    loaded.append((index, url))
-                    lock.unlock()
-                }
+            resolveItem(from: provider) { item in
+                if let item { resolved.append((index, item)) }
                 group.leave()
             }
         }
 
         group.notify(queue: .main) { [weak self] in
-            let urls = loaded.sorted { $0.0 < $1.0 }.map(\.1)
-            guard urls.count > 1 else {
-                if let url = urls.first { self?.addFile(url) }
-                return
+            guard let self else { return }
+            let items = ShelfBatchSupport.orderedItems(from: resolved)
+            guard !items.isEmpty else { return }
+            self.append(items.count == 1 ? items[0] : self.batchItem(children: items))
+        }
+    }
+
+    /// Turns one dropped provider into an item, preferring richer
+    /// representations first: a file on disk, then GIF data, then a plain
+    /// image, then a URL (file or link), then text. Always calls back
+    /// exactly once, on the main queue, so callers can mutate state from it.
+    private func resolveItem(from provider: NSItemProvider, completion: @escaping (Item?) -> Void) {
+        if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+            _ = provider.loadObject(ofClass: URL.self) { [weak self] url, _ in
+                DispatchQueue.main.async {
+                    guard let url, url.isFileURL else { return completion(nil) }
+                    completion(self?.fileItem(for: url))
+                }
             }
-            self?.addFileBatch(urls)
+        } else if provider.hasItemConformingToTypeIdentifier(UTType.gif.identifier) {
+            _ = provider.loadDataRepresentation(forTypeIdentifier: UTType.gif.identifier) { [weak self] data, _ in
+                DispatchQueue.main.async {
+                    guard let data, !data.isEmpty else { return completion(nil) }
+                    completion(self?.gifItem(for: data))
+                }
+            }
+        } else if provider.canLoadObject(ofClass: NSImage.self) {
+            _ = provider.loadObject(ofClass: NSImage.self) { [weak self] image, _ in
+                DispatchQueue.main.async {
+                    let item = (image as? NSImage).flatMap { self?.imageItem(for: $0) }
+                    completion(item)
+                }
+            }
+        } else if provider.canLoadObject(ofClass: URL.self) {
+            _ = provider.loadObject(ofClass: URL.self) { [weak self] url, _ in
+                DispatchQueue.main.async {
+                    let item = url.flatMap { url in url.isFileURL ? self?.fileItem(for: url) : self?.linkItem(for: url) }
+                    completion(item)
+                }
+            }
+        } else if provider.canLoadObject(ofClass: NSString.self) {
+            _ = provider.loadObject(ofClass: NSString.self) { [weak self] string, _ in
+                DispatchQueue.main.async {
+                    let item = (string as? String).flatMap { self?.textItem(for: $0) }
+                    completion(item)
+                }
+            }
+        } else {
+            DispatchQueue.main.async { completion(nil) }
         }
     }
 
@@ -993,6 +1064,12 @@ final class ShelfService: ObservableObject {
         cleanSelectionState()
         retireOwnedPayloads(in: removed)
         noteInteraction()
+        // A tooltip already showing for the removed tile, or a sibling
+        // whose pile just changed shape, has nothing left to describe.
+        // None of these removal paths (the close button, the trash
+        // button, a drag-out) go through a tile's own mouseDown, the
+        // only other place a showing tooltip gets hidden.
+        ShelfTooltipPopover.shared.hide()
     }
 
     /// Removes several items at once — used after a successful drag-out so the
@@ -1004,6 +1081,7 @@ final class ShelfService: ObservableObject {
         cleanSelectionState()
         retireOwnedPayloads(in: removed)
         noteInteraction()
+        ShelfTooltipPopover.shared.hide()
     }
 
     func clear() {
@@ -1014,6 +1092,7 @@ final class ShelfService: ObservableObject {
         expandedBatches = []
         retireOwnedPayloads(in: removed)
         noteInteraction()
+        ShelfTooltipPopover.shared.hide()
     }
 
     func toggleSelection(_ id: UUID) {
@@ -1248,7 +1327,13 @@ final class ShelfService: ObservableObject {
         }
         let additions = items(from: pasteboard)
         guard !additions.isEmpty else { return false }
-        return merge(additions, into: targetID)
+        guard merge(additions, into: targetID) else { return false }
+        // Only a genuinely external drop counts as an add: mergeInternalDrag
+        // reaches the shared merge below too, but that path is a removal
+        // plus a reparent of an existing tile, not new content arriving.
+        lastAddedID = dragItems(for: additions).last?.id
+        addSerial &+= 1
+        return true
     }
 
     func canAcceptPasteboard(_ pasteboard: NSPasteboard) -> Bool {
@@ -1264,6 +1349,9 @@ final class ShelfService: ObservableObject {
         let additions = items(from: pasteboard)
         guard !additions.isEmpty else { return false }
         items.append(contentsOf: additions)
+        // The last one is furthest down, so revealing it brings its siblings.
+        lastAddedID = additions.last?.id
+        addSerial &+= 1
         noteInteraction()
         return true
     }
@@ -1280,32 +1368,9 @@ final class ShelfService: ObservableObject {
         }
     }
 
-    private func addFile(_ url: URL) {
-        append(fileItem(for: url))
-    }
-
     private func addFileBatch(_ urls: [URL]) {
         let children = urls.map { fileItem(for: $0) }
         append(batchItem(children: children))
-    }
-
-    private func addImage(_ image: NSImage) {
-        guard let item = imageItem(for: image) else { return }
-        append(item)
-    }
-
-    private func addGIF(data: Data) {
-        guard let item = gifItem(for: data) else { return }
-        append(item)
-    }
-
-    private func addText(_ string: String) {
-        guard let item = textItem(for: string) else { return }
-        append(item)
-    }
-
-    private func addLink(_ url: URL) {
-        append(linkItem(for: url))
     }
 
     private func fileItem(for url: URL, id: UUID = UUID(), title: String? = nil,
@@ -1375,6 +1440,8 @@ final class ShelfService: ObservableObject {
 
     private func append(_ item: Item) {
         items.append(item)
+        lastAddedID = item.id
+        addSerial &+= 1
         noteInteraction()
     }
 
@@ -1498,6 +1565,12 @@ final class ShelfService: ObservableObject {
         removeItems(sourceIDs, from: &items, removed: &moved)
         guard merge(additions, into: targetID) else { return false }
         internalDragWasMerged = true
+        // Bypasses the public removeItem/removeItems wrappers (it's
+        // reparenting, not a user-facing removal), so it doesn't get the
+        // tooltip-hide those centralize. A drag always starts with
+        // mouseDown on the source tile, which already hides any showing
+        // tooltip, so this is defense in depth rather than a live gap.
+        ShelfTooltipPopover.shared.hide()
         return true
     }
 
@@ -1876,6 +1949,7 @@ final class ShelfService: ObservableObject {
         resetAutoHide()
         isPinned = false
         panel?.orderOut(nil)
+        ShelfTooltipPopover.shared.hide()
         scheduleDockedSync()
     }
 
@@ -2018,6 +2092,7 @@ final class ShelfService: ObservableObject {
             self.autoHideFadeTimer = nil
             self.autoHideFadeStart = nil
             panel.orderOut(nil)
+            ShelfTooltipPopover.shared.hide()
             panel.alphaValue = 1
             self.pointerInsidePanel = false
             self.dropTargeted = false

@@ -5345,6 +5345,104 @@ struct MetricsTests {
             hasDroppableContent: { fatalError("droppable check must stay lazy") }),
                "an unchanged pasteboard outside the Dock skips the content inspection")
 
+        // MARK: Shelf reveal
+
+        let revealChildA = UUID()
+        let revealChildB = UUID()
+        let revealNested = UUID()
+        let revealPile = UUID()
+        let revealDeepPile = UUID()
+        let revealLoose = UUID()
+        let revealTree = [
+            ShelfRevealNode(id: revealLoose),
+            ShelfRevealNode(id: revealPile, children: [
+                ShelfRevealNode(id: revealChildA),
+                ShelfRevealNode(id: revealDeepPile, children: [
+                    ShelfRevealNode(id: revealNested),
+                ]),
+            ]),
+            ShelfRevealNode(id: revealChildB),
+        ]
+
+        expect(ShelfRevealSupport.visibleAncestorID(of: revealLoose,
+                                                    in: revealTree,
+                                                    expanded: []) == revealLoose,
+               "a top level item reveals itself")
+        expect(ShelfRevealSupport.visibleAncestorID(of: revealChildA,
+                                                    in: revealTree,
+                                                    expanded: []) == revealPile,
+               "a child of a collapsed pile reveals the pile, since the child has no tile")
+        expect(ShelfRevealSupport.visibleAncestorID(of: revealChildA,
+                                                    in: revealTree,
+                                                    expanded: [revealPile]) == revealChildA,
+               "a child of an expanded pile reveals the child itself")
+        expect(ShelfRevealSupport.visibleAncestorID(of: revealNested,
+                                                    in: revealTree,
+                                                    expanded: []) == revealPile,
+               "an item two levels down reveals the outermost collapsed ancestor")
+        expect(ShelfRevealSupport.visibleAncestorID(of: revealNested,
+                                                    in: revealTree,
+                                                    expanded: [revealPile]) == revealDeepPile,
+               "expanding only the outer pile reveals the inner pile, not the item inside it")
+        expect(ShelfRevealSupport.visibleAncestorID(of: revealNested,
+                                                    in: revealTree,
+                                                    expanded: [revealPile, revealDeepPile]) == revealNested,
+               "expanding every ancestor reveals the item itself")
+        expect(ShelfRevealSupport.visibleAncestorID(of: UUID(),
+                                                    in: revealTree,
+                                                    expanded: []) == nil,
+               "an id that is not on the shelf reveals nothing")
+
+        expect(ShelfRevealSupport.shouldReveal(serial: 1, lastHonored: nil),
+               "the shelf's first ever add is always revealed")
+        expect(!ShelfRevealSupport.shouldReveal(serial: 1, lastHonored: 1),
+               "an already honored serial does not reveal again, e.g. a pile expanding with nothing added")
+        expect(ShelfRevealSupport.shouldReveal(serial: 2, lastHonored: 1),
+               "a new serial reveals even when the resolved target repeats, e.g. two drops into the same collapsed pile")
+
+        expect(ShelfTileLayout.columnCount(contentWidth: 276,
+                                           tileWidth: 78,
+                                           spacing: 10,
+                                           inset: 4) == 3,
+               "the shelf's own width fits three tile columns")
+        expect(ShelfTileLayout.columnCount(contentWidth: 40,
+                                           tileWidth: 78,
+                                           spacing: 10,
+                                           inset: 4) == 1,
+               "a width too small for one tile still reports a single column")
+
+        let revealTile = CGSize(width: 78, height: 88)
+        expect(ShelfTileLayout.tileFrame(index: 0,
+                                         columns: 3,
+                                         tileSize: revealTile,
+                                         spacing: 10,
+                                         inset: 4) == CGRect(x: 4, y: 4, width: 78, height: 88),
+               "the first tile sits at the inset")
+        expect(ShelfTileLayout.tileFrame(index: 2,
+                                         columns: 3,
+                                         tileSize: revealTile,
+                                         spacing: 10,
+                                         inset: 4) == CGRect(x: 180, y: 4, width: 78, height: 88),
+               "the last tile of the first row advances by the column stride")
+        expect(ShelfTileLayout.tileFrame(index: 3,
+                                         columns: 3,
+                                         tileSize: revealTile,
+                                         spacing: 10,
+                                         inset: 4) == CGRect(x: 4, y: 102, width: 78, height: 88),
+               "the fourth tile wraps to the second row")
+        expect(ShelfTileLayout.tileFrame(index: 6,
+                                         columns: 3,
+                                         tileSize: revealTile,
+                                         spacing: 10,
+                                         inset: 4) == CGRect(x: 4, y: 200, width: 78, height: 88),
+               "the seventh tile lands on the third row, the case this change exists for")
+        expect(ShelfTileLayout.tileFrame(index: 2,
+                                         columns: 1,
+                                         tileSize: revealTile,
+                                         spacing: 10,
+                                         inset: 4) == CGRect(x: 4, y: 200, width: 78, height: 88),
+               "a single column puts every tile in its own row")
+
         let singleScreen = [ShelfEdgeScreen(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
                                             visibleFrame: CGRect(x: 0, y: 0, width: 1920, height: 1080))]
         expect(ShelfEdgeDragSupport.match(at: CGPoint(x: 10, y: 500), screens: singleScreen,
@@ -5498,6 +5596,15 @@ struct MetricsTests {
                    == ShelfPersistenceSupport.maxLeaves,
                "shelf restore caps the number of items")
 
+        expect(ShelfBatchSupport.orderedItems(from: [(Int, String)]()).isEmpty,
+               "shelf batch resolve with nothing resolved produces nothing")
+        expect(ShelfBatchSupport.orderedItems(from: [(0, "a"), (1, "b"), (2, "c")]) == ["a", "b", "c"],
+               "shelf batch resolve keeps drop order when providers finish in order")
+        expect(ShelfBatchSupport.orderedItems(from: [(2, "c"), (0, "a"), (1, "b")]) == ["a", "b", "c"],
+               "shelf batch resolve restores drop order when providers finish out of order")
+        expect(ShelfBatchSupport.orderedItems(from: [(3, "z")]) == ["z"],
+               "shelf batch resolve with a single provider produces that one item")
+
         expect(ClipboardHistoryBatch.listOwnsCopyShortcut(batchCount: 2)
                    && !ClipboardHistoryBatch.listOwnsCopyShortcut(batchCount: 0),
                "the list only claims command-C over an explicit selection")
@@ -5505,6 +5612,65 @@ struct MetricsTests {
                    && !ClipboardHistoryBatch.listOwnsSelectAllShortcut(batchCount: 0, queryIsEmpty: false)
                    && ClipboardHistoryBatch.listOwnsSelectAllShortcut(batchCount: 1, queryIsEmpty: false),
                "the list claims command-A over a selection or an empty search field")
+
+        // MARK: Shelf tile tooltip
+
+        let tooltipStrings = ShelfTooltipStrings(itemsFormat: "%d items",
+                                                 imageSingular: "%d image", imagePlural: "%d images",
+                                                 fileSingular: "%d file", filePlural: "%d files",
+                                                 noteSingular: "%d note", notePlural: "%d notes",
+                                                 linkSingular: "%d link", linkPlural: "%d links")
+
+        expectEqual(ShelfTooltipSupport.text(forFileNamed: "risaPOGCHAMP.gif", resolvedKind: "GIF Image"),
+                    "risaPOGCHAMP.gif\nGIF Image",
+                    "file tooltip shows the name and the resolved kind on separate lines")
+        expectEqual(ShelfTooltipSupport.text(forFileNamed: "mystery.xyz", resolvedKind: nil),
+                    "mystery.xyz",
+                    "file tooltip falls back to the name alone when the kind lookup failed")
+        expectEqual(ShelfTooltipSupport.text(forFileNamed: "mystery.xyz", resolvedKind: ""),
+                    "mystery.xyz",
+                    "an empty resolved kind is treated the same as no kind at all")
+
+        expectEqual(ShelfTooltipSupport.text(forText: "hello world"),
+                    "hello world",
+                    "text under the cap is shown unchanged")
+        expectEqual(ShelfTooltipSupport.text(forText: "  padded on both sides  "),
+                    "padded on both sides",
+                    "text tooltip trims the surrounding whitespace the stored payload keeps verbatim")
+        let longText = String(repeating: "a", count: 600)
+        expectEqual(ShelfTooltipSupport.text(forText: longText),
+                    String(repeating: "a", count: ShelfTooltipSupport.textCap) + "…",
+                    "text over the cap is truncated to exactly the cap length with a trailing ellipsis")
+
+        expectEqual(ShelfTooltipSupport.text(forLink: URL(string: "https://example.com/a/b?q=1")!),
+                    "https://example.com/a/b?q=1",
+                    "link tooltip shows the full URL, not just the host the tile's own title shows")
+
+        let emptyBreakdown = ShelfTooltipSupport.breakdown(of: [])
+        expect(emptyBreakdown.total == 0,
+               "an empty leaf list breaks down to all zero counts")
+        expectEqual(ShelfTooltipSupport.text(forPile: emptyBreakdown, strings: tooltipStrings),
+                    "0 items",
+                    "an empty pile's tooltip does not crash and carries no trailing colon with nothing after it")
+
+        let oneOfEachBreakdown = ShelfTooltipSupport.breakdown(of: [.image, .file, .note, .link])
+        expect(oneOfEachBreakdown.images == 1 && oneOfEachBreakdown.files == 1
+                   && oneOfEachBreakdown.notes == 1 && oneOfEachBreakdown.links == 1
+                   && oneOfEachBreakdown.total == 4,
+               "one leaf of each kind counts one of each and totals four")
+        expectEqual(ShelfTooltipSupport.text(forPile: oneOfEachBreakdown, strings: tooltipStrings),
+                    "4 items: 1 image, 1 file, 1 note, 1 link",
+                    "a pile with one of each kind lists all four in a fixed order, each in its singular form")
+
+        let sameKindBreakdown = ShelfTooltipSupport.breakdown(of: [.image, .image, .image])
+        expectEqual(ShelfTooltipSupport.text(forPile: sameKindBreakdown, strings: tooltipStrings),
+                    "3 items: 3 images",
+                    "a pile of only one kind omits the other three from the breakdown entirely")
+
+        let singularPluralBoundary = ShelfTooltipSupport.breakdown(of: [.image, .file, .file, .file])
+        expectEqual(ShelfTooltipSupport.text(forPile: singularPluralBoundary, strings: tooltipStrings),
+                    "4 items: 1 image, 3 files",
+                    "singular and plural forms are chosen per kind, not for the pile as a whole")
 
         // MARK: Middle click tap (issue #161)
 
@@ -10269,6 +10435,17 @@ struct MetricsTests {
                                                             selectionInProgress: false,
                                                             capturePending: false),
                "the capture chooser disappears for the whole drag and while capture is pending")
+        let captureSelectionSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift",
+            encoding: .utf8)) ?? ""
+        expect(captureSelectionSource.contains(
+            "override func mouseExited(with event: NSEvent) {\n        refreshGuideVisibility()"),
+               "system chrome cannot hide the capture chooser while the pointer remains on its display")
+        expect(captureSelectionSource.contains(
+            "let height: CGFloat = screenCaptureOptions != nil\n            ? 146\n            : 72")
+                && captureSelectionSource.contains(
+                    ".opacity(options.selectedTool == .recording ? 1 : 0)"),
+               "capture modes reserve the recording controls' height so the chooser never jumps")
 
         let cocoa = ScreenshotSupport.cocoaRect(fromWindowServer: CGRect(x: 10, y: 30, width: 200, height: 100),
                                                 mainScreenHeight: 900)

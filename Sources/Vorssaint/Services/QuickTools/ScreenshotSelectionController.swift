@@ -87,11 +87,6 @@ final class ScreenshotSelectionController {
         activeMode != .color && !requiresDraggedRegion && !scrollingCaptureEnabled
     }
     fileprivate var isPickingColor: Bool { activeMode == .color }
-    fileprivate var activeRecorderAudioOptions: RecorderSelectionAudioOptions? {
-        screenCaptureOptions?.selectedTool == .recording
-            ? screenCaptureOptions?.recorderAudio
-            : nil
-    }
     fileprivate var loupeEnabled = false {
         didSet { panels.forEach { $0.overlayView.refreshPointerState() } }
     }
@@ -726,11 +721,10 @@ private final class ScreenshotOverlayView: NSView {
 
     override func layout() {
         super.layout()
-        let showsAudio = controller?.activeRecorderAudioOptions != nil
         let width = min(screenCaptureOptions == nil ? 680 : 620,
                         max(280, bounds.width - 32))
         let height: CGFloat = screenCaptureOptions != nil
-            ? (showsAudio ? 146 : 104)
+            ? 146
             : 72
         guideHost.frame = CGRect(x: bounds.midX - width / 2,
                                  y: bounds.maxY - height - 32,
@@ -791,8 +785,11 @@ private final class ScreenshotOverlayView: NSView {
         refreshGuideVisibility()
     }
 
+    // System chrome can take pointer ownership without the pointer leaving
+    // this display. Re-evaluate the real location so the chooser does not
+    // disappear over the Dock, menu bar or its own interactive controls.
     override func mouseExited(with event: NSEvent) {
-        guideHost.isHidden = true
+        refreshGuideVisibility()
     }
 
     override func scrollWheel(with event: NSEvent) {
@@ -1194,9 +1191,10 @@ private struct UnifiedCaptureGuideContent: View {
                 escapeHint
             }
             contextualGuide
-            if options.selectedTool == .recording {
-                RecorderSelectionAudioControls(options: options.recorderAudio)
-            }
+            RecorderSelectionAudioControls(options: options.recorderAudio)
+                .opacity(options.selectedTool == .recording ? 1 : 0)
+                .allowsHitTesting(options.selectedTool == .recording)
+                .accessibilityHidden(options.selectedTool != .recording)
         }
     }
 

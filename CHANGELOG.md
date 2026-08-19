@@ -12,9 +12,9 @@ imported-video editing, local Command Bar scripts, recent captures, desktop
 window controls, formatted Scratchpad previews, edge-activated Shelf access and
 faster access to recording and maintenance tools. It also improves Clipboard
 access, Command Bar search and placement, capture, app discovery,
-conversions, volume, Switcher behavior, Settings reachability, menu bar sizing,
-setup screens, customizable Super key combinations, command-line setup,
-accidental middle clicks while typing and
+conversions, volume, Shelf details, grouping and drop feedback, Switcher behavior, Settings
+reachability, menu bar sizing, setup screens, customizable Super key
+combinations, command-line setup, accidental middle clicks while typing and
 compatibility with older development tools.
 
 ### Added
@@ -22,8 +22,9 @@ compatibility with older development tools.
   editable plain text.
 - One screen-capture shortcut now opens a floating palette for screenshots,
   recordings, screen text and colors, with every installed tool and its 1
-  through 4 key visible at once. It disappears as soon as selection begins,
-  keeps recording sound and microphone choices nearby, and puts every mode's
+  through 4 key visible at once. It stays available across system edges, keeps
+  its position as modes change and disappears as soon as selection begins. It
+  keeps recording sound and microphone choices nearby and puts every mode's
   settings on one page.
 - Media now converts images in batches with resizing, watermarks, renaming and
   reusable profiles. Thanks to @ruvelro.
@@ -98,6 +99,10 @@ compatibility with older development tools.
   and Escape to clear the selection. Thanks to @cimu233.
 - Shelf can now open when a dragged file reaches a screen edge. Enable it under
   Shelf. Thanks to @tenbux.
+- Shelf tiles now show their full name, file kind or content on hover, and scroll
+  newly added items into view. Thanks to @tenbux.
+- Shelf now groups every compatible item from one drop into a single pile,
+  including images, GIFs, links and text. Thanks to @tenbux.
 - The simple App Switcher now shows and cycles through individual windows without
   previews. Turn on Show one entry per app to group them.
 - The App Switcher now marks windows that are on another desktop.
@@ -117,6 +122,8 @@ compatibility with older development tools.
 - The screenshot editor now lets you draw a new crop directly over the image.
 - Clipboard history now keeps large copied documents instead of silently
   dropping text after 20,000 characters.
+- Shelf tiles now show their pile count and controls immediately after another
+  item is dropped onto them. Thanks to @tenbux.
 - Window Layout now centers fixed-size windows and stops pending placements from
   undoing Full Screen.
 - The feedback text cursor now lines up with the empty-field hint.
