@@ -79,10 +79,14 @@ final class RecorderCaptureEngine: NSObject {
         }
         guard !isCancelled() else { return .streamFailed }
 
-        guard let filter = Self.filter(for: region,
-                                       in: content,
-                                       excluding: excludedWindowNumbers)
-        else { return .noContent }
+        // Keep the call and optional binding as separate type-checking targets.
+        // Older Swift compilers otherwise crash in their constraint walker when
+        // this expression sits inside the larger async start routine.
+        let preparedFilter: SCContentFilter? = Self.filter(
+            for: region,
+            in: content,
+            excluding: excludedWindowNumbers)
+        guard let filter = preparedFilter else { return .noContent }
 
         let configuration = SCStreamConfiguration()
         configuration.width = Int(region.pixelRect.width)
