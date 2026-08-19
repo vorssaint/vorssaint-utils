@@ -10,8 +10,8 @@ All notable changes to this project are documented here. The format follows
 Vorssaint 3.3.2 brings one place for screen capture, batch image conversion,
 local Command Bar scripts, recent captures, imported-video editing and formatted
 Scratchpad previews. It also cuts background energy use and improves scrolling
-screenshots, Clipboard, Shelf, Switcher, window controls, audio, displays, Settings
-and app maintenance.
+screenshots, Clipboard, Shelf, Switcher, window controls, audio, displays, Fan Control,
+Settings and app maintenance.
 
 ### Added
 - One screen-capture shortcut now opens a floating palette for screenshots,
@@ -96,6 +96,8 @@ and app maintenance.
   details clear after removal. Thanks to @PathGao and @MineraleYT.
 - Setup alignment, command-line configuration, menu panel focus and first-time Fan
   Control approval now behave correctly. Thanks to @danpalmer and @CALLmeDOMIN.
+- Fan Control now keeps maximum cooling engaged when the system could reclaim
+  automatic mode between control writes. Thanks to @augustoFranke.
 
 ## [3.3.1] - 2026-08-09
 
