@@ -66,6 +66,7 @@ enum SelfUninstall {
         // or it would re-arm the very taps this teardown just stopped.
         CleaningModeManager.shared.deactivate()
         ScrollInverter.shared.suspend()
+        FocusFollowsMouseService.shared.stop()
         SmoothScrollService.shared.suspend()
         MouseNavigationService.shared.suspend()
         MouseButtonShortcutService.shared.suspend()

@@ -617,6 +617,9 @@ struct MouseSettings: View {
     @ObservedObject private var middleClick = MiddleClickService.shared
     @AppStorage(DefaultsKey.scrollInverterEnabled) private var invertVertical = false
     @AppStorage(DefaultsKey.scrollInverterHorizontalEnabled) private var invertHorizontal = false
+    @AppStorage(DefaultsKey.focusFollowsMouseEnabled) private var focusFollowsMouseEnabled = false
+    @AppStorage(DefaultsKey.focusFollowsMouseDelay) private var focusFollowsMouseDelay =
+        FocusFollowsMouseSupport.defaultDelayMilliseconds
     @AppStorage(DefaultsKey.smoothScrollEnabled) private var smoothScrollEnabled = false
     @AppStorage(DefaultsKey.smoothScrollStep) private var smoothScrollStep = SmoothScrollSupport.defaultStep
     @AppStorage(DefaultsKey.mouseNavigationEnabled) private var mouseNavigationEnabled = false
@@ -653,6 +656,31 @@ struct MouseSettings: View {
                     }
                 }
                 .settingsSectionAnchor(.scrollDirection)
+            }
+            if AppFeature.focusFollowsMouse.isAvailable {
+                Section(l10n.s.focusFollowsMouseName) {
+                    Toggle(l10n.s.focusFollowsMouseName, isOn: $focusFollowsMouseEnabled)
+                        .onChange(of: focusFollowsMouseEnabled) { _, enabled in
+                            FocusFollowsMouseService.shared.syncWithPreferences()
+                            if enabled { Permissions.shared.requestAccessibility() }
+                        }
+                    SettingsCaptionText(l10n.s.focusFollowsMouseCaption)
+                    if focusFollowsMouseEnabled {
+                        HStack {
+                            Slider(value: focusFollowsMouseDelayBinding,
+                                   in: Double(FocusFollowsMouseSupport.delayRange.lowerBound)
+                                       ... Double(FocusFollowsMouseSupport.delayRange.upperBound),
+                                   step: 50) {
+                                Text(l10n.s.focusFollowsMouseDelay)
+                            }
+                            Text("\(focusFollowsMouseDelay) ms")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 68, alignment: .trailing)
+                        }
+                    }
+                }
+                .settingsSectionAnchor(.focusFollowsMouse)
             }
             if AppFeature.smoothScroll.isAvailable {
                 Section(l10n.s.smoothScrollName) {
@@ -752,6 +780,7 @@ struct MouseSettings: View {
     /// permission note; a hub-disabled one no longer needs anything.
     private var accessibilityNoteVisible: Bool {
         let anyEngaged = (scrollDirectionEnabled && AppFeature.scrollInverter.isAvailable)
+            || (focusFollowsMouseEnabled && AppFeature.focusFollowsMouse.isAvailable)
             || (smoothScrollEnabled && AppFeature.smoothScroll.isAvailable)
             || (mouseNavigationEnabled && AppFeature.mouseNavigation.isAvailable)
             || (mouseButtonShortcutsEnabled && AppFeature.mouseButtonShortcuts.isAvailable)
@@ -767,6 +796,16 @@ struct MouseSettings: View {
         Binding(
             get: { Double(SmoothScrollSupport.sanitizedStep(smoothScrollStep)) },
             set: { smoothScrollStep = Int($0) }
+        )
+    }
+
+    private var focusFollowsMouseDelayBinding: Binding<Double> {
+        Binding(
+            get: { Double(FocusFollowsMouseSupport.sanitizedDelay(focusFollowsMouseDelay)) },
+            set: {
+                focusFollowsMouseDelay = Int($0)
+                FocusFollowsMouseService.shared.preferencesDidChange()
+            }
         )
     }
 }

@@ -913,6 +913,9 @@ extension Strings {
         switcherShowShortcutHintsCaption: "Zeigt die Kurzbefehle für Apps und Fenster unter den Symbolen.",
         uninstallerHomebrewPackageFormat: "%@ wird auch aus Homebrew entfernt.",
         shelfEdgeToggle: "In der Nähe eines Bildschirmrands öffnen",
-        shelfEdgeCaption: "Ziehe eine Datei in Richtung Bildschirmrand, damit die Ablage kurz hervorschaut. Lass sie dort los, oder zieh zurück, und die Ablage verschwindet wieder."
+        shelfEdgeCaption: "Ziehe eine Datei in Richtung Bildschirmrand, damit die Ablage kurz hervorschaut. Lass sie dort los, oder zieh zurück, und die Ablage verschwindet wieder.",
+        focusFollowsMouseName: "Fokus folgt Maus",
+        focusFollowsMouseCaption: "Fokussiert das Fenster unter dem Zeiger und bringt es nach kurzer Pause nach vorn.",
+        focusFollowsMouseDelay: "Verzögerung"
     )
 }

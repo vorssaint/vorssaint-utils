@@ -913,6 +913,9 @@ extension Strings {
         switcherShowShortcutHintsCaption: "Mostra le scorciatoie per app e finestre sotto le icone.",
         uninstallerHomebrewPackageFormat: "%@ verrà rimosso anche da Homebrew.",
         shelfEdgeToggle: "Apri vicino a un bordo dello schermo",
-        shelfEdgeCaption: "Trascina un file verso il bordo dello schermo per far intravedere il ripiano. Rilascialo lì, oppure torna indietro e si ritira."
+        shelfEdgeCaption: "Trascina un file verso il bordo dello schermo per far intravedere il ripiano. Rilascialo lì, oppure torna indietro e si ritira.",
+        focusFollowsMouseName: "Il focus segue il mouse",
+        focusFollowsMouseCaption: "Mette a fuoco e porta in primo piano la finestra sotto il puntatore dopo una breve pausa.",
+        focusFollowsMouseDelay: "Ritardo al passaggio"
     )
 }

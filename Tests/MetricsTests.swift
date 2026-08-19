@@ -1086,6 +1086,34 @@ struct MetricsTests {
         expect(Defaults.registeredDefaults[DefaultsKey.smoothScrollStep] as? Int == 40,
                "smooth scrolling step registers its default")
 
+        expect(FocusFollowsMouseSupport.sanitizedDelay(0)
+                == FocusFollowsMouseSupport.delayRange.lowerBound
+                && FocusFollowsMouseSupport.sanitizedDelay(2_000)
+                == FocusFollowsMouseSupport.delayRange.upperBound,
+               "focus follows mouse clamps a damaged delay preference")
+        var focusFollowsMouseState = FocusFollowsMouseState()
+        focusFollowsMouseState.recordMovement(to: CGPoint(x: 40, y: 70), at: 10)
+        expect(focusFollowsMouseState.nextEvaluation(at: 10.20, delayMilliseconds: 250) == nil,
+               "focus follows mouse waits for the pointer to settle")
+        let settledFocus = focusFollowsMouseState.nextEvaluation(at: 10.25, delayMilliseconds: 250)
+        expect(settledFocus?.point == CGPoint(x: 40, y: 70)
+                && settledFocus.map(focusFollowsMouseState.isCurrent) == true,
+               "focus follows mouse evaluates the settled pointer once")
+        expect(focusFollowsMouseState.nextEvaluation(at: 11, delayMilliseconds: 250) == nil,
+               "focus follows mouse does not refocus without new movement")
+        focusFollowsMouseState.recordMovement(to: CGPoint(x: 90, y: 20), at: 12)
+        expect(settledFocus.map(focusFollowsMouseState.isCurrent) == false,
+               "a stale window lookup cannot focus after the pointer moves")
+        focusFollowsMouseState.reset()
+        expect(focusFollowsMouseState.point == nil,
+               "space and wake resets discard the old pointer target")
+        expect(Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseEnabled] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseDelay] as? Int
+                    == FocusFollowsMouseSupport.defaultDelayMilliseconds,
+               "focus follows mouse ships off with a safe delay")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.focusFollowsMouseDelay),
+               "focus follows mouse preferences follow settings backups")
+
         // A wheel that reports continuously already measures in points, and
         // that field is the one to trust; the line field only fills in for a
         // movement too small to register as a whole point.
@@ -8862,12 +8890,12 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 51, "feature catalog has 51 features")
+        expect(AppFeature.allCases.count == 52, "feature catalog has 52 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
             "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit",
-            "scrollInverter", "smoothScroll", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
+            "scrollInverter", "focusFollowsMouse", "smoothScroll", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
             "keyboardDebounce", "textSnippets", "superKey",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
@@ -8884,8 +8912,9 @@ struct MetricsTests {
         expect(AppFeature.availabilityDefaults.count == AppFeature.allCases.count
                 && (AppFeature.availabilityDefaults[AppFeature.fanControl.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.diskImageInstaller.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
-                    $0 != .fanControl && $0 != .diskImageInstaller
+                    $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
@@ -9183,6 +9212,7 @@ struct MetricsTests {
                && !AppFeature.screenshot.monitorsPermissionChanges
                && !AppFeature.screenRecorder.monitorsPermissionChanges
                && AppFeature.switcher.monitorsPermissionChanges
+               && AppFeature.focusFollowsMouse.monitorsPermissionChanges
                && AppFeature.mouseNavigation.monitorsPermissionChanges,
                "only active Window Layout hooks and live features keep the permission watcher alive")
 
@@ -9197,6 +9227,9 @@ struct MetricsTests {
         expect(AppFeature.scrollInverter.enabledKeys == [DefaultsKey.scrollInverterEnabled,
                                                           DefaultsKey.scrollInverterHorizontalEnabled],
                "the scroll direction feature tracks both independent axes")
+        expect(activeSet(.accessibility, on: [DefaultsKey.focusFollowsMouseEnabled])
+                .contains(.focusFollowsMouse),
+               "focus follows mouse reports its live accessibility use")
         expect(activeSet(.accessibility, on: [DefaultsKey.finderRenameEnabled]).contains(.finderRename),
                "the enabled Finder rename shortcut uses accessibility")
         expect(!activeSet(.accessibility, available: [], on: [DefaultsKey.scrollInverterEnabled])
@@ -9665,7 +9698,7 @@ struct MetricsTests {
         expect(pageVisible(.mouse, available: [.middleClick]),
                "one remaining mouse feature keeps the mouse page")
         expect(!pageVisible(.mouse, available: []),
-               "the mouse page hides only with all five mouse features off")
+               "the mouse page hides only with all six mouse features off")
         expect(!pageVisible(.energy, available: allFeatures.subtracting([.keepAwake, .brightness,
                                                                          .extraBrightness])),
                "energy hides when all three display features are off")

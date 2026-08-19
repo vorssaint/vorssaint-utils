@@ -914,6 +914,9 @@ extension Strings {
         switcherShowShortcutHintsCaption: "Показывает сочетания клавиш для приложений и окон под значками.",
         uninstallerHomebrewPackageFormat: "%@ также будет удалён из Homebrew.",
         shelfEdgeToggle: "Открывать у края экрана",
-        shelfEdgeCaption: "Перетащите файл к краю экрана, чтобы полка выглянула. Отпустите его там, или потяните обратно, и полка уберётся."
+        shelfEdgeCaption: "Перетащите файл к краю экрана, чтобы полка выглянула. Отпустите его там, или потяните обратно, и полка уберётся.",
+        focusFollowsMouseName: "Фокус следует за мышью",
+        focusFollowsMouseCaption: "Фокусирует и поднимает окно под указателем после короткой паузы.",
+        focusFollowsMouseDelay: "Задержка наведения"
     )
 }

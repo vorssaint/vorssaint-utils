@@ -90,6 +90,9 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 
 - **Text snippets.** Type a short trigger anywhere and it becomes your text, expanded instantly or after a space, with clipboard variables plus date and time in any format you like. A searchable quick menu, organized into folders, types any snippet right at your cursor.
 - **Smooth scrolling.** Gives a mouse wheel the glide of a trackpad.
+- **Focus follows mouse.** Install it from Features to bring the window under the
+  pointer to the front after an adjustable pause. It waits while you drag or hold a
+  modifier key.
 - **Scroll direction.** Invert vertical and horizontal wheel movement separately without
   touching the trackpad's natural scrolling.
 - **Side buttons.** The mouse Back and Forward buttons start meaning it, in Finder, browsers and compatible apps.

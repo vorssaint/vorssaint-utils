@@ -9,11 +9,14 @@ All notable changes to this project are documented here. The format follows
 ### Summary
 Vorssaint 3.3.2 brings one place for screen capture, batch image conversion,
 local Command Bar scripts, recent captures, imported-video editing, formatted
-Scratchpad previews and swap use. It also cuts background energy use and improves
+Scratchpad previews, swap use and pointer-driven window focus. It also cuts background
+energy use and improves
 scrolling screenshots, Clipboard, Shelf, Switcher, window controls, audio, displays,
 Fan Control, Settings and app maintenance.
 
 ### Added
+- An optional Focus follows mouse feature brings the window under the pointer to
+  the front after an adjustable pause. It ships uninstalled. Thanks to @Bald-M.
 - One screen-capture shortcut now opens a floating palette for screenshots,
   recordings, screen text and colors, with sound controls and each mode's settings
   kept nearby.
