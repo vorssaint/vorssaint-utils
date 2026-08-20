@@ -182,12 +182,20 @@ final class CleaningModeManager: ObservableObject {
     // MARK: - Overlay
 
     private func showOverlays() {
-        hideOverlays()
         let frames = NSScreen.screens.map(\.frame)
         let targetFrames = frames.isEmpty
             ? [NSRect(x: 0, y: 0, width: 800, height: 600)]
             : frames
-        overlays = targetFrames.map(makeOverlay(frame:))
+        // Screen notifications can arrive in bursts even when the frames stay
+        // unchanged. Reuse those panels so the overlay never flashes or drops a click.
+        var reusable = overlays
+        overlays = targetFrames.map { frame in
+            if let index = reusable.firstIndex(where: { $0.frame == frame }) {
+                return reusable.remove(at: index)
+            }
+            return makeOverlay(frame: frame)
+        }
+        reusable.forEach { $0.orderOut(nil) }
     }
 
     private func makeOverlay(frame: NSRect) -> NSPanel {

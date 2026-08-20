@@ -116,7 +116,8 @@ private final class ScreenshotPinWindow: NSPanel {
     // MARK: Actions
 
     func copyImage() {
-        guard ScreenshotEditorController.copyImage(image) else {
+        guard ScreenshotEditorController.copyImage(
+            image, fileNamePrefix: strings.fileNamePrefix) else {
             NSSound.beep()
             return
         }

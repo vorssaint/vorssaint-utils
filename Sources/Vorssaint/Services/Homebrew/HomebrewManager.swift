@@ -379,8 +379,13 @@ final class HomebrewManager: ObservableObject {
                     self.markOperationComplete(result: .succeeded,
                                                phase: .refreshing,
                                                activity: nil)
+                    if action.clearsSelectionOnSuccess {
+                        if self.selectedPackage?.id == package?.id {
+                            self.clearSelection()
+                        }
+                    }
                     self.refreshInstalled()
-                    if let package {
+                    if !action.clearsSelectionOnSuccess, let package {
                         self.select(package)
                     }
                 } else if self.cancelRequested {

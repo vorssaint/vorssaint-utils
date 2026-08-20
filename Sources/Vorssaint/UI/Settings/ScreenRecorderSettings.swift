@@ -6,12 +6,11 @@ import SwiftUI
 /// Settings for the screen recorder: how a recording starts, what it captures
 /// and where the file lands. Everything a person rarely touches sits behind
 /// one disclosure, so the page reads at a glance.
-struct ScreenRecorderSettings: View {
+struct ScreenRecordingCaptureSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var service = ScreenRecorderService.shared
     @ObservedObject private var sharing = RecordingShareService.shared
-    @AppStorage(DefaultsKey.recorderShortcutEnabled) private var shortcutEnabled = false
     @AppStorage(DefaultsKey.recorderCountdown) private var countdown = 3
     @AppStorage(DefaultsKey.recorderQuality) private var qualityRaw =
         RecorderSupport.Quality.balanced.rawValue
@@ -20,6 +19,7 @@ struct ScreenRecorderSettings: View {
     @AppStorage(DefaultsKey.recorderMicrophone) private var microphone = false
     @AppStorage(DefaultsKey.recorderSaveFolder) private var saveFolder = ""
     @AppStorage(DefaultsKey.recorderOpenEditor) private var opensEditor = true
+    @AppStorage(DefaultsKey.recorderAutomaticZoom) private var automaticZoom = true
     @AppStorage(DefaultsKey.recorderGIFSize) private var gifSizeRaw =
         RecorderSupport.GIFSize.medium.rawValue
     @AppStorage(DefaultsKey.recorderGIFFrameRate) private var gifFrameRate = 12
@@ -41,7 +41,7 @@ struct ScreenRecorderSettings: View {
     }
 
     var body: some View {
-        Form {
+        Group {
             Section {
                 Button {
                     ScreenRecorderService.shared.toggle()
@@ -55,19 +55,6 @@ struct ScreenRecorderSettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
-                Toggle(l10n.s.quickToolShortcutToggle, isOn: $shortcutEnabled)
-                    .onChange(of: shortcutEnabled) { _, _ in
-                        ScreenRecorderService.shared.syncWithPreferences()
-                    }
-                ShortcutPreferenceRow(role: .screenRecorder,
-                                      isEnabled: shortcutEnabled) {
-                    ScreenRecorderService.shared.syncWithPreferences()
-                }
-                if shortcutEnabled, service.shortcutRegistrationFailed {
-                    Text(l10n.s.shortcutUnavailable)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
                 if !permissions.screenRecording {
                     PermissionRow(kind: .screenRecording)
                 }
@@ -77,6 +64,7 @@ struct ScreenRecorderSettings: View {
             } header: {
                 Text(strings.pageTitle)
             }
+            .settingsSectionAnchor(.screenRecorder)
 
             Section {
                 Picker(strings.countdownLabel, selection: $countdown) {
@@ -112,6 +100,12 @@ struct ScreenRecorderSettings: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle(strings.openEditorToggle, isOn: $opensEditor)
                     Text(strings.openEditorCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle(strings.automaticZoomToggle, isOn: $automaticZoom)
+                    Text(strings.automaticZoomCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -183,7 +177,6 @@ struct ScreenRecorderSettings: View {
                 Text(screenshotStrings.shareSectionTitle)
             }
         }
-        .formStyle(.grouped)
         .onAppear { sharing.refresh() }
         .sheet(isPresented: $showingSharedLinks) {
             RecorderSharedLinksView()

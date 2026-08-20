@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var isTerminating = false
     private var cancellables = Set<AnyCancellable>()
     private var settingsWindow: NSWindow?
+    private var settingsKeepsAppRegular = false
     private var feedbackWindow: NSWindow?
     private var onboardingWindow: NSWindow?
     private var supportIntroWindow: NSWindow?
@@ -125,7 +126,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             .receive(on: DispatchQueue.main)
             .sink { _ in
                 FeatureRuntime.shared.sync([
-                    .scrollInverter, .smoothScroll, .mouseNavigation, .switcher,
+                    .scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .switcher,
                     .dockPreview, .finderCutPaste, .finderRename, .autoQuit, .dockClick,
                     .middleClick, .windowMaximizer, .keyboardDebounce, .windowLayout,
                     .textSnippets, .brightness, .radialMenu, .mouseButtonShortcuts,
@@ -222,6 +223,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         ExtraBrightnessService.shared.stop()
         ProcessUsageService.shared.stopNetworkMonitoring(force: true)
         URLCleanerService.shared.stop()
+        FocusFollowsMouseService.shared.stop()
         WindowMaximizer.shared.stop()
         WindowLayoutService.shared.suspend()
         KeyboardDebounceService.shared.suspend()
@@ -345,8 +347,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         host.sizingOptions = .preferredContentSize
         popover.contentViewController = host
         AppAppearanceController.shared.follow(panel: popover)
-        NotificationCenter.default.addObserver(self, selector: #selector(appResignedActive),
-                                               name: NSApplication.didResignActiveNotification, object: nil)
     }
 
     private func togglePopover(anchor button: NSStatusBarButton? = nil) {
@@ -816,15 +816,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         return responder === fieldEditor
     }
 
-    @objc private func appResignedActive() {
-        // Leaving the app entirely (e.g. ⌘Tab) dismisses the panel; switching to
-        // our own Settings window keeps the app active, so it stays open.
-        if popover.isShown, !PanelInteractionState.shared.keepsPopoverOpen {
-            guard statusController.containsStatusItem(at: NSEvent.mouseLocation) == false else { return }
-            closePopover()
-        }
-    }
-
     @objc private func appBecameActive() {
         // Coming back to the app is a good moment to surface a fresh release.
         // (Menu bar icon recovery happens on a deliberate reopen, not here: this
@@ -1199,6 +1190,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         if let window = settingsWindow {
             positionSettingsWindow(window, force: createdWindow)
         }
+        if !settingsKeepsAppRegular {
+            settingsKeepsAppRegular = true
+            WindowActivationPolicy.retain()
+        }
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.makeKeyAndOrderFront(nil)
         DispatchQueue.main.async { [weak self] in
@@ -1418,7 +1413,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         return true
     }
 
-    private func showUpdateHighlights() {
+    func showUpdateHighlights(includeSupportIntro: Bool = false) {
         closePopover()
         if let window = updateHighlightsWindow {
             NSApp.activate(ignoringOtherApps: true)
@@ -1431,7 +1426,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 self.markUpdateHighlightsSeen()
                 self.updateHighlightsWindow?.close()
                 DispatchQueue.main.async { [weak self] in
-                    _ = self?.showSupportUpdateIntroIfNeeded()
+                    if includeSupportIntro {
+                        self?.showSupportUpdateIntro()
+                    } else {
+                        _ = self?.showSupportUpdateIntroIfNeeded()
+                    }
                 }
             }
         ))
@@ -1535,7 +1534,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         ))
         host.sizingOptions = .preferredContentSize
         let window = NSWindow(contentViewController: host)
-        window.title = L10n.shared.s.communityIntroTitle
+        window.title = L10n.shared.s.discordIntroTitle
         window.styleMask = [.titled, .fullSizeContentView]
         window.standardWindowButton(.closeButton)?.isHidden = true
         window.titlebarAppearsTransparent = true
@@ -1641,6 +1640,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         if window === settingsWindow {
             // Covers size changes that end without a live resize (zoom).
             saveSettingsWindowSize(window)
+            if settingsKeepsAppRegular {
+                settingsKeepsAppRegular = false
+                WindowActivationPolicy.release()
+            }
             return
         }
         if window === onboardingWindow {

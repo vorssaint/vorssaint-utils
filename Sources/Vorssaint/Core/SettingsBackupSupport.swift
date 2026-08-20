@@ -101,14 +101,29 @@ enum SettingsBackupSupport {
         DefaultsKey.whatsAppOrganizerLastFailed,
         // What one person runs most is habit, not configuration.
         DefaultsKey.commandBarUsage,
+        // A chosen folder is authority on one Mac, not portable configuration.
+        // Restoring it elsewhere could search a different volume or trigger a
+        // protected-folder prompt without a fresh choice.
+        DefaultsKey.commandBarFileScopes,
+        // A local watermark file is authority on this Mac, not portable data.
+        DefaultsKey.mediaImageWatermarkLogoPath,
         DefaultsKey.simulateUpdate,
         DefaultsKey.updateShowcaseIntroVersion,
         DefaultsKey.updateShowcaseMediaOverride,
+        DefaultsKey.unifiedScreenCaptureShortcutMigrated,
+        DefaultsKey.recorderShortcutEnabled,
+        DefaultsKey.recorderShortcut,
+        DefaultsKey.screenOCRShortcutEnabled,
+        DefaultsKey.screenOCRShortcut,
+        DefaultsKey.colorPickerShortcutEnabled,
+        DefaultsKey.colorPickerShortcut,
         DefaultsKey.settingsWindowWidth,
         DefaultsKey.settingsWindowHeight,
         DefaultsKey.screenshotSharingDeveloperEndpoint,
         DefaultsKey.fanControlRecoveryNeeded,
         DefaultsKey.fanControlHelperVersion,
+        // DDC capability belongs to one physical monitor on one Mac port.
+        DefaultsKey.brightnessDDCWriteOnlyPaths,
     ]
 
     /// The file's content: an envelope with the format version, the app
@@ -121,6 +136,7 @@ enum SettingsBackupSupport {
                 settings[key] = value
             }
         }
+        settings = portableMediaSettings(settings)
         return [
             formatVersionKey: formatVersion,
             appVersionKey: appVersion,
@@ -137,7 +153,34 @@ enum SettingsBackupSupport {
               let settings = payload[settingsKey] as? [String: Any]
         else { return nil }
         let allowed = exportKeys()
-        return settings.filter { allowed.contains($0.key) && valueLooksRight($0.key, $0.value) }
+        let filtered = settings.filter { allowed.contains($0.key) && valueLooksRight($0.key, $0.value) }
+        return portableMediaSettings(filtered)
+    }
+
+    private static func portableMediaSettings(_ source: [String: Any]) -> [String: Any] {
+        var settings = source
+        if let rawProfiles = settings[DefaultsKey.mediaImageProfiles] as? String {
+            if let portableProfiles = MediaSupport.portableImageProfiles(rawProfiles) {
+                settings[DefaultsKey.mediaImageProfiles] = portableProfiles
+            } else {
+                settings.removeValue(forKey: DefaultsKey.mediaImageProfiles)
+            }
+        }
+        guard let kind = settings[DefaultsKey.mediaImageWatermarkKind] as? String else {
+            return settings
+        }
+        let hasText = ((settings[DefaultsKey.mediaImageWatermarkText] as? String) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        switch MediaImageWatermarkKind.sanitized(kind) {
+        case .logo:
+            settings[DefaultsKey.mediaImageWatermarkKind] = MediaImageWatermarkKind.off.rawValue
+        case .textAndLogo:
+            settings[DefaultsKey.mediaImageWatermarkKind] = hasText
+                ? MediaImageWatermarkKind.text.rawValue : MediaImageWatermarkKind.off.rawValue
+        case .off, .text:
+            break
+        }
+        return settings
     }
 
     /// A backup is a file the user can hand around and edit, so a value has to

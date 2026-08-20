@@ -4,6 +4,9 @@
 /* macOS Screen & System Audio Recording permission prompt. */
 "NSAudioCaptureUsageDescription" = "Vorssaintは、ミキサーで各アプリの音量を調整するためだけに、それぞれのアプリの音声にアクセスします。何も録音されず、Macの外に送信されることもありません。";
 
+/* macOS Bluetooth permission prompt. */
+"NSBluetoothAlwaysUsageDescription" = "Vorssaintは、接続済み周辺機器のバッテリー残量を読み取るためだけにBluetoothを使用します。データがMacの外に送信されることはありません。";
+
 /* macOS Microphone permission prompt. */
 "NSMicrophoneUsageDescription" = "Vorssaintは、画面収録でマイクをオンにしたときだけ音声を収録します。一時リンクを作成しない限り、音声はMac上に保存されます。";
 

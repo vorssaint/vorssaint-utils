@@ -4,53 +4,108 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [3.3.2]
+## [3.3.2] - 2026-08-20
 
 ### Summary
-Vorssaint 3.3.2 opens the Command Bar immediately, adds a direct Emoji shortcut
-and prevents Switcher crashes, restores minimized windows and avoids lost audio.
-It also corrects power readings, app removal and updates, while improving feature
-setup, Fan Control, Dock Preview and keyboard controls.
+Vorssaint 3.3.2 brings one place for screen capture, batch image conversion,
+local Command Bar scripts, recent captures, imported video editing, formatted
+Scratchpad previews, swap use and window focus that follows the pointer. It also
+opens a new Discord community, cuts background energy use and improves
+scrolling screenshots, Clipboard, Shelf, Switcher, window controls, audio, displays,
+Fan Control, Settings and app maintenance.
 
 ### Added
-- Emoji can open directly from a shortcut assigned to its Command Bar row.
-  Thanks to @MaximilianMauroner.
+- An optional Focus follows mouse feature brings the window under the pointer to
+  the front after an adjustable pause. It ships uninstalled. Thanks to @Bald-M.
+- One screen capture shortcut now opens a floating palette for screenshots,
+  recordings, screen text and colors, with sound controls and each mode's settings
+  kept nearby.
+- Media now converts images in batches with resizing, watermarks, renaming and
+  reusable profiles. Thanks to @ruvelro.
+- Saved Command Bar shortcuts can now run local scripts and show their results as
+  you type. Thanks to @tenbux.
+- Screenshot and screen recording now open recent captures from the panel, their
+  editors and the Command Bar. Thanks to @lmilojevicc.
+- Media can now open any video in the recording editor to trim, cut and crop it
+  before export.
+- Scratchpad can now preview Markdown formatting while every note remains editable
+  plain text.
+- Command Bar can now search chosen folders, open system settings, reveal saved
+  items and assign a direct shortcut to Emoji. Thanks to @ruvelro and
+  @MaximilianMauroner.
+- The clipboard can now clear itself after a delay, and when the Mac sleeps, the
+  display sleeps or the screen locks.
+- The quick panel and Radial Menu can now control recording, and the Radial Menu
+  can open maintenance tools directly.
+- The System panel now shows swap memory in use below the memory reading.
+  Thanks to @veniaminMedanov.
+- A new Discord community brings help, shared workflows, bug reports, feedback,
+  early previews and release news together while the community takes shape.
 
 ### Changed
-- App Updates now searches more places on your Mac and lets each source be turned
-  on or off. Thanks to @ruvelro.
-- Installed Features rows open their Settings page and highlight the relevant
-  controls. Thanks to @dorlugasigal.
-- Cleaning and the Uninstaller now explain how to grant Full Disk Access and
-  that the app must reopen. Thanks to @PathGao.
-- Quit on close exceptions are no longer editable while the feature is off, since
-  nothing reads them there. Thanks to @PathGao.
-- Showing Clipboard in the panel now sits on its own in Settings, since it keeps
-  working while history capture is off. Thanks to @PathGao.
-- The Command Bar now accepts Control-P and Control-N to move through results.
-  Thanks to @theafox.
+- Monitor settings no longer leave system sensors sampling after the window closes.
+  Hidden metric histories and temporary overlays now release work and memory when
+  they are no longer visible.
+- Clipboard history now opens as a compact palette with uncluttered rows and a
+  preview on demand for reading or editing the full item.
+- Command Bar now learns result choices for the current session, finds alternate
+  and localized app names, supports Control P and Control N, moves by dragging and
+  formats feet more naturally. Thanks to @ruvelro, @tingke, @theafox and @tenbux.
+- Recording can now pause and resume without gaps, keep an area guide visible and
+  start without automatic zooms. Copied screenshots now also work as image files.
+  Thanks to @monfxx and @lmilojevicc.
+- Shelf now supports range selection, opens from a screen edge, groups compatible
+  drops and shows clearer details. Thanks to @cimu233 and @tenbux.
+- App Updates now searches more places and offers source controls, while installed
+  feature rows lead directly to the relevant Settings controls. Thanks to @ruvelro,
+  @PathGao and @dorlugasigal.
+- App removal now recognizes when managed apps belong to a package manager. Thanks to
+  @MineraleYT.
+- Settings now better separates Clipboard controls, explains Full Disk Access and
+  keeps inactive or list controls clearer. Thanks to @PathGao.
+- The simple App Switcher now cycles individual windows, marks other desktops and
+  keeps hidden apps visible. Super key combinations are now customizable.
+  Thanks to @AB-boi.
+- Menu bar icons now match surrounding items, Volume Mixer accepts exact percentages
+  and source builds support older development tools. Thanks to @bambidotexe,
+  @KSI-cell and @Bald-M.
 
 ### Fixed
-- The Command Bar now appears immediately while its results finish loading.
-  Thanks to @MaximilianMauroner.
-- App Updates no longer offers store updates that belong to a different app.
-  Thanks to @PathGao.
-- The App Switcher now shows its configured shortcut in the large icon mode label.
-  Thanks to @liuxxxu.
-- The App Switcher now restores minimized windows when selected.
-- The app no longer quits while typing when the Switcher's Windows shortcut uses a
-  key whose label comes from the keyboard layout. Thanks to @eioz.
-- The Super key now works when Caps Lock is set to do nothing.
-- Dock Preview controls no longer show an oversized blue effect when focused or
-  hovered.
-- The Volume Mixer now restores sound if an app's volume adjustment stops
-  working, instead of leaving it silent until Vorssaint quits.
-- System power no longer mirrors the adapter reading when its own sensor is
-  unavailable.
-- The Uninstaller now offers to remove the Homebrew package with an app it manages.
-  Thanks to @MineraleYT.
-- Fan Control can now request its required approval instead of appearing
-  unavailable before its first setup.
+- Scrolling screenshots now keep moving content aligned without repeating fixed
+  page areas.
+- Display controls now keep extra brightness steady, restore the internal display
+  after the last external one disconnects and stop retrying unsupported brightness
+  checks after wake. Thanks to @stevenyang406, @mayaanhafeez and @danilo-alm.
+- Light taps with three fingers no longer trigger a middle click while typing.
+- Window tools now center windows with a fixed size, cancel stale placements and handle
+  duplicate running processes without quitting the app.
+- Capture now supports drawing a fresh crop, preserves translucent window content and
+  animates the recording countdown smoothly. Thanks to @lmilojevicc.
+- Clipboard keeps large documents, while Shelf refreshes pile counts and controls as
+  soon as another item is added. Thanks to @tenbux.
+- Command Bar now opens immediately, finds apps outside standard folders and can
+  search for keyboard light controls. Screen text recognition now follows the interface
+  language. Thanks to @MaximilianMauroner and @PathGao.
+- Switcher now survives wake, restores minimized windows, keeps selection aligned,
+  reaches Settings, closes windows on other desktops, switches between full screen
+  instances across desktops and retains full screen video windows. Its labels now
+  follow the saved shortcut without crashing while typing. Thanks to @liuxxxu,
+  @AB-boi, @danpalmer and @eioz.
+- Quit on close now covers separate guest app windows. Thanks to @danno71.
+- Dock Preview focus no longer overwhelms its controls, and Super key works when
+  Caps Lock is disabled without leaving it on after a mapping repair.
+- Audio boost now smooths loud peaks and Volume Mixer restores sound after a failed
+  adjustment. Network, power and accessory battery readings now avoid stale or missing
+  values. Thanks to @AB-boi and @subhamayd2.
+- Scratchpad resizing, Cleaning Mode display changes and Back and Forward mouse buttons
+  now remain stable and responsive. Thanks to @AB-boi, @Polovinkin, @originalspec and
+  @jbleuzen.
+- App Updates no longer matches store updates to the wrong app, and stale package
+  details clear after removal. Thanks to @PathGao and @MineraleYT.
+- Setup alignment, configuration from the command line, menu panel focus and initial Fan
+  Control approval now behave correctly. Thanks to @danpalmer and @CALLmeDOMIN.
+- Fan Control now keeps maximum cooling engaged when the system could reclaim
+  automatic mode between control writes. Thanks to @augustoFranke.
 
 ## [3.3.1] - 2026-08-09
 

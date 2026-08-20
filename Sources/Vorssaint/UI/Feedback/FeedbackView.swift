@@ -78,7 +78,7 @@ struct FeedbackView: View {
                                 Text(kind == .bug ? strings.bugPlaceholder : strings.featurePlaceholder)
                                     .foregroundStyle(.tertiary)
                                     .padding(.horizontal, 11)
-                                    .padding(.vertical, 13)
+                                    .padding(.top, 6)
                                     .allowsHitTesting(false)
                             }
                         }

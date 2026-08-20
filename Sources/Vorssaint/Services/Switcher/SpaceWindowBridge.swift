@@ -66,31 +66,53 @@ enum SpaceWindowBridge {
     }()
 
     struct Topology {
+        struct DisplayInfo {
+            let displayID: CGDirectDisplayID?
+            let spaces: [UInt64]
+            let currentSpace: UInt64?
+        }
+
+        /// Displays in order.
+        let displays: [DisplayInfo]
         /// Space ids in left-to-right order, one row per display.
-        let orderedSpacesPerDisplay: [[UInt64]]
+        var orderedSpacesPerDisplay: [[UInt64]] { displays.map(\.spaces) }
         /// The Space currently showing on each display.
-        let visibleSpaces: Set<UInt64>
+        var visibleSpaces: Set<UInt64> { Set(displays.compactMap(\.currentSpace)) }
     }
 
     static func topology() -> Topology? {
         guard connection != 0, let copyManagedDisplaySpaces,
-              let displays = copyManagedDisplaySpaces(connection)?
+              let displayDicts = copyManagedDisplaySpaces(connection)?
                 .takeRetainedValue() as? [[String: Any]],
-              !displays.isEmpty
+              !displayDicts.isEmpty
         else { return nil }
 
-        var rows: [[UInt64]] = []
-        var visible: Set<UInt64> = []
-        for display in displays {
+        let screenMap: [String: CGDirectDisplayID] = {
+            var map: [String: CGDirectDisplayID] = [:]
+            for screen in NSScreen.screens {
+                guard let screenNum = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value,
+                      let uuid = CGDisplayCreateUUIDFromDisplayID(screenNum)?.takeRetainedValue(),
+                      let uuidStr = CFUUIDCreateString(nil, uuid) as String?
+                else { continue }
+                map[uuidStr] = screenNum
+            }
+            return map
+        }()
+
+        var displays: [Topology.DisplayInfo] = []
+        for display in displayDicts {
             let row = (display["Spaces"] as? [[String: Any]])?
                 .compactMap { ($0["id64"] as? NSNumber)?.uint64Value } ?? []
-            if !row.isEmpty { rows.append(row) }
-            if let current = (display["Current Space"] as? [String: Any])?["id64"] as? NSNumber {
-                visible.insert(current.uint64Value)
-            }
+            guard !row.isEmpty else { continue }
+            let current = (display["Current Space"] as? [String: Any])?["id64"] as? NSNumber
+            let uuidStr = display["Display Identifier"] as? String
+            let displayID = uuidStr.flatMap { screenMap[$0] }
+            displays.append(Topology.DisplayInfo(displayID: displayID,
+                                                 spaces: row,
+                                                 currentSpace: current?.uint64Value))
         }
-        guard !rows.isEmpty, !visible.isEmpty else { return nil }
-        return Topology(orderedSpacesPerDisplay: rows, visibleSpaces: visible)
+        guard !displays.isEmpty else { return nil }
+        return Topology(displays: displays)
     }
 
     /// Whether the window sits on at least one Space and none of them is

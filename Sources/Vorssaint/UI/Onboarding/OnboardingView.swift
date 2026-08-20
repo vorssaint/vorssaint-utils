@@ -447,7 +447,7 @@ private struct SelectedPermissionsStep: View {
             .padding(.horizontal, 28)
 
             DisclosureGroup(isExpanded: $showingOtherPermissions) {
-                VStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 14) {
                     PermissionsPortalSections(hub: hub,
                                               visiblePermissions: otherPermissions)
                 }

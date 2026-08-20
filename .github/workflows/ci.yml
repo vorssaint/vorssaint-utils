@@ -6,14 +6,33 @@ on:
   pull_request:
 
 jobs:
+  compatibility:
+    name: Swift 6.0.3 compatibility
+    runs-on: macos-15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.2.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Verify toolchain
+        run: |
+          swiftc --version | grep -F "Apple Swift version 6.0.3"
+          test "$(xcrun --sdk macosx --show-sdk-version)" = "15.2"
+
+      - name: Build
+        run: ./build.sh
+
+      - name: Selftest
+        run: ./build/Vorssaint --selftest
+
+      - name: Unit tests
+        run: ./build.sh --test
+
   build:
     name: Build & selftest
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v5
-
-      - name: Unit tests
-        run: ./build.sh --test
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up signing
         env:
@@ -30,8 +49,11 @@ jobs:
       - name: Package DMG
         run: ./Tools/make-dmg.sh
 
+      - name: Unit tests
+        run: ./build.sh --test
+
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: Vorssaint-dmg
           path: dist/*.dmg

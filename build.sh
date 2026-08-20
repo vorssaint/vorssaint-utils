@@ -46,6 +46,20 @@ developer_id_identity() {
         | sed -E 's/.*"(.*)".*/\1/' || true
 }
 
+codesign_with_timestamp_retry() {
+    local attempt
+    for attempt in 1 2 3; do
+        if /usr/bin/codesign "$@"; then
+            return 0
+        fi
+        if (( attempt < 3 )); then
+            echo "  Developer ID signing failed; retrying ($((attempt + 1))/3)"
+            sleep "$attempt"
+        fi
+    done
+    return 1
+}
+
 finalize_installed_bundle_after_child() {
     local bundle="$1"
     local helper="$bundle/Contents/Library/LaunchServices/$FAN_HELPER_ID"
@@ -55,9 +69,9 @@ finalize_installed_bundle_after_child() {
     echo "▸ Finalizing installed signature…"
     sleep 3
     if [[ -n "$devid" ]]; then
-        [[ -f "$helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
+        [[ -f "$helper" ]] && codesign_with_timestamp_retry --force --strip-disallowed-xattrs \
             --options runtime --timestamp --identifier "$FAN_HELPER_ID" --sign "$devid" "$helper"
-        /usr/bin/codesign --force --strip-disallowed-xattrs --options runtime --timestamp \
+        codesign_with_timestamp_retry --force --strip-disallowed-xattrs --options runtime --timestamp \
             --entitlements "$ENTITLEMENTS" --sign "$devid" "$bundle"
     elif security find-identity -p codesigning 2>/dev/null | grep -q "$LEGACY_IDENTITY"; then
         [[ -f "$helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
@@ -86,7 +100,9 @@ fi
 # Prefer the macOS 26 SDK when present: the 27 SDK turns SwiftUI property wrappers
 # into macros (SwiftUIMacros plugin) that the Command Line Tools cannot load yet.
 PINNED_SDK="/Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk"
-if [[ -d "$PINNED_SDK" ]]; then
+if [[ -n "${DEVELOPER_DIR:-}" ]]; then
+    SDK="$(xcrun --show-sdk-path)"
+elif [[ -d "$PINNED_SDK" ]]; then
     SDK="$PINNED_SDK"
 else
     SDK="$(xcrun --show-sdk-path)"
@@ -104,7 +120,10 @@ if (( TEST )); then
     echo "▸ Building & running unit tests against $(basename "$SDK")…"
     rm -rf build
     mkdir -p build
-    swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
+    # The full app build below remains optimized and is the optimizer gate.
+    # Unit assertions do not need optimization; avoiding it cuts most of the
+    # test harness compile time without reducing the code the tests exercise.
+    swiftc -Onone -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
         Sources/Vorssaint/Services/Media/MediaSupport.swift \
         Sources/Vorssaint/Core/Defaults.swift \
         Sources/Vorssaint/Core/FeatureCatalog.swift \
@@ -115,8 +134,10 @@ if (( TEST )); then
         Sources/Vorssaint/Core/BackupStrings.swift \
         Sources/Vorssaint/Core/SnippetStrings.swift \
         Sources/Vorssaint/Core/BrightnessStrings.swift \
+        Sources/Vorssaint/Core/MediaImageStrings.swift \
         Sources/Vorssaint/Core/QuickToggleStrings.swift \
         Sources/Vorssaint/Core/ScreenshotStrings.swift \
+        Sources/Vorssaint/Core/RecentCaptureStrings.swift \
         Sources/Vorssaint/Core/RecorderStrings.swift \
         Sources/Vorssaint/Core/RecorderShareStrings.swift \
         Sources/Vorssaint/Core/CameraPreviewStrings.swift \
@@ -156,6 +177,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/URLCleaning.swift \
         Sources/Vorssaint/Services/GeneralPasteboardAccess.swift \
         Sources/Vorssaint/Services/Audio/MixerRoutingSupport.swift \
+        Sources/Vorssaint/UI/MenuPanel/MixerPercentNativeTextField.swift \
         Sources/Vorssaint/Services/Audio/BoostLimiter.swift \
         Sources/Vorssaint/Services/Audio/MixerRender.swift \
         Sources/Vorssaint/Services/DockPreview/DockPreviewSupport.swift \
@@ -165,6 +187,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/DiskImageInstallerStrings.swift \
         Sources/Vorssaint/Services/DiskImageInstaller/DiskImageInstallerSupport.swift \
         Sources/Vorssaint/Services/Clipboard/ClipboardHistorySupport.swift \
+        Sources/Vorssaint/Services/Clipboard/ClipboardAutoClearSupport.swift \
         Sources/Vorssaint/Services/AutoQuit/AutoQuitSupport.swift \
         Sources/Vorssaint/Services/Shelf/ShelfSupport.swift \
         Sources/Vorssaint/Services/Finder/FinderRenameSupport.swift \
@@ -196,16 +219,22 @@ if (( TEST )); then
         Sources/Vorssaint/Services/CommandBar/CommandBarLinks.swift \
         Sources/Vorssaint/Services/CommandBar/CommandBarDates.swift \
         Sources/Vorssaint/Services/CommandBar/CommandBarRowShortcuts.swift \
+        Sources/Vorssaint/Services/CommandBar/CommandBarSystemSettingsSupport.swift \
+        Sources/Vorssaint/Services/CommandBar/CommandBarFileSearchSupport.swift \
+        Sources/Vorssaint/Services/CommandBar/CommandBarQueryMemory.swift \
+        Sources/Vorssaint/Services/SpotlightNamesSupport.swift \
         Sources/Vorssaint/Services/QuickTools/MicMuteSupport.swift \
         Sources/Vorssaint/Services/QuickTools/QuickTogglesSupport.swift \
         Sources/Vorssaint/Services/QuickTools/ScreenshotCapturePolicy.swift \
         Sources/Vorssaint/Services/QuickTools/ScreenshotSupport.swift \
         Sources/Vorssaint/Services/QuickTools/ScreenshotSharingSupport.swift \
+        Sources/Vorssaint/Services/QuickTools/WindowActivationPolicy.swift \
         Sources/Vorssaint/Services/KeyboardDebounce/KeyboardDebounceSupport.swift \
         Sources/Vorssaint/Services/SuperKey/SuperKeySupport.swift \
         Sources/Vorssaint/Core/SuperKeyStrings.swift \
         Sources/Vorssaint/Services/ScrollWheelSupport.swift \
         Sources/Vorssaint/Services/SmoothScrollSupport.swift \
+        Sources/Vorssaint/Services/FocusFollowsMouse/FocusFollowsMouseSupport.swift \
         Sources/Vorssaint/Services/Switcher/SwitcherModels.swift \
         Sources/Vorssaint/Services/Switcher/WindowSwitchSettings.swift \
         Sources/Vorssaint/Services/Switcher/WindowSwitchCandidatePipeline.swift \
@@ -216,7 +245,9 @@ if (( TEST )); then
         Sources/Vorssaint/Services/KeepAwakeAutomationSupport.swift \
         Sources/Vorssaint/Services/SudoersSupport.swift \
         Sources/Vorssaint/Services/Metrics/BatteryTimeSupport.swift \
+        Sources/Vorssaint/Services/BoundedProcessRunner.swift \
         Sources/Vorssaint/Services/Metrics/NetworkProcessSupport.swift \
+        Sources/Vorssaint/Services/Metrics/NetworkSampler.swift \
         Sources/Vorssaint/Services/Metrics/PeripheralBatterySupport.swift \
         Sources/Vorssaint/Services/Metrics/DiskSupport.swift \
         Sources/Vorssaint/Services/Metrics/MonitorSamplingPolicy.swift \
@@ -293,11 +324,14 @@ if (( DEV )); then
     /usr/libexec/PlistBuddy -c "Add :VorssaintBuildCommit string '$SHA · $(date '+%Y-%m-%d %H:%M')'" "$STAGE/Contents/Info.plist"
     echo "  stamped dev build: $SHA"
 fi
-FAN_HELPER_VERSION="$(/usr/bin/shasum -a 256 \
-    "$STAGE/Contents/Library/LaunchServices/$FAN_HELPER_ID" \
-    "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist" \
-    | /usr/bin/awk '{print $1}' | /usr/bin/shasum -a 256 \
-    | /usr/bin/awk '{print $1}')"
+FAN_HELPER_VERSION="$(
+    export LC_ALL=C
+    /usr/bin/shasum -a 256 \
+        "$STAGE/Contents/Library/LaunchServices/$FAN_HELPER_ID" \
+        "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist" \
+        | /usr/bin/awk '{print $1}' | /usr/bin/shasum -a 256 \
+        | /usr/bin/awk '{print $1}'
+)"
 /usr/libexec/PlistBuddy -c "Add :VorssaintFanControlHelperVersion string '$FAN_HELPER_VERSION'" \
     "$STAGE/Contents/Info.plist"
 printf 'APPL????' > "$STAGE/Contents/PkgInfo"

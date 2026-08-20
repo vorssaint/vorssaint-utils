@@ -170,6 +170,24 @@ enum MixerRoutingSupport {
         abs(volume - 1) < 0.005
     }
 
+    /// Turns the text entered beside a mixer slider into its gain. The field
+    /// accepts the same optional percent sign it displays, while the caller
+    /// supplies the limit (100 for the system output, 200 for an app row).
+    static func volumeFraction(fromPercentageText text: String,
+                               maximumPercent: Int) -> Double? {
+        guard maximumPercent >= 0 else { return nil }
+        var normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalized.hasSuffix("%") {
+            normalized.removeLast()
+            normalized = normalized.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let separator = Locale.current.decimalSeparator, separator != "." {
+            normalized = normalized.replacingOccurrences(of: separator, with: ".")
+        }
+        guard let percent = Double(normalized), percent.isFinite else { return nil }
+        return min(max(percent, 0), Double(maximumPercent)) / 100
+    }
+
     static func sanitizedDeviceUID(_ value: Any?) -> String? {
         guard let raw = value as? String else { return nil }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)

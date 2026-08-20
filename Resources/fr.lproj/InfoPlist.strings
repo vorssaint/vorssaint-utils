@@ -4,6 +4,9 @@
 /* macOS Screen & System Audio Recording permission prompt. */
 "NSAudioCaptureUsageDescription" = "Vorssaint accède au son de chaque app uniquement pour régler son volume individuel dans le mixeur. Rien n'est enregistré et rien ne quitte votre Mac.";
 
+/* macOS Bluetooth permission prompt. */
+"NSBluetoothAlwaysUsageDescription" = "Vorssaint utilise le Bluetooth uniquement pour lire la batterie des périphériques connectés. Rien ne quitte votre Mac.";
+
 /* macOS Microphone permission prompt. */
 "NSMicrophoneUsageDescription" = "Vorssaint enregistre votre micro uniquement quand vous l’activez pour un enregistrement d’écran. Le son reste sur votre Mac, sauf si vous créez un lien temporaire.";
 

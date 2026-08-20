@@ -4,6 +4,8 @@
 import SwiftUI
 
 struct HomebrewSettings: View {
+    private static let packageListTopID = "homebrew-settings-package-list-top"
+
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var homebrew = HomebrewManager.shared
     @State private var query = ""
@@ -237,14 +239,24 @@ struct HomebrewSettings: View {
     }
 
     private var packageList: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 14) {
-                searchResultsSection
-                installedPackagesSection
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 14) {
+                    Color.clear
+                        .frame(height: 0)
+                        .id(Self.packageListTopID)
+                    searchResultsSection
+                    installedPackagesSection
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .onChange(of: homebrew.operationStatus?.result) { _, result in
+                guard result == .succeeded,
+                      homebrew.operationStatus?.action.clearsSelectionOnSuccess == true else { return }
+                proxy.scrollTo(Self.packageListTopID, anchor: .top)
+            }
         }
     }
 

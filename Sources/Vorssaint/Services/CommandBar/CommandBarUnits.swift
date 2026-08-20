@@ -119,7 +119,9 @@ enum CommandBarUnits {
             let measurement = Measurement(value: source.value, unit: source.unit.unit)
             let converted = measurement.converted(to: target.unit)
             guard converted.value.isFinite else { continue }
-            return Result(formatted: format(converted, locale: locale), value: converted.value)
+            let formatted = feetAndInches(converted, locale: locale)
+                ?? format(converted, locale: locale)
+            return Result(formatted: formatted, value: converted.value)
         }
         return nil
     }
@@ -168,6 +170,31 @@ enum CommandBarUnits {
               normalized.allSatisfy({ $0.isNumber || $0 == "." || $0 == "-" })
         else { return nil }
         return Double(normalized)
+    }
+
+    /// Mixed units are useful once there is a whole foot to show. Smaller and
+    /// negative values stay in decimal feet so the conversion keeps its meaning.
+    private static func feetAndInches(_ measurement: Measurement<Dimension>,
+                                      locale: Locale) -> String? {
+        guard measurement.unit.symbol == UnitLength.feet.symbol,
+              measurement.value >= 1
+        else { return nil }
+
+        var wholeFeet = measurement.value.rounded(.down)
+        let rawInches = (measurement.value - wholeFeet) * 12
+        let scale = pow(10, Double(fractionDigits(for: rawInches)))
+        var inches = (rawInches * scale).rounded() / scale
+        if inches >= 12 {
+            wholeFeet += 1
+            inches = 0
+        }
+
+        let feet = format(Measurement<Dimension>(value: wholeFeet, unit: UnitLength.feet),
+                          locale: locale)
+        guard inches != 0 else { return feet }
+        let remainder = format(Measurement<Dimension>(value: inches, unit: UnitLength.inches),
+                               locale: locale)
+        return "\(feet) \(remainder)"
     }
 
     private static func format(_ measurement: Measurement<Dimension>, locale: Locale) -> String {

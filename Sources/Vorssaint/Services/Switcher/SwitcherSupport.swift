@@ -36,6 +36,14 @@ enum SwitcherSessionScope: Equatable {
     case frontmostApp
 }
 
+/// How a key arriving before the asynchronous window list is ready is owned.
+enum SwitcherPendingKeyDecision: Equatable {
+    case handleActiveSession
+    case routeShortcut
+    case swallow
+    case cancelAndSwallow
+}
+
 /// Which running apps earn an entry of their own when they have no window the
 /// switcher can show. The switcher lists windows, so an app that closed all of
 /// them disappears from it while the system switcher still offers it.
@@ -126,9 +134,20 @@ struct SwitcherIconRowLayout: Equatable {
     static var scale: CGFloat { min(PreviewSizing.scale, 1.15) }
     static var iconSize: CGFloat { 68 * scale }
     static var selectedIconSize: CGFloat { 78 * scale }
+    static let iconTileSpacing: CGFloat = 5
+    static let iconTitleHeight: CGFloat = 14
+    static let iconTileVerticalPadding: CGFloat = 5
+    static let iconTileVerticalMargin: CGFloat = 3
     static var iconLabelWidth: CGFloat { max(selectedIconSize + 12, 86 * scale) }
-    static var rowHeight: CGFloat { 108 * scale }
+    /// Text and padding stay legible instead of shrinking with preview size, so
+    /// the row follows the tile's real height and never clips its selection.
+    static var rowHeight: CGFloat {
+        selectedIconSize + iconTileSpacing + iconTitleHeight
+            + 2 * (iconTileVerticalPadding + iconTileVerticalMargin)
+    }
     static var appTileWidth: CGFloat { iconLabelWidth + 12 }
+    static var windowLabelWidth: CGFloat { 120 * scale }
+    static var windowTileWidth: CGFloat { windowLabelWidth + 12 }
     static var previewCardWidth: CGFloat { 220 * scale }
     static var previewCardHeight: CGFloat { 164 * scale }
     static var appEntryIconSize: CGFloat { 66 * scale }
@@ -156,6 +175,14 @@ struct SwitcherIconRowLayout: Equatable {
                         + Self.padding * 2)
     }
 
+    /// A flat window row names every entry under its icon, so it needs no
+    /// separate title strip above the row.
+    var simpleWindowPanelSize: CGSize {
+        CGSize(width: max(appRowSurfaceWidth,
+                          showsShortcutHints ? Self.hintBarWidth : 0) + Self.padding * 2,
+               height: Self.rowHeight + shortcutHintHeight + Self.padding * 2)
+    }
+
     private var shortcutHintHeight: CGFloat {
         showsShortcutHints ? Self.hintGap + Self.hintHeight : 0
     }
@@ -171,15 +198,16 @@ struct SwitcherIconRowLayout: Equatable {
     static func compute(appCount rawAppCount: Int,
                         selectedWindowCount rawWindowCount: Int,
                         screenVisibleFrame: CGRect,
-                        showsShortcutHints: Bool = true) -> SwitcherIconRowLayout {
+                        showsShortcutHints: Bool = true,
+                        tileWidth: CGFloat = appTileWidth) -> SwitcherIconRowLayout {
         let appCount = max(1, rawAppCount)
         let windowCount = max(1, rawWindowCount)
         let usableWidth = max(320, screenVisibleFrame.width * 0.96)
-        let maxContentWidth = max(appTileWidth, usableWidth - padding * 2)
-        let naturalAppRowWidth = CGFloat(appCount) * appTileWidth + CGFloat(max(0, appCount - 1)) * spacing
+        let maxContentWidth = max(tileWidth, usableWidth - padding * 2)
+        let naturalAppRowWidth = CGFloat(appCount) * tileWidth + CGFloat(max(0, appCount - 1)) * spacing
         let naturalPreviewWidth = CGFloat(windowCount) * previewCardWidth
             + CGFloat(max(0, windowCount - 1)) * spacing
-        let maxAppContentWidth = max(appTileWidth, maxContentWidth - rowHorizontalPadding * 2)
+        let maxAppContentWidth = max(tileWidth, maxContentWidth - rowHorizontalPadding * 2)
         let maxPreviewContentWidth = max(previewCardWidth, maxContentWidth - previewPanelPadding * 2)
         let appRowWidth = min(naturalAppRowWidth, maxAppContentWidth)
         let appRowSurfaceWidth = min(appRowWidth + rowHorizontalPadding * 2, maxContentWidth)
@@ -187,7 +215,7 @@ struct SwitcherIconRowLayout: Equatable {
         let previewSurfaceWidth = min(previewWidth + previewPanelPadding * 2, maxContentWidth)
         let hintWidth = showsShortcutHints ? min(hintBarWidth, maxContentWidth) : 0
         let contentWidth = min(max(appRowSurfaceWidth, previewSurfaceWidth, hintWidth), maxContentWidth)
-        let visibleIconCount = max(1, min(appCount, Int((maxAppContentWidth + spacing) / (appTileWidth + spacing))))
+        let visibleIconCount = max(1, min(appCount, Int((maxAppContentWidth + spacing) / (tileWidth + spacing))))
         let width = contentWidth + padding * 2
         let shortcutHintHeight = showsShortcutHints ? hintGap + hintHeight : 0
         let height = previewHeight + previewGap + rowHeight + shortcutHintHeight + padding * 2
@@ -219,12 +247,27 @@ enum SwitcherSupport {
     /// Grid resolution used to classify window captures.
     static let captureAlphaGridSize = 8
 
+    static func firstValuesByPID<Value>(_ pairs: [(pid_t, Value)]) -> [pid_t: Value] {
+        Dictionary(pairs, uniquingKeysWith: { first, _ in first })
+    }
+
     static func usesIconRowLayout(iconRowMode: Bool, simpleMode: Bool) -> Bool {
         iconRowMode || simpleMode
     }
 
     static func capturesPreviews(simpleMode: Bool) -> Bool {
         !simpleMode
+    }
+
+    /// The simple switcher follows the existing one-entry-per-app choice.
+    /// With grouping off, its icon row represents windows directly.
+    static func usesWindowRow(simpleMode: Bool, mergeWindowsByApp: Bool) -> Bool {
+        simpleMode && !mergeWindowsByApp
+    }
+
+    static func usesAppGroupsForMainShortcut(iconRowLayout: Bool,
+                                              windowRow: Bool) -> Bool {
+        iconRowLayout && !windowRow
     }
 
     static func shouldPausePreviewCapture(frontmostBundleIdentifier: String?,
@@ -323,6 +366,19 @@ enum SwitcherSupport {
             || bundleIdentifier.hasPrefix("com.adobe.PremierePro")
     }
 
+    /// Some full-screen playback surfaces keep a nonstandard Accessibility
+    /// subrole. A screen-sized AX window is still a real switch target, while
+    /// smaller utility surfaces remain filtered. Compatibility-hosted windows
+    /// retain their existing role-based exception at every size.
+    static func isSwitchableNonstandardWindow(role: String?,
+                                              subrole: String?,
+                                              fillsScreen: Bool,
+                                              acceptsUndescribedSubroles: Bool) -> Bool {
+        guard role == "AXWindow" else { return false }
+        if acceptsUndescribedSubroles && subrole == "AXUnknown" { return true }
+        return fillsScreen && (subrole == "AXUnknown" || subrole == "AXFloatingWindow")
+    }
+
     /// Finds the regular app that contains an accessory helper bundle.
     static func embeddedHostPID(helperBundlePath: String,
                                 regularBundlePaths: [pid_t: String]) -> pid_t? {
@@ -396,6 +452,13 @@ enum SwitcherSupport {
                          appRules: [String: SwitcherAppRule]) -> Bool {
         guard let bundleIdentifier else { return false }
         return appRules[bundleIdentifier] == .hidden
+    }
+
+    /// When Accessibility does not match a hidden app's WindowServer surface,
+    /// its Space assignment distinguishes a real window from a leftover.
+    static func isConfirmedHiddenAppWindow(appIsHidden: Bool,
+                                           windowSpaces: [UInt64]) -> Bool {
+        appIsHidden && !windowSpaces.isEmpty
     }
 
     /// Downsamples a capture into a small alpha grid for classification.
@@ -751,11 +814,42 @@ enum SwitcherSupport {
                                          frontmostPID: pid_t?,
                                          targetIsMinimized: Bool,
                                          targetStartedMinimized: Bool,
+                                         targetWasObservedRestored: Bool = false,
                                          ownPID: pid_t = ProcessInfo.processInfo.processIdentifier) -> Bool {
-        guard !targetIsMinimized || targetStartedMinimized else { return false }
+        guard !targetIsMinimized
+                || (targetStartedMinimized && !targetWasObservedRestored)
+        else { return false }
         guard let sourcePID,
               let frontmostPID else { return true }
         return frontmostPID == targetPID || frontmostPID == sourcePID || frontmostPID == ownPID
+    }
+
+    /// Async results belong only to the still-pending shortcut press. A key
+    /// release may turn that pending start into an immediate commit, while a
+    /// teardown or a newer press clears/replaces the generation entirely.
+    static func isCurrentSessionStart(generation: UInt64,
+                                      pendingGeneration: UInt64?) -> Bool {
+        pendingGeneration == generation
+    }
+
+    static func pendingKeyDecision(sessionIsActive: Bool,
+                                   hasPendingStart: Bool,
+                                   commitWhenReady: Bool,
+                                   matchesShortcut: Bool) -> SwitcherPendingKeyDecision {
+        if sessionIsActive { return .handleActiveSession }
+        guard hasPendingStart, !matchesShortcut else { return .routeShortcut }
+        return commitWhenReady ? .cancelAndSwallow : .swallow
+    }
+
+    static func isCurrentActivationGeneration(_ scheduled: UInt64,
+                                              current: UInt64) -> Bool {
+        scheduled == current
+    }
+
+    static func shouldRestoreHiddenApp(revealGeneration: UInt64,
+                                       currentGeneration: UInt64,
+                                       appWasReactivated: Bool) -> Bool {
+        revealGeneration == currentGeneration && !appWasReactivated
     }
 
     static func shouldContinueAppActivationRetry(targetPID: pid_t,

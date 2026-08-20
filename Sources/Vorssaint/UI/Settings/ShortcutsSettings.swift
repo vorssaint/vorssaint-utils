@@ -52,7 +52,7 @@ struct ShortcutsSettings: View {
 
     private func featuresWithShortcuts(in group: FeatureGroup) -> [AppFeature] {
         AppFeature.features(in: group).filter { feature in
-            feature.isAvailable
+            (feature.isAvailable || availableRoles.contains { $0.feature == feature })
                 && (feature == .windowLayout || availableRoles.contains { $0.feature == feature })
         }
     }
@@ -70,6 +70,7 @@ struct ShortcutsSettings: View {
                             shortcutsEnabled: UserDefaults.standard.bool(
                                 forKey: DefaultsKey.windowLayoutShortcutsEnabled),
                             showsSuperKeyAlternative: superKey.isRunning,
+                            superKeyModifiers: superKey.modifiers,
                             text: text
                         )
                     }
@@ -105,7 +106,9 @@ struct ShortcutsSettings: View {
     private func roleRow(_ role: GlobalShortcutRole,
                          showsFeatureContext: Bool = true) -> some View {
         let title = role.title(l10n.s)
-        let featureTitle = role.feature.hubTitle(l10n.s, hub: hub)
+        let featureTitle = role == .screenshot
+            ? title
+            : role.feature.hubTitle(l10n.s, hub: hub)
         let active = role.requiredEnableKeys.allSatisfy {
             UserDefaults.standard.bool(forKey: $0)
         }
@@ -117,13 +120,18 @@ struct ShortcutsSettings: View {
             statusText: active ? text.active : text.inactive,
             statusIsActive: active,
             showsSuperKeyAlternative: superKey.isRunning,
+            superKeyModifiers: superKey.modifiers,
             includeInactiveConflicts: true,
             additionalConflict: { shortcut in
                 guard AppFeature.windowLayout.isAvailable else { return nil }
                 return WindowLayoutService.shared.shortcutConflictTitle(shortcut, excluding: nil)
             },
             onChange: {
-                FeatureRuntime.shared.sync([role.feature])
+                if role == .screenshot {
+                    ScreenCaptureService.shared.syncWithPreferences()
+                } else {
+                    FeatureRuntime.shared.sync([role.feature])
+                }
             }
         )
     }
@@ -169,6 +177,7 @@ private struct CentralWindowLayoutShortcutRow: View {
     let action: WindowLayoutAction
     let shortcutsEnabled: Bool
     let showsSuperKeyAlternative: Bool
+    let superKeyModifiers: GlobalShortcutModifiers
     let text: ShortcutSettingsStrings
     @AppStorage private var rawValue: String
     @State private var errorText: String?
@@ -177,10 +186,12 @@ private struct CentralWindowLayoutShortcutRow: View {
     init(action: WindowLayoutAction,
          shortcutsEnabled: Bool,
          showsSuperKeyAlternative: Bool,
+         superKeyModifiers: GlobalShortcutModifiers,
          text: ShortcutSettingsStrings) {
         self.action = action
         self.shortcutsEnabled = shortcutsEnabled
         self.showsSuperKeyAlternative = showsSuperKeyAlternative
+        self.superKeyModifiers = superKeyModifiers
         self.text = text
         _rawValue = AppStorage(
             wrappedValue: action.defaultShortcut?.storageValue
@@ -273,7 +284,8 @@ private struct CentralWindowLayoutShortcutRow: View {
     private var superKeyAlternative: String? {
         guard showsSuperKeyAlternative, let shortcut else { return nil }
         return shortcut.superKeyAlternative(
-            capsLockLabel: FeatureStrings.superKey(l10n.language).capsLockKey)
+            capsLockLabel: FeatureStrings.superKey(l10n.language).capsLockKey,
+            superKeyModifiers: superKeyModifiers)
     }
 
     private func clear() {

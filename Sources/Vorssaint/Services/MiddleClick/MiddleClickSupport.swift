@@ -67,6 +67,10 @@ enum MiddleClickSupport {
     /// show-desktop gestures fire a phantom middle click.
     static let tapSpreadChangeLimit: Float = 0.04
 
+    /// Briefly ignore tap candidates after ordinary typing so incidental
+    /// trackpad contact cannot move focus while the user is entering text.
+    static let tapKeyboardIdle: TimeInterval = 0.5
+
     /// Decides whether a finished touch was a deliberate tap. `tapFingers` is
     /// the user's chosen count (3 or 4); with the system three-finger drag
     /// gesture enabled a three-finger tap belongs to macOS, so only the
@@ -78,9 +82,11 @@ enum MiddleClickSupport {
                               buttonPressedDuring: Bool,
                               positionUnavailable: Bool,
                               systemDragGestureEnabled: Bool,
-                              tapFingers: Int) -> Bool {
+                              tapFingers: Int,
+                              secondsSinceLastKeyDown: TimeInterval = .infinity) -> Bool {
         guard tapFingers == 3 || tapFingers == 4 else { return false }
         guard !exceededFingerCount, !buttonPressedDuring, !positionUnavailable else { return false }
+        guard secondsSinceLastKeyDown >= tapKeyboardIdle else { return false }
         guard duration > 0, duration <= tapMaxDuration else { return false }
         guard maxMovement <= tapMovementLimit else { return false }
         guard maxSpreadChange <= tapSpreadChangeLimit else { return false }

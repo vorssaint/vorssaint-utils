@@ -98,6 +98,7 @@ enum RecorderComposition {
               let video = composition.addMutableTrack(withMediaType: .video,
                                                       preferredTrackID: kCMPersistentTrackID_Invalid)
         else { return nil }
+        video.preferredTransform = (try? await sourceVideo.load(.preferredTransform)) ?? .identity
 
         let sourceAudio = includesAudio ? await RecorderAudioSource.tracks(in: asset) : [:]
         var audio: [(source: RecorderAudioSource, from: AVAssetTrack,

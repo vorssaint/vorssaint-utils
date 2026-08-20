@@ -23,6 +23,11 @@ enum AutoQuitCloseSignal: Equatable {
 
 enum AutoQuitSupport {
     private static let hostBundleIdentifierKey = "CrBundleIdentifier"
+    /// Some guest-app windows run as generated helper apps outside their
+    /// container bundle. These identifiers are the only stable relationship
+    /// the host exposes between the helper and the app the user excepted.
+    private static let guestWindowHostBundleIdentifier = "com.parallels.desktop.console"
+    private static let guestWindowBundleIdentifierPrefix = "com.parallels.winapp."
 
     /// QWERTY position of the W key — only a fallback for when the event carries
     /// no typed character; the service matches the layout-resolved character
@@ -67,6 +72,11 @@ enum AutoQuitSupport {
                            bundleURL: URL?,
                            exceptions: [String]) -> Bool {
         if let bundleIdentifier, exceptions.contains(bundleIdentifier) { return true }
+        if let bundleIdentifier,
+           bundleIdentifier.hasPrefix(guestWindowBundleIdentifierPrefix),
+           exceptions.contains(guestWindowHostBundleIdentifier) {
+            return true
+        }
         guard var url = bundleURL?.standardizedFileURL.deletingLastPathComponent() else { return false }
 
         while url.path != "/" {

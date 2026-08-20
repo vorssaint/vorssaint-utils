@@ -4,10 +4,224 @@
 import CoreGraphics
 import Foundation
 
+/// Lets cancellation win while an asynchronous capture start is suspended.
+/// Stop waits for start to leave its await points before closing the writer,
+/// so no late stream can append after the recording file was finalized.
+final class RecorderStartGate: @unchecked Sendable {
+    private enum Finalizer {
+        case startFailure
+        case stop
+    }
+
+    private let lock = NSLock()
+    private var starting = false
+    private var cancelled = false
+    private var finalizer: Finalizer?
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func begin() -> Bool {
+        lock.withLock {
+            guard !cancelled, !starting else { return false }
+            starting = true
+            return true
+        }
+    }
+
+    var isAuthorized: Bool {
+        lock.withLock { !cancelled }
+    }
+
+    /// Start failure and Stop race for exactly one right to terminalize the
+    /// writer. Whichever arrives second must leave it alone.
+    func claimStartFailure() -> Bool {
+        lock.withLock {
+            guard finalizer == nil else { return false }
+            cancelled = true
+            finalizer = .startFailure
+            return true
+        }
+    }
+
+    func cancelAndClaimStop() -> Bool {
+        lock.withLock {
+            cancelled = true
+            guard finalizer == nil else { return false }
+            finalizer = .stop
+            return true
+        }
+    }
+
+    func finish() {
+        let continuations = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            guard starting else { return [] }
+            starting = false
+            defer { waiters.removeAll() }
+            return waiters
+        }
+        continuations.forEach { $0.resume() }
+    }
+
+    func waitUntilFinished() async {
+        await withCheckedContinuation { continuation in
+            let resumeNow = lock.withLock { () -> Bool in
+                guard starting else { return true }
+                waiters.append(continuation)
+                return false
+            }
+            if resumeNow { continuation.resume() }
+        }
+    }
+}
+
+/// One capture engine is used for exactly one recording. Once stopping begins,
+/// queued stream callbacks stay rejected permanently instead of becoming live
+/// again after `stopCapture()` returns.
+struct RecorderCaptureLifecycle {
+    private enum State: Equatable {
+        case idle
+        case starting
+        case running
+        case stopped
+    }
+
+    private var state: State = .idle
+
+    var acceptsSamples: Bool { state == .starting || state == .running }
+    var isRunning: Bool { state == .running }
+
+    mutating func beginStart() -> Bool {
+        guard state == .idle else { return false }
+        state = .starting
+        return true
+    }
+
+    mutating func didStart() -> Bool {
+        guard state == .starting else { return false }
+        state = .running
+        return true
+    }
+
+    mutating func stop() {
+        state = .stopped
+    }
+}
+
+/// Removes pauses from the recording's clock without stopping and rebuilding
+/// the capture stream. Samples inside a pause are discarded; everything after
+/// it moves back by exactly the time that was left out.
+struct RecorderPauseTimeline {
+    private struct Interval {
+        let start: Double
+        let end: Double
+    }
+
+    private var intervals: [Interval] = []
+    private var pauseStart: Double?
+
+    var isPaused: Bool { pauseStart != nil }
+
+    @discardableResult
+    mutating func pause(at time: Double) -> Bool {
+        guard time.isFinite, pauseStart == nil else { return false }
+        pauseStart = time
+        return true
+    }
+
+    @discardableResult
+    mutating func resume(at time: Double) -> Bool {
+        guard time.isFinite, let start = pauseStart else { return false }
+        intervals.append(Interval(start: start, end: max(start, time)))
+        pauseStart = nil
+        return true
+    }
+
+    /// Time on the finished recording. While a pause is open this stays fixed
+    /// at the instant the pause began.
+    func elapsed(since origin: Double, at time: Double) -> Double {
+        guard origin.isFinite, time.isFinite, time > origin else { return 0 }
+        return max(0, time - origin - excludedDuration(from: origin, to: time))
+    }
+
+    /// Maps a captured sample onto the compact recording timeline. An audio
+    /// buffer that crosses a pause boundary is dropped whole, avoiding overlap
+    /// with the first buffer after recording resumes.
+    func sampleTime(start: Double, duration: Double, since origin: Double) -> Double? {
+        guard start.isFinite, duration.isFinite, origin.isFinite, start >= origin else { return nil }
+        let end = start + max(0, duration)
+        guard !overlapsPause(from: start, to: end) else { return nil }
+        return elapsed(since: origin, at: start)
+    }
+
+    /// Maps pointer and typing events. Events that happened while paused do
+    /// not become edits, clicks or typing zooms later.
+    func eventTime(_ time: Double, since origin: Double) -> Double? {
+        guard time.isFinite, origin.isFinite,
+              !overlapsPause(from: time, to: time)
+        else { return nil }
+        return elapsed(since: origin, at: time)
+    }
+
+    private func excludedDuration(from lower: Double, to upper: Double) -> Double {
+        let closed = intervals.reduce(0.0) { total, interval in
+            total + max(0, min(upper, interval.end) - max(lower, interval.start))
+        }
+        guard let pauseStart else { return closed }
+        return closed + max(0, upper - max(lower, pauseStart))
+    }
+
+    private func overlapsPause(from start: Double, to end: Double) -> Bool {
+        let isInstant = end <= start
+        let overlaps: (Double, Double) -> Bool = { pauseStart, pauseEnd in
+            if isInstant { return start >= pauseStart && start < pauseEnd }
+            return start < pauseEnd && end > pauseStart
+        }
+        if intervals.contains(where: { overlaps($0.start, $0.end) }) { return true }
+        guard let pauseStart else { return false }
+        return isInstant ? start >= pauseStart : end > pauseStart
+    }
+}
+
+/// Thread-safe shared pause state for the writer and the two event samplers.
+/// It exists only for the lifetime of one recording.
+final class RecorderPauseClock {
+    private let lock = NSLock()
+    private var timeline = RecorderPauseTimeline()
+
+    var isPaused: Bool { lock.withLock { timeline.isPaused } }
+
+    @discardableResult
+    func pause(at time: Double) -> Bool {
+        lock.withLock { timeline.pause(at: time) }
+    }
+
+    @discardableResult
+    func resume(at time: Double) -> Bool {
+        lock.withLock { timeline.resume(at: time) }
+    }
+
+    func elapsed(since origin: Double, at time: Double) -> Double {
+        lock.withLock { timeline.elapsed(since: origin, at: time) }
+    }
+
+    func sampleTime(start: Double, duration: Double, since origin: Double) -> Double? {
+        lock.withLock { timeline.sampleTime(start: start, duration: duration, since: origin) }
+    }
+
+    func eventTime(_ time: Double, since origin: Double) -> Double? {
+        lock.withLock { timeline.eventTime(time, since: origin) }
+    }
+}
+
 /// Pure policy and geometry for the screen recorder: everything that can be
 /// decided without a stream, a writer or a window, so it can be reasoned about
 /// and tested on its own.
 enum RecorderSupport {
+    static func pendingStartIsAuthorized(requestGeneration: Int,
+                                         currentGeneration: Int,
+                                         featureIsAvailable: Bool) -> Bool {
+        featureIsAvailable && requestGeneration == currentGeneration
+    }
+
 
     // MARK: - What is being recorded
 
@@ -161,14 +375,44 @@ enum RecorderSupport {
         Aspect(rawValue: raw ?? "") ?? .original
     }
 
+    struct VideoGeometry: Equatable {
+        let size: CGSize
+        let transform: CGAffineTransform
+    }
+
+    /// Normalizes a movie track's orientation into a display-sized rectangle
+    /// whose origin is zero. Screen recordings are already identity; imported
+    /// portrait and rotated movies commonly are not.
+    static func videoGeometry(naturalSize: CGSize,
+                              preferredTransform: CGAffineTransform) -> VideoGeometry {
+        guard naturalSize.width.isFinite, naturalSize.height.isFinite,
+              naturalSize.width > 0, naturalSize.height > 0
+        else { return VideoGeometry(size: .zero, transform: .identity) }
+        let naturalRect = CGRect(origin: .zero, size: naturalSize)
+        let displayed = naturalRect.applying(preferredTransform)
+        guard displayed.width.isFinite, displayed.height.isFinite,
+              displayed.width != 0, displayed.height != 0
+        else { return VideoGeometry(size: .zero, transform: .identity) }
+        var normalized = preferredTransform
+        normalized.tx -= displayed.minX
+        normalized.ty -= displayed.minY
+        return VideoGeometry(
+            size: evenSize(CGSize(width: abs(displayed.width), height: abs(displayed.height))),
+            transform: normalized)
+    }
+
     /// Nothing is ever encoded larger than this on its long edge: a background
     /// with a generous margin can otherwise ask for a picture much bigger than
     /// the recording it frames, for no visible gain.
     static let maximumCanvasEdge: CGFloat = 3840
 
-    /// The whole picture, background included. The recording keeps its own
-    /// pixels and the canvas grows around it, so a margin never costs sharpness.
-    static func canvasSize(source: CGSize, padding: Double, aspect: Aspect) -> CGSize {
+    /// The whole picture, background included. With a background the canvas
+    /// grows around the recording, so a margin never costs sharpness. Without
+    /// one, choosing a shape crops the largest centred frame from the source.
+    static func canvasSize(source: CGSize,
+                           padding: Double,
+                           aspect: Aspect,
+                           cropsToAspect: Bool = false) -> CGSize {
         guard source.width > 0, source.height > 0 else { return evenSize(source) }
         let margin = min(0.35, max(0, padding))
         let inner = 1 - 2 * margin
@@ -176,11 +420,20 @@ enum RecorderSupport {
         var width = source.width / inner
         var height = source.height / inner
         if let ratio = aspect.ratio {
-            // Grow the short side until the shape matches; never crop.
-            if width / height < ratio {
-                width = height * ratio
+            if cropsToAspect {
+                if width / height > ratio {
+                    width = height * ratio
+                } else {
+                    height = width / ratio
+                }
             } else {
-                height = width / ratio
+                // A visible background grows the short side instead of
+                // cutting away the recording it is meant to frame.
+                if width / height < ratio {
+                    width = height * ratio
+                } else {
+                    height = width / ratio
+                }
             }
         }
         let longest = max(width, height)
@@ -192,15 +445,20 @@ enum RecorderSupport {
         return evenSize(CGSize(width: width, height: height))
     }
 
-    /// Where the recording sits inside the canvas: centred, as large as the
-    /// margin allows, keeping its own proportions.
-    static func cardRect(canvas: CGSize, source: CGSize, padding: Double) -> CGRect {
+    /// Where the recording sits inside the canvas: centred and keeping its own
+    /// proportions. A crop covers the canvas and lets the excess hang outside;
+    /// a framed recording fits wholly inside its available area.
+    static func cardRect(canvas: CGSize,
+                         source: CGSize,
+                         padding: Double,
+                         fillsCanvas: Bool = false) -> CGRect {
         guard source.width > 0, source.height > 0, canvas.width > 0, canvas.height > 0
         else { return CGRect(origin: .zero, size: canvas) }
         let margin = min(0.35, max(0, padding))
         let available = CGSize(width: canvas.width * (1 - 2 * margin),
                                height: canvas.height * (1 - 2 * margin))
-        let factor = min(available.width / source.width, available.height / source.height)
+        let factors = (available.width / source.width, available.height / source.height)
+        let factor = fillsCanvas ? max(factors.0, factors.1) : min(factors.0, factors.1)
         let size = CGSize(width: (source.width * factor).rounded(),
                           height: (source.height * factor).rounded())
         return CGRect(x: ((canvas.width - size.width) / 2).rounded(),

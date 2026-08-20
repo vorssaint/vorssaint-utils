@@ -37,12 +37,15 @@ enum DefaultsKey {
     static let sleepDisabledFlag = "vorssDisabledSleep"   // internal guard for pmset disablesleep
     static let scrollInverterEnabled = "scrollInverterEnabled"
     static let scrollInverterHorizontalEnabled = "scrollInverterHorizontalEnabled"
+    static let focusFollowsMouseEnabled = "focusFollowsMouseEnabled"
+    static let focusFollowsMouseDelay = "focusFollowsMouseDelayMilliseconds"
     static let smoothScrollEnabled = "smoothScrollEnabled"
     static let smoothScrollStep = "smoothScrollStep"      // pixels per wheel tick
     static let mouseNavigationEnabled = "mouseNavigationEnabled" // side buttons trigger Back and Forward
     static let mouseButtonShortcutsEnabled = "mouseButtonShortcutsEnabled" // extra buttons press a key combination (issue #282)
     static let mouseButtonShortcuts = "mouseButtonShortcuts" // [button number: GlobalShortcut storage value]
-    static let superKeyEnabled = "superKeyEnabled"        // Caps Lock holds the four modifiers (issue #330)
+    static let superKeyEnabled = "superKeyEnabled"        // Caps Lock holds the chosen modifiers (issue #330)
+    static let superKeyModifiers = "superKeyModifiers"     // GlobalShortcutModifiers storage tokens
     static let superKeySoloAction = "superKeySoloAction"  // SuperKeySoloAction raw value
     // Machine state, never exported: whether the keyboard mapping is in place,
     // so a launch after a crash can take it back out.
@@ -98,6 +101,7 @@ enum DefaultsKey {
     static let shelfShortcut = "shelfShortcut"            // GlobalShortcut storage value
     static let shelfShakeToOpen = "shelfShakeToOpen"
     static let shelfDropZoneEnabled = "shelfDropZoneEnabled"
+    static let shelfEdgeDragEnabled = "shelfEdgeDragEnabled"
     static let shelfCloseAfterDrop = "shelfCloseAfterDrop"
     static let shelfRemoveAfterDrop = "shelfRemoveAfterDrop"
     static let shelfAutomaticExclusions = "shelfAutomaticExclusions" // [bundle id] blocks automatic opening only
@@ -106,6 +110,10 @@ enum DefaultsKey {
     static let brightnessControlEnabled = "brightnessControlEnabled" // sliders for every display
     static let brightnessKeysEnabled = "brightnessKeysEnabled" // brightness keys act on the display under the pointer
     static let brightnessOSDEnabled = "brightnessOSDEnabled" // brightness adjustment overlay
+    // Per-monitor connection paths that accept brightness writes but never
+    // answer reads. Kept local so wake handling does not repeatedly probe a
+    // sensitive display path.
+    static let brightnessDDCWriteOnlyPaths = "brightnessDDCWriteOnlyPaths"
     // Displays this app switched off, so a run that ends without putting them
     // back can be repaired on the next start instead of needing a replug.
     static let displaysSwitchedOff = "displaysSwitchedOff"
@@ -178,6 +186,7 @@ enum DefaultsKey {
     static let panelUtilityClipboard = "panelUtilityClipboard"
     static let panelUtilityWindowLayout = "panelUtilityWindowLayout"
     static let panelControlMouseScroll = "panelControlMouseScroll"
+    static let panelControlFocusFollowsMouse = "panelControlFocusFollowsMouse"
     static let panelControlMouseNavigation = "panelControlMouseNavigation"
     static let panelControlSwitcher = "panelControlSwitcher"
     static let panelControlDockPreview = "panelControlDockPreview"
@@ -341,6 +350,22 @@ enum DefaultsKey {
     static let mediaImageMaxDimension = "mediaImageMaxDimension"
     static let mediaImageFormat = "mediaImageFormat"
     static let mediaImageStripMetadata = "mediaImageStripMetadata"
+    static let mediaImageResizeKind = "mediaImageResizeKind"
+    static let mediaImageResizeWidth = "mediaImageResizeWidth"
+    static let mediaImageResizeHeight = "mediaImageResizeHeight"
+    static let mediaImageExactResizeMode = "mediaImageExactResizeMode"
+    static let mediaImageWatermarkKind = "mediaImageWatermarkKind"
+    static let mediaImageWatermarkText = "mediaImageWatermarkText"
+    static let mediaImageWatermarkLogoPath = "mediaImageWatermarkLogoPath"
+    static let mediaImageWatermarkPosition = "mediaImageWatermarkPosition"
+    static let mediaImageWatermarkOpacity = "mediaImageWatermarkOpacity"
+    static let mediaImageWatermarkMargin = "mediaImageWatermarkMargin"
+    static let mediaImageWatermarkScale = "mediaImageWatermarkScale"
+    static let mediaImageRenamePattern = "mediaImageRenamePattern"
+    static let mediaImageBackground = "mediaImageBackground"
+    static let mediaImagePreserveModificationDate = "mediaImagePreserveModificationDate"
+    static let mediaImageProfiles = "mediaImageProfiles"
+    static let mediaImageSelectedProfileID = "mediaImageSelectedProfileID"
     static let mediaTextAccurate = "mediaTextAccurate"
     static let mediaTextLanguageCorrection = "mediaTextLanguageCorrection"
 
@@ -351,6 +376,16 @@ enum DefaultsKey {
     static let clipboardHistorySkipSensitive = "clipboardHistorySkipSensitive"
     static let clipboardHistoryIncludeImagesFiles = "clipboardHistoryIncludeImagesFiles" // capture copied images and files too
     static let clipboardHistoryIgnoredApps = "clipboardHistoryIgnoredApps" // apps whose copies are never saved
+
+    // Auto clear: wipes the system pasteboard on a delay or on sleep and lock.
+    // Deliberately outside the clipboardHistory family, since it clears the
+    // pasteboard without touching saved entries, and runs with capture off.
+    static let clipboardAutoClearOnDelay = "clipboardAutoClearOnDelay"
+    static let clipboardAutoClearDelay = "clipboardAutoClearDelaySeconds" // seconds since the last copy
+    static let clipboardAutoClearOnSleep = "clipboardAutoClearOnSleep"
+    static let clipboardAutoClearOnDisplaySleep = "clipboardAutoClearOnDisplaySleep"
+    static let clipboardAutoClearOnScreenLock = "clipboardAutoClearOnScreenLock"
+
     static let windowPreviewExcludedApps = "windowPreviewExcludedApps" // pause thumbnail capture while these apps are in front
     // Quick tools: paste as plain text, color picker, screen OCR, mic mute.
     static let pastePlainEnabled = "pastePlainEnabled"
@@ -377,6 +412,12 @@ enum DefaultsKey {
     static let commandBarHidden = "commandBarHidden"         // row keys the person never wants offered
     static let commandBarLinks = "commandBarLinks"           // Data: [CommandBarLink] JSON
     static let commandBarRowShortcuts = "commandBarRowShortcuts" // {row key: shortcut}
+    static let commandBarPositionOffset = "commandBarPositionOffset" // "dx,dy" from the default spot
+    // The folders a file search looks in, one per line, written with a tilde
+    // so an exported list still points somewhere on another Mac. Empty means
+    // the bar looks for no files at all, which is the setting out of the box.
+    static let commandBarFileScopes = "commandBarFileScopes"
+    static let commandBarFileIgnores = "commandBarFileIgnores" // names a file search never shows
     static let panelUtilityCommandBar = "panelUtilityCommandBar"
     static let scratchpadRetention = "scratchpadRetention"   // never | day | week | month
     static let scratchpadCloseOnClickOutside = "scratchpadCloseOnClickOutside"
@@ -401,6 +442,7 @@ enum DefaultsKey {
     // Screenshot capture and editor.
     static let screenshotShortcutEnabled = "screenshotShortcutEnabled"
     static let screenshotShortcut = "screenshotShortcut"
+    static let unifiedScreenCaptureShortcutMigrated = "unifiedScreenCaptureShortcutMigrated"
     static let screenshotFullScreenShortcutEnabled = "screenshotFullScreenShortcutEnabled"
     static let screenshotFullScreenShortcut = "screenshotFullScreenShortcut"
     static let screenshotLastCaptureShortcutEnabled = "screenshotLastCaptureShortcutEnabled"
@@ -448,6 +490,7 @@ enum DefaultsKey {
     static let recorderMicrophone = "recorderMicrophone"
     static let recorderSaveFolder = "recorderSaveFolder"
     static let recorderOpenEditor = "recorderOpenEditor"
+    static let recorderAutomaticZoom = "recorderAutomaticZoom"
     static let recorderGIFSize = "recorderGIFSize"
     static let recorderGIFFrameRate = "recorderGIFFrameRate"
     static let recorderEditorPresets = "recorderEditorPresets"
@@ -525,7 +568,7 @@ enum UpdateHighlightsInfo {
     /// The single release whose first launch shows the tour; any other
     /// version never shows it. Bump deliberately for releases with headline
     /// features worth a tour.
-    static let releaseVersion = "3.3.1"
+    static let releaseVersion = "3.3.2"
 
     static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
         appVersion == releaseVersion && lastSeenVersion != releaseVersion
@@ -536,28 +579,31 @@ enum SupportUpdateIntroInfo {
     /// The single release whose first launch shows the update intro. It used
     /// to track AppInfo.version, which re-showed the ask on every update; now a
     /// release only shows it when this constant is deliberately bumped.
-    static let releaseVersion = "3.3.0"
+    static let releaseVersion = "3.3.2"
 
     static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
         appVersion == releaseVersion && lastSeenVersion != releaseVersion
     }
 }
 
-enum SupportUpdateIntroStep: Equatable {
-    case community
+enum SupportUpdateIntroStep: CaseIterable, Hashable {
+    case discord
+    case social
     case support
 
     var next: SupportUpdateIntroStep? {
         switch self {
-        case .community: return .support
+        case .discord: return .social
+        case .social: return .support
         case .support: return nil
         }
     }
 
     var previous: SupportUpdateIntroStep? {
         switch self {
-        case .community: return nil
-        case .support: return .community
+        case .discord: return nil
+        case .social: return .discord
+        case .support: return .social
         }
     }
 }
@@ -603,6 +649,17 @@ enum KeepAwakeActiveIcon: String, CaseIterable, Identifiable {
         case .eye: return "eye.fill"
         case .moon: return "moon.fill"
         case .light: return "lightbulb.fill"
+        }
+    }
+
+    /// Nudge down the menu bar canvas, in points. Symbols carrying their mass
+    /// above the shape's middle — steam over a cup, a bulb over its base — read
+    /// as sitting high when their ink is centered geometrically.
+    var menuBarDrop: CGFloat {
+        switch self {
+        case .coffee: return 1
+        case .light: return 0.5
+        case .vorssaint, .eye, .moon: return 0
         }
     }
 
@@ -660,6 +717,8 @@ enum Defaults {
     static let allowedMonitorMemoryMetrics = ["used", "app"]
     static let allowedPreviewSizes = ["small", "normal", "large", "xlarge"]
     static let allowedClipboardHistoryLimits = [20, 50, 100, 250, 500, 1_000]
+    static let allowedClipboardAutoClearDelayRange = 5...3_600
+    static let defaultClipboardAutoClearDelay = 20
     static let allowedMonitorAlertCooldowns = [2, 5, 15, 30, 60]
 
     static let registeredDefaults: [String: Any] = [
@@ -682,12 +741,15 @@ enum Defaults {
         DefaultsKey.showCountdown: false,
         DefaultsKey.scrollInverterEnabled: false,
         DefaultsKey.scrollInverterHorizontalEnabled: false,
+        DefaultsKey.focusFollowsMouseEnabled: false,
+        DefaultsKey.focusFollowsMouseDelay: FocusFollowsMouseSupport.defaultDelayMilliseconds,
         DefaultsKey.smoothScrollEnabled: false,
         DefaultsKey.smoothScrollStep: 40,
         DefaultsKey.mouseNavigationEnabled: false,
         DefaultsKey.mouseButtonShortcutsEnabled: false,
         DefaultsKey.mouseButtonShortcuts: [String: String](),
         DefaultsKey.superKeyEnabled: false,
+        DefaultsKey.superKeyModifiers: SuperKeySupport.defaultModifierStorageValue,
         DefaultsKey.superKeySoloAction: SuperKeySoloAction.none.rawValue,
         DefaultsKey.smoothScrollExceptions: [String](),
         DefaultsKey.scrollInverterExceptions: [String](),
@@ -735,6 +797,8 @@ enum Defaults {
         // On by default (owner's call): it costs nothing until the shelf itself
         // is on, and then the shelf lives handily under the menu bar icon.
         DefaultsKey.shelfDropZoneEnabled: true,
+        // New Shelf behavior stays opt-in for existing users.
+        DefaultsKey.shelfEdgeDragEnabled: false,
         // Closing after a drop is new behavior, so it arrives OFF for people
         // who already rely on the panel staying put; removing after a drop
         // keeps the value shipped releases always had.
@@ -814,6 +878,7 @@ enum Defaults {
         DefaultsKey.panelUtilityClipboard: true,
         DefaultsKey.panelUtilityWindowLayout: true,
         DefaultsKey.panelControlMouseScroll: true,
+        DefaultsKey.panelControlFocusFollowsMouse: true,
         DefaultsKey.panelControlMouseNavigation: true,
         DefaultsKey.panelControlSwitcher: true,
         DefaultsKey.panelControlDockPreview: true,
@@ -944,6 +1009,22 @@ enum Defaults {
         DefaultsKey.mediaImageMaxDimension: 1600,
         DefaultsKey.mediaImageFormat: MediaImageFormat.jpeg.rawValue,
         DefaultsKey.mediaImageStripMetadata: true,
+        DefaultsKey.mediaImageResizeKind: MediaImageResizeKind.maxDimension.rawValue,
+        DefaultsKey.mediaImageResizeWidth: 1600,
+        DefaultsKey.mediaImageResizeHeight: 1200,
+        DefaultsKey.mediaImageExactResizeMode: MediaImageExactResizeMode.stretch.rawValue,
+        DefaultsKey.mediaImageWatermarkKind: MediaImageWatermarkKind.off.rawValue,
+        DefaultsKey.mediaImageWatermarkText: "",
+        DefaultsKey.mediaImageWatermarkLogoPath: "",
+        DefaultsKey.mediaImageWatermarkPosition: MediaImageWatermarkPosition.bottomRight.rawValue,
+        DefaultsKey.mediaImageWatermarkOpacity: 0.45,
+        DefaultsKey.mediaImageWatermarkMargin: 32,
+        DefaultsKey.mediaImageWatermarkScale: 0.18,
+        DefaultsKey.mediaImageRenamePattern: "",
+        DefaultsKey.mediaImageBackground: MediaImageBackground.transparent.rawValue,
+        DefaultsKey.mediaImagePreserveModificationDate: false,
+        DefaultsKey.mediaImageProfiles: "[]",
+        DefaultsKey.mediaImageSelectedProfileID: "",
         DefaultsKey.mediaTextAccurate: true,
         DefaultsKey.mediaTextLanguageCorrection: true,
         DefaultsKey.clipboardHistoryEnabled: false,
@@ -951,6 +1032,11 @@ enum Defaults {
         DefaultsKey.clipboardHistorySkipSensitive: true,
         DefaultsKey.clipboardHistoryIncludeImagesFiles: true,
         DefaultsKey.clipboardHistoryIgnoredApps: [String](),
+        DefaultsKey.clipboardAutoClearOnDelay: false,
+        DefaultsKey.clipboardAutoClearDelay: Defaults.defaultClipboardAutoClearDelay,
+        DefaultsKey.clipboardAutoClearOnSleep: false,
+        DefaultsKey.clipboardAutoClearOnDisplaySleep: false,
+        DefaultsKey.clipboardAutoClearOnScreenLock: false,
         DefaultsKey.finderPasteImageAsFile: false,
         DefaultsKey.windowPreviewExcludedApps: [String](),
         DefaultsKey.pastePlainEnabled: false,
@@ -975,7 +1061,10 @@ enum Defaults {
         DefaultsKey.commandBarAliases: "",
         DefaultsKey.commandBarPins: "",
         DefaultsKey.commandBarHidden: "",
+        DefaultsKey.commandBarFileScopes: "",
+        DefaultsKey.commandBarFileIgnores: "",
         DefaultsKey.commandBarShortcut: GlobalShortcut.commandBarDefault.storageValue,
+        DefaultsKey.commandBarPositionOffset: "",
         DefaultsKey.panelUtilityCommandBar: true,
         DefaultsKey.scratchpadRetention: ScratchpadRetention.never.rawValue,
         DefaultsKey.scratchpadCloseOnClickOutside: true,
@@ -1002,6 +1091,7 @@ enum Defaults {
         DefaultsKey.recorderMicrophone: false,
         DefaultsKey.recorderSaveFolder: "",
         DefaultsKey.recorderOpenEditor: true,
+        DefaultsKey.recorderAutomaticZoom: true,
         DefaultsKey.recorderGIFSize: RecorderSupport.GIFSize.medium.rawValue,
         DefaultsKey.recorderGIFFrameRate: 12,
         DefaultsKey.recorderEditorPresets: Data(),
@@ -1009,6 +1099,7 @@ enum Defaults {
         DefaultsKey.panelUtilityScreenRecorder: true,
         DefaultsKey.screenshotShortcutEnabled: false,
         DefaultsKey.screenshotShortcut: GlobalShortcut.screenshotDefault.storageValue,
+        DefaultsKey.unifiedScreenCaptureShortcutMigrated: false,
         DefaultsKey.screenshotFullScreenShortcutEnabled: false,
         DefaultsKey.screenshotFullScreenShortcut: GlobalShortcut.screenshotFullScreenDefault.storageValue,
         DefaultsKey.screenshotLastCaptureShortcutEnabled: false,
@@ -1086,6 +1177,7 @@ enum Defaults {
         migrateUtilityOrderForScreenshot(in: defaults)
         migrateUtilityOrderForAppUpdates(in: defaults)
         migrateScreenshotOpenEditorDirectly(in: defaults)
+        migrateUnifiedScreenCaptureShortcut(in: defaults)
         migrateSilentHeadphonesDisconnectVolume(in: defaults)
         migrateSwitcherWindowlessFinder(in: defaults)
     }
@@ -1138,6 +1230,37 @@ enum Defaults {
         guard action.isEmpty else { return }
         defaults.set(ScreenshotDefaultAction.edit.rawValue,
                      forKey: DefaultsKey.screenshotDefaultAction)
+    }
+
+    /// The four screen tools now share the screenshot shortcut. Preserve the
+    /// first dedicated shortcut an existing setup had enabled, while fresh
+    /// installs keep the combined shortcut off by default.
+    static func migrateUnifiedScreenCaptureShortcut(in defaults: UserDefaults) {
+        guard !defaults.bool(forKey: DefaultsKey.unifiedScreenCaptureShortcutMigrated) else {
+            return
+        }
+        defer {
+            defaults.set(true, forKey: DefaultsKey.unifiedScreenCaptureShortcutMigrated)
+        }
+        guard !defaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled) else { return }
+
+        let legacyChoices: [(enabled: String, shortcut: String, fallback: GlobalShortcut)] = [
+            (DefaultsKey.recorderShortcutEnabled,
+             DefaultsKey.recorderShortcut,
+             .screenRecorderDefault),
+            (DefaultsKey.screenOCRShortcutEnabled,
+             DefaultsKey.screenOCRShortcut,
+             .screenOCRDefault),
+            (DefaultsKey.colorPickerShortcutEnabled,
+             DefaultsKey.colorPickerShortcut,
+             .colorPickerDefault),
+        ]
+        guard let choice = legacyChoices.first(where: {
+            defaults.bool(forKey: $0.enabled)
+        }) else { return }
+        let shortcut = defaults.string(forKey: choice.shortcut) ?? choice.fallback.storageValue
+        defaults.set(true, forKey: DefaultsKey.screenshotShortcutEnabled)
+        defaults.set(shortcut, forKey: DefaultsKey.screenshotShortcut)
     }
 
     static func migrateLegacySwitcherWindowShortcut(in defaults: UserDefaults) {
@@ -1230,6 +1353,13 @@ enum Defaults {
         allowedKeyboardDebounceWindowRange.contains(milliseconds)
             ? milliseconds
             : defaultKeyboardDebounceWindowMs
+    }
+
+    /// Clamps rather than falling back to the default: a typed 4 becoming 5 is
+    /// the correction the person meant, a typed 4 becoming 20 is not.
+    static func sanitizedClipboardAutoClearDelay(_ seconds: Int) -> Int {
+        min(max(seconds, allowedClipboardAutoClearDelayRange.lowerBound),
+            allowedClipboardAutoClearDelayRange.upperBound)
     }
 
     static func sanitizedMenuBarPreset(_ preset: String) -> String {

@@ -313,6 +313,10 @@ final class MiddleClickService: ObservableObject {
         if count == 0 {
             defer { resetTapCandidateLocked() }
             guard let startedAt = tapStartUptime else { return false }
+            let secondsSinceLastKeyDown = CGEventSource.secondsSinceLastEventType(
+                .combinedSessionState,
+                eventType: .keyDown
+            )
             return MiddleClickSupport.tapShouldFire(duration: now - startedAt,
                                                     maxMovement: tapMaxMovement,
                                                     maxSpreadChange: tapMaxSpreadChange,
@@ -320,7 +324,8 @@ final class MiddleClickService: ObservableObject {
                                                     buttonPressedDuring: tapSawButton,
                                                     positionUnavailable: tapPositionUnavailable,
                                                     systemDragGestureEnabled: tapDragConflict,
-                                                    tapFingers: tapFingers)
+                                                    tapFingers: tapFingers,
+                                                    secondsSinceLastKeyDown: secondsSinceLastKeyDown)
         }
         if count > tapFingers {
             tapExceededCount = true

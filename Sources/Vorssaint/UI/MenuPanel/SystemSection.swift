@@ -588,6 +588,19 @@ struct SystemSection: View {
                     }
                     .buttonStyle(.plain)
                 }
+                if let swapUsed = monitor.snapshot.memorySwapUsed {
+                    HStack(spacing: 8) {
+                        Text(l10n.s.memorySwapUsed)
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(formatMemory(swapUsed))
+                            .font(.system(size: 11, weight: .medium))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.leading, 16)
+                }
                 let memoryHistory = MonitorMemoryMetric.current.history(in: monitor.snapshot)
                 if graphMemory, memoryHistory.count >= 2 {
                     Sparkline(values: memoryHistory,

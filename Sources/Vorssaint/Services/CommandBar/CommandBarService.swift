@@ -84,6 +84,10 @@ final class CommandBarService: ObservableObject {
     /// numbers, which teaches it without a single pixel of permanent clutter.
     @Published private(set) var commandIsHeld = false
 
+    /// True when the bar was dragged off the spot it opens on by default,
+    /// so Settings can offer the way back.
+    @Published private(set) var hasCustomPosition = false
+
     private let hotkey = QuickToolHotkey(id: 20)
     private var rowHotkeys: [QuickToolHotkey] = []
     private var panel: NSPanel?
@@ -94,6 +98,13 @@ final class CommandBarService: ObservableObject {
     private var activationObserver: NSObjectProtocol?
 
     private var catalog: [CommandBarEntry] = []
+    let scriptRunner = CommandBarScriptRunner()
+    let fileSearch = CommandBarFileSearch()
+    /// Which row answered which few letters, for as long as the app runs. Not
+    /// stored: the bar forgets everything typed into it when it goes.
+    private var queryMemory = CommandBarQueryMemory()
+    /// Counts choices, so the memory can order its own entries without a clock.
+    private var queryMemoryStep = 0
     private var entriesByID: [String: CommandBarEntry] = [:]
     private var normalizedByID: [String: (title: String, keywords: String)] = [:]
     private var entriesByStableKey: [String: CommandBarEntry] = [:]
@@ -110,6 +121,12 @@ final class CommandBarService: ObservableObject {
     private var windowsLoadedAt: Date?
     private var menuEntries: [CommandBarEntry] = []
     private var emojiEntries: [CommandBarEntry] = []
+    /// The Mac's own Settings panes, scanned once per launch. The language
+    /// they were built in comes with them, because the words they answer to
+    /// are translated and a change of language has to reread them.
+    private var macSettingsEntries: [CommandBarEntry] = []
+    private var macSettingsLanguage: AppLanguage?
+    private var macSettingsLoading = false
     /// Rows that act on what was selected when the bar opened. Read once per
     /// opening and thrown away on close: a selection is a moment, not a state.
     private var selectionEntries: [CommandBarEntry] = []
@@ -148,6 +165,8 @@ final class CommandBarService: ObservableObject {
 
     private init() {
         hotkey.onPress = { [weak self] in self?.toggle() }
+        scriptRunner.onResult = { [weak self] in self?.refreshResults() }
+        fileSearch.onResult = { [weak self] in self?.refreshResults() }
     }
 
     // MARK: - Lifecycle
@@ -180,6 +199,9 @@ final class CommandBarService: ObservableObject {
             quitEntries = []
             menuEntries = []
             emojiEntries = []
+            macSettingsEntries = []
+            macSettingsLanguage = nil
+            CommandBarSystemSettings.clearCache()
             presentationLifecycle.hide()
             menuOwnerPID = nil
             menusLoadedAt = nil
@@ -233,16 +255,15 @@ final class CommandBarService: ObservableObject {
                     id, isVisible: self.isVisible) else { return }
             self.prepareHomeForCurrentPresentation()
             self.refreshResults()
-            if let key = self.deferredRowShortcut.take(for: id),
-               let entry = self.entriesByStableKey[key] {
-                self.run(entry)
-            }
+            self.runDeferredRowShortcutIfReady(for: id)
         }
     }
 
     @discardableResult
     private func beginPresentation() -> UUID {
         deferredRowShortcut.cancel()
+        scriptRunner.reset()
+        fileSearch.reset()
         let id = UUID()
         presentationID = id
         presentationLifecycle.beginHome(id)
@@ -283,6 +304,7 @@ final class CommandBarService: ObservableObject {
         refreshStorageAnswer(for: id)
         refreshWiFiState(for: id)
         loadAppsIfNeeded(for: id)
+        loadMacSettingsIfNeeded(for: id)
         loadWindowsIfNeeded(for: id)
         loadMenusIfNeeded(for: id)
         loadSelection(for: id)
@@ -301,6 +323,8 @@ final class CommandBarService: ObservableObject {
             TextSnippetService.shared.setCommandBarVisible(false)
         }
         deferredRowShortcut.cancel()
+        scriptRunner.reset()
+        fileSearch.reset()
         // Closing while listening for a combination must give every global key
         // back, or the whole app would go quiet until the next relaunch.
         if case .capturingShortcut = mode { endCapturingShortcut() }
@@ -422,6 +446,10 @@ final class CommandBarService: ObservableObject {
     /// closures are rebuilt from current state before the shortcut uses them.
     private func runRow(withStableKey key: String) {
         guard let entry = freshFullEntry(forStableKey: key) else {
+            if CommandBarPreferences.source(ofRowID: key) == .macSettings {
+                show(promptingFor: key)
+                return
+            }
             NSSound.beep()
             return
         }
@@ -462,7 +490,7 @@ final class CommandBarService: ObservableObject {
 
     /// The chip order. Fixed, so the row never reshuffles under a pointer.
     private static let chipOrder: [CommandBarSource] = [
-        .actions, .apps, .clipboard, .windows, .menus, .settingsPages,
+        .actions, .apps, .clipboard, .windows, .menus, .settingsPages, .macSettings,
         .snippets, .emoji, .folders, .links,
     ]
 
@@ -511,8 +539,9 @@ final class CommandBarService: ObservableObject {
     private func categoryHasContent(_ source: CommandBarSource) -> Bool {
         let bar = FeatureStrings.commandBar(L10n.shared.language)
         switch source {
-        case .apps:
-            // Every Mac has applications; the scan only decides when.
+        case .apps, .macSettings:
+            // Every Mac has applications and Settings panes; the scan only
+            // decides when.
             return true
         case .windows:
             return (AppFeature.switcher.isAvailable || AppFeature.windowLayout.isAvailable)
@@ -535,7 +564,7 @@ final class CommandBarService: ObservableObject {
                 CommandBarPreferences.source(ofRowID: $0.id) == source
                     && !hidden.contains($0.stableKey)
             }
-        case .quitApps, .answers, .calculator, .selection:
+        case .quitApps, .answers, .calculator, .selection, .files:
             return false
         }
     }
@@ -551,6 +580,7 @@ final class CommandBarService: ObservableObject {
         case .actions:
             rows = catalog.filter { CommandBarPreferences.source(ofRowID: $0.id) == .actions }
         case .apps: rows = appEntries
+        case .macSettings: rows = macSettingsEntries
         case .windows: rows = windowEntries
         case .menus: rows = menuEntries
         case .emoji: rows = emojiEntries
@@ -560,7 +590,7 @@ final class CommandBarService: ObservableObject {
             rows = CommandBarCatalog.clipboardBrowseEntries(limit: limit, bar: bar) { [weak self] entry in
                 self?.paste(entry)
             }
-        case .quitApps, .answers, .calculator, .selection:
+        case .quitApps, .answers, .calculator, .selection, .files:
             rows = []
         }
         return rows.filter { !hidden.contains($0.stableKey) }
@@ -585,6 +615,7 @@ final class CommandBarService: ObservableObject {
         case .windows: return bar.sourceWindows
         case .quitApps: return bar.sourceQuitApps
         case .settingsPages: return bar.sourceSettingsPages
+        case .macSettings: return bar.sourceMacSettings
         case .snippets: return bar.sourceSnippets
         case .clipboard: return bar.sourceClipboard
         case .emoji: return bar.sourceEmoji
@@ -592,6 +623,7 @@ final class CommandBarService: ObservableObject {
         case .answers: return bar.sourceAnswers
         case .calculator: return bar.sourceCalculator
         case .selection: return bar.sourceSelection
+        case .files: return bar.sourceFiles
         case .links: return bar.linksTitle
         }
     }
@@ -605,10 +637,54 @@ final class CommandBarService: ObservableObject {
     /// from disk there means parsing the same JSON ninety times for one frame.
     private var pinCache: Set<String> = []
     private var shortcutCache: [String: GlobalShortcut] = [:]
+    /// The folders a file search looks in, already resolved, and the names it
+    /// never shows. Resolving reads the home folder, which is far too much to
+    /// do on a keystroke and never changes between two of them.
+    private var fileScopeCache: [String] = []
+    private var fileIgnoreCache: [String] = []
+    private var fileSearchPreferenceSignature: String?
+    private var fileScopeLoadGeneration = 0
 
     private func reloadPreferenceCaches() {
         pinCache = Set(pins)
         shortcutCache = rowShortcuts
+        hasCustomPosition = positionOffset != .zero
+        reloadFileSearchCaches()
+    }
+
+    private func reloadFileSearchCaches() {
+        // A cached answer belongs to the scopes and ignores that produced it.
+        // Changing either invalidates pending and completed searches together.
+        let scopesRaw = UserDefaults.standard.string(forKey: DefaultsKey.commandBarFileScopes) ?? ""
+        let ignoresRaw = UserDefaults.standard.string(forKey: DefaultsKey.commandBarFileIgnores) ?? ""
+        let enabled = isEnabled(.files)
+        let signature = "\(enabled)\0\(scopesRaw)\0\(ignoresRaw)"
+        guard signature != fileSearchPreferenceSignature else { return }
+        fileSearchPreferenceSignature = signature
+        fileScopeLoadGeneration &+= 1
+        let loadGeneration = fileScopeLoadGeneration
+        fileSearch.reset()
+        fileScopeCache = []
+        fileIgnoreCache = enabled
+            ? CommandBarFileSearchSupport.shippedIgnores
+                + CommandBarFileSearchSupport.decodeList(ignoresRaw)
+            : []
+        let saved = CommandBarFileSearchSupport.decodeList(scopesRaw)
+        guard enabled, !saved.isEmpty else { return }
+        let home = NSHomeDirectory()
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let children = (try? FileManager.default.contentsOfDirectory(atPath: home)) ?? []
+            let scopes = CommandBarFileSearchSupport.resolvedScopes(
+                saved,
+                homeDirectory: home,
+                homeChildren: children,
+                isSearchableDirectory: CommandBarFileSearch.isSearchableDirectory)
+            DispatchQueue.main.async {
+                guard let self, self.fileScopeLoadGeneration == loadGeneration else { return }
+                self.fileScopeCache = scopes
+                if self.isVisible { self.refreshResults() }
+            }
+        }
     }
 
     func isPinned(_ entry: CommandBarEntry) -> Bool {
@@ -670,6 +746,16 @@ final class CommandBarService: ObservableObject {
             UserDefaults.standard.string(forKey: DefaultsKey.commandBarUsage))
         usage.removeValue(forKey: entry.id)
         UserDefaults.standard.set(CommandBarUsage.encode(usage), forKey: DefaultsKey.commandBarUsage)
+        queryMemory.forget(id: entry.id)
+        refreshAfterPreferenceChange()
+    }
+
+    /// Forgets the whole habit, for the button in Settings that offers it.
+    /// What one session noticed about what was typed goes with it, or clearing
+    /// the ranking would leave half of it standing.
+    func forgetLearnedRanking() {
+        UserDefaults.standard.removeObject(forKey: DefaultsKey.commandBarUsage)
+        queryMemory.clear()
         refreshAfterPreferenceChange()
     }
 
@@ -697,8 +783,8 @@ final class CommandBarService: ObservableObject {
     /// Every row the bar can rank right now, in the order the pool builds
     /// them: what the Mac holds first, what is borrowed after.
     private var indexableEntries: [CommandBarEntry] {
-        selectionEntries + catalog + appEntries + windowEntries + quitEntries
-            + menuEntries + emojiEntries
+        selectionEntries + catalog + appEntries + macSettingsEntries + windowEntries
+            + quitEntries + menuEntries + emojiEntries
     }
 
     private func indexEntries() {
@@ -864,7 +950,7 @@ final class CommandBarService: ObservableObject {
             rows.append(contentsOf: selectionEntries)
         }
 
-        let offerable = (catalog + appEntries + windowEntries).filter {
+        let offerable = (catalog + appEntries + macSettingsEntries + windowEntries).filter {
             !hidden.contains($0.stableKey) && allowed($0)
         }
         // On the empty bar there is no ranking to respect, so what the person
@@ -944,8 +1030,8 @@ final class CommandBarService: ObservableObject {
         case .links: return bar.kindLink
         case .snippets: return bar.kindSnippet
         case .folders: return bar.kindFolder
-        case .actions, .apps, .menus, .windows, .quitApps, .settingsPages, .clipboard,
-             .emoji, .calculator, .selection:
+        case .actions, .apps, .menus, .windows, .quitApps, .settingsPages, .macSettings,
+             .clipboard, .emoji, .calculator, .selection, .files:
             return entry.subtitle.isEmpty ? bar.everythingTitle : entry.subtitle
         }
     }
@@ -957,7 +1043,8 @@ final class CommandBarService: ObservableObject {
     /// the list. Actions have no cap: they are what the bar is for.
     private static let kindLimits: [(prefix: String, limit: Int)] = [
         ("app.", 5), ("window.", 4), ("quit.", 3), ("menu.", 5), ("emoji.", 6),
-        ("settings.", 4), ("clipboard.", 4), ("snippet.", 4),
+        ("settings.", 4), ("macsettings.", 4), ("clipboard.", 4), ("snippet.", 4),
+        ("file.", 4),
         // Every switch answers to the same verb, so searching that verb would
         // otherwise fill the list with twenty rows that all read alike.
         ("toggle.", 5),
@@ -985,6 +1072,10 @@ final class CommandBarService: ObservableObject {
         // Inside a category, typing filters that category and nothing else:
         // no answer row, no caps per kind, just the ranking over one list.
         if let category = activeCategory {
+            // A search inside one category is not a search for files, so any
+            // pending one goes: it would land on a list that has no room for
+            // it and refresh the bar for nothing.
+            fileSearch.cancelPending()
             let hidden = hiddenKeys
             let pool = category == .clipboard
                 ? CommandBarCatalog.clipboardEntries(matching: trimmed, bar: bar, limit: 40) {
@@ -1016,6 +1107,47 @@ final class CommandBarService: ObservableObject {
         // leads so Return opens it at once, the way a sum's answer does.
         let openURL = CommandBarCatalog.openURLEntry(for: trimmed, bar: bar)
 
+        // A saved script answers the same way a sum does, once it has run:
+        // the row leads, and Return copies what it printed. Same as any
+        // other saved link, it stays quiet while the Links source is off or
+        // that one link is hidden - a switched-off source must not still
+        // spawn a process behind it.
+        let savedLinks = CommandBarLinks.decode(
+            UserDefaults.standard.data(forKey: DefaultsKey.commandBarLinks))
+        let scriptMatch = isEnabled(.links)
+            ? CommandBarLinks.matchingScriptLink(in: savedLinks, query: trimmed)
+            : nil
+        var scriptAnswer: CommandBarEntry?
+        if let scriptMatch, !hiddenKeys.contains("link.\(scriptMatch.link.id.uuidString)") {
+            if let result = scriptRunner.cachedResult(linkID: scriptMatch.link.id,
+                                                       argument: scriptMatch.argument) {
+                scriptRunner.cancelPending()
+                scriptAnswer = CommandBarCatalog.scriptAnswerEntry(link: scriptMatch.link,
+                                                                   result: result, bar: bar)
+            } else {
+                scriptRunner.schedule(link: scriptMatch.link, argument: scriptMatch.argument)
+            }
+        } else {
+            scriptRunner.cancelPending()
+        }
+
+        // Files, once the person has named a folder to look in. Asked for
+        // rather than waited on: the answer lands a moment later and refreshes
+        // the list, the way a saved script's answer does.
+        var fileRows: [CommandBarEntry] = []
+        if isEnabled(.files), !fileScopeCache.isEmpty {
+            if let paths = fileSearch.cachedPaths(for: trimmed) {
+                fileSearch.cancelPending()
+                fileRows = CommandBarCatalog.fileEntries(paths, bar: bar)
+            } else {
+                fileSearch.schedule(query: trimmed,
+                                    scopes: fileScopeCache,
+                                    patterns: fileIgnoreCache)
+            }
+        } else {
+            fileSearch.cancelPending()
+        }
+
         // "brilho 40" is a command with a value; "code 1234" is a search for
         // something copied. The number is only taken off when a command that
         // actually takes one answers to what is left.
@@ -1041,7 +1173,22 @@ final class CommandBarService: ObservableObject {
 
         // What is selected comes first, so a tie goes to the thing the person
         // is already looking at.
-        var pool = selectionEntries + catalog + appEntries + windowEntries
+        var pool = selectionEntries + catalog + appEntries + macSettingsEntries + windowEntries
+        // Two script names can overlap ("run" and "run report"). Only the
+        // longest matching one is eligible; otherwise the shorter row can win
+        // a ranking tie and Return runs a different file from the answer shown.
+        if let scriptMatch {
+            let winnerID = "link.\(scriptMatch.link.id.uuidString)"
+            let matchingScriptIDs = Set(savedLinks.compactMap { link -> String? in
+                guard link.kind == .script,
+                      CommandBarLinks.trailingArgument(query: trimmed, name: link.name) != nil
+                else { return nil }
+                return "link.\(link.id.uuidString)"
+            })
+            pool.removeAll {
+                matchingScriptIDs.contains($0.id) && (scriptAnswer != nil || $0.id != winnerID)
+            }
+        }
         // Quitting an app is a rare, heavy verb: its rows only join the list
         // when the person actually asked to quit something, so they never
         // double the length of an ordinary app search.
@@ -1055,6 +1202,7 @@ final class CommandBarService: ObservableObject {
             pool.append(contentsOf: emojiEntries)
         }
         pool.append(contentsOf: clipboard)
+        pool.append(contentsOf: fileRows)
 
         // The kind of each surviving row, worked out once: the switches are
         // read from disk here instead of once per row per keystroke, and the
@@ -1091,6 +1239,11 @@ final class CommandBarService: ObservableObject {
                                         : 0)
                                     + (entry.isActive ? 20 : 0)
                                     + aliasBoost
+                                    // What this session already answered with
+                                    // for exactly these letters.
+                                    + (entry.countsUsage
+                                        ? queryMemory.boost(query: effectiveQuery, id: entry.id)
+                                        : 0)
                                     // What the Mac itself holds leads what is
                                     // borrowed from the app in front.
                                     + CommandBarPreferences.rankBias(for: sources[index])
@@ -1111,6 +1264,7 @@ final class CommandBarService: ObservableObject {
         var result: [CommandBarEntry] = []
         if let answer { result.append(answer) }
         if let openURL { result.append(openURL) }
+        if let scriptAnswer { result.append(scriptAnswer) }
         for index in ranked {
             let entry = pool[index]
             if entry.id.hasPrefix("answer."),
@@ -1232,6 +1386,13 @@ final class CommandBarService: ObservableObject {
                 })
             }
         }
+        if entry.canRevealInFinder {
+            actions.append(RowAction(id: "reveal",
+                                     title: bar.actionRevealInFinder,
+                                     symbolName: "folder") { [weak self] in
+                self?.revealInFinder(entry)
+            })
+        }
         if CommandBarPreferences.acceptsPin(rowID: entry.id) {
             actions.append(RowAction(id: "pin",
                                      title: isPinned(entry) ? bar.actionUnpin : bar.actionPin,
@@ -1277,6 +1438,23 @@ final class CommandBarService: ObservableObject {
             })
         }
         return actions
+    }
+
+    /// Shows a row where it lives instead of running it. An app that was
+    /// moved or deleted since the scan says so rather than opening a Finder
+    /// window on nothing, the same answer a saved folder already gives.
+    func revealInFinder(_ entry: CommandBarEntry) {
+        guard let path = entry.revealPath else {
+            NSSound.beep()
+            return
+        }
+        guard FileManager.default.fileExists(atPath: path) else {
+            hide()
+            QuickToolHUD.show(icon: "folder.badge.questionmark", message: entry.title)
+            return
+        }
+        hide()
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
     }
 
     private func installedApp(for entry: CommandBarEntry) -> InstalledApps.InstalledApp? {
@@ -1580,6 +1758,12 @@ final class CommandBarService: ObservableObject {
     }
 
     private func finish(_ entry: CommandBarEntry, value: Int?) {
+        if entry.countsUsage, isVisible {
+            // Only what is on screen teaches anything: a row run from its own
+            // combination was never typed for.
+            queryMemoryStep &+= 1
+            queryMemory.record(query: query, id: entry.id, step: queryMemoryStep)
+        }
         if entry.countsUsage {
             let stored = UserDefaults.standard.string(forKey: DefaultsKey.commandBarUsage)
             let next = CommandBarUsage.recording(CommandBarUsage.decode(stored),
@@ -1678,7 +1862,9 @@ final class CommandBarService: ObservableObject {
         guard !appsLoading else { return }
         appsLoading = true
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let apps = InstalledApps.installedApplications(includeSystemApplications: true)
+            let apps = SpotlightNames.enriching(InstalledApps.installedApplications(
+                includeSystemApplications: true,
+                spotlightPaths: Self.spotlightApplicationPaths()))
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.cachedApps = apps
@@ -1690,6 +1876,57 @@ final class CommandBarService: ObservableObject {
                 self.refreshResults()
             }
         }
+    }
+
+    /// The Mac's own Settings panes, read off the main thread the first time
+    /// the bar opens and reused after: they only change when macOS does. The
+    /// switch is honoured here rather than only in the ranking, so a source
+    /// nobody wants costs no scan at all.
+    private func loadMacSettingsIfNeeded(for id: UUID) {
+        let pendingShortcut = deferredRowShortcut.key(for: id)
+            .map { CommandBarPreferences.source(ofRowID: $0) == .macSettings } == true
+        guard (isEnabled(.macSettings) || pendingShortcut), !macSettingsLoading,
+              macSettingsLanguage != L10n.shared.language
+        else { return }
+        macSettingsLoading = true
+        let language = L10n.shared.language
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let panes = CommandBarSystemSettings.panes(language: language)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.macSettingsLoading = false
+                self.macSettingsLanguage = language
+                self.macSettingsEntries = CommandBarCatalog.macSettingsEntries(
+                    panes, bar: FeatureStrings.commandBar(language))
+                self.indexEntries()
+                guard self.presentationLifecycle.acceptsSharedCacheCompletion(
+                    startedBy: id, currentID: self.presentationID,
+                    isVisible: self.isVisible) else { return }
+                if !self.runDeferredRowShortcutIfReady(for: id) { self.refreshResults() }
+            }
+        }
+    }
+
+    /// A row whose provider loads in the background keeps its shortcut until
+    /// that provider has indexed the row. Closing or opening a newer bar still
+    /// cancels it through the presentation id.
+    @discardableResult
+    private func runDeferredRowShortcutIfReady(for id: UUID) -> Bool {
+        guard let key = deferredRowShortcut.key(for: id),
+              let entry = entriesByStableKey[key]
+        else { return false }
+        _ = deferredRowShortcut.take(for: id)
+        run(entry)
+        return true
+    }
+
+    private static func spotlightApplicationPaths() -> [String] {
+        let result = Shell.run(
+            "/usr/bin/mdfind",
+            ["-onlyin", NSHomeDirectory(),
+             "kMDItemContentType == 'com.apple.application-bundle'"])
+        guard result.status == 0 else { return [] }
+        return result.output.split(separator: "\n").map(String.init)
     }
 
     /// Open windows, listed away from the main thread because the walk asks
@@ -1925,22 +2162,63 @@ final class CommandBarService: ObservableObject {
     /// Centered, a bit above the middle of the screen the pointer is on:
     /// where the eye already is, and where the system's own search field
     /// puts itself. Anchored by the top edge so the list can grow and shrink
-    /// below a field that never moves.
-    private func position(_ panel: NSPanel) {
+    /// below a field that never moves. Wherever the person dragged the bar
+    /// away from that spot is added on, so the choice survives the close.
+    private func position(_ panel: NSPanel, animated: Bool = false) {
         panel.contentViewController?.view.layoutSubtreeIfNeeded()
         let size = panel.contentViewController?.view.fittingSize ?? NSSize(width: 560, height: 380)
         // Decided once, here: moving the pointer to another display while
         // typing must not clamp the panel against a screen it is not on.
         let screen = NSScreen.pointerVisibleFrame
         panelScreen = screen
-        let x = screen.midX - size.width / 2
-        let top = screen.minY + screen.height * 0.72
-        panel.setFrame(NSRect(x: max(screen.minX + 16, min(x, screen.maxX - size.width - 16)),
-                              y: max(screen.minY + 16, top - size.height),
-                              width: size.width,
-                              height: size.height),
+        let offset = positionOffset
+        let origin = CommandBarPreferences.clampedPanelOrigin(
+            size: size, in: screen, offset: offset)
+        panel.setFrame(NSRect(origin: origin, size: size),
                        display: true,
-                       animate: false)
+                       animate: animated)
+    }
+
+    /// How far the person dragged the bar from the spot it would otherwise
+    /// open on.
+    private var positionOffset: CGSize {
+        CommandBarPreferences.decodePositionOffset(
+            UserDefaults.standard.string(forKey: DefaultsKey.commandBarPositionOffset) ?? "")
+    }
+
+    // MARK: - Moving the bar
+
+    /// Clamps and saves only after the person's drag has ended. Programmatic
+    /// positioning and content-driven resizing never rewrite this preference.
+    func finishPanelDrag() {
+        guard let panel else { return }
+        let screen = panel.screen?.visibleFrame ?? panelScreen ?? NSScreen.pointerVisibleFrame
+        panelScreen = screen
+        let draggedOffset = CGSize(
+            width: panel.frame.midX - screen.midX,
+            height: panel.frame.maxY - (screen.minY + screen.height * 0.72))
+        let origin = CommandBarPreferences.clampedPanelOrigin(
+            size: panel.frame.size, in: screen, offset: draggedOffset)
+        if panel.frame.origin != origin { panel.setFrameOrigin(origin) }
+        let offset = CGSize(width: panel.frame.midX - screen.midX,
+                            height: panel.frame.maxY - (screen.minY + screen.height * 0.72))
+        let encoded = CommandBarPreferences.encodePositionOffset(offset)
+        if encoded.isEmpty {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.commandBarPositionOffset)
+        } else {
+            UserDefaults.standard.set(encoded, forKey: DefaultsKey.commandBarPositionOffset)
+        }
+        hasCustomPosition = !encoded.isEmpty
+    }
+
+    /// The way back: a double-click on the mark, or the button in Settings,
+    /// returns the bar to the spot it opens on by default, with the same
+    /// short slide it took on the way there.
+    func resetPanelPosition() {
+        UserDefaults.standard.removeObject(forKey: DefaultsKey.commandBarPositionOffset)
+        hasCustomPosition = false
+        guard let panel, panel.isVisible else { return }
+        position(panel, animated: true)
     }
 
     // MARK: - Monitors
@@ -2015,6 +2293,17 @@ final class CommandBarService: ObservableObject {
             if event.modifierFlags.contains(.command), Int(event.keyCode) == kVK_ANSI_K {
                 self.openActions()
                 return nil
+            }
+            // ⌘Return shows the selected row where it lives. Guarded by the
+            // row's own rule, so a row with nowhere to go hands the keys back
+            // and Return goes on meaning what it always did.
+            if event.modifierFlags.contains(.command),
+               Int(event.keyCode) == kVK_Return || Int(event.keyCode) == kVK_ANSI_KeypadEnter {
+                if case .search = self.mode, let entry = self.selectedEntry,
+                   entry.canRevealInFinder {
+                    self.revealInFinder(entry)
+                    return nil
+                }
             }
             if event.modifierFlags.contains(.command), Int(event.keyCode) == kVK_ANSI_P {
                 if let entry = self.selectedEntry, !entry.isAnswer,

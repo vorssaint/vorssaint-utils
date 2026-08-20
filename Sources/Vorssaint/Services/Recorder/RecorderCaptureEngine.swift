@@ -41,15 +41,21 @@ final class RecorderCaptureEngine: NSObject {
 
     private let queue = DispatchQueue(label: "com.vorssaint.recorder.capture",
                                       qos: .userInitiated)
+    private let lifecycleLock = NSLock()
+    private var lifecycle = RecorderCaptureLifecycle()
     private var stream: SCStream?
-    private var stopping = false
 
     /// The clock the stream timestamps against, so a source that is not
     /// ScreenCaptureKit (the microphone) can be lined up with the video.
-    private(set) var synchronizationClock: CMClock?
+    private var storedSynchronizationClock: CMClock?
+    var synchronizationClock: CMClock? {
+        lifecycleLock.withLock { storedSynchronizationClock }
+    }
 
     /// True while pixels are being delivered. Read from the main thread.
-    private(set) var isRunning = false
+    var isRunning: Bool {
+        lifecycleLock.withLock { lifecycle.isRunning }
+    }
 
     // MARK: - Lifecycle
 
@@ -58,8 +64,11 @@ final class RecorderCaptureEngine: NSObject {
     func start(region: RecorderSupport.Region,
                frameRate: Int,
                capturesSystemAudio: Bool,
-               excludedWindowNumbers: [Int]) async -> RecorderFailure? {
-        guard stream == nil else { return .streamFailed }
+               excludedWindowNumbers: [Int],
+               isCancelled: @escaping () -> Bool) async -> RecorderFailure? {
+        guard lifecycleLock.withLock({ self.stream == nil }), !isCancelled() else {
+            return .streamFailed
+        }
 
         let content: SCShareableContent
         do {
@@ -68,11 +77,16 @@ final class RecorderCaptureEngine: NSObject {
         } catch {
             return Self.failure(for: error)
         }
+        guard !isCancelled() else { return .streamFailed }
 
-        guard let filter = Self.filter(for: region,
-                                       in: content,
-                                       excluding: excludedWindowNumbers)
-        else { return .noContent }
+        // Keep the call and optional binding as separate type-checking targets.
+        // Older Swift compilers otherwise crash in their constraint walker when
+        // this expression sits inside the larger async start routine.
+        let preparedFilter: SCContentFilter? = Self.filter(
+            for: region,
+            in: content,
+            excluding: excludedWindowNumbers)
+        guard let filter = preparedFilter else { return .noContent }
 
         let configuration = SCStreamConfiguration()
         configuration.width = Int(region.pixelRect.width)
@@ -113,27 +127,67 @@ final class RecorderCaptureEngine: NSObject {
             if capturesSystemAudio {
                 try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
             }
+            guard !isCancelled() else { return .streamFailed }
+            let willStart = lifecycleLock.withLock { () -> Bool in
+                guard self.stream == nil, lifecycle.beginStart() else { return false }
+                self.stream = stream
+                return true
+            }
+            guard willStart else { return .streamFailed }
             try await stream.startCapture()
         } catch {
-            return Self.failure(for: error)
+            let failure = Self.failure(for: error)
+            lifecycleLock.withLock {
+                lifecycle.stop()
+                if self.stream === stream { self.stream = nil }
+                storedSynchronizationClock = nil
+            }
+            await stopAndDrain(stream)
+            return failure
         }
 
-        self.stream = stream
-        synchronizationClock = stream.synchronizationClock
-        isRunning = true
+        if isCancelled() {
+            lifecycleLock.withLock {
+                lifecycle.stop()
+                if self.stream === stream { self.stream = nil }
+                storedSynchronizationClock = nil
+            }
+            await stopAndDrain(stream)
+            return .streamFailed
+        }
+
+        let didStart = lifecycleLock.withLock { () -> Bool in
+            guard self.stream === stream, lifecycle.didStart() else { return false }
+            storedSynchronizationClock = stream.synchronizationClock
+            return true
+        }
+        guard didStart else {
+            await stopAndDrain(stream)
+            return .streamFailed
+        }
         return nil
     }
 
     /// Stops the stream and waits for it, so the writer can finish knowing no
     /// further buffer is on its way.
     func stop() async {
-        guard let stream else { return }
-        stopping = true
-        isRunning = false
-        self.stream = nil
-        synchronizationClock = nil
+        let stream = lifecycleLock.withLock { () -> SCStream? in
+            lifecycle.stop()
+            let stream = self.stream
+            self.stream = nil
+            storedSynchronizationClock = nil
+            return stream
+        }
+        if let stream { try? await stream.stopCapture() }
+        // A callback may already have passed its lifecycle check. Draining its
+        // serial queue makes it enqueue into the writer before the session's
+        // own writer barrier and finalization.
+        queue.sync {}
+    }
+
+    private func stopAndDrain(_ stream: SCStream) async {
         try? await stream.stopCapture()
-        stopping = false
+        queue.sync {}
     }
 
     // MARK: - Filter
@@ -282,7 +336,10 @@ extension RecorderCaptureEngine: SCStreamOutput {
     func stream(_ stream: SCStream,
                 didOutputSampleBuffer sampleBuffer: CMSampleBuffer,
                 of type: SCStreamOutputType) {
-        guard !stopping, CMSampleBufferIsValid(sampleBuffer) else { return }
+        guard lifecycleLock.withLock({
+            lifecycle.acceptsSamples && self.stream === stream
+        }),
+              CMSampleBufferIsValid(sampleBuffer) else { return }
         switch type {
         case .screen:
             guard Self.carriesPixels(sampleBuffer) else { return }
@@ -311,9 +368,14 @@ extension RecorderCaptureEngine: SCStreamOutput {
 
 extension RecorderCaptureEngine: SCStreamDelegate {
     func stream(_ stream: SCStream, didStopWithError error: Error) {
-        guard !stopping else { return }
-        isRunning = false
-        self.stream = nil
+        let shouldReport = lifecycleLock.withLock { () -> Bool in
+            guard lifecycle.acceptsSamples, self.stream === stream else { return false }
+            lifecycle.stop()
+            self.stream = nil
+            storedSynchronizationClock = nil
+            return true
+        }
+        guard shouldReport else { return }
         let failure = Self.failure(for: error)
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }

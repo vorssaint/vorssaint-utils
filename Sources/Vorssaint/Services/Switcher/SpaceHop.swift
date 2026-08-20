@@ -42,17 +42,14 @@ final class SpaceHop {
     private static let arrivalTimeout: TimeInterval = 1.2
 
     /// Hands the activation over to a hop when the selected window sits on a
-    /// hidden Space and Accessibility cannot resolve it (a minimized window
-    /// keeps its Accessibility element even when it came from another Space,
-    /// and stays on the regular path). Returns false when the regular
-    /// activation path should proceed.
+    /// hidden Space. Returns false when the regular activation path should
+    /// proceed.
     static func beginIfNeeded(windowID: CGWindowID,
                               appPID: pid_t,
                               windowOwnerPID: pid_t,
                               app: NSRunningApplication) -> Bool {
         guard let topology = SpaceWindowBridge.topology(),
-              SpaceWindowBridge.isParkedOnHiddenSpace(windowID, visibleSpaces: topology.visibleSpaces),
-              !WindowActivator.canResolveAXWindow(windowID: windowID, pid: windowOwnerPID)
+              SpaceWindowBridge.isParkedOnHiddenSpace(windowID, visibleSpaces: topology.visibleSpaces)
         else { return false }
         cancelPending()
         let hop = SpaceHop(windowID: windowID, appPID: appPID, windowOwnerPID: windowOwnerPID, app: app)
@@ -62,6 +59,7 @@ final class SpaceHop {
     }
 
     static func cancelPending() {
+        current?.restoreCursorIfNeeded()
         current?.cancelled = true
         current = nil
     }
@@ -72,6 +70,8 @@ final class SpaceHop {
     private let app: NSRunningApplication
     private var cancelled = false
     private var arrowPressesLeft = SpaceHopSupport.maximumArrowSteps
+    private var originalCursorLocation: CGPoint?
+    private var warpedCursorLocation: CGPoint?
 
     private init(windowID: CGWindowID, appPID: pid_t, windowOwnerPID: pid_t, app: NSRunningApplication) {
         self.windowID = windowID
@@ -121,8 +121,8 @@ final class SpaceHop {
     /// reported once its animation ends, so this waits for the outcome instead
     /// of guessing how long that takes.
     private func waitForTravel(from visibleBefore: Set<UInt64>,
-                               deadline: DispatchTime? = nil,
-                               then completion: @escaping (TravelOutcome) -> Void) {
+                                deadline: DispatchTime? = nil,
+                                then completion: @escaping (TravelOutcome) -> Void) {
         let deadline = deadline ?? .now() + Self.arrivalTimeout
         schedule(after: Self.arrivalPollInterval) {
             guard !self.cancelled else { return }
@@ -144,7 +144,19 @@ final class SpaceHop {
 
     /// The hop is over (arrived, gave up or was replaced); drop the keep-alive.
     private func finish() {
+        restoreCursorIfNeeded()
         if SpaceHop.current === self { SpaceHop.current = nil }
+    }
+
+    private func restoreCursorIfNeeded() {
+        guard let original = originalCursorLocation,
+              let warped = warpedCursorLocation else { return }
+        originalCursorLocation = nil
+        warpedCursorLocation = nil
+        if let current = CGEvent(source: nil)?.location,
+           abs(current.x - warped.x) < 2 && abs(current.y - warped.y) < 2 {
+            CGWarpMouseCursorPosition(original)
+        }
     }
 
     /// One press of the user's "move a space" shortcut toward the target,
@@ -165,7 +177,28 @@ final class SpaceHop {
                                                     visibleSpaces: topology.visibleSpaces,
                                                     target: targetSpace),
               let shortcut = SpaceWindowBridge.spaceShortcut(steps > 0 ? .right : .left)
-        else { finish(); return }
+        else {
+            // When system Spaces shortcuts are disabled, try direct Accessibility activation as fallback
+            focusOnArrival()
+            return
+        }
+        if topology.displays.count > 1,
+           let targetDisplay = topology.displays.first(where: { $0.spaces.contains(targetSpace) }),
+           let displayID = targetDisplay.displayID {
+            let bounds = CGDisplayBounds(displayID)
+            let currentMouse = NSEvent.mouseLocation
+            let screenFrame = NSScreen.screens.first(where: {
+                (($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value) == displayID
+            })?.frame
+            if let screenFrame, !screenFrame.contains(currentMouse) {
+                if originalCursorLocation == nil {
+                    originalCursorLocation = CGEvent(source: nil)?.location
+                }
+                let targetPoint = CGPoint(x: bounds.midX, y: bounds.midY)
+                warpedCursorLocation = targetPoint
+                CGWarpMouseCursorPosition(targetPoint)
+            }
+        }
         let visibleBefore = topology.visibleSpaces
         SpaceWindowBridge.pressSpaceShortcut(shortcut)
         waitForTravel(from: visibleBefore) { outcome in

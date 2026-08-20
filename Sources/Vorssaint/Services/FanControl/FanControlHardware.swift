@@ -81,8 +81,10 @@ final class FanControlHardware {
             throw FanControlHardwareError.alreadyControlled
         }
 
+        // Keep the target write adjacent to manual mode. The thermal controller
+        // can reclaim automatic mode between a separate verification and target.
         var directSucceeded = true
-        for fan in fans where !setMode(1, for: fan, attempts: 1) {
+        for fan in fans where !writeManualMaximumPair(for: fan) {
             directSucceeded = false
         }
 
@@ -102,9 +104,11 @@ final class FanControlHardware {
             }
         }
 
-        for fan in fans {
-            guard setValue(fan.maximumRPM, for: fan.target, attempts: 10) else {
-                throw FanControlHardwareError.operationFailed
+        if !directSucceeded {
+            for fan in fans {
+                guard setValue(fan.maximumRPM, for: fan.target, attempts: 10) else {
+                    throw FanControlHardwareError.operationFailed
+                }
             }
         }
         guard verifyMaximumCooling(fans) else {
@@ -274,6 +278,16 @@ final class FanControlHardware {
     private func setMode(_ value: UInt8, for fan: Fan, attempts: Int) -> Bool {
         guard setByte(value, for: fan.mode, attempts: attempts) else { return false }
         return (try? modeValue(fan.mode)) == value
+    }
+
+    private func writeManualMaximumPair(for fan: Fan) -> Bool {
+        do {
+            try client.writeBytes([1], to: fan.mode)
+            try client.writeValue(fan.maximumRPM, to: fan.target)
+            return true
+        } catch {
+            return false
+        }
     }
 
     private func setMode(_ value: UInt8, for fan: Fan, untilUptime deadline: TimeInterval) -> Bool {

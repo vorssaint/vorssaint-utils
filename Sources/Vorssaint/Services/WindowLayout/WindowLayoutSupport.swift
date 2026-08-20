@@ -4,13 +4,20 @@
 import CoreGraphics
 import Foundation
 
+enum WindowLayoutTargetCapability: Equatable {
+    case position
+    case frame
+    case fullScreen
+}
+
 enum WindowLayoutAction: String, CaseIterable, Identifiable {
     case leftHalf, rightHalf, topHalf, bottomHalf
     case leftThird, centerThird, rightThird, leftTwoThirds, rightTwoThirds
     case topLeftSixth, topCenterSixth, topRightSixth
     case bottomLeftSixth, bottomCenterSixth, bottomRightSixth
     case topLeft, topRight, bottomLeft, bottomRight
-    case maximize, marginMaximize, fullScreen, center, previousDisplay, nextDisplay, restore
+    case maximize, marginMaximize, fullScreen, center
+    case previousDisplay, nextDisplay, restore
 
     var id: String { rawValue }
 
@@ -20,11 +27,23 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         .topLeftSixth, .topCenterSixth, .topRightSixth,
         .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
         .topLeft, .topRight, .bottomLeft, .bottomRight,
-        .maximize, .marginMaximize, .fullScreen, .center, .restore, .previousDisplay, .nextDisplay,
+        .maximize, .marginMaximize, .fullScreen, .center, .restore,
+        .previousDisplay, .nextDisplay,
     ]
 
     var supportsShortcut: Bool {
         Self.shortcutActions.contains(self)
+    }
+
+    var targetCapability: WindowLayoutTargetCapability {
+        switch self {
+        case .center, .restore:
+            return .position
+        case .fullScreen:
+            return .fullScreen
+        default:
+            return .frame
+        }
     }
 
     var shortcutID: UInt32 {

@@ -33,6 +33,8 @@ struct ScratchpadFeatureStrings {
     let cancel: String
     let deletePadMessageFormat: String
     let padLimitFormat: String
+    let previewFormatting: String
+    let editText: String
 }
 
 extension FeatureStrings {
@@ -84,7 +86,9 @@ extension ScratchpadFeatureStrings {
         saveName: "Save",
         cancel: "Cancel",
         deletePadMessageFormat: "Delete “%@” and everything in it?",
-        padLimitFormat: "You can keep up to %d scratchpads"
+        padLimitFormat: "You can keep up to %d scratchpads",
+        previewFormatting: "Show formatting",
+        editText: "Edit text"
     )
 
     static let ptBR = ScratchpadFeatureStrings(
@@ -115,7 +119,9 @@ extension ScratchpadFeatureStrings {
         saveName: "Salvar",
         cancel: "Cancelar",
         deletePadMessageFormat: "Apagar “%@” e todo o conteúdo?",
-        padLimitFormat: "Você pode manter até %d rascunhos"
+        padLimitFormat: "Você pode manter até %d rascunhos",
+        previewFormatting: "Ver formatação",
+        editText: "Editar texto"
     )
 
     static let tr = ScratchpadFeatureStrings(
@@ -146,7 +152,9 @@ extension ScratchpadFeatureStrings {
         saveName: "Kaydet",
         cancel: "Vazgeç",
         deletePadMessageFormat: "“%@” ve içindeki her şey silinsin mi?",
-        padLimitFormat: "%d adede kadar karalama defteri tutabilirsiniz"
+        padLimitFormat: "%d adede kadar karalama defteri tutabilirsiniz",
+        previewFormatting: "Biçimlendirmeyi göster",
+        editText: "Metni düzenle"
     )
 
     static let ru = ScratchpadFeatureStrings(
@@ -177,7 +185,9 @@ extension ScratchpadFeatureStrings {
         saveName: "Сохранить",
         cancel: "Отмена",
         deletePadMessageFormat: "Удалить «%@» вместе со всем содержимым?",
-        padLimitFormat: "Можно хранить до %d черновиков"
+        padLimitFormat: "Можно хранить до %d черновиков",
+        previewFormatting: "Показать форматирование",
+        editText: "Редактировать текст"
     )
 
     static let es = ScratchpadFeatureStrings(
@@ -208,7 +218,9 @@ extension ScratchpadFeatureStrings {
         saveName: "Guardar",
         cancel: "Cancelar",
         deletePadMessageFormat: "¿Eliminar «%@» y todo su contenido?",
-        padLimitFormat: "Puedes guardar hasta %d borradores"
+        padLimitFormat: "Puedes guardar hasta %d borradores",
+        previewFormatting: "Ver formato",
+        editText: "Editar texto"
     )
 
     static let de = ScratchpadFeatureStrings(
@@ -239,7 +251,9 @@ extension ScratchpadFeatureStrings {
         saveName: "Sichern",
         cancel: "Abbrechen",
         deletePadMessageFormat: "„%@“ und den gesamten Inhalt löschen?",
-        padLimitFormat: "Du kannst bis zu %d Schmierzettel behalten"
+        padLimitFormat: "Du kannst bis zu %d Schmierzettel behalten",
+        previewFormatting: "Formatierung zeigen",
+        editText: "Text bearbeiten"
     )
 
     static let fr = ScratchpadFeatureStrings(
@@ -270,7 +284,9 @@ extension ScratchpadFeatureStrings {
         saveName: "Enregistrer",
         cancel: "Annuler",
         deletePadMessageFormat: "Supprimer « %@ » et tout son contenu ?",
-        padLimitFormat: "Vous pouvez conserver jusqu’à %d brouillons"
+        padLimitFormat: "Vous pouvez conserver jusqu’à %d brouillons",
+        previewFormatting: "Afficher la mise en forme",
+        editText: "Modifier le texte"
     )
 
     static let it = ScratchpadFeatureStrings(
@@ -301,7 +317,9 @@ extension ScratchpadFeatureStrings {
         saveName: "Salva",
         cancel: "Annulla",
         deletePadMessageFormat: "Eliminare “%@” e tutto il contenuto?",
-        padLimitFormat: "Puoi conservare fino a %d bozze"
+        padLimitFormat: "Puoi conservare fino a %d bozze",
+        previewFormatting: "Mostra formattazione",
+        editText: "Modifica testo"
     )
 
     static let ja = ScratchpadFeatureStrings(
@@ -332,7 +350,9 @@ extension ScratchpadFeatureStrings {
         saveName: "保存",
         cancel: "キャンセル",
         deletePadMessageFormat: "「%@」とその内容をすべて削除しますか？",
-        padLimitFormat: "クイックメモは最大%d個まで作成できます"
+        padLimitFormat: "クイックメモは最大%d個まで作成できます",
+        previewFormatting: "書式を表示",
+        editText: "テキストを編集"
     )
 
     static let ko = ScratchpadFeatureStrings(
@@ -363,7 +383,9 @@ extension ScratchpadFeatureStrings {
         saveName: "저장",
         cancel: "취소",
         deletePadMessageFormat: "“%@” 및 모든 내용을 삭제할까요?",
-        padLimitFormat: "빠른 메모는 최대 %d개까지 만들 수 있습니다"
+        padLimitFormat: "빠른 메모는 최대 %d개까지 만들 수 있습니다",
+        previewFormatting: "서식 보기",
+        editText: "텍스트 편집"
     )
 
     static let zhHans = ScratchpadFeatureStrings(
@@ -394,7 +416,9 @@ extension ScratchpadFeatureStrings {
         saveName: "存储",
         cancel: "取消",
         deletePadMessageFormat: "删除“%@”及其中的全部内容？",
-        padLimitFormat: "最多可保留 %d 个草稿板"
+        padLimitFormat: "最多可保留 %d 个草稿板",
+        previewFormatting: "显示格式",
+        editText: "编辑文本"
     )
 
     static let zhTW = ScratchpadFeatureStrings(
@@ -425,7 +449,9 @@ extension ScratchpadFeatureStrings {
         saveName: "儲存",
         cancel: "取消",
         deletePadMessageFormat: "刪除「%@」和其中的所有內容？",
-        padLimitFormat: "最多可保留 %d 個草稿板"
+        padLimitFormat: "最多可保留 %d 個草稿板",
+        previewFormatting: "顯示格式",
+        editText: "編輯文字"
     )
 
     static let zhHK = ScratchpadFeatureStrings(
@@ -456,6 +482,8 @@ extension ScratchpadFeatureStrings {
         saveName: "儲存",
         cancel: "取消",
         deletePadMessageFormat: "刪除「%@」及當中的所有內容？",
-        padLimitFormat: "最多可保留 %d 個草稿板"
+        padLimitFormat: "最多可保留 %d 個草稿板",
+        previewFormatting: "顯示格式",
+        editText: "編輯文字"
     )
 }
