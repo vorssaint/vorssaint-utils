@@ -237,7 +237,11 @@ final class DockClickService {
                                              minimizeEnabled: minimizeEnabled,
                                              hideEnabled: hideEnabled,
                                              cycleWindowsEnabled: cycleEnabled,
-                                             unminimizedWindowCount: windows.unminimized.count)
+                                             unminimizedWindowCount: windows.unminimized.count,
+                                             // Set when this feature minimized the app and
+                                             // consumed on restore, so it stands for "we put
+                                             // these away and have not brought them back".
+                                             ownsMinimize: minimizeZOrder[pid] != nil)
         }
 
         // Handled clicks are swallowed (or the Dock would fight us:
