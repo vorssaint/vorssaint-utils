@@ -56,6 +56,9 @@ final class SuperKeyService: ObservableObject {
     /// The mapping is written off the main thread, and in the order it was
     /// asked for: a queue of one keeps an apply and a clear from crossing.
     private let mappingQueue = DispatchQueue(label: "com.vorssaint.utils.superkey-mapping")
+    /// System Events can block while switching sources, so quick taps stay off
+    /// the main thread and in order.
+    private let inputSourceQueue = DispatchQueue(label: "com.vorssaint.utils.superkey-input-source")
     /// When the last mapping went in, so a keyboard that arrives without one
     /// is repaired once and not on every keystroke.
     private var lastMappingAt: TimeInterval = 0
@@ -471,8 +474,15 @@ final class SuperKeyService: ObservableObject {
             let modifierFlags = stateLock.withLock { eventModifiers.cgFlags }
             event.flags = event.flags.union(modifierFlags)
             return Unmanaged.passUnretained(event)
-        case .soloTap:
-            DispatchQueue.main.async { [weak self] in self?.performSoloAction() }
+        case .soloTap(repeated: let repeated):
+            DispatchQueue.main.async {
+                [weak self] in self?.performSoloAction(longHold: false, repeated: repeated)
+            }
+            return nil
+        case .soloHold(repeated: let repeated):
+            DispatchQueue.main.async {
+                [weak self] in self?.performSoloAction(longHold: true, repeated: repeated)
+            }
             return nil
         case .interceptAndRemap:
             repairMappingIfStale()
@@ -530,22 +540,34 @@ final class SuperKeyService: ObservableObject {
         }
         guard keyCode == SuperKeySupport.triggerKeyCode else { return .otherKey }
         if type == .keyDown {
-            return .triggerDown(isRepeat: event.getIntegerValueField(.keyboardEventAutorepeat) != 0)
+            return .triggerDown(
+                isRepeat: event.getIntegerValueField(.keyboardEventAutorepeat) != 0,
+                hasPrimaryModifiers: !GlobalShortcutModifiers(cgFlags: event.flags).isEmpty,
+                timestamp: UInt64(event.timestamp)
+            )
         }
-        return .triggerUp
+        return .triggerUp(timestamp: UInt64(event.timestamp))
     }
 
     // MARK: - Tapped on its own
 
-    private func performSoloAction() {
+    private func performSoloAction(longHold: Bool, repeated: Bool) {
         let action = stateLock.withLock { soloAction }
         switch action {
         case .none:
             return
         case .escape:
+            guard !repeated else { return }
             postEscape()
         case .capsLock:
+            guard !repeated else { return }
             setCapsLock(!capsLockIsOn())
+        case .inputSource:
+            if longHold {
+                setCapsLock(!capsLockIsOn())
+            } else {
+                switchInputSource()
+            }
         }
     }
 
@@ -555,6 +577,14 @@ final class SuperKeyService: ObservableObject {
               let up = CGEvent(keyboardEventSource: source, virtualKey: 53, keyDown: false) else { return }
         down.post(tap: .cgSessionEventTap)
         up.post(tap: .cgSessionEventTap)
+    }
+
+    private func switchInputSource() {
+        inputSourceQueue.async {
+            _ = AppleScriptRunner.run(
+                "tell application \"System Events\" to key code 49 using control down"
+            )
+        }
     }
 
     // MARK: - Caps Lock itself

@@ -9542,7 +9542,7 @@ struct MetricsTests {
                    "every Settings category name is set for \(language.rawValue)")
             let superKeyValues = Mirror(reflecting: FeatureStrings.superKey(language)).children
                 .compactMap { $0.value as? String }
-            expect(superKeyValues.count == 14 && superKeyValues.allSatisfy { !$0.isEmpty },
+            expect(superKeyValues.count == 15 && superKeyValues.allSatisfy { !$0.isEmpty },
                    "every super key string is set for \(language.rawValue)")
             expect(superKeyValues.allSatisfy { !$0.contains("—") }
                     && FeatureStrings.superKey(language).panelCaptionFormat.contains("%@"),
@@ -12095,6 +12095,7 @@ struct MetricsTests {
                "the page leaves the sidebar when the feature is off in the hub")
         expect(SuperKeySoloAction.sanitized("escape") == .escape
                 && SuperKeySoloAction.sanitized("capsLock") == .capsLock
+                && SuperKeySoloAction.sanitized("inputSource") == .inputSource
                 && SuperKeySoloAction.sanitized("nonsense") == SuperKeySoloAction.none
                 && SuperKeySoloAction.sanitized(nil) == SuperKeySoloAction.none,
                "a stored solo action is trusted only when the app still knows it")
@@ -12288,43 +12289,109 @@ struct MetricsTests {
         var superKeyState = SuperKeySupport.State()
         expect(superKeyState.decide(.otherKey) == .pass,
                "with the key up, typing is untouched")
-        expect(superKeyState.decide(.triggerDown(isRepeat: false)) == .swallow,
+        expect(superKeyState.decide(.triggerDown(
+            isRepeat: false, hasPrimaryModifiers: false, timestamp: 0
+        )) == .swallow,
                "the key itself never reaches an app")
         expect(superKeyState.isHeld
                 && superKeyState.decide(.otherKey) == .addModifiers
                 && superKeyState.decide(.otherKey) == .addModifiers,
                "every key pressed while it is held carries the configured modifiers")
-        expect(superKeyState.decide(.triggerUp) == .swallow && !superKeyState.isHeld,
+        expect(superKeyState.decide(.triggerUp(timestamp: 1)) == .swallow && !superKeyState.isHeld,
                "releasing after a combination does nothing on its own")
 
         // What the watchdog leans on: a press whose release never arrived is
         // let go of, and typing goes back to normal without the key being
         // touched again.
         var lostReleaseState = SuperKeySupport.State()
-        _ = lostReleaseState.decide(.triggerDown(isRepeat: false))
+        _ = lostReleaseState.decide(.triggerDown(
+            isRepeat: false, hasPrimaryModifiers: false, timestamp: 0
+        ))
         expect(lostReleaseState.decide(.otherKey) == .addModifiers,
                "a press with no release still carries the modifiers while it stands")
         lostReleaseState.reset()
         expect(lostReleaseState.decide(.otherKey) == .pass,
                "letting go of a press whose release was lost gives typing back")
-        expect(lostReleaseState.decide(.triggerUp) == .swallow,
+        expect(lostReleaseState.decide(.triggerUp(timestamp: 1)) == .swallow,
                "a release arriving after the press was let go does nothing")
 
         var soloState = SuperKeySupport.State()
-        _ = soloState.decide(.triggerDown(isRepeat: false))
-        expect(soloState.decide(.triggerUp) == .soloTap,
-               "a tap with nothing else is the solo tap")
-        _ = soloState.decide(.triggerDown(isRepeat: false))
-        expect(soloState.decide(.triggerDown(isRepeat: true)) == .swallow
-                && soloState.decide(.triggerUp) == .swallow,
-               "holding the key long enough to repeat is not a tap")
-        _ = soloState.decide(.triggerDown(isRepeat: false))
+        _ = soloState.decide(.triggerDown(
+            isRepeat: false, hasPrimaryModifiers: false, timestamp: 1_000_000_000
+        ))
+        expect(soloState.decide(.triggerUp(timestamp: 1_499_999_999)) == .soloTap(repeated: false),
+               "a quick no-repeat press is the solo tap")
+        _ = soloState.decide(.triggerDown(
+            isRepeat: false, hasPrimaryModifiers: false, timestamp: 2_000_000_000
+        ))
+        expect(soloState.decide(.triggerDown(
+            isRepeat: true, hasPrimaryModifiers: false, timestamp: 2_100_000_000
+        )) == .swallow
+                && soloState.decide(.triggerUp(timestamp: 2_500_000_000)) == .soloHold(repeated: true),
+               "a repeated press held long enough is a repeated solo hold")
+        _ = soloState.decide(.triggerDown(
+            isRepeat: false, hasPrimaryModifiers: false, timestamp: 3_000_000_000
+        ))
         _ = soloState.decide(.otherModifier)
-        expect(soloState.decide(.triggerUp) == .swallow,
+        expect(soloState.decide(.triggerUp(timestamp: 4_000_000_000)) == .swallow,
                "holding it together with another modifier is not a tap either")
 
+        var noRepeatHoldState = SuperKeySupport.State()
+        _ = noRepeatHoldState.decide(.triggerDown(
+            isRepeat: false, hasPrimaryModifiers: false, timestamp: 6_000_000_000
+        ))
+        expect(noRepeatHoldState.decide(.triggerUp(timestamp: 6_500_000_000)) == .soloHold(repeated: false),
+               "a no-repeat press at the hold threshold is a solo hold")
+
+        var fastRepeatState = SuperKeySupport.State()
+        _ = fastRepeatState.decide(.triggerDown(
+            isRepeat: false, hasPrimaryModifiers: false, timestamp: 8_000_000_000
+        ))
+        expect(fastRepeatState.decide(.triggerDown(
+            isRepeat: true, hasPrimaryModifiers: false, timestamp: 8_100_000_000
+        )) == .swallow
+                && fastRepeatState.decide(.triggerUp(timestamp: 8_499_999_999)) == .soloTap(repeated: true),
+               "a fast repeat remains a quick press and records the repeat")
+
+        var preheldModifierState = SuperKeySupport.State()
+        _ = preheldModifierState.decide(.triggerDown(
+            isRepeat: false, hasPrimaryModifiers: true, timestamp: 7_000_000_000
+        ))
+        expect(preheldModifierState.isHeld
+                && !preheldModifierState.isAlone
+                && preheldModifierState.decide(.triggerUp(timestamp: 7_500_000_000)) == .swallow,
+               "a pre-held modifier cancels solo action while keeping Superkey held")
+
+        var resetSoloState = SuperKeySupport.State()
+        _ = resetSoloState.decide(.triggerDown(
+            isRepeat: false, hasPrimaryModifiers: false, timestamp: 0
+        ))
+        _ = resetSoloState.decide(.triggerDown(
+            isRepeat: true, hasPrimaryModifiers: false, timestamp: 1
+        ))
+        resetSoloState.reset()
+        _ = resetSoloState.decide(.triggerDown(
+            isRepeat: false, hasPrimaryModifiers: false, timestamp: 5_000_000_000
+        ))
+        expect(resetSoloState.decide(.triggerUp(timestamp: 5_499_999_999)) == .soloTap(repeated: false),
+               "reset clears the previous press timestamp and repeat state")
+
+        var lateRepeatState = SuperKeySupport.State()
+        _ = lateRepeatState.decide(.triggerDown(
+            isRepeat: false, hasPrimaryModifiers: false, timestamp: 0
+        ))
+        lateRepeatState.reset()
+        expect(lateRepeatState.decide(.triggerDown(
+            isRepeat: true, hasPrimaryModifiers: false, timestamp: 1_000_000_000
+        )) == .swallow
+                && !lateRepeatState.isHeld
+                && lateRepeatState.decide(.triggerUp(timestamp: 1_500_000_000)) == .swallow,
+               "a repeat after reset cannot revive a solo press")
+
         var strandedState = SuperKeySupport.State()
-        _ = strandedState.decide(.triggerDown(isRepeat: false))
+        _ = strandedState.decide(.triggerDown(
+            isRepeat: false, hasPrimaryModifiers: false, timestamp: 0
+        ))
         strandedState.reset()
         expect(strandedState.decide(.otherKey) == .pass,
                "a key held while the tap goes away cannot leave typing stuck in modifiers")
