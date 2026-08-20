@@ -3,7 +3,6 @@
 
 import AppKit
 import ApplicationServices
-import Carbon.HIToolbox
 
 /// Pastes the clipboard as plain text on a global shortcut: strips fonts,
 /// colors and links, pastes, and quietly puts the original rich content back
@@ -81,7 +80,7 @@ final class PastePlainService: ObservableObject {
         if let pending = pendingRestore, pasteboard.changeCount == pending.plainChangeCount {
             snapshot = pending.snapshot
         } else {
-            snapshot = Self.snapshot(of: pasteboard)
+            snapshot = SyntheticPasteSupport.snapshot(of: pasteboard)
         }
         restoreWork?.cancel()
         restoreWork = nil
@@ -124,29 +123,22 @@ final class PastePlainService: ObservableObject {
     /// read clean matters: posted right on the release, the target app can
     /// still see the stale modifier state and refuse the key equivalent.
     private func postPasteWhenModifiersReleased(attempt: Int, completion: @escaping () -> Void) {
-        let held = CGEventSource.flagsState(.combinedSessionState)
-            .intersection([.maskCommand, .maskAlternate, .maskShift, .maskControl])
-        if held.isEmpty || attempt >= 100 {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
-                let shortcut = GlobalShortcut.saved(for: DefaultsKey.pastePlainShortcut,
-                                                    fallback: .pastePlainDefault)
-                let mustReleaseHotkey = shortcut.isStandardPasteCommand
-                if mustReleaseHotkey {
-                    // Otherwise our global ⌘V catches the synthetic ⌘V below,
-                    // so the target app never receives a paste command.
-                    self.hotkey.unregister()
-                }
-                Self.postPasteShortcut {
-                    if mustReleaseHotkey {
-                        self.syncWithPreferences()
-                    }
-                    completion()
-                }
+        SyntheticPasteSupport.waitForCleanModifiers(attempt: attempt) { [weak self] in
+            guard let self else { completion(); return }
+            let shortcut = GlobalShortcut.saved(for: DefaultsKey.pastePlainShortcut,
+                                                fallback: .pastePlainDefault)
+            let mustReleaseHotkey = shortcut.isStandardPasteCommand
+            if mustReleaseHotkey {
+                // Otherwise our global ⌘V catches the synthetic ⌘V below,
+                // so the target app never receives a paste command.
+                self.hotkey.unregister()
             }
-            return
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) { [weak self] in
-            self?.postPasteWhenModifiersReleased(attempt: attempt + 1, completion: completion)
+            SyntheticPasteSupport.postCmdV {
+                if mustReleaseHotkey {
+                    self.syncWithPreferences()
+                }
+                completion()
+            }
         }
     }
 
@@ -234,45 +226,5 @@ final class PastePlainService: ObservableObject {
             return attributed.string
         }
         return nil
-    }
-
-    private static func snapshot(of pasteboard: NSPasteboard) -> [NSPasteboardItem] {
-        (pasteboard.pasteboardItems ?? []).map { item in
-            let copy = NSPasteboardItem()
-            for type in item.types {
-                if let data = item.data(forType: type) {
-                    copy.setData(data, forType: type)
-                }
-            }
-            return copy
-        }
-    }
-
-    private static func postPasteShortcut(completion: @escaping () -> Void) {
-        // No explicit event source: an event tied to the HID state inherits
-        // whatever the hardware still reports, and right after the shortcut's
-        // own keys that can re-poison the flags this method just waited out.
-        guard let keyDown = CGEvent(keyboardEventSource: nil,
-                                    virtualKey: CGKeyCode(kVK_ANSI_V),
-                                    keyDown: true),
-              let keyUp = CGEvent(keyboardEventSource: nil,
-                                  virtualKey: CGKeyCode(kVK_ANSI_V),
-                                  keyDown: false)
-        else {
-            completion()
-            return
-        }
-        keyDown.flags = .maskCommand
-        keyUp.flags = .maskCommand
-        // No keyboardSetUnicodeString here: a forced character string on the
-        // event breaks menu key equivalent dispatch (verified empirically),
-        // which is exactly the ⌘V we are trying to trigger.
-        keyDown.post(tap: .cghidEventTap)
-        // A beat between down and up mirrors a real key press; some apps skip
-        // equivalents delivered as a zero-length tap.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
-            keyUp.post(tap: .cghidEventTap)
-            completion()
-        }
     }
 }
