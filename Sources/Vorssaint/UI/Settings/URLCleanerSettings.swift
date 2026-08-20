@@ -36,6 +36,8 @@ struct URLCleanerSettings: View {
 
             Section(l10n.s.urlCleanerCustomTitle) {
                 TextField(l10n.s.urlCleanerCustomPlaceholder, text: $customParameters)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel(l10n.s.urlCleanerCustomTitle)
                 Text(l10n.s.urlCleanerCustomCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -44,6 +46,8 @@ struct URLCleanerSettings: View {
             Section(l10n.s.urlCleanerManualTitle) {
                 HStack(spacing: 8) {
                     TextField(l10n.s.urlCleanerInputPlaceholder, text: $input)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel(l10n.s.urlCleanerInputPlaceholder)
                     Button {
                         clearInput()
                     } label: {
