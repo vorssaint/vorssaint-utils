@@ -213,15 +213,8 @@ final class ShelfService: ObservableObject {
     /// Application Support/<bundle id>/ShelfFiles. They used to live in the
     /// system temp dir, but persistent items cannot (the OS, or our own
     /// startup sweep, could delete them at any point).
-    private static let storeDirectory: URL? = {
-        guard let base = FileManager.default.urls(for: .applicationSupportDirectory,
-                                                  in: .userDomainMask).first,
-              let bundleID = Bundle.main.bundleIdentifier
-        else { return nil }
-        return base
-            .appendingPathComponent(bundleID, isDirectory: true)
-            .appendingPathComponent("ShelfFiles", isDirectory: true)
-    }()
+    private static let storeDirectory: URL? = PrivateFileStore.containerURL?
+        .appendingPathComponent("ShelfFiles", isDirectory: true)
 
     /// Writes coalesce per mutation cycle already; the JSON encode itself
     /// also stays off the main thread (a full shelf of large texts is real
@@ -1418,17 +1411,13 @@ final class ShelfService: ObservableObject {
     private func storePayloadData(_ data: Data, fileExtension: String) -> URL? {
         let directory: URL
         if let store = Self.storeDirectory {
-            try? FileManager.default.createDirectory(at: store, withIntermediateDirectories: true)
+            PrivateFileStore.createDirectory(at: store)
             directory = store
         } else {
             directory = tempDir
         }
         let url = directory.appendingPathComponent("\(UUID().uuidString).\(fileExtension)")
-        do {
-            try data.write(to: url, options: .atomic)
-        } catch {
-            return nil
-        }
+        guard PrivateFileStore.write(data, to: url) else { return nil }
         return url
     }
 

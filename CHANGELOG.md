@@ -46,6 +46,10 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Ki
   @PathGao.
 - App Switcher window preview warm-up no longer crashes right after startup when
   the system returns duplicate window identifiers. Thanks to @james-rose.
+- Clipboard history, its copied images, shelf files, recordings and temporary share
+  records are now stored so only your own account can read them. Folders an earlier
+  version left readable by other accounts on the Mac are corrected on the next
+  write. Thanks to @ThomasWaldmann.
 
 ## [3.3.2] - 2026-08-20
 
