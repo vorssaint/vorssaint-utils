@@ -515,6 +515,13 @@ extension Strings {
         breakdownMeasuring: "Midiendo…",
 
         mixerSection: "Mezclador de volumen",
+        audioRecoveryTitle: "Reiniciar Core Audio",
+        audioRecoveryCaption: "Reinicia el servicio de audio de macOS cuando el sonido cruje, se entrecorta o desaparece.",
+        audioRecoveryButton: "Reiniciar audio",
+        audioRecoveryResetting: "Reiniciando…",
+        audioRecoverySuccess: "Core Audio reiniciado.",
+        audioRecoveryFailure: "No se pudo reiniciar Core Audio.",
+        audioRecoveryAdminPrompt: "Vorssaint reiniciará Core Audio de macOS para recuperar el sonido. Puede requerirse la contraseña de administrador.",
         mixerEmpty: "Las apps que usan audio aparecen aquí",
         mixerUnavailable: "Disponible en macOS 14.4 y posteriores",
         mixerPermissionBody: "Para ajustar el volumen por app, permite «Grabación de pantalla y audio del sistema» en Ajustes del Sistema. El audio nunca se graba.",

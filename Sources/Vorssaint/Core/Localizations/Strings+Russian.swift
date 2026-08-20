@@ -516,6 +516,13 @@ extension Strings {
         breakdownMeasuring: "Измерение…",
 
         mixerSection: "Микшер громкости",
+        audioRecoveryTitle: "Перезапустить Core Audio",
+        audioRecoveryCaption: "Перезапускает аудиослужбу macOS, если звук трещит, прерывается или пропал.",
+        audioRecoveryButton: "Перезапустить звук",
+        audioRecoveryResetting: "Перезапуск…",
+        audioRecoverySuccess: "Core Audio перезапущен.",
+        audioRecoveryFailure: "Не удалось перезапустить Core Audio.",
+        audioRecoveryAdminPrompt: "Vorssaint перезапустит Core Audio macOS для восстановления звука. Может потребоваться пароль администратора.",
         mixerEmpty: "Здесь появятся приложения, которые воспроизводят звук",
         mixerUnavailable: "Доступно в macOS 14.4 и новее",
         mixerPermissionBody: "Чтобы регулировать громкость по приложениям, разрешите «Запись экрана и системного аудио» в Системных настройках. Аудио никогда не записывается.",

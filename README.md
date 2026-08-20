@@ -79,6 +79,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Per app output.** Send your music to the speakers and a call to your headset at the same time.
 - **Output switcher.** Cycle between chosen outputs with one shortcut, and drop the volume automatically when headphones disconnect.
 - **Microphone tools.** Pin your favorite input so the Mac stops guessing, and mute every microphone at once with a click or shortcut, whichever one an app is using.
+- **Audio recovery.** Restart macOS Core Audio with one click when sound crackles, stutters or disappears. Vorssaint asks for administrator access only when you use it and stores no credentials.
 - **Music app blocker.** Stops the Music app from bursting in when headphones connect.
 
 ### Know what your Mac is doing
