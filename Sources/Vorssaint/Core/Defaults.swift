@@ -448,6 +448,7 @@ enum DefaultsKey {
     static let screenshotShortcutEnabled = "screenshotShortcutEnabled"
     static let screenshotShortcut = "screenshotShortcut"
     static let unifiedScreenCaptureShortcutMigrated = "unifiedScreenCaptureShortcutMigrated"
+    static let restoredScreenCaptureShortcutsMigrated = "restoredScreenCaptureShortcutsMigrated"
     static let screenshotFullScreenShortcutEnabled = "screenshotFullScreenShortcutEnabled"
     static let screenshotFullScreenShortcut = "screenshotFullScreenShortcut"
     static let screenshotLastCaptureShortcutEnabled = "screenshotLastCaptureShortcutEnabled"
@@ -1110,6 +1111,7 @@ enum Defaults {
         DefaultsKey.screenshotShortcutEnabled: false,
         DefaultsKey.screenshotShortcut: GlobalShortcut.screenshotDefault.storageValue,
         DefaultsKey.unifiedScreenCaptureShortcutMigrated: false,
+        DefaultsKey.restoredScreenCaptureShortcutsMigrated: false,
         DefaultsKey.screenshotFullScreenShortcutEnabled: false,
         DefaultsKey.screenshotFullScreenShortcut: GlobalShortcut.screenshotFullScreenDefault.storageValue,
         DefaultsKey.screenshotLastCaptureShortcutEnabled: false,
@@ -1188,6 +1190,7 @@ enum Defaults {
         migrateUtilityOrderForAppUpdates(in: defaults)
         migrateScreenshotOpenEditorDirectly(in: defaults)
         migrateUnifiedScreenCaptureShortcut(in: defaults)
+        migrateRestoredScreenCaptureShortcuts(in: defaults)
         migrateSilentHeadphonesDisconnectVolume(in: defaults)
         migrateSwitcherWindowlessFinder(in: defaults)
     }
@@ -1271,6 +1274,32 @@ enum Defaults {
         let shortcut = defaults.string(forKey: choice.shortcut) ?? choice.fallback.storageValue
         defaults.set(true, forKey: DefaultsKey.screenshotShortcutEnabled)
         defaults.set(shortcut, forKey: DefaultsKey.screenshotShortcut)
+    }
+
+    /// The unified-capture migration copied an enabled dedicated shortcut to
+    /// the general capture role. Now that dedicated shortcuts are back, keep
+    /// the original role instead of registering the same combination twice.
+    static func migrateRestoredScreenCaptureShortcuts(in defaults: UserDefaults) {
+        guard !defaults.bool(forKey: DefaultsKey.restoredScreenCaptureShortcutsMigrated) else {
+            return
+        }
+        defer {
+            defaults.set(true, forKey: DefaultsKey.restoredScreenCaptureShortcutsMigrated)
+        }
+        guard defaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled),
+              let generalShortcut = defaults.string(forKey: DefaultsKey.screenshotShortcut)
+        else { return }
+
+        let dedicatedKeys = [
+            (DefaultsKey.recorderShortcutEnabled, DefaultsKey.recorderShortcut),
+            (DefaultsKey.screenOCRShortcutEnabled, DefaultsKey.screenOCRShortcut),
+            (DefaultsKey.colorPickerShortcutEnabled, DefaultsKey.colorPickerShortcut),
+        ]
+        guard dedicatedKeys.contains(where: { enabledKey, shortcutKey in
+            defaults.bool(forKey: enabledKey)
+                && defaults.string(forKey: shortcutKey) == generalShortcut
+        }) else { return }
+        defaults.set(false, forKey: DefaultsKey.screenshotShortcutEnabled)
     }
 
     static func migrateLegacySwitcherWindowShortcut(in defaults: UserDefaults) {

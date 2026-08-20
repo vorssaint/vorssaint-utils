@@ -48,8 +48,6 @@ enum ScreenCaptureTool: String, CaseIterable {
     struct DedicatedShortcut {
         let role: GlobalShortcutRole
         let enabledKey: String
-        let storageKey: String
-        let fallback: GlobalShortcut
     }
 
     var dedicatedShortcut: DedicatedShortcut? {
@@ -58,19 +56,13 @@ enum ScreenCaptureTool: String, CaseIterable {
             return nil
         case .recording:
             return DedicatedShortcut(role: .screenRecorder,
-                                     enabledKey: DefaultsKey.recorderShortcutEnabled,
-                                     storageKey: DefaultsKey.recorderShortcut,
-                                     fallback: .screenRecorderDefault)
+                                     enabledKey: DefaultsKey.recorderShortcutEnabled)
         case .text:
             return DedicatedShortcut(role: .screenOCR,
-                                     enabledKey: DefaultsKey.screenOCRShortcutEnabled,
-                                     storageKey: DefaultsKey.screenOCRShortcut,
-                                     fallback: .screenOCRDefault)
+                                     enabledKey: DefaultsKey.screenOCRShortcutEnabled)
         case .color:
             return DedicatedShortcut(role: .colorPicker,
-                                     enabledKey: DefaultsKey.colorPickerShortcutEnabled,
-                                     storageKey: DefaultsKey.colorPickerShortcut,
-                                     fallback: .colorPickerDefault)
+                                     enabledKey: DefaultsKey.colorPickerShortcutEnabled)
         }
     }
 

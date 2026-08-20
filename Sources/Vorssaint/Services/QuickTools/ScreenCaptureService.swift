@@ -100,8 +100,9 @@ final class ScreenCaptureService: ObservableObject {
         for (tool, hotkey) in toolHotkeys {
             guard let keys = tool.dedicatedShortcut else { continue }
             let enabled = availableTools.contains(tool) && defaults.bool(forKey: keys.enabledKey)
-            let shortcut = GlobalShortcut.saved(for: keys.storageKey, fallback: keys.fallback)
-            if !hotkey.sync(enabled: enabled, shortcut: shortcut) { failures.insert(tool) }
+            if !hotkey.sync(enabled: enabled, shortcut: keys.role.savedShortcut) {
+                failures.insert(tool)
+            }
         }
         toolShortcutRegistrationFailures = failures
     }
