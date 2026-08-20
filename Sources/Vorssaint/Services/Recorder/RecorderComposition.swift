@@ -62,6 +62,7 @@ enum RecorderComposition {
     struct Result {
         let asset: AVMutableComposition
         let audioTrackIDs: [RecorderAudioSource: CMPersistentTrackID]
+        let duration: CMTime
     }
 
     static func audioMix(trackIDs: [RecorderAudioSource: CMPersistentTrackID],
@@ -142,7 +143,8 @@ enum RecorderComposition {
         return Result(asset: composition,
                       audioTrackIDs: Dictionary(uniqueKeysWithValues: audio.map {
                           ($0.source, $0.to.trackID)
-                      }))
+                      }),
+                      duration: cursor)
     }
 }
 
