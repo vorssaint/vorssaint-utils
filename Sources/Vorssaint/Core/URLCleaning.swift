@@ -13,18 +13,56 @@ enum URLCleaning {
         "fb_action_ids", "fb_action_types", "fb_source", "mibextid",
     ]
 
+    /// Trackers that only one site uses. A global list cannot hold these: `si`
+    /// is a share token on YouTube but a real parameter elsewhere, and `t` is a
+    /// tracker on X while it is the playback position on YouTube. Matching on
+    /// the host is what keeps removing one from breaking the other.
+    ///
+    /// Keys match the host itself or any subdomain of it.
+    private static let hostParameters: [String: Set<String>] = [
+        "bilibili.com": [
+            "spm_id_from", "from_spmid", "from_source", "share_source", "share_from",
+            "share_medium", "share_plat", "share_tag", "share_session_id", "msource",
+            "refer_from", "seid", "unique_k", "vd_source", "plat_id", "buvid", "bbid",
+            "up_id", "is_story_h5", "timestamp", "ts", "visit_id", "session_id",
+            "broadcast_type", "is_room_feed",
+        ],
+        "youtube.com": ["si", "pp", "feature", "kw"],
+        "youtu.be": ["si", "pp", "feature", "kw"],
+        "twitter.com": ["s", "t", "cn", "src", "refsrc", "ref_src", "ref_url"],
+        "x.com": ["s", "t", "cn", "src", "refsrc", "ref_src", "ref_url"],
+        "instagram.com": ["igsh"],
+        "spotify.com": ["si"],
+        "tiktok.com": [
+            "u_code", "preview_pb", "_d", "_t", "_r", "timestamp", "user_id",
+            "share_app_name", "share_iid",
+        ],
+        "reddit.com": [
+            "correlation_id", "ref_campaign", "ref_source", "rdt", "share_id",
+            "_branch_match_id",
+        ],
+        "xiaohongshu.com": [
+            "xhsshare", "author_share", "xsec_source", "share_from_user_hidden",
+            "shareRedId", "share_id", "exSource", "app_version", "app_platform",
+            "apptime", "appuid",
+        ],
+    ]
+
     static func cleanedString(from text: String, customParameters: Set<String> = []) -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard var components = URLComponents(string: trimmed),
               let scheme = components.scheme?.lowercased(),
               (scheme == "http" || scheme == "https"),
-              components.host != nil else {
+              let host = components.host else {
             return nil
         }
 
         if let items = components.queryItems {
+            let hostParameters = Self.hostParameters(for: host)
             let kept = items.filter { item in
-                !shouldRemove(parameter: item.name, customParameters: customParameters)
+                !shouldRemove(parameter: item.name,
+                              customParameters: customParameters,
+                              hostParameters: hostParameters)
             }
             components.queryItems = kept.isEmpty ? nil : kept
         }
@@ -39,11 +77,25 @@ enum URLCleaning {
             .filter { !$0.isEmpty })
     }
 
+    /// Site rules are additive: `open.spotify.com` picks up the `spotify.com`
+    /// set, and a host that matches nothing keeps only the global rules.
+    private static func hostParameters(for host: String) -> Set<String> {
+        let normalized = host.lowercased()
+        var names: Set<String> = []
+        for (suffix, parameters) in hostParameters
+        where normalized == suffix || normalized.hasSuffix("." + suffix) {
+            names.formUnion(parameters)
+        }
+        return Set(names.map { $0.lowercased() })
+    }
+
     private static func shouldRemove(parameter name: String,
-                                     customParameters: Set<String>) -> Bool {
+                                     customParameters: Set<String>,
+                                     hostParameters: Set<String>) -> Bool {
         let normalized = name.lowercased()
         return trackedParameters.contains(normalized)
             || normalized.hasPrefix("utm_")
+            || hostParameters.contains(normalized)
             || customParameters.contains(normalized)
     }
 }

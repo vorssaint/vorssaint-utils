@@ -8109,6 +8109,31 @@ struct MetricsTests {
                "custom URL cleaner parameters start empty and travel in Settings backups")
         expect(URLCleaning.cleanedString(from: "not a url") == nil,
                "URL cleaner rejects plain text")
+        expectEqual(URLCleaning.cleanedString(
+            from: "https://www.bilibili.com/video/BV1TY8J67EUB/?spm_id_from=333.1007.tianma.1-1-1.click&vd_source=3b2eea5") ?? "",
+                    "https://www.bilibili.com/video/BV1TY8J67EUB/",
+                    "URL cleaner strips Bilibili share tracking")
+        expectEqual(URLCleaning.cleanedString(from: "https://www.bilibili.com/video/BV1xx411c7mD/?p=3&t=90&vd_source=abc") ?? "",
+                    "https://www.bilibili.com/video/BV1xx411c7mD/?p=3&t=90",
+                    "URL cleaner keeps the Bilibili part number and playback position")
+        expectEqual(URLCleaning.cleanedString(from: "https://search.bilibili.com/all?keyword=swift&from_source=webtop_search") ?? "",
+                    "https://search.bilibili.com/all?keyword=swift",
+                    "URL cleaner keeps the Bilibili search keyword")
+        expectEqual(URLCleaning.cleanedString(from: "https://youtu.be/TImSMeurR84?si=Xq1&t=42") ?? "",
+                    "https://youtu.be/TImSMeurR84?t=42",
+                    "URL cleaner strips the YouTube share token and keeps the timestamp")
+        expectEqual(URLCleaning.cleanedString(from: "https://www.youtube.com/watch?v=TImSMeurR84") ?? "",
+                    "https://www.youtube.com/watch?v=TImSMeurR84",
+                    "URL cleaner leaves a bare YouTube watch link alone")
+        expectEqual(URLCleaning.cleanedString(from: "https://x.com/user/status/1?s=20&t=abc") ?? "",
+                    "https://x.com/user/status/1",
+                    "URL cleaner strips X share tracking")
+        expectEqual(URLCleaning.cleanedString(from: "https://example.com/?si=keep&t=keep&s=keep") ?? "",
+                    "https://example.com/?si=keep&t=keep&s=keep",
+                    "site rules never leak onto other hosts")
+        expectEqual(URLCleaning.cleanedString(from: "https://open.spotify.com/track/abc?si=xyz") ?? "",
+                    "https://open.spotify.com/track/abc",
+                    "site rules match subdomains")
 
         // MARK: Homebrew command building and parsing
 
