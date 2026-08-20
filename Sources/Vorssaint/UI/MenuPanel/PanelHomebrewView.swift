@@ -101,7 +101,7 @@ struct PanelHomebrewView: View {
                 .foregroundStyle(.secondary)
             Text(l10n.s.homebrewMissingTitle)
                 .font(.system(size: 13, weight: .semibold))
-            Text(l10n.s.homebrewMissingBody)
+            Text(l10n.s.homebrewTerminalText(l10n.s.homebrewMissingBody))
                 .font(.system(size: 10.5))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -114,7 +114,9 @@ struct PanelHomebrewView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
-            Text(homebrew.didOpenInstaller ? l10n.s.homebrewInstallHomebrewOpened : l10n.s.homebrewInstallHomebrewCaption)
+            Text(l10n.s.homebrewTerminalText(homebrew.didOpenInstaller
+                                              ? l10n.s.homebrewInstallHomebrewOpened
+                                              : l10n.s.homebrewInstallHomebrewCaption))
                 .font(.system(size: 9.5))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -152,9 +154,12 @@ struct PanelHomebrewView: View {
     private var shellSetupCard: some View {
         if !homebrew.isShellConfigured {
             VStack(alignment: .leading, spacing: 7) {
-                Label(l10n.s.homebrewShellSetupTitle, systemImage: "terminal")
+                Label(l10n.s.homebrewTerminalText(l10n.s.homebrewShellSetupTitle),
+                      systemImage: "terminal")
                     .font(.system(size: 10.5, weight: .semibold))
-                Text(homebrew.didOpenShellConfig ? l10n.s.homebrewShellSetupOpened : l10n.s.homebrewShellSetupBody)
+                Text(l10n.s.homebrewTerminalText(homebrew.didOpenShellConfig
+                                                 ? l10n.s.homebrewShellSetupOpened
+                                                 : l10n.s.homebrewShellSetupBody))
                     .font(.system(size: 9.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -162,7 +167,8 @@ struct PanelHomebrewView: View {
                     Button {
                         homebrew.openShellConfiguration()
                     } label: {
-                        Label(l10n.s.homebrewShellSetupButton, systemImage: "wrench.and.screwdriver")
+                        Label(l10n.s.homebrewTerminalText(l10n.s.homebrewShellSetupButton),
+                              systemImage: "wrench.and.screwdriver")
                             .font(.system(size: 10.5, weight: .medium))
                     }
                     .buttonStyle(.borderedProminent)

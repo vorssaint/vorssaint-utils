@@ -7,6 +7,9 @@ import Foundation
 
 final class HomebrewManager: ObservableObject {
     static let shared = HomebrewManager()
+    private static let terminalLaunchProbeInterval: TimeInterval = 0.25
+    private static let terminalLaunchProbeAttempts = 20
+    private static let lateMarkerCleanupDelay: TimeInterval = 30
 
     @Published private(set) var brewPath: String?
     @Published private(set) var installed: [HomebrewPackage] = []
@@ -22,6 +25,7 @@ final class HomebrewManager: ObservableObject {
     @Published private(set) var log = ""
     @Published private(set) var errorMessage: String?
     @Published private(set) var terminalFallbackCommand: String?
+    @Published private(set) var availableTerminals: [HomebrewTerminal] = []
     /// A third-party tap Homebrew refused to load until the user trusts it,
     /// with the interrupted work retried right after the one-click trust.
     @Published private(set) var untrustedTap: String?
@@ -46,6 +50,7 @@ final class HomebrewManager: ObservableObject {
     private var installedCaskRecordsFetchedAt: Date?
     private var ownershipLoads: [String: [(HomebrewPackage?) -> Void]] = [:]
     private var completedOperationCleanup: DispatchWorkItem?
+    private var terminalLaunchGeneration = 0
     private lazy var analyticsSession: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 6
@@ -63,9 +68,23 @@ final class HomebrewManager: ObservableObject {
 
     private init() {
         brewPath = detectBrewPath()
+        refreshAvailableTerminals()
+    }
+
+    func refreshAvailableTerminals() {
+        let refreshed = HomebrewTerminalSupport.installedTerminals()
+        availableTerminals = refreshed
+        let defaults = UserDefaults.standard
+        let rawValue = defaults.string(forKey: DefaultsKey.homebrewPreferredTerminal)
+        let preferred = HomebrewTerminalSupport.preferredTerminal(rawValue: rawValue,
+                                                                   available: refreshed)
+        if rawValue != preferred.rawValue {
+            defaults.set(preferred.rawValue, forKey: DefaultsKey.homebrewPreferredTerminal)
+        }
     }
 
     func refreshInstalled() {
+        refreshAvailableTerminals()
         guard let brewPath = detectBrewPath() else {
             self.brewPath = nil
             installed = []
@@ -294,13 +313,17 @@ final class HomebrewManager: ObservableObject {
 
     func openTerminalFallback() {
         guard let command = terminalFallbackCommand else { return }
+        errorMessage = nil
         openTerminal(command: command)
     }
 
     func openHomebrewInstaller() {
         errorMessage = nil
-        if openTerminal(command: HomebrewCommandBuilder.installerCommand) {
-            didOpenInstaller = true
+        didOpenInstaller = false
+        openTerminal(command: HomebrewCommandBuilder.installerCommand) { [weak self] opened in
+            if opened {
+                self?.didOpenInstaller = true
+            }
         }
     }
 
@@ -308,9 +331,12 @@ final class HomebrewManager: ObservableObject {
         guard let brewPath = brewPath ?? detectBrewPath() else { return }
         self.brewPath = brewPath
         errorMessage = nil
+        didOpenShellConfig = false
         let command = HomebrewCommandBuilder.shellConfigCommand(brewPath: brewPath)
-        if openTerminal(command: command) {
-            didOpenShellConfig = true
+        openTerminal(command: command) { [weak self] opened in
+            if opened {
+                self?.didOpenShellConfig = true
+            }
         }
     }
 
@@ -324,23 +350,111 @@ final class HomebrewManager: ObservableObject {
         updateShellConfigStatus(brewPath: brewPath)
     }
 
-    @discardableResult
-    private func openTerminal(command: String) -> Bool {
-        let source = """
-        tell application "Terminal"
-            activate
-            do script \(appleScriptString(command))
-        end tell
-        """
-        // In-process Apple Events (see AppleScriptRunner): the Terminal Automation
-        // consent is attributed to this app and re-requested if it was lost,
-        // instead of a fragile osascript subprocess. Same permission as before.
-        let result = AppleScriptRunner.run(source)
-        if !result.ok {
-            errorMessage = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
-            return false
+    private func openTerminal(command: String,
+                              completion: ((Bool) -> Void)? = nil) {
+        refreshAvailableTerminals()
+        terminalLaunchGeneration &+= 1
+        let generation = terminalLaunchGeneration
+        let terminal = HomebrewTerminalSupport.preferredTerminal(available: availableTerminals)
+        if terminal.usesAppleEvents {
+            let source = HomebrewTerminalSupport.appleScript(for: terminal, command: command)
+            // In-process Apple Events (see AppleScriptRunner): the selected terminal's
+            // Automation consent is attributed to this app and re-requested if it was
+            // lost, instead of using a fragile osascript subprocess.
+            workQueue.async { [weak self] in
+                let result = AppleScriptRunner.run(source)
+                DispatchQueue.main.async {
+                    guard let self, generation == self.terminalLaunchGeneration else { return }
+                    if !result.ok {
+                        self.errorMessage = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+                        completion?(false)
+                        return
+                    }
+                    completion?(true)
+                }
+            }
+            return
         }
-        return true
+
+        guard let applicationURL = HomebrewTerminalSupport.applicationURL(for: terminal),
+              let executableName = terminal.commandLineExecutableName else {
+            errorMessage = "Could not locate the selected terminal executable."
+            completion?(false)
+            return
+        }
+
+        let markerURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-terminal-\(UUID().uuidString).started")
+        guard let arguments = HomebrewTerminalSupport.commandLineArguments(
+            for: terminal,
+            command: command,
+            launchMarkerPath: markerURL.path
+        ) else {
+            errorMessage = "Could not prepare the selected terminal command."
+            completion?(false)
+            return
+        }
+
+        let executableURL = applicationURL
+            .appendingPathComponent("Contents", isDirectory: true)
+            .appendingPathComponent("MacOS", isDirectory: true)
+            .appendingPathComponent(executableName)
+        let process = Process()
+        process.executableURL = executableURL
+        process.arguments = arguments
+        do {
+            try process.run()
+            verifyTerminalLaunch(markerURL: markerURL,
+                                 terminal: terminal,
+                                 generation: generation,
+                                 attemptsRemaining: Self.terminalLaunchProbeAttempts,
+                                 completion: completion)
+        } catch {
+            errorMessage = error.localizedDescription
+            completion?(false)
+        }
+    }
+
+    private func verifyTerminalLaunch(markerURL: URL,
+                                      terminal: HomebrewTerminal,
+                                      generation: Int,
+                                      attemptsRemaining: Int,
+                                      completion: ((Bool) -> Void)?) {
+        workQueue.asyncAfter(deadline: .now() + Self.terminalLaunchProbeInterval) { [weak self] in
+            guard let self else { return }
+            let fileManager = FileManager.default
+            if fileManager.fileExists(atPath: markerURL.path) {
+                try? fileManager.removeItem(at: markerURL)
+                DispatchQueue.main.async {
+                    guard generation == self.terminalLaunchGeneration else { return }
+                    completion?(true)
+                }
+                return
+            }
+            // Some CLI launchers hand off to a child and exit before the new
+            // shell starts. Give the child the full handshake window instead
+            // of treating the launcher's normal exit as a failure.
+            if attemptsRemaining > 1 {
+                self.verifyTerminalLaunch(markerURL: markerURL,
+                                          terminal: terminal,
+                                          generation: generation,
+                                          attemptsRemaining: attemptsRemaining - 1,
+                                          completion: completion)
+                return
+            }
+            try? fileManager.removeItem(at: markerURL)
+            // A heavily loaded or Gatekeeper-delayed app can reach the shell
+            // after the five-second UI timeout. Clean up that late marker too.
+            self.workQueue.asyncAfter(deadline: .now() + Self.lateMarkerCleanupDelay) {
+                try? FileManager.default.removeItem(at: markerURL)
+            }
+            DispatchQueue.main.async {
+                guard generation == self.terminalLaunchGeneration else { return }
+                self.errorMessage = String(format: L10n.shared.s.homebrewTerminalLaunchFailedFormat,
+                                           terminal.displayName)
+                completion?(false)
+            }
+        }
     }
 
     private func perform(_ action: HomebrewOperation.Action,
@@ -785,12 +899,6 @@ final class HomebrewManager: ObservableObject {
         log.append(text)
     }
 
-    private func appleScriptString(_ value: String) -> String {
-        let escaped = value
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        return "\"\(escaped)\""
-    }
 }
 
 private struct PopularityCacheEntry {

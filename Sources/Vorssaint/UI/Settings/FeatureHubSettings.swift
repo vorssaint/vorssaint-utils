@@ -354,6 +354,9 @@ struct PermissionsPortalSections: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var permissions = Permissions.shared
+    @ObservedObject private var homebrew = HomebrewManager.shared
+    @AppStorage(DefaultsKey.homebrewPreferredTerminal)
+    private var preferredTerminalRawValue = HomebrewTerminal.terminal.rawValue
     let hub: FeatureHubStrings
     let visiblePermissions: [AppPermission]
     @State private var automation: [Permissions.AutomationTarget: Permissions.AutomationStatus] = [:]
@@ -366,10 +369,11 @@ struct PermissionsPortalSections: View {
     }
 
     var body: some View {
-        ForEach(visiblePermissions, id: \.self) { permission in
+        ForEach(effectiveVisiblePermissions, id: \.self) { permission in
             PermissionPortalRow(permission: permission,
                                 hub: hub,
-                                status: status(for: permission))
+                                status: status(for: permission),
+                                terminal: preferredTerminal)
         }
         .onAppear {
             // Statuses that only refresh at launch/activation get a fresh
@@ -380,16 +384,43 @@ struct PermissionsPortalSections: View {
                 || visiblePermissions.contains(.screenRecording) {
                 permissions.setActivePermissionSurface(pollingDemandID, visible: true)
             }
-            DispatchQueue.global(qos: .userInitiated).async {
-                let finder = Permissions.automationStatus(for: .finder)
-                let terminal = Permissions.automationStatus(for: .terminal)
-                DispatchQueue.main.async {
-                    automation = [.finder: finder, .terminal: terminal]
-                }
-            }
+            refreshAutomationStatuses()
+        }
+        .onChange(of: preferredTerminalRawValue) { _, _ in
+            refreshAutomationStatuses()
         }
         .onDisappear {
             permissions.setActivePermissionSurface(pollingDemandID, visible: false)
+        }
+    }
+
+    private var preferredTerminal: HomebrewTerminal {
+        HomebrewTerminalSupport.preferredTerminal(rawValue: preferredTerminalRawValue,
+                                                   available: homebrew.availableTerminals)
+    }
+
+    private var effectiveVisiblePermissions: [AppPermission] {
+        visiblePermissions.filter {
+            $0 != .automationTerminal || preferredTerminal.usesAppleEvents
+        }
+    }
+
+    private func refreshAutomationStatuses() {
+        let selectedTerminal = preferredTerminal
+        DispatchQueue.global(qos: .userInitiated).async {
+            let finder = Permissions.automationStatus(for: .finder)
+            var statuses: [Permissions.AutomationTarget: Permissions.AutomationStatus] = [
+                .finder: finder,
+            ]
+            if selectedTerminal.usesAppleEvents {
+                statuses[.terminal] = Permissions.automationStatus(
+                    forBundleIdentifier: selectedTerminal.bundleIdentifier
+                )
+            }
+            DispatchQueue.main.async {
+                guard preferredTerminalRawValue == selectedTerminal.rawValue else { return }
+                automation = statuses
+            }
         }
     }
 
@@ -458,6 +489,7 @@ private struct PermissionPortalRow: View {
     let permission: AppPermission
     let hub: FeatureHubStrings
     let status: Status
+    let terminal: HomebrewTerminal
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -467,11 +499,11 @@ private struct PermissionPortalRow: View {
                 .frame(width: 24, height: 24)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
-                    Text(permission.name(hub))
+                    Text(permission.name(hub, terminal: terminal))
                         .fontWeight(.medium)
                     statusChip
                 }
-                Text(permission.explainer(hub))
+                Text(permission.explainer(hub, terminal: terminal))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text(usedByLine)
@@ -723,7 +755,8 @@ extension AppFeature {
 }
 
 extension AppPermission {
-    func name(_ hub: FeatureHubStrings) -> String {
+    func name(_ hub: FeatureHubStrings,
+              terminal: HomebrewTerminal? = nil) -> String {
         switch self {
         case .accessibility: return hub.permAccessibility
         case .screenRecording: return hub.permScreenRecording
@@ -731,7 +764,8 @@ extension AppPermission {
         case .filesAndFolders: return hub.permFilesAndFolders
         case .notifications: return hub.permNotifications
         case .automationFinder: return hub.permAutomationFinder
-        case .automationTerminal: return hub.permAutomationTerminal
+        case .automationTerminal:
+            return hub.automationTerminalName(for: terminal ?? HomebrewTerminalSupport.preferredTerminal())
         case .audioCapture: return hub.permAudioCapture
         case .microphone: return FeatureStrings.recorder(L10n.shared.language).microphonePermissionName
         case .camera: return FeatureStrings.cameraPreview(L10n.shared.language).permName
@@ -739,7 +773,8 @@ extension AppPermission {
         }
     }
 
-    func explainer(_ hub: FeatureHubStrings) -> String {
+    func explainer(_ hub: FeatureHubStrings,
+                   terminal: HomebrewTerminal? = nil) -> String {
         switch self {
         case .accessibility: return hub.explainAccessibility
         case .screenRecording: return hub.explainScreenRecording
@@ -747,7 +782,8 @@ extension AppPermission {
         case .filesAndFolders: return hub.explainFilesAndFolders
         case .notifications: return hub.explainNotifications
         case .automationFinder: return hub.explainAutomationFinder
-        case .automationTerminal: return hub.explainAutomationTerminal
+        case .automationTerminal:
+            return hub.automationTerminalExplanation(for: terminal ?? HomebrewTerminalSupport.preferredTerminal())
         case .audioCapture: return hub.explainAudioCapture
         case .microphone:
             return FeatureStrings.recorder(L10n.shared.language).microphonePermissionExplain

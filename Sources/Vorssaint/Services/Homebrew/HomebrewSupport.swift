@@ -1,8 +1,171 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Darwin
 import Foundation
+
+enum HomebrewTerminal: String, CaseIterable, Hashable, Identifiable {
+    case terminal
+    case iTerm2 = "iterm2"
+    case ghostty
+    case wezTerm = "wezterm"
+    case alacritty
+
+    var id: String { rawValue }
+
+    /// Some WezTerm builds have shipped with the older bundle identifier.
+    /// Launch Services may still expose either one, so discovery accepts both.
+    var bundleIdentifiers: [String] {
+        switch self {
+        case .terminal: return ["com.apple.Terminal"]
+        case .iTerm2: return ["com.googlecode.iterm2"]
+        case .ghostty: return ["com.mitchellh.ghostty"]
+        case .wezTerm: return ["org.wezfurlong.wezterm", "com.github.wez.wezterm"]
+        case .alacritty: return ["org.alacritty"]
+        }
+    }
+
+    var bundleIdentifier: String { bundleIdentifiers[0] }
+
+    var applicationName: String {
+        switch self {
+        case .terminal: return "Terminal"
+        case .iTerm2: return "iTerm2"
+        case .ghostty: return "Ghostty"
+        case .wezTerm: return "WezTerm"
+        case .alacritty: return "Alacritty"
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .terminal: return "Terminal.app"
+        case .iTerm2: return "iTerm2"
+        case .ghostty: return "Ghostty"
+        case .wezTerm: return "WezTerm"
+        case .alacritty: return "Alacritty"
+        }
+    }
+
+    var usesAppleEvents: Bool {
+        switch self {
+        case .terminal, .iTerm2, .ghostty: return true
+        case .wezTerm, .alacritty: return false
+        }
+    }
+
+    var commandLineExecutableName: String? {
+        switch self {
+        case .wezTerm: return "wezterm"
+        case .alacritty: return "alacritty"
+        case .terminal, .iTerm2, .ghostty: return nil
+        }
+    }
+}
+
+enum HomebrewTerminalSupport {
+    static func installedTerminals(using workspace: NSWorkspace = .shared) -> [HomebrewTerminal] {
+        let installed = HomebrewTerminal.allCases.filter {
+            applicationURL(for: $0, using: workspace) != nil
+        }
+        // Terminal.app ships with macOS. Keep it as a safe UI and command
+        // fallback if Launch Services is temporarily unable to resolve apps.
+        return installed.isEmpty ? [.terminal] : installed
+    }
+
+    static func terminals(forBundleIdentifiers bundleIdentifiers: Set<String>) -> [HomebrewTerminal] {
+        HomebrewTerminal.allCases.filter { terminal in
+            terminal.bundleIdentifiers.contains { bundleIdentifiers.contains($0) }
+        }
+    }
+
+    static func applicationURL(for terminal: HomebrewTerminal,
+                               using workspace: NSWorkspace = .shared) -> URL? {
+        terminal.bundleIdentifiers.lazy
+            .compactMap { workspace.urlForApplication(withBundleIdentifier: $0) }
+            // Launch Services can retain a registration after a cask has been
+            // uninstalled. Do not expose a terminal whose bundle is gone.
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+            .first
+    }
+
+    static func commandLineArguments(for terminal: HomebrewTerminal,
+                                     command: String,
+                                     launchMarkerPath: String? = nil) -> [String]? {
+        let markerCommand = launchMarkerPath.map {
+            "/usr/bin/touch \(HomebrewCommandBuilder.shellQuote($0)) && "
+        } ?? ""
+        let interactiveCommand = "\(markerCommand)\(command); exec /bin/zsh -l"
+        switch terminal {
+        case .wezTerm:
+            return ["start", "--always-new-process", "--", "/bin/zsh", "-lc", interactiveCommand]
+        case .alacritty:
+            return ["--hold", "-e", "/bin/zsh", "-lc", interactiveCommand]
+        case .terminal, .iTerm2, .ghostty:
+            return nil
+        }
+    }
+
+    static func preferredTerminal(rawValue: String?, available: [HomebrewTerminal]) -> HomebrewTerminal {
+        if let rawValue,
+           let saved = HomebrewTerminal(rawValue: rawValue),
+           available.contains(saved) {
+            return saved
+        }
+        if available.contains(.terminal) { return .terminal }
+        return available.first ?? .terminal
+    }
+
+    static func preferredTerminal(available: [HomebrewTerminal] = installedTerminals()) -> HomebrewTerminal {
+        preferredTerminal(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.homebrewPreferredTerminal),
+                           available: available)
+    }
+
+    static func appleScript(for terminal: HomebrewTerminal, command: String) -> String {
+        switch terminal {
+        case .terminal:
+            return """
+            tell application "Terminal"
+                activate
+                do script \(appleScriptLiteral(command))
+            end tell
+            """
+        case .iTerm2:
+            return """
+            tell application "iTerm2"
+                activate
+                if (count of windows) = 0 then
+                    create window with default profile command \(appleScriptLiteral(command))
+                else
+                    tell current window
+                        create tab with default profile command \(appleScriptLiteral(command))
+                    end tell
+                end if
+            end tell
+            """
+        case .ghostty:
+            return """
+            tell application "Ghostty"
+                activate
+                set terminalConfiguration to new surface configuration
+                set command of terminalConfiguration to \(appleScriptLiteral(command))
+                set wait after command of terminalConfiguration to true
+                new window with configuration terminalConfiguration
+            end tell
+            """
+        case .wezTerm, .alacritty:
+            return ""
+        }
+    }
+
+    private static func appleScriptLiteral(_ value: String) -> String {
+        let escaped = value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"\(escaped)\""
+    }
+}
 
 enum HomebrewPackageKind: String, CaseIterable, Identifiable {
     case cask

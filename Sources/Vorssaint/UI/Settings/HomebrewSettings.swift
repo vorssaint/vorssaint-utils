@@ -13,12 +13,17 @@ struct HomebrewSettings: View {
     @State private var installedFilter = HomebrewInstalledFilter.all
     @State private var pendingAction: HomebrewPendingAction?
     @State private var showOperationDetails = false
+    @AppStorage(DefaultsKey.homebrewPreferredTerminal) private var preferredTerminalRawValue = HomebrewTerminal.terminal.rawValue
 
     var body: some View {
         VStack(spacing: 0) {
             pageHeader
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
+            Divider()
+            preferredTerminalSection
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
             Divider()
             Group {
                 if homebrew.brewPath == nil {
@@ -31,6 +36,7 @@ struct HomebrewSettings: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
+            homebrew.refreshAvailableTerminals()
             if homebrew.installed.isEmpty {
                 homebrew.refreshInstalled()
             }
@@ -65,6 +71,57 @@ struct HomebrewSettings: View {
                 .font(.system(size: 14, weight: .semibold))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var preferredTerminalSection: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "terminal")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(l10n.s.homebrewPreferredTerminalTitle)
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(l10n.s.homebrewPreferredTerminalCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                Picker("", selection: preferredTerminalBinding) {
+                    ForEach(homebrew.availableTerminals) { terminal in
+                        Text(terminal.displayName).tag(terminal)
+                    }
+                }
+                .labelsHidden()
+                .accessibilityLabel(l10n.s.homebrewPreferredTerminalTitle)
+                .frame(width: 150)
+                .disabled(homebrew.availableTerminals.count < 2)
+            }
+            if preferredTerminal == .alacritty {
+                Label(l10n.s.homebrewAlacrittyWarning,
+                      systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 30)
+            }
+        }
+    }
+
+    private var preferredTerminal: HomebrewTerminal {
+        HomebrewTerminalSupport.preferredTerminal(rawValue: preferredTerminalRawValue,
+                                                   available: homebrew.availableTerminals)
+    }
+
+    private var preferredTerminalBinding: Binding<HomebrewTerminal> {
+        Binding(
+            get: {
+                preferredTerminal
+            },
+            set: { preferredTerminalRawValue = $0.rawValue }
+        )
     }
 
     private var content: some View {
@@ -209,9 +266,11 @@ struct HomebrewSettings: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 20)
             VStack(alignment: .leading, spacing: 4) {
-                Text(l10n.s.homebrewShellSetupTitle)
+                Text(l10n.s.homebrewTerminalText(l10n.s.homebrewShellSetupTitle))
                     .font(.system(size: 12, weight: .semibold))
-                Text(homebrew.didOpenShellConfig ? l10n.s.homebrewShellSetupOpened : l10n.s.homebrewShellSetupBody)
+                Text(l10n.s.homebrewTerminalText(homebrew.didOpenShellConfig
+                                                 ? l10n.s.homebrewShellSetupOpened
+                                                 : l10n.s.homebrewShellSetupBody))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -220,7 +279,8 @@ struct HomebrewSettings: View {
             Button {
                 homebrew.openShellConfiguration()
             } label: {
-                Label(l10n.s.homebrewShellSetupButton, systemImage: "wrench.and.screwdriver")
+                Label(l10n.s.homebrewTerminalText(l10n.s.homebrewShellSetupButton),
+                      systemImage: "wrench.and.screwdriver")
             }
             .controlSize(.small)
             .buttonStyle(.borderedProminent)
@@ -568,7 +628,7 @@ struct HomebrewSettings: View {
                 .foregroundStyle(.secondary)
             Text(l10n.s.homebrewMissingTitle)
                 .font(.system(size: 16, weight: .semibold))
-            Text(l10n.s.homebrewMissingBody)
+            Text(l10n.s.homebrewTerminalText(l10n.s.homebrewMissingBody))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -579,7 +639,9 @@ struct HomebrewSettings: View {
                 Label(l10n.s.homebrewInstallHomebrew, systemImage: "terminal")
             }
             .buttonStyle(.borderedProminent)
-            Text(homebrew.didOpenInstaller ? l10n.s.homebrewInstallHomebrewOpened : l10n.s.homebrewInstallHomebrewCaption)
+            Text(l10n.s.homebrewTerminalText(homebrew.didOpenInstaller
+                                              ? l10n.s.homebrewInstallHomebrewOpened
+                                              : l10n.s.homebrewInstallHomebrewCaption))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

@@ -189,6 +189,7 @@ enum DefaultsKey {
     static let killProcessSortAscending = "killProcessSortAscending"
     static let panelUtilityCleaner = "panelUtilityCleaner"
     static let panelUtilityHomebrew = "panelUtilityHomebrew"
+    static let homebrewPreferredTerminal = "homebrewPreferredTerminal" // HomebrewTerminal.rawValue
     static let panelUtilityAppUpdates = "panelUtilityAppUpdates"
     static let appUpdatesCheckFrequency = "appUpdatesCheckFrequency"  // off | daily | weekly
     static let appUpdatesIncludeHomebrewApps = "appUpdatesIncludeHomebrewApps"
@@ -914,6 +915,7 @@ enum Defaults {
         DefaultsKey.killProcessSortAscending: false,
         DefaultsKey.panelUtilityCleaner: true,
         DefaultsKey.panelUtilityHomebrew: true,
+        DefaultsKey.homebrewPreferredTerminal: "terminal",
         DefaultsKey.panelUtilityAppUpdates: true,
         // The list itself costs nothing until it is opened; only the
         // background check keeps a timer, so it starts off.
