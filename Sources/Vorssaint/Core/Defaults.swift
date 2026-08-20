@@ -168,6 +168,10 @@ enum DefaultsKey {
     static let panelUtilityCleaning = "panelUtilityCleaning"
     static let panelUtilityURLCleaner = "panelUtilityURLCleaner"
     static let panelUtilityUninstaller = "panelUtilityUninstaller"
+    static let killProcessCommandBarEnabled = "killProcessCommandBarEnabled"
+    static let killProcessGroupRelated = "killProcessGroupRelated"
+    static let killProcessSortBy = "killProcessSortBy" // cpu | memory | name | pid
+    static let killProcessSortAscending = "killProcessSortAscending"
     static let panelUtilityCleaner = "panelUtilityCleaner"
     static let panelUtilityHomebrew = "panelUtilityHomebrew"
     static let panelUtilityAppUpdates = "panelUtilityAppUpdates"
@@ -265,6 +269,9 @@ enum DefaultsKey {
     static let monitorShowPower = "monitorShowPower"
     static let monitorShowMixer = "monitorShowMixer"
     static let panelShowFanControl = "panelShowFanControl"
+    static let fanControlMode = "fanControlMode"
+    static let fanControlCoolingLevel = "fanControlCoolingLevel"
+    static let fanControlCurves = "fanControlCurves"
     // Previous panel visibility key, read once by the migration below.
     static let monitorShowFanControlBeta = "monitorShowFanControlBeta"
     // Machine-only recovery state. A true value means the helper must confirm
@@ -858,6 +865,10 @@ enum Defaults {
         DefaultsKey.panelUtilityCleaning: true,
         DefaultsKey.panelUtilityURLCleaner: true,
         DefaultsKey.panelUtilityUninstaller: true,
+        DefaultsKey.killProcessCommandBarEnabled: true,
+        DefaultsKey.killProcessGroupRelated: true,
+        DefaultsKey.killProcessSortBy: "cpu",
+        DefaultsKey.killProcessSortAscending: false,
         DefaultsKey.panelUtilityCleaner: true,
         DefaultsKey.panelUtilityHomebrew: true,
         DefaultsKey.panelUtilityAppUpdates: true,
@@ -945,6 +956,9 @@ enum Defaults {
         DefaultsKey.monitorShowPower: true,
         DefaultsKey.monitorShowMixer: true,
         DefaultsKey.panelShowFanControl: true,
+        DefaultsKey.fanControlMode: FanControlMode.system.rawValue,
+        DefaultsKey.fanControlCoolingLevel: FanControlPolicy.defaultCoolingLevel,
+        DefaultsKey.fanControlCurves: FanControlConfiguration.defaultCurvesStorage,
         DefaultsKey.fanControlRecoveryNeeded: false,
         DefaultsKey.fanControlHelperVersion: "",
         DefaultsKey.panelNavigationEnabled: true,

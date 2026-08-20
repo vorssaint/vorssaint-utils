@@ -677,6 +677,20 @@ enum CommandBarCatalog {
             icon: .symbol("face.smiling"),
             keepsBarOpen: true,
             run: { _ in CommandBarService.shared.setCategory(.emoji) }))
+        if AppFeature.killProcess.isAvailable,
+           UserDefaults.standard.bool(forKey: DefaultsKey.killProcessCommandBarEnabled) {
+            let killStrings = FeatureStrings.killProcess(language)
+            entries.append(CommandBarEntry(
+                id: CommandBarPreferences.killProcessBrowserRowID,
+                title: killStrings.pageTitle,
+                subtitle: killStrings.browseSubtitle,
+                icon: .symbol("xmark.octagon"),
+                keepsBarOpen: true,
+                run: { _ in
+                    CommandBarService.shared.setCategory(.killProcess)
+                    CommandBarService.shared.query = ""
+                }))
+        }
         let feedback = FeatureStrings.feedback(language)
         entries.append(CommandBarEntry(
             id: "action.feedback.bug",
@@ -961,6 +975,25 @@ enum CommandBarCatalog {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
                         running.terminate()
                     }
+                })
+        }
+    }
+
+    /// One row per running process, so typing its name finds and can kill it
+    /// directly. Force Kill, Kill All and Kill Process Tree live in the row's
+    /// Actions panel, the same place Force Quit and Restart live for apps.
+    static func killProcessEntries(_ processes: [KillProcessEntry],
+                                   killStrings: KillProcessFeatureStrings) -> [CommandBarEntry] {
+        processes.filter { !$0.isProtected }.map { process in
+            CommandBarEntry(
+                id: "kill.\(process.pid)",
+                title: process.name,
+                subtitle: String(format: killStrings.pidLabelFormat, process.pid),
+                keywords: process.path,
+                icon: process.bundleURL.map { .appIcon(path: $0.path) } ?? .symbol("xmark.octagon"),
+                confirmationPrompt: String(format: killStrings.confirmKillFormat, process.name),
+                run: { _ in
+                    KillProcessService.shared.kill(process, force: false)
                 })
         }
     }

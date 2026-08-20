@@ -116,6 +116,12 @@ enum TemperatureSensorSelector {
         }
     }
 
+    static func isCPUTemperatureKey(_ key: String,
+                                    platform: CPUTemperaturePlatform) -> Bool {
+        if key.hasPrefix("Tp") || key.hasPrefix("Te") { return true }
+        return platform == .appleM3Family && key.hasPrefix("Tf")
+    }
+
     static func stabilizedTemperature(_ reading: Double?,
                                       cache: inout CachedSensorReading?,
                                       now: TimeInterval,
