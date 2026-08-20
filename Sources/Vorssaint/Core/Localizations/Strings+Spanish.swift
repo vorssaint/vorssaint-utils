@@ -218,6 +218,8 @@ extension Strings {
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Previsualizar ventanas en el Dock",
         dockPreviewEnableCaption: "Pasa el cursor sobre una app abierta en el Dock para ver sus ventanas y haz clic en la que quieras abrir.",
+        dockPreviewMediaControls: "Mostrar controles multimedia para apps de musica",
+        dockPreviewMediaControlsCaption: "Al pasar sobre Spotify o Musica, muestra caratula, detalles de la pista, progreso y controles de reproduccion en vez de la miniatura de una ventana.",
         dockPreviewBackgroundOpacity: "Fondo del panel",
         dockPreviewBackgroundOpacityCaption: "Bájalo para ver más de lo que hay detrás del panel.",
         dockClickMinimize: "Clic en el Dock para minimizar",
