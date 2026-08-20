@@ -199,6 +199,30 @@ enum WindowActivator {
         return minimizedState(of: axWindow)
     }
 
+    /// Puts a window at an exact frame. Size is written before position and
+    /// then position again: an app that clamps a move against its old size
+    /// lands short otherwise, and the second write costs nothing when the first
+    /// one already stuck.
+    @discardableResult
+    static func setWindowFrame(_ frame: CGRect, windowID: CGWindowID, pid: pid_t) -> Bool {
+        guard Permissions.shared.accessibility,
+              pid != ProcessInfo.processInfo.processIdentifier else { return false }
+        let axApp = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(axApp, 0.35)
+        guard let axWindow = axElement(windowID: windowID, in: axApp) else { return false }
+
+        var origin = frame.origin
+        var size = frame.size
+        guard let originValue = AXValueCreate(.cgPoint, &origin),
+              let sizeValue = AXValueCreate(.cgSize, &size) else { return false }
+
+        AXUIElementSetAttributeValue(axWindow, kAXPositionAttribute as CFString, originValue)
+        AXUIElementSetAttributeValue(axWindow, kAXSizeAttribute as CFString, sizeValue)
+        return AXUIElementSetAttributeValue(axWindow,
+                                            kAXPositionAttribute as CFString,
+                                            originValue) == .success
+    }
+
     /// Moves a window's top-left corner to a global Accessibility point.
     ///
     /// Our own windows are refused rather than special-cased: reading this
