@@ -1085,6 +1085,9 @@ struct AboutSettings: View {
                 Button(l10n.s.reviewIntro) {
                     appDelegate()?.showOnboarding()
                 }
+                Button(l10n.s.reviewHighlights) {
+                    appDelegate()?.showUpdateHighlights()
+                }
                 Link(l10n.s.viewOnGitHub, destination: AppInfo.repositoryURL)
             }
             Text(AppInfo.copyright)

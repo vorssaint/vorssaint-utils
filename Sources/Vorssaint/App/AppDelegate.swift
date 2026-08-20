@@ -1413,7 +1413,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         return true
     }
 
-    private func showUpdateHighlights() {
+    func showUpdateHighlights() {
         closePopover()
         if let window = updateHighlightsWindow {
             NSApp.activate(ignoringOtherApps: true)

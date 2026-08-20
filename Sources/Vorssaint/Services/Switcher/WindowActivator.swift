@@ -63,17 +63,20 @@ enum WindowActivator {
             }
             return
         }
+        let targetStartedMinimized = item.isMinimized
+            || windowIsMinimized(windowID: windowID, pid: windowOwnerPID)
         // A window parked on a Space that is not visible cannot be reached by
         // the Accessibility passes below; the hop travels there first and then
-        // runs the same focus pass on arrival (issue #339).
-        if SpaceHop.beginIfNeeded(windowID: windowID,
+        // runs the same focus pass on arrival (issue #339). A minimized window
+        // keeps its Accessibility element and can be deminiaturized directly
+        // on the regular path without relying on Space shortcuts being enabled.
+        if !targetStartedMinimized,
+           SpaceHop.beginIfNeeded(windowID: windowID,
                                   appPID: item.pid,
                                   windowOwnerPID: windowOwnerPID,
                                   app: app) {
             return
         }
-        let targetStartedMinimized = item.isMinimized
-            || windowIsMinimized(windowID: windowID, pid: windowOwnerPID)
         watchTargetMinimizeIfNeeded(windowID: windowID,
                                     targetPID: item.pid,
                                     targetWindowOwnerPID: windowOwnerPID,
@@ -627,16 +630,6 @@ enum WindowActivator {
         AXUIElementSetAttributeValue(axWindow, kAXMainAttribute as CFString, kCFBooleanTrue)
         AXUIElementSetAttributeValue(axWindow, kAXFocusedAttribute as CFString, kCFBooleanTrue)
         return true
-    }
-
-    /// Whether Accessibility can currently resolve this window at all. Windows
-    /// on a hidden Space cannot be resolved; minimized windows can, wherever
-    /// they came from (see SpaceHop.beginIfNeeded).
-    static func canResolveAXWindow(windowID: CGWindowID, pid: pid_t) -> Bool {
-        guard Permissions.shared.accessibility else { return false }
-        let axApp = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(axApp, 0.35)
-        return axElement(windowID: windowID, in: axApp) != nil
     }
 
     /// Focus pass run by SpaceHop once the target window's Space became

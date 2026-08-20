@@ -705,6 +705,7 @@ struct Strings {
     let aboutDescription: String
     let versionPrefix: String
     let reviewIntro: String
+    let reviewHighlights: String
     let viewOnGitHub: String
 
     // MARK: Onboarding
@@ -1026,9 +1027,12 @@ struct Strings {
     let qrResultCopy: String
     let qrResultOpen: String
     let highlightsTitle: String
+    let highlightsTitleClipboardRedesign: String
     let highlightsCaptionDockPreview: String
     let highlightsCaptionScreenshot: String
     let highlightsCaptionSnippetLibrary: String
+    let highlightsCaptionCapturePalette: String
+    let highlightsCaptionClipboardRedesign: String
     let highlightsConfigure: String
     let highlightsTry: String
     let highlightsSeeAll: String
@@ -1639,6 +1643,7 @@ extension Strings {
         aboutDescription: "Central de utilidades para o seu Mac.\nEnergia, monitor do sistema, rolagem e alternador de janelas, direto na barra de menus.",
         versionPrefix: "Versão",
         reviewIntro: "Rever introdução",
+        reviewHighlights: "Rever novidades",
         viewOnGitHub: "Ver no GitHub",
 
         obContinue: "Continuar",
@@ -1944,9 +1949,12 @@ extension Strings {
         qrResultCopy: "Copiar",
         qrResultOpen: "Abrir link",
         highlightsTitle: "Novidades desta versão",
+        highlightsTitleClipboardRedesign: "Novo visual da área de transferência",
         highlightsCaptionDockPreview: "O Dock Preview agora funciona com a ampliação do Dock ligada",
         highlightsCaptionScreenshot: "A captura de tela ganhou uma lupa de pixels e leitura de QR codes",
         highlightsCaptionSnippetLibrary: "Um menu de snippets com busca digita qualquer snippet direto no cursor",
+        highlightsCaptionCapturePalette: "Um único atalho agora abre uma paleta flutuante para capturas, gravações, texto na tela e cores com ajustes por perto.",
+        highlightsCaptionClipboardRedesign: "O histórico agora abre como uma paleta compacta, com linhas limpas e prévia sob demanda para ler ou editar o item completo.",
         highlightsConfigure: "Configurar",
         highlightsTry: "Experimentar",
         highlightsSeeAll: "Ver todas as mudanças",
@@ -2558,6 +2566,7 @@ extension Strings {
         aboutDescription: "A utility hub for your Mac.\nEnergy, system monitor, scrolling and a window switcher, right in the menu bar.",
         versionPrefix: "Version",
         reviewIntro: "Review introduction",
+        reviewHighlights: "Review highlights",
         viewOnGitHub: "View on GitHub",
 
         obContinue: "Continue",
@@ -2863,9 +2872,12 @@ extension Strings {
         qrResultCopy: "Copy",
         qrResultOpen: "Open link",
         highlightsTitle: "New in this update",
+        highlightsTitleClipboardRedesign: "Redesigned clipboard",
         highlightsCaptionDockPreview: "Dock Preview now works with Dock magnification turned on",
         highlightsCaptionScreenshot: "The screenshot tool gained a pixel loupe and QR code reading",
         highlightsCaptionSnippetLibrary: "A searchable snippet menu types any snippet right at your cursor",
+        highlightsCaptionCapturePalette: "One shortcut now opens a floating palette for screenshots, recordings, screen text and colors with nearby controls.",
+        highlightsCaptionClipboardRedesign: "Clipboard history now opens as a compact palette with uncluttered rows and an on-demand preview for reading or editing the full item.",
         highlightsConfigure: "Set up",
         highlightsTry: "Try it",
         highlightsSeeAll: "See all changes",

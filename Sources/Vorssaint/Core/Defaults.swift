@@ -566,7 +566,7 @@ enum UpdateHighlightsInfo {
     /// The single release whose first launch shows the tour; any other
     /// version never shows it. Bump deliberately for releases with headline
     /// features worth a tour.
-    static let releaseVersion = "3.3.1"
+    static let releaseVersion = "3.3.2"
 
     static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
         appVersion == releaseVersion && lastSeenVersion != releaseVersion
@@ -577,7 +577,7 @@ enum SupportUpdateIntroInfo {
     /// The single release whose first launch shows the update intro. It used
     /// to track AppInfo.version, which re-showed the ask on every update; now a
     /// release only shows it when this constant is deliberately bumped.
-    static let releaseVersion = "3.3.0"
+    static let releaseVersion = "3.3.2"
 
     static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
         appVersion == releaseVersion && lastSeenVersion != releaseVersion

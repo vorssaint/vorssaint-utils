@@ -48,14 +48,11 @@ enum SpaceHopSupport {
     /// How many "move a space" presses take the user from the visible Space to
     /// `target`. Positive means move right, negative means move left. Returns
     /// nil when the target is already visible, cannot be found, or sits
-    /// farther than `maximumArrowSteps` away. With more than one display it
-    /// always returns nil: the replayed shortcut moves whichever display has
-    /// keyboard focus, which is not necessarily the display owning the target,
-    /// so a hop there could shuffle the wrong display's desktops.
+    /// farther than `maximumArrowSteps` away.
     static func arrowSteps(orderedSpacesPerDisplay: [[UInt64]],
                            visibleSpaces: Set<UInt64>,
                            target: UInt64) -> Int? {
-        guard orderedSpacesPerDisplay.count == 1, let row = orderedSpacesPerDisplay.first else { return nil }
+        guard let row = orderedSpacesPerDisplay.first(where: { $0.contains(target) }) else { return nil }
         guard !visibleSpaces.contains(target) else { return nil }
         guard let targetIndex = row.firstIndex(of: target),
               let currentIndex = row.firstIndex(where: { visibleSpaces.contains($0) })

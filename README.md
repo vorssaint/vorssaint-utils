@@ -31,7 +31,7 @@
 </p>
 
 <p align="center">
-  For partnerships, sponsorships, or anything worth building together,
+  For questions, feature requests, feedback, partnerships, sponsorships, or just to say hi,
   <a href="mailto:hello@vorssaint.com"><strong>hello@vorssaint.com</strong></a>
 </p>
 

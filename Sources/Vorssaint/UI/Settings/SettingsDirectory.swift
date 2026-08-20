@@ -169,7 +169,7 @@ enum SettingsDirectory {
                                       keywords: [s.hotkeyToggle]),
                 SettingsDirectoryItem(page: .advanced, title: s.tabAdvanced, icon: "wrench.and.screwdriver"),
                 SettingsDirectoryItem(page: .about, title: s.tabAbout, icon: "info.circle",
-                                      keywords: [s.reviewIntro]),
+                                      keywords: [s.reviewIntro, s.reviewHighlights]),
                 SettingsDirectoryItem(page: .releaseNotes, title: s.tabReleaseNotes, icon: "sparkles"),
                 SettingsDirectoryItem(page: .support, title: s.tabSupport, icon: "heart.fill"),
             ]),

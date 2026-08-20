@@ -30,10 +30,11 @@ enum WindowEnumerator {
     /// bounded AX batches.
     private static let maximumConcurrentQueries = 24
 
-    static func listWindows() -> [SwitcherItem] {
+    static func listWindows(groupByApp: Bool = UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs)) -> [SwitcherItem] {
         listWindows(
             appRules: SwitcherAppRule.rules(
                 storedValue: UserDefaults.standard.dictionary(forKey: DefaultsKey.switcherAppRules)),
+            groupByApp: groupByApp,
             marksHiddenSpaces: true
         )
     }
@@ -41,10 +42,11 @@ enum WindowEnumerator {
     /// The Command Bar shares the window walk, not the Switcher's visibility
     /// preferences. An app hidden from ⌘Tab must remain searchable there.
     static func listWindowsForCommandBar() -> [SwitcherItem] {
-        listWindows(appRules: [:], marksHiddenSpaces: false)
+        listWindows(appRules: [:], groupByApp: false, marksHiddenSpaces: false)
     }
 
     private static func listWindows(appRules: [String: SwitcherAppRule],
+                                    groupByApp: Bool,
                                     marksHiddenSpaces: Bool) -> [SwitcherItem] {
         let windowlessApps = SwitcherWindowlessApps.mode(
             storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherWindowlessApps))
@@ -53,7 +55,7 @@ enum WindowEnumerator {
                            maximumCount: maximumCount,
                            windowlessApps: windowlessApps,
                            appRules: appRules,
-                           groupByApp: UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs),
+                           groupByApp: groupByApp,
                            currentSpaceOnly: currentSpaceOnly,
                            marksHiddenSpaces: marksHiddenSpaces && !currentSpaceOnly)
     }

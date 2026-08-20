@@ -85,9 +85,10 @@ Fan Control, Settings and app maintenance.
   search for keyboard light controls. Screen text recognition now follows the interface
   language. Thanks to @MaximilianMauroner and @PathGao.
 - Switcher now survives wake, restores minimized windows, keeps selection aligned,
-  reaches Settings, closes windows on other desktops and retains full-screen video
-  windows. Its labels now follow the saved shortcut without crashing while typing.
-  Thanks to @liuxxxu, @AB-boi, @danpalmer and @eioz.
+  reaches Settings, closes windows on other desktops, switches between full-screen
+  instances across desktops and retains full-screen video windows. Its labels now
+  follow the saved shortcut without crashing while typing. Thanks to @liuxxxu,
+  @AB-boi, @danpalmer and @eioz.
 - Quit on close now covers separate guest-app windows. Thanks to @danno71.
 - Dock Preview focus no longer overwhelms its controls, and Super key works when
   Caps Lock is disabled without leaving it on after a mapping repair.
