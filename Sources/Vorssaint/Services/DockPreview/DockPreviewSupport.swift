@@ -139,8 +139,19 @@ enum DockPreviewSupport {
         )
     }
 
-    static var cardWidth: CGFloat { 204 * PreviewSizing.scale }
-    static var cardHeight: CGFloat { 152 * PreviewSizing.scale }
+    /// Card metrics. The thumbnail gets whatever the fixed chrome does not
+    /// take, so the card can be resized or the title band retuned without
+    /// leaving a stale magic number behind — the old code hard-coded a 54pt
+    /// deduction that no longer matched the parts it stood for.
+    static var cardWidth: CGFloat { 176 * PreviewSizing.scale }
+    static var cardHeight: CGFloat { 134 * PreviewSizing.scale }
+    static var cardPadding: CGFloat { 8 * PreviewSizing.scale }
+    static var cardTitleSpacing: CGFloat { 5 * PreviewSizing.scale }
+    /// One line of 12pt semibold, with just enough room for descenders.
+    static var cardTitleHeight: CGFloat { 17 * PreviewSizing.scale }
+    static var cardThumbnailHeight: CGFloat {
+        cardHeight - cardPadding * 2 - cardTitleSpacing - cardTitleHeight
+    }
     static var cardSpacing: CGFloat { 8 * PreviewSizing.scale }
     static var panelPadding: CGFloat { 12 * PreviewSizing.scale }
     static let panelHeaderHeight: CGFloat = 28
