@@ -12,6 +12,8 @@ Vorssaint 3.3.3 keeps the grouped App Switcher clear when moving between windows
 ### Fixed
 - The grouped simple App Switcher now keeps every window title fully visible when
   using the window shortcut.
+- Scratchpad tabs and its pin, close, new pad and pad actions buttons now respond
+  across their whole area instead of only on the icon itself. Thanks to @AB-boi.
 
 ## [3.3.2] - 2026-08-20
 

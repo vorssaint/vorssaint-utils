@@ -92,6 +92,7 @@ struct ScratchpadView: View {
                 Image(systemName: "plus")
                     .font(.system(size: 12, weight: .semibold))
                     .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(!service.canCreatePad)
@@ -110,6 +111,7 @@ struct ScratchpadView: View {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 12, weight: .semibold))
                     .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
@@ -140,6 +142,7 @@ struct ScratchpadView: View {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(selected ? Color.accentColor.opacity(0.16) : Color.clear)
                 }
+                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
         .buttonStyle(.plain)
         .contextMenu {
@@ -204,7 +207,8 @@ struct ScratchpadView: View {
             } label: {
                 Image(systemName: service.isPinned ? "pin.fill" : "pin")
                     .font(.system(size: 12, weight: .semibold))
-                    .frame(width: 22, height: 20)
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(service.isPinned ? Color.accentColor : Color.secondary)
@@ -216,6 +220,8 @@ struct ScratchpadView: View {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help(l10n.s.menuClose)
