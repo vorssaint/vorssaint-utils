@@ -12,6 +12,9 @@ Vorssaint 3.3.3 keeps the grouped App Switcher clear when moving between windows
 ### Fixed
 - The grouped simple App Switcher now keeps every window title fully visible when
   using the window shortcut.
+- Screen recorder, Copy text from screen and Color picker can each take a shortcut
+  of their own again, opening screen capture already on that mode. Their Settings
+  rows no longer record a combination that does nothing. Thanks to @wiidede.
 
 ## [3.3.2] - 2026-08-20
 

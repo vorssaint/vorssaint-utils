@@ -15070,6 +15070,28 @@ struct MetricsTests {
                                              limit: 5) == ["b", "a"],
                "curated suggestions skip whatever is unavailable")
 
+        // MARK: Capture tool shortcuts
+
+        expect(ScreenCaptureTool.screenshot.dedicatedShortcut == nil,
+               "the screenshot tool has no shortcut of its own: the general capture one is it")
+        expect(ScreenCaptureTool.allCases.compactMap { $0.dedicatedShortcut?.role }
+                == [.screenRecorder, .screenOCR, .colorPicker],
+               "every other capture tool owns a shortcut role, in tool order")
+        // The keys a tool registers have to be the ones its settings row writes.
+        // Three roles once had a row and no registrar, so the key was recorded
+        // and the combination did nothing (issue #708).
+        expect(ScreenCaptureTool.allCases.allSatisfy { tool in
+                guard let keys = tool.dedicatedShortcut else { return true }
+                return keys.storageKey == keys.role.storageKey
+                    && keys.role.requiredEnableKeys == [keys.enabledKey]
+                    && keys.role.feature == tool.feature
+               },
+               "a capture tool registers exactly the keys its own settings row reads")
+        expect(([.screenRecorder, .screenOCR, .colorPicker] as [GlobalShortcutRole]).allSatisfy { role in
+                ScreenCaptureTool.allCases.contains { $0.dedicatedShortcut?.role == role }
+               },
+               "no capture tool's shortcut row is left without something to register it")
+
         // MARK: Result
 
         if failures.isEmpty {

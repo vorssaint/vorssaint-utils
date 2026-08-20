@@ -36,6 +36,44 @@ enum ScreenCaptureTool: String, CaseIterable {
         }
     }
 
+    /// A tool's own global shortcut, which opens the chooser already on that
+    /// mode. The screenshot tool has none of its own: the general capture
+    /// shortcut opens the chooser without preferring a mode, and screenshot is
+    /// where it lands.
+    ///
+    /// Every case that answers with one must have a hotkey registered for it.
+    /// `ScreenCaptureService` builds exactly one per case from this list, so a
+    /// tool cannot gain a settings row whose key nothing registers, which is
+    /// what left three of them doing nothing (issue #708).
+    struct DedicatedShortcut {
+        let role: GlobalShortcutRole
+        let enabledKey: String
+        let storageKey: String
+        let fallback: GlobalShortcut
+    }
+
+    var dedicatedShortcut: DedicatedShortcut? {
+        switch self {
+        case .screenshot:
+            return nil
+        case .recording:
+            return DedicatedShortcut(role: .screenRecorder,
+                                     enabledKey: DefaultsKey.recorderShortcutEnabled,
+                                     storageKey: DefaultsKey.recorderShortcut,
+                                     fallback: .screenRecorderDefault)
+        case .text:
+            return DedicatedShortcut(role: .screenOCR,
+                                     enabledKey: DefaultsKey.screenOCRShortcutEnabled,
+                                     storageKey: DefaultsKey.screenOCRShortcut,
+                                     fallback: .screenOCRDefault)
+        case .color:
+            return DedicatedShortcut(role: .colorPicker,
+                                     enabledKey: DefaultsKey.colorPickerShortcutEnabled,
+                                     storageKey: DefaultsKey.colorPickerShortcut,
+                                     fallback: .colorPickerDefault)
+        }
+    }
+
     var systemImageName: String {
         switch self {
         case .screenshot: return "camera.viewfinder"
