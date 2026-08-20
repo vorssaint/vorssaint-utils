@@ -2093,6 +2093,14 @@ struct MetricsTests {
                "hiding the active app from its Dock icon is opt-in")
         expect(DockPreviewSupport.sanitizedBackgroundOpacity(0.7) == 0.7,
                "a Dock Preview background opacity inside the range is kept")
+        expect(DockPreviewSupport.canDragToPlace(hasWindowID: true, isMinimized: false, isFullscreen: false),
+               "an ordinary preview card can be dragged out of the panel")
+        expect(!DockPreviewSupport.canDragToPlace(hasWindowID: true, isMinimized: true, isFullscreen: false),
+               "a minimized window has no on-screen position to drag it to")
+        expect(!DockPreviewSupport.canDragToPlace(hasWindowID: true, isMinimized: false, isFullscreen: true),
+               "a fullscreen window owns its Space and ignores a dropped position")
+        expect(!DockPreviewSupport.canDragToPlace(hasWindowID: false, isMinimized: false, isFullscreen: false),
+               "an entry without a window has nothing to move")
         expect(DockPreviewSupport.sanitizedBackgroundOpacity(0)
                == DockPreviewSupport.backgroundOpacityRange.lowerBound
                && DockPreviewSupport.sanitizedBackgroundOpacity(-3)

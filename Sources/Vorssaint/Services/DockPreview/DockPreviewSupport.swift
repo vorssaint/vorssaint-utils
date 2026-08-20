@@ -104,6 +104,20 @@ enum DockPreviewSupport {
     /// cursor still keeps the session, while neighbouring Dock icons (one tile
     /// width away) stay clear of the corridor.
     static let corridorMargin: CGFloat = 12
+    /// Whether a preview card can be lifted out of the panel and dropped
+    /// somewhere else. A minimized window has no on-screen position to aim at,
+    /// and a fullscreen window owns its Space and ignores the position it is
+    /// given — dragging either one would move nothing while still tearing the
+    /// panel down.
+    static func canDragToPlace(hasWindowID: Bool, isMinimized: Bool, isFullscreen: Bool) -> Bool {
+        hasWindowID && !isMinimized && !isFullscreen
+    }
+
+    /// How far the pointer must travel before a press on a card becomes a
+    /// drag. Large enough that a click with a shaky hand still opens the
+    /// window, small enough that the lift feels immediate.
+    static let dragLiftDistance: CGFloat = 6
+
     static var cardWidth: CGFloat { 204 * PreviewSizing.scale }
     static var cardHeight: CGFloat { 152 * PreviewSizing.scale }
     static var cardSpacing: CGFloat { 8 * PreviewSizing.scale }
