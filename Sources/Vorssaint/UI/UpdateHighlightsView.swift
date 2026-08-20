@@ -225,4 +225,3 @@ private struct UpdateHighlightArtwork: View {
         return nil
     }
 }
-

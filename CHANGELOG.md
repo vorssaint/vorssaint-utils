@@ -4,20 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [3.3.2]
+## [3.3.2] - 2026-08-20
 
 ### Summary
 Vorssaint 3.3.2 brings one place for screen capture, batch image conversion,
-local Command Bar scripts, recent captures, imported-video editing, formatted
-Scratchpad previews, swap use and pointer-driven window focus. It also opens a new
-Discord community, cuts background energy use and improves
+local Command Bar scripts, recent captures, imported video editing, formatted
+Scratchpad previews, swap use and window focus that follows the pointer. It also
+opens a new Discord community, cuts background energy use and improves
 scrolling screenshots, Clipboard, Shelf, Switcher, window controls, audio, displays,
 Fan Control, Settings and app maintenance.
 
 ### Added
 - An optional Focus follows mouse feature brings the window under the pointer to
   the front after an adjustable pause. It ships uninstalled. Thanks to @Bald-M.
-- One screen-capture shortcut now opens a floating palette for screenshots,
+- One screen capture shortcut now opens a floating palette for screenshots,
   recordings, screen text and colors, with sound controls and each mode's settings
   kept nearby.
 - Media now converts images in batches with resizing, watermarks, renaming and
@@ -43,13 +43,13 @@ Fan Control, Settings and app maintenance.
   early previews and release news together while the community takes shape.
 
 ### Changed
-- Monitor settings no longer leave system sensors sampling after the window closes;
-  hidden metric histories and temporary overlays now release work and memory when
+- Monitor settings no longer leave system sensors sampling after the window closes.
+  Hidden metric histories and temporary overlays now release work and memory when
   they are no longer visible.
-- Clipboard history now opens as a compact palette with uncluttered rows and an
-  on-demand preview for reading or editing the full item.
+- Clipboard history now opens as a compact palette with uncluttered rows and a
+  preview on demand for reading or editing the full item.
 - Command Bar now learns result choices for the current session, finds alternate
-  and localized app names, supports Control-P and Control-N, moves by dragging and
+  and localized app names, supports Control P and Control N, moves by dragging and
   formats feet more naturally. Thanks to @ruvelro, @tingke, @theafox and @tenbux.
 - Recording can now pause and resume without gaps, keep an area guide visible and
   start without automatic zooms. Copied screenshots now also work as image files.
@@ -59,7 +59,7 @@ Fan Control, Settings and app maintenance.
 - App Updates now searches more places and offers source controls, while installed
   feature rows lead directly to the relevant Settings controls. Thanks to @ruvelro,
   @PathGao and @dorlugasigal.
-- App removal now recognizes package-manager ownership for managed apps. Thanks to
+- App removal now recognizes when managed apps belong to a package manager. Thanks to
   @MineraleYT.
 - Settings now better separates Clipboard controls, explains Full Disk Access and
   keeps inactive or list controls clearer. Thanks to @PathGao.
@@ -73,11 +73,11 @@ Fan Control, Settings and app maintenance.
 ### Fixed
 - Scrolling screenshots now keep moving content aligned without repeating fixed
   page areas.
-- Display controls now keep extra brightness steady, restore the built-in screen
+- Display controls now keep extra brightness steady, restore the internal display
   after the last external one disconnects and stop retrying unsupported brightness
   checks after wake. Thanks to @stevenyang406, @mayaanhafeez and @danilo-alm.
-- Three-finger light taps no longer trigger a middle click while typing.
-- Window tools now center fixed-size windows, cancel stale placements and handle
+- Light taps with three fingers no longer trigger a middle click while typing.
+- Window tools now center windows with a fixed size, cancel stale placements and handle
   duplicate running processes without quitting the app.
 - Capture now supports drawing a fresh crop, preserves translucent window content and
   animates the recording countdown smoothly. Thanks to @lmilojevicc.
@@ -87,11 +87,11 @@ Fan Control, Settings and app maintenance.
   search for keyboard light controls. Screen text recognition now follows the interface
   language. Thanks to @MaximilianMauroner and @PathGao.
 - Switcher now survives wake, restores minimized windows, keeps selection aligned,
-  reaches Settings, closes windows on other desktops, switches between full-screen
-  instances across desktops and retains full-screen video windows. Its labels now
+  reaches Settings, closes windows on other desktops, switches between full screen
+  instances across desktops and retains full screen video windows. Its labels now
   follow the saved shortcut without crashing while typing. Thanks to @liuxxxu,
   @AB-boi, @danpalmer and @eioz.
-- Quit on close now covers separate guest-app windows. Thanks to @danno71.
+- Quit on close now covers separate guest app windows. Thanks to @danno71.
 - Dock Preview focus no longer overwhelms its controls, and Super key works when
   Caps Lock is disabled without leaving it on after a mapping repair.
 - Audio boost now smooths loud peaks and Volume Mixer restores sound after a failed
@@ -102,7 +102,7 @@ Fan Control, Settings and app maintenance.
   @jbleuzen.
 - App Updates no longer matches store updates to the wrong app, and stale package
   details clear after removal. Thanks to @PathGao and @MineraleYT.
-- Setup alignment, command-line configuration, menu panel focus and first-time Fan
+- Setup alignment, configuration from the command line, menu panel focus and initial Fan
   Control approval now behave correctly. Thanks to @danpalmer and @CALLmeDOMIN.
 - Fan Control now keeps maximum cooling engaged when the system could reclaim
   automatic mode between control writes. Thanks to @augustoFranke.
