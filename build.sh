@@ -236,6 +236,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/URLCleaning.swift \
         Sources/Vorssaint/Services/GeneralPasteboardAccess.swift \
         Sources/Vorssaint/Services/Audio/MixerRoutingSupport.swift \
+        Sources/Vorssaint/Services/Audio/AudioRecoverySupport.swift \
         Sources/Vorssaint/Services/Audio/MusicLaunchSupport.swift \
         Sources/Vorssaint/Services/Bluetooth/BluetoothSleepSupport.swift \
         Sources/Vorssaint/UI/MenuPanel/MixerPercentNativeTextField.swift \

@@ -523,6 +523,13 @@ extension Strings {
         breakdownMeasuring: "計測中…",
 
         mixerSection: "音量ミキサー",
+        audioRecoveryTitle: "Core Audioを再起動",
+        audioRecoveryCaption: "音が割れたり途切れたり聞こえなくなったときに、macOSのオーディオサービスを再起動します。",
+        audioRecoveryButton: "オーディオを再起動",
+        audioRecoveryResetting: "再起動中…",
+        audioRecoverySuccess: "Core Audioを再起動しました。",
+        audioRecoveryFailure: "Core Audioを再起動できませんでした。",
+        audioRecoveryAdminPrompt: "Vorssaintはサウンドを復旧するためmacOSのCore Audioを再起動します。管理者パスワードが必要な場合があります。",
         mixerEmpty: "オーディオを使用するアプリがここに表示されます",
         mixerUnavailable: "macOS 14.4 以降で利用できます",
         mixerPermissionBody: "アプリごとの音量を調整するには、システム設定で「画面とシステムオーディオ収録」を許可してください。オーディオが記録されることはありません。",

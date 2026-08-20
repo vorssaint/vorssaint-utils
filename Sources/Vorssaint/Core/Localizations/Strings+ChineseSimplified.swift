@@ -523,6 +523,13 @@ extension Strings {
         breakdownMeasuring: "测量中…",
 
         mixerSection: "音量混音器",
+        audioRecoveryTitle: "重启 Core Audio",
+        audioRecoveryCaption: "声音出现杂音、卡顿或消失时，重启 macOS 音频服务。",
+        audioRecoveryButton: "重启音频",
+        audioRecoveryResetting: "正在重启…",
+        audioRecoverySuccess: "Core Audio 已重启。",
+        audioRecoveryFailure: "无法重启 Core Audio。",
+        audioRecoveryAdminPrompt: "Vorssaint 将重启 macOS Core Audio 以恢复声音，可能需要管理员密码。",
         mixerEmpty: "使用音频的 App 会显示在这里",
         mixerUnavailable: "需 macOS 14.4 及更高版本",
         mixerPermissionBody: "若要调整各 App 的音量，请在“系统设置”中允许“屏幕与系统音频录制”。绝不会录制音频。",

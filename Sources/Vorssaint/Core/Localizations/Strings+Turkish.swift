@@ -523,6 +523,13 @@ extension Strings {
         breakdownMeasuring: "Ölçülüyor…",
 
         mixerSection: "Ses mikseri",
+        audioRecoveryTitle: "Core Audio'yu sıfırla",
+        audioRecoveryCaption: "Ses çatladığında, kesildiğinde veya kaybolduğunda macOS ses hizmetini yeniden başlatır.",
+        audioRecoveryButton: "Sesi sıfırla",
+        audioRecoveryResetting: "Sıfırlanıyor…",
+        audioRecoverySuccess: "Core Audio yeniden başlatıldı.",
+        audioRecoveryFailure: "Core Audio yeniden başlatılamadı.",
+        audioRecoveryAdminPrompt: "Vorssaint sesi kurtarmak için macOS Core Audio'yu yeniden başlatacak. Yönetici parolası gerekebilir.",
         mixerEmpty: "Ses kullanan uygulamalar burada görünür",
         mixerUnavailable: "macOS 14.4 ve sonrasında kullanılabilir",
         mixerPermissionBody: "Uygulama başına ses düzeyini ayarlamak için Sistem Ayarları'nda “Ekran ve Sistem Sesi Kaydı”na izin ver. Ses hiçbir zaman kaydedilmez.",

@@ -523,6 +523,13 @@ extension Strings {
         breakdownMeasuring: "Misurazione…",
 
         mixerSection: "Mixer del volume",
+        audioRecoveryTitle: "Riavvia Core Audio",
+        audioRecoveryCaption: "Riavvia il servizio audio di macOS quando l’audio crepita, scatta o scompare.",
+        audioRecoveryButton: "Riavvia audio",
+        audioRecoveryResetting: "Riavvio…",
+        audioRecoverySuccess: "Core Audio riavviato.",
+        audioRecoveryFailure: "Impossibile riavviare Core Audio.",
+        audioRecoveryAdminPrompt: "Vorssaint riavvierà Core Audio di macOS per ripristinare l’audio. Potrebbe essere richiesta la password di amministratore.",
         mixerEmpty: "Le app che usano l'audio compaiono qui",
         mixerUnavailable: "Disponibile su macOS 14.4 e successivi",
         mixerPermissionBody: "Per regolare il volume per ogni app, consenti «Registrazione schermo e audio di sistema» in Impostazioni di Sistema. L'audio non viene mai registrato.",

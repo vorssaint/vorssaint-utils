@@ -648,6 +648,13 @@ struct Strings {
 
     // MARK: Panel — volume mixer
     let mixerSection: String
+    let audioRecoveryTitle: String
+    let audioRecoveryCaption: String
+    let audioRecoveryButton: String
+    let audioRecoveryResetting: String
+    let audioRecoverySuccess: String
+    let audioRecoveryFailure: String
+    let audioRecoveryAdminPrompt: String
     let mixerEmpty: String
     let mixerUnavailable: String
     let mixerPermissionBody: String
@@ -1626,6 +1633,13 @@ extension Strings {
         breakdownMeasuring: "Medindo…",
 
         mixerSection: "Mixer de volume",
+        audioRecoveryTitle: "Reiniciar o Core Audio",
+        audioRecoveryCaption: "Reinicia o serviço de áudio do macOS quando o som estala, falha ou desaparece.",
+        audioRecoveryButton: "Reiniciar áudio",
+        audioRecoveryResetting: "Reiniciando…",
+        audioRecoverySuccess: "Core Audio reiniciado.",
+        audioRecoveryFailure: "Não foi possível reiniciar o Core Audio.",
+        audioRecoveryAdminPrompt: "O Vorssaint reiniciará o Core Audio do macOS para recuperar o som. Uma senha de administrador pode ser necessária.",
         mixerEmpty: "Apps que usam áudio aparecem aqui",
         mixerUnavailable: "Disponível a partir do macOS 14.4",
         mixerPermissionBody: "Para ajustar o volume por app, permita “Gravação de Tela e Áudio do Sistema” nos Ajustes do Sistema. O áudio nunca é gravado.",
@@ -2586,6 +2600,13 @@ extension Strings {
         breakdownMeasuring: "Measuring…",
 
         mixerSection: "Volume mixer",
+        audioRecoveryTitle: "Reset Core Audio",
+        audioRecoveryCaption: "Restarts macOS’s audio service when sound is crackling, stuttering or missing.",
+        audioRecoveryButton: "Reset audio",
+        audioRecoveryResetting: "Resetting…",
+        audioRecoverySuccess: "Core Audio restarted.",
+        audioRecoveryFailure: "Could not restart Core Audio.",
+        audioRecoveryAdminPrompt: "Vorssaint will restart macOS Core Audio to recover sound. An administrator password may be required.",
         mixerEmpty: "Apps that use audio show up here",
         mixerUnavailable: "Available on macOS 14.4 and later",
         mixerPermissionBody: "To adjust per-app volume, allow “Screen & System Audio Recording” in System Settings. Audio is never recorded.",

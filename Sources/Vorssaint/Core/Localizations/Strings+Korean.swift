@@ -524,6 +524,13 @@ extension Strings {
         breakdownMeasuring: "측정 중…",
 
         mixerSection: "볼륨 믹서",
+        audioRecoveryTitle: "Core Audio 재시동",
+        audioRecoveryCaption: "소리가 깨지거나 끊기거나 사라질 때 macOS 오디오 서비스를 재시동합니다.",
+        audioRecoveryButton: "오디오 재시동",
+        audioRecoveryResetting: "재시동 중…",
+        audioRecoverySuccess: "Core Audio를 재시동했습니다.",
+        audioRecoveryFailure: "Core Audio를 재시동하지 못했습니다.",
+        audioRecoveryAdminPrompt: "Vorssaint가 사운드를 복구하기 위해 macOS Core Audio를 재시동합니다. 관리자 암호가 필요할 수 있습니다.",
         mixerEmpty: "오디오를 사용하는 앱이 여기에 표시됩니다",
         mixerUnavailable: "macOS 14.4 이상에서 사용할 수 있습니다",
         mixerPermissionBody: "앱별 볼륨을 조절하려면 시스템 설정에서 ‘화면 및 시스템 오디오 녹음’을 허용하세요. 오디오는 기록되지 않습니다.",

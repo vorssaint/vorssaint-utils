@@ -40,6 +40,13 @@ struct MetricsTests {
             if actual != expected { failures.append("\(label): got \(actual), expected \(expected)") }
         }
 
+        // MARK: Audio recovery
+
+        expectEqual(AudioRecoverySupport.processName, "coreaudiod",
+                    "audio recovery targets Core Audio")
+        expectEqual(AudioRecoverySupport.resetCommand, "/usr/bin/killall coreaudiod",
+                    "audio recovery uses the audited absolute command")
+
         // MARK: Byte / rate formatting
 
         expectEqual(MetricFormat.bytes(0), "0 B", "bytes zero")

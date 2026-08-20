@@ -13,6 +13,7 @@ struct MixerSection: View {
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var inputManager = AudioInputDeviceManager.shared
     @ObservedObject private var outputSwitcher = SoundOutputSwitcher.shared
+    @ObservedObject private var audioRecovery = AudioRecoveryService.shared
     @ObservedObject private var preciseVolumeRoller = PreciseVolumeRollerService.shared
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.mixerHideInactiveApps)
@@ -71,6 +72,7 @@ struct MixerSection: View {
 
     private var audioDevicesSection: some View {
         VStack(alignment: .leading, spacing: 6) {
+            audioRecoveryControl
             universalOutputPicker
             systemSoundOutputPicker
             microphonePicker
@@ -116,6 +118,49 @@ struct MixerSection: View {
                     }
                 }
                 .padding(.leading, 19)
+            }
+        }
+    }
+
+    private var audioRecoveryControl: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Label {
+                    Text(l10n.s.audioRecoveryTitle)
+                        .font(.system(size: 11.5, weight: .medium))
+                } icon: {
+                    Image(systemName: "arrow.clockwise.circle")
+                        .font(.system(size: 10.5, weight: .semibold))
+                }
+                .foregroundStyle(.secondary)
+
+                Spacer(minLength: 6)
+
+                Button {
+                    audioRecovery.resetAudio()
+                } label: {
+                    Label(audioRecovery.isResetting
+                          ? l10n.s.audioRecoveryResetting
+                          : l10n.s.audioRecoveryButton,
+                          systemImage: audioRecovery.isResetting ? "hourglass" : "arrow.clockwise")
+                }
+                .controlSize(.small)
+                .disabled(audioRecovery.isResetting)
+                .help(l10n.s.audioRecoveryCaption)
+            }
+
+            Text(l10n.s.audioRecoveryCaption)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let result = audioRecovery.lastResult {
+                inputMessage(result == .succeeded
+                             ? l10n.s.audioRecoverySuccess
+                             : l10n.s.audioRecoveryFailure,
+                             systemImage: result == .succeeded
+                                 ? "checkmark.circle"
+                                 : "exclamationmark.triangle")
             }
         }
     }
