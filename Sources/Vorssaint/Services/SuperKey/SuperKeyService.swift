@@ -581,8 +581,24 @@ final class SuperKeyService: ObservableObject {
 
     private func switchInputSource() {
         inputSourceQueue.async {
+            let markedRangeAttribute = NSAccessibility.Attribute.textInputMarkedRangeAttribute.rawValue
             _ = AppleScriptRunner.run(
-                "tell application \"System Events\" to key code 49 using control down"
+                """
+                tell application "System Events"
+                    set frontmostProcess to first application process whose frontmost is true
+                    try
+                        set focusedElement to value of attribute "AXFocusedUIElement" of frontmostProcess
+                        set markedRange to value of attribute "\(markedRangeAttribute)" of focusedElement
+                        if frontmost of frontmostProcess and markedRange is not missing value and (item 2 of markedRange) > 0 then
+                            key code 36
+                            delay 0.1
+                        end if
+                    end try
+                    if frontmost of frontmostProcess then
+                        key code 49 using control down
+                    end if
+                end tell
+                """
             )
         }
     }
