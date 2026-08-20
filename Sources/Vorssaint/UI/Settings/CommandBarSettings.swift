@@ -395,6 +395,7 @@ struct CommandBarSettings: View {
         case .menus: return text.sourceMenus
         case .windows: return text.sourceWindows
         case .quitApps: return text.sourceQuitApps
+        case .uninstallApps: return l10n.s.uninstallerName
         case .settingsPages: return text.sourceSettingsPages
         case .macSettings: return text.sourceMacSettings
         case .snippets: return text.sourceSnippets

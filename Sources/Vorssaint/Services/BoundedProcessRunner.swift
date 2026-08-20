@@ -37,13 +37,17 @@ enum BoundedProcessRunner {
     static func run(_ path: String,
                     _ arguments: [String],
                     timeout: TimeInterval,
-                    maxOutputBytes: Int) -> Result {
+                    maxOutputBytes: Int,
+                    input: Data? = nil) -> Result {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = arguments
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = pipe
+        if input != nil {
+            process.standardInput = Pipe()
+        }
 
         let output = BoundedProcessOutput(limit: maxOutputBytes)
         let drained = DispatchSemaphore(value: 0)
@@ -65,6 +69,11 @@ enum BoundedProcessRunner {
             reader.readabilityHandler = nil
             try? reader.close()
             return Result(status: -1, output: Data(), timedOut: false)
+        }
+
+        if let input, let stdin = process.standardInput as? Pipe {
+            stdin.fileHandleForWriting.write(input)
+            stdin.fileHandleForWriting.closeFile()
         }
 
         let finished = DispatchSemaphore(value: 0)

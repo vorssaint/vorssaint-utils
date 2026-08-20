@@ -22,8 +22,11 @@ struct CommandBarView: View {
 
     @ObservedObject private var service = CommandBarService.shared
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var uninstaller = AppUninstaller.shared
+    @ObservedObject private var homebrew = HomebrewManager.shared
     @Environment(\.colorScheme) private var colorScheme
     @FocusState private var searchFocused: Bool
+    @State private var showHomebrewDetails = false
 
     /// The mark, made a handle. Dragging rides on AppKit's own window
     /// dragging — the same machinery a title bar uses — rather than a
@@ -124,6 +127,12 @@ struct CommandBarView: View {
             case .confirm(let entryID):
                 Divider()
                 confirmCard(entryID: entryID)
+            case .uninstallReview:
+                Divider()
+                uninstallReviewCard
+            case .uninstallHomebrewConfirm:
+                Divider()
+                uninstallHomebrewConfirmCard
             case .actions:
                 Divider()
                 actionsList
@@ -743,6 +752,303 @@ struct CommandBarView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
+                }
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.red.opacity(0.09))
+                )
+                .padding(.horizontal, 12)
+                .padding(.vertical, 12)
+            }
+        }
+    }
+
+    // MARK: - Uninstall review
+
+    /// The full leftover-files checklist, in place for `.uninstallReview` -
+    /// the same categories, sizes and per-item toggles `UninstallerView`
+    /// shows in Settings, just inline in the bar. Homebrew-managed apps are
+    /// not handled here: pressing Remove on one hands off to Settings, where
+    /// the confirmation and live progress already live.
+    @ViewBuilder
+    private var uninstallReviewCard: some View {
+        switch uninstaller.phase {
+        case .empty:
+            EmptyView()
+        case .scanning:
+            uninstallReviewBusy(l10n.s.uninstallerScanning)
+        case .results:
+            uninstallReviewChecklist
+        case .removing:
+            uninstallReviewBusy(l10n.s.uninstallerRemoving)
+        case let .done(freed, failed):
+            uninstallReviewDone(freed: freed, failed: failed)
+        }
+    }
+
+    private func uninstallReviewBusy(_ message: String) -> some View {
+        VStack(spacing: 10) {
+            ProgressView()
+                .controlSize(.small)
+            Text(message)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            if let target = uninstaller.target {
+                HStack(spacing: 7) {
+                    Image(nsImage: target.icon)
+                        .resizable()
+                        .frame(width: 18, height: 18)
+                    Text(target.name)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .lineLimit(1)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 22)
+    }
+
+    private var uninstallReviewChecklist: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            uninstallReviewHeader
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    ForEach(AppUninstaller.Category.allCases, id: \.self) { category in
+                        let group = uninstaller.items.filter { $0.category == category }
+                        if !group.isEmpty {
+                            uninstallCategoryGroup(group, category: category)
+                        }
+                    }
+                }
+                .padding(.horizontal, 17)
+            }
+            .frame(maxHeight: Self.listCeiling - 90)
+            Divider().padding(.horizontal, 17)
+            uninstallHomebrewStatus
+            uninstallReviewFooter
+        }
+        .padding(.vertical, 12)
+    }
+
+    /// Live progress for a Homebrew-managed app's removal, shown inline once
+    /// confirmed - the same view the menu panel already shows in its own
+    /// small floating window, so nothing here is rebuilt from scratch.
+    @ViewBuilder
+    private var uninstallHomebrewStatus: some View {
+        if let package = uninstaller.selectedHomebrewPackage {
+            if let status = homebrew.operationStatus,
+               status.action == .uninstall,
+               status.package?.id == package.id {
+                HomebrewOperationStatusView(status: status,
+                                            log: homebrew.log,
+                                            terminalFallbackCommand: homebrew.terminalFallbackCommand,
+                                            compact: true,
+                                            showDetails: $showHomebrewDetails,
+                                            onCancel: homebrew.cancelOperation,
+                                            onClear: homebrew.clearLog,
+                                            onOpenTerminal: homebrew.openTerminalFallback)
+                    .padding(.horizontal, 17)
+                if let tap = homebrew.untrustedTap {
+                    HomebrewTrustCard(tap: tap, compact: true)
+                        .padding(.horizontal, 17)
+                }
+                if let error = homebrew.errorMessage, !error.isEmpty {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 17)
+                }
+            } else {
+                Label(String(format: l10n.s.uninstallerHomebrewPackageFormat, package.displayName),
+                      systemImage: "shippingbox")
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 17)
+            }
+            Divider().padding(.horizontal, 17)
+        }
+    }
+
+    private var uninstallReviewHeader: some View {
+        HStack(spacing: 9) {
+            if let target = uninstaller.target {
+                Image(nsImage: target.icon)
+                    .resizable()
+                    .frame(width: 26, height: 26)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(target.name)
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .lineLimit(1)
+                    Text(target.bundleID ?? target.url.path)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+            Spacer(minLength: 0)
+            VStack(alignment: .trailing, spacing: 1) {
+                Text(Self.uninstallByteString(uninstaller.totalSize))
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                Text(l10n.s.uninstallerFoundTitle)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 17)
+    }
+
+    private func uninstallCategoryGroup(_ group: [AppUninstaller.Leftover],
+                                        category: AppUninstaller.Category) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(uninstallCategoryLabel(category).uppercased())
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.tertiary)
+            ForEach(group) { item in
+                uninstallReviewRow(item)
+            }
+        }
+    }
+
+    private func uninstallReviewRow(_ item: AppUninstaller.Leftover) -> some View {
+        HStack(spacing: 7) {
+            Toggle("", isOn: uninstallIncludeBinding(item))
+                .labelsHidden()
+                .toggleStyle(.checkbox)
+            Image(nsImage: NSWorkspace.shared.icon(forFile: item.url.path))
+                .resizable()
+                .frame(width: 16, height: 16)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(item.name)
+                    .font(.system(size: 11))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(item.url.deletingLastPathComponent().path
+                        .replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.head)
+            }
+            Spacer(minLength: 0)
+            Text(Self.uninstallByteString(item.size))
+                .font(.system(size: 10))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+        }
+        .frame(minHeight: 22)
+    }
+
+    private var uninstallReviewFooter: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(String(format: l10n.s.uninstallerSelectedFormat,
+                            uninstaller.items.filter(\.include).count, uninstaller.items.count))
+                    .font(.system(size: 11, weight: .medium))
+                Text(Self.uninstallByteString(uninstaller.selectedSize))
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button(l10n.s.uninstallerCancel) { service.stepBack() }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            Button {
+                service.runSelected()
+            } label: {
+                Label(uninstaller.selectedHomebrewPackage == nil
+                      ? l10n.s.uninstallerRemove : l10n.s.homebrewUninstall,
+                      systemImage: "trash")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .tint(.red)
+            .disabled(!uninstaller.items.contains(where: \.include)
+                      || (uninstaller.selectedHomebrewPackage != nil && homebrew.isBusy))
+        }
+        .padding(.horizontal, 17)
+    }
+
+    private func uninstallReviewDone(freed: Int64, failed: Int) -> some View {
+        VStack(spacing: 9) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 28))
+                .foregroundStyle(.green)
+            Text(l10n.s.uninstallerDoneTitle)
+                .font(.system(size: 13, weight: .bold))
+            Text(String(format: l10n.s.uninstallerFreedFormat, Self.uninstallByteString(freed)))
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            if failed > 0 {
+                Text(l10n.s.uninstallerSomeFailed)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Button(l10n.s.uninstallerAnother) { service.runSelected() }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 22)
+    }
+
+    private func uninstallIncludeBinding(_ item: AppUninstaller.Leftover) -> Binding<Bool> {
+        Binding(
+            get: { uninstaller.items.first(where: { $0.id == item.id })?.include ?? false },
+            set: { uninstaller.setInclude($0, for: item.id) }
+        )
+    }
+
+    private func uninstallCategoryLabel(_ category: AppUninstaller.Category) -> String {
+        switch category {
+        case .app: return l10n.s.uninstallerCatApp
+        case .support: return l10n.s.uninstallerCatSupport
+        case .caches: return l10n.s.uninstallerCatCaches
+        case .preferences: return l10n.s.uninstallerCatPreferences
+        case .containers: return l10n.s.uninstallerCatContainers
+        case .logs: return l10n.s.uninstallerCatLogs
+        case .state: return l10n.s.uninstallerCatState
+        case .other: return l10n.s.uninstallerCatOther
+        }
+    }
+
+    private static func uninstallByteString(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    /// Guards a Homebrew-managed app's removal, the same extra step the
+    /// Settings page and menu panel already ask for before running `brew
+    /// uninstall` - styled like `confirmCard` since it is the same kind of
+    /// destructive guard, just reached from the checklist instead of a row.
+    private var uninstallHomebrewConfirmCard: some View {
+        VStack(spacing: 6) {
+            if let target = uninstaller.target, let package = uninstaller.selectedHomebrewPackage {
+                HStack(spacing: 10) {
+                    Image(nsImage: target.icon)
+                        .resizable()
+                        .frame(width: 26, height: 26)
+                    VStack(alignment: .leading, spacing: 1.5) {
+                        Text(l10n.s.homebrewConfirmUninstallTitle)
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(String(format: l10n.s.homebrewConfirmUninstallBodyFormat, package.displayName))
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button(l10n.s.uninstallerCancel) { service.stepBack() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    Button(l10n.s.homebrewUninstall) { service.runSelected() }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .tint(.red)
                 }
                 .padding(12)
                 .background(

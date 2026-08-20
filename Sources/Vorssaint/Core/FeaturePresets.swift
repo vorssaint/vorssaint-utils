@@ -114,7 +114,7 @@ extension AppFeature {
              .musicBlock, .keepAwake, .brightness, .quickLauncher, .quickToggles, .colorPicker,
              .screenOCR, .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew, .screenshot,
              .cameraPreview, .scratchpad, .commandBar, .screenRecorder, .fanControl,
-             .diskImageInstaller:
+             .diskImageInstaller, .quarantineManager:
             return .idle
         case .appUpdates:
             // The list is on demand; only a background schedule keeps a timer.

@@ -12,6 +12,9 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
     case menus
     case windows
     case quitApps
+    /// Apps offered for uninstalling, browsed one at a time from the
+    /// "Uninstall Application" row - never in the flat search pool.
+    case uninstallApps
     case settingsPages
     /// The Mac's own Settings panes, which are not Vorssaint's and can be
     /// switched off on their own.
@@ -43,6 +46,7 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
         case .menus: return "filemenu.and.selection"
         case .windows: return "macwindow"
         case .quitApps: return "xmark.circle"
+        case .uninstallApps: return "trash"
         case .settingsPages: return "gearshape"
         case .macSettings: return "gearshape.2"
         case .snippets: return "text.append"
@@ -65,6 +69,7 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
         case .menus: return "menu."
         case .windows: return "window."
         case .quitApps: return "quit."
+        case .uninstallApps: return "uninstall."
         case .settingsPages: return "settings."
         case .macSettings: return "macsettings."
         case .snippets: return "snippet."
@@ -130,8 +135,15 @@ enum CommandBarPreferences {
         // a bar is for running things first. So a file has to be a plainly
         // better match than a command to lead the list, never merely as good.
         case .files: return -40
-        case .actions, .apps, .windows, .quitApps, .settingsPages, .macSettings, .snippets,
-             .clipboard, .emoji, .folders, .answers, .calculator, .selection, .links:
+        // What is currently selected is what the person is already looking
+        // at, so an action on it should lead a same-quality settings-page
+        // match rather than lose to one on a title technicality (a page
+        // titled "Quarantine Manager" gets a prefix-match bonus over a row
+        // titled "Remove Quarantine" for the query "quarantine" that a flat
+        // rankBias of 0 does not make up for). 250 clears that gap.
+        case .selection: return 250
+        case .actions, .apps, .windows, .quitApps, .uninstallApps, .settingsPages, .macSettings,
+             .snippets, .clipboard, .emoji, .folders, .answers, .calculator, .links:
             return 0
         }
     }
@@ -160,7 +172,7 @@ enum CommandBarPreferences {
     /// pinned to one would silently point somewhere else tomorrow.
     static func acceptsAlias(rowID: String) -> Bool {
         switch source(ofRowID: rowID) {
-        case .menus, .windows, .clipboard, .selection, .files: return false
+        case .menus, .windows, .clipboard, .selection, .files, .uninstallApps: return false
         case .actions, .apps, .quitApps, .settingsPages, .macSettings, .snippets, .emoji,
              .folders, .answers, .calculator, .links:
             return true
@@ -228,7 +240,7 @@ enum CommandBarPreferences {
     /// again, which reads as the pin being broken.
     static func acceptsPin(rowID: String) -> Bool {
         switch source(ofRowID: rowID) {
-        case .menus, .quitApps, .clipboard, .emoji, .selection, .files: return false
+        case .menus, .quitApps, .uninstallApps, .clipboard, .emoji, .selection, .files: return false
         case .actions, .apps, .windows, .settingsPages, .macSettings, .snippets, .folders,
              .links, .answers, .calculator:
             return true

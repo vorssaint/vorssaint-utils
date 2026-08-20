@@ -123,6 +123,8 @@ enum SettingsDirectory {
                                                  FeatureStrings.whatsAppDownloads(language).fileTypes]),
                 SettingsDirectoryItem(page: .homebrew, title: s.homebrewName, icon: "shippingbox"),
                 SettingsDirectoryItem(page: .uninstaller, title: s.uninstallerName, icon: "trash"),
+                SettingsDirectoryItem(page: .quarantineManager, title: s.quarantineManagerName,
+                                      icon: "shield.lefthalf.filled"),
             ]),
             (categories.utilities, [
                 SettingsDirectoryItem(page: .commandBar,

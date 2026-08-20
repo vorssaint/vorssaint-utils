@@ -71,6 +71,10 @@ struct CommandBarEntry: Identifiable {
     /// rows the bar makes up have no such place, and saying so here is what
     /// keeps ⌘Return and the actions list from ever disagreeing about it.
     let revealPath: String?
+    /// True for a row whose Return does not run it directly but opens the
+    /// full leftover-files review instead - a checklist, not a one-line
+    /// confirm, so it needs its own step rather than `confirmationPrompt`.
+    let opensUninstallReview: Bool
     let run: (Int?) -> Void
 
     /// Whether this row can be shown where it lives. One rule, read by the
@@ -84,6 +88,7 @@ struct CommandBarEntry: Identifiable {
         if confirmationPrompt != nil { return true }
         if numericRange != nil, !numericIsOptional { return true }
         if case .needsSetup = trouble { return true }
+        if opensUninstallReview { return true }
         return false
     }
 
@@ -97,7 +102,8 @@ struct CommandBarEntry: Identifiable {
                         confirmationPrompt: confirmationPrompt, answerValue: answerValue,
                         isAnswer: isAnswer, countsUsage: countsUsage,
                         matchTitle: matchTitle, keepsBarOpen: keepsBarOpen,
-                        takesArgument: takesArgument, revealPath: revealPath, run: run)
+                        takesArgument: takesArgument, revealPath: revealPath,
+                        opensUninstallReview: opensUninstallReview, run: run)
     }
 
     /// Glyph rows get a tinted plate behind the icon; real app, file and
@@ -128,6 +134,7 @@ struct CommandBarEntry: Identifiable {
          keepsBarOpen: Bool = false,
          takesArgument: Bool = false,
          revealPath: String? = nil,
+         opensUninstallReview: Bool = false,
          run: @escaping (Int?) -> Void) {
         self.id = id
         self.stableKey = stableKey ?? id
@@ -149,6 +156,7 @@ struct CommandBarEntry: Identifiable {
         self.keepsBarOpen = keepsBarOpen
         self.takesArgument = takesArgument
         self.revealPath = revealPath
+        self.opensUninstallReview = opensUninstallReview
         self.run = run
     }
 }
@@ -659,6 +667,24 @@ enum CommandBarCatalog {
                 subtitle: area(.uninstaller, under: s.uninstallerName),
                 icon: .symbol("trash"),
                 run: { _ in openSettings(at: .uninstaller) }))
+            if UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled) {
+                entries.append(CommandBarEntry(
+                    id: "uninstall.browse",
+                    title: s.uninstallerCommandBarBrowseTitle,
+                    subtitle: s.uninstallerName,
+                    icon: .symbol("trash"),
+                    // A habit boost on this row could otherwise outweigh the
+                    // Finder selection's fixed rank bias after enough clicks,
+                    // putting the wrong "Uninstall" row first; a plain
+                    // navigation entry has no business competing on habit.
+                    countsUsage: false,
+                    keepsBarOpen: true,
+                    run: { _ in
+                        let service = CommandBarService.shared
+                        service.query = ""
+                        service.setCategory(.uninstallApps)
+                    }))
+            }
         }
         if AppFeature.quickLauncher.isAvailable {
             entries.append(CommandBarEntry(
@@ -963,6 +989,56 @@ enum CommandBarCatalog {
                     }
                 })
         }
+    }
+
+    /// One row per installed app, offered only inside the "Uninstall
+    /// Application" category browse - never in the flat search pool, since a
+    /// few hundred destructive rows have no business sitting in a list
+    /// someone might arrow through by accident. Selecting one opens the full
+    /// leftover-files review, the same as picking the app straight from
+    /// Finder does.
+    static func uninstallEntries(_ apps: [InstalledApps.InstalledApp],
+                                 bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
+        guard AppFeature.uninstaller.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled)
+        else { return [] }
+        let ownBundleID = Bundle.main.bundleIdentifier
+        return apps.filter { !$0.isSystem && $0.bundleID != ownBundleID }.map { app in
+            CommandBarEntry(
+                id: "uninstall.\(app.id)",
+                stableKey: app.bundleID.map { "uninstall.bundle.\($0)" } ?? "uninstall.\(app.id)",
+                title: app.name,
+                subtitle: bar.kindApp,
+                keywords: app.alternateNames.joined(separator: " "),
+                icon: .appIcon(path: app.url.path),
+                revealPath: app.url.path,
+                opensUninstallReview: true,
+                run: { _ in AppUninstaller.shared.select(appURL: app.url) })
+        }
+    }
+
+    /// One row for whatever single app is selected in Finder's Applications
+    /// folder, so uninstalling it never needs the bar's own picker first.
+    static func uninstallSelectionEntries(urls: [URL], automationDenied: Bool) -> [CommandBarEntry] {
+        guard AppFeature.uninstaller.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled),
+              urls.count == 1, let url = urls.first,
+              url.pathExtension.lowercased() == "app",
+              InstalledApps.isInApplicationsFolder(url),
+              !InstalledApps.isSystemApplication(at: url)
+        else { return [] }
+        let bar = FeatureStrings.commandBar(L10n.shared.language)
+        var name = FileManager.default.displayName(atPath: url.path)
+        if name.hasSuffix(".app") { name.removeLast(4) }
+        return [CommandBarEntry(
+            id: "selection.uninstall",
+            title: String(format: bar.uninstallAppFormat, name),
+            subtitle: L10n.shared.s.uninstallerName,
+            icon: .appIcon(path: url.path),
+            trouble: automationDenied ? .needsPermission : nil,
+            revealPath: url.path,
+            opensUninstallReview: true,
+            run: { _ in AppUninstaller.shared.select(appURL: url) })]
     }
 
     /// One row per open window, so a person with six windows of the same app
@@ -1347,6 +1423,39 @@ enum CommandBarCatalog {
             countsUsage: false,
             run: { _ in copyAnswer(count) }))
         return entries
+    }
+
+    /// One row that clears `com.apple.quarantine` from whatever is currently
+    /// selected in Finder, entirely inline - no Settings window, no review
+    /// list. Mirrors `QuarantineManagerService`'s own batch removal so the
+    /// admin-prompt and app-bundle-recursion rules stay identical everywhere.
+    static func finderSelectionEntries(urls: [URL], automationDenied: Bool) -> [CommandBarEntry] {
+        guard AppFeature.quarantineManager.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.quarantineManagerCommandBarEnabled),
+              !urls.isEmpty else { return [] }
+        let s = L10n.shared.s
+        return [CommandBarEntry(
+            id: "selection.quarantine",
+            title: s.quarantineManagerRemoveSelected,
+            subtitle: s.quarantineManagerName,
+            icon: .symbol("shield.lefthalf.filled"),
+            trouble: automationDenied ? .needsPermission : nil,
+            run: { _ in removeQuarantineFromFinderSelection(urls) })]
+    }
+
+    private static func removeQuarantineFromFinderSelection(_ urls: [URL]) {
+        let s = L10n.shared.s
+        let targets = urls.map { (path: $0.path, recursive: QuarantineManagerSupport.isApp($0.path)) }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = QuarantineManagerService.removeQuarantine(from: targets)
+            DispatchQueue.main.async {
+                var message = String(format: s.quarantineManagerClearedFormat, result.cleared)
+                if result.failed > 0 {
+                    message += " - " + s.quarantineManagerSomeFailed
+                }
+                QuickToolHUD.show(icon: "shield.lefthalf.filled", message: message)
+            }
+        }
     }
 
     /// Puts the selection on the shelf without disturbing what the person has

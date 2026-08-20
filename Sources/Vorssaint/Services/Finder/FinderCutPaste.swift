@@ -700,7 +700,7 @@ final class FinderCutPaste: ObservableObject {
 /// for some users. Same Finder Automation permission as before; nothing new.
 /// Callers run this off the main thread so a slow Finder never blocks the UI or
 /// the event taps.
-private enum FinderBridge {
+enum FinderBridge {
     private static let finderBundleID = "com.apple.finder"
 
     static func selectionURLs() -> [URL] {
