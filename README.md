@@ -189,7 +189,7 @@ Permissions get the same treatment. Every one is optional, the app explains each
 | Full Disk Access, optional | Deeper cleaner and uninstaller scans | Only reachable places are scanned |
 | Administrator, once, optional | Password free closed lid toggling | A password prompt per toggle |
 
-The shelf and almost every quick toggle need no permission at all. Finder cut and paste, the uninstaller, emptying the Trash and the Homebrew terminal handoff ask macOS for Automation access the first time they talk to Finder or Terminal.
+The shelf and almost every quick toggle need no permission at all. Finder cut and paste, the uninstaller, emptying the Trash and the Homebrew terminal handoff ask macOS for Automation access the first time they talk to Finder or the selected terminal app.
 
 ## What you need
 

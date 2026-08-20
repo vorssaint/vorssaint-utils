@@ -6,6 +6,9 @@ import SwiftUI
 
 struct HomebrewOperationStatusView: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var homebrew = HomebrewManager.shared
+    @AppStorage(DefaultsKey.homebrewPreferredTerminal)
+    private var preferredTerminalRawValue = HomebrewTerminal.terminal.rawValue
 
     let status: HomebrewOperationStatus
     let log: String
@@ -104,13 +107,16 @@ struct HomebrewOperationStatusView: View {
 
     private var terminalFallback: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label(l10n.s.homebrewTerminalFallback, systemImage: "terminal")
+            Label(l10n.s.homebrewTerminalText(l10n.s.homebrewTerminalFallback,
+                                               terminal: preferredTerminal),
+                  systemImage: "terminal")
                 .font(.system(size: compact ? 9.5 : 11))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if terminalFallbackCommand != nil {
                 HStack(spacing: 8) {
-                    Button(l10n.s.homebrewOpenTerminal) {
+                    Button(l10n.s.homebrewTerminalText(l10n.s.homebrewOpenTerminal,
+                                                        terminal: preferredTerminal)) {
                         onOpenTerminal()
                     }
                     Button {
@@ -186,7 +192,8 @@ struct HomebrewOperationStatusView: View {
         case .cancelled:
             return l10n.s.homebrewOperationCancelled
         case .needsTerminal:
-            return l10n.s.homebrewOperationTerminal
+            return l10n.s.homebrewTerminalText(l10n.s.homebrewOperationTerminal,
+                                               terminal: preferredTerminal)
         }
     }
 
@@ -197,7 +204,8 @@ struct HomebrewOperationStatusView: View {
         case .failed:
             return String(format: l10n.s.homebrewOperationFailedFormat, packageDisplayName)
         case .needsTerminal:
-            return l10n.s.homebrewOperationTerminal
+            return l10n.s.homebrewTerminalText(l10n.s.homebrewOperationTerminal,
+                                               terminal: preferredTerminal)
         case .running, .succeeded:
             switch status.phase {
             case .preparing: return l10n.s.homebrewOperationPreparing
@@ -209,6 +217,11 @@ struct HomebrewOperationStatusView: View {
             case .refreshing: return l10n.s.homebrewOperationRefreshing
             }
         }
+    }
+
+    private var preferredTerminal: HomebrewTerminal {
+        HomebrewTerminalSupport.preferredTerminal(rawValue: preferredTerminalRawValue,
+                                                   available: homebrew.availableTerminals)
     }
 
     private var runningTitleFormat: String {

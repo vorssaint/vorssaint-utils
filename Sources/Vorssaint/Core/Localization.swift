@@ -444,6 +444,10 @@ struct Strings {
 
     // MARK: Feature — Homebrew manager
     let homebrewName: String
+    let homebrewPreferredTerminalTitle: String
+    let homebrewPreferredTerminalCaption: String
+    let homebrewAlacrittyWarning: String
+    let homebrewTerminalLaunchFailedFormat: String
     let homebrewEnableCaption: String
     let homebrewMissingTitle: String
     let homebrewMissingBody: String
@@ -1050,6 +1054,17 @@ struct Strings {
     let shelfEdgeCaption: String
 }
 
+extension Strings {
+    /// Formats Homebrew copy with the terminal currently selected by the user.
+    /// The localized templates use one or more `%@` placeholders for the app
+    /// name; Terminal is kept as the fallback when no supported app resolves.
+    func homebrewTerminalText(_ template: String,
+                              terminal: HomebrewTerminal = HomebrewTerminalSupport.preferredTerminal()) -> String {
+        let terminalName = terminal.applicationName
+        return String(format: template, terminalName, terminalName)
+    }
+}
+
 // MARK: - Português (Brasil)
 
 extension Strings {
@@ -1372,16 +1387,20 @@ extension Strings {
         urlCleanerLocalNote: "Local. Sem rede.",
 
         homebrewName: "Homebrew",
+        homebrewPreferredTerminalTitle: "Terminal preferido",
+        homebrewPreferredTerminalCaption: "Escolha onde abrir comandos do Homebrew, instaladores e solicitações de senha.",
+        homebrewAlacrittyWarning: "O cask Alacritty do Homebrew está obsoleto e pode ser bloqueado pelo Gatekeeper. Se nenhuma janela abrir, verifique Privacidade e Segurança.",
+        homebrewTerminalLaunchFailedFormat: "Não foi possível confirmar que %@ abriu o comando.",
         homebrewEnableCaption: "Pesquise, instale e remova fórmulas e casks.",
         homebrewMissingTitle: "Homebrew não encontrado",
-        homebrewMissingBody: "O Vorssaint pode abrir o Terminal com o instalador oficial do Homebrew. O Terminal mostra os passos e pede sua senha se precisar.",
+        homebrewMissingBody: "O Vorssaint pode abrir %@ com o instalador oficial do Homebrew. %@ mostra os passos e pede sua senha se precisar.",
         homebrewInstallHomebrew: "Instalar Homebrew",
-        homebrewInstallHomebrewCaption: "Depois que terminar no Terminal, volte aqui e clique em Atualizar.",
-        homebrewInstallHomebrewOpened: "Instalador aberto no Terminal.",
-        homebrewShellSetupTitle: "Finalizar configuração do Terminal",
-        homebrewShellSetupBody: "O Homebrew está instalado, mas o Terminal ainda pode não encontrar o comando brew. O Vorssaint pode abrir o Terminal com o comando de configuração.",
-        homebrewShellSetupButton: "Configurar Terminal",
-        homebrewShellSetupOpened: "Comando aberto no Terminal. Depois volte aqui e clique em Atualizar.",
+        homebrewInstallHomebrewCaption: "Depois que terminar no %@, volte aqui e clique em Atualizar.",
+        homebrewInstallHomebrewOpened: "Instalador aberto no %@.",
+        homebrewShellSetupTitle: "Finalizar configuração do %@",
+        homebrewShellSetupBody: "O Homebrew está instalado, mas %@ ainda pode não encontrar o comando brew. O Vorssaint pode abrir %@ com o comando de configuração.",
+        homebrewShellSetupButton: "Configurar %@",
+        homebrewShellSetupOpened: "Comando aberto no %@. Depois volte aqui e clique em Atualizar.",
         homebrewRefresh: "Atualizar",
         homebrewCheckPackages: "Verificar pacotes",
         homebrewTrustTitle: "Tap ainda não confiável",
@@ -1404,7 +1423,7 @@ extension Strings {
         homebrewUpgradeAll: "Atualizar tudo",
         homebrewUpdateHomebrew: "Atualizar Homebrew",
         homebrewAllPackages: "pacotes",
-        homebrewOpenTerminal: "Abrir Terminal",
+        homebrewOpenTerminal: "Abrir %@",
         homebrewCancelOperation: "Cancelar",
         homebrewClearLog: "Limpar log",
         homebrewLogTitle: "Log",
@@ -1428,7 +1447,7 @@ extension Strings {
         homebrewConfirmUpgradeAllBody: "O Homebrew vai baixar e aplicar as versões mais recentes dos pacotes com atualização disponível. Dependências também podem ser atualizadas.",
         homebrewConfirmUpdateHomebrewTitle: "Atualizar Homebrew?",
         homebrewConfirmUpdateHomebrewBody: "O Homebrew vai buscar as informações mais recentes e depois recarregar seus pacotes.",
-        homebrewTerminalFallback: "Esta operação precisa do Terminal para pedir a senha de administrador. O Vorssaint não captura senhas.",
+        homebrewTerminalFallback: "Esta operação precisa do %@ para pedir a senha de administrador. O Vorssaint não captura senhas.",
         homebrewLoading: "Carregando…",
         homebrewSearchEmpty: "Nenhum resultado",
         homebrewOperationInstallFormat: "Instalando %@",
@@ -1450,7 +1469,7 @@ extension Strings {
         homebrewOperationUpgrading: "Atualizando arquivos...",
         homebrewOperationFinalizing: "Finalizando...",
         homebrewOperationRefreshing: "Atualizando lista...",
-        homebrewOperationTerminal: "Continue no Terminal.",
+        homebrewOperationTerminal: "Continue no %@.",
         homebrewOperationElapsedFormat: "%@ decorridos",
         homebrewOperationShowDetails: "Mostrar detalhes",
         homebrewOperationHideDetails: "Ocultar detalhes",
@@ -2278,16 +2297,20 @@ extension Strings {
         urlCleanerLocalNote: "Local. No network.",
 
         homebrewName: "Homebrew",
+        homebrewPreferredTerminalTitle: "Preferred terminal",
+        homebrewPreferredTerminalCaption: "Choose where Homebrew commands, installers and password prompts open.",
+        homebrewAlacrittyWarning: "Homebrew's Alacritty cask is deprecated and may be blocked by Gatekeeper. If no window opens, check Privacy & Security.",
+        homebrewTerminalLaunchFailedFormat: "Could not verify that %@ opened the command.",
         homebrewEnableCaption: "Search, install and remove formulae and casks.",
         homebrewMissingTitle: "Homebrew not found",
-        homebrewMissingBody: "Vorssaint can open Terminal with the official Homebrew installer. Terminal shows the steps and asks for your password if needed.",
+        homebrewMissingBody: "Vorssaint can open %@ with the official Homebrew installer. %@ shows the steps and asks for your password if needed.",
         homebrewInstallHomebrew: "Install Homebrew",
-        homebrewInstallHomebrewCaption: "When Terminal finishes, come back here and click Refresh.",
-        homebrewInstallHomebrewOpened: "Installer opened in Terminal.",
-        homebrewShellSetupTitle: "Finish Terminal setup",
-        homebrewShellSetupBody: "Homebrew is installed, but Terminal may not find the brew command yet. Vorssaint can open Terminal with the setup command.",
-        homebrewShellSetupButton: "Set up Terminal",
-        homebrewShellSetupOpened: "Command opened in Terminal. Then come back here and click Refresh.",
+        homebrewInstallHomebrewCaption: "When %@ finishes, come back here and click Refresh.",
+        homebrewInstallHomebrewOpened: "Installer opened in %@.",
+        homebrewShellSetupTitle: "Finish %@ setup",
+        homebrewShellSetupBody: "Homebrew is installed, but %@ may not find the brew command yet. Vorssaint can open %@ with the setup command.",
+        homebrewShellSetupButton: "Set up %@",
+        homebrewShellSetupOpened: "Command opened in %@. Then come back here and click Refresh.",
         homebrewRefresh: "Refresh",
         homebrewCheckPackages: "Check packages",
         homebrewTrustTitle: "Tap not trusted yet",
@@ -2310,7 +2333,7 @@ extension Strings {
         homebrewUpgradeAll: "Update all",
         homebrewUpdateHomebrew: "Update Homebrew",
         homebrewAllPackages: "packages",
-        homebrewOpenTerminal: "Open Terminal",
+        homebrewOpenTerminal: "Open %@",
         homebrewCancelOperation: "Cancel",
         homebrewClearLog: "Clear log",
         homebrewLogTitle: "Log",
@@ -2334,7 +2357,7 @@ extension Strings {
         homebrewConfirmUpgradeAllBody: "Homebrew will download and apply the latest versions for packages with updates available. Dependencies may also be updated.",
         homebrewConfirmUpdateHomebrewTitle: "Update Homebrew?",
         homebrewConfirmUpdateHomebrewBody: "Homebrew will fetch the latest information and then reload your packages.",
-        homebrewTerminalFallback: "This operation needs Terminal to ask for the administrator password. Vorssaint does not capture passwords.",
+        homebrewTerminalFallback: "This operation needs %@ to ask for the administrator password. Vorssaint does not capture passwords.",
         homebrewLoading: "Loading…",
         homebrewSearchEmpty: "No results",
         homebrewOperationInstallFormat: "Installing %@",
@@ -2356,7 +2379,7 @@ extension Strings {
         homebrewOperationUpgrading: "Updating files...",
         homebrewOperationFinalizing: "Finishing...",
         homebrewOperationRefreshing: "Refreshing list...",
-        homebrewOperationTerminal: "Continue in Terminal.",
+        homebrewOperationTerminal: "Continue in %@.",
         homebrewOperationElapsedFormat: "%@ elapsed",
         homebrewOperationShowDetails: "Show details",
         homebrewOperationHideDetails: "Hide details",

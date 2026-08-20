@@ -7541,6 +7541,73 @@ struct MetricsTests {
         expect(!HomebrewCommandBuilder.isValidToken("-bad"), "leading dash Homebrew token is invalid")
         expect(!HomebrewCommandBuilder.isValidToken("../bad"), "path traversal Homebrew token is invalid")
         expect(!HomebrewCommandBuilder.isValidToken("bad token"), "spaced Homebrew token is invalid")
+        expect(HomebrewTerminal.allCases == [.terminal, .iTerm2, .ghostty, .wezTerm, .alacritty],
+               "Homebrew terminal choices keep the supported order")
+        let installedTerminalIDs: Set<String> = [
+            "com.apple.Terminal", "com.mitchellh.ghostty", "org.alacritty", "com.example.other"
+        ]
+        expect(HomebrewTerminalSupport.terminals(forBundleIdentifiers: installedTerminalIDs)
+                == [.terminal, .ghostty, .alacritty],
+               "Homebrew terminal discovery filters to supported bundle identifiers")
+        expect(HomebrewTerminalSupport.preferredTerminal(rawValue: "ghostty",
+                                                          available: [.terminal, .ghostty]) == .ghostty,
+               "Homebrew terminal preference keeps an installed selection")
+        expect(HomebrewTerminalSupport.preferredTerminal(rawValue: "iterm2",
+                                                          available: [.terminal, .ghostty]) == .terminal,
+               "Homebrew terminal preference falls back when the saved app is unavailable")
+        let terminalScript = HomebrewTerminalSupport.appleScript(for: .terminal, command: "brew install jq")
+        expect(terminalScript.contains("tell application \"Terminal\"")
+                && terminalScript.contains("do script \"brew install jq\""),
+               "Terminal.app adapter uses do script")
+        let escapedTerminalScript = HomebrewTerminalSupport.appleScript(
+            for: .terminal,
+            command: "echo \"a\\b\""
+        )
+        expect(escapedTerminalScript.contains("do script \"echo \\\"a\\\\b\\\"\""),
+               "Terminal.app adapter escapes AppleScript quotes and backslashes")
+        let iTermScript = HomebrewTerminalSupport.appleScript(for: .iTerm2, command: "sudo brew install jq")
+        expect(iTermScript.contains("tell application \"iTerm2\"")
+                && iTermScript.contains("create tab with default profile command \"sudo brew install jq\""),
+               "iTerm2 adapter creates a command session")
+        let ghosttyScript = HomebrewTerminalSupport.appleScript(for: .ghostty, command: "brew install jq")
+        expect(ghosttyScript.contains("tell application \"Ghostty\"")
+                && ghosttyScript.contains("new surface configuration")
+               && ghosttyScript.contains("wait after command"),
+               "Ghostty adapter uses a configured command surface")
+        let wezTermArguments = HomebrewTerminalSupport.commandLineArguments(for: .wezTerm,
+                                                                              command: "brew install jq") ?? []
+        expect(wezTermArguments == ["start", "--always-new-process", "--", "/bin/zsh", "-lc",
+                                    "brew install jq; exec /bin/zsh -l"],
+               "WezTerm adapter starts an interactive command session")
+        let alacrittyArguments = HomebrewTerminalSupport.commandLineArguments(for: .alacritty,
+                                                                                command: "brew install jq") ?? []
+        expect(alacrittyArguments == ["--hold", "-e", "/bin/zsh", "-lc",
+                                      "brew install jq; exec /bin/zsh -l"],
+               "Alacritty adapter starts an interactive command session")
+        let markedArguments = HomebrewTerminalSupport.commandLineArguments(
+            for: .alacritty,
+            command: "brew install jq",
+            launchMarkerPath: "/tmp/Vorssaint Test/it's.started"
+        ) ?? []
+        expect(markedArguments == ["--hold", "-e", "/bin/zsh", "-lc",
+                                   "/usr/bin/touch '/tmp/Vorssaint Test/it'\\''s.started' && brew install jq; exec /bin/zsh -l"],
+               "CLI terminal adapter requires a shell launch handshake")
+        expect(HomebrewTerminalSupport.commandLineArguments(for: .ghostty,
+                                                            command: "brew install jq") == nil,
+               "AppleScript terminals do not use the CLI adapter")
+        expect(FeatureStrings.hub(.enUS).automationTerminalName(for: .ghostty)
+                == "Ghostty automation",
+               "Feature Hub terminal permission name follows the selected app")
+        expect(FeatureStrings.hub(.enUS).automationTerminalExplanation(for: .iTerm2)
+                == "Lets Homebrew commands open in iTerm2.",
+               "Feature Hub terminal permission explanation follows the selected app")
+        expect(Strings.enUS.homebrewTerminalText("%@ / %@", terminal: .ghostty)
+                == "Ghostty / Ghostty",
+               "Homebrew localized copy formats repeated terminal placeholders")
+        expectFormat(Strings.enUS.homebrewTerminalLaunchFailedFormat, ["@"],
+                     "Homebrew terminal launch failure format")
+        expect(Defaults.registeredDefaults[DefaultsKey.homebrewPreferredTerminal] as? String == "terminal",
+               "Homebrew terminal preference defaults to Terminal.app")
 
         let brewPath = "/opt/homebrew/bin/brew"
         let cask = HomebrewPackage(kind: .cask, name: "sample-tool",
@@ -7828,6 +7895,28 @@ struct MetricsTests {
                    && !strings.keepAwakeRightClickToggleCaption.contains("—"),
                    "\(prefix) right-click Keep Awake labels are present without em dash")
             expectFormat(strings.homebrewConfirmInstallBodyFormat, ["@"], "\(prefix) Homebrew install format")
+            expectFormat(strings.homebrewMissingBody, ["@", "@"],
+                         "\(prefix) Homebrew installer terminal format")
+            expectFormat(strings.homebrewInstallHomebrewCaption, ["@"],
+                         "\(prefix) Homebrew installer caption terminal format")
+            expectFormat(strings.homebrewInstallHomebrewOpened, ["@"],
+                         "\(prefix) Homebrew installer opened terminal format")
+            expectFormat(strings.homebrewShellSetupTitle, ["@"],
+                         "\(prefix) Homebrew shell setup title format")
+            expectFormat(strings.homebrewShellSetupBody, ["@", "@"],
+                         "\(prefix) Homebrew shell setup body format")
+            expectFormat(strings.homebrewShellSetupButton, ["@"],
+                         "\(prefix) Homebrew shell setup button format")
+            expectFormat(strings.homebrewShellSetupOpened, ["@"],
+                         "\(prefix) Homebrew shell setup opened format")
+            expectFormat(strings.homebrewOpenTerminal, ["@"],
+                         "\(prefix) Homebrew open terminal format")
+            expectFormat(strings.homebrewTerminalFallback, ["@"],
+                         "\(prefix) Homebrew terminal fallback format")
+            expectFormat(strings.homebrewOperationTerminal, ["@"],
+                         "\(prefix) Homebrew terminal operation format")
+            expectFormat(strings.homebrewTerminalLaunchFailedFormat, ["@"],
+                         "\(prefix) Homebrew terminal launch failure format")
             expectFormat(strings.homebrewConfirmUninstallBodyFormat, ["@"], "\(prefix) Homebrew uninstall format")
             expectFormat(strings.homebrewConfirmUpgradeBodyFormat, ["@"], "\(prefix) Homebrew upgrade format")
             expect(!strings.homebrewUpgradeAll.isEmpty, "\(prefix) Homebrew update all title is present")
@@ -8782,6 +8871,10 @@ struct MetricsTests {
                    "no em-dash in visible hub strings (\(language.rawValue))")
             expect(hub.activeCountFormat.contains("%1$d") && hub.activeCountFormat.contains("%2$d"),
                    "count format keeps positional specifiers (\(language.rawValue))")
+            expectFormat(hub.permAutomationTerminal, ["@"],
+                         "\(language.rawValue) selected terminal permission name format")
+            expectFormat(hub.explainAutomationTerminal, ["@"],
+                         "\(language.rawValue) selected terminal permission explanation format")
         }
         for language in AppLanguage.allCases {
             let values = Mirror(reflecting: FeatureStrings.clipboard(language)).children

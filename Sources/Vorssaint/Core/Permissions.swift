@@ -356,8 +356,14 @@ final class Permissions: ObservableObject {
     /// cannot be checked and reads as notDeterminable. Call off the main
     /// thread; the check can block briefly.
     static func automationStatus(for target: AutomationTarget) -> AutomationStatus {
+        automationStatus(forBundleIdentifier: target.rawValue)
+    }
+
+    /// Checks the per-target Automation permission without prompting. Homebrew
+    /// can target a user-selected terminal, so callers must not assume that
+    /// Terminal.app is always the Apple Events recipient.
+    static func automationStatus(forBundleIdentifier bundleID: String) -> AutomationStatus {
         var descriptor = AEAddressDesc()
-        let bundleID = target.rawValue
         let created = bundleID.withCString { pointer in
             AECreateDesc(typeApplicationBundleID, pointer, bundleID.utf8.count, &descriptor)
         }
