@@ -8964,7 +8964,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 52, "feature catalog has 52 features")
+        expect(AppFeature.allCases.count == 53, "feature catalog has 53 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -8977,7 +8977,7 @@ struct MetricsTests {
             "keepAwake", "brightness", "extraBrightness",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "quarantineManager",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -8987,8 +8987,10 @@ struct MetricsTests {
                 && (AppFeature.availabilityDefaults[AppFeature.fanControl.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.diskImageInstaller.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.quarantineManager.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
                     $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
+                        && $0 != .quarantineManager
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
@@ -9366,13 +9368,14 @@ struct MetricsTests {
         expect(activeSet(.filesAndFolders) == [.cleaner],
                "the cleaner owns WhatsApp Downloads folder access")
 
-        expect(activeSet(.fullDiskAccess) == [.cleaner, .uninstaller],
-               "cleaner and uninstaller are on-demand full disk users")
+        expect(activeSet(.fullDiskAccess) == [.cleaner, .uninstaller, .quarantineManager],
+               "cleaner, uninstaller and the quarantine manager are on-demand full disk users")
         expect(activeSet(.automationFinder, on: [DefaultsKey.finderCutPasteEnabled])
-                == [.finderCutPaste, .uninstaller, .quickToggles],
-               "finder automation is used by cut and paste, the uninstaller and the quick toggles")
+                == [.finderCutPaste, .uninstaller, .quickToggles, .quarantineManager],
+               "finder automation is used by cut and paste, the uninstaller, the quick toggles "
+                + "and the quarantine manager")
         expect(activeSet(.automationFinder, on: [DefaultsKey.finderPasteImageAsFile])
-                == [.finderCutPaste, .uninstaller, .quickToggles],
+                == [.finderCutPaste, .uninstaller, .quickToggles, .quarantineManager],
                "pasting copied images as files engages the shared Finder feature")
         expect(AppFeature.quickToggles.permissions == [.automationFinder],
                "the quick toggles need no permission beyond the Trash's Finder ask")

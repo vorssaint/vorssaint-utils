@@ -131,6 +131,10 @@ final class CommandBarService: ObservableObject {
     /// opening and thrown away on close: a selection is a moment, not a state.
     private var selectionEntries: [CommandBarEntry] = []
     private var selectionLoading = false
+    /// Rows that act on the current Finder selection (e.g. clearing
+    /// quarantine). Read once per opening, same lifetime as `selectionEntries`.
+    private var finderSelectionEntries: [CommandBarEntry] = []
+    private var finderSelectionLoading = false
     /// True while the bar is closing, so nothing is rebuilt on the way out.
     private var isTearingDown = false
     private var menusLoading = false
@@ -294,6 +298,7 @@ final class CommandBarService: ObservableObject {
         selectionEntries = []
         selectionPreview = ""
         selectedText = ""
+        finderSelectionEntries = []
         rebuildCatalog(index: false)
         rebuildRunningEntries()
         startBackgroundLoads(for: presentationID)
@@ -308,6 +313,7 @@ final class CommandBarService: ObservableObject {
         loadWindowsIfNeeded(for: id)
         loadMenusIfNeeded(for: id)
         loadSelection(for: id)
+        loadFinderSelection(for: id)
     }
 
     private func present(_ panel: NSPanel) {
@@ -345,6 +351,10 @@ final class CommandBarService: ObservableObject {
             selectionEntries = []
             selectionPreview = ""
             selectedText = ""
+            indexEntries()
+        }
+        if !finderSelectionEntries.isEmpty {
+            finderSelectionEntries = []
             indexEntries()
         }
         // What was typed is remembered for the next opening, where the first
@@ -783,8 +793,8 @@ final class CommandBarService: ObservableObject {
     /// Every row the bar can rank right now, in the order the pool builds
     /// them: what the Mac holds first, what is borrowed after.
     private var indexableEntries: [CommandBarEntry] {
-        selectionEntries + catalog + appEntries + macSettingsEntries + windowEntries
-            + quitEntries + menuEntries + emojiEntries
+        selectionEntries + finderSelectionEntries + catalog + appEntries + macSettingsEntries
+            + windowEntries + quitEntries + menuEntries + emojiEntries
     }
 
     private func indexEntries() {
@@ -1173,7 +1183,8 @@ final class CommandBarService: ObservableObject {
 
         // What is selected comes first, so a tie goes to the thing the person
         // is already looking at.
-        var pool = selectionEntries + catalog + appEntries + macSettingsEntries + windowEntries
+        var pool = selectionEntries + finderSelectionEntries + catalog + appEntries + macSettingsEntries
+            + windowEntries
         // Two script names can overlap ("run" and "run report"). Only the
         // longest matching one is eligible; otherwise the shorter row can win
         // a ranking tie and Return runs a different file from the answer shown.
@@ -2019,6 +2030,36 @@ final class CommandBarService: ObservableObject {
                     self?.query = selected
                 }
                 self.selectionPreview = text.isEmpty ? "" : CommandBarText.preview(text)
+                self.indexEntries()
+                self.refreshResults()
+            }
+        }
+    }
+
+    /// What is currently selected in Finder, so a row can clear its quarantine
+    /// flag inline. Read away from the main thread (Apple Events over
+    /// `AppleScriptRunner`) and only while the bar is open, same lifetime and
+    /// guard shape as `loadSelection(for:)`.
+    private func loadFinderSelection(for id: UUID) {
+        guard AppFeature.quarantineManager.isAvailable else { return }
+        guard !finderSelectionLoading else { return }
+        finderSelectionLoading = true
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let urls = FinderBridge.selectionURLs()
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.finderSelectionLoading = false
+                guard self.presentationLifecycle.acceptsHomeUpdates(
+                    id, isVisible: self.isVisible) else {
+                    let current = self.presentationID
+                    if self.presentationLifecycle.acceptsHomeUpdates(
+                        current, isVisible: self.isVisible) {
+                        self.loadFinderSelection(for: current)
+                    }
+                    return
+                }
+                self.finderSelectionEntries = CommandBarCatalog.finderSelectionEntries(
+                    urls: urls, automationDenied: self.finderAutomationDenied)
                 self.indexEntries()
                 self.refreshResults()
             }

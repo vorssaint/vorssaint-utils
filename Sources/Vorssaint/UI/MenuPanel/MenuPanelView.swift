@@ -467,7 +467,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder
+         commandBar, screenRecorder, quarantineManager
 
     var id: String { rawValue }
 
@@ -483,6 +483,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .clipboard: return .clipboardHistory
         case .windowLayout: return .windowLayout
         case .uninstaller: return .uninstaller
+        case .quarantineManager: return .quarantineManager
         case .cleanURL: return .urlCleaner
         case .cleaning: return .cleaningMode
         case .screenOCR: return .screenOCR
@@ -501,6 +502,7 @@ struct UtilitiesSection: View {
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @State private var showUninstaller = false
+    @State private var showQuarantineManager = false
     @State private var showCleanerPanel = false
     @State private var showURLCleaner = false
     @State private var showHomebrewPanel = false
@@ -512,6 +514,7 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityCleaning) private var showCleaning = true
     @AppStorage(DefaultsKey.panelUtilityURLCleaner) private var showCleanURL = true
     @AppStorage(DefaultsKey.panelUtilityUninstaller) private var showUninstallerAction = true
+    @AppStorage(DefaultsKey.panelUtilityQuarantineManager) private var showQuarantineManagerAction = true
     @AppStorage(DefaultsKey.panelUtilityCleaner) private var showCleanerAction = true
     @AppStorage(DefaultsKey.panelUtilityHomebrew) private var showHomebrew = true
     @AppStorage(DefaultsKey.panelUtilityAppUpdates) private var showAppUpdates = true
@@ -541,6 +544,10 @@ struct UtilitiesSection: View {
             if showUninstaller {
                 PanelUninstallerView {
                     showUninstaller = false
+                }
+            } else if showQuarantineManager {
+                PanelQuarantineManagerView {
+                    showQuarantineManager = false
                 }
             } else if showCleanerPanel {
                 PanelCleanerView {
@@ -607,7 +614,7 @@ struct UtilitiesSection: View {
     /// list. A hosted tool turns the panel into a work surface, so clicks
     /// elsewhere in the app must not dismiss it.
     private var isHostingUtility: Bool {
-        showUninstaller || showCleanerPanel || showURLCleaner || showHomebrewPanel
+        showUninstaller || showQuarantineManager || showCleanerPanel || showURLCleaner || showHomebrewPanel
             || showMediaPanel || showClipboardPanel || showRecentCapturesPanel
             || showWindowLayoutPanel || showAppUpdatesPanel
     }
@@ -647,6 +654,7 @@ struct UtilitiesSection: View {
         case .clipboard: return showClipboard
         case .windowLayout: return showWindowLayout
         case .uninstaller: return showUninstallerAction
+        case .quarantineManager: return showQuarantineManagerAction
         case .cleaner: return showCleanerAction
         case .cleanURL: return showCleanURL
         case .cleaning: return showCleaning
@@ -732,6 +740,17 @@ struct UtilitiesSection: View {
                                 action: {
                                     PanelInteractionState.shared.keepsPopoverOpen = true
                                     showUninstaller = true
+                                })
+        case .quarantineManager:
+            UtilityActionButton(title: l10n.s.quarantineManagerName,
+                                caption: l10n.s.quarantineManagerIntroTitle,
+                                systemImage: "shield.lefthalf.filled",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showQuarantineManagerAction,
+                                action: {
+                                    PanelInteractionState.shared.keepsPopoverOpen = true
+                                    showQuarantineManager = true
                                 })
         case .cleaner:
             UtilityActionButton(title: l10n.s.cleanerName,
@@ -967,6 +986,7 @@ struct UtilitiesSection: View {
         showClipboard = true
         showWindowLayout = true
         showUninstallerAction = true
+        showQuarantineManagerAction = true
         showCleanerAction = true
         showCleanURL = true
         showCleaning = true

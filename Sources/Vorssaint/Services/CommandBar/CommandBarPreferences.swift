@@ -130,8 +130,15 @@ enum CommandBarPreferences {
         // a bar is for running things first. So a file has to be a plainly
         // better match than a command to lead the list, never merely as good.
         case .files: return -40
+        // What is currently selected is what the person is already looking
+        // at, so an action on it should lead a same-quality settings-page
+        // match rather than lose to one on a title technicality (a page
+        // titled "Quarantine Manager" gets a prefix-match bonus over a row
+        // titled "Remove Quarantine" for the query "quarantine" that a flat
+        // rankBias of 0 does not make up for). 250 clears that gap.
+        case .selection: return 250
         case .actions, .apps, .windows, .quitApps, .settingsPages, .macSettings, .snippets,
-             .clipboard, .emoji, .folders, .answers, .calculator, .selection, .links:
+             .clipboard, .emoji, .folders, .answers, .calculator, .links:
             return 0
         }
     }

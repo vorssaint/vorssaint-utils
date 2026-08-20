@@ -1349,6 +1349,39 @@ enum CommandBarCatalog {
         return entries
     }
 
+    /// One row that clears `com.apple.quarantine` from whatever is currently
+    /// selected in Finder, entirely inline - no Settings window, no review
+    /// list. Mirrors `QuarantineManagerService`'s own batch removal so the
+    /// admin-prompt and app-bundle-recursion rules stay identical everywhere.
+    static func finderSelectionEntries(urls: [URL], automationDenied: Bool) -> [CommandBarEntry] {
+        guard AppFeature.quarantineManager.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.quarantineManagerCommandBarEnabled),
+              !urls.isEmpty else { return [] }
+        let s = L10n.shared.s
+        return [CommandBarEntry(
+            id: "selection.quarantine",
+            title: s.quarantineManagerRemoveSelected,
+            subtitle: s.quarantineManagerName,
+            icon: .symbol("shield.lefthalf.filled"),
+            trouble: automationDenied ? .needsPermission : nil,
+            run: { _ in removeQuarantineFromFinderSelection(urls) })]
+    }
+
+    private static func removeQuarantineFromFinderSelection(_ urls: [URL]) {
+        let s = L10n.shared.s
+        let targets = urls.map { (path: $0.path, recursive: QuarantineManagerSupport.isApp($0.path)) }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = QuarantineManagerService.removeQuarantine(from: targets)
+            DispatchQueue.main.async {
+                var message = String(format: s.quarantineManagerClearedFormat, result.cleared)
+                if result.failed > 0 {
+                    message += " - " + s.quarantineManagerSomeFailed
+                }
+                QuickToolHUD.show(icon: "shield.lefthalf.filled", message: message)
+            }
+        }
+    }
+
     /// Puts the selection on the shelf without disturbing what the person has
     /// copied: a pasteboard of our own carries it across.
     private static func keepOnShelf(_ text: String) {

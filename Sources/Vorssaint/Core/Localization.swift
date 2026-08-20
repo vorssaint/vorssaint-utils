@@ -205,6 +205,7 @@ struct Strings {
     let adminPromptUpdate: String
     let adminPromptSudoersInstall: String
     let adminPromptSudoersRemove: String
+    let adminPromptQuarantine: String
 
     // MARK: Settings — window & tabs
     let settingsTitle: String
@@ -424,6 +425,44 @@ struct Strings {
     let uninstallerCatLogs: String
     let uninstallerCatState: String
     let uninstallerCatOther: String
+
+    // MARK: Feature — quarantine manager
+    let quarantineManagerName: String
+    let quarantineManagerMenuItem: String
+    let quarantineManagerIntroTitle: String
+    let quarantineManagerIntroBody: String
+    let quarantineManagerPick: String
+    let quarantineManagerScanApplications: String
+    let quarantineManagerDropTitle: String
+    let quarantineManagerDropHint: String
+    let quarantineManagerFDANote: String
+    let quarantineManagerScanning: String
+    let quarantineManagerEmptyTitle: String
+    let quarantineManagerFoundTitle: String
+    let quarantineManagerSelectedFormat: String   // + selected, total
+    let quarantineManagerSelectAll: String
+    let quarantineManagerClearSelection: String
+    let quarantineManagerRemoveSelected: String
+    let quarantineManagerRemoving: String
+    let quarantineManagerDoneTitle: String
+    let quarantineManagerClearedFormat: String    // + count
+    let quarantineManagerSomeFailed: String
+    let quarantineManagerContinue: String
+    let quarantineManagerDetailTitle: String
+    let quarantineManagerSource: String
+    let quarantineManagerDownloadDate: String
+    let quarantineManagerFlags: String
+    let quarantineManagerRawValue: String
+    let quarantineManagerCopyPath: String
+    let quarantineManagerCopyCommand: String
+    let quarantineManagerAllAttributesTitle: String
+    let quarantineManagerRemoveAllAttributes: String
+    let quarantineManagerRemoveAllConfirmTitle: String
+    let quarantineManagerRemoveAllConfirmBody: String
+    let quarantineManagerAttributeProtected: String
+    let quarantineManagerBinaryValueHint: String
+    let quarantineManagerCommandBarToggle: String
+    let quarantineManagerCommandBarCaption: String
 
     // MARK: Feature — URL cleaner
     let urlCleanerName: String
@@ -1169,6 +1208,7 @@ extension Strings {
         adminPromptUpdate: "O Vorssaint precisa da sua senha para instalar a atualização.",
         adminPromptSudoersInstall: "O Vorssaint vai criar uma regra restrita (somente pmset disablesleep) para alternar a tampa fechada sem pedir senha. Esta é a única vez que a senha será necessária.",
         adminPromptSudoersRemove: "O Vorssaint vai remover a regra de tampa fechada sem senha.",
+        adminPromptQuarantine: "O Vorssaint precisa da sua senha para remover a quarentena dos itens selecionados.",
 
         settingsTitle: "Ajustes do Vorssaint",
         tabGeneral: "Geral",
@@ -1378,6 +1418,43 @@ extension Strings {
         uninstallerCatLogs: "Logs",
         uninstallerCatState: "Estado salvo",
         uninstallerCatOther: "Outros",
+
+        quarantineManagerName: "Gerenciador de quarentena",
+        quarantineManagerMenuItem: "Gerenciador de quarentena",
+        quarantineManagerIntroTitle: "Remover o aviso de download da internet",
+        quarantineManagerIntroBody: "O macOS marca arquivos baixados fora da App Store com um sinalizador de quarentena, que dispara o aviso do Gatekeeper ao abri-los. Escolha arquivos ou apps para inspecionar e remover o sinalizador.",
+        quarantineManagerPick: "Escolher apps ou arquivos",
+        quarantineManagerScanApplications: "Verificar Aplicativos",
+        quarantineManagerDropTitle: "Solte arquivos ou apps aqui",
+        quarantineManagerDropHint: "ou escolha apps ou arquivos abaixo",
+        quarantineManagerFDANote: "Conceda Acesso Total ao Disco para inspecionar arquivos fora das pastas comuns.",
+        quarantineManagerScanning: "Procurando itens em quarentena…",
+        quarantineManagerEmptyTitle: "Nenhum item em quarentena encontrado",
+        quarantineManagerFoundTitle: "Itens em quarentena",
+        quarantineManagerSelectedFormat: "%d de %d selecionados",
+        quarantineManagerSelectAll: "Selecionar tudo",
+        quarantineManagerClearSelection: "Limpar seleção",
+        quarantineManagerRemoveSelected: "Remover Quarentena",
+        quarantineManagerRemoving: "Removendo quarentena…",
+        quarantineManagerDoneTitle: "Quarentena removida",
+        quarantineManagerClearedFormat: "%d item(ns) limpo(s)",
+        quarantineManagerSomeFailed: "Alguns itens não puderam ser limpos.",
+        quarantineManagerContinue: "Continuar",
+        quarantineManagerDetailTitle: "Detalhes da quarentena",
+        quarantineManagerSource: "Origem",
+        quarantineManagerDownloadDate: "Data do download",
+        quarantineManagerFlags: "Sinalizadores",
+        quarantineManagerRawValue: "Valor bruto",
+        quarantineManagerCopyPath: "Copiar caminho",
+        quarantineManagerCopyCommand: "Copiar comando xattr",
+        quarantineManagerAllAttributesTitle: "Todos os atributos",
+        quarantineManagerRemoveAllAttributes: "Remover todos os atributos",
+        quarantineManagerRemoveAllConfirmTitle: "Remover todos os atributos?",
+        quarantineManagerRemoveAllConfirmBody: "Isso apaga todos os atributos estendidos deste arquivo, não só a quarentena. Não pode ser desfeito.",
+        quarantineManagerAttributeProtected: "Protegido pelo macOS - não pode ser removido",
+        quarantineManagerBinaryValueHint: "Valor binário mostrado como hexadecimal",
+        quarantineManagerCommandBarToggle: "Mostrar na Barra de Comandos",
+        quarantineManagerCommandBarCaption: "Adiciona uma ação para remover a quarentena do que estiver selecionado no Finder.",
 
         urlCleanerName: "Limpar URL",
         urlCleanerEnable: "Limpar URLs copiadas",
@@ -2099,6 +2176,7 @@ extension Strings {
         adminPromptUpdate: "Vorssaint needs your password to install the update.",
         adminPromptSudoersInstall: "Vorssaint will create a restricted rule (pmset disablesleep only) to toggle closed-lid mode without asking for a password. This is the only time the password is needed.",
         adminPromptSudoersRemove: "Vorssaint will remove the password-free closed-lid rule.",
+        adminPromptQuarantine: "Vorssaint needs your password to remove the quarantine flag from the selected items.",
 
         settingsTitle: "Vorssaint Settings",
         tabGeneral: "General",
@@ -2308,6 +2386,43 @@ extension Strings {
         uninstallerCatLogs: "Logs",
         uninstallerCatState: "Saved state",
         uninstallerCatOther: "Other",
+
+        quarantineManagerName: "Quarantine Manager",
+        quarantineManagerMenuItem: "Quarantine Manager",
+        quarantineManagerIntroTitle: "Remove the downloaded-from-the-internet warning",
+        quarantineManagerIntroBody: "macOS tags files downloaded outside the App Store with a quarantine flag, which triggers the Gatekeeper prompt when you open them. Pick files or apps to inspect and clear the flag.",
+        quarantineManagerPick: "Choose Apps or Files",
+        quarantineManagerScanApplications: "Scan Applications",
+        quarantineManagerDropTitle: "Drop files or apps here",
+        quarantineManagerDropHint: "or choose apps or files below",
+        quarantineManagerFDANote: "Grant Full Disk Access to inspect files outside the common folders.",
+        quarantineManagerScanning: "Scanning for quarantined items…",
+        quarantineManagerEmptyTitle: "No quarantined items found",
+        quarantineManagerFoundTitle: "Quarantined items",
+        quarantineManagerSelectedFormat: "%d of %d selected",
+        quarantineManagerSelectAll: "Select All",
+        quarantineManagerClearSelection: "Clear Selection",
+        quarantineManagerRemoveSelected: "Remove Quarantine",
+        quarantineManagerRemoving: "Removing quarantine…",
+        quarantineManagerDoneTitle: "Quarantine removed",
+        quarantineManagerClearedFormat: "%d item(s) cleared",
+        quarantineManagerSomeFailed: "Some items could not be cleared.",
+        quarantineManagerContinue: "Continue",
+        quarantineManagerDetailTitle: "Quarantine Details",
+        quarantineManagerSource: "Source",
+        quarantineManagerDownloadDate: "Download Date",
+        quarantineManagerFlags: "Flags",
+        quarantineManagerRawValue: "Raw Value",
+        quarantineManagerCopyPath: "Copy Path",
+        quarantineManagerCopyCommand: "Copy Remove Command",
+        quarantineManagerAllAttributesTitle: "All Attributes",
+        quarantineManagerRemoveAllAttributes: "Remove All Attributes",
+        quarantineManagerRemoveAllConfirmTitle: "Remove all attributes?",
+        quarantineManagerRemoveAllConfirmBody: "This clears every extended attribute on this file, not just quarantine. This cannot be undone.",
+        quarantineManagerAttributeProtected: "Protected by macOS - can't be removed",
+        quarantineManagerBinaryValueHint: "Binary value, shown as hex",
+        quarantineManagerCommandBarToggle: "Show in Command Bar",
+        quarantineManagerCommandBarCaption: "Adds an action to remove quarantine from whatever is selected in Finder.",
 
         urlCleanerName: "Clean URL",
         urlCleanerEnable: "Clean copied URLs",
