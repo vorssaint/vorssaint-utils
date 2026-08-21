@@ -177,12 +177,7 @@ final class ScreenshotShareService: ObservableObject {
     }
 
     private var storageDirectory: URL? {
-        guard let base = FileManager.default.urls(for: .applicationSupportDirectory,
-                                                  in: .userDomainMask).first
-        else { return nil }
-        return base
-            .appendingPathComponent(Bundle.main.bundleIdentifier ?? "com.vorssaint.utils",
-                                    isDirectory: true)
+        PrivateFileStore.containerURL?
             .appendingPathComponent("TemporaryScreenshotLinks", isDirectory: true)
     }
 
@@ -203,20 +198,10 @@ final class ScreenshotShareService: ObservableObject {
         guard let directory = storageDirectory else {
             throw ScreenshotShareError.localStorage
         }
-        let manager = FileManager.default
-        do {
-            try manager.createDirectory(at: directory,
-                                        withIntermediateDirectories: true,
-                                        attributes: [.posixPermissions: 0o700])
-            try manager.setAttributes([.posixPermissions: 0o700],
-                                      ofItemAtPath: directory.path)
-            let file = directory.appendingPathComponent("records.json")
-            try encoder.encode(records).write(to: file, options: .atomic)
-            try manager.setAttributes([.posixPermissions: 0o600],
-                                      ofItemAtPath: file.path)
-        } catch {
-            throw ScreenshotShareError.localStorage
-        }
+        guard PrivateFileStore.createDirectory(at: directory),
+              let data = try? encoder.encode(records),
+              PrivateFileStore.write(data, to: directory.appendingPathComponent("records.json"))
+        else { throw ScreenshotShareError.localStorage }
     }
 
     private func normalizedRecords(_ candidates: [ScreenshotShareRecord],

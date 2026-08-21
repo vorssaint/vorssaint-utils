@@ -54,6 +54,26 @@ struct SwitcherItem: Identifiable, Equatable {
         return displayTitle
     }
 
+    /// Whether this entry stands for the app itself because it has no window
+    /// to switch to. Those entries have no thumbnail to draw and no window to
+    /// name, so several places have to present them differently.
+    var isAppEntry: Bool { windowID == nil }
+
+    /// What the screen reader hears. An app entry replaces the window title
+    /// with its state on screen, so the label has to carry that state too or
+    /// the entry sounds identical to a window of the same app.
+    ///
+    /// Lives on the model rather than beside one view: the Dock preview card
+    /// draws the same badges and owes its reader the same sentence.
+    func spokenLabel(noOpenWindow: String,
+                     hiddenApp: String,
+                     otherDesktop: String) -> String {
+        var label = isAppEntry ? "\(appName), \(noOpenWindow)" : accessibilityTitle
+        if isAppHidden { label += ", \(hiddenApp)" }
+        if isOnHiddenSpace { label += ", \(otherDesktop)" }
+        return label
+    }
+
     var appIcon: NSImage? {
         NSRunningApplication(processIdentifier: pid)?.icon
     }
