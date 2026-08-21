@@ -1882,18 +1882,21 @@ private final class WindowDirectionalIndicatorCanvasView: NSView {
             context.setShadow(offset: .zero, blur: 12,
                               color: NSColor.controlAccentColor.withAlphaComponent(0.55).cgColor)
             let accent = NSColor.controlAccentColor
+            let lighterAccent = accent.blended(withFraction: 0.42, of: .white) ?? accent
+            let purpleAccent = accent.blended(withFraction: 0.25, of: .systemPurple) ?? accent
             let colors = [
-                accent.blended(withFraction: 0.42, of: .white)!.withAlphaComponent(0.98).cgColor,
+                lighterAccent.withAlphaComponent(0.98).cgColor,
                 accent.withAlphaComponent(0.98).cgColor,
-                accent.blended(withFraction: 0.25, of: .systemPurple)!.withAlphaComponent(0.9).cgColor
+                purpleAccent.withAlphaComponent(0.9).cgColor
             ] as CFArray
-            let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
-                                      colors: colors,
-                                      locations: [0, 0.5, 1])!
-            context.drawLinearGradient(gradient,
-                                       start: CGPoint(x: center.x - outerRadius, y: center.y + outerRadius),
-                                       end: CGPoint(x: center.x + outerRadius, y: center.y - outerRadius),
-                                       options: [])
+            if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                         colors: colors,
+                                         locations: [0, 0.5, 1]) {
+                context.drawLinearGradient(gradient,
+                                           start: CGPoint(x: center.x - outerRadius, y: center.y + outerRadius),
+                                           end: CGPoint(x: center.x + outerRadius, y: center.y - outerRadius),
+                                           options: [])
+            }
             context.restoreGState()
             drawOrbitMarker(direction: direction, center: center,
                             radius: outerRadius - 1, context: context)
@@ -1969,7 +1972,8 @@ private final class WindowDirectionalIndicatorCanvasView: NSView {
         context.saveGState()
         context.setShadow(offset: .zero, blur: 18,
                           color: NSColor.controlAccentColor.withAlphaComponent(0.8).cgColor)
-        context.setFillColor(NSColor.controlAccentColor.blended(withFraction: 0.45, of: .white)!.cgColor)
+        let markerColor = NSColor.controlAccentColor.blended(withFraction: 0.45, of: .white) ?? .controlAccentColor
+        context.setFillColor(markerColor.cgColor)
         context.fillEllipse(in: marker)
         context.setStrokeColor(NSColor.white.withAlphaComponent(0.82).cgColor)
         context.setLineWidth(0.8)
@@ -2004,8 +2008,9 @@ private final class WindowDirectionalIndicatorCanvasView: NSView {
         let outline = CGPath(roundedRect: window, cornerWidth: 7, cornerHeight: 7,
                              transform: nil)
         context.addPath(outline)
-        context.setStrokeColor(NSColor.controlAccentColor
-            .blended(withFraction: 0.36, of: .white)!.withAlphaComponent(0.9).cgColor)
+        let windowBorder = NSColor.controlAccentColor
+            .blended(withFraction: 0.36, of: .white) ?? .controlAccentColor
+        context.setStrokeColor(windowBorder.withAlphaComponent(0.9).cgColor)
         context.setLineWidth(2)
         context.strokePath()
 
