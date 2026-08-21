@@ -916,6 +916,7 @@ extension Strings {
         urlCleanerCustomTitle: "Autres noms à retirer",
         urlCleanerCustomPlaceholder: "ref, source",
         urlCleanerCustomCaption: "Séparez les noms des paramètres par des virgules. Ils seront retirés de chaque lien.",
+        urlCleanerCustomSaveButton: "Enregistrer",
         switcherSearchPin: "Épingler la recherche avec S",
         switcherSearchPinCaption: "S lance une recherche et épingle le sélecteur ouvert : plus de caractères spéciaux tapés quand le raccourci utilise ⌥, et une recherche commençant par Q ou W ne ferme plus la fenêtre ni ne quitte l'app par erreur.",
         invertVerticalScroll: "Inverser le défilement vertical",

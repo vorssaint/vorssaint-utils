@@ -917,6 +917,7 @@ extension Strings {
         urlCleanerCustomTitle: "삭제할 이름 추가",
         urlCleanerCustomPlaceholder: "ref, source",
         urlCleanerCustomCaption: "매개변수 이름을 쉼표로 구분하세요. 모든 링크에서 삭제됩니다.",
+        urlCleanerCustomSaveButton: "저장",
         switcherSearchPin: "S로 검색창 고정",
         switcherSearchPinCaption: "S를 누르면 검색을 시작하고 전환기를 고정합니다. 단축키가 ⌥를 사용할 때 특수 문자가 입력되는 문제와, Q나 W로 시작하는 검색이 창을 닫거나 앱을 종료시키는 문제를 모두 막아줍니다.",
         invertVerticalScroll: "세로 스크롤 반전",

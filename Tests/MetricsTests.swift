@@ -8163,6 +8163,23 @@ struct MetricsTests {
                                               customParameters: customURLParameters) ?? "",
                     "https://example.com/?reference=one",
                     "URL cleaner does not treat custom parameter names as prefixes")
+        // A grouped Form renders a TextField's first argument as a leading
+        // label, so the words sat beside a short strip of field and clicking
+        // them did nothing. The hint has to travel as `prompt:` and the label
+        // has to stay empty for the field to own its whole row.
+        let urlCleanerSettingsSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/URLCleanerSettings.swift",
+            encoding: .utf8)) ?? ""
+        expect(urlCleanerSettingsSource.contains("prompt: Text(l10n.s.urlCleanerCustomPlaceholder)")
+                && urlCleanerSettingsSource.contains("prompt: Text(l10n.s.urlCleanerInputPlaceholder)"),
+               "the Clean URL fields carry their hint as a prompt, not as a row label")
+        expect(!urlCleanerSettingsSource.contains("TextField(l10n.s."),
+               "no Clean URL field spends its row on a label instead of the field")
+        expect(urlCleanerSettingsSource.contains("TextField(\"\", text: $customDraft,"),
+               "the custom parameter field edits a draft of its own")
+        expect(!urlCleanerSettingsSource.contains("text: $customParameters"),
+               "typing never reaches the list the cleaner reads on its next poll")
+
         expect(Defaults.registeredDefaults[DefaultsKey.urlCleanerCustomParameters] as? String == ""
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.urlCleanerCustomParameters),
                "custom URL cleaner parameters start empty and travel in Settings backups")
