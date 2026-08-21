@@ -7,11 +7,13 @@ All notable changes to this project are documented here. The format follows
 ## [3.3.3]
 
 ### Summary
-Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Kill Process tool and keeps the
-grouped App Switcher clear when moving between windows. It also restores reliable
-trimming from the start of a recording.
+Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Kill Process tool and
+native input-source switching for the Super key. It keeps the grouped App Switcher clear when moving
+between windows and restores reliable trimming from the start of a recording.
 
 ### Added
+- The Super key can now use a quick press to switch between enabled input sources
+  while a press-and-hold toggles Caps Lock. Thanks to @BenjaminD2023.
 - An opt-in Kill Process feature searches running processes to force quit, restart or terminate
   process trees from Settings and the Command Bar. It ships uninstalled. Thanks to @naveenkrdy.
 

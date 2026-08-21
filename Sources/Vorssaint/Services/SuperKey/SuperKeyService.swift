@@ -3,6 +3,7 @@
 
 import AppKit
 import ApplicationServices
+import Carbon.HIToolbox
 import Combine
 import CoreGraphics
 import IOKit
@@ -56,8 +57,8 @@ final class SuperKeyService: ObservableObject {
     /// The mapping is written off the main thread, and in the order it was
     /// asked for: a queue of one keeps an apply and a clear from crossing.
     private let mappingQueue = DispatchQueue(label: "com.vorssaint.utils.superkey-mapping")
-    /// System Events can block while switching sources, so quick taps stay off
-    /// the main thread and in order.
+    /// Reading another app's marked-text range can block, so quick taps inspect
+    /// it off the main thread and in order.
     private let inputSourceQueue = DispatchQueue(label: "com.vorssaint.utils.superkey-input-source")
     /// When the last mapping went in, so a keyboard that arrives without one
     /// is repaired once and not on every keystroke.
@@ -553,21 +554,17 @@ final class SuperKeyService: ObservableObject {
 
     private func performSoloAction(longHold: Bool, repeated: Bool) {
         let action = stateLock.withLock { soloAction }
-        switch action {
+        switch SuperKeySupport.soloEffect(action: action,
+                                          longHold: longHold,
+                                          repeated: repeated) {
         case .none:
             return
         case .escape:
-            guard !repeated else { return }
             postEscape()
         case .capsLock:
-            guard !repeated else { return }
             setCapsLock(!capsLockIsOn())
         case .inputSource:
-            if longHold {
-                setCapsLock(!capsLockIsOn())
-            } else {
-                switchInputSource()
-            }
+            switchInputSource()
         }
     }
 
@@ -580,27 +577,118 @@ final class SuperKeyService: ObservableObject {
     }
 
     private func switchInputSource() {
+        guard let processID = NSWorkspace.shared.frontmostApplication?.processIdentifier else { return }
         inputSourceQueue.async {
-            let markedRangeAttribute = NSAccessibility.Attribute.textInputMarkedRangeAttribute.rawValue
-            _ = AppleScriptRunner.run(
-                """
-                tell application "System Events"
-                    set frontmostProcess to first application process whose frontmost is true
-                    try
-                        set focusedElement to value of attribute "AXFocusedUIElement" of frontmostProcess
-                        set markedRange to value of attribute "\(markedRangeAttribute)" of focusedElement
-                        if frontmost of frontmostProcess and markedRange is not missing value and (item 2 of markedRange) > 0 then
-                            key code 36
-                            delay 0.1
-                        end if
-                    end try
-                    if frontmost of frontmostProcess then
-                        key code 49 using control down
-                    end if
-                end tell
-                """
+            let focusedElement = Self.focusedElement(for: processID)
+            let shouldCommit = SuperKeySupport.shouldCommitMarkedText(
+                length: focusedElement.flatMap(Self.markedTextLength)
             )
+            guard NSWorkspace.shared.frontmostApplication?.processIdentifier == processID else { return }
+            if shouldCommit {
+                guard let focusedElement,
+                      Self.isStillFocused(focusedElement, in: processID)
+                else { return }
+                guard Self.postReturn() else { return }
+                Thread.sleep(forTimeInterval: 0.1)
+                guard NSWorkspace.shared.frontmostApplication?.processIdentifier == processID,
+                      Self.isStillFocused(focusedElement, in: processID)
+                else { return }
+            }
+            // TIS is main-thread-only; sync also keeps the whole tap ordered
+            // before the queue begins another IME commit.
+            DispatchQueue.main.sync {
+                guard NSWorkspace.shared.frontmostApplication?.processIdentifier == processID else { return }
+                Self.selectNextInputSource()
+            }
         }
+    }
+
+    private static func focusedElement(for processID: pid_t) -> AXUIElement? {
+        let application = AXUIElementCreateApplication(processID)
+        AXUIElementSetMessagingTimeout(application, 0.2)
+        var focusedValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            application,
+            kAXFocusedUIElementAttribute as CFString,
+            &focusedValue
+        ) == .success,
+        let focusedValue,
+        CFGetTypeID(focusedValue) == AXUIElementGetTypeID()
+        else { return nil }
+
+        let focusedElement = focusedValue as! AXUIElement
+        AXUIElementSetMessagingTimeout(focusedElement, 0.2)
+        return focusedElement
+    }
+
+    private static func markedTextLength(_ focusedElement: AXUIElement) -> Int? {
+        var rangeValue: CFTypeRef?
+        let attribute = NSAccessibility.Attribute.textInputMarkedRangeAttribute.rawValue
+        guard AXUIElementCopyAttributeValue(
+            focusedElement,
+            attribute as CFString,
+            &rangeValue
+        ) == .success,
+        let rangeValue,
+        CFGetTypeID(rangeValue) == AXValueGetTypeID()
+        else { return nil }
+
+        let axValue = rangeValue as! AXValue
+        guard AXValueGetType(axValue) == .cfRange else { return nil }
+        var range = CFRange(location: 0, length: 0)
+        return AXValueGetValue(axValue, .cfRange, &range) ? range.length : nil
+    }
+
+    private static func isStillFocused(_ element: AXUIElement, in processID: pid_t) -> Bool {
+        guard let current = focusedElement(for: processID) else { return false }
+        return CFEqual(element, current)
+    }
+
+    private static func postReturn() -> Bool {
+        let source = CGEventSource(stateID: .hidSystemState)
+        let returnKey = CGKeyCode(kVK_Return)
+        guard let down = CGEvent(keyboardEventSource: source, virtualKey: returnKey, keyDown: true),
+              let up = CGEvent(keyboardEventSource: source, virtualKey: returnKey, keyDown: false)
+        else { return false }
+        down.post(tap: .cgSessionEventTap)
+        up.post(tap: .cgSessionEventTap)
+        return true
+    }
+
+    private static func selectNextInputSource() {
+        let sources = selectableInputSources()
+        let ids = sources.compactMap { inputSourceString($0, property: kTISPropertyInputSourceID) }
+        guard let current = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return }
+        let currentID = inputSourceString(current, property: kTISPropertyInputSourceID)
+        guard let nextID = SuperKeySupport.nextInputSourceID(currentID: currentID,
+                                                             enabledIDs: ids),
+              let next = sources.first(where: {
+                  inputSourceString($0, property: kTISPropertyInputSourceID) == nextID
+              })
+        else { return }
+        _ = TISSelectInputSource(next)
+    }
+
+    private static func selectableInputSources() -> [TISInputSource] {
+        guard let list = TISCreateInputSourceList(nil, false) else { return [] }
+        let values = list.takeRetainedValue() as NSArray
+        return (values as! [TISInputSource]).filter {
+            inputSourceString($0, property: kTISPropertyInputSourceCategory)
+                == kTISCategoryKeyboardInputSource as String
+                && inputSourceBool($0, property: kTISPropertyInputSourceIsSelectCapable)
+        }
+    }
+
+    private static func inputSourceString(_ source: TISInputSource,
+                                          property: CFString) -> String? {
+        guard let pointer = TISGetInputSourceProperty(source, property) else { return nil }
+        return Unmanaged<CFString>.fromOpaque(pointer).takeUnretainedValue() as String
+    }
+
+    private static func inputSourceBool(_ source: TISInputSource,
+                                        property: CFString) -> Bool {
+        guard let pointer = TISGetInputSourceProperty(source, property) else { return false }
+        return CFBooleanGetValue(Unmanaged<CFBoolean>.fromOpaque(pointer).takeUnretainedValue())
     }
 
     // MARK: - Caps Lock itself

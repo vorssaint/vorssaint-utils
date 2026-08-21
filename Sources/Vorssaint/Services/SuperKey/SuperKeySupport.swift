@@ -221,6 +221,37 @@ enum SuperKeySupport {
         return UInt64(bitPattern: value)
     }
 
+    enum SoloEffect: Equatable {
+        case none, escape, capsLock, inputSource
+    }
+
+    static func soloEffect(action: SuperKeySoloAction,
+                           longHold: Bool,
+                           repeated: Bool) -> SoloEffect {
+        switch action {
+        case .none:
+            return .none
+        case .escape:
+            return repeated ? .none : .escape
+        case .capsLock:
+            return repeated ? .none : .capsLock
+        case .inputSource:
+            return longHold ? .capsLock : .inputSource
+        }
+    }
+
+    static func nextInputSourceID(currentID: String?, enabledIDs: [String]) -> String? {
+        guard enabledIDs.count > 1 else { return nil }
+        guard let currentID, let index = enabledIDs.firstIndex(of: currentID) else {
+            return enabledIDs.first
+        }
+        return enabledIDs[(index + 1) % enabledIDs.count]
+    }
+
+    static func shouldCommitMarkedText(length: Int?) -> Bool {
+        (length ?? 0) > 0
+    }
+
     // MARK: - What each event means
 
     /// A key event, reduced to the only distinctions the decision needs.

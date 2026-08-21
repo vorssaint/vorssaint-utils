@@ -12257,7 +12257,7 @@ struct MetricsTests {
                 && AppFeature.superKey.permissions == [.accessibility]
                 && AppFeature.superKey.group == .mouseKeyboard
                 && AppFeature.superKey.energyProfile == .keyboard,
-               "the hub knows the super key's switch, permission, group and cost")
+               "the hub knows the super key's switch and native input switching needs no Automation")
         expect(FeatureVisibilitySupport.features(for: .superKey) == [.superKey]
                 && !FeatureVisibilitySupport.isPageVisible(.superKey, isAvailable: { _ in false }),
                "the page leaves the sidebar when the feature is off in the hub")
@@ -12280,6 +12280,48 @@ struct MetricsTests {
                 && SuperKeySupport.storageValue(for: [])
                     == SuperKeySupport.defaultModifierStorageValue,
                "Super key modifiers keep stable storage and never save an empty combination")
+        expect(SuperKeySupport.soloEffect(action: .none,
+                                          longHold: false,
+                                          repeated: false) == .none
+                && SuperKeySupport.soloEffect(action: .escape,
+                                              longHold: false,
+                                              repeated: false) == .escape
+                && SuperKeySupport.soloEffect(action: .escape,
+                                              longHold: true,
+                                              repeated: true) == .none
+                && SuperKeySupport.soloEffect(action: .capsLock,
+                                              longHold: true,
+                                              repeated: false) == .capsLock
+                && SuperKeySupport.soloEffect(action: .capsLock,
+                                              longHold: false,
+                                              repeated: true) == .none,
+               "existing solo actions keep their tap, hold and repeat behavior")
+        expect(SuperKeySupport.soloEffect(action: .inputSource,
+                                          longHold: false,
+                                          repeated: false) == .inputSource
+                && SuperKeySupport.soloEffect(action: .inputSource,
+                                              longHold: false,
+                                              repeated: true) == .inputSource
+                && SuperKeySupport.soloEffect(action: .inputSource,
+                                              longHold: true,
+                                              repeated: false) == .capsLock
+                && SuperKeySupport.soloEffect(action: .inputSource,
+                                              longHold: true,
+                                              repeated: true) == .capsLock,
+               "the input-source action switches on a quick press and reserves a hold for Caps Lock")
+        expect(SuperKeySupport.nextInputSourceID(currentID: "abc",
+                                                 enabledIDs: ["abc", "pinyin", "kana"]) == "pinyin"
+                && SuperKeySupport.nextInputSourceID(currentID: "kana",
+                                                     enabledIDs: ["abc", "pinyin", "kana"]) == "abc"
+                && SuperKeySupport.nextInputSourceID(currentID: "missing",
+                                                     enabledIDs: ["abc", "pinyin"]) == "abc"
+                && SuperKeySupport.nextInputSourceID(currentID: nil,
+                                                     enabledIDs: ["abc"]) == nil,
+               "input sources cycle through the enabled system list without a hard-coded shortcut")
+        expect(!SuperKeySupport.shouldCommitMarkedText(length: nil)
+                && !SuperKeySupport.shouldCommitMarkedText(length: 0)
+                && SuperKeySupport.shouldCommitMarkedText(length: 1),
+               "only active marked text is committed before switching input source")
 
         let capsMapping = SuperKeyMapping(source: SuperKeySupport.capsLockUsage,
                                           destination: SuperKeySupport.triggerUsage)
