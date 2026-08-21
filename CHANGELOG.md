@@ -12,6 +12,7 @@ grouped App Switcher clear when moving between windows and makes Scratchpad cont
 It also restores reliable trimming from the start of a recording.
 
 ### Added
+- A Dock preview card can now be dragged to place its window where you drop it.
 - An opt-in Kill Process feature searches running processes to force quit, restart or terminate
   process trees from Settings and the Command Bar. It ships uninstalled. Thanks to @naveenkrdy.
 
