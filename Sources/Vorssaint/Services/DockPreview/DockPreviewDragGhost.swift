@@ -90,6 +90,4 @@ final class DockPreviewDragGhost {
         size = .zero
         isSnapped = false
     }
-
-    var isActive: Bool { window != nil }
 }

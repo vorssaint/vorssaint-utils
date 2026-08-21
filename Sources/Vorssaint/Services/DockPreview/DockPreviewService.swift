@@ -21,7 +21,7 @@ final class DockPreviewService: ObservableObject {
     @Published private(set) var selectedWindowID: CGWindowID?
     @Published private(set) var currentAppName: String?
     @Published private(set) var isPinned = false
-    @Published private(set) var isDraggingWindow = false
+    private var isDraggingWindow = false
     private var snapTarget: WindowEdgeSnapTarget?
 
     private var tap: CFMachPort?
@@ -202,6 +202,7 @@ final class DockPreviewService: ObservableObject {
         guard isVisible,
               windows.contains(item),
               DockPreviewSupport.canDragToPlace(hasWindowID: item.windowID != nil,
+                                                isOnScreen: item.isOnScreen,
                                                 isMinimized: item.isMinimized,
                                                 isFullscreen: item.isFullscreen),
               let image = item.previewWindowID.flatMap({ previews[$0] })
@@ -262,7 +263,14 @@ final class DockPreviewService: ObservableObject {
                                                      pid: item.windowOwnerPID,
                                                      at: selectedSnapTarget)
         } else {
-            moved = WindowActivator.setWindowOrigin(axPoint(fromAppKit: pointer),
+            let visibleFrame = (NSScreen.screens.first { $0.frame.contains(pointer) }
+                ?? NSScreen.withMouse)?.visibleFrame ?? .zero
+            let origin = axPoint(fromAppKit: DockPreviewSupport.dragOrigin(
+                pointer: pointer,
+                windowSize: item.frame.size,
+                visibleFrame: visibleFrame
+            ))
+            moved = WindowActivator.setWindowOrigin(origin,
                                                      windowID: windowID,
                                                      pid: item.windowOwnerPID)
         }
@@ -270,13 +278,6 @@ final class DockPreviewService: ObservableObject {
         if moved {
             WindowActivator.activate(item)
         }
-    }
-
-    func cancelWindowDrag() {
-        guard isDraggingWindow else { return }
-        isDraggingWindow = false
-        snapTarget = nil
-        DockPreviewDragGhost.shared.end()
     }
 
     func togglePinned() {
@@ -1156,13 +1157,6 @@ final class DockPreviewService: ObservableObject {
 
     private func axPoint(fromAppKit point: CGPoint) -> CGPoint {
         CGPoint(x: point.x, y: menuBarScreenTopY - point.y)
-    }
-
-    private func axFrame(fromAppKit rect: CGRect) -> CGRect {
-        CGRect(x: rect.minX,
-               y: menuBarScreenTopY - rect.maxY,
-               width: rect.width,
-               height: rect.height)
     }
 
     private func appKitFrame(fromAX rect: CGRect) -> CGRect {
