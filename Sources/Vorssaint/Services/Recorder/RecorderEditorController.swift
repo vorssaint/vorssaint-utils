@@ -166,8 +166,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
                                                          document: self.document)
             self.player.replaceCurrentItem(with: item)
             self.player.isMuted = false
-            self.outputDuration = CMTimeGetSeconds(
-                (try? await result.asset.load(.duration)) ?? .zero)
+            self.outputDuration = CMTimeGetSeconds(result.duration)
             self.rebuildPreview()
         }
     }

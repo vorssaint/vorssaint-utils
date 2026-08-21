@@ -917,6 +917,7 @@ extension Strings {
         urlCleanerCustomTitle: "Другие названия для удаления",
         urlCleanerCustomPlaceholder: "ref, source",
         urlCleanerCustomCaption: "Разделяйте названия параметров запятыми. Они будут удаляться из всех ссылок.",
+        urlCleanerCustomSaveButton: "Сохранить",
         switcherSearchPin: "Закрепить поиск по S",
         switcherSearchPinCaption: "S запускает поиск и закрепляет переключатель открытым. Печать больше не даёт специальные символы, если сочетание использует ⌥, а поиск, начинающийся с Q или W, больше не закрывает окно и не завершает приложение по ошибке.",
         invertVerticalScroll: "Инвертировать вертикальную прокрутку",

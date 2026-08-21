@@ -28,6 +28,8 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Ki
   editable temperature curves with multiple SoC, CPU and GPU rules. It also shows
   current and target RPM for every fan.
 
+- Clicking a Dock icon now only restores the windows that Click Dock icon to minimize
+  put away. Windows minimized any other way keep the Dock's own restore. Thanks to @PathGao.
 ### Fixed
 - Settings now lists Dock Preview and Dock click as separate named sections, and
   opening Dock click from the Features hub lands on its own controls rather than on
@@ -39,6 +41,11 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Ki
   badges a window that lives on another desktop. Thanks to @PathGao.
 - Fan Control now prepares stopped fans before taking manual control and keeps a
   failed attempt visible instead of silently returning to Automatic.
+- The Clean URL settings fields now take a click anywhere across their row. Their
+  hint used to render as a row label beside a short strip of field, so clicking the
+  words did nothing. The parameter list also gained a Save button and shows the
+  names as the cleaner reads them, instead of applying each keystroke as it is
+  typed. Thanks to @PathGao.
 - The grouped simple App Switcher now keeps every window title fully visible when
   using the window shortcut.
 - Clicking the Dock icon of a background app to restore its minimized windows now
@@ -56,6 +63,8 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Ki
   records are now stored so only your own account can read them. Folders an earlier
   version left readable by other accounts on the Mac are corrected on the next
   write. Thanks to @ThomasWaldmann.
+- The recording editor now reads composition duration directly without background
+  queries. Thanks to @Bald-M.
 
 ## [3.3.2] - 2026-08-20
 

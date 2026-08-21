@@ -916,6 +916,7 @@ extension Strings {
         urlCleanerCustomTitle: "Kaldırılacak diğer adlar",
         urlCleanerCustomPlaceholder: "ref, kaynak",
         urlCleanerCustomCaption: "Parametre adlarını virgülle ayırın. Her bağlantıdan kaldırılırlar.",
+        urlCleanerCustomSaveButton: "Kaydet",
         switcherSearchPin: "S ile aramayı sabitle",
         switcherSearchPinCaption: "S, aramayı başlatır ve değiştiriciyi sabitler; kısayolun ⌥ kullanması durumunda özel karakter yazılmasını, Q veya W ile başlayan aramaların pencereyi kapatmasını veya uygulamadan çıkmasını önler.",
         invertVerticalScroll: "Dikey kaydırmayı ters çevir",

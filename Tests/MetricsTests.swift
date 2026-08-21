@@ -6892,14 +6892,36 @@ struct MetricsTests {
                                        hasUnminimizedWindows: false,
                                        hasMinimizedWindows: true,
                                        hasFullscreenWindows: false,
-                                       hasModifiers: false) == .restore,
+                                       hasModifiers: false,
+                                       ownsMinimize: true) == .restore,
                "dock click restores when every window is minimized")
         expect(DockClickSupport.action(appIsFrontmost: false,
                                        hasUnminimizedWindows: false,
                                        hasMinimizedWindows: true,
                                        hasFullscreenWindows: false,
-                                       hasModifiers: false) == .restore,
+                                       hasModifiers: false,
+                                       ownsMinimize: true) == .restore,
                "dock click restores minimized windows of background apps too")
+        expect(DockClickSupport.action(appIsFrontmost: false,
+                                       hasUnminimizedWindows: false,
+                                       hasMinimizedWindows: true,
+                                       hasFullscreenWindows: false,
+                                       hasModifiers: false,
+                                       ownsMinimize: false) == .passThrough,
+               "dock click leaves windows minimized by other means to the Dock")
+        expect(DockClickSupport.action(appIsFrontmost: true,
+                                       hasUnminimizedWindows: false,
+                                       hasMinimizedWindows: true,
+                                       hasFullscreenWindows: false,
+                                       hasModifiers: false,
+                                       ownsMinimize: false) == .passThrough,
+               "the frontmost app's own minimize is the Dock's to undo as well")
+        expect(DockClickSupport.capturedMinimizeStillHolds(captured: [7, 8], stillMinimized: [8, 9]),
+               "a capture holds while one of the windows it named is still down")
+        expect(!DockClickSupport.capturedMinimizeStillHolds(captured: [7, 8], stillMinimized: [9]),
+               "a capture whose windows all came back another way is stale")
+        expect(!DockClickSupport.capturedMinimizeStillHolds(captured: [], stillMinimized: [9]),
+               "a capture that named nothing claims nothing")
         expect(DockClickSupport.action(appIsFrontmost: true,
                                        hasUnminimizedWindows: false,
                                        hasMinimizedWindows: false,
@@ -8141,6 +8163,23 @@ struct MetricsTests {
                                               customParameters: customURLParameters) ?? "",
                     "https://example.com/?reference=one",
                     "URL cleaner does not treat custom parameter names as prefixes")
+        // A grouped Form renders a TextField's first argument as a leading
+        // label, so the words sat beside a short strip of field and clicking
+        // them did nothing. The hint has to travel as `prompt:` and the label
+        // has to stay empty for the field to own its whole row.
+        let urlCleanerSettingsSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/URLCleanerSettings.swift",
+            encoding: .utf8)) ?? ""
+        expect(urlCleanerSettingsSource.contains("prompt: Text(l10n.s.urlCleanerCustomPlaceholder)")
+                && urlCleanerSettingsSource.contains("prompt: Text(l10n.s.urlCleanerInputPlaceholder)"),
+               "the Clean URL fields carry their hint as a prompt, not as a row label")
+        expect(!urlCleanerSettingsSource.contains("TextField(l10n.s."),
+               "no Clean URL field spends its row on a label instead of the field")
+        expect(urlCleanerSettingsSource.contains("TextField(\"\", text: $customDraft,"),
+               "the custom parameter field edits a draft of its own")
+        expect(!urlCleanerSettingsSource.contains("text: $customParameters"),
+               "typing never reaches the list the cleaner reads on its next poll")
+
         expect(Defaults.registeredDefaults[DefaultsKey.urlCleanerCustomParameters] as? String == ""
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.urlCleanerCustomParameters),
                "custom URL cleaner parameters start empty and travel in Settings backups")
