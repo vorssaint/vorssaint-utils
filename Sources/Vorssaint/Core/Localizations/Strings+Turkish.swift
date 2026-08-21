@@ -837,6 +837,7 @@ extension Strings {
         musicBlockReplacementLabel: "Yerine aç",
         musicBlockReplacementNone: "Hiçbiri",
         musicBlockChooseApp: "Uygulama seç…",
+        musicBlockTeamsMuteLabel: "MS Teams'i Sustur (EarPods)",
         cleanerName: "Temizlik",
         cleanerIntroTitle: "Mac içindeki gereksizleri temizle",
         cleanerIntroCaption: "Kaldırılmış uygulama kalıntılarını, önbellekleri, günlükleri ve Çöp Sepetini arar. Önce her şeyi gözden geçirirsin ve kaldırılanlar Çöp Sepetine gider.",

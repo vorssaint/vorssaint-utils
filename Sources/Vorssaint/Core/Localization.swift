@@ -979,6 +979,7 @@ struct Strings {
     let musicBlockReplacementLabel: String
     let musicBlockReplacementNone: String
     let musicBlockChooseApp: String
+    let musicBlockTeamsMuteLabel: String
 
     // MARK: Cleaner
     let cleanerName: String
@@ -1910,6 +1911,7 @@ extension Strings {
         musicBlockReplacementLabel: "Abrir no lugar",
         musicBlockReplacementNone: "Nenhum",
         musicBlockChooseApp: "Escolher app…",
+        musicBlockTeamsMuteLabel: "Silenciar MS Teams (EarPods)",
         cleanerName: "Limpeza",
         cleanerIntroTitle: "Limpe o lixo do Mac",
         cleanerIntroCaption: "Procura restos de apps desinstalados, caches, registros e a Lixeira. Você revisa tudo antes e os itens removidos vão para a Lixeira.",
@@ -2840,6 +2842,7 @@ extension Strings {
         musicBlockReplacementLabel: "Open instead",
         musicBlockReplacementNone: "None",
         musicBlockChooseApp: "Choose app…",
+        musicBlockTeamsMuteLabel: "Mute MS Teams (EarPods)",
         cleanerName: "Cleaner",
         cleanerIntroTitle: "Clean up your Mac",
         cleanerIntroCaption: "Scans for leftovers from uninstalled apps, caches, logs and the Trash. You review everything first and removed items go to the Trash.",

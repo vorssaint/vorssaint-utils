@@ -837,6 +837,7 @@ extension Strings {
         musicBlockReplacementLabel: "代わりに開く",
         musicBlockReplacementNone: "なし",
         musicBlockChooseApp: "アプリを選択…",
+        musicBlockTeamsMuteLabel: "MS Teams をミュート (EarPods)",
         cleanerName: "クリーンアップ",
         cleanerIntroTitle: "Mac の不要ファイルを掃除",
         cleanerIntroCaption: "アンインストール済みアプリの残骸、キャッシュ、ログ、ゴミ箱を調べます。実行前にすべて確認でき、削除した項目はゴミ箱に移動します。",

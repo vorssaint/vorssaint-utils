@@ -303,6 +303,12 @@ enum WindowEnumerator {
                              ownPID: pid_t(ownPid),
                              withheldPIDs: withheldPIDs,
                              appRules: appRules)
+        if marksHiddenSpaces {
+            windows = windows.map { window in
+                guard let windowID = window.windowID else { return window }
+                return window.withHiddenSpaceState(isOnHiddenSpace(windowID))
+            }
+        }
         if groupByApp {
             windows = groupWindowsByApp(windows)
         }

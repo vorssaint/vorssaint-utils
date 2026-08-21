@@ -838,6 +838,7 @@ extension Strings {
         musicBlockReplacementLabel: "Открывать вместо",
         musicBlockReplacementNone: "Нет",
         musicBlockChooseApp: "Выбрать приложение…",
+        musicBlockTeamsMuteLabel: "Отключить микрофон MS Teams (EarPods)",
         cleanerName: "Очистка",
         cleanerIntroTitle: "Очистите Mac от мусора",
         cleanerIntroCaption: "Ищет остатки удалённых приложений, кэши, журналы и Корзину. Всё проверяется заранее, а удалённое попадает в Корзину.",
