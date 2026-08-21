@@ -35,7 +35,14 @@ struct URLCleanerSettings: View {
             }
 
             Section(l10n.s.urlCleanerCustomTitle) {
-                TextField(l10n.s.urlCleanerCustomPlaceholder, text: $customParameters)
+                // A grouped Form turns a TextField's first argument into a
+                // leading label, not a placeholder: the words sat on the left
+                // while the field itself was a short strip on the right, and
+                // clicking the words did nothing. An empty label puts the
+                // field across the whole row, the shape the Command Bar and
+                // Screenshot pages already use for a field of their own.
+                TextField("", text: $customParameters,
+                          prompt: Text(l10n.s.urlCleanerCustomPlaceholder))
                     .textFieldStyle(.roundedBorder)
                     .accessibilityLabel(l10n.s.urlCleanerCustomTitle)
                 Text(l10n.s.urlCleanerCustomCaption)
@@ -45,7 +52,8 @@ struct URLCleanerSettings: View {
 
             Section(l10n.s.urlCleanerManualTitle) {
                 HStack(spacing: 8) {
-                    TextField(l10n.s.urlCleanerInputPlaceholder, text: $input)
+                    TextField("", text: $input,
+                              prompt: Text(l10n.s.urlCleanerInputPlaceholder))
                         .textFieldStyle(.roundedBorder)
                         .accessibilityLabel(l10n.s.urlCleanerInputPlaceholder)
                     Button {

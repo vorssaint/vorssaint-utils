@@ -26,8 +26,9 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Ki
   current and target RPM for every fan.
 
 ### Fixed
-- The Clean URL settings fields now draw a border, so the extra parameter names and
-  the manual URL field read as fields you can type in. Thanks to @PathGao.
+- The Clean URL settings fields now span their whole row and draw a border. Their
+  hint used to render as a label beside a short strip of field, so clicking the
+  words did nothing. Thanks to @PathGao.
 - Scratchpad tabs and the pin, close, new pad and pad actions buttons now respond
   across their whole area. Thanks to @AB-boi and @PathGao.
 - Fan Control now prepares stopped fans before taking manual control and keeps a
