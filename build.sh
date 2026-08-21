@@ -28,11 +28,15 @@ if (( DEV )); then
     EXECUTABLE="VorssaintDeveloper"
     APP_BUNDLE_ID="com.vorssaint.utils.dev"
     BUILD_VARIANT_FLAGS=(-D VORSSAINT_DEVELOPMENT)
+    APP_OPTIMIZATION_FLAGS=(-Onone)
+    BUILD_CONFIGURATION="debug"
 else
     APP_NAME="Vorssaint"
     EXECUTABLE="Vorssaint"
     APP_BUNDLE_ID="com.vorssaint.utils"
     BUILD_VARIANT_FLAGS=()
+    APP_OPTIMIZATION_FLAGS=(-O)
+    BUILD_CONFIGURATION="release"
 fi
 FAN_HELPER_ID="$APP_BUNDLE_ID.fan-control"
 TARGET="arm64-apple-macosx14.0"
@@ -58,6 +62,30 @@ codesign_with_timestamp_retry() {
         fi
     done
     return 1
+}
+
+write_swift_output_file_map() {
+    local output_file="$1"
+    local object_dir="$2"
+    shift 2
+    local source artifact
+
+    {
+        print -r -- "{"
+        print -r -- "  \"\": {"
+        print -r -- "    \"swift-dependencies\": \"$object_dir/master.swiftdeps\""
+        print -r -- "  }"
+        for source in "$@"; do
+            artifact="${source//\//__}"
+            artifact="${artifact%.swift}"
+            print -r -- ","
+            print -r -- "  \"$source\": {"
+            print -r -- "    \"object\": \"$object_dir/$artifact.o\","
+            print -r -- "    \"swift-dependencies\": \"$object_dir/$artifact.swiftdeps\""
+            print -r -- "  }"
+        done
+        print -r -- "}"
+    } > "$output_file"
 }
 
 finalize_installed_bundle_after_child() {
@@ -271,12 +299,24 @@ if (( TEST )); then
     exit $?
 fi
 
-echo "▸ Compiling (release) against $(basename "$SDK")…"
-rm -rf build
-mkdir -p build
-swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
-    Sources/Vorssaint/**/*.swift \
-    -o "build/$EXECUTABLE"
+echo "▸ Compiling ($BUILD_CONFIGURATION) against $(basename "$SDK")…"
+APP_SOURCES=(Sources/Vorssaint/**/*.swift)
+if (( DEV )); then
+    APP_OBJECT_DIR="build/objects/$EXECUTABLE"
+    mkdir -p build "$APP_OBJECT_DIR"
+    APP_OUTPUT_FILE_MAP="$APP_OBJECT_DIR/output-file-map.json"
+    write_swift_output_file_map "$APP_OUTPUT_FILE_MAP" "$APP_OBJECT_DIR" "${APP_SOURCES[@]}"
+    swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -incremental -j "$(sysctl -n hw.logicalcpu)" \
+        -output-file-map "$APP_OUTPUT_FILE_MAP" \
+        -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
+        "${APP_SOURCES[@]}" -o "build/$EXECUTABLE"
+else
+    rm -rf build
+    mkdir -p build
+    swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -target "$TARGET" -sdk "$SDK" \
+        "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
+        "${APP_SOURCES[@]}" -o "build/$EXECUTABLE"
+fi
 
 echo "▸ Compiling protected fan helper…"
 swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
