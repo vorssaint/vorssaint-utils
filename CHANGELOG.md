@@ -12,6 +12,8 @@ grouped App Switcher clear when moving between windows and makes Scratchpad cont
 It also restores reliable trimming from the start of a recording.
 
 ### Added
+- Dragging a Dock preview near a screen edge now snaps its window to that
+  region, the way dragging the window's own title bar does.
 - An opt-in Kill Process feature searches running processes to force quit, restart or terminate
   process trees from Settings and the Command Bar. It ships uninstalled. Thanks to @naveenkrdy.
 
