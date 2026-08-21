@@ -6891,6 +6891,12 @@ struct MetricsTests {
                                        hasModifiers: false,
                                        ownsMinimize: false) == .passThrough,
                "the frontmost app's own minimize is the Dock's to undo as well")
+        expect(DockClickSupport.capturedMinimizeStillHolds(captured: [7, 8], stillMinimized: [8, 9]),
+               "a capture holds while one of the windows it named is still down")
+        expect(!DockClickSupport.capturedMinimizeStillHolds(captured: [7, 8], stillMinimized: [9]),
+               "a capture whose windows all came back another way is stale")
+        expect(!DockClickSupport.capturedMinimizeStillHolds(captured: [], stillMinimized: [9]),
+               "a capture that named nothing claims nothing")
         expect(DockClickSupport.action(appIsFrontmost: true,
                                        hasUnminimizedWindows: false,
                                        hasMinimizedWindows: false,

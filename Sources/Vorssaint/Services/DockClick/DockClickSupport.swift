@@ -128,6 +128,20 @@ enum DockClickSupport {
         }
     }
 
+    /// Whether a captured minimize still speaks for the app's current state.
+    ///
+    /// The capture is written when this feature minimizes an app and consumed
+    /// when it restores one, so anything that brings those windows back some
+    /// other way — the App Switcher, the window menu, the app itself — leaves
+    /// it behind. Acting on a leftover later would claim a minimize this
+    /// feature never performed, which is exactly what `ownsMinimize` exists to
+    /// prevent. The capture holds only while at least one window it named is
+    /// still down.
+    static func capturedMinimizeStillHolds(captured: [CGWindowID],
+                                           stillMinimized: Set<CGWindowID>) -> Bool {
+        captured.contains { stillMinimized.contains($0) }
+    }
+
     static func repeatDecision(lastAction: DockClickAction?,
                                elapsed: TimeInterval?) -> DockClickRepeatDecision {
         guard let lastAction, let elapsed, elapsed < toggleIntentWindow else { return .deriveFromState }

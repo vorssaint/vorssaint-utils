@@ -238,10 +238,8 @@ final class DockClickService {
                                              hideEnabled: hideEnabled,
                                              cycleWindowsEnabled: cycleEnabled,
                                              unminimizedWindowCount: windows.unminimized.count,
-                                             // Set when this feature minimized the app and
-                                             // consumed on restore, so it stands for "we put
-                                             // these away and have not brought them back".
-                                             ownsMinimize: minimizeZOrder[pid] != nil)
+                                             ownsMinimize: ownsMinimize(pid: pid,
+                                                                        minimized: windows.minimized))
         }
 
         // Handled clicks are swallowed (or the Dock would fight us:
@@ -552,6 +550,23 @@ final class DockClickService {
                 AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, value)
             }
         }
+    }
+
+    /// Whether the pending click may reclaim this app's minimized windows.
+    ///
+    /// The capture written at minimize time is the only claim this feature has
+    /// on them. It survives until a restore consumes it, so a user who brought
+    /// the windows back another way leaves it behind; a leftover is dropped
+    /// here rather than carried, so the next click starts from the truth.
+    private func ownsMinimize(pid: pid_t, minimized: [AXUIElement]) -> Bool {
+        guard let captured = minimizeZOrder[pid] else { return false }
+        let stillDown = Set(minimized.compactMap(AXWindowResolver.windowID))
+        guard DockClickSupport.capturedMinimizeStillHolds(captured: captured,
+                                                          stillMinimized: stillDown) else {
+            minimizeZOrder.removeValue(forKey: pid)
+            return false
+        }
+        return true
     }
 
     /// Brings a minimized batch back rearmost first, so the window that was
