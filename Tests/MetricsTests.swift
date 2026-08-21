@@ -7584,14 +7584,14 @@ struct MetricsTests {
                && !restoredDockPreviewWindow.isMinimized
                && restoredDockPreviewWindow.isOnScreen,
                "Dock Preview restore clears the minimized state without changing identity")
-        let expectedFrameWrites: [SwitcherSupport.WindowFrameWriteStep] = [.size, .position, .position]
+        let expectedFrameWrites: [SwitcherSupport.WindowFrameWriteStep] = [.position, .size, .position]
         var successfulFrameWrites: [SwitcherSupport.WindowFrameWriteStep] = []
         let frameWriteSucceeded = SwitcherSupport.applyWindowFrameWrites { step in
             successfulFrameWrites.append(step)
             return true
         }
         expect(frameWriteSucceeded && successfulFrameWrites == expectedFrameWrites,
-               "a snapped window is resized before its position is written twice")
+               "a snapped window repeats its position after resizing")
         for failingStepIndex in expectedFrameWrites.indices {
             var attemptedWrites: [SwitcherSupport.WindowFrameWriteStep] = []
             let frameWriteSucceeded = SwitcherSupport.applyWindowFrameWrites { step in

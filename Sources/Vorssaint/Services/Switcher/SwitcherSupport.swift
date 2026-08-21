@@ -770,7 +770,7 @@ enum SwitcherSupport {
     }
 
     static func applyWindowFrameWrites(_ write: (WindowFrameWriteStep) -> Bool) -> Bool {
-        write(.size) && write(.position) && write(.position)
+        write(.position) && write(.size) && write(.position)
     }
 
     static func shouldActivateAllWindows(targetsSpecificWindow: Bool) -> Bool {

@@ -199,10 +199,10 @@ enum WindowActivator {
         return minimizedState(of: axWindow)
     }
 
-    /// Puts a window at an exact frame. Size is written before position and
-    /// then position again: an app that clamps a move against its old size
-    /// lands short otherwise. Any rejected write means the requested frame was
-    /// not applied completely.
+    /// Puts a window at an exact frame. Position is repeated after resizing:
+    /// an app that clamps the first move against its old size lands short
+    /// otherwise. Any rejected write means the requested frame was not applied
+    /// completely.
     @discardableResult
     static func setWindowFrame(_ frame: CGRect, windowID: CGWindowID, pid: pid_t) -> Bool {
         guard Permissions.shared.accessibility,
