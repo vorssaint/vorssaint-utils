@@ -700,6 +700,7 @@ private struct Filmstrip: View {
     private enum Handle { case start, end }
 
     private let handleWidth: CGFloat = 12
+    private let coordinateSpace = "recorderFilmstrip"
 
     var body: some View {
         GeometryReader { proxy in
@@ -771,14 +772,17 @@ private struct Filmstrip: View {
                     .offset(x: startX)
                     .allowsHitTesting(false)
 
-                handle(at: startX, height: height)
+                handle(height: height)
+                    .position(x: startX + handleWidth / 2, y: height / 2)
                     .gesture(drag(.start, width: width))
-                handle(at: endX - handleWidth, height: height)
+                handle(height: height)
+                    .position(x: endX - handleWidth / 2, y: height / 2)
                     .gesture(drag(.end, width: width))
 
                 playhead(at: position(model.sourceTime, width: width), height: height)
             }
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .coordinateSpace(.named(coordinateSpace))
         }
     }
 
@@ -798,7 +802,7 @@ private struct Filmstrip: View {
         }
     }
 
-    private func handle(at x: CGFloat, height: CGFloat) -> some View {
+    private func handle(height: CGFloat) -> some View {
         RoundedRectangle(cornerRadius: 4, style: .continuous)
             .fill(Color.accentColor)
             .frame(width: handleWidth, height: height)
@@ -807,7 +811,6 @@ private struct Filmstrip: View {
                     .fill(Color.white.opacity(0.85))
                     .frame(width: 2, height: height * 0.36)
             }
-            .offset(x: max(0, x))
             .contentShape(Rectangle().inset(by: -6))
     }
 
@@ -821,7 +824,7 @@ private struct Filmstrip: View {
     }
 
     private func drag(_ handle: Handle, width: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 0)
+        DragGesture(minimumDistance: 0, coordinateSpace: .named(coordinateSpace))
             .onChanged { value in
                 let time = seconds(at: value.location.x, width: width)
                 switch handle {
