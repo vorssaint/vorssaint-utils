@@ -26,9 +26,14 @@ enum URLCleaning {
         "x.com": ["s", "t", "cn", "src", "refsrc", "ref_src", "ref_url"],
         "instagram.com": ["igsh"],
         "spotify.com": ["si"],
+        // Reddit's share sheet routes through branch.io, whose deep link fields
+        // start with a literal `$`. Links often carry them percent-encoded as
+        // `%24…`, but only the decoded spelling is listed: names arrive here
+        // from `URLComponents.queryItems`, which has already decoded them.
+        // ClearURLs lists both because it matches the raw query with regex.
         "reddit.com": [
             "correlation_id", "ref_campaign", "ref_source", "rdt", "share_id",
-            "_branch_match_id",
+            "_branch_match_id", "$deep_link", "$3p", "$original_url",
         ],
         "tiktok.com": [
             "u_code", "preview_pb", "_d", "_t", "_r", "timestamp", "user_id",

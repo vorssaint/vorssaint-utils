@@ -8134,6 +8134,10 @@ struct MetricsTests {
         expectEqual(URLCleaning.cleanedString(from: "https://open.spotify.com/track/abc?si=xyz") ?? "",
                     "https://open.spotify.com/track/abc",
                     "site rules match subdomains")
+        expectEqual(URLCleaning.cleanedString(
+            from: "https://www.reddit.com/r/swift/comments/abc/?%24deep_link=true&%243p=x&share_id=y&sort=new") ?? "",
+                    "https://www.reddit.com/r/swift/comments/abc/?sort=new",
+                    "URL cleaner strips Reddit's deep-link tracking in either spelling")
 
         // MARK: Homebrew command building and parsing
 
