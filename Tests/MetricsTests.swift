@@ -2124,6 +2124,31 @@ struct MetricsTests {
         expect(!DockPreviewSupport.canDragToPlace(hasWindowID: false, isOnScreen: false,
                                                   isMinimized: false, isFullscreen: false),
                "an entry without a window has nothing to move")
+        // The thumbnail is derived from the card, so a constant changed on its
+        // own must not silently eat into it or leave the card short.
+        expectClose(Double(DockPreviewSupport.cardThumbnailHeight
+                            + DockPreviewSupport.cardPadding * 2
+                            + DockPreviewSupport.cardTitleSpacing
+                            + DockPreviewSupport.cardTitleHeight),
+                    Double(DockPreviewSupport.cardHeight),
+                    "a Dock Preview card's chrome and thumbnail add up to the card")
+        expect(DockPreviewSupport.cardThumbnailHeight
+                > DockPreviewSupport.cardHeight * 0.7,
+               "the thumbnail keeps most of the Dock Preview card")
+
+        // The card used to draw the app icon on every thumbnail and the window
+        // title both over the thumbnail and under it. In a panel every card
+        // belongs to one app, so both said the same thing once per window.
+        let dockPreviewCardSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Switcher/DockPreviewPanelView.swift",
+            encoding: .utf8)) ?? ""
+        expect(dockPreviewCardSource.components(separatedBy: "Text(window.displayTitle)").count - 1 == 1,
+               "a Dock Preview card names its window once")
+        expect(dockPreviewCardSource.components(separatedBy: "window.appIcon").count - 1 == 1,
+               "a Dock Preview card only falls back to the app icon when it has no thumbnail")
+        expect(dockPreviewCardSource.contains("window.isOnHiddenSpace"),
+               "a Dock Preview card badges a window that lives on another desktop")
+
         let dockDropScreen = CGRect(x: -1440, y: 24, width: 1440, height: 876)
         expect(DockPreviewSupport.dragOrigin(pointer: CGPoint(x: -700, y: 500),
                                              windowSize: CGSize(width: 600, height: 400),
