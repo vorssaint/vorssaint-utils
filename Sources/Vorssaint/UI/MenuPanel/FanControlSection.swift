@@ -6,6 +6,13 @@ import SwiftUI
 struct FanControlSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = FanControlService.shared
+    @AppStorage(DefaultsKey.fanControlMode) private var modeRaw = FanControlMode.system.rawValue
+    @AppStorage(DefaultsKey.fanControlCoolingLevel) private var coolingLevel =
+        FanControlPolicy.defaultCoolingLevel
+    @AppStorage(DefaultsKey.fanControlCurves) private var curvesStorage =
+        FanControlConfiguration.defaultCurvesStorage
+    @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit =
+        TemperatureUnit.celsius.rawValue
     var collapsible = true
 
     private var strings: FanControlFeatureStrings {
@@ -20,14 +27,42 @@ struct FanControlSection: View {
                                   accessState: service.accessState,
                                   error: service.error,
                                   isWorking: service.isWorking,
-                                  remainingSeconds: service.remainingSeconds,
+                                  mode: modeBinding,
+                                  coolingLevel: $coolingLevel,
+                                  curves: curvesBinding,
+                                  temperatureUnit: displayTemperatureUnit,
                                   authorize: service.authorize,
-                                  startCooling: service.startMaximumCooling,
+                                  applyConfiguration: service.applyConfiguration,
                                   stopCooling: service.restoreAutomatic)
                 .panelCard()
                 .onAppear { service.panelDidAppear() }
                 .onDisappear { service.panelDidDisappear() }
         }
+    }
+
+    private var modeBinding: Binding<FanControlMode> {
+        Binding(
+            get: { FanControlMode(rawValue: modeRaw) ?? .system },
+            set: { modeRaw = $0.rawValue }
+        )
+    }
+
+    private var curvesBinding: Binding<[FanControlCurve]> {
+        Binding(
+            get: {
+                FanControlConfiguration.decodeCurves(curvesStorage)
+                    ?? [FanControlConfiguration.defaultCurve]
+            },
+            set: { curves in
+                if let encoded = FanControlConfiguration.encodeCurves(curves) {
+                    curvesStorage = encoded
+                }
+            }
+        )
+    }
+
+    private var displayTemperatureUnit: TemperatureUnit {
+        TemperatureUnit(rawValue: temperatureUnit) ?? .celsius
     }
 }
 
@@ -38,24 +73,47 @@ struct FanControlCardContent: View {
     let accessState: FanControlService.AccessState
     let error: FanControlErrorCode?
     let isWorking: Bool
-    let remainingSeconds: TimeInterval?
+    @Binding var mode: FanControlMode
+    @Binding var coolingLevel: Int
+    @Binding var curves: [FanControlCurve]
+    let temperatureUnit: TemperatureUnit
     let authorize: () -> Void
-    let startCooling: () -> Void
+    let applyConfiguration: (FanControlConfiguration) -> Void
     let stopCooling: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             statusHeader
 
-            if !snapshot.fans.isEmpty {
-                fanRows
-            }
+            if !snapshot.fans.isEmpty { fanRows }
 
             if let message = stateMessage {
                 Text(message)
                     .font(.system(size: 10))
                     .foregroundStyle(messageIsError ? Color.red : Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if canConfigure {
+                modePicker
+                switch mode {
+                case .system:
+                    EmptyView()
+                case .manual:
+                    manualControl
+                case .curve:
+                    FanControlCurveEditor(strings: strings,
+                                          curves: $curves,
+                                          temperatures: snapshot.temperatures ?? [],
+                                          temperatureUnit: temperatureUnit,
+                                          disabled: isWorking)
+                    if !curveCanRun {
+                        Text(strings.curveUnavailable)
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
 
             action
@@ -66,6 +124,35 @@ struct FanControlCardContent: View {
                     .foregroundStyle(Color.secondary.opacity(0.84))
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+
+    private var modePicker: some View {
+        Picker(strings.mode, selection: $mode) {
+            Text(strings.systemControl).tag(FanControlMode.system)
+            Text(strings.manualControl).tag(FanControlMode.manual)
+            Text(strings.customCurve).tag(FanControlMode.curve)
+        }
+        .pickerStyle(.segmented)
+        .controlSize(.small)
+        .disabled(isWorking)
+    }
+
+    private var manualControl: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(strings.coolingIntensity)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(selectedCoolingLevel)%")
+                    .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+            }
+            Slider(value: coolingLevelBinding,
+                   in: Double(FanControlPolicy.minimumCoolingLevel)...Double(FanControlPolicy.maximumCoolingLevel),
+                   step: Double(FanControlPolicy.coolingLevelStep))
+                .controlSize(.small)
+                .disabled(isWorking)
         }
     }
 
@@ -95,10 +182,7 @@ struct FanControlCardContent: View {
                     .foregroundStyle(snapshot.isCooling ? Color.cyan : Color.secondary)
             }
             Spacer()
-            if isWorking {
-                ProgressView()
-                    .controlSize(.small)
-            }
+            if isWorking { ProgressView().controlSize(.small) }
         }
     }
 
@@ -110,8 +194,17 @@ struct FanControlCardContent: View {
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Text(String(format: strings.rpmFormat, Int(fan.actualRPM.rounded())))
-                        .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text(String(format: strings.currentRPMFormat,
+                                    Int(fan.actualRPM.rounded())))
+                            .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+                        if fan.isManuallyControlled {
+                            Text(String(format: strings.targetRPMFormat,
+                                        Int(fan.targetRPM.rounded())))
+                                .font(.system(size: 9.5).monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
         }
@@ -132,29 +225,55 @@ struct FanControlCardContent: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .frame(maxWidth: .infinity)
-        } else if accessState == .enabled, !snapshot.fans.isEmpty,
-                  error == nil || snapshot.isCooling {
-            if snapshot.isCooling {
-                Button(strings.stopCooling, action: stopCooling)
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(isWorking)
-                    .frame(maxWidth: .infinity)
-            } else {
-                Button(strings.startCooling, action: startCooling)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .disabled(isWorking)
-                    .frame(maxWidth: .infinity)
+        } else if accessState == .enabled, controlsCanAppear {
+            switch mode {
+            case .system:
+                if snapshot.isCooling {
+                    Button(strings.returnToSystem, action: stopCooling)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(isWorking)
+                        .frame(maxWidth: .infinity)
+                }
+            case .manual:
+                Button(strings.applyManual) {
+                    coolingLevel = selectedCoolingLevel
+                    applyConfiguration(.manual(level: selectedCoolingLevel))
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(isWorking)
+                .frame(maxWidth: .infinity)
+            case .curve:
+                Button(strings.applyCurve) {
+                    applyConfiguration(.curve(curves))
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(isWorking || !curveCanRun)
+                .frame(maxWidth: .infinity)
             }
         }
     }
 
     private var statusText: String {
-        guard snapshot.isCooling else { return strings.automatic }
-        guard let remainingSeconds else { return strings.maximumCooling }
-        let seconds = max(0, Int(remainingSeconds.rounded(.up)))
-        return "\(strings.maximumCooling) · \(seconds / 60):\(String(format: "%02d", seconds % 60))"
+        guard snapshot.isCooling else { return strings.systemControl }
+        let level = snapshot.coolingLevel ?? FanControlPolicy.defaultCoolingLevel
+        switch snapshot.configuration?.mode ?? .manual {
+        case .system:
+            return strings.systemControl
+        case .manual:
+            return "\(strings.manualControl) · \(level)%"
+        case .curve:
+            let activeCurves = snapshot.configuration?.curves ?? []
+            let temperature = activeCurves.count == 1
+                ? snapshot.temperatures?.first { $0.source == activeCurves[0].sensor }?.celsius
+                : nil
+            if let temperature {
+                return "\(strings.customCurve) · \(MetricFormat.temperature(temperature, unit: temperatureUnit)) · \(level)%"
+            }
+            return "\(strings.customCurve) · \(level)%"
+        }
     }
 
     private var stateMessage: String? {
@@ -170,8 +289,8 @@ struct FanControlCardContent: View {
         if accessState == .notRegistered, !snapshot.fans.isEmpty { return strings.approvalCaption }
         if accessState == .requiresApproval { return strings.approvalCaption }
         switch snapshot.stopReason {
-        case .timeLimit: return strings.timeLimitStopped
-        case .appDisconnected, .heartbeatLost, .hardwareChanged,
+        case .temperatureUnavailable: return strings.temperatureUnavailable
+        case .timeLimit, .appDisconnected, .heartbeatLost, .hardwareChanged,
              .thermalPressure, .recovery:
             return strings.safetyStopped
         case .none:
@@ -189,6 +308,31 @@ struct FanControlCardContent: View {
     }
 
     private var controlsCanAppear: Bool {
-        !snapshot.fans.isEmpty && (error == nil || snapshot.isCooling)
+        !snapshot.fans.isEmpty
+            && (error == nil || error == .controlFailed || snapshot.isCooling)
+    }
+
+    private var canConfigure: Bool {
+        controlsCanAppear && accessState == .enabled
+    }
+
+    private var selectedCoolingLevel: Int {
+        let clamped = min(max(coolingLevel, FanControlPolicy.minimumCoolingLevel),
+                          FanControlPolicy.maximumCoolingLevel)
+        let remainder = clamped % FanControlPolicy.coolingLevelStep
+        return remainder == 0 ? clamped : clamped + FanControlPolicy.coolingLevelStep - remainder
+    }
+
+    private var coolingLevelBinding: Binding<Double> {
+        Binding(
+            get: { Double(selectedCoolingLevel) },
+            set: { coolingLevel = Int($0.rounded()) }
+        )
+    }
+
+    private var curveCanRun: Bool {
+        guard FanControlPolicy.validCurves(curves) else { return false }
+        let available = Set((snapshot.temperatures ?? []).map(\.source))
+        return curves.allSatisfy { available.contains($0.sensor) }
     }
 }
