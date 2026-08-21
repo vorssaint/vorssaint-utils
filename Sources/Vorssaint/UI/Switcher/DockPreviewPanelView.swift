@@ -313,11 +313,11 @@ private struct DockPreviewCard: View {
     }
 
     private var hasStatusBadges: Bool {
-        window.isMinimized || window.isFullscreen
+        window.isMinimized || window.isFullscreen || window.isOnHiddenSpace
     }
 
     var body: some View {
-        VStack(spacing: 7) {
+        VStack(spacing: DockPreviewSupport.cardTitleSpacing) {
             ZStack {
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
                     .fill(Color.white.opacity(0.07))
@@ -335,20 +335,6 @@ private struct DockPreviewCard: View {
                         .frame(width: 52, height: 52)
                 }
 
-                if preview != nil, let icon = window.appIcon {
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Spacer()
-                            Image(nsImage: icon)
-                                .resizable()
-                                .frame(width: 24, height: 24)
-                                .shadow(radius: 2)
-                                .padding(6)
-                        }
-                    }
-                }
-
                 if hasStatusBadges {
                     VStack {
                         Spacer()
@@ -360,20 +346,20 @@ private struct DockPreviewCard: View {
                     }
                 }
 
-                previewTitleBar
+                previewControlBar
             }
-            .frame(width: DockPreviewSupport.cardWidth - 18,
-                   height: DockPreviewSupport.cardHeight - 54)
+            .frame(width: DockPreviewSupport.cardWidth - DockPreviewSupport.cardPadding * 2,
+                   height: DockPreviewSupport.cardThumbnailHeight)
 
             Text(window.displayTitle)
                 .font(.system(size: 12, weight: .semibold))
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .foregroundStyle(.primary)
-                .frame(height: 24)
-                .frame(maxWidth: DockPreviewSupport.cardWidth - 22)
+                .frame(height: DockPreviewSupport.cardTitleHeight)
+                .frame(maxWidth: DockPreviewSupport.cardWidth - DockPreviewSupport.cardPadding * 2 - 4)
         }
-        .padding(9)
+        .padding(DockPreviewSupport.cardPadding)
         .frame(width: DockPreviewSupport.cardWidth, height: DockPreviewSupport.cardHeight)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -394,7 +380,9 @@ private struct DockPreviewCard: View {
         .onHover { isHovering = $0 }
         .animation(.spring(response: 0.2, dampingFraction: 0.82), value: isSelected)
         .animation(.easeOut(duration: 0.12), value: showsPreviewControls)
-        .accessibilityLabel(window.accessibilityTitle)
+        .accessibilityLabel(window.spokenLabel(noOpenWindow: l10n.s.switcherNoOpenWindow,
+                                               hiddenApp: l10n.s.panelHiddenItem,
+                                               otherDesktop: l10n.s.switcherOtherDesktop))
     }
 
     @ViewBuilder
@@ -419,14 +407,15 @@ private struct DockPreviewCard: View {
         }
     }
 
-    private var previewTitleBar: some View {
+    /// Window controls only. The title used to live here too, which put the same
+    /// string on screen twice — once floating over the thumbnail, once in the
+    /// band below it. The band keeps it, because a title that is only there
+    /// while the pointer is on the card cannot tell six windows of one app
+    /// apart, which is the whole job of this panel.
+    private var previewControlBar: some View {
         VStack {
             HStack(spacing: 6) {
-                Text(window.displayTitle)
-                    .font(.system(size: 11, weight: .semibold))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .foregroundStyle(Color.white.opacity(0.92))
+                Spacer(minLength: 0)
                 if isPanelPinned, isSelected {
                     Text(l10n.s.dockPreviewPinned)
                         .font(.system(size: 9, weight: .semibold))
@@ -435,14 +424,14 @@ private struct DockPreviewCard: View {
                         .padding(.vertical, 1)
                         .background(Capsule().fill(Color.white.opacity(0.12)))
                 }
-                Spacer(minLength: 2)
                 closeButton
                 minimizeButton
             }
-            .padding(.leading, 9)
+            .padding(.leading, 7)
             .padding(.trailing, 5)
             .padding(.vertical, 5)
-            .frame(height: 30)
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(height: 28)
             .background(
                 Capsule(style: .continuous)
                     .fill(Color.black.opacity(0.44))
@@ -452,8 +441,9 @@ private struct DockPreviewCard: View {
                     )
             )
             .shadow(color: Color.black.opacity(0.18), radius: 6, y: 2)
-            .padding(.horizontal, 7)
+            .padding(.trailing, 7)
             .padding(.top, 7)
+            .frame(maxWidth: .infinity, alignment: .trailing)
             .opacity(showsPreviewControls ? 1 : 0)
             .allowsHitTesting(showsPreviewControls)
             Spacer()
@@ -467,6 +457,9 @@ private struct DockPreviewCard: View {
         }
         if window.isFullscreen {
             statusBadge(systemName: "arrow.up.left.and.arrow.down.right")
+        }
+        if window.isOnHiddenSpace {
+            statusBadge(systemName: "rectangle.stack")
         }
     }
 

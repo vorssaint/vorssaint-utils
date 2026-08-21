@@ -122,12 +122,7 @@ final class ScratchpadService: ObservableObject {
     /// The former single-buffer file is read once and removed only after the
     /// replacement document has been written and read back successfully.
     private static var legacyStoreURL: URL? {
-        guard let base = FileManager.default.urls(for: .applicationSupportDirectory,
-                                                  in: .userDomainMask).first,
-              let bundleID = Bundle.main.bundleIdentifier else { return nil }
-        return base
-            .appendingPathComponent(bundleID, isDirectory: true)
-            .appendingPathComponent("Scratchpad.txt")
+        PrivateFileStore.containerURL?.appendingPathComponent("Scratchpad.txt")
     }
 
     private func loadApplyingRetention() {
