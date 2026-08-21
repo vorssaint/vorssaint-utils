@@ -31,12 +31,7 @@ final class RecorderTakeStore: @unchecked Sendable {
     // MARK: - Location
 
     private var root: URL? {
-        guard let base = manager.urls(for: .applicationSupportDirectory,
-                                      in: .userDomainMask).first,
-              let bundleID = Bundle.main.bundleIdentifier
-        else { return nil }
-        return base
-            .appendingPathComponent(bundleID, isDirectory: true)
+        PrivateFileStore.containerURL?
             .appendingPathComponent("Recordings", isDirectory: true)
     }
 
@@ -58,8 +53,7 @@ final class RecorderTakeStore: @unchecked Sendable {
         let id = UUID()
         let folder = root.appendingPathComponent(RecorderSupport.takeFolderName(id: id),
                                                  isDirectory: true)
-        guard (try? manager.createDirectory(at: folder, withIntermediateDirectories: true)) != nil
-        else { return nil }
+        guard PrivateFileStore.createDirectory(at: folder) else { return nil }
         return Take(id: id, folder: folder)
     }
 
