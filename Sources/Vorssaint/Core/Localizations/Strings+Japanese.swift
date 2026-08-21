@@ -916,6 +916,7 @@ extension Strings {
         urlCleanerCustomTitle: "削除する名前を追加",
         urlCleanerCustomPlaceholder: "ref, source",
         urlCleanerCustomCaption: "パラメータ名をカンマで区切って入力します。すべてのリンクから削除されます。",
+        urlCleanerCustomSaveButton: "保存",
         switcherSearchPin: "S で検索欄を固定",
         switcherSearchPinCaption: "S を押すと検索を開始して切り替え画面を固定表示にします。ショートカットが ⌥ を使う場合の特殊文字入力も、Q や W で始める検索によるウインドウを閉じる/アプリを終了する誤動作も防げます。",
         invertVerticalScroll: "縦スクロールを反転",

@@ -9,10 +9,26 @@ struct URLCleanerSettings: View {
     @ObservedObject private var cleaner = URLCleanerService.shared
     @AppStorage(DefaultsKey.urlCleanerEnabled) private var enabled = false
     @AppStorage(DefaultsKey.urlCleanerCustomParameters) private var customParameters = ""
+    /// Typing is kept out of the stored value on purpose. `@AppStorage` writes
+    /// every keystroke and the cleaner re-reads the list on its next poll, so a
+    /// half-typed `source` briefly removed a `?s=` parameter from anything
+    /// copied at that moment.
+    @State private var customDraft = ""
     @State private var input = ""
     @State private var output = ""
     @State private var message: String?
     private var canClearInput: Bool { !input.isEmpty || !output.isEmpty || message != nil }
+    /// What the draft actually parses to: lowercased, trimmed and deduplicated,
+    /// which is what the cleaner will match on.
+    private var draftParameters: [String] {
+        URLCleaning.customParameters(from: customDraft).sorted()
+    }
+    /// Compared as parsed sets, so stray spacing or a trailing comma does not
+    /// light the button up with nothing to save.
+    private var draftDiffers: Bool {
+        URLCleaning.customParameters(from: customDraft)
+            != URLCleaning.customParameters(from: customParameters)
+    }
 
     var body: some View {
         Form {
@@ -41,10 +57,25 @@ struct URLCleanerSettings: View {
                 // clicking the words did nothing. An empty label puts the
                 // field across the whole row, the shape the Command Bar and
                 // Screenshot pages already use for a field of their own.
-                TextField("", text: $customParameters,
-                          prompt: Text(l10n.s.urlCleanerCustomPlaceholder))
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityLabel(l10n.s.urlCleanerCustomTitle)
+                HStack(spacing: 8) {
+                    TextField("", text: $customDraft,
+                              prompt: Text(l10n.s.urlCleanerCustomPlaceholder))
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel(l10n.s.urlCleanerCustomTitle)
+                        .onSubmit { commitCustomParameters() }
+                    // Return commits too, but a visible button is what says so.
+                    Button(l10n.s.urlCleanerCustomSaveButton) { commitCustomParameters() }
+                        .disabled(!draftDiffers)
+                }
+                // The names as the cleaner will see them. Duplicates, casing and
+                // stray spacing all disappear here, which is the only place the
+                // difference between what was typed and what was kept shows.
+                if !draftParameters.isEmpty {
+                    Text(draftParameters.joined(separator: ", "))
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
                 Text(l10n.s.urlCleanerCustomCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -94,6 +125,15 @@ struct URLCleanerSettings: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { customDraft = customParameters }
+        // A settings restore replaces the stored list; the field has to follow
+        // it rather than keep showing a draft the app no longer uses.
+        .onChange(of: customParameters) { _, stored in customDraft = stored }
+    }
+
+    private func commitCustomParameters() {
+        guard draftDiffers else { return }
+        customParameters = draftParameters.joined(separator: ", ")
     }
 
     private func paste() {
