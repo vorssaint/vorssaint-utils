@@ -20,26 +20,26 @@ enum URLCleaning {
     ///
     /// Keys match the host itself or any subdomain of it.
     private static let hostParameters: [String: Set<String>] = [
-        "bilibili.com": [
-            "spm_id_from", "from_spmid", "from_source", "share_source", "share_from",
-            "share_medium", "share_plat", "share_tag", "share_session_id", "msource",
-            "refer_from", "seid", "unique_k", "vd_source", "plat_id", "buvid", "bbid",
-            "up_id", "is_story_h5", "timestamp", "ts", "visit_id", "session_id",
-            "broadcast_type", "is_room_feed",
-        ],
         "youtube.com": ["si", "pp", "feature", "kw"],
         "youtu.be": ["si", "pp", "feature", "kw"],
         "twitter.com": ["s", "t", "cn", "src", "refsrc", "ref_src", "ref_url"],
         "x.com": ["s", "t", "cn", "src", "refsrc", "ref_src", "ref_url"],
         "instagram.com": ["igsh"],
         "spotify.com": ["si"],
+        "reddit.com": [
+            "correlation_id", "ref_campaign", "ref_source", "rdt", "share_id",
+            "_branch_match_id",
+        ],
         "tiktok.com": [
             "u_code", "preview_pb", "_d", "_t", "_r", "timestamp", "user_id",
             "share_app_name", "share_iid",
         ],
-        "reddit.com": [
-            "correlation_id", "ref_campaign", "ref_source", "rdt", "share_id",
-            "_branch_match_id",
+        "bilibili.com": [
+            "spm_id_from", "from_spmid", "from_source", "share_source", "share_from",
+            "share_medium", "share_plat", "share_tag", "share_session_id", "msource",
+            "refer_from", "seid", "unique_k", "vd_source", "plat_id", "buvid", "bbid",
+            "up_id", "is_story_h5", "timestamp", "ts", "visit_id", "session_id",
+            "broadcast_type", "is_room_feed",
         ],
         "xiaohongshu.com": [
             "xhsshare", "author_share", "xsec_source", "share_from_user_hidden",

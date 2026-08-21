@@ -13,8 +13,8 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Ki
  start of a recording.
 
 ### Added
-- Clean URL now removes the tracking parameters that Bilibili, YouTube, X, Instagram,
-  Spotify, TikTok, Reddit and Xiaohongshu add to their own share links, while leaving
+- Clean URL now removes the tracking parameters that YouTube, X, Instagram, Spotify,
+  Reddit, TikTok, Bilibili and Xiaohongshu add to their own share links, while leaving
   the same parameter names alone on every other site. Thanks to @PathGao.
 - The Super key can now use a quick press to switch between enabled input sources
   while a press-and-hold toggles Caps Lock. Thanks to @BenjaminD2023.
