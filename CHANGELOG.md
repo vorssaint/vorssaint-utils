@@ -26,6 +26,9 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Ki
   current and target RPM for every fan.
 
 ### Fixed
+- Clicking the Dock icon of a background app to restore its minimized windows now
+  brings that app forward, instead of leaving its windows behind whichever app was
+  already in front. Thanks to @PathGao.
 - Scratchpad tabs and the pin, close, new pad and pad actions buttons now respond
   across their whole area. Thanks to @AB-boi and @PathGao.
 - Fan Control now prepares stopped fans before taking manual control and keeps a
