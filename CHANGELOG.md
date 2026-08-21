@@ -7,12 +7,12 @@ All notable changes to this project are documented here. The format follows
 ## [3.3.3]
 
 ### Summary
-Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Kill Process tool, keeps the
-grouped App Switcher clear when moving between windows and makes Scratchpad controls easier to click.
-It also restores reliable trimming from the start of a recording.
+Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Kill Process tool and
+drag-to-place Dock previews. It keeps the grouped App Switcher clear, makes Scratchpad controls easier
+to click and restores reliable trimming from the start of a recording.
 
 ### Added
-- A Dock preview card can now be dragged to place its window where you drop it.
+- Dock Preview thumbnails can now be dragged to move windows freely. Thanks to @PathGao.
 - An opt-in Kill Process feature searches running processes to force quit, restart or terminate
   process trees from Settings and the Command Bar. It ships uninstalled. Thanks to @naveenkrdy.
 

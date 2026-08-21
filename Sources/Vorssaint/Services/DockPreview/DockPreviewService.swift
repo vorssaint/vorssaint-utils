@@ -21,7 +21,7 @@ final class DockPreviewService: ObservableObject {
     @Published private(set) var selectedWindowID: CGWindowID?
     @Published private(set) var currentAppName: String?
     @Published private(set) var isPinned = false
-    @Published private(set) var isDraggingWindow = false
+    private var isDraggingWindow = false
 
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -238,12 +238,6 @@ final class DockPreviewService: ObservableObject {
         if moved {
             WindowActivator.activate(item)
         }
-    }
-
-    func cancelWindowDrag() {
-        guard isDraggingWindow else { return }
-        isDraggingWindow = false
-        DockPreviewDragGhost.shared.end()
     }
 
     func togglePinned() {
