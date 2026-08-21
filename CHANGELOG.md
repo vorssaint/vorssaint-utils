@@ -55,6 +55,8 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Ki
   records are now stored so only your own account can read them. Folders an earlier
   version left readable by other accounts on the Mac are corrected on the next
   write. Thanks to @ThomasWaldmann.
+- The recording editor now reads composition duration directly without background
+  queries. Thanks to @Bald-M.
 
 ## [3.3.2] - 2026-08-20
 
