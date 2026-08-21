@@ -221,13 +221,9 @@ enum SuperKeySupport {
         return UInt64(bitPattern: value)
     }
 
-    enum SoloEffect: Equatable {
-        case none, escape, capsLock, inputSource
-    }
-
     static func soloEffect(action: SuperKeySoloAction,
                            longHold: Bool,
-                           repeated: Bool) -> SoloEffect {
+                           repeated: Bool) -> SuperKeySoloAction {
         switch action {
         case .none:
             return .none

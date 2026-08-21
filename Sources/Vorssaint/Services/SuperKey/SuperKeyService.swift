@@ -560,20 +560,12 @@ final class SuperKeyService: ObservableObject {
         case .none:
             return
         case .escape:
-            postEscape()
+            _ = Self.postKey(CGKeyCode(kVK_Escape))
         case .capsLock:
             setCapsLock(!capsLockIsOn())
         case .inputSource:
             switchInputSource()
         }
-    }
-
-    private func postEscape() {
-        let source = CGEventSource(stateID: .hidSystemState)
-        guard let down = CGEvent(keyboardEventSource: source, virtualKey: 53, keyDown: true),
-              let up = CGEvent(keyboardEventSource: source, virtualKey: 53, keyDown: false) else { return }
-        down.post(tap: .cgSessionEventTap)
-        up.post(tap: .cgSessionEventTap)
     }
 
     private func switchInputSource() {
@@ -588,7 +580,7 @@ final class SuperKeyService: ObservableObject {
                 guard let focusedElement,
                       Self.isStillFocused(focusedElement, in: processID)
                 else { return }
-                guard Self.postReturn() else { return }
+                guard Self.postKey(CGKeyCode(kVK_Return)) else { return }
                 Thread.sleep(forTimeInterval: 0.1)
                 guard NSWorkspace.shared.frontmostApplication?.processIdentifier == processID,
                       Self.isStillFocused(focusedElement, in: processID)
@@ -643,11 +635,10 @@ final class SuperKeyService: ObservableObject {
         return CFEqual(element, current)
     }
 
-    private static func postReturn() -> Bool {
+    private static func postKey(_ keyCode: CGKeyCode) -> Bool {
         let source = CGEventSource(stateID: .hidSystemState)
-        let returnKey = CGKeyCode(kVK_Return)
-        guard let down = CGEvent(keyboardEventSource: source, virtualKey: returnKey, keyDown: true),
-              let up = CGEvent(keyboardEventSource: source, virtualKey: returnKey, keyDown: false)
+        guard let down = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
+              let up = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
         else { return false }
         down.post(tap: .cgSessionEventTap)
         up.post(tap: .cgSessionEventTap)
