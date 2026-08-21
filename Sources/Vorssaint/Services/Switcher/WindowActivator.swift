@@ -199,65 +199,6 @@ enum WindowActivator {
         return minimizedState(of: axWindow)
     }
 
-    /// Puts a window at an exact frame. Size and position are repeated because
-    /// some apps settle each Accessibility write against the previous frame.
-    /// Any rejected or unconfirmed frame fails the placement.
-    @discardableResult
-    static func setWindowFrame(_ frame: CGRect, windowID: CGWindowID, pid: pid_t) -> Bool {
-        guard Permissions.shared.accessibility,
-              pid != ProcessInfo.processInfo.processIdentifier else { return false }
-        let axApp = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(axApp, 0.35)
-        guard let axWindow = axElement(windowID: windowID, in: axApp) else { return false }
-
-        var origin = frame.origin
-        var size = frame.size
-        guard let originValue = AXValueCreate(.cgPoint, &origin),
-              let sizeValue = AXValueCreate(.cgSize, &size) else { return false }
-
-        return SwitcherSupport.applyWindowFrameWrites { step in
-            switch step {
-            case .size:
-                return AXUIElementSetAttributeValue(axWindow,
-                                                    kAXSizeAttribute as CFString,
-                                                    sizeValue) == .success
-            case .position:
-                return AXUIElementSetAttributeValue(axWindow,
-                                                    kAXPositionAttribute as CFString,
-                                                    originValue) == .success
-            }
-        } confirmsFrame: {
-            windowFrameMatches(frame, on: axWindow)
-        }
-    }
-
-    private static func windowFrameMatches(_ expected: CGRect, on window: AXUIElement) -> Bool {
-        var positionValue: CFTypeRef?
-        var sizeValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(window,
-                                            kAXPositionAttribute as CFString,
-                                            &positionValue) == .success,
-              AXUIElementCopyAttributeValue(window,
-                                            kAXSizeAttribute as CFString,
-                                            &sizeValue) == .success,
-              let positionValue,
-              let sizeValue,
-              CFGetTypeID(positionValue) == AXValueGetTypeID(),
-              CFGetTypeID(sizeValue) == AXValueGetTypeID()
-        else { return false }
-
-        var origin = CGPoint.zero
-        var size = CGSize.zero
-        guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &origin),
-              AXValueGetValue(sizeValue as! AXValue, .cgSize, &size) else { return false }
-        let actual = CGRect(origin: origin, size: size)
-        let tolerance: CGFloat = 8
-        return abs(actual.minX - expected.minX) <= tolerance
-            && abs(actual.minY - expected.minY) <= tolerance
-            && abs(actual.width - expected.width) <= tolerance
-            && abs(actual.height - expected.height) <= tolerance
-    }
-
     /// Moves a window's top-left corner to a global Accessibility point.
     ///
     /// Our own windows are refused rather than special-cased: reading this

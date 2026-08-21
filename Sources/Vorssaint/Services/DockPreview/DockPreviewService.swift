@@ -251,16 +251,16 @@ final class DockPreviewService: ObservableObject {
             return
         }
         let pointer = NSEvent.mouseLocation
-        let snapFrame = snapTarget?.frame
+        let selectedSnapTarget = snapTarget
         snapTarget = nil
 
         // A snapped drop owns position and size; a free drop only moves the
         // window, leaving whatever size the user already chose for it.
         let moved: Bool
-        if let snapFrame {
-            moved = WindowActivator.setWindowFrame(axFrame(fromAppKit: snapFrame),
-                                                   windowID: windowID,
-                                                   pid: item.windowOwnerPID)
+        if let selectedSnapTarget {
+            moved = WindowLayoutService.shared.place(windowID: windowID,
+                                                     pid: item.windowOwnerPID,
+                                                     at: selectedSnapTarget)
         } else {
             moved = WindowActivator.setWindowOrigin(axPoint(fromAppKit: pointer),
                                                      windowID: windowID,
