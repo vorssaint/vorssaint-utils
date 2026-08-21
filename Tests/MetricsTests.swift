@@ -1243,6 +1243,10 @@ struct MetricsTests {
                "Apple M5 uses the mapped CPU core sensor set")
         expect(TemperatureSensorSelector.platform(brandString: "Apple M10") == .generic,
                "future unmapped Apple Silicon generations keep the generic CPU sensor path")
+        expect(TemperatureSensorSelector.isCPUTemperatureKey("Tf4E", platform: .appleM3Family)
+                && !TemperatureSensorSelector.isCPUTemperatureKey("Tf4E", platform: .appleM4Family)
+                && TemperatureSensorSelector.isCPUTemperatureKey("Tp01", platform: .appleM4Family),
+               "M3 discovery includes its mapped Tf family without broadening later chips")
         let m1CPU = TemperatureSensorSelector.displayedCPUTemperature(
             readings: [("Tp09", 43.0), ("Tp01", 49.0), ("Tp02", 70.0)],
             platform: .appleM1Family
@@ -1625,11 +1629,23 @@ struct MetricsTests {
                    && migrationDefaults.bool(
                         forKey: DefaultsKey.unifiedScreenCaptureShortcutMigrated),
                    "the combined capture shortcut preserves an enabled recording shortcut")
+            Defaults.migrateRestoredScreenCaptureShortcuts(in: migrationDefaults)
+            expect(!migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled)
+                   && migrationDefaults.bool(forKey: DefaultsKey.recorderShortcutEnabled)
+                   && migrationDefaults.bool(
+                        forKey: DefaultsKey.restoredScreenCaptureShortcutsMigrated),
+                   "restoring dedicated shortcuts removes the duplicate general registration")
+            migrationDefaults.set(true, forKey: DefaultsKey.screenshotShortcutEnabled)
             migrationDefaults.set("command:12", forKey: DefaultsKey.recorderShortcut)
             Defaults.migrateUnifiedScreenCaptureShortcut(in: migrationDefaults)
             expect(migrationDefaults.string(forKey: DefaultsKey.screenshotShortcut)
                    == "control+option:42",
                    "the capture shortcut migration runs once and preserves later choices")
+            migrationDefaults.removeObject(
+                forKey: DefaultsKey.restoredScreenCaptureShortcutsMigrated)
+            Defaults.migrateRestoredScreenCaptureShortcuts(in: migrationDefaults)
+            expect(migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled),
+                   "a distinct general capture shortcut stays enabled when dedicated ones return")
             migrationDefaults.removePersistentDomain(forName: shortcutSuite)
         } else {
             expect(false, "test suite defaults are available")
@@ -8964,7 +8980,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 52, "feature catalog has 52 features")
+        expect(AppFeature.allCases.count == 53, "feature catalog has 53 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -8977,7 +8993,7 @@ struct MetricsTests {
             "keepAwake", "brightness", "extraBrightness",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -8987,8 +9003,10 @@ struct MetricsTests {
                 && (AppFeature.availabilityDefaults[AppFeature.fanControl.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.diskImageInstaller.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
                     $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
+                        && $0 != .killProcess
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
@@ -9102,7 +9120,7 @@ struct MetricsTests {
 
         expect(FanControlPolicy.coolingDuration == 15 * 60
                 && FanControlPolicy.heartbeatLimit < 10,
-               "maximum cooling is time-bounded and loses control quickly with its client")
+               "the legacy session stays bounded while current control loses ownership quickly")
         expect(FanControlPolicy.isAutomaticMode(0)
                 && FanControlPolicy.isAutomaticMode(3)
                 && !FanControlPolicy.isAutomaticMode(1)
@@ -9126,6 +9144,88 @@ struct MetricsTests {
                 && !FanControlPolicy.validReading(-1)
                 && !FanControlPolicy.validReading(.infinity),
                "fan readings stay within a safe display and verification range")
+        expect(FanControlPolicy.minimumCoolingLevel == 0
+                && FanControlPolicy.maximumCoolingLevel == 100
+                && FanControlPolicy.defaultCoolingLevel == 100
+                && FanControlPolicy.validCoolingLevel(0)
+                && FanControlPolicy.validCoolingLevel(55)
+                && FanControlPolicy.validCoolingLevel(100)
+                && !FanControlPolicy.validCoolingLevel(-5)
+                && !FanControlPolicy.validCoolingLevel(26),
+               "manual cooling accepts the full bounded five-percent scale")
+        expect(FanControlPolicy.coolingTargetRPM(minimum: 1_200, maximum: 5_800,
+                                                 level: 0) == 1_200
+                && FanControlPolicy.coolingTargetRPM(minimum: 1_200, maximum: 5_800,
+                                                     level: 25) == 2_350
+                && FanControlPolicy.coolingTargetRPM(minimum: 1_200, maximum: 5_800,
+                                                     level: 100) == 5_800
+                && FanControlPolicy.coolingTargetRPM(minimum: 5_800, maximum: 5_800,
+                                                     level: 100) == nil,
+               "manual targets map the full percentage scale into reported hardware bounds")
+
+        let defaultCurve = FanControlConfiguration.defaultCurve
+        expect(FanControlPolicy.validConfiguration(.manual(level: 0))
+                && FanControlPolicy.validConfiguration(.manual(level: 100))
+                && FanControlPolicy.validConfiguration(.curve([defaultCurve]))
+                && FanControlPolicy.interpolatedCoolingLevel(points: defaultCurve.points,
+                                                             temperature: 40) == 0
+                && FanControlPolicy.interpolatedCoolingLevel(points: defaultCurve.points,
+                                                             temperature: 60) == 50
+                && FanControlPolicy.interpolatedCoolingLevel(points: defaultCurve.points,
+                                                             temperature: 61) == 55
+                && FanControlPolicy.interpolatedCoolingLevel(points: defaultCurve.points,
+                                                             temperature: 80) == 100,
+               "the default curve starts at 50 degrees, reaches maximum at 70 and rounds safely up")
+        let coolingTemperature = [
+            FanControlTemperatureReading(source: .hottestSoC, celsius: 59),
+        ]
+        expect(FanControlPolicy.curveCoolingLevel(curves: [defaultCurve],
+                                                  temperatures: coolingTemperature,
+                                                  previousLevel: 50) == 50
+                && FanControlPolicy.curveCoolingLevel(
+                    curves: [defaultCurve],
+                    temperatures: [.init(source: .hottestSoC, celsius: 57)],
+                    previousLevel: 50
+                ) == 45,
+               "a cooling curve uses two-degree hysteresis before lowering fan speed")
+        let cpuCurve = FanControlCurve(
+            sensor: .averageCPU,
+            points: [FanControlCurvePoint(temperature: 40, coolingLevel: 0),
+                     FanControlCurvePoint(temperature: 80, coolingLevel: 80)]
+        )
+        let curveTemperatures = [
+            FanControlTemperatureReading(source: .hottestSoC, celsius: 54),
+            FanControlTemperatureReading(source: .averageCPU, celsius: 70),
+        ]
+        expect(FanControlPolicy.curveCoolingLevel(curves: [defaultCurve, cpuCurve],
+                                                  temperatures: curveTemperatures) == 60
+                && FanControlPolicy.curveCoolingLevel(curves: [defaultCurve, cpuCurve],
+                                                      temperatures: [curveTemperatures[0]]) == nil,
+               "several temperature rules use their highest demand and require every selected sensor")
+        let duplicateCurves = [defaultCurve,
+                               FanControlCurve(sensor: .hottestSoC, points: cpuCurve.points)]
+        let descendingCurve = FanControlCurve(
+            sensor: .averageCPU,
+            points: [FanControlCurvePoint(temperature: 50, coolingLevel: 80),
+                     FanControlCurvePoint(temperature: 70, coolingLevel: 40)]
+        )
+        expect(!FanControlPolicy.validCurves(duplicateCurves)
+                && !FanControlPolicy.validCurves([descendingCurve])
+                && FanControlConfiguration.decodeCurves(
+                    FanControlConfiguration.encodeCurves([defaultCurve]) ?? "") == [defaultCurve]
+                && FanControlConfiguration.decodeCurves("not json") == nil,
+               "stored curves reject duplicate sensors, unsafe slopes and malformed data")
+        let m3FanTemperatures = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: [("Te05", 44), ("Tf4E", 53), ("Tf4F", 76)],
+            gpuReadings: [48],
+            platform: .appleM3Family
+        )
+        expectClose(m3FanTemperatures.first { $0.source == .hottestCPU }?.celsius ?? -1,
+                    53,
+                    "M3 fan curves include the hottest mapped Tf CPU core")
+        expectClose(m3FanTemperatures.first { $0.source == .averageCPU }?.celsius ?? -1,
+                    48.5,
+                    "M3 fan curves exclude auxiliary Tf readings from the CPU average")
         expect(FanControlPolicy.telemetryReadings(expectedCount: 1, readings: [1_200]) == [1_200]
                 && FanControlPolicy.telemetryReadings(expectedCount: 2,
                                                       readings: [1_200, 1_350]) == [1_200, 1_350],
@@ -9167,7 +9267,13 @@ struct MetricsTests {
                                               heartbeatAge: 0,
                                               verificationFailures: 0,
                                               thermalState: .nominal) == .timeLimit,
-               "the watchdog restores automatic control at the fixed deadline")
+               "the watchdog still honors a deadline from a legacy helper request")
+        expect(FanControlPolicy.restoreReason(now: watchdogEnd,
+                                              endsAt: nil,
+                                              heartbeatAge: 0,
+                                              verificationFailures: 0,
+                                              thermalState: .nominal) == nil,
+               "current manual and curve control have no arbitrary time limit")
         expect(FanControlPolicy.restoreReason(now: Date(timeIntervalSince1970: 1_900),
                                               endsAt: watchdogEnd,
                                               heartbeatAge: FanControlPolicy.heartbeatLimit + 0.1,
@@ -9184,8 +9290,21 @@ struct MetricsTests {
                                               endsAt: watchdogEnd,
                                               heartbeatAge: 0,
                                               verificationFailures: 0,
+                                              temperatureFailures: FanControlPolicy.temperatureFailureLimit,
+                                              thermalState: .nominal) == .temperatureUnavailable,
+               "a curve returns control after repeated missing temperature readings")
+        expect(FanControlPolicy.restoreReason(now: Date(timeIntervalSince1970: 1_900),
+                                              endsAt: watchdogEnd,
+                                              heartbeatAge: 0,
+                                              verificationFailures: 0,
                                               thermalState: .serious) == .thermalPressure,
                "the watchdog returns control to the system under thermal pressure")
+        expect(FanControlPolicy.restoreReason(now: Date(timeIntervalSince1970: 1_900),
+                                              endsAt: watchdogEnd,
+                                              heartbeatAge: 0,
+                                              verificationFailures: 0,
+                                              thermalState: .fair) == nil,
+               "a fair thermal state does not cancel the user's selected control")
         expect(FanControlPolicy.restoreReason(now: Date(timeIntervalSince1970: 1_900),
                                               endsAt: watchdogEnd,
                                               heartbeatAge: 0,
@@ -9196,7 +9315,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let strings = FeatureStrings.fanControl(language)
             let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
-            expect(values.count == 21 && values.allSatisfy { !$0.isEmpty },
+            expect(values.count == 41 && values.allSatisfy { !$0.isEmpty },
                    "fan control has every localized field for \(language.rawValue)")
             expect(values.allSatisfy { !$0.contains("—") },
                    "fan control text uses human punctuation for \(language.rawValue)")
@@ -9204,7 +9323,24 @@ struct MetricsTests {
                          "fan name format stays valid for \(language.rawValue)")
             expectFormat(strings.rpmFormat, ["d"],
                          "fan speed format stays valid for \(language.rawValue)")
+            expectFormat(strings.currentRPMFormat, ["d"],
+                         "current fan speed format stays valid for \(language.rawValue)")
+            expectFormat(strings.targetRPMFormat, ["d"],
+                         "target fan speed format stays valid for \(language.rawValue)")
         }
+        expect(FanControlFeatureStrings.ru.rpmFormat == "%d об/мин"
+                && FanControlFeatureStrings.de.rpmFormat == "%d U/min"
+                && FanControlFeatureStrings.fr.rpmFormat == "%d tr/min",
+               "existing localized RPM units stay intact")
+
+        let legacyFanSnapshot = Data(#"{"fans":[],"isCooling":false}"#.utf8)
+        let decodedLegacyFanSnapshot = try? JSONDecoder().decode(FanControlSnapshot.self,
+                                                                  from: legacyFanSnapshot)
+        expect(decodedLegacyFanSnapshot != nil
+                && decodedLegacyFanSnapshot?.coolingLevel == nil
+                && decodedLegacyFanSnapshot?.configuration == nil
+                && decodedLegacyFanSnapshot?.temperatures == nil,
+               "fan snapshots remain compatible with an older installed helper")
 
         let fanMigrationSuite = "com.vorssaint.tests.fan-migration.\(UUID().uuidString)"
         if let fanMigration = UserDefaults(suiteName: fanMigrationSuite) {
@@ -9405,7 +9541,7 @@ struct MetricsTests {
                "an alert with its metric off in the hub stays disarmed")
 
         expect(GlobalShortcutRole.activeRoles(isOn: { _ in true }).count
-                == GlobalShortcutRole.allCases.count - 3,
+                == GlobalShortcutRole.allCases.count,
                "the availability-free overload keeps every enabled current role")
         expect(!GlobalShortcutRole.activeRoles(isOn: { _ in true },
                                                isAvailable: { $0 != .shelf }).contains(.shelf),
@@ -9536,6 +9672,38 @@ struct MetricsTests {
                    "app update formats keep their placeholders (\(language.rawValue))")
             expect(!FeatureStrings.appUpdates(language).notificationBodyOne.contains("%"),
                    "the single-app note carries no placeholder (\(language.rawValue))")
+            let killProcessValues = Mirror(reflecting: FeatureStrings.killProcess(language)).children
+                .compactMap { $0.value as? String }
+            expect(killProcessValues.count == 30 && killProcessValues.allSatisfy { !$0.isEmpty },
+                   "every kill process string is set for \(language.rawValue)")
+            expect(killProcessValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in visible kill process strings (\(language.rawValue))")
+            expect(FeatureStrings.killProcess(language).pidLabelFormat.contains("%d")
+                    && FeatureStrings.killProcess(language).processCountFormat.contains("%d")
+                    && FeatureStrings.killProcess(language).killAllFormat.contains("%@")
+                    && FeatureStrings.killProcess(language).confirmKillFormat.contains("%@")
+                    && FeatureStrings.killProcess(language).confirmForceKillFormat.contains("%@")
+                    && FeatureStrings.killProcess(language).confirmKillAllFormat.contains("%@")
+                    && FeatureStrings.killProcess(language).confirmKillTreeFormat.contains("%@")
+                    && FeatureStrings.killProcess(language).adminPromptFormat.contains("%@"),
+                   "kill process formats keep their placeholders (\(language.rawValue))")
+        }
+
+        // MARK: Kill Process safety
+        expect(KillProcessSupport.isProtected(pid: 0, name: "kernel_task", path: "/System/Library/"),
+               "PID 0 is protected")
+        expect(KillProcessSupport.isProtected(pid: 1, name: "launchd", path: "/sbin/launchd"),
+               "PID 1 is protected")
+        expect(KillProcessSupport.isProtected(pid: 9999, name: "WindowServer", path: "/System/Library/Frameworks/WindowServer"),
+               "WindowServer is protected")
+        expect(KillProcessSupport.isProtected(pid: 9999, name: "loginwindow", path: "/System/Library/CoreServices/loginwindow.app/Contents/MacOS/loginwindow"),
+               "loginwindow is protected")
+        expect(KillProcessSupport.isProtected(pid: ProcessInfo.processInfo.processIdentifier, name: "Vorssaint"),
+               "current app PID is protected")
+        expect(!KillProcessSupport.isProtected(pid: 12345, name: "Safari", path: "/Applications/Safari.app/Contents/MacOS/Safari"),
+               "ordinary user app is not protected")
+
+        for language in AppLanguage.allCases {
             let categoryValues = Mirror(reflecting: FeatureStrings.settingsCategories(language)).children
                 .compactMap { $0.value as? String }
             expect(categoryValues.count == 6 && categoryValues.allSatisfy { !$0.isEmpty },
@@ -11611,9 +11779,9 @@ struct MetricsTests {
                "one capture shortcut follows every mode in the combined chooser")
         expect(GlobalShortcutRole.availableRoles(isAvailable: recordingOnly.contains)
                 .contains(.screenshot)
-                && !GlobalShortcutRole.availableRoles(isAvailable: recordingOnly.contains)
+                && GlobalShortcutRole.availableRoles(isAvailable: recordingOnly.contains)
                     .contains(.screenRecorder),
-               "a recording-only install shows the combined shortcut without the retired one")
+               "a recording-only install shows the general and dedicated shortcuts")
         expect(GlobalShortcutRole.screenshotFullScreen.requiredEnableKeys
                 == [DefaultsKey.screenshotFullScreenShortcutEnabled]
                 && GlobalShortcutRole.screenshotFullScreen.feature == .screenshot,
@@ -12594,10 +12762,13 @@ struct MetricsTests {
                 && backupKeys.contains(DefaultsKey.panelToggleMicMute),
                "the quick toggles layout travels with the settings backup")
         expect(backupKeys.contains(DefaultsKey.panelShowFanControl)
+                && backupKeys.contains(DefaultsKey.fanControlMode)
+                && backupKeys.contains(DefaultsKey.fanControlCoolingLevel)
+                && backupKeys.contains(DefaultsKey.fanControlCurves)
                 && backupKeys.contains(DefaultsKey.menuBarFanSpeed)
                 && !backupKeys.contains(DefaultsKey.fanControlRecoveryNeeded)
                 && !backupKeys.contains(DefaultsKey.fanControlHelperVersion),
-               "fan display preferences travel while helper recovery state stays on one Mac")
+               "fan display and cooling preferences travel while helper recovery state stays on one Mac")
         expect(backupKeys.contains(DefaultsKey.screenshotSharingEnabled),
                "the temporary screenshot links preference travels with settings backup")
         expect(!backupKeys.contains(DefaultsKey.clipboardHistoryEntries)
@@ -13215,7 +13386,7 @@ struct MetricsTests {
         expect(CommandBarSource.allCases.map(\.rawValue) == [
             "actions", "apps", "menus", "windows", "quitApps", "settingsPages", "macSettings",
             "snippets", "clipboard", "emoji", "folders", "answers", "calculator",
-            "selection", "links", "files",
+            "selection", "links", "files", "killProcess",
         ], "source ids are stable (they persist inside the disabled list)")
         expect(CommandBarSource.actions.isAlwaysOn
                 && CommandBarSource.allCases.filter(\.isAlwaysOn).count == 1,
@@ -13740,10 +13911,9 @@ struct MetricsTests {
         expect(ScreenshotSupport.countdownRingProgress(elapsed: -1) == 1
                 && ScreenshotSupport.countdownRingProgress(elapsed: 2) == 0,
                "the countdown ring clamps delayed and early frames")
-        expect(GlobalShortcutRole.screenRecorder.isLegacyUnifiedCaptureShortcut
-                && !GlobalShortcutRole.availableRoles(isAvailable: { _ in true })
-                    .contains(.screenRecorder),
-               "the former recording shortcut remains readable only for migration")
+        expect(GlobalShortcutRole.availableRoles(isAvailable: { _ in true })
+                .contains(.screenRecorder),
+               "the restored recording shortcut is visible in the shortcut editor")
         expect(AppFeature.screenRecorder.group == .tools
                 && AppFeature.screenRecorder.enabledKeys.isEmpty
                 && AppFeature.screenRecorder.permissions
@@ -13761,7 +13931,12 @@ struct MetricsTests {
         expect([AppFeature.screenshot, .screenRecorder, .screenOCR, .colorPicker]
                 .allSatisfy { $0.settingsDestination.page == .screenshot },
                "every screen tool opens its mode inside the centralized Settings page")
-        expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderShortcutEnabled)
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderShortcutEnabled)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderShortcut)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenOCRShortcutEnabled)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenOCRShortcut)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.colorPickerShortcutEnabled)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.colorPickerShortcut)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenshotShortcutEnabled)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderQuality)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderGIFSize)
@@ -13769,7 +13944,7 @@ struct MetricsTests {
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderAutomaticZoom)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderSharingEnabled)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderSaveFolder),
-               "the recorder settings travel with the one combined capture shortcut")
+               "dedicated capture shortcuts and recorder settings travel in backups")
         expect(RecorderSupport.exceptedOwnWindowIDs(
             ownWindowIDs: [1, 2, 3], protectedWindowIDs: [2, 4]) == [1, 3],
                "recording keeps existing ordinary app windows but never its protected chrome")
@@ -15069,6 +15244,27 @@ struct MetricsTests {
                                              curated: ["c", "b", "a"],
                                              limit: 5) == ["b", "a"],
                "curated suggestions skip whatever is unavailable")
+
+        // MARK: Capture tool shortcuts
+
+        expect(ScreenCaptureTool.screenshot.dedicatedShortcut == nil,
+               "the screenshot tool has no shortcut of its own: the general capture one is it")
+        expect(ScreenCaptureTool.allCases.compactMap { $0.dedicatedShortcut?.role }
+                == [.screenRecorder, .screenOCR, .colorPicker],
+               "every other capture tool owns a shortcut role, in tool order")
+        // The keys a tool registers have to be the ones its settings row writes.
+        // Three roles once had a row and no registrar, so the key was recorded
+        // and the combination did nothing (issue #708).
+        expect(ScreenCaptureTool.allCases.allSatisfy { tool in
+                guard let keys = tool.dedicatedShortcut else { return true }
+                return keys.role.requiredEnableKeys == [keys.enabledKey]
+                    && keys.role.feature == tool.feature
+               },
+               "a capture tool registers exactly the keys its own settings row reads")
+        expect(([.screenRecorder, .screenOCR, .colorPicker] as [GlobalShortcutRole]).allSatisfy { role in
+                ScreenCaptureTool.allCases.contains { $0.dedicatedShortcut?.role == role }
+               },
+               "no capture tool's shortcut row is left without something to register it")
 
         // MARK: Result
 

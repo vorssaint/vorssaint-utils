@@ -23,9 +23,20 @@ struct SettingsView: View {
             sidebar
                 .navigationSplitViewColumnWidth(min: 198, ideal: 210, max: 240)
         } detail: {
-            detail
-                .settingsSectionFocus(for: router.page)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            // NavigationSplitView's detail slot sometimes queries its content
+            // for an unconstrained ideal size (settling the divider, or on a
+            // page switch). `List` answers that with its full content height
+            // rather than a viewport size the way `ScrollView` does, and
+            // `.frame(maxHeight: .infinity)` only bounds a size it is given,
+            // not one it is asked to report - so a few hundred rows (Kill
+            // Process) grew the whole window. `GeometryReader` reports the
+            // real space it was actually given for normal layout, and ~zero
+            // when asked for an unconstrained ideal size, breaking the chain.
+            GeometryReader { geometry in
+                detail
+                    .settingsSectionFocus(for: router.page)
+                    .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+            }
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 772, maxWidth: .infinity, minHeight: 528, maxHeight: .infinity)
@@ -118,6 +129,7 @@ struct SettingsView: View {
         case .cutPaste: CutPasteSettings()
         case .autoQuit: AutoQuitSettings()
         case .uninstaller: UninstallerView()
+        case .killProcess: KillProcessView()
         case .urlCleaner: URLCleanerSettings()
         case .cleaner: CleanerSettings()
         case .homebrew: HomebrewSettings()
