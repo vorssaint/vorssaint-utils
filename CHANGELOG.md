@@ -7,9 +7,9 @@ All notable changes to this project are documented here. The format follows
 ## [3.3.3]
 
 ### Summary
-Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Kill Process tool and keeps the
-grouped App Switcher clear when moving between windows. It also restores reliable
-trimming from the start of a recording.
+Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Kill Process tool, keeps the
+grouped App Switcher clear when moving between windows and makes Scratchpad controls easier to click.
+It also restores reliable trimming from the start of a recording.
 
 ### Added
 - An opt-in Kill Process feature searches running processes to force quit, restart or terminate
@@ -21,6 +21,8 @@ trimming from the start of a recording.
   current and target RPM for every fan.
 
 ### Fixed
+- Scratchpad tabs and the pin, close, new pad and pad actions buttons now respond
+  across their whole area. Thanks to @AB-boi and @PathGao.
 - Fan Control now prepares stopped fans before taking manual control and keeps a
   failed attempt visible instead of silently returning to Automatic.
 - The grouped simple App Switcher now keeps every window title fully visible when
