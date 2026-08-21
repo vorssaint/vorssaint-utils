@@ -9,6 +9,8 @@ struct WindowLayoutSettings: View {
     @ObservedObject private var service = WindowLayoutService.shared
     @AppStorage(DefaultsKey.panelUtilityWindowLayout) private var showInPanel = true
     @AppStorage(DefaultsKey.windowLayoutShortcutsEnabled) private var shortcutsEnabled = true
+    @AppStorage(DefaultsKey.windowDirectionalEnabled) private var directionalEnabled = false
+    @AppStorage(DefaultsKey.windowDirectionalShortcut) private var directionalShortcutRaw = GlobalShortcut.windowDirectionalDefault.storageValue
     @AppStorage(DefaultsKey.windowEdgeSnapEnabled) private var edgeSnapEnabled = false
     @AppStorage(DefaultsKey.windowGestureEnabled) private var gestureEnabled = false
     @AppStorage(DefaultsKey.windowGestureModifiers) private var gestureModifiers = WindowGestureSupport.defaultModifierStorageValue
@@ -100,6 +102,26 @@ struct WindowLayoutSettings: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
+                Divider()
+                Toggle(WindowDirectionalStrings.localized(l10n.language).title,
+                       isOn: $directionalEnabled)
+                    .onChange(of: directionalEnabled) { _, _ in service.syncWithPreferences() }
+                Text(WindowDirectionalStrings.localized(l10n.language).caption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if directionalEnabled {
+                    ShortcutRecorderButton(shortcut: directionalShortcut,
+                                           isEnabled: permissions.accessibility,
+                                           waitingTitle: l10n.s.shortcutPressKeys,
+                                           invalidAction: {},
+                                           captureAction: saveDirectionalShortcut)
+                        .frame(width: 108)
+                    if service.directionalShortcutRegistrationFailed {
+                        Text(l10n.s.shortcutUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                }
             }
 
             Section {
@@ -164,6 +186,16 @@ struct WindowLayoutSettings: View {
             for: NSApplication.didBecomeActiveNotification)) { _ in
             refreshSystemTilingState()
         }
+    }
+
+    private var directionalShortcut: GlobalShortcut {
+        GlobalShortcut(storageValue: directionalShortcutRaw) ?? .windowDirectionalDefault
+    }
+
+    private func saveDirectionalShortcut(_ shortcut: GlobalShortcut) {
+        guard service.directionalShortcutConflictTitle(shortcut) == nil else { return }
+        directionalShortcutRaw = shortcut.storageValue
+        service.syncWithPreferences()
     }
 
     private func refreshSystemTilingState() {

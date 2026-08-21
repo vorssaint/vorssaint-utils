@@ -277,6 +277,26 @@ enum WindowGestureSupport {
     }
 }
 
+/// Pure direction selection for the hold-shortcut pointer layout mode.
+enum WindowDirectionalGestureSupport {
+    static let activationDistance: CGFloat = 36
+
+    static func action(from origin: CGPoint,
+                       to point: CGPoint,
+                       activationDistance: CGFloat = activationDistance) -> WindowLayoutAction? {
+        let dx = point.x - origin.x
+        let dy = point.y - origin.y
+        guard hypot(dx, dy) >= activationDistance else { return nil }
+        let diagonal = min(abs(dx), abs(dy)) >= max(abs(dx), abs(dy)) * 0.45
+        if diagonal {
+            if dx < 0 { return dy < 0 ? .bottomLeft : .topLeft }
+            return dy < 0 ? .bottomRight : .topRight
+        }
+        if abs(dx) >= abs(dy) { return dx < 0 ? .leftHalf : .rightHalf }
+        return dy < 0 ? .bottomHalf : .topHalf
+    }
+}
+
 enum WindowEdgeDragClassification: Equatable {
     case waiting
     case moving

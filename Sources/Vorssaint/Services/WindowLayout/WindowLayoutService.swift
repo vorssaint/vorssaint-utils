@@ -32,6 +32,7 @@ final class WindowLayoutService: ObservableObject {
     /// whether it still owns the feedback slot.
     private var resultGeneration = 0
     @Published private(set) var failedShortcutActions: Set<WindowLayoutAction> = []
+    @Published private(set) var directionalShortcutRegistrationFailed = false
     @Published private(set) var isGestureRunning = false
 
     private var frameHistory = WindowLayoutHistory()
@@ -39,6 +40,11 @@ final class WindowLayoutService: ObservableObject {
     private var hotKeyRefs: [WindowLayoutAction: EventHotKeyRef] = [:]
     private var eventHandler: EventHandlerRef?
     private var registeredShortcuts: [WindowLayoutAction: GlobalShortcut] = [:]
+    private var directionalHotKeyRef: EventHotKeyRef?
+    private var registeredDirectionalShortcut: GlobalShortcut?
+    private var directionalSession: WindowDirectionalSession?
+    private var directionalTimer: Timer?
+    private var directionalIndicatorPanel: NSPanel?
     private var gestureTap: CFMachPort?
     private var gestureRunLoopSource: CFRunLoopSource?
     private var edgeSnapTap: CFMachPort?
@@ -82,6 +88,11 @@ final class WindowLayoutService: ObservableObject {
             && trusted
         wantsShortcuts ? registerHotkeys() : unregisterHotkeys()
 
+        let wantsDirectional = available
+            && UserDefaults.standard.bool(forKey: DefaultsKey.windowDirectionalEnabled)
+            && trusted
+        wantsDirectional ? registerDirectionalHotkey() : unregisterDirectionalHotkey()
+
         let wantsGesture = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureEnabled)
             && trusted
@@ -99,6 +110,7 @@ final class WindowLayoutService: ObservableObject {
     /// call it freely.
     func suspend() {
         unregisterHotkeys()
+        unregisterDirectionalHotkey()
         stopGestureTap()
         stopEdgeSnapTap()
         for timer in settleTimers.values { timer.invalidate() }
@@ -122,6 +134,13 @@ final class WindowLayoutService: ObservableObject {
         return WindowLayoutAction.shortcutActions.first {
             $0 != excluded && $0.savedShortcut == shortcut
         }?.title(text)
+    }
+
+    func directionalShortcutConflictTitle(_ shortcut: GlobalShortcut) -> String? {
+        if let role = GlobalShortcutRole.conflict(for: shortcut, excluding: nil) {
+            return role.title(L10n.shared.s)
+        }
+        return shortcutConflictTitle(shortcut)
     }
 
     @discardableResult
@@ -624,26 +643,7 @@ final class WindowLayoutService: ObservableObject {
         if !hotKeyRefs.isEmpty, shortcuts == registeredShortcuts { return }
         unregisterHotkeys()
 
-        if eventHandler == nil {
-            var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
-                                     eventKind: UInt32(kEventHotKeyPressed))
-            InstallEventHandler(GetEventDispatcherTarget(), { _, event, userData -> OSStatus in
-                guard let userData else { return OSStatus(eventNotHandledErr) }
-                var id = EventHotKeyID()
-                if let event {
-                    GetEventParameter(event, EventParamName(kEventParamDirectObject),
-                                      EventParamType(typeEventHotKeyID), nil,
-                                      MemoryLayout<EventHotKeyID>.size, nil, &id)
-                }
-                guard id.signature == 0x5655_574C,
-                      let action = WindowLayoutAction(shortcutID: id.id) else {
-                    return OSStatus(eventNotHandledErr)
-                }
-                let service = Unmanaged<WindowLayoutService>.fromOpaque(userData).takeUnretainedValue()
-                DispatchQueue.main.async { service.apply(action) }
-                return noErr
-            }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), &eventHandler)
-        }
+        ensureHotKeyEventHandler()
 
         var failures = Set<WindowLayoutAction>()
         for action in WindowLayoutAction.shortcutActions {
@@ -666,6 +666,41 @@ final class WindowLayoutService: ObservableObject {
         failedShortcutActions = failures
     }
 
+    private func ensureHotKeyEventHandler() {
+        if eventHandler == nil {
+            var specs = [
+                EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed)),
+                EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased))
+            ]
+            InstallEventHandler(GetEventDispatcherTarget(), { _, event, userData -> OSStatus in
+                guard let userData else { return OSStatus(eventNotHandledErr) }
+                var id = EventHotKeyID()
+                if let event {
+                    GetEventParameter(event, EventParamName(kEventParamDirectObject),
+                                      EventParamType(typeEventHotKeyID), nil,
+                                      MemoryLayout<EventHotKeyID>.size, nil, &id)
+                }
+                let service = Unmanaged<WindowLayoutService>.fromOpaque(userData).takeUnretainedValue()
+                let kind = event.map(GetEventKind) ?? 0
+                if id.signature == 0x5655_5744 { // 'VUWD'
+                    DispatchQueue.main.async {
+                        kind == UInt32(kEventHotKeyPressed)
+                            ? service.beginDirectionalGesture()
+                            : service.finishDirectionalGesture()
+                    }
+                    return noErr
+                }
+                guard id.signature == 0x5655_574C,
+                      kind == UInt32(kEventHotKeyPressed),
+                      let action = WindowLayoutAction(shortcutID: id.id) else {
+                    return OSStatus(eventNotHandledErr)
+                }
+                DispatchQueue.main.async { service.apply(action) }
+                return noErr
+            }, specs.count, &specs, Unmanaged.passUnretained(self).toOpaque(), &eventHandler)
+        }
+    }
+
     /// Lets go of the layout keys while a shortcut field is listening, so the
     /// user can record a combination the layout actions already use. The
     /// gesture tap is left alone: it watches the mouse, not the keyboard. The
@@ -679,6 +714,132 @@ final class WindowLayoutService: ObservableObject {
         hotKeyRefs.removeAll()
         registeredShortcuts.removeAll()
         failedShortcutActions.removeAll()
+    }
+
+    private func registerDirectionalHotkey() {
+        guard let shortcut = UserDefaults.standard.string(forKey: DefaultsKey.windowDirectionalShortcut)
+            .flatMap(GlobalShortcut.init(storageValue:)) else {
+            directionalShortcutRegistrationFailed = true
+            return
+        }
+        if directionalHotKeyRef != nil, registeredDirectionalShortcut == shortcut { return }
+        unregisterDirectionalHotkey()
+        ensureHotKeyEventHandler()
+        var ref: EventHotKeyRef?
+        let id = EventHotKeyID(signature: 0x5655_5744, id: 56)
+        let status = RegisterEventHotKey(shortcut.carbonKeyCode, shortcut.carbonModifiers, id,
+                                         GetEventDispatcherTarget(), 0, &ref)
+        if status == noErr, let ref {
+            directionalHotKeyRef = ref
+            registeredDirectionalShortcut = shortcut
+            directionalShortcutRegistrationFailed = false
+        } else {
+            directionalShortcutRegistrationFailed = true
+        }
+    }
+
+    private func unregisterDirectionalHotkey() {
+        if let directionalHotKeyRef { UnregisterEventHotKey(directionalHotKeyRef) }
+        directionalHotKeyRef = nil
+        registeredDirectionalShortcut = nil
+        directionalShortcutRegistrationFailed = false
+        cancelDirectionalGesture()
+    }
+
+    private func beginDirectionalGesture() {
+        guard directionalSession == nil,
+              let target = focusedTarget(for: .leftHalf),
+              let screen = bestScreen(for: target.frame) else { return }
+        directionalSession = WindowDirectionalSession(target: target,
+                                                      visibleFrame: screen.visibleFrame,
+                                                      pointerOrigin: NSEvent.mouseLocation,
+                                                      action: nil)
+        showDirectionalIndicator(at: NSEvent.mouseLocation, action: nil)
+        directionalTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) {
+            [weak self] _ in self?.updateDirectionalGesture()
+        }
+    }
+
+    private func updateDirectionalGesture() {
+        guard var session = directionalSession else { return }
+        let action = WindowDirectionalGestureSupport.action(from: session.pointerOrigin,
+                                                            to: NSEvent.mouseLocation)
+        guard action != session.action else { return }
+        session.action = action
+        directionalSession = session
+        updateDirectionalIndicator(action: action)
+        guard let action else { hideEdgeSnapPreview(immediately: false); return }
+        let preview = placement(for: action, current: session.target.frame,
+                                visibleFrame: session.visibleFrame).rect
+        showEdgeSnapPreview(frame: preview)
+    }
+
+    private func finishDirectionalGesture() {
+        guard let session = directionalSession else { return }
+        directionalTimer?.invalidate()
+        directionalTimer = nil
+        directionalSession = nil
+        hideEdgeSnapPreview(immediately: true)
+        hideDirectionalIndicator()
+        guard let action = session.action else { return }
+        _ = applyPlacement(action, to: session.target, visibleFrame: session.visibleFrame,
+                           cyclesRepeatedAction: false)
+    }
+
+    private func cancelDirectionalGesture() {
+        directionalTimer?.invalidate()
+        directionalTimer = nil
+        directionalSession = nil
+        hideEdgeSnapPreview(immediately: true)
+        hideDirectionalIndicator()
+    }
+
+    private func showDirectionalIndicator(at pointer: CGPoint, action: WindowLayoutAction?) {
+        let size = CGSize(width: 196, height: 196)
+        let screenFrame = NSScreen.screens.first(where: { $0.frame.contains(pointer) })?.visibleFrame
+            ?? NSScreen.main?.visibleFrame ?? .zero
+        var origin = CGPoint(x: pointer.x - size.width / 2, y: pointer.y - size.height / 2)
+        origin.x = min(max(origin.x, screenFrame.minX + 8), screenFrame.maxX - size.width - 8)
+        origin.y = min(max(origin.y, screenFrame.minY + 8), screenFrame.maxY - size.height - 8)
+        let panel: NSPanel
+        if let directionalIndicatorPanel {
+            panel = directionalIndicatorPanel
+        } else {
+            panel = NSPanel(contentRect: .zero,
+                            styleMask: [.borderless, .nonactivatingPanel],
+                            backing: .buffered,
+                            defer: false)
+            panel.backgroundColor = .clear
+            panel.isOpaque = false
+            panel.hasShadow = true
+            panel.ignoresMouseEvents = true
+            panel.hidesOnDeactivate = false
+            panel.isReleasedWhenClosed = false
+            panel.level = .statusBar
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary,
+                                        .transient, .ignoresCycle]
+            panel.animationBehavior = .none
+            panel.contentView = WindowDirectionalIndicatorView(frame: CGRect(origin: .zero, size: size))
+            directionalIndicatorPanel = panel
+        }
+        panel.setFrame(CGRect(origin: origin, size: size), display: true)
+        updateDirectionalIndicator(action: action)
+        panel.alphaValue = 0
+        panel.orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.1
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().alphaValue = 1
+        }
+    }
+
+    private func updateDirectionalIndicator(action: WindowLayoutAction?) {
+        guard let view = directionalIndicatorPanel?.contentView as? WindowDirectionalIndicatorView else { return }
+        view.action = action
+    }
+
+    private func hideDirectionalIndicator() {
+        directionalIndicatorPanel?.orderOut(nil)
     }
 
     // MARK: - Drag to screen edge
@@ -1633,6 +1794,278 @@ private struct WindowLayoutTarget {
     let frame: WindowLayoutFrame
 
     var windowID: CGWindowID { key.windowID }
+}
+
+private struct WindowDirectionalSession {
+    let target: WindowLayoutTarget
+    let visibleFrame: NSRect
+    let pointerOrigin: CGPoint
+    var action: WindowLayoutAction?
+}
+
+/// Native glass-ring container; no upstream artwork or media is bundled.
+private final class WindowDirectionalIndicatorView: NSView {
+    private let canvas: WindowDirectionalIndicatorCanvasView
+
+    var action: WindowLayoutAction? {
+        didSet { canvas.action = action }
+    }
+
+    override var isOpaque: Bool { false }
+
+    override init(frame frameRect: NSRect) {
+        let effect = NSVisualEffectView(frame: CGRect(origin: .zero, size: frameRect.size))
+        effect.material = .hudWindow
+        effect.blendingMode = .behindWindow
+        effect.state = .active
+        effect.autoresizingMask = [.width, .height]
+        canvas = WindowDirectionalIndicatorCanvasView(
+            frame: CGRect(origin: .zero, size: frameRect.size))
+        canvas.autoresizingMask = [.width, .height]
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.cornerRadius = frameRect.width / 2
+        layer?.cornerCurve = .continuous
+        layer?.masksToBounds = true
+        layer?.borderWidth = 0.5
+        layer?.borderColor = NSColor.white.withAlphaComponent(0.2).cgColor
+        addSubview(effect)
+        addSubview(canvas, positioned: .above, relativeTo: effect)
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+}
+
+/// The canvas stays separate from `NSVisualEffectView`: AppKit may composite
+/// the material after a visual-effect subclass draws, hiding custom artwork.
+private final class WindowDirectionalIndicatorCanvasView: NSView {
+    var action: WindowLayoutAction? { didSet { needsDisplay = true } }
+
+    override var isOpaque: Bool { false }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard let context = NSGraphicsContext.current?.cgContext else { return }
+        let center = CGPoint(x: self.bounds.midX, y: self.bounds.midY)
+        let outerRadius: CGFloat = 96
+        let innerRadius: CGFloat = 62
+        let track = annulus(center: center, outer: outerRadius, inner: innerRadius)
+
+        // A continuous low-contrast glass track; directions are ticks, not
+        // eight separate buttons.
+        context.saveGState()
+        context.setShadow(offset: CGSize(width: 0, height: -10), blur: 26,
+                          color: NSColor.black.withAlphaComponent(0.38).cgColor)
+        context.addPath(track)
+        context.setFillColor(NSColor(calibratedRed: 15 / 255,
+                                    green: 20 / 255,
+                                    blue: 33 / 255,
+                                    alpha: 0.74).cgColor)
+        context.fillPath(using: .evenOdd)
+        context.restoreGState()
+
+        context.addPath(track)
+        context.setStrokeColor(NSColor.white.withAlphaComponent(0.22).cgColor)
+        context.setLineWidth(1)
+        context.strokePath()
+
+        if let direction = Direction(action: action) {
+            let highlight = sector(center: center,
+                                   outer: outerRadius - 1,
+                                   inner: innerRadius + 1,
+                                   centerAngle: direction.angle)
+            context.saveGState()
+            context.addPath(highlight)
+            context.clip()
+            context.setShadow(offset: .zero, blur: 12,
+                              color: NSColor.controlAccentColor.withAlphaComponent(0.55).cgColor)
+            let accent = NSColor.controlAccentColor
+            let colors = [
+                accent.blended(withFraction: 0.42, of: .white)!.withAlphaComponent(0.98).cgColor,
+                accent.withAlphaComponent(0.98).cgColor,
+                accent.blended(withFraction: 0.25, of: .systemPurple)!.withAlphaComponent(0.9).cgColor
+            ] as CFArray
+            let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                      colors: colors,
+                                      locations: [0, 0.5, 1])!
+            context.drawLinearGradient(gradient,
+                                       start: CGPoint(x: center.x - outerRadius, y: center.y + outerRadius),
+                                       end: CGPoint(x: center.x + outerRadius, y: center.y - outerRadius),
+                                       options: [])
+            context.restoreGState()
+            drawOrbitMarker(direction: direction, center: center,
+                            radius: outerRadius - 1, context: context)
+        }
+
+        drawSeparators(center: center, inner: innerRadius + 3,
+                       outer: outerRadius - 3, context: context)
+        drawSpecular(center: center, inner: innerRadius + 7,
+                     outer: outerRadius - 5, context: context)
+        drawCenterControl(center: center, context: context)
+    }
+
+    private func annulus(center: CGPoint, outer: CGFloat, inner: CGFloat) -> CGPath {
+        let path = CGMutablePath()
+        path.addEllipse(in: CGRect(x: center.x - outer, y: center.y - outer,
+                                   width: outer * 2, height: outer * 2))
+        path.addEllipse(in: CGRect(x: center.x - inner, y: center.y - inner,
+                                   width: inner * 2, height: inner * 2))
+        return path
+    }
+
+    private func sector(center: CGPoint, outer: CGFloat, inner: CGFloat,
+                        centerAngle: CGFloat) -> CGPath {
+        let start = (centerAngle - 22.5) * .pi / 180
+        let end = (centerAngle + 22.5) * .pi / 180
+        let path = CGMutablePath()
+        path.addArc(center: center, radius: outer, startAngle: start,
+                    endAngle: end, clockwise: false)
+        path.addArc(center: center, radius: inner, startAngle: end,
+                    endAngle: start, clockwise: true)
+        path.closeSubpath()
+        return path
+    }
+
+    private func drawSeparators(center: CGPoint, inner: CGFloat, outer: CGFloat,
+                                context: CGContext) {
+        context.saveGState()
+        context.setStrokeColor(NSColor.white.withAlphaComponent(0.16).cgColor)
+        context.setLineWidth(0.7)
+        for angle in stride(from: CGFloat(22.5), to: 360, by: 45) {
+            let radians = angle * .pi / 180
+            context.move(to: CGPoint(x: center.x + cos(radians) * inner,
+                                     y: center.y + sin(radians) * inner))
+            context.addLine(to: CGPoint(x: center.x + cos(radians) * outer,
+                                        y: center.y + sin(radians) * outer))
+        }
+        context.strokePath()
+        context.restoreGState()
+    }
+
+    private func drawSpecular(center: CGPoint, inner: CGFloat, outer: CGFloat,
+                              context: CGContext) {
+        context.saveGState()
+        context.setStrokeColor(NSColor.white.withAlphaComponent(0.23).cgColor)
+        context.setLineWidth(3)
+        context.setLineCap(.round)
+        let radius = (inner + outer) / 2
+        context.addArc(center: center, radius: radius,
+                       startAngle: 115 * .pi / 180,
+                       endAngle: 160 * .pi / 180,
+                       clockwise: false)
+        context.strokePath()
+        context.restoreGState()
+    }
+
+    private func drawOrbitMarker(direction: Direction, center: CGPoint,
+                                 radius: CGFloat, context: CGContext) {
+        let radians = direction.angle * .pi / 180
+        let markerCenter = CGPoint(x: center.x + cos(radians) * radius,
+                                   y: center.y + sin(radians) * radius)
+        let marker = CGRect(x: markerCenter.x - 6, y: markerCenter.y - 6,
+                            width: 12, height: 12)
+        context.saveGState()
+        context.setShadow(offset: .zero, blur: 18,
+                          color: NSColor.controlAccentColor.withAlphaComponent(0.8).cgColor)
+        context.setFillColor(NSColor.controlAccentColor.blended(withFraction: 0.45, of: .white)!.cgColor)
+        context.fillEllipse(in: marker)
+        context.setStrokeColor(NSColor.white.withAlphaComponent(0.82).cgColor)
+        context.setLineWidth(0.8)
+        context.strokeEllipse(in: marker)
+        context.restoreGState()
+    }
+
+    private func drawCenterControl(center: CGPoint, context: CGContext) {
+        let radius: CGFloat = 56
+        let hub = CGRect(x: center.x - radius, y: center.y - radius,
+                         width: radius * 2, height: radius * 2)
+        context.saveGState()
+        context.setShadow(offset: CGSize(width: 0, height: -4), blur: 15,
+                          color: NSColor.black.withAlphaComponent(0.2).cgColor)
+        context.setFillColor(NSColor(calibratedRed: 18 / 255,
+                                    green: 24 / 255,
+                                    blue: 39 / 255,
+                                    alpha: 0.9).cgColor)
+        context.fillEllipse(in: hub)
+        context.restoreGState()
+        context.setStrokeColor(NSColor.white.withAlphaComponent(0.15).cgColor)
+        context.setLineWidth(1)
+        context.strokeEllipse(in: hub.insetBy(dx: 0.35, dy: 0.35))
+
+        context.setStrokeColor(NSColor.white.withAlphaComponent(0.09).cgColor)
+        context.setLineWidth(1)
+        context.strokeEllipse(in: hub.insetBy(dx: 8, dy: 8))
+        context.strokeEllipse(in: hub.insetBy(dx: 16, dy: 16))
+
+        let window = CGRect(x: center.x - 18.5, y: center.y - 14.5,
+                            width: 37, height: 29)
+        let outline = CGPath(roundedRect: window, cornerWidth: 7, cornerHeight: 7,
+                             transform: nil)
+        context.addPath(outline)
+        context.setStrokeColor(NSColor.controlAccentColor
+            .blended(withFraction: 0.36, of: .white)!.withAlphaComponent(0.9).cgColor)
+        context.setLineWidth(2)
+        context.strokePath()
+
+        guard let action, let region = glyphRegion(for: action, in: window.insetBy(dx: 3.5, dy: 3.5)) else { return }
+        context.addPath(CGPath(roundedRect: region, cornerWidth: 2.2,
+                               cornerHeight: 2.2, transform: nil))
+        context.setFillColor(NSColor.controlAccentColor.withAlphaComponent(0.9).cgColor)
+        context.fillPath()
+    }
+
+    private func glyphRegion(for action: WindowLayoutAction, in rect: CGRect) -> CGRect? {
+        switch action {
+        case .leftHalf: return CGRect(x: rect.minX, y: rect.minY, width: rect.width / 2, height: rect.height)
+        case .rightHalf: return CGRect(x: rect.midX, y: rect.minY, width: rect.width / 2, height: rect.height)
+        case .topHalf: return CGRect(x: rect.minX, y: rect.midY, width: rect.width, height: rect.height / 2)
+        case .bottomHalf: return CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height / 2)
+        case .topLeft: return CGRect(x: rect.minX, y: rect.midY, width: rect.width / 2, height: rect.height / 2)
+        case .topRight: return CGRect(x: rect.midX, y: rect.midY, width: rect.width / 2, height: rect.height / 2)
+        case .bottomLeft: return CGRect(x: rect.minX, y: rect.minY, width: rect.width / 2, height: rect.height / 2)
+        case .bottomRight: return CGRect(x: rect.midX, y: rect.minY, width: rect.width / 2, height: rect.height / 2)
+        default: return nil
+        }
+    }
+
+    private enum Direction: CaseIterable {
+        case right, topRight, top, topLeft, left, bottomLeft, bottom, bottomRight
+
+        var angle: CGFloat {
+            switch self {
+            case .right: return 0
+            case .topRight: return 45
+            case .top: return 90
+            case .topLeft: return 135
+            case .left: return 180
+            case .bottomLeft: return 225
+            case .bottom: return 270
+            case .bottomRight: return 315
+            }
+        }
+
+        var action: WindowLayoutAction {
+            switch self {
+            case .right: return .rightHalf
+            case .topRight: return .topRight
+            case .top: return .topHalf
+            case .topLeft: return .topLeft
+            case .left: return .leftHalf
+            case .bottomLeft: return .bottomLeft
+            case .bottom: return .bottomHalf
+            case .bottomRight: return .bottomRight
+            }
+        }
+
+        init?(action: WindowLayoutAction?) {
+            guard let action, let value = Self.allCases.first(where: { $0.action == action }) else {
+                return nil
+            }
+            self = value
+        }
+    }
 }
 
 /// Everything the deferred settle verification needs to finish judging a
