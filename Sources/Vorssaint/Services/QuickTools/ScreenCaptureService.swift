@@ -33,7 +33,24 @@ final class ScreenCaptureService: ObservableObject {
 
     @Published private(set) var shortcutRegistrationFailed = false
 
+    /// The tools whose own shortcut could not be registered, so each tool's
+    /// settings can say so the way the general shortcut already does.
+    @Published private(set) var toolShortcutRegistrationFailures: Set<ScreenCaptureTool> = []
+
     private let hotkey = QuickToolHotkey(id: 15)
+
+    /// One hotkey per tool that has a shortcut of its own, built from the tool
+    /// list so a new mode cannot be added without one. Ids continue past the
+    /// hand-assigned quick tool range, which ends at 24.
+    private let toolHotkeys: [ScreenCaptureTool: QuickToolHotkey] = {
+        var next: UInt32 = 25
+        var hotkeys: [ScreenCaptureTool: QuickToolHotkey] = [:]
+        for tool in ScreenCaptureTool.allCases where tool.dedicatedShortcut != nil {
+            hotkeys[tool] = QuickToolHotkey(id: next)
+            next += 1
+        }
+        return hotkeys
+    }()
     private var selection: ScreenshotSelectionController?
     private var options: ScreenCaptureSelectionOptions?
     private var countdown: DispatchWorkItem?
@@ -46,13 +63,18 @@ final class ScreenCaptureService: ObservableObject {
 
     private init() {
         hotkey.onPress = { [weak self] in self?.capture() }
+        for (tool, hotkey) in toolHotkeys {
+            hotkey.onPress = { [weak self] in self?.capture(initial: tool) }
+        }
     }
 
     func syncWithPreferences() {
         let availableTools = ScreenCaptureTool.available()
         guard !availableTools.isEmpty else {
             shortcutRegistrationFailed = false
+            toolShortcutRegistrationFailures = []
             hotkey.unregister()
+            toolHotkeys.values.forEach { $0.unregister() }
             cancelSelection()
             return
         }
@@ -66,10 +88,28 @@ final class ScreenCaptureService: ObservableObject {
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.screenshotShortcut,
                                             fallback: .screenshotDefault)
         shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
+        syncToolShortcuts(availableTools: availableTools, defaults: defaults)
+    }
+
+    /// A tool's own shortcut opens the same chooser already on that mode. A
+    /// tool whose feature is not installed leaves its combination free for
+    /// whatever else wants it.
+    private func syncToolShortcuts(availableTools: [ScreenCaptureTool],
+                                   defaults: UserDefaults) {
+        var failures: Set<ScreenCaptureTool> = []
+        for (tool, hotkey) in toolHotkeys {
+            guard let keys = tool.dedicatedShortcut else { continue }
+            let enabled = availableTools.contains(tool) && defaults.bool(forKey: keys.enabledKey)
+            if !hotkey.sync(enabled: enabled, shortcut: keys.role.savedShortcut) {
+                failures.insert(tool)
+            }
+        }
+        toolShortcutRegistrationFailures = failures
     }
 
     func suspend() {
         hotkey.unregister()
+        toolHotkeys.values.forEach { $0.unregister() }
         cancelSelection()
     }
 
