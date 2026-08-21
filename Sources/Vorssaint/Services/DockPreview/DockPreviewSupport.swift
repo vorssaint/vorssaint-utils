@@ -109,14 +109,35 @@ enum DockPreviewSupport {
     /// and a fullscreen window owns its Space and ignores the position it is
     /// given — dragging either one would move nothing while still tearing the
     /// panel down.
-    static func canDragToPlace(hasWindowID: Bool, isMinimized: Bool, isFullscreen: Bool) -> Bool {
-        hasWindowID && !isMinimized && !isFullscreen
+    static func canDragToPlace(hasWindowID: Bool,
+                               isOnScreen: Bool,
+                               isMinimized: Bool,
+                               isFullscreen: Bool) -> Bool {
+        hasWindowID && isOnScreen && !isMinimized && !isFullscreen
     }
 
     /// How far the pointer must travel before a press on a card becomes a
     /// drag. Large enough that a click with a shaky hand still opens the
     /// window, small enough that the lift feels immediate.
     static let dragLiftDistance: CGFloat = 6
+
+    /// Keeps the dropped window fully reachable on the screen under the
+    /// pointer. Oversized windows align to the visible frame instead of
+    /// leaving their title bar beyond an edge.
+    static func dragOrigin(pointer: CGPoint,
+                           windowSize: CGSize,
+                           visibleFrame: CGRect) -> CGPoint {
+        guard visibleFrame.width > 0, visibleFrame.height > 0,
+              windowSize.width > 0, windowSize.height > 0
+        else { return pointer }
+
+        let visibleWidth = min(windowSize.width, visibleFrame.width)
+        let visibleHeight = min(windowSize.height, visibleFrame.height)
+        return CGPoint(
+            x: min(max(pointer.x, visibleFrame.minX), visibleFrame.maxX - visibleWidth),
+            y: min(max(pointer.y, visibleFrame.minY + visibleHeight), visibleFrame.maxY)
+        )
+    }
 
     static var cardWidth: CGFloat { 204 * PreviewSizing.scale }
     static var cardHeight: CGFloat { 152 * PreviewSizing.scale }

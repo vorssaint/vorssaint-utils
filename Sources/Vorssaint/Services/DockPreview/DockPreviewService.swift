@@ -201,6 +201,7 @@ final class DockPreviewService: ObservableObject {
         guard isVisible,
               windows.contains(item),
               DockPreviewSupport.canDragToPlace(hasWindowID: item.windowID != nil,
+                                                isOnScreen: item.isOnScreen,
                                                 isMinimized: item.isMinimized,
                                                 isFullscreen: item.isFullscreen),
               let image = item.previewWindowID.flatMap({ previews[$0] })
@@ -230,7 +231,14 @@ final class DockPreviewService: ObservableObject {
             endSession()
             return
         }
-        let origin = axPoint(fromAppKit: NSEvent.mouseLocation)
+        let pointer = NSEvent.mouseLocation
+        let visibleFrame = (NSScreen.screens.first { $0.frame.contains(pointer) }
+            ?? NSScreen.withMouse)?.visibleFrame ?? .zero
+        let origin = axPoint(fromAppKit: DockPreviewSupport.dragOrigin(
+            pointer: pointer,
+            windowSize: item.frame.size,
+            visibleFrame: visibleFrame
+        ))
         let moved = WindowActivator.setWindowOrigin(origin,
                                                     windowID: windowID,
                                                     pid: item.windowOwnerPID)
