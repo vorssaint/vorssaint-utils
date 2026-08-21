@@ -7584,22 +7584,30 @@ struct MetricsTests {
                && !restoredDockPreviewWindow.isMinimized
                && restoredDockPreviewWindow.isOnScreen,
                "Dock Preview restore clears the minimized state without changing identity")
-        let expectedFrameWrites: [SwitcherSupport.WindowFrameWriteStep] = [.position, .size, .position]
+        let attemptFrameWrites: [SwitcherSupport.WindowFrameWriteStep] = [.size, .position, .size, .position]
+        let expectedFrameWrites = Array(repeating: attemptFrameWrites, count: 3).flatMap { $0 }
         var successfulFrameWrites: [SwitcherSupport.WindowFrameWriteStep] = []
+        var confirmationCount = 0
         let frameWriteSucceeded = SwitcherSupport.applyWindowFrameWrites { step in
             successfulFrameWrites.append(step)
             return true
+        } confirmsFrame: {
+            confirmationCount += 1
+            return confirmationCount == 3
         }
-        expect(frameWriteSucceeded && successfulFrameWrites == expectedFrameWrites,
-               "a snapped window repeats its position after resizing")
-        for failingStepIndex in expectedFrameWrites.indices {
+        expect(frameWriteSucceeded && successfulFrameWrites == expectedFrameWrites
+               && confirmationCount == 3,
+               "a snapped window retries size and position until the frame settles")
+        for failingStepIndex in attemptFrameWrites.indices {
             var attemptedWrites: [SwitcherSupport.WindowFrameWriteStep] = []
             let frameWriteSucceeded = SwitcherSupport.applyWindowFrameWrites { step in
                 attemptedWrites.append(step)
                 return attemptedWrites.count - 1 != failingStepIndex
+            } confirmsFrame: {
+                false
             }
             expect(!frameWriteSucceeded
-                   && attemptedWrites == Array(expectedFrameWrites.prefix(failingStepIndex + 1)),
+                   && attemptedWrites == Array(attemptFrameWrites.prefix(failingStepIndex + 1)),
                    "a rejected snapped-window frame write fails immediately at step \(failingStepIndex)")
         }
         expect(SwitcherSupport.activationPlan(targetsSpecificWindow: true)

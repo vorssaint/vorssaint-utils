@@ -199,10 +199,9 @@ enum WindowActivator {
         return minimizedState(of: axWindow)
     }
 
-    /// Puts a window at an exact frame. Position is repeated after resizing:
-    /// an app that clamps the first move against its old size lands short
-    /// otherwise. Any rejected write means the requested frame was not applied
-    /// completely.
+    /// Puts a window at an exact frame. Size and position are repeated because
+    /// some apps settle each Accessibility write against the previous frame.
+    /// Any rejected or unconfirmed frame fails the placement.
     @discardableResult
     static func setWindowFrame(_ frame: CGRect, windowID: CGWindowID, pid: pid_t) -> Bool {
         guard Permissions.shared.accessibility,
@@ -227,7 +226,36 @@ enum WindowActivator {
                                                     kAXPositionAttribute as CFString,
                                                     originValue) == .success
             }
+        } confirmsFrame: {
+            windowFrameMatches(frame, on: axWindow)
         }
+    }
+
+    private static func windowFrameMatches(_ expected: CGRect, on window: AXUIElement) -> Bool {
+        var positionValue: CFTypeRef?
+        var sizeValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(window,
+                                            kAXPositionAttribute as CFString,
+                                            &positionValue) == .success,
+              AXUIElementCopyAttributeValue(window,
+                                            kAXSizeAttribute as CFString,
+                                            &sizeValue) == .success,
+              let positionValue,
+              let sizeValue,
+              CFGetTypeID(positionValue) == AXValueGetTypeID(),
+              CFGetTypeID(sizeValue) == AXValueGetTypeID()
+        else { return false }
+
+        var origin = CGPoint.zero
+        var size = CGSize.zero
+        guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &origin),
+              AXValueGetValue(sizeValue as! AXValue, .cgSize, &size) else { return false }
+        let actual = CGRect(origin: origin, size: size)
+        let tolerance: CGFloat = 8
+        return abs(actual.minX - expected.minX) <= tolerance
+            && abs(actual.minY - expected.minY) <= tolerance
+            && abs(actual.width - expected.width) <= tolerance
+            && abs(actual.height - expected.height) <= tolerance
     }
 
     /// Moves a window's top-left corner to a global Accessibility point.
