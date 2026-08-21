@@ -168,6 +168,10 @@ enum DefaultsKey {
     static let panelUtilityCleaning = "panelUtilityCleaning"
     static let panelUtilityURLCleaner = "panelUtilityURLCleaner"
     static let panelUtilityUninstaller = "panelUtilityUninstaller"
+    static let killProcessCommandBarEnabled = "killProcessCommandBarEnabled"
+    static let killProcessGroupRelated = "killProcessGroupRelated"
+    static let killProcessSortBy = "killProcessSortBy" // cpu | memory | name | pid
+    static let killProcessSortAscending = "killProcessSortAscending"
     static let panelUtilityCleaner = "panelUtilityCleaner"
     static let panelUtilityHomebrew = "panelUtilityHomebrew"
     static let panelUtilityAppUpdates = "panelUtilityAppUpdates"
@@ -265,6 +269,9 @@ enum DefaultsKey {
     static let monitorShowPower = "monitorShowPower"
     static let monitorShowMixer = "monitorShowMixer"
     static let panelShowFanControl = "panelShowFanControl"
+    static let fanControlMode = "fanControlMode"
+    static let fanControlCoolingLevel = "fanControlCoolingLevel"
+    static let fanControlCurves = "fanControlCurves"
     // Previous panel visibility key, read once by the migration below.
     static let monitorShowFanControlBeta = "monitorShowFanControlBeta"
     // Machine-only recovery state. A true value means the helper must confirm
@@ -441,6 +448,7 @@ enum DefaultsKey {
     static let screenshotShortcutEnabled = "screenshotShortcutEnabled"
     static let screenshotShortcut = "screenshotShortcut"
     static let unifiedScreenCaptureShortcutMigrated = "unifiedScreenCaptureShortcutMigrated"
+    static let restoredScreenCaptureShortcutsMigrated = "restoredScreenCaptureShortcutsMigrated"
     static let screenshotFullScreenShortcutEnabled = "screenshotFullScreenShortcutEnabled"
     static let screenshotFullScreenShortcut = "screenshotFullScreenShortcut"
     static let screenshotLastCaptureShortcutEnabled = "screenshotLastCaptureShortcutEnabled"
@@ -858,6 +866,10 @@ enum Defaults {
         DefaultsKey.panelUtilityCleaning: true,
         DefaultsKey.panelUtilityURLCleaner: true,
         DefaultsKey.panelUtilityUninstaller: true,
+        DefaultsKey.killProcessCommandBarEnabled: true,
+        DefaultsKey.killProcessGroupRelated: true,
+        DefaultsKey.killProcessSortBy: "cpu",
+        DefaultsKey.killProcessSortAscending: false,
         DefaultsKey.panelUtilityCleaner: true,
         DefaultsKey.panelUtilityHomebrew: true,
         DefaultsKey.panelUtilityAppUpdates: true,
@@ -945,6 +957,9 @@ enum Defaults {
         DefaultsKey.monitorShowPower: true,
         DefaultsKey.monitorShowMixer: true,
         DefaultsKey.panelShowFanControl: true,
+        DefaultsKey.fanControlMode: FanControlMode.system.rawValue,
+        DefaultsKey.fanControlCoolingLevel: FanControlPolicy.defaultCoolingLevel,
+        DefaultsKey.fanControlCurves: FanControlConfiguration.defaultCurvesStorage,
         DefaultsKey.fanControlRecoveryNeeded: false,
         DefaultsKey.fanControlHelperVersion: "",
         DefaultsKey.panelNavigationEnabled: true,
@@ -1096,6 +1111,7 @@ enum Defaults {
         DefaultsKey.screenshotShortcutEnabled: false,
         DefaultsKey.screenshotShortcut: GlobalShortcut.screenshotDefault.storageValue,
         DefaultsKey.unifiedScreenCaptureShortcutMigrated: false,
+        DefaultsKey.restoredScreenCaptureShortcutsMigrated: false,
         DefaultsKey.screenshotFullScreenShortcutEnabled: false,
         DefaultsKey.screenshotFullScreenShortcut: GlobalShortcut.screenshotFullScreenDefault.storageValue,
         DefaultsKey.screenshotLastCaptureShortcutEnabled: false,
@@ -1174,6 +1190,7 @@ enum Defaults {
         migrateUtilityOrderForAppUpdates(in: defaults)
         migrateScreenshotOpenEditorDirectly(in: defaults)
         migrateUnifiedScreenCaptureShortcut(in: defaults)
+        migrateRestoredScreenCaptureShortcuts(in: defaults)
         migrateSilentHeadphonesDisconnectVolume(in: defaults)
         migrateSwitcherWindowlessFinder(in: defaults)
     }
@@ -1257,6 +1274,32 @@ enum Defaults {
         let shortcut = defaults.string(forKey: choice.shortcut) ?? choice.fallback.storageValue
         defaults.set(true, forKey: DefaultsKey.screenshotShortcutEnabled)
         defaults.set(shortcut, forKey: DefaultsKey.screenshotShortcut)
+    }
+
+    /// The unified-capture migration copied an enabled dedicated shortcut to
+    /// the general capture role. Now that dedicated shortcuts are back, keep
+    /// the original role instead of registering the same combination twice.
+    static func migrateRestoredScreenCaptureShortcuts(in defaults: UserDefaults) {
+        guard !defaults.bool(forKey: DefaultsKey.restoredScreenCaptureShortcutsMigrated) else {
+            return
+        }
+        defer {
+            defaults.set(true, forKey: DefaultsKey.restoredScreenCaptureShortcutsMigrated)
+        }
+        guard defaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled),
+              let generalShortcut = defaults.string(forKey: DefaultsKey.screenshotShortcut)
+        else { return }
+
+        let dedicatedKeys = [
+            (DefaultsKey.recorderShortcutEnabled, DefaultsKey.recorderShortcut),
+            (DefaultsKey.screenOCRShortcutEnabled, DefaultsKey.screenOCRShortcut),
+            (DefaultsKey.colorPickerShortcutEnabled, DefaultsKey.colorPickerShortcut),
+        ]
+        guard dedicatedKeys.contains(where: { enabledKey, shortcutKey in
+            defaults.bool(forKey: enabledKey)
+                && defaults.string(forKey: shortcutKey) == generalShortcut
+        }) else { return }
+        defaults.set(false, forKey: DefaultsKey.screenshotShortcutEnabled)
     }
 
     static func migrateLegacySwitcherWindowShortcut(in defaults: UserDefaults) {
