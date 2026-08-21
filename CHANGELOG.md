@@ -43,6 +43,9 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Ki
   typed. Thanks to @PathGao.
 - The grouped simple App Switcher now keeps every window title fully visible when
   using the window shortcut.
+- Clicking the Dock icon of a background app to restore its minimized windows now
+  brings that app forward, instead of leaving its windows behind whichever app was
+  already in front. Thanks to @PathGao.
 - The recording editor now trims reliably from the beginning of a video when
   dragging the left handle. Thanks to @lmilojevicc.
 - Screen recorder, Copy text from screen and Color picker can each take a shortcut
