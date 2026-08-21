@@ -9565,6 +9565,10 @@ struct MetricsTests {
         expect(!activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled])
                 .contains(.brightness),
                "brightness sliders alone never use accessibility")
+        expect(activeSet(.accessibility, on: [DefaultsKey.preciseVolumeRollerEnabled]).contains(.mixer),
+               "mixer uses accessibility only for precise volume roller")
+        expect(!activeSet(.accessibility).contains(.mixer),
+               "mixer without precise volume roller does not use accessibility")
         expect(activeSet(.accessibility).contains(.screenRecorder),
                "the recorder uses accessibility for anonymous typing timing while active")
 
@@ -13107,6 +13111,43 @@ struct MetricsTests {
                "text where a per-app rule dictionary belongs is dropped on import")
         expect(shapeChecked?[DefaultsKey.smoothScrollStep] as? Int == 60,
                "a value of the right shape still restores")
+        expect(Defaults.registeredDefaults[DefaultsKey.preciseVolumeRollerEnabled] as? Bool == false,
+               "precise volume roller is opt-in")
+
+        // MARK: Precise volume roller
+
+        var volumeGate = PreciseVolumeRollerGate()
+        expect(volumeGate.accepts(.up, at: 100.00),
+               "precise volume accepts the first wheel step")
+        expect(!volumeGate.accepts(.up, at: 100.01),
+               "precise volume drops repeats that arrive inside the spacing window")
+        expect(volumeGate.accepts(.up, at: 100.05),
+               "precise volume accepts a later step in the same direction")
+
+        var reversalGate = PreciseVolumeRollerGate()
+        expect(reversalGate.accepts(.up, at: 200.00),
+               "precise volume reversal setup accepts the initial direction")
+        expect(!reversalGate.accepts(.down, at: 200.08),
+               "precise volume ignores the first opposite pulse inside the reversal window")
+        expect(!reversalGate.accepts(.down, at: 200.16),
+               "precise volume waits for a stable opposite direction")
+        expect(reversalGate.accepts(.down, at: 200.24),
+               "precise volume accepts the confirmed opposite direction")
+
+        var oldDirectionGate = PreciseVolumeRollerGate()
+        expect(oldDirectionGate.accepts(.up, at: 300.00),
+               "precise volume accepts first old-direction step")
+        expect(oldDirectionGate.accepts(.down, at: 300.40),
+               "precise volume accepts an opposite step after the reversal window")
+        var fastStreamGate = PreciseVolumeRollerGate()
+        let fastAccepted = stride(from: 400.00, through: 400.10, by: 0.02)
+            .filter { fastStreamGate.accepts(.up, at: $0) }
+        expect(fastAccepted.count == 3,
+               "precise volume rate-limits sustained fast input instead of starving it")
+        expect(PreciseVolumeMediaKey.volumeUp.rollerDirection == .up
+                && PreciseVolumeMediaKey.volumeDown.rollerDirection == .down
+                && PreciseVolumeMediaKey.mute.rollerDirection == nil,
+               "precise volume only remaps volume up and down media keys")
         let bridgedInput: [String: Any] = [
             SettingsBackupSupport.formatVersionKey: 1,
             SettingsBackupSupport.settingsKey: [
