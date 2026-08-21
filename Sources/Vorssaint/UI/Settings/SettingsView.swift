@@ -939,9 +939,9 @@ struct SwitcherSettings: View {
                 }
                 .settingsSectionAnchor(.switcher)
             }
-            if AppFeature.dockPreview.isAvailable || AppFeature.dockClick.isAvailable {
+            if AppFeature.dockPreview.isAvailable {
                 Section {
-                    if AppFeature.dockPreview.isAvailable {
+                    do {
                         Toggle(l10n.s.dockPreviewEnable, isOn: $dockPreviewEnabled)
                             .onChange(of: dockPreviewEnabled) { _, _ in
                                 DockPreviewService.shared.syncWithPreferences()
@@ -963,7 +963,17 @@ struct SwitcherSettings: View {
                             SettingsCaptionText(l10n.s.dockPreviewBackgroundOpacityCaption)
                         }
                     }
-                    if AppFeature.dockClick.isAvailable {
+                } header: {
+                    Text(l10n.s.dockPreviewName)
+                }
+                .settingsSectionAnchor(.dock)
+            }
+            // Clicking a Dock icon is its own installable feature in the hub, so
+            // it gets its own section here. It used to sit under the Dock Preview
+            // header, which named one feature over the controls of two.
+            if AppFeature.dockClick.isAvailable {
+                Section {
+                    do {
                         Toggle(l10n.s.dockClickMinimize, isOn: $dockClickMinimize)
                             .onChange(of: dockClickMinimize) { _, enabled in
                                 if enabled { dockClickHide = false }
@@ -989,9 +999,9 @@ struct SwitcherSettings: View {
                             .foregroundStyle(.secondary)
                     }
                 } header: {
-                    Text(l10n.s.dockPreviewName)
+                    Text(FeatureStrings.hub(l10n.language).titleDockClick)
                 }
-                .settingsSectionAnchor(.dock)
+                .settingsSectionAnchor(.dockClick)
             }
             if AppFeature.switcher.isAvailable || AppFeature.dockPreview.isAvailable {
                 Section {

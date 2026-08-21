@@ -26,6 +26,9 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Ki
   current and target RPM for every fan.
 
 ### Fixed
+- Settings now lists Dock Preview and Dock click as separate named sections, and
+  opening Dock click from the Features hub lands on its own controls rather than on
+  the Dock Preview block. Thanks to @PathGao.
 - Scratchpad tabs and the pin, close, new pad and pad actions buttons now respond
   across their whole area. Thanks to @AB-boi and @PathGao.
 - Dock Preview cards no longer draw the app icon on every thumbnail or repeat the
@@ -41,6 +44,8 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Ki
   of their own again, opening screen capture already on that mode. Their Settings
   rows no longer record a combination that does nothing. Thanks to @wiidede and
   @PathGao.
+- App Switcher window preview warm-up no longer crashes right after startup when
+  the system returns duplicate window identifiers. Thanks to @james-rose.
 
 ## [3.3.2] - 2026-08-20
 
