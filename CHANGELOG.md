@@ -21,12 +21,12 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Ki
   process trees from Settings and the Command Bar. It ships uninstalled. Thanks to @naveenkrdy.
 
 ### Changed
-- Clicking a Dock icon now only restores the windows that Click Dock icon to minimize
-  put away. Windows minimized any other way keep the Dock's own restore. Thanks to @PathGao.
 - Fan Control now offers System, continuous Manual control from 0% to 100% and
   editable temperature curves with multiple SoC, CPU and GPU rules. It also shows
   current and target RPM for every fan.
 
+- Clicking a Dock icon now only restores the windows that Click Dock icon to minimize
+  put away. Windows minimized any other way keep the Dock's own restore. Thanks to @PathGao.
 ### Fixed
 - Scratchpad tabs and the pin, close, new pad and pad actions buttons now respond
   across their whole area. Thanks to @AB-boi and @PathGao.
