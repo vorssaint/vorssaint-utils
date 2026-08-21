@@ -256,6 +256,11 @@ struct SwitcherShortcutHints: Equatable {
 }
 
 enum SwitcherSupport {
+    enum WindowFrameWriteStep: Equatable {
+        case size
+        case position
+    }
+
     /// Grid resolution used to classify window captures.
     static let captureAlphaGridSize = 8
 
@@ -762,6 +767,10 @@ enum SwitcherSupport {
             makeAppFrontmostAfterActivation: !targetsSpecificWindow,
             restoreSourceWhenTargetMinimizes: targetsSpecificWindow
         )
+    }
+
+    static func applyWindowFrameWrites(_ write: (WindowFrameWriteStep) -> Bool) -> Bool {
+        write(.size) && write(.position) && write(.position)
     }
 
     static func shouldActivateAllWindows(targetsSpecificWindow: Bool) -> Bool {

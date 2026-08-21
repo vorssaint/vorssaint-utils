@@ -63,8 +63,10 @@ final class DockPreviewDragGhost {
     /// it so the corner the drop uses is the one under the cursor.
     func move(to pointer: CGPoint) {
         guard let window else { return }
-        isSnapped = false
-        window.animator().alphaValue = 1
+        if isSnapped {
+            isSnapped = false
+            window.animator().alphaValue = 1
+        }
         window.setFrame(CGRect(origin: CGPoint(x: pointer.x, y: pointer.y - size.height),
                                size: size),
                         display: true)

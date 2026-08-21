@@ -201,8 +201,8 @@ enum WindowActivator {
 
     /// Puts a window at an exact frame. Size is written before position and
     /// then position again: an app that clamps a move against its old size
-    /// lands short otherwise, and the second write costs nothing when the first
-    /// one already stuck.
+    /// lands short otherwise. Any rejected write means the requested frame was
+    /// not applied completely.
     @discardableResult
     static func setWindowFrame(_ frame: CGRect, windowID: CGWindowID, pid: pid_t) -> Bool {
         guard Permissions.shared.accessibility,
@@ -216,11 +216,18 @@ enum WindowActivator {
         guard let originValue = AXValueCreate(.cgPoint, &origin),
               let sizeValue = AXValueCreate(.cgSize, &size) else { return false }
 
-        AXUIElementSetAttributeValue(axWindow, kAXPositionAttribute as CFString, originValue)
-        AXUIElementSetAttributeValue(axWindow, kAXSizeAttribute as CFString, sizeValue)
-        return AXUIElementSetAttributeValue(axWindow,
-                                            kAXPositionAttribute as CFString,
-                                            originValue) == .success
+        return SwitcherSupport.applyWindowFrameWrites { step in
+            switch step {
+            case .size:
+                return AXUIElementSetAttributeValue(axWindow,
+                                                    kAXSizeAttribute as CFString,
+                                                    sizeValue) == .success
+            case .position:
+                return AXUIElementSetAttributeValue(axWindow,
+                                                    kAXPositionAttribute as CFString,
+                                                    originValue) == .success
+            }
+        }
     }
 
     /// Moves a window's top-left corner to a global Accessibility point.
