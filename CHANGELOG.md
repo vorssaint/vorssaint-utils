@@ -26,15 +26,15 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Ki
   current and target RPM for every fan.
 
 ### Fixed
+- Scratchpad tabs and the pin, close, new pad and pad actions buttons now respond
+  across their whole area. Thanks to @AB-boi and @PathGao.
+- Fan Control now prepares stopped fans before taking manual control and keeps a
+  failed attempt visible instead of silently returning to Automatic.
 - The Clean URL settings fields now take a click anywhere across their row. Their
   hint used to render as a row label beside a short strip of field, so clicking the
   words did nothing. The parameter list also gained a Save button and shows the
   names as the cleaner reads them, instead of applying each keystroke as it is
   typed. Thanks to @PathGao.
-- Scratchpad tabs and the pin, close, new pad and pad actions buttons now respond
-  across their whole area. Thanks to @AB-boi and @PathGao.
-- Fan Control now prepares stopped fans before taking manual control and keeps a
-  failed attempt visible instead of silently returning to Automatic.
 - The grouped simple App Switcher now keeps every window title fully visible when
   using the window shortcut.
 - The recording editor now trims reliably from the beginning of a video when
