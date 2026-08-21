@@ -2109,6 +2109,37 @@ struct MetricsTests {
                "hiding the active app from its Dock icon is opt-in")
         expect(DockPreviewSupport.sanitizedBackgroundOpacity(0.7) == 0.7,
                "a Dock Preview background opacity inside the range is kept")
+        expect(DockPreviewSupport.canDragToPlace(hasWindowID: true, isOnScreen: true,
+                                                 isMinimized: false, isFullscreen: false),
+               "an ordinary preview card can be dragged out of the panel")
+        expect(!DockPreviewSupport.canDragToPlace(hasWindowID: true, isOnScreen: false,
+                                                  isMinimized: false, isFullscreen: false),
+               "a window on another Space cannot be dragged from the current screen")
+        expect(!DockPreviewSupport.canDragToPlace(hasWindowID: true, isOnScreen: false,
+                                                  isMinimized: true, isFullscreen: false),
+               "a minimized window has no on-screen position to drag it to")
+        expect(!DockPreviewSupport.canDragToPlace(hasWindowID: true, isOnScreen: false,
+                                                  isMinimized: false, isFullscreen: true),
+               "a fullscreen window owns its Space and ignores a dropped position")
+        expect(!DockPreviewSupport.canDragToPlace(hasWindowID: false, isOnScreen: false,
+                                                  isMinimized: false, isFullscreen: false),
+               "an entry without a window has nothing to move")
+        let dockDropScreen = CGRect(x: -1440, y: 24, width: 1440, height: 876)
+        expect(DockPreviewSupport.dragOrigin(pointer: CGPoint(x: -700, y: 500),
+                                             windowSize: CGSize(width: 600, height: 400),
+                                             visibleFrame: dockDropScreen)
+               == CGPoint(x: -700, y: 500),
+               "a Dock Preview drop inside the screen keeps the pointer origin")
+        expect(DockPreviewSupport.dragOrigin(pointer: CGPoint(x: -20, y: 100),
+                                             windowSize: CGSize(width: 600, height: 400),
+                                             visibleFrame: dockDropScreen)
+               == CGPoint(x: -600, y: 424),
+               "a Dock Preview edge drop keeps the whole window reachable")
+        expect(DockPreviewSupport.dragOrigin(pointer: CGPoint(x: -700, y: 500),
+                                             windowSize: CGSize(width: 1800, height: 1000),
+                                             visibleFrame: dockDropScreen)
+               == CGPoint(x: -1440, y: 900),
+               "an oversized dropped window keeps its title bar on the destination screen")
         expect(DockPreviewSupport.sanitizedBackgroundOpacity(0)
                == DockPreviewSupport.backgroundOpacityRange.lowerBound
                && DockPreviewSupport.sanitizedBackgroundOpacity(-3)

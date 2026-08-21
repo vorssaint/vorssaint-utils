@@ -22,7 +22,10 @@ struct DockPreviewPanelView: View {
             onTogglePinned: service.togglePinned,
             onClosePanel: service.closePreviewPanel,
             onSelectPrevious: service.selectPreviousWindow,
-            onSelectNext: service.selectNextWindow
+            onSelectNext: service.selectNextWindow,
+            onBeginDrag: service.beginWindowDrag,
+            onUpdateDrag: service.updateWindowDrag,
+            onEndDrag: service.endWindowDrag
         )
     }
 }
@@ -45,7 +48,12 @@ struct DockPreviewPinnedPanelView: View {
             onTogglePinned: panel.closePreviewPanel,
             onClosePanel: panel.closePreviewPanel,
             onSelectPrevious: panel.selectPreviousWindow,
-            onSelectNext: panel.selectNextWindow
+            onSelectNext: panel.selectNextWindow,
+            // A pinned panel is a detached copy with no session to end, so it
+            // carries the tap and button actions but not drag-to-place.
+            onBeginDrag: { _ in },
+            onUpdateDrag: {},
+            onEndDrag: { _ in }
         )
     }
 }
@@ -65,8 +73,12 @@ private struct DockPreviewPanelContent: View {
     let onClosePanel: () -> Void
     let onSelectPrevious: () -> Void
     let onSelectNext: () -> Void
+    let onBeginDrag: (SwitcherItem) -> Void
+    let onUpdateDrag: () -> Void
+    let onEndDrag: (SwitcherItem) -> Void
 
     @ObservedObject private var l10n = L10n.shared
+    @State private var draggingWindowID: CGWindowID?
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var backgroundOpacity = 1.0
 
     var body: some View {
@@ -92,6 +104,23 @@ private struct DockPreviewPanelContent: View {
                                 }
                             )
                             .id(window.id)
+                            .gesture(
+                                DragGesture(minimumDistance: DockPreviewSupport.dragLiftDistance,
+                                            coordinateSpace: .global)
+                                    .onChanged { _ in
+                                        if draggingWindowID == nil {
+                                            draggingWindowID = window.windowID
+                                            onBeginDrag(window)
+                                        }
+                                        guard draggingWindowID == window.windowID else { return }
+                                        onUpdateDrag()
+                                    }
+                                    .onEnded { _ in
+                                        guard draggingWindowID == window.windowID else { return }
+                                        draggingWindowID = nil
+                                        onEndDrag(window)
+                                    }
+                            )
                             .onHover { hovering in
                                 if hovering {
                                     onPreview(window)

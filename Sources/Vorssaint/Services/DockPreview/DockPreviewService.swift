@@ -21,6 +21,7 @@ final class DockPreviewService: ObservableObject {
     @Published private(set) var selectedWindowID: CGWindowID?
     @Published private(set) var currentAppName: String?
     @Published private(set) var isPinned = false
+    private var isDraggingWindow = false
 
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -188,6 +189,65 @@ final class DockPreviewService: ObservableObject {
                                      attempt: 0)
     }
 
+    // MARK: - Drag to place
+
+    /// Lifts a preview card into a pointer-following stand-in. The real window
+    /// is not touched until the drop, so an abandoned drag changes nothing.
+    ///
+    /// Minimized and fullscreen windows are refused: a minimized window has no
+    /// on-screen position to aim at, and a fullscreen one owns its Space and
+    /// ignores the position it is given.
+    func beginWindowDrag(_ item: SwitcherItem) {
+        guard isVisible,
+              windows.contains(item),
+              DockPreviewSupport.canDragToPlace(hasWindowID: item.windowID != nil,
+                                                isOnScreen: item.isOnScreen,
+                                                isMinimized: item.isMinimized,
+                                                isFullscreen: item.isFullscreen),
+              let image = item.previewWindowID.flatMap({ previews[$0] })
+        else { return }
+
+        isDraggingWindow = true
+        cancelPendingHide()
+        cancelPendingHover()
+        DockPreviewDragGhost.shared.begin(image: image, at: NSEvent.mouseLocation)
+    }
+
+    func updateWindowDrag() {
+        guard isDraggingWindow else { return }
+        DockPreviewDragGhost.shared.move(to: NSEvent.mouseLocation)
+    }
+
+    /// Drops the window where the stand-in was: its top-left corner goes to the
+    /// pointer, then the window comes forward. The session ends either way, so
+    /// a drop that could not move the window still gets the user out of the
+    /// panel instead of leaving it hanging over the desktop.
+    func endWindowDrag(_ item: SwitcherItem) {
+        guard isDraggingWindow else { return }
+        isDraggingWindow = false
+        DockPreviewDragGhost.shared.end()
+
+        guard let windowID = item.windowID else {
+            endSession()
+            return
+        }
+        let pointer = NSEvent.mouseLocation
+        let visibleFrame = (NSScreen.screens.first { $0.frame.contains(pointer) }
+            ?? NSScreen.withMouse)?.visibleFrame ?? .zero
+        let origin = axPoint(fromAppKit: DockPreviewSupport.dragOrigin(
+            pointer: pointer,
+            windowSize: item.frame.size,
+            visibleFrame: visibleFrame
+        ))
+        let moved = WindowActivator.setWindowOrigin(origin,
+                                                    windowID: windowID,
+                                                    pid: item.windowOwnerPID)
+        endSession()
+        if moved {
+            WindowActivator.activate(item)
+        }
+    }
+
     func togglePinned() {
         guard isVisible, let panel, !windows.isEmpty else { return }
         createPinnedPanel(from: panel.frame)
@@ -312,6 +372,10 @@ final class DockPreviewService: ObservableObject {
     }
 
     private func handleMouseMoved(_ axPoint: CGPoint) {
+        // A drag owns the pointer until it lifts. Without this the pointer
+        // leaving the panel would arm the hide, and passing over another Dock
+        // icon would swap the panel out from under the window being carried.
+        guard !isDraggingWindow else { return }
         lastAXMousePoint = axPoint
         let point = appKitPoint(fromAX: axPoint)
         lastAppKitMousePoint = point
@@ -432,7 +496,7 @@ final class DockPreviewService: ObservableObject {
     }
 
     private func scheduleHideIfStillOutside() {
-        guard !isPinned else { return }
+        guard !isPinned, !isDraggingWindow else { return }
         guard pendingHide == nil else { return }
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
@@ -534,6 +598,8 @@ final class DockPreviewService: ObservableObject {
 
     /// Fully ends the session and tears down the panel.
     private func endSession() {
+        isDraggingWindow = false
+        DockPreviewDragGhost.shared.end()
         cancelPendingHover()
         cancelPendingHide()
         WindowPreviewProvider.shared.cancel()
