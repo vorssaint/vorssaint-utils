@@ -6851,6 +6851,18 @@ struct MetricsTests {
                                        hasFullscreenWindows: false,
                                        hasModifiers: false) == .passThrough,
                "dock click lets the Dock activate apps that are not frontmost")
+        // The tap swallows a restoring click so the Dock will not open a new
+        // window, which leaves raising the app to this service. Since macOS 14
+        // that only lands if the request is cooperative, so pin the sequence
+        // rather than the bare call it replaced. Asserted positively: the call
+        // it must not use is named in the doc comment right above it.
+        let dockClickSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/DockClick/DockClickService.swift",
+            encoding: .utf8)) ?? ""
+        expect(dockClickSource.contains("NSApp.yieldActivation(to: app)"),
+               "a Dock click restore yields this app's activation first")
+        expect(dockClickSource.contains("app.activate(from: NSRunningApplication.current, options: [])"),
+               "a Dock click restore asks cooperatively before falling back")
         expect(DockClickSupport.action(appIsFrontmost: true,
                                        hasUnminimizedWindows: false,
                                        hasMinimizedWindows: true,
