@@ -7,12 +7,14 @@ All notable changes to this project are documented here. The format follows
 ## [3.3.3]
 
 ### Summary
-Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Kill Process tool and
+Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional pointer window layout, an opt-in Kill Process tool and
  native input-source switching for the Super key and drag-to-place Dock previews. It keeps the grouped
  App Switcher clear, makes Scratchpad controls easier to click and restores reliable trimming from the
  start of a recording.
 
 ### Added
+- Window Layout now offers an opt-in Shortcut + pointer layout mode that places the active window toward
+  any of eight directions with a native glass-ring HUD. Thanks to @Bald-M.
 - The Super key can now use a quick press to switch between enabled input sources
   while a press-and-hold toggles Caps Lock. Thanks to @BenjaminD2023.
 - Dock Preview thumbnails can now be dragged to move windows freely or snap them

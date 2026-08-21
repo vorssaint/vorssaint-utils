@@ -4246,6 +4246,36 @@ struct MetricsTests {
         expect(pendingExits == 13 && pendingReplays == 9,
                "every way out of a held press either promotes it, replaces it or gives it back")
 
+        // MARK: Directional pointer layout
+
+        let dirOrigin = CGPoint(x: 200, y: 200)
+        expect(WindowDirectionalGestureSupport.action(from: dirOrigin, to: dirOrigin) == nil,
+               "stationary pointer does not trigger directional layout")
+        expect(WindowDirectionalGestureSupport.action(from: dirOrigin, to: CGPoint(x: 220, y: 200)) == nil,
+               "pointer movement below activation distance produces no action")
+        expect(WindowDirectionalGestureSupport.action(from: dirOrigin, to: CGPoint(x: 240, y: 200)) == .rightHalf,
+               "moving right triggers right half")
+        expect(WindowDirectionalGestureSupport.action(from: dirOrigin, to: CGPoint(x: 350, y: 200)) == .rightHalf,
+               "fast long flick right triggers right half reliably")
+        expect(WindowDirectionalGestureSupport.action(from: dirOrigin, to: CGPoint(x: 160, y: 200)) == .leftHalf,
+               "moving left triggers left half")
+        expect(WindowDirectionalGestureSupport.action(from: dirOrigin, to: CGPoint(x: 200, y: 240)) == .topHalf,
+               "moving up triggers top half")
+        expect(WindowDirectionalGestureSupport.action(from: dirOrigin, to: CGPoint(x: 200, y: 350)) == .topHalf,
+               "fast long flick up triggers top half reliably")
+        expect(WindowDirectionalGestureSupport.action(from: dirOrigin, to: CGPoint(x: 200, y: 160)) == .bottomHalf,
+               "moving down triggers bottom half")
+        expect(WindowDirectionalGestureSupport.action(from: dirOrigin, to: CGPoint(x: 200, y: 50)) == .bottomHalf,
+               "fast long flick down triggers bottom half without accidental minimize")
+        expect(WindowDirectionalGestureSupport.action(from: dirOrigin, to: CGPoint(x: 240, y: 240)) == .topRight,
+               "moving up-right triggers top right")
+        expect(WindowDirectionalGestureSupport.action(from: dirOrigin, to: CGPoint(x: 160, y: 240)) == .topLeft,
+               "moving up-left triggers top left")
+        expect(WindowDirectionalGestureSupport.action(from: dirOrigin, to: CGPoint(x: 240, y: 160)) == .bottomRight,
+               "moving down-right triggers bottom right")
+        expect(WindowDirectionalGestureSupport.action(from: dirOrigin, to: CGPoint(x: 160, y: 160)) == .bottomLeft,
+               "moving down-left triggers bottom left")
+
         expect(MediaImageFormat.sanitized("pdf") == .pdf,
                "Image converter accepts the PDF format")
         expect(MediaImageFormat.pdf.fileExtension == "pdf",
@@ -12888,6 +12918,15 @@ struct MetricsTests {
                    "every window preview exclusion string is set for \(language.rawValue)")
             expect(values.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible window preview exclusion strings (\(language.rawValue))")
+        }
+
+        for language in AppLanguage.allCases {
+            let strings = WindowDirectionalStrings.localized(language)
+            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
+            expect(values.count == 2 && values.allSatisfy { !$0.isEmpty },
+                   "every directional layout string is set for \(language.rawValue)")
+            expect(values.allSatisfy { !$0.contains("—") },
+                   "no em-dash in directional layout strings (\(language.rawValue))")
         }
 
         // MARK: Settings backup
