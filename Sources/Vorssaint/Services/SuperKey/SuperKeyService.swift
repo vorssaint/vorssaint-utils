@@ -623,10 +623,9 @@ final class SuperKeyService: ObservableObject {
 
     private static func markedTextLength(_ focusedElement: AXUIElement) -> Int? {
         var rangeValue: CFTypeRef?
-        let attribute = NSAccessibility.Attribute.textInputMarkedRangeAttribute.rawValue
         guard AXUIElementCopyAttributeValue(
             focusedElement,
-            attribute as CFString,
+            "AXTextInputMarkedRange" as CFString,
             &rangeValue
         ) == .success,
         let rangeValue,
