@@ -128,12 +128,19 @@ enum ShortcutRecordingTap {
             if SuperKeyService.isEngaged {
                 let superEvent: SuperKeySupport.Event
                 if keyCode == SuperKeySupport.triggerKeyCode {
-                    superEvent = type == .keyDown ? .triggerDown(isRepeat: isRepeat) : .triggerUp
+                    let timestamp = UInt64(event.timestamp)
+                    superEvent = type == .keyDown
+                        ? .triggerDown(
+                            isRepeat: isRepeat,
+                            hasPrimaryModifiers: !GlobalShortcutModifiers(cgFlags: event.flags).isEmpty,
+                            timestamp: timestamp
+                        )
+                        : .triggerUp(timestamp: timestamp)
                 } else {
                     superEvent = .otherKey
                 }
                 switch superState.decide(superEvent) {
-                case .swallow, .soloTap: return nil
+                case .swallow, .soloTap(repeated: _), .soloHold(repeated: _): return nil
                 case .addModifiers: heldModifiers = SuperKeyService.shared.modifiers
                 case .pass, .interceptAndRemap: break
                 }

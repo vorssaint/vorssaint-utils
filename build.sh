@@ -185,8 +185,10 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Snippets/TextSnippetSupport.swift \
         Sources/Vorssaint/Services/RadialMenu/RadialMenuSupport.swift \
         Sources/Vorssaint/Services/QuickTools/ScratchpadSupport.swift \
+        Sources/Vorssaint/Services/KillProcess/KillProcessSupport.swift \
         Sources/Vorssaint/Services/Recorder/RecorderSupport.swift \
         Sources/Vorssaint/Services/Recorder/RecordingSharingSupport.swift \
+        Sources/Vorssaint/Services/PrivateFileStore.swift \
         Sources/Vorssaint/Services/Recorder/RecorderTakeStore.swift \
         Sources/Vorssaint/Services/Recorder/RecorderMotion.swift \
         Sources/Vorssaint/Services/Recorder/RecorderPointerTrack.swift \
@@ -199,6 +201,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/Localization.swift \
         Sources/Vorssaint/Core/Localizations/Strings+*.swift \
         Sources/Vorssaint/Core/FeatureStrings.swift \
+        Sources/Vorssaint/Core/KillProcessStrings.swift \
         Sources/Vorssaint/Core/WhatsAppDownloadStrings.swift \
         Sources/Vorssaint/Core/WhatsAppOrganizerStrings.swift \
         Sources/Vorssaint/Core/ReleaseNotes.swift \
@@ -320,6 +323,7 @@ swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIAN
     Sources/Vorssaint/Services/FanControl/FanControlSupport.swift \
     Sources/Vorssaint/Services/FanControl/FanControlXPC.swift \
     Sources/Vorssaint/Services/SystemMonitor/SMCClient.swift \
+    Sources/Vorssaint/Services/Metrics/TemperatureSensorSelector.swift \
     Sources/Vorssaint/Services/FanControl/FanControlHardware.swift \
     Sources/FanControlHelper/main.swift \
     -o "build/$FAN_HELPER_ID"

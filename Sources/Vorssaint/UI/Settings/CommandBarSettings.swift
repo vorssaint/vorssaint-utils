@@ -406,6 +406,7 @@ struct CommandBarSettings: View {
         case .selection: return text.sourceSelection
         case .links: return text.linksTitle
         case .files: return text.sourceFiles
+        case .killProcess: return FeatureStrings.killProcess(l10n.language).pageTitle
         }
     }
 

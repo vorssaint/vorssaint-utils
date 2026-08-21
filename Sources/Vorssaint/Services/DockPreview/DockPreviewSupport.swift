@@ -104,8 +104,54 @@ enum DockPreviewSupport {
     /// cursor still keeps the session, while neighbouring Dock icons (one tile
     /// width away) stay clear of the corridor.
     static let corridorMargin: CGFloat = 12
-    static var cardWidth: CGFloat { 204 * PreviewSizing.scale }
-    static var cardHeight: CGFloat { 152 * PreviewSizing.scale }
+    /// Whether a preview card can be lifted out of the panel and dropped
+    /// somewhere else. A minimized window has no on-screen position to aim at,
+    /// and a fullscreen window owns its Space and ignores the position it is
+    /// given — dragging either one would move nothing while still tearing the
+    /// panel down.
+    static func canDragToPlace(hasWindowID: Bool,
+                               isOnScreen: Bool,
+                               isMinimized: Bool,
+                               isFullscreen: Bool) -> Bool {
+        hasWindowID && isOnScreen && !isMinimized && !isFullscreen
+    }
+
+    /// How far the pointer must travel before a press on a card becomes a
+    /// drag. Large enough that a click with a shaky hand still opens the
+    /// window, small enough that the lift feels immediate.
+    static let dragLiftDistance: CGFloat = 6
+
+    /// Keeps the dropped window fully reachable on the screen under the
+    /// pointer. Oversized windows align to the visible frame instead of
+    /// leaving their title bar beyond an edge.
+    static func dragOrigin(pointer: CGPoint,
+                           windowSize: CGSize,
+                           visibleFrame: CGRect) -> CGPoint {
+        guard visibleFrame.width > 0, visibleFrame.height > 0,
+              windowSize.width > 0, windowSize.height > 0
+        else { return pointer }
+
+        let visibleWidth = min(windowSize.width, visibleFrame.width)
+        let visibleHeight = min(windowSize.height, visibleFrame.height)
+        return CGPoint(
+            x: min(max(pointer.x, visibleFrame.minX), visibleFrame.maxX - visibleWidth),
+            y: min(max(pointer.y, visibleFrame.minY + visibleHeight), visibleFrame.maxY)
+        )
+    }
+
+    /// Card metrics. The thumbnail gets whatever the fixed chrome does not
+    /// take, so the card can be resized or the title band retuned without
+    /// leaving a stale magic number behind — the old code hard-coded a 54pt
+    /// deduction that no longer matched the parts it stood for.
+    static var cardWidth: CGFloat { 176 * PreviewSizing.scale }
+    static var cardHeight: CGFloat { 134 * PreviewSizing.scale }
+    static var cardPadding: CGFloat { 8 * PreviewSizing.scale }
+    static var cardTitleSpacing: CGFloat { 5 * PreviewSizing.scale }
+    /// One line of 12pt semibold, with just enough room for descenders.
+    static var cardTitleHeight: CGFloat { 17 * PreviewSizing.scale }
+    static var cardThumbnailHeight: CGFloat {
+        cardHeight - cardPadding * 2 - cardTitleSpacing - cardTitleHeight
+    }
     static var cardSpacing: CGFloat { 8 * PreviewSizing.scale }
     static var panelPadding: CGFloat { 12 * PreviewSizing.scale }
     static let panelHeaderHeight: CGFloat = 28

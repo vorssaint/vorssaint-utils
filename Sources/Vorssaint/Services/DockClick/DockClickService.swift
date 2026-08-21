@@ -631,10 +631,26 @@ final class DockClickService {
     }
 
     /// Brings an app forward from whatever queue the caller is on.
+    ///
+    /// A bare `activate()` is not enough here. Since macOS 14 an app that is
+    /// not itself frontmost cannot raise another one, and this tap swallowed
+    /// the click precisely so the Dock would not act — so nobody else is going
+    /// to. The restore then half-lands: unminimizing needs no activation
+    /// rights, so the windows come back and are immediately stacked under
+    /// whichever app is still active. Yielding this app's activation first is
+    /// what makes the request cooperative, the same sequence the Switcher,
+    /// Space hop and process list already use.
+    ///
+    /// Options stay empty on purpose: `restoreBackToFront` earns the batch's
+    /// stacking one window at a time, and `.activateAllWindows` would re-raise
+    /// the whole app over it — the flick issue #357 was about.
     private static func activate(pid: pid_t) {
         DispatchQueue.main.async {
             guard let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else { return }
-            app.activate()
+            NSApp.yieldActivation(to: app)
+            if !app.activate(from: NSRunningApplication.current, options: []) {
+                app.activate(options: [])
+            }
         }
     }
 

@@ -288,9 +288,7 @@ struct UpdateSupportIntroView: View {
                     .frame(width: 74, height: 74)
                     .shadow(color: Color(red: 0.29, green: 0.34, blue: 0.88).opacity(0.28),
                             radius: 12, y: 5)
-                Image(systemName: "bubble.left.and.bubble.right.fill")
-                    .font(.system(size: 29, weight: .semibold))
-                    .foregroundStyle(.white)
+                DiscordMark(width: 42)
             }
 
             Text(l10n.s.discordIntroTitle)
@@ -319,8 +317,10 @@ struct UpdateSupportIntroView: View {
             Button {
                 openURL(AppInfo.discordURL)
             } label: {
-                Label(l10n.s.discordIntroJoinButton,
-                      systemImage: "bubble.left.and.bubble.right.fill")
+                HStack(spacing: 8) {
+                    DiscordMark(width: 19)
+                    Text(l10n.s.discordIntroJoinButton)
+                }
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)

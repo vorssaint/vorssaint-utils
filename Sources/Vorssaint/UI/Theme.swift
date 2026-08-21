@@ -154,6 +154,26 @@ struct BrandMark: View {
     }
 }
 
+struct DiscordMark: View {
+    var width: CGFloat
+
+    private static let mark: NSImage? = {
+        guard let url = Bundle.main.url(forResource: "discord-symbol",
+                                        withExtension: "svg",
+                                        subdirectory: "Images") else { return nil }
+        return NSImage(contentsOf: url)
+    }()
+
+    var body: some View {
+        if let mark = Self.mark {
+            Image(nsImage: mark)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: width)
+        }
+    }
+}
+
 /// Squircle badge with the mark on the space gradient — the app's face in the
 /// About tab and onboarding.
 struct BrandBadge: View {

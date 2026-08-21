@@ -19,7 +19,6 @@ final class FanControlService: ObservableObject {
     @Published private(set) var snapshot: FanControlSnapshot = .empty
     @Published private(set) var error: FanControlErrorCode?
     @Published private(set) var isWorking = false
-    @Published private(set) var now = Date()
 
     private let probeQueue = DispatchQueue(label: "com.vorssaint.fan-control.probe",
                                            qos: .utility)
@@ -51,10 +50,6 @@ final class FanControlService: ObservableObject {
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         connection?.invalidate()
         timer?.invalidate()
-    }
-
-    var remainingSeconds: TimeInterval? {
-        snapshot.endsAt.map { max(0, $0.timeIntervalSince(now)) }
     }
 
     static func recoverIfNeeded() {
@@ -129,13 +124,29 @@ final class FanControlService: ObservableObject {
         startTimerIfNeeded()
     }
 
-    func startMaximumCooling() {
+    func applyConfiguration(_ configuration: FanControlConfiguration) {
+        guard FanControlPolicy.validConfiguration(configuration) else {
+            error = .controlFailed
+            return
+        }
+        if configuration.mode == .system {
+            restoreAutomatic()
+            return
+        }
         guard accessState == .enabled else { authorize(); return }
+        guard let encodedConfiguration = FanControlIPC.encode(configuration) else {
+            error = .controlFailed
+            return
+        }
+        error = nil
+        let retrySnapshot = snapshot
         startObservingSystemState()
         let generation = beginRequest()
         UserDefaults.standard.set(true, forKey: DefaultsKey.fanControlRecoveryNeeded)
         isWorking = true
-        send { proxy, reply in proxy.startMaximumCooling(withReply: reply) } completion: { response in
+        send({ proxy, reply in
+            proxy.applyConfiguration(encodedConfiguration, withReply: reply)
+        }) { response in
             guard self.finishRequest(generation) else { return }
             self.isWorking = false
             guard let response else {
@@ -147,7 +158,9 @@ final class FanControlService: ObservableObject {
             if response.succeeded, response.snapshot.isCooling {
                 self.startTimerIfNeeded()
             } else {
-                self.restoreAutomatic()
+                self.restoreAutomatic(supersedingCurrentRequest: false,
+                                      preserving: response.error ?? .controlFailed,
+                                      retrySnapshot: retrySnapshot)
             }
         }
     }
@@ -156,7 +169,9 @@ final class FanControlService: ObservableObject {
         restoreAutomatic(supersedingCurrentRequest: false)
     }
 
-    private func restoreAutomatic(supersedingCurrentRequest: Bool) {
+    private func restoreAutomatic(supersedingCurrentRequest: Bool,
+                                  preserving failure: FanControlErrorCode? = nil,
+                                  retrySnapshot: FanControlSnapshot? = nil) {
         guard supersedingCurrentRequest || !isWorking else { return }
         refreshAccessState()
         guard accessState == .enabled else { return }
@@ -172,6 +187,10 @@ final class FanControlService: ObservableObject {
             }
             self.apply(response)
             if response.succeeded, !response.snapshot.isCooling {
+                if self.snapshot.fans.isEmpty, let retrySnapshot {
+                    self.snapshot = retrySnapshot
+                }
+                if let failure { self.error = failure }
                 UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
                 if !AppFeature.fanControl.isAvailable {
                     do {
@@ -339,7 +358,6 @@ final class FanControlService: ObservableObject {
     private func apply(_ response: FanControlResponse) {
         snapshot = response.snapshot
         error = response.error
-        now = Date()
     }
 
     private func beginRequest() -> Int {
@@ -504,11 +522,11 @@ final class FanControlService: ObservableObject {
         guard timer == nil else { return }
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             guard let self else { return }
-            self.now = Date()
             self.tickCount += 1
             if self.snapshot.isCooling {
                 self.heartbeat()
-            } else if self.panelIsVisible, self.tickCount.isMultiple(of: 2) {
+            } else if self.panelIsVisible, self.error != .controlFailed,
+                      self.tickCount.isMultiple(of: 2) {
                 self.refresh()
             }
         }

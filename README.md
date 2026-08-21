@@ -32,9 +32,22 @@
 </p>
 
 <p align="center">
-  <a href="https://discord.gg/M6BwWH4BJp"><strong>Join the Vorssaint community on Discord</strong></a><br>
-  For questions, feature requests, feedback, partnerships, or just to say hi,
-  <a href="mailto:hello@vorssaint.com"><strong>hello@vorssaint.com</strong></a>
+  <a href="https://discord.gg/M6BwWH4BJp">
+    <img src="docs/assets/readme/discord-symbol.svg" width="72" alt="Discord">
+  </a>
+</p>
+
+<h3 align="center">Join the Vorssaint community on Discord</h3>
+
+<p align="center">
+  Get help, share workflows, report bugs, request improvements, and see early previews<br>
+  while the community is still growing alongside the app.<br><br>
+  <a href="https://discord.gg/M6BwWH4BJp"><strong>Join the Discord community</strong></a>
+</p>
+
+<p align="center">
+  For partnerships or anything private, email
+  <a href="mailto:hello@vorssaint.com"><strong>hello@vorssaint.com</strong></a>.
 </p>
 
 <p align="center">
@@ -70,7 +83,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 
 ### Know what your Mac is doing
 
-- **System monitor.** CPU, GPU, memory, swap use and temperatures with history graphs, including a choice between total memory in use and memory held by apps, plus battery health, time remaining, cycle count, power draw, an optional Fan Control beta for temporary maximum cooling with automatic return, the apps burning energy right now and a shortcut to the Mac's full process inspector.
+- **System monitor.** CPU, GPU, memory, swap use and temperatures with history graphs, including a choice between total memory in use and memory held by apps, plus battery health, time remaining, cycle count, power draw, an optional Fan Control beta with continuous manual speeds, custom temperature curves and live RPM, the apps burning energy right now and a shortcut to the Mac's full process inspector.
 - **Menu bar readouts.** Keep the readings you care about in the bar itself, with values or compact usage bars, including optional battery time remaining and fan speed, combined or as separate items.
 - **Network.** Live rates, session totals and a built in speed test.
 - **Alerts.** Optional notifications for sustained CPU load, high temperature, memory pressure, low disk space and low battery.
@@ -79,7 +92,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 
 - **App switcher.** A richer take on pressing ⌘Tab, with adjustable live window thumbnails, minimized windows included, and more than one window per app. Simple mode keeps every window and its title without previews or screen capture, with optional grouping to one entry per app. Optionally press S to keep search open after releasing the switcher shortcut, or hide the shortcut hints below the large icon row. Press the window shortcut directly to move between windows of the app in front. Set per-app rules to include windowless apps, keep them window-only or hide them. Choose apps where Vorssaint pauses both switcher and Dock thumbnail capture while they are in front.
 - **Window layout.** Snap the active window to halves, thirds, sixths, corners or center, maximize it with or without a margin, or move it to the next or previous display, each with its own optional shortcut. Restore steps back through recent placements. Turn on edge snapping in Window Layout, then drag a title bar to any screen edge or corner for a live preview. Hold chosen modifiers and drag anywhere to move it, then add Shift to resize. A mouse can also resize with the right button.
-- **Dock Preview.** Hover a Dock icon to see adjustable window thumbnails with clear titles, then click the one you want.
+- **Dock Preview.** Hover a Dock icon to see adjustable window thumbnails with clear titles, click the one you want or drag it to move and snap the window.
 - **Dock clicks.** Click the Dock icon of the active app to minimize its windows, hide the app, or cycle through its windows.
 - **Maximize windows.** The green button fills the screen without creating another Space, and puts the window back on the next click.
 - **Quit on close.** Apps you choose quit when their last window closes.
@@ -102,7 +115,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Middle click.** A three finger press becomes a real middle click.
 - **Apps to leave alone.** Every feature above can name apps from anywhere on your Mac that drive themselves with the mouse, like 3D and design tools, and it steps aside in those.
 - **Key debounce.** Filters the double letters a worn keyboard invents.
-- **Super key.** Hold Caps Lock and it counts as the modifier combination you choose, so one key can drive your shortcuts. A tap on its own can still switch capitals, press Escape, or do nothing.
+- **Super key.** Hold Caps Lock and it counts as the modifier combination you choose, so one key can drive your shortcuts. A tap on its own can switch input sources, switch capitals, press Escape, or do nothing.
 - **Keyboard shortcuts.** Edit every installed feature's global shortcut from one categorized page, see what is active and use the shorter Super key combination when available.
 
 ### Clipboard, files and links

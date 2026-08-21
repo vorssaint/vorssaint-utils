@@ -794,7 +794,7 @@ extension Strings {
         supportIntroCoffeeButton: "Sostieni su Buy Me a Coffee",
         supportIntroLaterButton: "Non ora",
         supportIntroDoneButton: "Fatto",
-        discordIntroTitle: "La community di Vorssaint è appena iniziata",
+        discordIntroTitle: "La community di Vorssaint su Discord è appena nata",
         discordIntroMessage: "La community di Vorssaint è nuova e sta ancora prendendo forma. Entra fin dall’inizio per conoscere altri utenti e contribuire a creare uno spazio accogliente attorno all’app.",
         discordIntroBenefitHelp: "Ricevi aiuto e condividi i tuoi flussi di lavoro",
         discordIntroBenefitFeedback: "Segnala bug, richiedi miglioramenti e contribuisci a decidere cosa verrà dopo",

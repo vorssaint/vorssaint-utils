@@ -795,7 +795,7 @@ extension Strings {
         supportIntroCoffeeButton: "透過 Buy Me a Coffee 支持",
         supportIntroLaterButton: "稍後再說",
         supportIntroDoneButton: "完成",
-        discordIntroTitle: "Vorssaint 社群啱啱起步",
+        discordIntroTitle: "Vorssaint Discord 社群啱啱起步",
         discordIntroMessage: "Vorssaint 社群啱啱成立，仲喺度慢慢完善。依家加入，認識其他用戶，一齊建立一個圍繞呢個 App 嘅友善空間。",
         discordIntroBenefitHelp: "獲得協助並分享工作流程",
         discordIntroBenefitFeedback: "回報問題、提出改進建議並參與決定下一步",

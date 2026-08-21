@@ -23,9 +23,20 @@ struct SettingsView: View {
             sidebar
                 .navigationSplitViewColumnWidth(min: 198, ideal: 210, max: 240)
         } detail: {
-            detail
-                .settingsSectionFocus(for: router.page)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            // NavigationSplitView's detail slot sometimes queries its content
+            // for an unconstrained ideal size (settling the divider, or on a
+            // page switch). `List` answers that with its full content height
+            // rather than a viewport size the way `ScrollView` does, and
+            // `.frame(maxHeight: .infinity)` only bounds a size it is given,
+            // not one it is asked to report - so a few hundred rows (Kill
+            // Process) grew the whole window. `GeometryReader` reports the
+            // real space it was actually given for normal layout, and ~zero
+            // when asked for an unconstrained ideal size, breaking the chain.
+            GeometryReader { geometry in
+                detail
+                    .settingsSectionFocus(for: router.page)
+                    .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+            }
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 772, maxWidth: .infinity, minHeight: 528, maxHeight: .infinity)
@@ -118,6 +129,7 @@ struct SettingsView: View {
         case .cutPaste: CutPasteSettings()
         case .autoQuit: AutoQuitSettings()
         case .uninstaller: UninstallerView()
+        case .killProcess: KillProcessView()
         case .urlCleaner: URLCleanerSettings()
         case .cleaner: CleanerSettings()
         case .homebrew: HomebrewSettings()
@@ -927,9 +939,9 @@ struct SwitcherSettings: View {
                 }
                 .settingsSectionAnchor(.switcher)
             }
-            if AppFeature.dockPreview.isAvailable || AppFeature.dockClick.isAvailable {
+            if AppFeature.dockPreview.isAvailable {
                 Section {
-                    if AppFeature.dockPreview.isAvailable {
+                    do {
                         Toggle(l10n.s.dockPreviewEnable, isOn: $dockPreviewEnabled)
                             .onChange(of: dockPreviewEnabled) { _, _ in
                                 DockPreviewService.shared.syncWithPreferences()
@@ -951,7 +963,17 @@ struct SwitcherSettings: View {
                             SettingsCaptionText(l10n.s.dockPreviewBackgroundOpacityCaption)
                         }
                     }
-                    if AppFeature.dockClick.isAvailable {
+                } header: {
+                    Text(l10n.s.dockPreviewName)
+                }
+                .settingsSectionAnchor(.dock)
+            }
+            // Clicking a Dock icon is its own installable feature in the hub, so
+            // it gets its own section here. It used to sit under the Dock Preview
+            // header, which named one feature over the controls of two.
+            if AppFeature.dockClick.isAvailable {
+                Section {
+                    do {
                         Toggle(l10n.s.dockClickMinimize, isOn: $dockClickMinimize)
                             .onChange(of: dockClickMinimize) { _, enabled in
                                 if enabled { dockClickHide = false }
@@ -977,9 +999,9 @@ struct SwitcherSettings: View {
                             .foregroundStyle(.secondary)
                     }
                 } header: {
-                    Text(l10n.s.dockPreviewName)
+                    Text(FeatureStrings.hub(l10n.language).titleDockClick)
                 }
-                .settingsSectionAnchor(.dock)
+                .settingsSectionAnchor(.dockClick)
             }
             if AppFeature.switcher.isAvailable || AppFeature.dockPreview.isAvailable {
                 Section {
@@ -1086,7 +1108,7 @@ struct AboutSettings: View {
                     appDelegate()?.showOnboarding()
                 }
                 Button(l10n.s.reviewHighlights) {
-                    appDelegate()?.showUpdateHighlights()
+                    appDelegate()?.showUpdateHighlights(includeSupportIntro: true)
                 }
                 Link(l10n.s.viewOnGitHub, destination: AppInfo.repositoryURL)
             }
@@ -1306,9 +1328,7 @@ struct SupportSettings: View {
                 )
 
                 HStack(alignment: .top, spacing: 14) {
-                    Image(systemName: "bubble.left.and.bubble.right.fill")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(.white)
+                    DiscordMark(width: 24)
                         .frame(width: 38, height: 38)
                         .background(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -1366,8 +1386,10 @@ struct SupportSettings: View {
         Button {
             openURL(AppInfo.discordURL)
         } label: {
-            Label(l10n.s.discordIntroJoinButton,
-                  systemImage: "bubble.left.and.bubble.right.fill")
+            HStack(spacing: 8) {
+                DiscordMark(width: 19)
+                Text(l10n.s.discordIntroJoinButton)
+            }
         }
         .buttonStyle(.borderedProminent)
         .controlSize(.large)

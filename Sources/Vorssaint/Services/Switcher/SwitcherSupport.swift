@@ -128,6 +128,7 @@ struct SwitcherIconRowLayout: Equatable {
     let appRowSurfaceWidth: CGFloat
     let previewContentWidth: CGFloat
     let previewSurfaceWidth: CGFloat
+    let simpleTitleSurfaceWidth: CGFloat
     let panelSize: CGSize
     let showsShortcutHints: Bool
 
@@ -164,11 +165,15 @@ struct SwitcherIconRowLayout: Equatable {
     static var simpleTitleHeight: CGFloat { 66 * scale }
     static var simpleTitleGap: CGFloat { 10 * scale }
     static var simpleTitleChipMaxWidth: CGFloat { 180 * scale }
+    static var simpleTitlePanelPadding: CGFloat { 10 * scale }
+    static let simpleTitleSpacing: CGFloat = 6
+    static let simpleTitleScrollPadding: CGFloat = 1
 
     /// App-only mode keeps the same icon row and shortcut preference, but
     /// removes the entire preview area so no blank space remains where captures were.
     var simplePanelSize: CGSize {
         CGSize(width: max(appRowSurfaceWidth,
+                          simpleTitleSurfaceWidth,
                           showsShortcutHints ? Self.hintBarWidth : 0) + Self.padding * 2,
                height: Self.simpleTitleHeight + Self.simpleTitleGap
                         + Self.rowHeight + shortcutHintHeight
@@ -192,6 +197,7 @@ struct SwitcherIconRowLayout: Equatable {
                                              appRowSurfaceWidth: 0,
                                              previewContentWidth: 0,
                                              previewSurfaceWidth: 0,
+                                             simpleTitleSurfaceWidth: 0,
                                              panelSize: .zero,
                                              showsShortcutHints: true)
 
@@ -213,6 +219,11 @@ struct SwitcherIconRowLayout: Equatable {
         let appRowSurfaceWidth = min(appRowWidth + rowHorizontalPadding * 2, maxContentWidth)
         let previewWidth = min(max(previewCardWidth, naturalPreviewWidth), maxPreviewContentWidth)
         let previewSurfaceWidth = min(previewWidth + previewPanelPadding * 2, maxContentWidth)
+        let naturalSimpleTitleWidth = CGFloat(windowCount) * simpleTitleChipMaxWidth
+            + CGFloat(max(0, windowCount - 1)) * simpleTitleSpacing
+            + simpleTitleScrollPadding * 2
+            + simpleTitlePanelPadding * 2
+        let simpleTitleSurfaceWidth = min(naturalSimpleTitleWidth, maxContentWidth)
         let hintWidth = showsShortcutHints ? min(hintBarWidth, maxContentWidth) : 0
         let contentWidth = min(max(appRowSurfaceWidth, previewSurfaceWidth, hintWidth), maxContentWidth)
         let visibleIconCount = max(1, min(appCount, Int((maxAppContentWidth + spacing) / (tileWidth + spacing))))
@@ -224,6 +235,7 @@ struct SwitcherIconRowLayout: Equatable {
                                      appRowSurfaceWidth: appRowSurfaceWidth,
                                      previewContentWidth: previewWidth,
                                      previewSurfaceWidth: previewSurfaceWidth,
+                                     simpleTitleSurfaceWidth: simpleTitleSurfaceWidth,
                                      panelSize: CGSize(width: width, height: height),
                                      showsShortcutHints: showsShortcutHints)
     }

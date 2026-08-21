@@ -1168,6 +1168,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         let createdWindow = settingsWindow == nil
         if settingsWindow == nil {
             let host = NSHostingController(rootView: SettingsView())
+            // Empty on purpose: any automatic option here (.intrinsicContentSize,
+            // .maxSize, .preferredContentSize) lets SwiftUI's content - which
+            // varies wildly page to page, from a short toggle list to Kill
+            // Process's few-hundred-row List - drive the window's size, either
+            // growing it to fit content or freezing it at a stale snapshot.
+            // The window's size is fully owned by SettingsWindowSupport's
+            // explicit sizing below plus ordinary user drag-resize.
+            host.sizingOptions = []
             let window = NSWindow(contentViewController: host)
             // .miniaturizable so the Window menu's Minimize (Cmd+M) actually works.
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
@@ -1413,7 +1421,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         return true
     }
 
-    func showUpdateHighlights() {
+    func showUpdateHighlights(includeSupportIntro: Bool = false) {
         closePopover()
         if let window = updateHighlightsWindow {
             NSApp.activate(ignoringOtherApps: true)
@@ -1426,7 +1434,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 self.markUpdateHighlightsSeen()
                 self.updateHighlightsWindow?.close()
                 DispatchQueue.main.async { [weak self] in
-                    _ = self?.showSupportUpdateIntroIfNeeded()
+                    if includeSupportIntro {
+                        self?.showSupportUpdateIntro()
+                    } else {
+                        _ = self?.showSupportUpdateIntroIfNeeded()
+                    }
                 }
             }
         ))

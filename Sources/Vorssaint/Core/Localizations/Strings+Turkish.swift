@@ -794,7 +794,7 @@ extension Strings {
         supportIntroCoffeeButton: "Buy Me a Coffee ile destek ol",
         supportIntroLaterButton: "Şimdi değil",
         supportIntroDoneButton: "Tamam",
-        discordIntroTitle: "Vorssaint topluluğu daha yeni başlıyor",
+        discordIntroTitle: "Vorssaint Discord topluluğu daha yeni başlıyor",
         discordIntroMessage: "Vorssaint topluluğu yeni ve hâlâ şekilleniyor. Diğer kullanıcılarla tanışmak ve uygulamanın etrafında sıcak bir alan oluşturmaya yardım etmek için erkenden katıl.",
         discordIntroBenefitHelp: "Yardım al ve iş akışlarını paylaş",
         discordIntroBenefitFeedback: "Hataları bildir, iyileştirmeler iste ve sıradakileri şekillendir",

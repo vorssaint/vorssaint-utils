@@ -755,8 +755,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     }
 
     /// The main capture role survives while any mode in its chooser is
-    /// installed. The former dedicated shortcuts stay readable for migration
-    /// but no longer appear or register as separate commands.
+    /// installed. Dedicated roles follow their own tool.
     var availabilityFeatures: [AppFeature] {
         switch self {
         case .screenshot:
@@ -766,12 +765,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         }
     }
 
-    var isLegacyUnifiedCaptureShortcut: Bool {
-        self == .screenRecorder || self == .screenOCR || self == .colorPicker
-    }
-
     func isAvailable(using isAvailable: (AppFeature) -> Bool) -> Bool {
-        !isLegacyUnifiedCaptureShortcut && availabilityFeatures.contains(where: isAvailable)
+        availabilityFeatures.contains(where: isAvailable)
     }
 
     /// The features whose own shortcuts have to go quiet while the user is
