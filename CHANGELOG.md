@@ -21,6 +21,9 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Ki
   process trees from Settings and the Command Bar. It ships uninstalled. Thanks to @naveenkrdy.
 
 ### Changed
+- Dock Preview cards no longer draw the app icon on every thumbnail or repeat the
+  window title over it, leaving the thumbnail more of the card, and a card now
+  badges a window that lives on another desktop. Thanks to @PathGao.
 - Fan Control now offers System, continuous Manual control from 0% to 100% and
   editable temperature curves with multiple SoC, CPU and GPU rules. It also shows
   current and target RPM for every fan.
