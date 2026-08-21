@@ -26,6 +26,9 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Ki
   current and target RPM for every fan.
 
 ### Fixed
+- Settings now lists Dock Preview and Dock click as separate named sections, and
+  opening Dock click from the Features hub lands on its own controls rather than on
+  the Dock Preview block. Thanks to @PathGao.
 - Scratchpad tabs and the pin, close, new pad and pad actions buttons now respond
   across their whole area. Thanks to @AB-boi and @PathGao.
 - Fan Control now prepares stopped fans before taking manual control and keeps a
