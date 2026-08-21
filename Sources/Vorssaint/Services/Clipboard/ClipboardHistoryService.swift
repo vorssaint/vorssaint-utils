@@ -779,13 +779,7 @@ final class ClipboardHistoryService: ObservableObject {
     /// pushes back past a few megabytes, which a large history of long texts
     /// can reach. Without a resolvable home the blob stays in UserDefaults.
     private static var storeURL: URL? {
-        guard let base = FileManager.default.urls(for: .applicationSupportDirectory,
-                                                  in: .userDomainMask).first,
-              let bundleID = Bundle.main.bundleIdentifier
-        else { return nil }
-        return base
-            .appendingPathComponent(bundleID, isDirectory: true)
-            .appendingPathComponent("ClipboardHistory.json")
+        PrivateFileStore.containerURL?.appendingPathComponent("ClipboardHistory.json")
     }
 
     private static func storedHistoryData(at url: URL) -> Data? {
@@ -865,11 +859,10 @@ final class ClipboardHistoryService: ObservableObject {
                 sweepAfterPersist()
                 return
             }
-            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
-                                                     withIntermediateDirectories: true)
+            PrivateFileStore.createDirectory(at: url.deletingLastPathComponent())
             // Only a write that really landed retires the legacy blob, so a
             // failed save leaves the history readable from somewhere.
-            guard (try? data.write(to: url, options: .atomic)) != nil else { return }
+            guard PrivateFileStore.write(data, to: url) else { return }
             sweepAfterPersist()
             if retireLegacyBlob {
                 UserDefaults.standard.removeObject(forKey: DefaultsKey.clipboardHistoryEntries)
@@ -1296,22 +1289,15 @@ enum ClipboardImageStore {
     }()
 
     static var directory: URL? {
-        guard let base = FileManager.default.urls(for: .applicationSupportDirectory,
-                                                  in: .userDomainMask).first,
-              let bundleID = Bundle.main.bundleIdentifier
-        else { return nil }
-        return base
-            .appendingPathComponent(bundleID, isDirectory: true)
+        PrivateFileStore.containerURL?
             .appendingPathComponent("ClipboardImages", isDirectory: true)
     }
 
     static func store(_ data: Data) -> String? {
         guard let directory else { return nil }
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        PrivateFileStore.createDirectory(at: directory)
         let name = UUID().uuidString + ".png"
-        do {
-            try data.write(to: directory.appendingPathComponent(name), options: .atomic)
-        } catch {
+        guard PrivateFileStore.write(data, to: directory.appendingPathComponent(name)) else {
             return nil
         }
         return name

@@ -29,6 +29,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case middleClick
     case switcher
     case dock
+    case dockClick
     case finderCutPaste
     case finderRename
     case clipboardHistory
@@ -52,7 +53,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         case .scrollDirection, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts,
              .middleClick:
             return .mouse
-        case .switcher, .dock: return .switcher
+        case .switcher, .dock, .dockClick: return .switcher
         case .finderCutPaste, .finderRename: return .cutPaste
         case .clipboardHistory, .pastePlain: return .clipboard
         case .quickLauncher, .quickToggles, .micMute, .cameraPreview, .scratchpad:
@@ -131,8 +132,8 @@ extension AppFeature {
     var settingsDestination: FeatureSettingsDestination {
         switch self {
         case .switcher: return FeatureSettingsDestination(.switcher, sectionAnchor: .switcher)
-        case .dockPreview, .dockClick:
-            return FeatureSettingsDestination(.switcher, sectionAnchor: .dock)
+        case .dockPreview: return FeatureSettingsDestination(.switcher, sectionAnchor: .dock)
+        case .dockClick: return FeatureSettingsDestination(.switcher, sectionAnchor: .dockClick)
         case .windowMaximizer:
             return FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
         case .windowLayout: return FeatureSettingsDestination(.windowLayout)
