@@ -8,8 +8,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Summary
 Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, an opt-in Kill Process tool and
-drag-to-place Dock previews. It keeps the grouped App Switcher clear when moving between windows
-and restores reliable trimming from the start of a recording.
+drag-to-place Dock previews. It keeps the grouped App Switcher clear, makes Scratchpad controls easier
+to click and restores reliable trimming from the start of a recording.
 
 ### Added
 - Dock Preview thumbnails can now be dragged to move windows freely or snap them
@@ -23,6 +23,8 @@ and restores reliable trimming from the start of a recording.
   current and target RPM for every fan.
 
 ### Fixed
+- Scratchpad tabs and the pin, close, new pad and pad actions buttons now respond
+  across their whole area. Thanks to @AB-boi and @PathGao.
 - Fan Control now prepares stopped fans before taking manual control and keeps a
   failed attempt visible instead of silently returning to Automatic.
 - The grouped simple App Switcher now keeps every window title fully visible when
