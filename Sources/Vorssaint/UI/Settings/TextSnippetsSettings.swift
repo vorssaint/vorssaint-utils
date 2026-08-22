@@ -52,7 +52,10 @@ struct TextSnippetsSettings: View {
                             }
                         }
                         .onChange(of: soundName) { _, newName in
-                            NSSound(named: newName)?.play()
+                            if let sound = NSSound(named: newName) {
+                                sound.stop()
+                                sound.play()
+                            }
                             TextSnippetService.shared.syncWithPreferences()
                         }
                     }
