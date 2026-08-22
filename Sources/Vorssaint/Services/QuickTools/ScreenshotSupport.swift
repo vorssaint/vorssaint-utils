@@ -1415,8 +1415,8 @@ enum ScreenshotSupport {
     }
 
     /// A stable square of source pixels for the crop loupe. Near an image
-    /// edge the sample slides inward instead of shrinking, while the loupe's
-    /// crosshair still points at the exact adjusted pixel.
+    /// edge the sample slides inward instead of shrinking, and the loupe's
+    /// reticle still marks the exact adjusted pixel.
     static let captureLoupeBaseSampleSide: CGFloat = 12
     static let captureLoupeMinZoom: CGFloat = 0.5
     static let captureLoupeMaxZoom: CGFloat = 4
@@ -1442,6 +1442,25 @@ enum ScreenshotSupport {
         let x = min(max(floor(point.x - width / 2), 0), max(0, floor(imageSize.width) - width))
         let y = min(max(floor(point.y - height / 2), 0), max(0, floor(imageSize.height) - height))
         return CGRect(x: x, y: y, width: width, height: height)
+    }
+
+    /// Where the one source pixel under `point` lands inside a loupe frame.
+    /// It floors the coordinate exactly like the color read does, so a
+    /// highlight built from this rect can never mark a neighbour of the pixel
+    /// that gets copied, and the pointer's sub-pixel position stops leaking
+    /// into the drawing.
+    static func captureLoupeTargetPixelRect(around point: CGPoint,
+                                            source: CGRect,
+                                            frame: CGRect) -> CGRect {
+        guard source.width >= 1, source.height >= 1 else { return frame }
+        let column = min(max(floor(point.x), source.minX), source.maxX - 1)
+        let row = min(max(floor(point.y), source.minY), source.maxY - 1)
+        let width = frame.width / source.width
+        let height = frame.height / source.height
+        return CGRect(x: frame.minX + (column - source.minX) * width,
+                      y: frame.minY + (row - source.minY) * height,
+                      width: width,
+                      height: height)
     }
 
     // MARK: - Shape geometry

@@ -71,6 +71,9 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
   of their own again, opening screen capture already on that mode. Their Settings
   rows no longer record a combination that does nothing. Thanks to @wiidede and
   @PathGao.
+- The screen capture loupe now rings the pixel under the pointer instead of
+  drawing a crosshair across it, so the Color picker shows the color it is about
+  to copy. Thanks to @I-Have-No-Idea-What-Im-Doing-Right-Now and @PathGao.
 - App Switcher window preview warm-up no longer crashes right after startup when
   the system returns duplicate window identifiers. Thanks to @james-rose.
 - Clipboard history, its copied images, shelf files, recordings and temporary share
