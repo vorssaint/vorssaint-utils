@@ -29,6 +29,9 @@ final class TextSnippetService {
     private var buffer = ""
     private var libraryVisible = false
     private var commandBarVisible = false
+    /// nil means no sound plays; a non-nil value is the NSSound.Name to
+    /// play on the next trigger-based expansion.
+    private var expansionSoundName: String?
     /// Split by expansion mode at load time; the tap callback only scans.
     private var immediateSnippets: [TextSnippet] = []
     private var delimiterSnippets: [TextSnippet] = []
@@ -40,6 +43,8 @@ final class TextSnippetService {
     func syncWithPreferences() {
         let enabled = AppFeature.textSnippets.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.textSnippetsEnabled)
+        let soundEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.snippetSoundEnabled)
+        let soundName = UserDefaults.standard.string(forKey: DefaultsKey.snippetSoundName) ?? "Tink"
         reloadSnippets()
         let hasWork = inputLock.withLock {
             !(immediateSnippets.isEmpty && delimiterSnippets.isEmpty)
@@ -51,6 +56,7 @@ final class TextSnippetService {
             inputLock.withLock {
                 libraryVisible = libraryIsVisible
                 commandBarVisible = commandBarIsVisible
+                expansionSoundName = soundEnabled ? soundName : nil
             }
             start()
         } else {
@@ -325,6 +331,9 @@ final class TextSnippetService {
                                text: text,
                                trailingKeyCode: trailingKeyCode,
                                trailingFlags: trailingFlags)
+            if let name = self.inputLock.withLock({ self.expansionSoundName }) {
+                NSSound(named: name)?.play()
+            }
         }
         if Thread.isMainThread {
             post()
