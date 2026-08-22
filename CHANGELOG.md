@@ -42,13 +42,12 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
   keystroke. Thanks to @BenjaminD2023.
 - Scrolling screenshots now keep fixed page footers once at the end instead of
   repeating them after every scroll.
+- The Screen capture settings page now picks its tool from a pop-up menu, so the
+  four tool names can no longer ask for more width than the window and push the
+  sidebar off its edge. Thanks to @gaminbhoot and @PathGao.
 - Settings now lists Dock Preview and Dock click as separate named sections, and
   opening Dock click from the Features hub lands on its own controls rather than on
   the Dock Preview block. Thanks to @PathGao.
-- The Screen capture settings page now picks its tool from a pop-up menu. The four
-  tool names sat in a segmented control that cannot shrink, so in most languages the
-  page asked for more width than the window, and the sidebar and the page below it
-  were pushed off the window's edges. Thanks to @gaminbhoot and @PathGao.
 - Scratchpad tabs and the pin, close, new pad and pad actions buttons now respond
   across their whole area. Thanks to @AB-boi and @PathGao.
 - Dock Preview cards no longer draw the app icon on every thumbnail or repeat the
