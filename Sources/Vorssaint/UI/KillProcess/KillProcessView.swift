@@ -27,8 +27,6 @@ struct KillProcessView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            columnHeader
-            Divider()
             list
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -106,20 +104,28 @@ struct KillProcessView: View {
 
     /// Mirrors `row(_:)`'s HStack widths exactly, so each label sits over its
     /// column: the leading `22`pt gap matches the row icon, and the trailing
-    /// `98`pt gap matches the Kill + "..." button cluster.
+    /// `82`pt port field and trailing `98`pt gap match the row's port value
+    /// plus the Kill + "..." button cluster.
     private var columnHeader: some View {
-        HStack(spacing: 10) {
-            Spacer().frame(width: 22)
-            columnHeaderButton(strings.columnProcess, column: .name)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            columnHeaderButton(strings.columnCPU, column: .cpu)
-                .frame(width: 52, alignment: .trailing)
-            columnHeaderButton(strings.columnMemory, column: .memory)
-                .frame(width: 72, alignment: .trailing)
-            columnHeaderButton(strings.columnPID, column: .pid)
-                .frame(width: 56, alignment: .trailing)
-            Spacer().frame(width: 98)
+        GeometryReader { geometry in
+            HStack(spacing: 10) {
+                Spacer().frame(width: 22)
+                columnHeaderButton(strings.columnProcess, column: .name)
+                    .frame(width: processColumnWidth(in: geometry.size.width), alignment: .leading)
+                columnHeaderButton(strings.columnCPU, column: .cpu)
+                    .frame(width: 52, alignment: .trailing)
+                columnHeaderButton(strings.columnMemory, column: .memory)
+                    .frame(width: 72, alignment: .trailing)
+                columnHeaderButton(strings.columnPID, column: .pid)
+                    .frame(width: 56, alignment: .trailing)
+                Text(portColumnTitle)
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 82, alignment: .center)
+                Spacer().frame(width: 98)
+            }
         }
+        .frame(height: 14)
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
     }
@@ -146,18 +152,37 @@ struct KillProcessView: View {
     @ViewBuilder
     private var list: some View {
         if service.filteredEntries.isEmpty {
-            // A transient ps hiccup no longer clears `entries` (KillProcessService
-            // keeps the last good snapshot), so an empty list here means either
-            // the very first load hasn't landed yet, or a search genuinely
-            // matched nothing - two different messages, not one.
-            if service.hasLoadedOnce {
-                emptyState
-            } else {
-                loadingState
+            VStack(spacing: 0) {
+                columnHeader
+                Divider()
+                // A transient ps hiccup no longer clears `entries`
+                // (`KillProcessService` keeps the last good snapshot), so an
+                // empty list means either first load or no search matches.
+                if service.hasLoadedOnce {
+                    emptyState
+                } else {
+                    loadingState
+                }
             }
         } else {
-            List(service.filteredEntries) { entry in row(entry) }
-                .listStyle(.inset)
+            ScrollView {
+                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                    Section {
+                        ForEach(service.filteredEntries) { entry in
+                            row(entry)
+                            Divider()
+                        }
+                        .padding(.horizontal, 16)
+                    } header: {
+                        VStack(spacing: 0) {
+                            columnHeader
+                            Divider()
+                        }
+                        .background(Color(nsColor: .windowBackgroundColor))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 
@@ -180,6 +205,13 @@ struct KillProcessView: View {
     }
 
     private func row(_ entry: KillProcessEntry) -> some View {
+        GeometryReader { geometry in
+            rowContent(entry, processWidth: processColumnWidth(in: geometry.size.width))
+        }
+        .frame(height: 38)
+    }
+
+    private func rowContent(_ entry: KillProcessEntry, processWidth: CGFloat) -> some View {
         HStack(spacing: 10) {
             Image(nsImage: ResponsibleProcess.icon(for: entry.pid))
                 .resizable().frame(width: 22, height: 22)
@@ -195,7 +227,7 @@ struct KillProcessView: View {
                     .font(.system(size: 10.5)).foregroundStyle(.tertiary)
                     .lineLimit(1).truncationMode(.head)
             }
-            Spacer()
+            .frame(width: processWidth, alignment: .leading)
             Text(String(format: "%.1f%%", entry.cpuPercent))
                 .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
                 .frame(width: 52, alignment: .trailing)
@@ -205,6 +237,11 @@ struct KillProcessView: View {
             Text(String(entry.pid))
                 .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
                 .frame(width: 56, alignment: .trailing)
+            Text(entry.ports.map(String.init).joined(separator: ", "))
+                .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+                .lineLimit(1).truncationMode(.tail)
+                .help(entry.ports.map(String.init).joined(separator: ", "))
+                .frame(width: 82, alignment: .center)
             Button(strings.killButton) {
                 pendingAction = .kill(entry, force: false)
             }
@@ -232,6 +269,7 @@ struct KillProcessView: View {
             .menuIndicator(.hidden)
             .frame(minWidth: 44)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .buttonStyle(.bordered)
         .controlSize(.small)
         .padding(.vertical, 2)
@@ -280,6 +318,21 @@ struct KillProcessView: View {
     private func copy(_ value: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(value, forType: .string)
+    }
+
+    private var portColumnTitle: String {
+        switch l10n.language {
+        case .zhHans: return "端口"
+        case .zhTW, .zhHK: return "連接埠"
+        default: return "Port"
+        }
+    }
+
+    /// Fixed columns, controls and the seven 10pt gaps consume 442pt in both
+    /// the header and a row. Giving the remainder explicitly to the process
+    /// column makes their x coordinates identical regardless of ideal sizes.
+    private func processColumnWidth(in availableWidth: CGFloat) -> CGFloat {
+        KillProcessSupport.processColumnWidth(availableWidth: availableWidth)
     }
 
     /// Ticks only while this page is open AND its window is key, so the

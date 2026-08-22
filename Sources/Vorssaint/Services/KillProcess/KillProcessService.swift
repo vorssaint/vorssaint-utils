@@ -19,6 +19,8 @@ struct KillProcessEntry: Identifiable, Equatable {
     let bundleURL: URL?
     let groupedCount: Int
     let isProtected: Bool
+    /// Listening TCP ports owned by this process, sorted and de-duplicated.
+    let ports: [Int]
 
     var id: pid_t { pid }
 }
@@ -77,10 +79,8 @@ final class KillProcessService: ObservableObject {
             }
             return ascending ? !result : result
         }
-        let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !needle.isEmpty else { return sorted }
         return sorted.filter {
-            $0.name.lowercased().contains(needle) || String($0.pid) == needle
+            KillProcessSupport.matches(query: query, name: $0.name, pid: $0.pid, ports: $0.ports)
         }
     }
 
@@ -324,13 +324,14 @@ final class KillProcessService: ObservableObject {
     private static func snapshot(grouped: Bool) -> [KillProcessEntry]? {
         let result = Shell.run("/bin/ps", ["-eo", "pid,ppid,pcpu,rss,comm"])
         guard result.status == 0 else { return nil }
-        let rows = parsePS(result.output)
+        let portsByPID = listeningTCPPorts()
+        let rows = parsePS(result.output, portsByPID: portsByPID)
         guard !rows.isEmpty else { return nil }
         return (grouped ? groupedByApp(rows) : rows).sorted { $0.cpuPercent > $1.cpuPercent }
     }
 
     /// Lines look like "  437     1  12.5  20480 /System/Library/.../WindowServer".
-    private static func parsePS(_ output: String) -> [KillProcessEntry] {
+    private static func parsePS(_ output: String, portsByPID: [pid_t: [Int]] = [:]) -> [KillProcessEntry] {
         var rows: [KillProcessEntry] = []
         for line in output.split(separator: "\n").dropFirst() {
             let columns = line.split(separator: " ", maxSplits: 4, omittingEmptySubsequences: true)
@@ -355,7 +356,8 @@ final class KillProcessService: ObservableObject {
                 isRegularApp: running?.activationPolicy == .regular,
                 bundleURL: running?.bundleURL,
                 groupedCount: 1,
-                isProtected: isProt))
+                isProtected: isProt,
+                ports: portsByPID[pid] ?? []))
         }
         return rows
     }
@@ -382,7 +384,17 @@ final class KillProcessService: ObservableObject {
                 isRegularApp: running?.activationPolicy == .regular,
                 bundleURL: running?.bundleURL,
                 groupedCount: members.count,
-                isProtected: isProt)
+                isProtected: isProt,
+                ports: KillProcessSupport.mergedPorts(members.map(\.ports)))
         }
+    }
+
+    /// Uses lsof's machine-readable field format so localized, padded table
+    /// output cannot corrupt PID/port parsing. Failure simply means the list
+    /// has no port annotations; process refresh itself remains usable.
+    private static func listeningTCPPorts() -> [pid_t: [Int]] {
+        let result = Shell.run("/usr/sbin/lsof", ["-nP", "-iTCP", "-sTCP:LISTEN", "-Fpn"])
+        guard result.status == 0 else { return [:] }
+        return KillProcessSupport.listeningTCPPorts(from: result.output)
     }
 }
