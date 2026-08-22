@@ -321,7 +321,7 @@ enum TextSnippetSupport {
     /// Lowercased with underscores folded to spaces, so "New_York" and
     /// "new york" compare equal: identifiers spell city names with
     /// underscores, but nobody types a timezone query that way.
-    static func normalizedTimeZoneText(_ value: String) -> String {
+    private static func normalizedTimeZoneText(_ value: String) -> String {
         value.lowercased().replacingOccurrences(of: "_", with: " ")
     }
 
