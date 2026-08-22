@@ -48,6 +48,9 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
   the Dock Preview block. Thanks to @PathGao.
 - Scratchpad tabs and the pin, close, new pad and pad actions buttons now respond
   across their whole area. Thanks to @AB-boi and @PathGao.
+- The Scratchpad tab strip now takes the width its row has free, so widening the
+  pad shows more of each tab name instead of leaving the space beside the pad
+  actions button empty. Thanks to @AB-boi.
 - Dock Preview cards no longer draw the app icon on every thumbnail or repeat the
   window title over it, leaving the thumbnail more of the card, and a card now
   badges a window that lives on another desktop. Thanks to @PathGao.

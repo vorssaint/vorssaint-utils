@@ -12234,6 +12234,10 @@ struct MetricsTests {
         ]
         expect(scratchpadHitTargetContracts.allSatisfy { scratchpadViewSource.contains($0) },
                "the scratchpad tab bar and header controls keep their full padded hit targets")
+        // Layout the tab strip depends on: an unpinned borderless Menu claims
+        // the free width of its row on macOS 15 and starves the strip.
+        expect(scratchpadViewSource.contains(".fixedSize()\n            .help(text.padActions)"),
+               "the scratchpad pad actions menu stays the size of its label")
         expect(ScratchpadRetention.sanitized("day") == .day
                 && ScratchpadRetention.sanitized("week") == .week
                 && ScratchpadRetention.sanitized("month") == .month
