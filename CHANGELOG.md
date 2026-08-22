@@ -38,6 +38,11 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
 - Settings now lists Dock Preview and Dock click as separate named sections, and
   opening Dock click from the Features hub lands on its own controls rather than on
   the Dock Preview block. Thanks to @PathGao.
+- Command Bar settings no longer show a command key glyph in front of "Open the bar
+  now", where it read as the shortcut that opens the bar. Opening the bar and
+  recentring it now share one icon free row, the page's four separated captions are
+  one block again, and the shortcut toggle says what the shortcut opens.
+  Thanks to @PathGao.
 - Scratchpad tabs and the pin, close, new pad and pad actions buttons now respond
   across their whole area. Thanks to @AB-boi and @PathGao.
 - Dock Preview cards no longer draw the app icon on every thumbnail or repeat the
@@ -73,11 +78,6 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
   system script. Thanks to @dbhorst.
 - The recording editor now reads composition duration directly without background
   queries. Thanks to @Bald-M.
-- Command Bar settings no longer show a command key glyph in front of "Open the bar
-  now", where it read as the shortcut that opens the bar. Opening the bar and
-  recentring it now share one icon free row, the page's four separated captions are
-  one block again, and the shortcut toggle says what the shortcut opens.
-  Thanks to @PathGao.
 
 ## [3.3.2] - 2026-08-20
 
