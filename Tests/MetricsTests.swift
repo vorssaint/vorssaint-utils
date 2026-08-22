@@ -11589,6 +11589,23 @@ struct MetricsTests {
         expect(ScreenCaptureTool.available(isAvailable: captureFeatures.contains)
                 == [.screenshot, .recording, .text, .color],
                "the capture chooser keeps a stable order for every installed mode")
+        // A segmented control has no compressed size: it asks for the sum of
+        // its segments and overflows whatever it is given. The four capture
+        // tool names measured 816pt in Russian and 640pt in English, well past
+        // the 574pt the Settings window guarantees the detail column at its
+        // 772pt minimum, so the whole split view was laid out wider than the
+        // window and slid off its left edge (issue #757). Only a control that
+        // truncates may carry those names.
+        let screenCaptureSettingsSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/ScreenCaptureSettings.swift",
+            encoding: .utf8)) ?? ""
+        let afterToolTitle = screenCaptureSettingsSource
+            .components(separatedBy: "tool.settingsTitle(").dropFirst().first ?? ""
+        let toolPickerStyle = afterToolTitle
+            .components(separatedBy: ".pickerStyle(").dropFirst().first?
+            .prefix { $0 != ")" } ?? ""
+        expect(toolPickerStyle == ".menu",
+               "the capture tool picker truncates instead of demanding room for every tool name")
         expect(!ScreenshotSupport.captureAvailabilityChanged(
                     activeTools: [.screenshot, .recording],
                     availableTools: [.screenshot, .recording])
