@@ -4,8 +4,8 @@
 import SwiftUI
 
 /// One Settings destination for every tool that starts from the screen.
-/// The shared shortcut stays fixed at the top; the segmented control only
-/// changes the feature-specific options shown below it.
+/// The shared shortcut stays fixed at the top; the tool picker only changes
+/// the feature-specific options shown below it.
 struct ScreenCaptureSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var router = SettingsRouter.shared
@@ -30,6 +30,12 @@ struct ScreenCaptureSettings: View {
         Form {
             Section {
                 if availableTools.count > 1 {
+                    // A segmented control never compresses below the sum of its
+                    // segments, so four full tool names side by side asked for
+                    // more width than the window can guarantee and pushed the
+                    // whole split view off screen (issue #757). A pop-up asks
+                    // for one name at a time and truncates, so no translation
+                    // can outgrow the page.
                     Picker(strings.screenCaptureTitle, selection: toolSelection) {
                         ForEach(availableTools, id: \.self) { tool in
                             Label(tool.settingsTitle(l10n.s, language: l10n.language),
@@ -37,9 +43,8 @@ struct ScreenCaptureSettings: View {
                                 .tag(tool)
                         }
                     }
-                    .pickerStyle(.segmented)
+                    .pickerStyle(.menu)
                     .labelsHidden()
-                    .controlSize(.large)
                 }
 
                 Text(strings.screenCaptureCaption)
