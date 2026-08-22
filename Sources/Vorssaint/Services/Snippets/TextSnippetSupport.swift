@@ -133,12 +133,15 @@ enum TextSnippetSupport {
     /// system's own date-format language: {{date:yyyy-MM-dd}}, and the same
     /// for time and datetime so every spelling works. The pattern keeps the
     /// user's locale, so month and weekday names come out in their language.
-    private static let formattedDatePrefixes = ["{{date:", "{{time:", "{{datetime:"]
+    /// A variant with an explicit IANA identifier after the kind,
+    /// {{date-tz(America/New_York):yyyy-MM-dd}}, overrides the device's
+    /// current time zone for that one token.
+    private static let formattedDateKinds = ["date", "time", "datetime"]
 
     private static func expandingFormattedDates(_ text: String,
                                                 date: Date,
                                                 locale: Locale) -> String {
-        guard formattedDatePrefixes.contains(where: text.contains) else { return text }
+        guard formattedDateKinds.contains(where: { text.contains("{{\($0)") }) else { return text }
         let formatter = DateFormatter()
         formatter.locale = locale
         var result = ""
@@ -147,25 +150,40 @@ enum TextSnippetSupport {
             result += rest[..<start.lowerBound]
             let tail = rest[start.lowerBound...]
             guard let close = tail.range(of: "}}"),
-                  let pattern = formattedPattern(in: tail[..<close.lowerBound]) else {
+                  let match = formattedPattern(in: tail[..<close.lowerBound]) else {
                 result += "{{"
                 rest = rest[start.upperBound...]
                 continue
             }
-            formatter.dateFormat = pattern
+            formatter.dateFormat = match.pattern
+            formatter.timeZone = match.timeZoneIdentifier.flatMap { TimeZone(identifier: $0) }
             result += formatter.string(from: date)
             rest = rest[close.upperBound...]
         }
         return result + rest
     }
 
-    /// The pattern inside one "{{name:pattern" chunk, nil when the tag is not
-    /// a date variable or the pattern is empty (both stay visible, like any
-    /// unknown tag).
-    private static func formattedPattern(in tag: Substring) -> String? {
-        for prefix in formattedDatePrefixes where tag.hasPrefix(prefix) {
-            let pattern = String(tag.dropFirst(prefix.count))
-            return pattern.isEmpty ? nil : pattern
+    /// The kind, pattern and optional time zone inside one "{{name:pattern"
+    /// or "{{name-tz(identifier):pattern" chunk, nil when the tag is not a
+    /// date variable, malformed, or the pattern is empty (all stay visible,
+    /// like any unknown tag).
+    private static func formattedPattern(in tag: Substring) -> (kind: String, pattern: String, timeZoneIdentifier: String?)? {
+        for kind in formattedDateKinds {
+            let tzPrefix = "{{\(kind)-tz("
+            if tag.hasPrefix(tzPrefix) {
+                let afterPrefix = tag.dropFirst(tzPrefix.count)
+                guard let closeParen = afterPrefix.firstIndex(of: ")") else { return nil }
+                let identifier = String(afterPrefix[..<closeParen])
+                let afterIdentifier = afterPrefix[afterPrefix.index(after: closeParen)...]
+                guard afterIdentifier.hasPrefix(":") else { return nil }
+                let pattern = String(afterIdentifier.dropFirst())
+                return pattern.isEmpty ? nil : (kind, pattern, identifier)
+            }
+            let plainPrefix = "{{\(kind):"
+            if tag.hasPrefix(plainPrefix) {
+                let pattern = String(tag.dropFirst(plainPrefix.count))
+                return pattern.isEmpty ? nil : (kind, pattern, nil)
+            }
         }
         return nil
     }

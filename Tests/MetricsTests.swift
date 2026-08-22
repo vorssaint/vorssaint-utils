@@ -10779,6 +10779,37 @@ struct MetricsTests {
                                          clipboard: "{{date:yyyy}}") == "clip: {{date:yyyy}}",
                "pasted clipboard text is never re-expanded")
 
+        // Timezone-qualified date variables
+        var tzTestCalendar = Calendar(identifier: .gregorian)
+        tzTestCalendar.timeZone = TimeZone(identifier: "UTC")!
+        let zonedDate = tzTestCalendar.date(from: DateComponents(year: 2025, month: 7, day: 1,
+                                                                 hour: 12, minute: 30, second: 15))!
+        expect(TextSnippetSupport.expand("{{datetime-tz(UTC):yyyy-MM-dd'T'HH:mm:ss}}",
+                                         date: zonedDate, clipboard: nil, locale: enUS)
+                == "2025-07-01T12:30:15",
+               "a UTC-tagged datetime token formats in UTC regardless of the device's zone")
+        expect(TextSnippetSupport.expand("{{date-tz(UTC):yyyy-MM-dd}}",
+                                         date: zonedDate, clipboard: nil, locale: enUS) == "2025-07-01",
+               "a UTC-tagged date token formats in UTC")
+        expect(TextSnippetSupport.expand("{{time-tz(UTC):HH:mm:ss}}",
+                                         date: zonedDate, clipboard: nil, locale: enUS) == "12:30:15",
+               "a UTC-tagged time token formats in UTC")
+        expect(TextSnippetSupport.expand("{{datetime-tz(Asia/Tokyo):yyyy-MM-dd HH:mm}}",
+                                         date: zonedDate, clipboard: nil, locale: enUS)
+                == "2025-07-01 21:30",
+               "a token tagged with a specific zone shifts the clock by that zone's offset")
+        let deviceDefaultTime = TextSnippetSupport.expand("{{time:HH:mm}}", date: zonedDate,
+                                                           clipboard: nil, locale: enUS)
+        expect(TextSnippetSupport.expand("{{time-tz(UTC):HH:mm}} then {{time:HH:mm}}",
+                                         date: zonedDate, clipboard: nil, locale: enUS)
+                == "12:30 then \(deviceDefaultTime)",
+               "a time zone on one token does not leak into a later token without one")
+        expect(TextSnippetSupport.expand("{{datetime-tz(Not/ARealZone):yyyy-MM-dd HH:mm}}",
+                                         date: zonedDate, clipboard: nil, locale: enUS)
+                == TextSnippetSupport.expand("{{datetime:yyyy-MM-dd HH:mm}}", date: zonedDate,
+                                             clipboard: nil, locale: enUS),
+               "an unrecognized time zone identifier falls back to the device default")
+
         // Per-snippet capitalization option (issue #304)
         let caseless = TextSnippet(name: "Caseless", trigger: ";email", replacement: "me@x.com",
                                    expansion: .afterDelimiter, enabled: true, ignoresCase: true)
