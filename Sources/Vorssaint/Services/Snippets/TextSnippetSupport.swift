@@ -62,6 +62,14 @@ enum TextSnippetSupport {
     /// Characters that fire an afterDelimiter snippet.
     static let delimiters: Set<Character> = [" ", "\t", "\r", "\n"]
 
+    /// The macOS system alert sounds the sound-on-expansion picker offers,
+    /// the same 14 names System Settings' own "Select an alert sound" list
+    /// shows, in that same order.
+    static let alertSoundNames = [
+        "Basso", "Blow", "Bottle", "Frog", "Funk", "Glass", "Hero", "Morse",
+        "Ping", "Pop", "Purr", "Sosumi", "Submarine", "Tink"
+    ]
+
     /// Triggers cannot contain whitespace (the buffer resets on it) and stay
     /// within a sane length.
     static func sanitizedTrigger(_ raw: String) -> String {
