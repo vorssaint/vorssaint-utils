@@ -90,18 +90,14 @@ struct HoverCorridor: Equatable {
 
 enum DockPreviewSupport {
     /// How long the cursor must rest on an icon before its panel opens. Long
-    /// enough that the Dock can be crossed on the way somewhere else without a
-    /// panel jumping out, short enough that a cursor that stopped is answered
-    /// rather than waited on. Adjustable, because where that line falls is a
-    /// matter of how fast someone drives their pointer.
+    /// enough that the Dock can be crossed on the way somewhere else, short
+    /// enough that a cursor which stopped is answered. Adjustable: that line
+    /// falls differently for every pointer speed.
     static let defaultOpenDelayMilliseconds = 200
-    /// The floor is the shortest wait that still holds two promises. The window
-    /// list is read `prefetchLead` before the panel, so a shorter wait would
-    /// read it the moment the cursor landed and charge a Dock crossed on the way
-    /// somewhere else for every icon it passed. And a switch costs its own delay
-    /// plus the reading it does inline, which has to stay under the shortest
-    /// opening, or handing an open panel on would come out slower than opening
-    /// one from nothing.
+    /// The floor keeps two properties: the window list is read `prefetchLead`
+    /// earlier, so a shorter wait would read it the moment the cursor lands;
+    /// and `switchDelay` plus its inline reading stays under it, so a switch is
+    /// never slower than an open.
     static let openDelayMillisecondsRange: ClosedRange<Int> = 200 ... 900
 
     static func sanitizedOpenDelay(milliseconds: Int) -> Int {
@@ -113,17 +109,14 @@ enum DockPreviewSupport {
         TimeInterval(sanitizedOpenDelay(milliseconds: milliseconds)) / 1000
     }
 
-    /// Handing an already open panel to the app under the cursor: shorter than
-    /// opening one, because the panel is on screen and only has to re-point.
-    /// Never longer than the shortest open delay on offer, so switching cannot
-    /// come out slower than opening at any setting.
+    /// Handing an already open panel to the app under the cursor: the panel is
+    /// on screen and only has to re-point. Kept under the shortest open delay
+    /// on offer, so a switch is never slower than an open.
     static let switchDelay: TimeInterval = 0.1
 
-    /// How far ahead of the panel the window list is read. Enough for an
-    /// ordinary list, so the panel opens on one already in hand rather than
-    /// stopping to read it, and no further ahead than that, so what it opens on
-    /// is still true. Half the shortest wait, which leaves the other half as the
-    /// stillness a cursor has to show before the reading is worth making.
+    /// How far ahead of the panel the window list is read: far enough that an
+    /// ordinary list is in hand when the panel opens, no further, so what it
+    /// opens on is still true. Half the shortest wait.
     static let prefetchLead: TimeInterval = 0.1
 
     static func prefetchDelay(openDelay: TimeInterval) -> TimeInterval {

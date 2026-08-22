@@ -33,9 +33,9 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
 - Clicking a Dock icon now only restores the windows that Click Dock icon to minimize
   put away. Windows minimized any other way keep the Dock's own restore. Thanks to @PathGao.
 
-- A Dock Preview now opens once the pointer has rested on an icon for 200 ms instead of
-  400 ms, and reads the app's windows while that wait runs rather than after it. Settings
-  carries the wait as an adjustable Open delay. Thanks to @PathGao.
+- A Dock Preview now opens after 200 ms of rest on an icon instead of 400 ms, and
+  Settings carries that wait as an adjustable Open delay. Handing an open preview to
+  the next icon takes 100 ms instead of 250 ms. Thanks to @PathGao.
 
 ### Fixed
 - Scrolling screenshots now keep fixed page footers once at the end instead of

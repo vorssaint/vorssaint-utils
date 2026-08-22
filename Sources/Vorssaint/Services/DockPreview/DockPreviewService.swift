@@ -584,17 +584,11 @@ final class DockPreviewService: ObservableObject {
     }
 
     /// Reads the app's window list part-way through the arming delay, so the
-    /// panel the timer opens has one ready instead of paying for it once the
-    /// user is already waiting to see something.
+    /// panel the timer opens has one ready instead of reading it on the way up.
     ///
-    /// Only for a panel that has to be opened. Handing an open panel to the next
-    /// app runs on a delay as short as the reading's own head start, which would
-    /// put the reading at the moment the cursor lands — and a cursor landing on
-    /// a Dock icon with a panel already up is most often on its way along the
-    /// Dock, not stopping. A reading already under way cannot be called back, so
-    /// a single sweep would pay for every icon it crossed. The switch is quick
-    /// because the panel never left the screen, not because the list was read
-    /// early.
+    /// Skipped while a panel is up: a switch runs on a delay as short as the
+    /// reading's own head start, so the reading would land the moment the
+    /// cursor does, and a reading under way cannot be called back.
     private func schedulePrefetch(token: UUID, pid: pid_t, delay: TimeInterval) {
         guard !isVisible else { return }
         let work = DispatchWorkItem { [weak self] in
@@ -1238,10 +1232,8 @@ private struct PendingHover {
     let app: NSRunningApplication
     let iconFrame: CGRect
     let workItem: DispatchWorkItem
-    /// Listing an app's windows blocks on Accessibility, so it runs while the
-    /// arming delay is still counting down rather than after it, where the wait
-    /// would be added to the time before anything appears. Nil until that work
-    /// lands, and dropped with the hover it belongs to.
+    /// The reading armed by `schedulePrefetch`. Nil until it lands, and dropped
+    /// with the hover it belongs to.
     var prefetchWorkItem: DispatchWorkItem?
     var windows: [SwitcherItem]?
 }
