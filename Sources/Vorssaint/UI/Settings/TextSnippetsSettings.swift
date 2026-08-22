@@ -197,6 +197,9 @@ private struct SnippetEditor: View {
     let delete: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var l10n = L10n.shared
+    @State private var replacementSelection: Range<String.Index>?
+    @State private var showingDateBuilder = false
+    @State private var dateBuilderInitial: TextSnippetSupport.DetectedDateToken?
 
     private var sanitizedTrigger: String {
         TextSnippetSupport.sanitizedTrigger(snippet.trigger)
@@ -217,6 +220,31 @@ private struct SnippetEditor: View {
 
     private var folderSuggestions: [String] {
         TextSnippetSupport.folderSuggestions(others)
+    }
+
+    /// The current text selection in the replacement editor, or a
+    /// zero-length range at the end of the text when nothing is tracked
+    /// yet (e.g. before the user has clicked into the field).
+    private var selectedRange: Range<String.Index> {
+        replacementSelection ?? {
+            let end = snippet.replacement.endIndex
+            return end..<end
+        }()
+    }
+
+    private var detectedTokenAtCursor: TextSnippetSupport.DetectedDateToken? {
+        TextSnippetSupport.dateToken(in: snippet.replacement, at: selectedRange.lowerBound)
+    }
+
+    /// Splices the built token into the replacement text, replacing an
+    /// existing token's range in edit mode or the current selection
+    /// otherwise. Clears the selection before mutating the text, not
+    /// after: a Range<String.Index> computed against the old text is not
+    /// safe to read back once replaceSubrange has produced new storage.
+    private func insertDateToken(_ tokenText: String) {
+        let range = dateBuilderInitial?.range ?? selectedRange
+        replacementSelection = nil
+        snippet.replacement.replaceSubrange(range, with: tokenText)
     }
 
     var body: some View {
@@ -248,9 +276,32 @@ private struct SnippetEditor: View {
                 }
                 Toggle(text.showInLibraryLabel, isOn: $snippet.showsInLibrary)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(text.replacementLabel)
-                    TextEditor(text: $snippet.replacement)
-                        .font(.body)
+                    HStack {
+                        Text(text.replacementLabel)
+                        Spacer()
+                        Button {
+                            dateBuilderInitial = detectedTokenAtCursor
+                            showingDateBuilder = true
+                        } label: {
+                            Label(detectedTokenAtCursor == nil ? text.dateTimeInsertButton : text.dateTimeEditButton,
+                                  systemImage: "calendar.badge.plus")
+                        }
+                        .popover(isPresented: $showingDateBuilder) {
+                            DateVariableBuilder(
+                                text: text,
+                                cancelLabel: l10n.s.uninstallerCancel,
+                                locale: .current,
+                                initial: dateBuilderInitial,
+                                confirm: { tokenText in
+                                    insertDateToken(tokenText)
+                                    showingDateBuilder = false
+                                },
+                                cancel: { showingDateBuilder = false }
+                            )
+                            .frame(width: 340)
+                        }
+                    }
+                    SelectableTextEditor(text: $snippet.replacement, selectedRange: $replacementSelection)
                         .frame(minHeight: 76)
                         .overlay(
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
