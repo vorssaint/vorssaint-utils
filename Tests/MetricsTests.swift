@@ -10390,7 +10390,13 @@ struct MetricsTests {
             encoding: .utf8)) ?? ""
         let brightnessWorkQueueHalf = brightnessSource
             .components(separatedBy: "// MARK: - Rebuild (work queue)").last ?? ""
-        expect(!brightnessWorkQueueHalf.isEmpty && !brightnessWorkQueueHalf.contains("NSScreen"),
+        // Comments are stripped first: a note naming the symbol it bans is not
+        // a call, and a check that cannot tell them apart goes red for prose.
+        let brightnessWorkQueueCode = brightnessWorkQueueHalf
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(!brightnessWorkQueueHalf.isEmpty && !brightnessWorkQueueCode.contains("NSScreen"),
                "the brightness work queue resolves display names without touching NSScreen")
 
         let ddcWrite = BrightnessSupport.writePacket(code: 0x10, value: 0x1234)
