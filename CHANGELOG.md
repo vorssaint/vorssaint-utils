@@ -54,10 +54,9 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
   the window shortcut reach each window, even when showing one entry per app.
 - Windowless apps no longer repeat or misplace their name in the App Switcher's Small
   size. Thanks to @Yahddyyp.
-- App Switcher grid cards now give their thumbnail the 14 points their chrome
-  was reserving and not using, and their title band holds a subtitle without
-  clipping its descenders. The app icon standing in for a thumbnail that has
-  not arrived follows the preview size. Thanks to @PathGao.
+- App Switcher grid cards now give their thumbnail the 14 points their chrome was
+  reserving and not using, hold a subtitle without clipping it, and scale the app
+  icon that stands in for a missing thumbnail. Thanks to @PathGao.
 - Clicking the Dock icon of a background app to restore its minimized windows now
   brings that app forward, instead of leaving its windows behind whichever app was
   already in front. Thanks to @PathGao.
