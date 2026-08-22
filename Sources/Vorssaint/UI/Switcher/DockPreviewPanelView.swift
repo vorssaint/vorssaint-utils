@@ -83,7 +83,9 @@ private struct DockPreviewPanelContent: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            panelHeader
+            if DockPreviewSupport.showsPanelHeader(itemCount: windows.count, isPinned: isPinned) {
+                panelHeader
+            }
             ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: DockPreviewSupport.cardSpacing) {
@@ -93,6 +95,7 @@ private struct DockPreviewPanelContent: View {
                                 preview: window.previewWindowID.flatMap { previews[$0] },
                                 isSelected: selectedWindowID == window.windowID,
                                 isPanelPinned: isPinned,
+                                onTogglePinned: onTogglePinned,
                                 onCommit: {
                                     onCommit(window)
                                 },
@@ -143,8 +146,9 @@ private struct DockPreviewPanelContent: View {
                 }
             }
         }
-        .frame(height: DockPreviewSupport.panelSize(itemCount: 1,
-                                                    screenVisibleFrame: CGRect(x: 0, y: 0, width: 500, height: 500)).height)
+        .frame(height: DockPreviewSupport.panelSize(itemCount: windows.count,
+                                                    screenVisibleFrame: CGRect(x: 0, y: 0, width: 500, height: 500),
+                                                    isPinned: isPinned).height)
         .background(HUDBackdrop(cornerRadius: 18,
                                 opacity: DockPreviewSupport.sanitizedBackgroundOpacity(backgroundOpacity)))
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -160,28 +164,33 @@ private struct DockPreviewPanelContent: View {
         HStack(spacing: 7) {
             dragTitleArea
             windowNavigationButtons
-            Button {
-                onTogglePinned()
-            } label: {
-                Image(systemName: isPinned ? "pin.slash.fill" : "pin.fill")
-                    .font(.system(size: 12, weight: .semibold))
-                    .frame(width: 22, height: 20)
+            // Both belong to the pinned panel alone. A hovered panel is
+            // dismissed by moving off it, and pinning one is a named item in
+            // any card's menu.
+            if isPinned {
+                Button {
+                    onTogglePinned()
+                } label: {
+                    Image(systemName: "pin.slash.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 22, height: 20)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+                .help(l10n.s.dockPreviewUnpinPanel)
+                .accessibilityLabel(l10n.s.dockPreviewUnpinPanel)
+                Button {
+                    onClosePanel()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .frame(width: 20, height: 20)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.secondary)
+                .help(l10n.s.dockPreviewClosePanel)
+                .accessibilityLabel(l10n.s.dockPreviewClosePanel)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(isPinned ? Color.accentColor : Color.secondary)
-            .help(isPinned ? l10n.s.dockPreviewUnpinPanel : l10n.s.dockPreviewPinPanel)
-            .accessibilityLabel(isPinned ? l10n.s.dockPreviewUnpinPanel : l10n.s.dockPreviewPinPanel)
-            Button {
-                onClosePanel()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .bold))
-                    .frame(width: 20, height: 20)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(Color.secondary)
-            .help(l10n.s.dockPreviewClosePanel)
-            .accessibilityLabel(l10n.s.dockPreviewClosePanel)
         }
         .focusEffectDisabled()
         .padding(.horizontal, DockPreviewSupport.panelPadding)
@@ -196,15 +205,20 @@ private struct DockPreviewPanelContent: View {
             }
 
             HStack(spacing: 7) {
-                if let icon = windows.first?.appIcon {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .frame(width: 16, height: 16)
+                // A hovered panel sits above the Dock icon the pointer is
+                // resting on. A pinned panel outlives that pointer and has to
+                // name itself.
+                if isPinned {
+                    if let icon = windows.first?.appIcon {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .frame(width: 16, height: 16)
+                    }
+                    Text(currentAppName ?? "")
+                        .font(.system(size: 12, weight: .semibold))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                 }
-                Text(currentAppName ?? "")
-                    .font(.system(size: 12, weight: .semibold))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
                 if let positionText = DockPreviewSupport.windowPositionText(
                     selectedWindowID: selectedWindowID,
                     windowIDs: windows.compactMap(\.windowID)
@@ -298,6 +312,7 @@ private struct DockPreviewCard: View {
     let preview: CGImage?
     let isSelected: Bool
     let isPanelPinned: Bool
+    let onTogglePinned: () -> Void
     let onCommit: () -> Void
     let onClose: () -> Void
     let onToggleMinimized: () -> Void
@@ -309,7 +324,7 @@ private struct DockPreviewCard: View {
     @State private var suppressNextCommit = false
 
     private var showsPreviewControls: Bool {
-        isHovering || isSelected || isPanelPinned
+        DockPreviewSupport.showsCardControls(isHovering: isHovering, isSelected: isSelected)
     }
 
     private var hasStatusBadges: Bool {
@@ -327,7 +342,7 @@ private struct DockPreviewCard: View {
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                        .padding(4)
+                        .padding(DockPreviewSupport.cardThumbnailInset)
                 } else if let icon = window.appIcon {
                     // Drawn as a watermark, not as content. Every card in a
                     // panel belongs to the app whose Dock icon opened it, and
@@ -355,18 +370,11 @@ private struct DockPreviewCard: View {
                     }
                 }
 
-                previewControlBar
             }
             .frame(width: DockPreviewSupport.cardThumbnailWidth,
                    height: DockPreviewSupport.cardThumbnailHeight)
 
-            Text(window.displayTitle)
-                .font(.system(size: 12, weight: .semibold))
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .foregroundStyle(.primary)
-                .frame(height: DockPreviewSupport.cardTitleHeight)
-                .frame(maxWidth: DockPreviewSupport.cardThumbnailWidth - 4)
+            titleBand
         }
         .padding(DockPreviewSupport.cardPadding)
         .frame(width: DockPreviewSupport.cardWidth, height: DockPreviewSupport.cardHeight)
@@ -409,6 +417,14 @@ private struct DockPreviewCard: View {
                       systemImage: window.isMinimized ? "plus.rectangle" : "minus.rectangle")
             }
         }
+        Divider()
+        Button {
+            onTogglePinned()
+        } label: {
+            Label(isPanelPinned ? l10n.s.dockPreviewUnpinPanel : l10n.s.dockPreviewPinPanel,
+                  systemImage: isPanelPinned ? "pin.slash" : "pin")
+        }
+        Divider()
         Button(role: .destructive) {
             onClose()
         } label: {
@@ -416,47 +432,23 @@ private struct DockPreviewCard: View {
         }
     }
 
-    /// Window controls only. The title used to live here too, which put the same
-    /// string on screen twice — once floating over the thumbnail, once in the
-    /// band below it. The band keeps it, because a title that is only there
-    /// while the pointer is on the card cannot tell six windows of one app
-    /// apart, which is the whole job of this panel.
-    private var previewControlBar: some View {
-        VStack {
-            HStack(spacing: 6) {
-                Spacer(minLength: 0)
-                if isPanelPinned, isSelected {
-                    Text(l10n.s.dockPreviewPinned)
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Color.white.opacity(0.70))
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .background(Capsule().fill(Color.white.opacity(0.12)))
-                }
-                closeButton
-                minimizeButton
-            }
-            .padding(.leading, 7)
-            .padding(.trailing, 5)
-            .padding(.vertical, 5)
-            .fixedSize(horizontal: true, vertical: false)
-            .frame(height: 28)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(Color.black.opacity(0.44))
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
-                    )
-            )
-            .shadow(color: Color.black.opacity(0.18), radius: 6, y: 2)
-            .padding(.trailing, 7)
-            .padding(.top, 7)
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .opacity(showsPreviewControls ? 1 : 0)
-            .allowsHitTesting(showsPreviewControls)
-            Spacer()
+    /// The title and the two window controls, side by side under the picture.
+    /// The controls used to float over the thumbnail in a capsule a third of
+    /// its height. The room they take here is held whether or not they are
+    /// drawn, so the title does not shift as the pointer arrives.
+    private var titleBand: some View {
+        HStack(spacing: 4) {
+            Text(window.displayTitle)
+                .font(.system(size: 12, weight: .semibold))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            closeButton
+            minimizeButton
         }
+        .frame(width: DockPreviewSupport.cardThumbnailWidth,
+               height: DockPreviewSupport.cardTitleHeight)
     }
 
     @ViewBuilder
@@ -493,11 +485,11 @@ private struct DockPreviewCard: View {
             }
         } label: {
             Image(systemName: "xmark.circle.fill")
-                .font(.system(size: 18, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
                 .symbolRenderingMode(.palette)
                 .foregroundStyle(Color.white.opacity(isCloseHovering ? 0.95 : 0.72),
                                  Color(red: 1.0, green: 0.38, blue: 0.33).opacity(isCloseHovering ? 1 : 0.92))
-                .frame(width: 24, height: 24)
+                .frame(width: 16, height: 16)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -517,11 +509,11 @@ private struct DockPreviewCard: View {
             }
         } label: {
             Image(systemName: window.isMinimized ? "plus.circle.fill" : "minus.circle.fill")
-                .font(.system(size: 18, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
                 .symbolRenderingMode(.palette)
                 .foregroundStyle(Color.white.opacity(isMinimizeHovering ? 0.95 : 0.72),
                                  Color.black.opacity(isMinimizeHovering ? 0.58 : 0.46))
-                .frame(width: 24, height: 24)
+                .frame(width: 16, height: 16)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)

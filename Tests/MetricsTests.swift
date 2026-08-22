@@ -2162,8 +2162,21 @@ struct MetricsTests {
                    return card.height - thumbnail.height - 13 * scale >= DockPreviewSupport.cardTitleHeight
                },
                "a card keeps a full title band at every preview size, never a scaled-down one")
-        expect(DockPreviewSupport.cardTitleHeight >= 16,
-               "the title band holds one line of 12pt semibold with its descenders")
+        expect(DockPreviewSupport.cardTitleHeight >= 20,
+               "the title band holds one line of 12pt semibold beside two 16pt controls")
+        // The well is cut to the shape of the screen the capture came from, so
+        // a full-height window fills it instead of sitting between two bars.
+        expect(previewScales.allSatisfy { scale in
+                   let picture = DockPreviewSupport.cardPictureSize(scale: scale)
+                   return abs(picture.width / picture.height - 1.6) < 0.001
+               },
+               "the picture inside a thumbnail is 16:10 at every preview size")
+        expect(previewScales.allSatisfy { scale in
+                   let picture = DockPreviewSupport.cardPictureSize(scale: scale)
+                   let thumbnail = DockPreviewSupport.cardThumbnailSize(scale: scale)
+                   return picture.width < thumbnail.width && picture.height < thumbnail.height
+               },
+               "the picture keeps its inset inside the thumbnail well at every size")
         expect(previewScales.allSatisfy {
                    DockPreviewSupport.cardFallbackIconSize(scale: $0)
                        < DockPreviewSupport.cardThumbnailSize(scale: $0).height
@@ -2178,6 +2191,29 @@ struct MetricsTests {
             encoding: .utf8)) ?? ""
         expect(dockPreviewCardSource.components(separatedBy: "Text(window.displayTitle)").count - 1 == 1,
                "a Dock Preview card names its window once")
+        // Nothing is drawn on top of the picture any more. The close and
+        // minimize buttons sat in a 28pt capsule in its top-right corner --
+        // over a third of its height -- and the pinned badge sat beside them.
+        let dockPreviewCardCode = dockPreviewCardSource
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(!dockPreviewCardCode.contains("previewControlBar"),
+               "no control bar floats over a Dock Preview thumbnail")
+        let titleBandBody = dockPreviewCardCode
+            .components(separatedBy: "private var titleBand: some View {").last ?? ""
+        let bandDeclaration = titleBandBody.components(separatedBy: "private var").first ?? ""
+        expect(bandDeclaration.contains("closeButton") && bandDeclaration.contains("minimizeButton"),
+               "both window controls sit in the title band, beside the name")
+        expect(!DockPreviewSupport.showsCardControls(isHovering: false, isSelected: false),
+               "a card with no pointer on it and no selection draws no window controls")
+        expect(DockPreviewSupport.showsCardControls(isHovering: true, isSelected: false),
+               "the pointer summons a card's window controls")
+        let contextMenuBody = dockPreviewCardCode
+            .components(separatedBy: "private var cardContextMenu: some View {").last ?? ""
+        expect((contextMenuBody.components(separatedBy: "private var").first ?? "")
+                   .contains("dockPreviewPinPanel"),
+               "pinning is offered by name in the card menu, not by a bare pushpin")
         expect(dockPreviewCardSource.components(separatedBy: "window.appIcon").count - 1 == 1,
                "a Dock Preview card only falls back to the app icon when it has no thumbnail")
         expect(dockPreviewCardSource.contains("window.isOnHiddenSpace"),
@@ -6688,14 +6724,29 @@ struct MetricsTests {
         expect(DockPreviewSupport.dockProximityBand(tileSize: 200)
                > DockPreviewSupport.dockProximityBand(tileSize: 64),
                "Dock proximity band grows with the Dock tile size")
-        let onePreviewSize = DockPreviewSupport.panelSize(itemCount: 1, screenVisibleFrame: screen)
-        let twoPreviewSize = DockPreviewSupport.panelSize(itemCount: 2, screenVisibleFrame: screen)
+        let onePreviewSize = DockPreviewSupport.panelSize(itemCount: 1, screenVisibleFrame: screen,
+                                                          isPinned: false)
+        let twoPreviewSize = DockPreviewSupport.panelSize(itemCount: 2, screenVisibleFrame: screen,
+                                                          isPinned: false)
         expect(twoPreviewSize.width > onePreviewSize.width,
                "Dock Preview panel size shrinks when a card is removed")
+        // The header carries the window counter and the steppers that move
+        // between windows, so one window leaves it with nothing to say. It used
+        // to name the app instead, back at a pointer resting on that app's Dock
+        // icon. A pinned panel keeps it: there it is the drag handle, and the
+        // only way to unpin or close.
+        expect(!DockPreviewSupport.showsPanelHeader(itemCount: 1, isPinned: false),
+               "a hovered panel showing one window draws no header")
+        expect(DockPreviewSupport.showsPanelHeader(itemCount: 2, isPinned: false),
+               "a second window gives the header a counter and steppers to hold")
+        expect(DockPreviewSupport.showsPanelHeader(itemCount: 1, isPinned: true),
+               "a pinned panel keeps its header at any window count")
         expect(onePreviewSize.height == DockPreviewSupport.cardHeight
-               + DockPreviewSupport.panelPadding * 2
-               + DockPreviewSupport.panelHeaderHeight,
-               "Dock Preview panel reserves room for the pinned header")
+               + DockPreviewSupport.panelPadding * 2,
+               "a headerless panel is the card and the padding, nothing more")
+        expect(DockPreviewSupport.panelSize(itemCount: 1, screenVisibleFrame: screen, isPinned: true).height
+               == onePreviewSize.height + DockPreviewSupport.panelHeaderHeight,
+               "the header is the whole difference a pinned panel makes to the height")
         expect(DockPreviewSupport.windowPositionText(selectedWindowID: nil, windowIDs: [11]) == nil,
                "Dock Preview hides the window counter for a single window")
         expect(DockPreviewSupport.windowPositionText(selectedWindowID: nil, windowIDs: [11, 22, 33]) == "3",

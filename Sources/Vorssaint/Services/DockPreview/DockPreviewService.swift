@@ -819,7 +819,9 @@ final class DockPreviewService: ObservableObject {
     private func showPanel(for hit: DockHit, itemCount: Int) {
         let panel = ensurePanel()
         let screenVisibleFrame = visibleFrameForScreen(containing: hit.iconFrame)
-        let size = DockPreviewSupport.panelSize(itemCount: itemCount, screenVisibleFrame: screenVisibleFrame)
+        let size = DockPreviewSupport.panelSize(itemCount: itemCount,
+                                                screenVisibleFrame: screenVisibleFrame,
+                                                isPinned: false)
         let gap = hit.preferences.autohide ? DockPreviewSupport.autohidePanelGap : DockPreviewSupport.panelGap
         let frame = DockPreviewSupport.panelFrame(anchor: hit.iconFrame,
                                                   panelSize: size,
@@ -848,7 +850,9 @@ final class DockPreviewService: ObservableObject {
         else { return }
 
         let screenVisibleFrame = visibleFrameForScreen(containing: iconFrame)
-        let size = DockPreviewSupport.panelSize(itemCount: windows.count, screenVisibleFrame: screenVisibleFrame)
+        let size = DockPreviewSupport.panelSize(itemCount: windows.count,
+                                                screenVisibleFrame: screenVisibleFrame,
+                                                isPinned: false)
         let gap = preferences.autohide ? DockPreviewSupport.autohidePanelGap : DockPreviewSupport.panelGap
         let frame = DockPreviewSupport.panelFrame(anchor: iconFrame,
                                                   panelSize: size,
@@ -1499,7 +1503,8 @@ final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
     private func resizePanel() {
         guard let panel else { return }
         let size = DockPreviewSupport.panelSize(itemCount: windows.count,
-                                                screenVisibleFrame: visibleFrameForScreen(containing: panel.frame))
+                                                screenVisibleFrame: visibleFrameForScreen(containing: panel.frame),
+                                                isPinned: true)
         var frame = panel.frame
         frame.size = size
         panel.setFrame(clampedPanelFrame(frame), display: true, animate: true)

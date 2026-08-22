@@ -178,15 +178,20 @@ enum DockPreviewSupport {
     // smallest, which is the one thing here that was actually wrong.
     static var cardPadding: CGFloat { 8 * PreviewSizing.scale }
     static var cardTitleSpacing: CGFloat { 5 * PreviewSizing.scale }
-    /// One line of 12pt semibold, with just enough room for descenders. Fixed:
-    /// the line it holds is the same at every preview size.
-    static let cardTitleHeight: CGFloat = 17
+    /// One line of 12pt semibold beside the two 16pt window controls, with just
+    /// enough room for descenders. Fixed: what it holds is the same at every
+    /// preview size.
+    static let cardTitleHeight: CGFloat = 20
     static var cardSpacing: CGFloat { 8 * PreviewSizing.scale }
     static var panelPadding: CGFloat { 12 * PreviewSizing.scale }
     static let panelHeaderHeight: CGFloat = 28
 
+    /// 16:10, the shape of the screen the captured window came from, so a
+    /// full-height window fills the thumbnail instead of sitting between two
+    /// bars. The picture inside keeps a 4pt inset, which is why this is 248x158
+    /// rather than 240x150.
     static func cardThumbnailSize(scale: CGFloat) -> CGSize {
-        CGSize(width: 160 * scale, height: 96 * scale)
+        CGSize(width: 248 * scale, height: 158 * scale)
     }
 
     static func cardSize(scale: CGFloat) -> CGSize {
@@ -195,6 +200,16 @@ enum DockPreviewSupport {
         return CGSize(width: thumbnail.width + padding * 2,
                       height: thumbnail.height + padding * 2 + 5 * scale + cardTitleHeight)
     }
+
+    /// The picture's inset inside the thumbnail well. It scales with the well,
+    /// so the 16:10 the well is cut to survives every preview size.
+    static func cardPictureSize(scale: CGFloat) -> CGSize {
+        let thumbnail = cardThumbnailSize(scale: scale)
+        let inset = 4 * scale
+        return CGSize(width: thumbnail.width - inset * 2, height: thumbnail.height - inset * 2)
+    }
+
+    static var cardThumbnailInset: CGFloat { 4 * PreviewSizing.scale }
 
     /// Stands in for the thumbnail when there is no capture, so it follows the
     /// thumbnail rather than staying the one fixed picture on a scaling card.
@@ -292,8 +307,24 @@ enum DockPreviewSupport {
         return CGRect(x: x, y: y, width: width, height: height)
     }
 
+    /// Whether the panel draws a header row. It holds which window of how many
+    /// is selected and the steppers between them, so one window leaves it with
+    /// nothing to say. A pinned panel keeps it at any count: there it is also
+    /// the drag handle and the only way to unpin or close.
+    static func showsPanelHeader(itemCount: Int, isPinned: Bool) -> Bool {
+        isPinned || itemCount > 1
+    }
+
+    /// Whether a card draws its close and minimize buttons. A pinned panel
+    /// counted as permanent hover, which held both open on every card it
+    /// showed for as long as it stayed up.
+    static func showsCardControls(isHovering: Bool, isSelected: Bool) -> Bool {
+        isHovering || isSelected
+    }
+
     static func panelSize(itemCount: Int,
                           screenVisibleFrame: CGRect,
+                          isPinned: Bool,
                           padding: CGFloat = panelPadding,
                           cardWidth: CGFloat = cardWidth,
                           cardHeight: CGFloat = cardHeight,
@@ -304,7 +335,8 @@ enum DockPreviewSupport {
         let availableCards = max(1, Int((maxWidth - padding * 2 + spacing) / (cardWidth + spacing)))
         let visibleCards = min(count, availableCards)
         let width = CGFloat(visibleCards) * cardWidth + CGFloat(max(0, visibleCards - 1)) * spacing + padding * 2
-        return CGSize(width: min(width, maxWidth), height: cardHeight + padding * 2 + panelHeaderHeight)
+        let header = showsPanelHeader(itemCount: count, isPinned: isPinned) ? panelHeaderHeight : 0
+        return CGSize(width: min(width, maxWidth), height: cardHeight + padding * 2 + header)
     }
 
     static func windowPositionText(selectedWindowID: CGWindowID?, windowIDs: [CGWindowID]) -> String? {
