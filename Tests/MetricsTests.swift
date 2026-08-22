@@ -7198,13 +7198,17 @@ struct MetricsTests {
                     Double(DockPreviewSupport.cardPadding),
                     "Dock Preview Small previews tighten panel padding with the card's")
         // The grid card's chrome is two lines of text that do not change with
-        // the preview size, so the deduction it takes off the card must be the
-        // same at every size — and the thumbnail must take the whole rest.
-        let smallGridCardChrome = SwitcherGridCard.height - SwitcherGridCard.thumbnailHeight
-        let smallGridThumbnailHeight = SwitcherGridCard.thumbnailHeight
+        // the preview size. The card does, so the thumbnail has to take every
+        // point the chrome leaves, at whichever size is stored.
+        let smallGridScale = PreviewSizing.scale
+        let smallGridCardHeight = SwitcherGridCard.height
+        let smallGridCardChrome = smallGridCardHeight - SwitcherGridCard.thumbnailHeight
         expect(SwitcherGridCard.fallbackIconSize < SwitcherGridCard.thumbnailHeight,
                "App Switcher Small keeps the stand-in app icon inside its grid card thumbnail")
         UserDefaults.standard.set("xlarge", forKey: DefaultsKey.previewSize)
+        expectClose(Double(SwitcherGridCard.height / smallGridCardHeight),
+                    Double(PreviewSizing.scale / smallGridScale),
+                    "an App Switcher grid card's height follows the preview size")
         expectClose(Double(SwitcherGridCard.height - SwitcherGridCard.thumbnailHeight),
                     Double(smallGridCardChrome),
                     "an App Switcher grid card spends the same chrome at every preview size")
@@ -7213,9 +7217,6 @@ struct MetricsTests {
                             + SwitcherGridCard.titleSpacing
                             + SwitcherGridCard.titleHeight),
                     "the grid card's chrome is exactly the parts it is made of, not a number standing in for them")
-        expectClose(Double(SwitcherGridCard.thumbnailHeight / smallGridThumbnailHeight),
-                    Double((1.8 * 214 - smallGridCardChrome) / (0.75 * 214 - smallGridCardChrome)),
-                    "the grid card thumbnail takes every point the chrome does not")
         expect(SwitcherGridCard.titleHeight >= 31,
                "the grid card title band holds a 13pt line over a 10.5pt line without clipping")
         expect(SwitcherGridCard.fallbackIconSize < SwitcherGridCard.thumbnailHeight,
