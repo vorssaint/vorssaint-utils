@@ -148,9 +148,9 @@ enum TextSnippetSupport {
         formatter.timeZone = timeZoneIdentifier.flatMap { TimeZone(identifier: $0) }
     }
 
-    /// Creates and returns a DateFormatter configured with the given pattern,
-    /// timezone override, and locale. Used by dateVariablePreview for a
-    /// single-shot formatter creation.
+    /// A fresh formatter for one-off use (a preview), as opposed to
+    /// expandingFormattedDates's single instance reused across a whole
+    /// replacement string's tokens.
     private static func configuredFormatter(pattern: String,
                                             timeZoneIdentifier: String?,
                                             locale: Locale) -> DateFormatter {
@@ -298,6 +298,71 @@ enum TextSnippetSupport {
                                             timeZoneIdentifier: timeZoneIdentifier,
                                             locale: locale)
         return formatter.string(from: date)
+    }
+
+    /// Reconstructs which Style an already-built pattern came from, by
+    /// comparing it against what each style would resolve to right now.
+    /// Falls back to Custom when nothing matches (e.g. a hand-typed
+    /// pattern, or a system style whose OS-resolved text has since
+    /// changed).
+    static func matchingDateStyle(pattern: String,
+                                  kind: DateVariableKind,
+                                  locale: Locale) -> DateVariableStyle {
+        let candidates: [DateVariableStyle] = [.iso8601, .short, .medium, .long, .full]
+        for candidate in candidates {
+            if resolvedDatePattern(kind: kind, style: candidate,
+                                   customPattern: "", locale: locale) == pattern {
+                return candidate
+            }
+        }
+        return .custom
+    }
+
+    /// Lowercased with underscores folded to spaces, so "New_York" and
+    /// "new york" compare equal: identifiers spell city names with
+    /// underscores, but nobody types a timezone query that way.
+    static func normalizedTimeZoneText(_ value: String) -> String {
+        value.lowercased().replacingOccurrences(of: "_", with: " ")
+    }
+
+    /// Every timezone identifier whose name or common abbreviation
+    /// contains the query, case- and separator-insensitive. Capped at 50
+    /// for a picker-sized list.
+    static func matchingTimeZoneIdentifiers(for query: String) -> [String] {
+        guard !query.isEmpty else { return [] }
+        let normalizedQuery = normalizedTimeZoneText(query)
+        let byName = TimeZone.knownTimeZoneIdentifiers
+            .filter { normalizedTimeZoneText($0).contains(normalizedQuery) }
+        let byAbbreviation = TimeZone.abbreviationDictionary
+            .filter { normalizedTimeZoneText($0.key).contains(normalizedQuery) }
+            .map { $0.value }
+        return Array(Set(byName + byAbbreviation)).sorted().prefix(50).map { $0 }
+    }
+
+    /// The single timezone identifier the query unambiguously names, if
+    /// any: an exact match on a full identifier or a common abbreviation
+    /// (e.g. "PST"), or the one candidate left when the substring search
+    /// in matchingTimeZoneIdentifiers(for:) narrows to exactly one result
+    /// (e.g. "new york" narrows to only "America/New_York", so it counts
+    /// as confirmed even though it isn't a literal identifier spelling).
+    /// Never a raw UTC offset: several cities can share one offset, and
+    /// daylight saving makes the mapping depend on the date, so an offset
+    /// alone doesn't name one timezone.
+    static func resolvedTimeZoneIdentifier(for query: String) -> String? {
+        guard !query.isEmpty else { return nil }
+        let normalizedQuery = normalizedTimeZoneText(query)
+        if let identifier = TimeZone.knownTimeZoneIdentifiers.first(where: {
+            normalizedTimeZoneText($0) == normalizedQuery
+        }) {
+            return identifier
+        }
+        if let abbreviation = TimeZone.abbreviationDictionary.first(where: {
+            normalizedTimeZoneText($0.key) == normalizedQuery
+        }) {
+            return abbreviation.value
+        }
+        let matches = matchingTimeZoneIdentifiers(for: query)
+        return matches.count == 1 ? matches.first : nil
     }
 
     struct DetectedDateToken: Equatable {

@@ -10888,6 +10888,49 @@ struct MetricsTests {
         expect(TextSnippetSupport.dateToken(in: tokenSample, at: beforeFirstTag) == nil,
                "a cursor immediately before a token's opening braces is not inside that token")
 
+        // Date variable builder support (timezone search and style matching)
+        expect(TextSnippetSupport.matchingDateStyle(pattern: "yyyy-MM-dd", kind: .date, locale: enUS) == .iso8601,
+               "the ISO 8601 date pattern is recognized as that style")
+        expect(TextSnippetSupport.matchingDateStyle(pattern: "not a real pattern", kind: .date, locale: enUS) == .custom,
+               "an unrecognized pattern falls back to Custom")
+
+        expect(TextSnippetSupport.matchingTimeZoneIdentifiers(for: "").isEmpty,
+               "an empty query matches nothing")
+        expect(TextSnippetSupport.matchingTimeZoneIdentifiers(for: "new york") == ["America/New_York"],
+               "a city name with a space matches the underscored identifier")
+        expect(TextSnippetSupport.matchingTimeZoneIdentifiers(for: "xyz-nonsense").isEmpty,
+               "a query matching nothing returns an empty list")
+
+        expect(TextSnippetSupport.resolvedTimeZoneIdentifier(for: "America/New_York") == "America/New_York",
+               "a full identifier resolves to itself")
+        expect(TextSnippetSupport.resolvedTimeZoneIdentifier(for: "america/new york") == "America/New_York",
+               "the full identifier resolves case- and separator-insensitively")
+        expect(TextSnippetSupport.resolvedTimeZoneIdentifier(for: "new york") == "America/New_York",
+               "a city name that narrows the suggestion list to exactly one result resolves to it")
+        expect(TextSnippetSupport.resolvedTimeZoneIdentifier(for: "pst") == "America/Los_Angeles",
+               "a common abbreviation resolves to its canonical identifier")
+        expect(TextSnippetSupport.resolvedTimeZoneIdentifier(for: "utc") == "UTC",
+               "UTC resolves even though it is not itself in TimeZone.knownTimeZoneIdentifiers")
+        expect(TextSnippetSupport.resolvedTimeZoneIdentifier(for: "budapest") == "Europe/Budapest",
+               "a query with no exact match but exactly one substring match resolves to it")
+        expect(TextSnippetSupport.resolvedTimeZoneIdentifier(for: "america") == nil,
+               "a query matching many identifiers with no exact hit stays unresolved")
+        expect(TextSnippetSupport.resolvedTimeZoneIdentifier(for: "xyz-nonsense") == nil,
+               "a query matching nothing is unresolved")
+
+        // A built token round-trips back through detection unchanged: this is
+        // exactly the path the Insert/Edit button depends on.
+        for kind in TextSnippetSupport.DateVariableKind.allCases {
+            for timeZoneIdentifier in [nil, "UTC", "Asia/Tokyo"] as [String?] {
+                let built = TextSnippetSupport.dateVariableText(kind: kind, style: .iso8601, customPattern: "",
+                                                                 timeZoneIdentifier: timeZoneIdentifier, locale: enUS)
+                let midpoint = built.index(built.startIndex, offsetBy: built.count / 2)
+                let detected = TextSnippetSupport.dateToken(in: built, at: midpoint)
+                expect(detected?.kind == kind && detected?.timeZoneIdentifier == timeZoneIdentifier,
+                       "a built \(kind.rawValue) token with timezone \(timeZoneIdentifier ?? "nil") round-trips through dateToken unchanged")
+            }
+        }
+
         // Per-snippet capitalization option (issue #304)
         let caseless = TextSnippet(name: "Caseless", trigger: ";email", replacement: "me@x.com",
                                    expansion: .afterDelimiter, enabled: true, ignoresCase: true)

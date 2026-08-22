@@ -20,8 +20,10 @@ struct SelectableTextEditor: NSViewRepresentable {
         let scroll = NSTextView.scrollableTextView()
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
+        scroll.drawsBackground = false
         guard let textView = scroll.documentView as? NSTextView else { return scroll }
         textView.delegate = context.coordinator
+        textView.drawsBackground = false
         textView.font = .systemFont(ofSize: NSFont.systemFontSize)
         textView.isRichText = false
         textView.allowsUndo = true
@@ -40,7 +42,18 @@ struct SelectableTextEditor: NSViewRepresentable {
         guard let textView = nsView.documentView as? NSTextView,
               textView.string != text,
               !textView.hasMarkedText() else { return }
+        // Setting .string fires textViewDidChangeSelection (but not
+        // textDidChange), and that delegate callback writes SwiftUI
+        // @State; doing so from inside a view update is undefined
+        // behavior. Suppress that one write for this programmatic
+        // replace, same as the existing guard already does for the text
+        // binding itself.
+        context.coordinator.isApplyingExternalText = true
         textView.string = text
+        context.coordinator.isApplyingExternalText = false
+        // Programmatic replaces (load, retention, restore) invalidate undo
+        // entries recorded against the old storage; replaying one would
+        // resurrect cleared text or throw a range exception.
         textView.undoManager?.removeAllActions()
     }
 
@@ -51,6 +64,7 @@ struct SelectableTextEditor: NSViewRepresentable {
     final class Coordinator: NSObject, NSTextViewDelegate {
         private let text: Binding<String>
         private let selectedRange: Binding<Range<String.Index>?>
+        var isApplyingExternalText = false
 
         init(text: Binding<String>, selectedRange: Binding<Range<String.Index>?>) {
             self.text = text
@@ -63,7 +77,8 @@ struct SelectableTextEditor: NSViewRepresentable {
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
-            guard let textView = notification.object as? NSTextView else { return }
+            guard !isApplyingExternalText,
+                  let textView = notification.object as? NSTextView else { return }
             let current = textView.string
             if text.wrappedValue != current { text.wrappedValue = current }
             selectedRange.wrappedValue = Range(textView.selectedRange(), in: current)

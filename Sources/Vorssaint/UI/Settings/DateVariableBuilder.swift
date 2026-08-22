@@ -35,8 +35,9 @@ struct DateVariableBuilder: View {
         let resolvedKind = initial?.kind ?? .datetime
         _kind = State(initialValue: resolvedKind)
         _timeZoneIdentifier = State(initialValue: initial?.timeZoneIdentifier)
-        if let initial,
-           let matchedStyle = Self.matchingStyle(pattern: initial.pattern, kind: resolvedKind, locale: locale) {
+        if let initial {
+            let matchedStyle = TextSnippetSupport.matchingDateStyle(pattern: initial.pattern,
+                                                                     kind: resolvedKind, locale: locale)
             _style = State(initialValue: matchedStyle)
             _customPattern = State(initialValue: matchedStyle == .custom ? initial.pattern : "")
         } else {
@@ -45,66 +46,17 @@ struct DateVariableBuilder: View {
         }
     }
 
-    /// Reconstructs which Style an already-built pattern came from, by
-    /// comparing it against what each style would resolve to right now.
-    /// Falls back to Custom when nothing matches (e.g. a hand-typed
-    /// pattern, or a system style whose OS-resolved text has since
-    /// changed).
-    private static func matchingStyle(pattern: String,
-                                      kind: TextSnippetSupport.DateVariableKind,
-                                      locale: Locale) -> TextSnippetSupport.DateVariableStyle? {
-        let candidates: [TextSnippetSupport.DateVariableStyle] = [.iso8601, .short, .medium, .long, .full]
-        for candidate in candidates {
-            if TextSnippetSupport.resolvedDatePattern(kind: kind, style: candidate,
-                                                      customPattern: "", locale: locale) == pattern {
-                return candidate
-            }
-        }
-        return .custom
-    }
-
     private var showsTimeZonePicker: Bool { kind != .date }
 
-    /// Lowercased with underscores folded to spaces, so "New_York" and
-    /// "new york" compare equal: identifiers spell city names with
-    /// underscores, but nobody types a timezone query that way.
-    private static func normalizedTimeZoneText(_ value: String) -> String {
-        value.lowercased().replacingOccurrences(of: "_", with: " ")
-    }
-
     private var timeZoneMatches: [String] {
-        guard !timeZoneQuery.isEmpty else { return [] }
-        let query = Self.normalizedTimeZoneText(timeZoneQuery)
-        let byName = TimeZone.knownTimeZoneIdentifiers
-            .filter { Self.normalizedTimeZoneText($0).contains(query) }
-        let byAbbreviation = TimeZone.abbreviationDictionary
-            .filter { Self.normalizedTimeZoneText($0.key).contains(query) }
-            .map { $0.value }
-        return Array(Set(byName + byAbbreviation)).sorted().prefix(50).map { $0 }
+        TextSnippetSupport.matchingTimeZoneIdentifiers(for: timeZoneQuery)
     }
 
-    /// The canonical identifier the typed text exactly names, if any: lets
-    /// the search field show live validity feedback and confirm on Return
-    /// without requiring a click into the suggestion list below. Matches
-    /// both a full identifier (e.g. "America/New_York") and a common
-    /// abbreviation (e.g. "PST", resolved to its canonical identifier via
-    /// TimeZone.abbreviationDictionary), not a raw UTC offset: several
-    /// cities can share one offset, and daylight saving makes the mapping
-    /// depend on the date, so an offset alone doesn't name one timezone.
+    /// Whether the typed text names a usable timezone, for the search
+    /// field's live checkmark/X and for Return to confirm without
+    /// requiring a click into the suggestion list below.
     private var typedTimeZoneMatch: String? {
-        guard !timeZoneQuery.isEmpty else { return nil }
-        let query = Self.normalizedTimeZoneText(timeZoneQuery)
-        if let identifier = TimeZone.knownTimeZoneIdentifiers.first(where: {
-            Self.normalizedTimeZoneText($0) == query
-        }) {
-            return identifier
-        }
-        if let abbreviation = TimeZone.abbreviationDictionary.first(where: {
-            Self.normalizedTimeZoneText($0.key) == query
-        }) {
-            return abbreviation.value
-        }
-        return nil
+        TextSnippetSupport.resolvedTimeZoneIdentifier(for: timeZoneQuery)
     }
 
     private func confirmTypedTimeZone() {
@@ -187,7 +139,7 @@ struct DateVariableBuilder: View {
                                 }
                             }
                         }
-                        .frame(height: 140)
+                        .frame(height: min(140, CGFloat(timeZoneMatches.count) * 22))
                     }
                 }
             }
