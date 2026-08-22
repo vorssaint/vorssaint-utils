@@ -15157,19 +15157,14 @@ struct MetricsTests {
         }
 
         // A key glyph in front of a button label reads as that button's
-        // shortcut. "Open the bar now" carried SF Symbol "command", so the ⌘
-        // looked like the way to open the bar while the real shortcut lives in
-        // the toggle below. Neither action button takes an icon any more.
+        // shortcut, so neither command bar action button carries one.
         let commandBarSettingsSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Settings/CommandBarSettings.swift",
             encoding: .utf8)) ?? ""
         expect(!commandBarSettingsSource.contains("Label(text.openButton, systemImage:")
                 && !commandBarSettingsSource.contains("Label(text.resetPositionButton, systemImage:"),
                "neither command bar action button wears an icon")
-        // The shared "Global shortcut" label is right on pages with one
-        // action. This page also has an "open the bar now" button, so the
-        // toggle has to name which of the two the shortcut arms.
-        expect(commandBarSettingsSource.contains("Toggle(text.shortcutToggle, isOn: $shortcutEnabled)")
+        expect(commandBarSettingsSource.contains("Toggle(text.shortcutToggle,")
                 && !commandBarSettingsSource.contains("l10n.s.quickToolShortcutToggle"),
                "the command bar shortcut toggle says what the shortcut opens")
         for language in AppLanguage.allCases {

@@ -37,10 +37,9 @@ struct CommandBarSettings: View {
     var body: some View {
         Form {
             Section {
-                // The pair reads as one choice — open it, or put it back — so
-                // it is one row. Neither carries an icon: a ⌘ glyph in front
-                // of "Open the bar now" reads as the shortcut that opens it,
-                // which it is not (the shortcut is the toggle further down).
+                // One choice, open it or recenter it, so one row. Neither
+                // carries an icon: a ⌘ glyph in front of "Open the bar now"
+                // reads as the shortcut that opens it, which it is not.
                 HStack(spacing: 10) {
                     Button(text.openButton) {
                         CommandBarService.shared.show()
