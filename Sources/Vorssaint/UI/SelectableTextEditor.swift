@@ -64,7 +64,9 @@ struct SelectableTextEditor: NSViewRepresentable {
 
         func textViewDidChangeSelection(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
-            selectedRange.wrappedValue = Range(textView.selectedRange(), in: text.wrappedValue)
+            let current = textView.string
+            if text.wrappedValue != current { text.wrappedValue = current }
+            selectedRange.wrappedValue = Range(textView.selectedRange(), in: current)
         }
     }
 }

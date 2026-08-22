@@ -10881,6 +10881,13 @@ struct MetricsTests {
         expect(TextSnippetSupport.dateToken(in: "", at: "".startIndex) == nil,
                "empty text detects nothing")
 
+        let afterFirstTag = tokenSample.range(of: "{{date:MMM d}}")!.upperBound
+        expect(TextSnippetSupport.dateToken(in: tokenSample, at: afterFirstTag) == nil,
+               "a cursor immediately after a token's closing braces is not inside that token")
+        let beforeFirstTag = tokenSample.range(of: "{{date:MMM d}}")!.lowerBound
+        expect(TextSnippetSupport.dateToken(in: tokenSample, at: beforeFirstTag) == nil,
+               "a cursor immediately before a token's opening braces is not inside that token")
+
         // Per-snippet capitalization option (issue #304)
         let caseless = TextSnippet(name: "Caseless", trigger: ";email", replacement: "me@x.com",
                                    expansion: .afterDelimiter, enabled: true, ignoresCase: true)

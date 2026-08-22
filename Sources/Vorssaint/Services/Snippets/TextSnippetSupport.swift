@@ -325,7 +325,7 @@ enum TextSnippetSupport {
                 continue
             }
             let tagEnd = close.upperBound
-            if index >= start.lowerBound, index <= tagEnd {
+            if index > start.lowerBound, index < tagEnd {
                 return DetectedDateToken(range: start.lowerBound..<tagEnd, kind: kind,
                                         pattern: match.pattern, timeZoneIdentifier: match.timeZoneIdentifier)
             }
