@@ -83,6 +83,9 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
   Dock, Spotlight or Applications. Media keys still cannot launch it.
 - The recording editor now reads composition duration directly without background
   queries. Thanks to @Bald-M.
+- Rebuilding the display list after a hotplug, a wake or opening the panel no
+  longer reads the screen names from a background thread. The names the sliders
+  carry are unchanged. Thanks to @PathGao.
 
 ## [3.3.2] - 2026-08-20
 
