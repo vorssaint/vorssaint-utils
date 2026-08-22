@@ -66,7 +66,6 @@ enum SystemInfo {
         let used = MetricFormat.memoryUsed(totalBytes: total,
                                            pageSize: pageSize,
                                            freePages: UInt64(stats.free_count),
-                                           speculativePages: UInt64(stats.speculative_count),
                                            fileBackedPages: UInt64(stats.external_page_count))
         let appUsed = MetricFormat.appMemory(totalBytes: total,
                                              pageSize: pageSize,
