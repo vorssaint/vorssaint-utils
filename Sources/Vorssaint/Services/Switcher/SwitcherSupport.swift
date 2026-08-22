@@ -122,6 +122,27 @@ struct SwitcherAppGroup: Identifiable, Equatable {
     var windowCount: Int { itemIDs.count }
 }
 
+/// What one App Switcher grid card is made of.
+///
+/// The card scales with the preview size; its chrome does not, because the
+/// chrome is two lines of text that are the same at every size. The thumbnail
+/// takes whatever is left, derived from the parts rather than from one number
+/// standing in for them — the number it used to be had drifted 16pt past what
+/// it stood for, and the card spent the difference on nothing.
+enum SwitcherGridCard {
+    static var width: CGFloat { 288 * PreviewSizing.scale }
+    static var height: CGFloat { 214 * PreviewSizing.scale }
+    static let padding: CGFloat = 10
+    static let titleSpacing: CGFloat = 7
+    /// One 13pt line over one 10.5pt line, 2pt apart, descenders included.
+    static let titleHeight: CGFloat = 31
+    static var thumbnailWidth: CGFloat { width - padding * 2 }
+    static var thumbnailHeight: CGFloat { height - padding * 2 - titleSpacing - titleHeight }
+    /// Stands in for a thumbnail that has not arrived, so it follows the
+    /// thumbnail's size rather than staying the one fixed picture on the card.
+    static var fallbackIconSize: CGFloat { 80 * PreviewSizing.scale }
+}
+
 struct SwitcherIconRowLayout: Equatable {
     let visibleIconCount: Int
     let appRowContentWidth: CGFloat
