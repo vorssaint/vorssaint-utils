@@ -69,17 +69,15 @@ enum MetricFormat {
     // MARK: Memory
 
     /// Matches Activity Monitor's "Memory Used": physical RAM minus pages that
-    /// are free, speculative, or file-backed cache. The side breakdown
+    /// are free or file-backed cache. Speculative pages are already included in
+    /// the free count. The side breakdown
     /// (App/Wired/Compressed) does not expose every bucket counted in the total.
     static func memoryUsed(totalBytes: UInt64,
                            pageSize: UInt64,
                            freePages: UInt64,
-                           speculativePages: UInt64,
                            fileBackedPages: UInt64) -> UInt64 {
         guard totalBytes > 0, pageSize > 0 else { return 0 }
-        let freeAndSpeculative = freePages.addingReportingOverflow(speculativePages)
-        guard !freeAndSpeculative.overflow else { return 0 }
-        let availablePages = freeAndSpeculative.partialValue.addingReportingOverflow(fileBackedPages)
+        let availablePages = freePages.addingReportingOverflow(fileBackedPages)
         guard !availablePages.overflow else { return 0 }
         let availableBytes = availablePages.partialValue.multipliedReportingOverflow(by: pageSize)
         guard !availableBytes.overflow else { return 0 }
