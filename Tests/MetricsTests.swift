@@ -8194,6 +8194,48 @@ struct MetricsTests {
                                                       panelFrame: switcherPanelFrame,
                                                       location: CGPoint(x: 200, y: 200)),
                "App Switcher ignores clicks while a quick switch shows no panel")
+        expect(SwitcherSupport.isMiddleClickInsidePanel(eventType: .otherMouseDown,
+                                                        buttonNumber: 2,
+                                                        panelIsVisible: true,
+                                                        panelFrame: switcherPanelFrame,
+                                                        location: CGPoint(x: 700, y: 500)),
+               "App Switcher detects middle-click inside panel to close window")
+        expect(!SwitcherSupport.isMiddleClickInsidePanel(eventType: .otherMouseDown,
+                                                         buttonNumber: 2,
+                                                         panelIsVisible: true,
+                                                         panelFrame: switcherPanelFrame,
+                                                         location: CGPoint(x: 200, y: 200)),
+               "App Switcher leaves middle-click outside panel to regular dismissal")
+        expect(!SwitcherSupport.isMiddleClickInsidePanel(eventType: .leftMouseDown,
+                                                         buttonNumber: 0,
+                                                         panelIsVisible: true,
+                                                         panelFrame: switcherPanelFrame,
+                                                         location: CGPoint(x: 700, y: 500)),
+               "App Switcher ignores non-middle clicks for direct window close")
+        expect(!SwitcherSupport.isMiddleClickInsidePanel(eventType: .otherMouseDown,
+                                                         buttonNumber: 3,
+                                                         panelIsVisible: true,
+                                                         panelFrame: switcherPanelFrame,
+                                                         location: CGPoint(x: 700, y: 500)),
+               "App Switcher ignores extra mouse buttons for direct window close")
+        expect(!SwitcherSupport.isMiddleClickInsidePanel(eventType: .otherMouseDown,
+                                                         buttonNumber: 2,
+                                                         panelIsVisible: false,
+                                                         panelFrame: switcherPanelFrame,
+                                                         location: CGPoint(x: 700, y: 500)),
+               "App Switcher ignores middle-click when panel is not visible")
+        expect(SwitcherSupport.shouldSwallowMiddleMouseUp(eventType: .otherMouseUp,
+                                                          buttonNumber: 2,
+                                                          panelIsVisible: true,
+                                                          panelFrame: switcherPanelFrame,
+                                                          location: CGPoint(x: 700, y: 500)),
+               "App Switcher swallows middle-mouse-up inside panel")
+        expect(!SwitcherSupport.shouldSwallowMiddleMouseUp(eventType: .otherMouseUp,
+                                                           buttonNumber: 2,
+                                                           panelIsVisible: true,
+                                                           panelFrame: switcherPanelFrame,
+                                                           location: CGPoint(x: 200, y: 200)),
+               "App Switcher does not swallow middle-mouse-up outside panel")
         let searchRecords = [
             SwitcherSearchRecord(id: "alpha", title: "Inbox", appName: "Alpha"),
             SwitcherSearchRecord(id: "beta", title: "Vorssaint Roadmap", appName: "Beta"),

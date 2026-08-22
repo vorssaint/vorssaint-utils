@@ -25,6 +25,7 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
 - An opt-in Kill Process feature searches running processes to force quit, restart or terminate
   process trees from Settings and the Command Bar. It ships uninstalled. Thanks to @naveenkrdy.
 - The System panel now shows compressed memory and cached files next to swap.
+- Middle-clicking a window card in the App Switcher now closes that window directly.
 
 ### Changed
 - The App Switcher now splits windows evenly across rows when they wrap, so a

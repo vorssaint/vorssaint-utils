@@ -976,6 +976,31 @@ enum SwitcherSupport {
         panelIsVisible && !panelFrame.contains(location)
     }
 
+    /// Whether a mouse click is a middle click inside the active switcher panel
+    /// (which closes the highlighted/targeted window).
+    static func isMiddleClickInsidePanel(eventType: CGEventType,
+                                         buttonNumber: Int64,
+                                         panelIsVisible: Bool,
+                                         panelFrame: CGRect,
+                                         location: CGPoint) -> Bool {
+        eventType == .otherMouseDown
+            && buttonNumber == 2
+            && panelIsVisible
+            && panelFrame.contains(location)
+    }
+
+    /// Whether a middle mouse up event occurred inside the switcher panel and should be swallowed.
+    static func shouldSwallowMiddleMouseUp(eventType: CGEventType,
+                                           buttonNumber: Int64,
+                                           panelIsVisible: Bool,
+                                           panelFrame: CGRect,
+                                           location: CGPoint) -> Bool {
+        eventType == .otherMouseUp
+            && buttonNumber == 2
+            && panelIsVisible
+            && panelFrame.contains(location)
+    }
+
     /// The letters the panel acts on: W closes the highlighted window, Q quits
     /// its app, and, when `pinSearchEnabled`, S pins the search field open so
     /// it no longer needs the session's modifier held to stay on screen — that
