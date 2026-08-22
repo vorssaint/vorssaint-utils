@@ -10810,6 +10810,47 @@ struct MetricsTests {
                                              clipboard: nil, locale: enUS),
                "an unrecognized time zone identifier falls back to the device default")
 
+        // Date variable builder logic
+        expect(TextSnippetSupport.resolvedDatePattern(kind: .date, style: .iso8601,
+                                                       customPattern: "", locale: enUS) == "yyyy-MM-dd",
+               "ISO 8601 date style resolves to the fixed ISO date pattern")
+        expect(TextSnippetSupport.resolvedDatePattern(kind: .time, style: .iso8601,
+                                                       customPattern: "", locale: enUS) == "HH:mm:ssXXX",
+               "ISO 8601 time style resolves to the fixed ISO time pattern with an offset token")
+        expect(TextSnippetSupport.resolvedDatePattern(kind: .datetime, style: .iso8601,
+                                                       customPattern: "", locale: enUS)
+                == "yyyy-MM-dd'T'HH:mm:ssXXX",
+               "ISO 8601 datetime style resolves to the fixed ISO datetime pattern")
+        expect(TextSnippetSupport.resolvedDatePattern(kind: .date, style: .custom,
+                                                       customPattern: "dd/MM/yyyy", locale: enUS)
+                == "dd/MM/yyyy",
+               "custom style passes the raw pattern through untouched")
+        expect(!TextSnippetSupport.resolvedDatePattern(kind: .date, style: .medium,
+                                                        customPattern: "", locale: enUS).isEmpty,
+               "a system style resolves to some non-empty pattern (exact text is OS/locale dependent)")
+
+        expect(TextSnippetSupport.dateVariableText(kind: .date, style: .iso8601, customPattern: "",
+                                                    timeZoneIdentifier: nil, locale: enUS)
+                == "{{date:yyyy-MM-dd}}",
+               "building a token with no timezone omits the -tz(...) suffix")
+        expect(TextSnippetSupport.dateVariableText(kind: .datetime, style: .iso8601, customPattern: "",
+                                                    timeZoneIdentifier: "UTC", locale: enUS)
+                == "{{datetime-tz(UTC):yyyy-MM-dd'T'HH:mm:ssXXX}}",
+               "building a token with a timezone adds the -tz(...) suffix")
+        expect(TextSnippetSupport.dateVariableText(kind: .time, style: .custom, customPattern: "HH:mm",
+                                                    timeZoneIdentifier: "Asia/Tokyo", locale: enUS)
+                == "{{time-tz(Asia/Tokyo):HH:mm}}",
+               "a custom pattern with a timezone builds the same tagged token shape")
+
+        expect(TextSnippetSupport.dateVariablePreview(kind: .datetime, style: .iso8601, customPattern: "",
+                                                       timeZoneIdentifier: "UTC", date: zonedDate,
+                                                       locale: enUS) == "2025-07-01T12:30:15Z",
+               "the preview matches what expansion would produce for the same settings")
+        expect(TextSnippetSupport.dateVariablePreview(kind: .date, style: .custom, customPattern: "",
+                                                       timeZoneIdentifier: nil, date: zonedDate,
+                                                       locale: enUS).isEmpty,
+               "an empty custom pattern previews as empty rather than crashing on an empty date format")
+
         // Per-snippet capitalization option (issue #304)
         let caseless = TextSnippet(name: "Caseless", trigger: ";email", replacement: "me@x.com",
                                    expansion: .afterDelimiter, enabled: true, ignoresCase: true)

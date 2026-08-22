@@ -188,6 +188,98 @@ enum TextSnippetSupport {
         return nil
     }
 
+    // MARK: - Date variable builder
+
+    /// The three shapes a date/time snippet variable can take.
+    enum DateVariableKind: String, CaseIterable {
+        case date, time, datetime
+    }
+
+    /// How a date/time variable's pattern gets chosen: one of the system's
+    /// built-in styles, the fixed ISO 8601 shape, or a hand-typed pattern.
+    enum DateVariableStyle: String, CaseIterable {
+        case short, medium, long, full, iso8601, custom
+    }
+
+    private static let isoPatterns: [DateVariableKind: String] = [
+        .date: "yyyy-MM-dd",
+        .time: "HH:mm:ssXXX",
+        .datetime: "yyyy-MM-dd'T'HH:mm:ssXXX"
+    ]
+
+    private static func systemStyle(_ style: DateVariableStyle) -> DateFormatter.Style {
+        switch style {
+        case .short: return .short
+        case .medium: return .medium
+        case .long: return .long
+        case .full: return .full
+        case .iso8601, .custom: return .none
+        }
+    }
+
+    /// The ICU pattern a builder selection resolves to: the raw text for
+    /// Custom, a fixed shape for ISO 8601, or whatever DateFormatter reports
+    /// for a system style at this locale.
+    static func resolvedDatePattern(kind: DateVariableKind,
+                                    style: DateVariableStyle,
+                                    customPattern: String,
+                                    locale: Locale) -> String {
+        switch style {
+        case .custom:
+            return customPattern
+        case .iso8601:
+            return isoPatterns[kind] ?? ""
+        case .short, .medium, .long, .full:
+            let formatter = DateFormatter()
+            formatter.locale = locale
+            let dateStyle = systemStyle(style)
+            switch kind {
+            case .date:
+                formatter.dateStyle = dateStyle
+                formatter.timeStyle = .none
+            case .time:
+                formatter.dateStyle = .none
+                formatter.timeStyle = dateStyle
+            case .datetime:
+                formatter.dateStyle = dateStyle
+                formatter.timeStyle = dateStyle
+            }
+            return formatter.dateFormat
+        }
+    }
+
+    /// The literal "{{kind:pattern}}" (or "{{kind-tz(id):pattern}}") text a
+    /// builder selection inserts into a snippet's replacement.
+    static func dateVariableText(kind: DateVariableKind,
+                                 style: DateVariableStyle,
+                                 customPattern: String,
+                                 timeZoneIdentifier: String?,
+                                 locale: Locale) -> String {
+        let pattern = resolvedDatePattern(kind: kind, style: style,
+                                          customPattern: customPattern, locale: locale)
+        let tzPart = timeZoneIdentifier.map { "-tz(\($0))" } ?? ""
+        return "{{\(kind.rawValue)\(tzPart):\(pattern)}}"
+    }
+
+    /// What a builder selection would format the given date as, using the
+    /// same formatter configuration expandingFormattedDates uses, so the
+    /// preview always matches what expansion actually produces.
+    static func dateVariablePreview(kind: DateVariableKind,
+                                    style: DateVariableStyle,
+                                    customPattern: String,
+                                    timeZoneIdentifier: String?,
+                                    date: Date,
+                                    locale: Locale) -> String {
+        let pattern = resolvedDatePattern(kind: kind, style: style,
+                                          customPattern: customPattern, locale: locale)
+        guard !pattern.isEmpty else { return "" }
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.dateFormat = pattern
+        formatter.timeZone = timeZoneIdentifier.flatMap { TimeZone(identifier: $0) }
+        return formatter.string(from: date)
+    }
+
     // MARK: - Library
 
     /// One folder worth of library rows. An empty name is the loose group,
