@@ -1370,12 +1370,15 @@ struct MetricsTests {
 
         let used = MetricFormat.memoryUsed(totalBytes: 16 * 1024,
                                            pageSize: 1024,
-                                           freePages: 1,
-                                           fileBackedPages: 3)
-        expect(used == 12 * 1024, "memory used excludes free and file-backed pages")
+                                           activePages: 5,
+                                           inactivePages: 3,
+                                           wiredPages: 2,
+                                           compressorPages: 1)
+        expect(used == 11 * 1024, "memory used includes active, inactive, wired and compressed pages")
         expect(MetricFormat.memoryUsed(totalBytes: 16, pageSize: 1,
-                                       freePages: 20, fileBackedPages: 0) == 0,
-               "memory used clamps impossible available memory")
+                                       activePages: 20, inactivePages: 0,
+                                       wiredPages: 0, compressorPages: 0) == 16,
+               "memory used clamps impossible used memory")
 
         // MARK: App memory
 

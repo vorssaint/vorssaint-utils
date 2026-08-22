@@ -68,20 +68,25 @@ struct DiskIOCounters: Equatable {
 enum MetricFormat {
     // MARK: Memory
 
-    /// Matches Activity Monitor's "Memory Used": physical RAM minus pages that
-    /// are free or file-backed cache. Speculative pages are already included in
-    /// the free count. The side breakdown
-    /// (App/Wired/Compressed) does not expose every bucket counted in the total.
+    /// Matches Darwin's physical-memory used accounting: active, inactive,
+    /// wired and compressor pages. Speculative pages are already counted as
+    /// free; file-backed pages can still be actively in use.
     static func memoryUsed(totalBytes: UInt64,
                            pageSize: UInt64,
-                           freePages: UInt64,
-                           fileBackedPages: UInt64) -> UInt64 {
+                           activePages: UInt64,
+                           inactivePages: UInt64,
+                           wiredPages: UInt64,
+                           compressorPages: UInt64) -> UInt64 {
         guard totalBytes > 0, pageSize > 0 else { return 0 }
-        let availablePages = freePages.addingReportingOverflow(fileBackedPages)
-        guard !availablePages.overflow else { return 0 }
-        let availableBytes = availablePages.partialValue.multipliedReportingOverflow(by: pageSize)
-        guard !availableBytes.overflow else { return 0 }
-        return availableBytes.partialValue >= totalBytes ? 0 : totalBytes - availableBytes.partialValue
+        let activeAndInactive = activePages.addingReportingOverflow(inactivePages)
+        guard !activeAndInactive.overflow else { return 0 }
+        let pageableAndWired = activeAndInactive.partialValue.addingReportingOverflow(wiredPages)
+        guard !pageableAndWired.overflow else { return 0 }
+        let usedPages = pageableAndWired.partialValue.addingReportingOverflow(compressorPages)
+        guard !usedPages.overflow else { return 0 }
+        let usedBytes = usedPages.partialValue.multipliedReportingOverflow(by: pageSize)
+        guard !usedBytes.overflow else { return 0 }
+        return min(usedBytes.partialValue, totalBytes)
     }
 
     /// Purgeable internal pages do not count because the system can reclaim
