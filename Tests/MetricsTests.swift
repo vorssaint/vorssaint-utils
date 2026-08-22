@@ -12603,10 +12603,6 @@ struct MetricsTests {
                 && SuperKeySupport.nextInputSourceID(currentID: nil,
                                                      enabledIDs: ["abc"]) == nil,
                "input sources cycle through the enabled system list without a hard-coded shortcut")
-        expect(!SuperKeySupport.shouldCommitMarkedText(length: nil)
-                && !SuperKeySupport.shouldCommitMarkedText(length: 0)
-                && SuperKeySupport.shouldCommitMarkedText(length: 1),
-               "only active marked text is committed before switching input source")
 
         let capsMapping = SuperKeyMapping(source: SuperKeySupport.capsLockUsage,
                                           destination: SuperKeySupport.triggerUsage)

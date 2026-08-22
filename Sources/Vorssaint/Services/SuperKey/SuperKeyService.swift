@@ -57,9 +57,6 @@ final class SuperKeyService: ObservableObject {
     /// The mapping is written off the main thread, and in the order it was
     /// asked for: a queue of one keeps an apply and a clear from crossing.
     private let mappingQueue = DispatchQueue(label: "com.vorssaint.utils.superkey-mapping")
-    /// Reading another app's marked-text range can block, so quick taps inspect
-    /// it off the main thread and in order.
-    private let inputSourceQueue = DispatchQueue(label: "com.vorssaint.utils.superkey-input-source")
     /// When the last mapping went in, so a keyboard that arrives without one
     /// is repaired once and not on every keystroke.
     private var lastMappingAt: TimeInterval = 0
@@ -476,14 +473,10 @@ final class SuperKeyService: ObservableObject {
             event.flags = event.flags.union(modifierFlags)
             return Unmanaged.passUnretained(event)
         case .soloTap(repeated: let repeated):
-            DispatchQueue.main.async {
-                [weak self] in self?.performSoloAction(longHold: false, repeated: repeated)
-            }
+            performSoloAction(longHold: false, repeated: repeated)
             return nil
         case .soloHold(repeated: let repeated):
-            DispatchQueue.main.async {
-                [weak self] in self?.performSoloAction(longHold: true, repeated: repeated)
-            }
+            performSoloAction(longHold: true, repeated: repeated)
             return nil
         case .interceptAndRemap:
             repairMappingIfStale()
@@ -560,79 +553,23 @@ final class SuperKeyService: ObservableObject {
         case .none:
             return
         case .escape:
-            _ = Self.postKey(CGKeyCode(kVK_Escape))
+            runOnMainIfNeeded { _ = Self.postKey(CGKeyCode(kVK_Escape)) }
         case .capsLock:
-            setCapsLock(!capsLockIsOn())
+            runOnMainIfNeeded { self.setCapsLock(!self.capsLockIsOn()) }
         case .inputSource:
-            switchInputSource()
+            // Must finish before this tap returns: the next keystroke is already
+            // in flight, and hopping to main (or waiting on Accessibility) left
+            // that character in the old source.
+            Self.selectNextInputSource()
         }
     }
 
-    private func switchInputSource() {
-        guard let processID = NSWorkspace.shared.frontmostApplication?.processIdentifier else { return }
-        inputSourceQueue.async {
-            let focusedElement = Self.focusedElement(for: processID)
-            let shouldCommit = SuperKeySupport.shouldCommitMarkedText(
-                length: focusedElement.flatMap(Self.markedTextLength)
-            )
-            guard NSWorkspace.shared.frontmostApplication?.processIdentifier == processID else { return }
-            if shouldCommit {
-                guard let focusedElement,
-                      Self.isStillFocused(focusedElement, in: processID)
-                else { return }
-                guard Self.postKey(CGKeyCode(kVK_Return)) else { return }
-                Thread.sleep(forTimeInterval: 0.1)
-                guard NSWorkspace.shared.frontmostApplication?.processIdentifier == processID,
-                      Self.isStillFocused(focusedElement, in: processID)
-                else { return }
-            }
-            // TIS is main-thread-only; sync also keeps the whole tap ordered
-            // before the queue begins another IME commit.
-            DispatchQueue.main.sync {
-                guard NSWorkspace.shared.frontmostApplication?.processIdentifier == processID else { return }
-                Self.selectNextInputSource()
-            }
+    private func runOnMainIfNeeded(_ work: @escaping () -> Void) {
+        if Thread.isMainThread {
+            work()
+        } else {
+            DispatchQueue.main.async(execute: work)
         }
-    }
-
-    private static func focusedElement(for processID: pid_t) -> AXUIElement? {
-        let application = AXUIElementCreateApplication(processID)
-        AXUIElementSetMessagingTimeout(application, 0.2)
-        var focusedValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(
-            application,
-            kAXFocusedUIElementAttribute as CFString,
-            &focusedValue
-        ) == .success,
-        let focusedValue,
-        CFGetTypeID(focusedValue) == AXUIElementGetTypeID()
-        else { return nil }
-
-        let focusedElement = focusedValue as! AXUIElement
-        AXUIElementSetMessagingTimeout(focusedElement, 0.2)
-        return focusedElement
-    }
-
-    private static func markedTextLength(_ focusedElement: AXUIElement) -> Int? {
-        var rangeValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(
-            focusedElement,
-            "AXTextInputMarkedRange" as CFString,
-            &rangeValue
-        ) == .success,
-        let rangeValue,
-        CFGetTypeID(rangeValue) == AXValueGetTypeID()
-        else { return nil }
-
-        let axValue = rangeValue as! AXValue
-        guard AXValueGetType(axValue) == .cfRange else { return nil }
-        var range = CFRange(location: 0, length: 0)
-        return AXValueGetValue(axValue, .cfRange, &range) ? range.length : nil
-    }
-
-    private static func isStillFocused(_ element: AXUIElement, in processID: pid_t) -> Bool {
-        guard let current = focusedElement(for: processID) else { return false }
-        return CFEqual(element, current)
     }
 
     private static func postKey(_ keyCode: CGKeyCode) -> Bool {
@@ -645,18 +582,34 @@ final class SuperKeyService: ObservableObject {
         return true
     }
 
+    /// Cycle enabled keyboard sources through TIS before the tap lets the next
+    /// key through. An earlier path asked another app for marked text (up to
+    /// 200 ms) and then slept 100 ms so Control-Space could commit IME
+    /// composition; that wait ran on every tap, including ones with nothing to
+    /// commit. Selecting the next source directly lets the input method commit
+    /// or cancel on its own, the same way the Input menu does.
     private static func selectNextInputSource() {
-        let sources = selectableInputSources()
-        let ids = sources.compactMap { inputSourceString($0, property: kTISPropertyInputSourceID) }
-        guard let current = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return }
-        let currentID = inputSourceString(current, property: kTISPropertyInputSourceID)
-        guard let nextID = SuperKeySupport.nextInputSourceID(currentID: currentID,
-                                                             enabledIDs: ids),
-              let next = sources.first(where: {
-                  inputSourceString($0, property: kTISPropertyInputSourceID) == nextID
-              })
-        else { return }
-        _ = TISSelectInputSource(next)
+        let apply = {
+            let sources = selectableInputSources()
+            let ids = sources.compactMap { inputSourceString($0, property: kTISPropertyInputSourceID) }
+            guard let current = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return }
+            let currentID = inputSourceString(current, property: kTISPropertyInputSourceID)
+            guard let nextID = SuperKeySupport.nextInputSourceID(currentID: currentID,
+                                                                 enabledIDs: ids),
+                  let next = sources.first(where: {
+                      inputSourceString($0, property: kTISPropertyInputSourceID) == nextID
+                  })
+            else { return }
+            _ = TISSelectInputSource(next)
+        }
+        // TIS talks to the text-input server from the main thread. sync (not
+        // async) keeps the switch ahead of the next keystroke this tap is
+        // about to let through.
+        if Thread.isMainThread {
+            apply()
+        } else {
+            DispatchQueue.main.sync(execute: apply)
+        }
     }
 
     private static func selectableInputSources() -> [TISInputSource] {

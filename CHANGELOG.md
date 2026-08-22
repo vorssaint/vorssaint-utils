@@ -33,6 +33,9 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
 - Clicking a Dock icon now only restores the windows that Click Dock icon to minimize
   put away. Windows minimized any other way keep the Dock's own restore. Thanks to @PathGao.
 ### Fixed
+- Super key input-source switching no longer waits on Accessibility marked text
+  or a pause after every tap, so a language change takes effect before the next
+  keystroke. Thanks to @BenjaminD2023.
 - Scrolling screenshots now keep fixed page footers once at the end instead of
   repeating them after every scroll.
 - Settings now lists Dock Preview and Dock click as separate named sections, and
