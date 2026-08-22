@@ -65,14 +65,52 @@ struct DateVariableBuilder: View {
 
     private var showsTimeZonePicker: Bool { kind != .date }
 
+    /// Lowercased with underscores folded to spaces, so "New_York" and
+    /// "new york" compare equal: identifiers spell city names with
+    /// underscores, but nobody types a timezone query that way.
+    private static func normalizedTimeZoneText(_ value: String) -> String {
+        value.lowercased().replacingOccurrences(of: "_", with: " ")
+    }
+
     private var timeZoneMatches: [String] {
         guard !timeZoneQuery.isEmpty else { return [] }
-        let query = timeZoneQuery.lowercased()
-        return TimeZone.knownTimeZoneIdentifiers
-            .filter { $0.lowercased().contains(query) }
-            .sorted()
-            .prefix(50)
-            .map { $0 }
+        let query = Self.normalizedTimeZoneText(timeZoneQuery)
+        let byName = TimeZone.knownTimeZoneIdentifiers
+            .filter { Self.normalizedTimeZoneText($0).contains(query) }
+        let byAbbreviation = TimeZone.abbreviationDictionary
+            .filter { Self.normalizedTimeZoneText($0.key).contains(query) }
+            .map { $0.value }
+        return Array(Set(byName + byAbbreviation)).sorted().prefix(50).map { $0 }
+    }
+
+    /// The canonical identifier the typed text exactly names, if any: lets
+    /// the search field show live validity feedback and confirm on Return
+    /// without requiring a click into the suggestion list below. Matches
+    /// both a full identifier (e.g. "America/New_York") and a common
+    /// abbreviation (e.g. "PST", resolved to its canonical identifier via
+    /// TimeZone.abbreviationDictionary), not a raw UTC offset: several
+    /// cities can share one offset, and daylight saving makes the mapping
+    /// depend on the date, so an offset alone doesn't name one timezone.
+    private var typedTimeZoneMatch: String? {
+        guard !timeZoneQuery.isEmpty else { return nil }
+        let query = Self.normalizedTimeZoneText(timeZoneQuery)
+        if let identifier = TimeZone.knownTimeZoneIdentifiers.first(where: {
+            Self.normalizedTimeZoneText($0) == query
+        }) {
+            return identifier
+        }
+        if let abbreviation = TimeZone.abbreviationDictionary.first(where: {
+            Self.normalizedTimeZoneText($0.key) == query
+        }) {
+            return abbreviation.value
+        }
+        return nil
+    }
+
+    private func confirmTypedTimeZone() {
+        guard let match = typedTimeZoneMatch else { return }
+        timeZoneIdentifier = match
+        timeZoneQuery = ""
     }
 
     private var previewText: String {
@@ -124,7 +162,14 @@ struct DateVariableBuilder: View {
                             .font(.body)
                             .foregroundStyle(.secondary)
                     }
-                    TextField(text.dateTimeTimezoneSearchPlaceholder, text: $timeZoneQuery)
+                    HStack {
+                        TextField(text.dateTimeTimezoneSearchPlaceholder, text: $timeZoneQuery)
+                            .onSubmit { confirmTypedTimeZone() }
+                        if !timeZoneQuery.isEmpty {
+                            Image(systemName: typedTimeZoneMatch != nil ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                .foregroundStyle(typedTimeZoneMatch != nil ? .green : .red)
+                        }
+                    }
                     if !timeZoneMatches.isEmpty {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 0) {
@@ -142,7 +187,7 @@ struct DateVariableBuilder: View {
                                 }
                             }
                         }
-                        .frame(maxHeight: 140)
+                        .frame(height: 140)
                     }
                 }
             }

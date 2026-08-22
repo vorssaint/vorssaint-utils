@@ -310,7 +310,7 @@ private struct SnippetEditor: View {
                     Text(text.variablesHint)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text(text.variablesFormatCaption)
+                    Text(text.editorFormatCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
