@@ -222,6 +222,8 @@ extension Strings {
         dockPreviewEnableCaption: "将指针悬停在 Dock 中已打开的 App 上查看窗口，然后点按要打开的窗口。",
         dockPreviewBackgroundOpacity: "面板背景",
         dockPreviewBackgroundOpacityCaption: "调低后可以看到更多面板后面的内容。",
+        dockPreviewOpenDelay: "打开延迟",
+        dockPreviewOpenDelayCaption: "指针停在图标上多久之后才打开面板。",
         dockClickMinimize: "点按 Dock 图标最小化",
         dockClickMinimizeCaption: "点按最前面 App 的 Dock 图标可将其窗口最小化。再次点按即可恢复。",
         dockClickCycleWindows: "点按 Dock 图标切换窗口",

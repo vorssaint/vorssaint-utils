@@ -222,6 +222,8 @@ extension Strings {
         dockPreviewEnableCaption: "Survolez une app ouverte dans le Dock pour voir ses fenêtres, puis cliquez sur celle à ouvrir.",
         dockPreviewBackgroundOpacity: "Fond du panneau",
         dockPreviewBackgroundOpacityCaption: "Baissez-le pour voir davantage ce qui se trouve derrière le panneau.",
+        dockPreviewOpenDelay: "Délai d'ouverture",
+        dockPreviewOpenDelayCaption: "Combien de temps le pointeur doit rester sur une icône avant que le panneau s'ouvre.",
         dockClickMinimize: "Réduire d'un clic sur le Dock",
         dockClickMinimizeCaption: "Les fenêtres de l'app active se réduisent d'un clic sur son icône du Dock. Cliquez à nouveau pour les faire revenir.",
         dockClickCycleWindows: "Clic sur le Dock pour alterner les fenêtres",
