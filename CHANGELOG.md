@@ -33,11 +33,6 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
 - Clicking a Dock icon now only restores the windows that Click Dock icon to minimize
   put away. Windows minimized any other way keep the Dock's own restore. Thanks to @PathGao.
 ### Fixed
-- App Switcher grid cards now give their thumbnail the 14 points their chrome
-  was reserving and not using, and their title band holds a subtitle without
-  clipping its descenders. The app icon standing in for a thumbnail that has
-  not arrived follows the preview size. Thanks to @PathGao.
-
 - Scrolling screenshots now keep fixed page footers once at the end instead of
   repeating them after every scroll.
 - Settings now lists Dock Preview and Dock click as separate named sections, and
@@ -59,6 +54,10 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
   the window shortcut reach each window, even when showing one entry per app.
 - Windowless apps no longer repeat or misplace their name in the App Switcher's Small
   size. Thanks to @Yahddyyp.
+- App Switcher grid cards now give their thumbnail the 14 points their chrome
+  was reserving and not using, and their title band holds a subtitle without
+  clipping its descenders. The app icon standing in for a thumbnail that has
+  not arrived follows the preview size. Thanks to @PathGao.
 - Clicking the Dock icon of a background app to restore its minimized windows now
   brings that app forward, instead of leaving its windows behind whichever app was
   already in front. Thanks to @PathGao.
