@@ -890,7 +890,7 @@ private struct WindowCard: View {
     private static let appBadgeArtworkInset: CGFloat = (appBadgeSize * 0.094).rounded()
 
     var body: some View {
-        VStack(spacing: 7) {
+        VStack(spacing: SwitcherGridCard.titleSpacing) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(Color.white.opacity(0.06))
@@ -907,7 +907,8 @@ private struct WindowCard: View {
                     Image(nsImage: icon)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 80 * PreviewSizing.scale, height: 80 * PreviewSizing.scale)
+                        .frame(width: SwitcherGridCard.fallbackIconSize,
+                               height: SwitcherGridCard.fallbackIconSize)
                         .switcherHiddenAppBadge(window.isAppHidden, size: 22 * PreviewSizing.scale)
                 }
 
@@ -946,8 +947,8 @@ private struct WindowCard: View {
                     Spacer()
                 }
             }
-            .frame(width: SwitcherGrid.cardWidth - 20,
-                   height: SwitcherGrid.cardHeight - 72)
+            .frame(width: SwitcherGridCard.thumbnailWidth,
+                   height: SwitcherGridCard.thumbnailHeight)
 
             VStack(spacing: 2) {
                 ScrollingTitle(text: window.displayTitle,
@@ -963,10 +964,10 @@ private struct WindowCard: View {
                         .foregroundStyle(.tertiary)
                 }
             }
-            .frame(height: 29, alignment: .top)
-                .frame(maxWidth: SwitcherGrid.cardWidth - 28)
+            .frame(height: SwitcherGridCard.titleHeight, alignment: .top)
+                .frame(maxWidth: SwitcherGridCard.thumbnailWidth - 8)
         }
-        .padding(10)
+        .padding(SwitcherGridCard.padding)
         .frame(width: SwitcherGrid.cardWidth, height: SwitcherGrid.cardHeight)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)

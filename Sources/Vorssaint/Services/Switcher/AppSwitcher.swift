@@ -1542,10 +1542,10 @@ struct SwitcherGrid: Equatable {
     let visibleRows: Int
     let panelSize: CGSize
 
-    // Base sizes and breathing room scale together, so making previews smaller
-    // also keeps the panel from spending that saved space on empty gaps.
-    static var cardWidth: CGFloat { 288 * PreviewSizing.scale }
-    static var cardHeight: CGFloat { 214 * PreviewSizing.scale }
+    // Breathing room scales with the cards, so making previews smaller also
+    // keeps the panel from spending that saved space on empty gaps.
+    static var cardWidth: CGFloat { SwitcherGridCard.width }
+    static var cardHeight: CGFloat { SwitcherGridCard.height }
     static var spacing: CGFloat { 12 * PreviewSizing.scale }
     static var padding: CGFloat { 20 * PreviewSizing.scale }
 
