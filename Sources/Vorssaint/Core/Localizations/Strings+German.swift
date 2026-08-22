@@ -296,7 +296,7 @@ extension Strings {
         uninstallerDoneTitle: "Fertig!",
         uninstallerFreedFormat: "%@ freigegeben",
         uninstallerSomeFailed: "Einige Objekte konnten nicht in den Papierkorb bewegt werden.",
-        uninstallerFailedNeedsFDA: "Daten von Apps in der Sandbox lassen sich nur mit vollem Festplattenzugriff bewegen. Das Administratorpasswort ersetzt diese Berechtigung nicht.",
+        uninstallerFailedNeedsFDA: "Daten von Apps in der Sandbox lassen sich nur mit Festplattenvollzugriff bewegen. Das Administratorpasswort ersetzt diese Berechtigung nicht.",
         uninstallerFailedMoreFormat: "und %d weitere",
         uninstallerAnother: "Weitere deinstallieren",
         uninstallerCatApp: "Programm",

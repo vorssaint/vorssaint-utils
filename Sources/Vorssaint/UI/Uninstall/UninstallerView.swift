@@ -259,9 +259,7 @@ struct UninstallerView: View {
     private func doneState(freed: Int64, failed: [AppUninstaller.Leftover]) -> some View {
         VStack(spacing: 16) {
             Spacer()
-            // A green tick over a list of survivors reads as a clean removal.
-            Image(systemName: failed.isEmpty ? "checkmark.circle.fill"
-                                             : "exclamationmark.triangle.fill")
+            Image(systemName: UninstallerSupport.doneSymbol(hasLeftovers: !failed.isEmpty))
                 .font(.system(size: 54))
                 .foregroundStyle(failed.isEmpty ? .green : .orange)
             Text(l10n.s.uninstallerDoneTitle).font(.system(size: 20, weight: .bold))

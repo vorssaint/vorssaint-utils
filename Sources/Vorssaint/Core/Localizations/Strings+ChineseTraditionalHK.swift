@@ -297,7 +297,7 @@ extension Strings {
         uninstallerDoneTitle: "完成！",
         uninstallerFreedFormat: "已騰出 %@",
         uninstallerSomeFailed: "部分項目無法移至垃圾桶。",
-        uninstallerFailedNeedsFDA: "沙盒應用程式的資料只有在具備完全磁碟存取權時才能移動，管理員密碼無法取代這項權限。",
+        uninstallerFailedNeedsFDA: "沙盒應用程式的資料只有在具備完整磁碟存取權限時才能移動，管理員密碼無法取代這項權限。",
         uninstallerFailedMoreFormat: "另有 %d 項",
         uninstallerAnother: "解除安裝另一個",
         uninstallerCatApp: "應用程式",
