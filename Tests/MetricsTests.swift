@@ -10702,6 +10702,11 @@ struct MetricsTests {
                "no duplicate sound names")
         expect(TextSnippetSupport.alertSoundNames.allSatisfy { NSSound(named: $0) != nil },
                "every listed name resolves to a real system sound, not just a string that looks like one")
+        expect(Defaults.registeredDefaults[DefaultsKey.snippetSoundEnabled] as? Bool == false,
+               "sound on expansion stays off until asked for")
+        expect((Defaults.registeredDefaults[DefaultsKey.snippetSoundName] as? String)
+                .map(TextSnippetSupport.alertSoundNames.contains) == true,
+               "the default sound is one the picker actually offers")
 
         expect(TextSnippetSupport.sanitizedTrigger("  ;e mail\n") == ";email", "triggers lose whitespace")
         expect(TextSnippetSupport.bufferAppending(String(repeating: "a", count: 64), typed: "b").count

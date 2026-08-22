@@ -25,6 +25,8 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
 - An opt-in Kill Process feature searches running processes to force quit, restart or terminate
   process trees from Settings and the Command Bar. It ships uninstalled. Thanks to @naveenkrdy.
 - The System panel now shows compressed memory and cached files next to swap.
+- Text Snippets can now optionally play a system sound when a trigger expands, with a
+  choice of any of macOS's built-in alert sounds.
 
 ### Changed
 - Separate metrics into their own items now lives only in Settings › Monitor,
