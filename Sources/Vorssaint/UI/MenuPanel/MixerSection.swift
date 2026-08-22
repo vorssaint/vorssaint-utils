@@ -13,6 +13,7 @@ struct MixerSection: View {
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var inputManager = AudioInputDeviceManager.shared
     @ObservedObject private var outputSwitcher = SoundOutputSwitcher.shared
+    @ObservedObject private var audioRecovery = AudioRecoveryService.shared
     @AppStorage(DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect)
     private var lowerOnHeadphonesDisconnect = false
     @AppStorage(DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
@@ -30,6 +31,7 @@ struct MixerSection: View {
     var body: some View {
         PanelSection(.mixer, title: l10n.s.mixerSection, collapsible: collapsible) {
             VStack(alignment: .leading, spacing: 8) {
+                audioRecoveryControl
                 outputPickers
                 headphoneDisconnectProtectionToggle
                 if AppFeature.soundOutputSwitcher.isAvailable {
@@ -74,6 +76,49 @@ struct MixerSection: View {
             if let outputSwitchError = mixer.outputSwitchError {
                 inputMessage(String(format: l10n.s.mixerSystemOutputErrorFormat, outputSwitchError),
                              systemImage: "exclamationmark.triangle")
+            }
+        }
+    }
+
+    private var audioRecoveryControl: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Label {
+                    Text(l10n.s.audioRecoveryTitle)
+                        .font(.system(size: 11.5, weight: .medium))
+                } icon: {
+                    Image(systemName: "arrow.clockwise.circle")
+                        .font(.system(size: 10.5, weight: .semibold))
+                }
+                .foregroundStyle(.secondary)
+
+                Spacer(minLength: 6)
+
+                Button {
+                    audioRecovery.resetAudio()
+                } label: {
+                    Label(audioRecovery.isResetting
+                          ? l10n.s.audioRecoveryResetting
+                          : l10n.s.audioRecoveryButton,
+                          systemImage: audioRecovery.isResetting ? "hourglass" : "arrow.clockwise")
+                }
+                .controlSize(.small)
+                .disabled(audioRecovery.isResetting)
+                .help(l10n.s.audioRecoveryCaption)
+            }
+
+            Text(l10n.s.audioRecoveryCaption)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let result = audioRecovery.lastResult {
+                inputMessage(result == .succeeded
+                             ? l10n.s.audioRecoverySuccess
+                             : l10n.s.audioRecoveryFailure,
+                             systemImage: result == .succeeded
+                                 ? "checkmark.circle"
+                                 : "exclamationmark.triangle")
             }
         }
     }

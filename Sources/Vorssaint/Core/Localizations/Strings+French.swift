@@ -515,6 +515,13 @@ extension Strings {
         breakdownMeasuring: "Mesure…",
 
         mixerSection: "Mélangeur de volume",
+        audioRecoveryTitle: "Réinitialiser Core Audio",
+        audioRecoveryCaption: "Redémarre le service audio de macOS lorsque le son grésille, saccade ou disparaît.",
+        audioRecoveryButton: "Réinitialiser l’audio",
+        audioRecoveryResetting: "Réinitialisation…",
+        audioRecoverySuccess: "Core Audio a été redémarré.",
+        audioRecoveryFailure: "Impossible de redémarrer Core Audio.",
+        audioRecoveryAdminPrompt: "Vorssaint va redémarrer Core Audio de macOS pour rétablir le son. Le mot de passe administrateur peut être demandé.",
         mixerEmpty: "Les apps qui utilisent l’audio apparaissent ici",
         mixerUnavailable: "Disponible à partir de macOS 14.4",
         mixerPermissionBody: "Pour régler le volume par app, autorisez « Enregistrement de l’écran et de l’audio du système » dans les Réglages Système. L’audio n’est jamais enregistré.",

@@ -515,6 +515,13 @@ extension Strings {
         breakdownMeasuring: "Wird gemessen…",
 
         mixerSection: "Lautstärkemixer",
+        audioRecoveryTitle: "Core Audio neu starten",
+        audioRecoveryCaption: "Startet den macOS-Audiodienst neu, wenn der Ton knistert, stottert oder ausfällt.",
+        audioRecoveryButton: "Audio neu starten",
+        audioRecoveryResetting: "Wird neu gestartet…",
+        audioRecoverySuccess: "Core Audio wurde neu gestartet.",
+        audioRecoveryFailure: "Core Audio konnte nicht neu gestartet werden.",
+        audioRecoveryAdminPrompt: "Vorssaint startet macOS Core Audio neu, um den Ton wiederherzustellen. Möglicherweise ist ein Administratorpasswort erforderlich.",
         mixerEmpty: "Apps, die Audio nutzen, erscheinen hier",
         mixerUnavailable: "Verfügbar ab macOS 14.4",
         mixerPermissionBody: "Um die Lautstärke je App anzupassen, erlaube „Aufnahme von Bildschirm und Systemaudio“ in den Systemeinstellungen. Audio wird nie aufgenommen.",
