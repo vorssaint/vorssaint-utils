@@ -885,6 +885,7 @@ extension Strings {
         cleanerNotifDenied: "Vorssaint の通知がシステムでオフになっています。",
         cleanerNotifOpenSettings: "通知設定を開く…",
         launchAtLoginNeedsApplications: "ログイン時に開けない場所からアプリが実行されています。Vorssaintをアプリケーションフォルダにドラッグし、そこから開いてもう一度オンにしてください。",
+        launchAtLoginNeedsApproval: "ログイン項目は登録されていますが、システム設定ではオフのままです。「システム設定 › 一般 › ログイン項目と機能拡張」を開き、「ログイン時に開く」でVorssaintをオンにしてください。",
         ocrQRToggle: "QRコードを読み取る",
         ocrQRCaption: "選択した範囲にQRコードがあると、その内容をコピーまたは開けるように表示します。",
         ocrQRCopied: "QRコードをコピーしました",

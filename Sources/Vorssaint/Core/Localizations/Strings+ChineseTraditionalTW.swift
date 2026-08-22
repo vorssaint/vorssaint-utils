@@ -886,6 +886,7 @@ extension Strings {
         cleanerNotifDenied: "Vorssaint 的通知在系統中已關閉。",
         cleanerNotifOpenSettings: "打開通知設定…",
         launchAtLoginNeedsApplications: "App 正從無法在登入時開啟的位置執行。請將 Vorssaint 拖到「應用程式」檔案夾，從那裡開啟後再重新開啟此選項。",
+        launchAtLoginNeedsApproval: "登入項目已註冊，但系統設定中仍是關閉的。請打開「系統設定 › 一般 › 登入項目與延伸功能」，在「登入時打開」中開啟 Vorssaint。",
         ocrQRToggle: "讀取 QR 碼",
         ocrQRCaption: "如果所選區域包含 QR 碼，會顯示它的內容以便拷貝或打開。",
         ocrQRCopied: "QR 碼已拷貝",

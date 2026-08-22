@@ -885,6 +885,7 @@ extension Strings {
         cleanerNotifDenied: "Las notificaciones de Vorssaint están desactivadas en el sistema.",
         cleanerNotifOpenSettings: "Abrir ajustes de notificaciones…",
         launchAtLoginNeedsApplications: "La app se está ejecutando desde un lugar que no permite abrirse al iniciar sesión. Arrastra Vorssaint a la carpeta Aplicaciones, ábrelo desde ahí y actívalo de nuevo.",
+        launchAtLoginNeedsApproval: "El ítem de inicio está registrado, pero sigue desactivado en Ajustes del Sistema. Abre Ajustes del Sistema › General › Ítems de inicio y extensiones y activa Vorssaint en «Abrir al iniciar sesión».",
         ocrQRToggle: "Leer códigos QR",
         ocrQRCaption: "Si el área tiene un código QR, se muestra su contenido para copiar o abrir.",
         ocrQRCopied: "Código QR copiado",
