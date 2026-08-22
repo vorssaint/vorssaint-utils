@@ -83,10 +83,9 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
   Dock, Spotlight or Applications. Media keys still cannot launch it.
 - The recording editor now reads composition duration directly without background
   queries. Thanks to @Bald-M.
-- Launch at login no longer switches itself back off without a word when the login
-  item is waiting for approval: the setting now names System Settings > General >
-  Login Items & Extensions as the place to turn it on, and startup stops
-  re-registering an item you switched off there. Thanks to @wenujacodes.
+- Launch at login now names System Settings › General › Login Items & Extensions
+  when the login item is registered but switched off there, instead of springing
+  back with nothing said. Thanks to @wenujacodes.
 
 ## [3.3.2] - 2026-08-20
 

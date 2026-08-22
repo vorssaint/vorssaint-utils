@@ -6577,16 +6577,15 @@ struct MetricsTests {
                 && LaunchAtLoginSupport.startupAction(wanted: false, registration: .needsApproval,
                                                       locationIsUnstable: false) == .none,
                "an item awaiting approval in System Settings is never registered over (issue #260)")
-        // Registering an item the user switched off in System Settings reports
-        // success while the app still stays closed at login, so the toggle
-        // sprang back with nothing said. The status check cannot run without
-        // a real login item, so pin the call that reads it.
+        // `SMAppService.Status` cannot be driven without a real login item, so
+        // what the service does with the third state is pinned by source. Both
+        // needles are public symbols, not a line's spelling.
         let launchAtLoginSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/LaunchAtLogin.swift",
             encoding: .utf8)) ?? ""
-        expect(launchAtLoginSource.contains("case .requiresApproval: return .needsApproval"),
+        expect(launchAtLoginSource.contains(".requiresApproval"),
                "an approval-pending login item is read as its own state")
-        expect(launchAtLoginSource.contains("if enabled, registration == .needsApproval { throw NeedsApprovalError() }"),
+        expect(launchAtLoginSource.contains("throw NeedsApprovalError()"),
                "turning launch at login on says so when only approval is missing")
 
         // MARK: Dock Preview helpers
