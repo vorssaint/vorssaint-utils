@@ -296,6 +296,8 @@ extension Strings {
         uninstallerDoneTitle: "Fatto!",
         uninstallerFreedFormat: "%@ recuperati",
         uninstallerSomeFailed: "Impossibile spostare alcuni elementi nel Cestino.",
+        uninstallerFailedNeedsFDA: "I dati delle app in sandbox si possono spostare solo con Accesso completo al disco. La password di amministratore non lo sostituisce.",
+        uninstallerFailedMoreFormat: "e altri %d",
         uninstallerAnother: "Disinstalla un'altra",
         uninstallerCatApp: "Applicazione",
         uninstallerCatSupport: "Supporto",

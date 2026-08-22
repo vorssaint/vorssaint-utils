@@ -297,6 +297,8 @@ extension Strings {
         uninstallerDoneTitle: "Готово!",
         uninstallerFreedFormat: "Освобождено %@",
         uninstallerSomeFailed: "Некоторые элементы не удалось переместить в Корзину.",
+        uninstallerFailedNeedsFDA: "Данные приложений в песочнице можно переместить только с полным доступом к диску. Пароль администратора его не заменяет.",
+        uninstallerFailedMoreFormat: "и ещё %d",
         uninstallerAnother: "Удалить другое",
         uninstallerCatApp: "Приложение",
         uninstallerCatSupport: "Поддержка",

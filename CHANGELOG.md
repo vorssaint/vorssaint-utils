@@ -76,6 +76,11 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
   records are now stored so only your own account can read them. Folders an earlier
   version left readable by other accounts on the Mac are corrected on the next
   write. Thanks to @ThomasWaldmann.
+- The Uninstaller now names the items a removal could not move and, when the
+  permission is what stopped it, says so and offers Full Disk Access on the spot.
+  Sandboxed app data was left behind under a success tick and a line that gave no
+  reason, while the note offering the permission only ever appeared before an app
+  was picked. Thanks to @PathGao.
 - Administrator approval for updates now originates from Vorssaint instead of a
   system script. Thanks to @dbhorst.
 - Stopping Music from opening on its own no longer blocks opening it from the

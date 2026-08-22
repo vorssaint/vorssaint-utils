@@ -297,6 +297,8 @@ extension Strings {
         uninstallerDoneTitle: "완료!",
         uninstallerFreedFormat: "%@ 확보됨",
         uninstallerSomeFailed: "일부 항목을 휴지통으로 이동할 수 없습니다.",
+        uninstallerFailedNeedsFDA: "샌드박스 앱 데이터는 전체 디스크 접근 권한이 있어야 옮길 수 있습니다. 관리자 암호로는 대신할 수 없습니다.",
+        uninstallerFailedMoreFormat: "외 %d개",
         uninstallerAnother: "다른 앱 제거",
         uninstallerCatApp: "응용 프로그램",
         uninstallerCatSupport: "지원 파일",

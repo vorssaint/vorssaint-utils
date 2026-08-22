@@ -296,6 +296,8 @@ extension Strings {
         uninstallerDoneTitle: "完了！",
         uninstallerFreedFormat: "%@ を回復しました",
         uninstallerSomeFailed: "一部の項目をゴミ箱に移動できませんでした。",
+        uninstallerFailedNeedsFDA: "サンドボックス内のアプリデータは、フルディスクアクセスがなければ移動できません。管理者パスワードでは代われません。",
+        uninstallerFailedMoreFormat: "ほか %d 項目",
         uninstallerAnother: "別のアプリをアンインストール",
         uninstallerCatApp: "アプリケーション",
         uninstallerCatSupport: "サポート",
