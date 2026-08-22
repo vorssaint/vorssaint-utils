@@ -43,6 +43,26 @@ struct SnippetFeatureStrings {
     let folderPlaceholder: String
     let showInLibraryLabel: String
     let variablesFormatCaption: String
+    let dateTimeInsertButton: String
+    let dateTimeEditButton: String
+    let dateTimeTypeLabel: String
+    let dateTimeKindDate: String
+    let dateTimeKindTime: String
+    let dateTimeKindDateTime: String
+    let dateTimeStyleLabel: String
+    let dateTimeStyleShort: String
+    let dateTimeStyleMedium: String
+    let dateTimeStyleLong: String
+    let dateTimeStyleFull: String
+    let dateTimeStyleISO8601: String
+    let dateTimeStyleCustom: String
+    let dateTimeTimezoneLabel: String
+    let dateTimeTimezoneDeviceDefault: String
+    let dateTimeTimezoneSearchPlaceholder: String
+    let dateTimePatternLabel: String
+    let dateTimePreviewLabel: String
+    let dateTimeConfirmInsert: String
+    let dateTimeConfirmUpdate: String
 }
 
 extension FeatureStrings {
@@ -102,7 +122,27 @@ extension SnippetFeatureStrings {
         folderLabel: "폴더",
         folderPlaceholder: "업무",
         showInLibraryLabel: "빠른 메뉴에 표시",
-        variablesFormatCaption: "콜론 뒤에 형식을 적으면 원하는 모양이 됩니다. 예: {{date:yyyy-MM-dd}}"
+        variablesFormatCaption: "콜론 뒤에 형식을 적으면 원하는 모양이 됩니다. 예: {{date:yyyy-MM-dd}}",
+        dateTimeInsertButton: "날짜/시간 삽입",
+        dateTimeEditButton: "날짜/시간 편집",
+        dateTimeTypeLabel: "유형",
+        dateTimeKindDate: "날짜",
+        dateTimeKindTime: "시간",
+        dateTimeKindDateTime: "날짜시간",
+        dateTimeStyleLabel: "스타일",
+        dateTimeStyleShort: "짧게",
+        dateTimeStyleMedium: "보통",
+        dateTimeStyleLong: "길게",
+        dateTimeStyleFull: "전체",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "사용자 지정",
+        dateTimeTimezoneLabel: "시간대",
+        dateTimeTimezoneDeviceDefault: "기기 기본값",
+        dateTimeTimezoneSearchPlaceholder: "시간대 검색",
+        dateTimePatternLabel: "패턴",
+        dateTimePreviewLabel: "미리보기",
+        dateTimeConfirmInsert: "삽입",
+        dateTimeConfirmUpdate: "업데이트"
     )
 }
 
@@ -143,7 +183,27 @@ extension SnippetFeatureStrings {
         folderLabel: "Folder",
         folderPlaceholder: "Work",
         showInLibraryLabel: "Show in the quick menu",
-        variablesFormatCaption: "A format after a colon picks how they look, like {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "A format after a colon picks how they look, like {{date:yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Insert date/time",
+        dateTimeEditButton: "Edit date/time",
+        dateTimeTypeLabel: "Type",
+        dateTimeKindDate: "Date",
+        dateTimeKindTime: "Time",
+        dateTimeKindDateTime: "DateTime",
+        dateTimeStyleLabel: "Style",
+        dateTimeStyleShort: "Short",
+        dateTimeStyleMedium: "Medium",
+        dateTimeStyleLong: "Long",
+        dateTimeStyleFull: "Full",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Custom",
+        dateTimeTimezoneLabel: "Timezone",
+        dateTimeTimezoneDeviceDefault: "Device default",
+        dateTimeTimezoneSearchPlaceholder: "Search timezones",
+        dateTimePatternLabel: "Pattern",
+        dateTimePreviewLabel: "Preview",
+        dateTimeConfirmInsert: "Insert",
+        dateTimeConfirmUpdate: "Update"
     )
 
     static let ptBR = SnippetFeatureStrings(
@@ -182,7 +242,27 @@ extension SnippetFeatureStrings {
         folderLabel: "Pasta",
         folderPlaceholder: "Trabalho",
         showInLibraryLabel: "Mostrar no menu rápido",
-        variablesFormatCaption: "Um formato depois de dois pontos escolhe a aparência, como {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "Um formato depois de dois pontos escolhe a aparência, como {{date:yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Inserir data/hora",
+        dateTimeEditButton: "Editar data/hora",
+        dateTimeTypeLabel: "Tipo",
+        dateTimeKindDate: "Data",
+        dateTimeKindTime: "Hora",
+        dateTimeKindDateTime: "Data e hora",
+        dateTimeStyleLabel: "Estilo",
+        dateTimeStyleShort: "Curto",
+        dateTimeStyleMedium: "Médio",
+        dateTimeStyleLong: "Longo",
+        dateTimeStyleFull: "Completo",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Personalizado",
+        dateTimeTimezoneLabel: "Fuso horário",
+        dateTimeTimezoneDeviceDefault: "Padrão do dispositivo",
+        dateTimeTimezoneSearchPlaceholder: "Buscar fusos horários",
+        dateTimePatternLabel: "Padrão",
+        dateTimePreviewLabel: "Pré-visualização",
+        dateTimeConfirmInsert: "Inserir",
+        dateTimeConfirmUpdate: "Atualizar"
     )
 
     static let tr = SnippetFeatureStrings(
@@ -221,7 +301,27 @@ extension SnippetFeatureStrings {
         folderLabel: "Klasör",
         folderPlaceholder: "İş",
         showInLibraryLabel: "Hızlı menüde göster",
-        variablesFormatCaption: "İki noktadan sonra yazılan biçim görünümü belirler, örneğin {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "İki noktadan sonra yazılan biçim görünümü belirler, örneğin {{date:yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Tarih/saat ekle",
+        dateTimeEditButton: "Tarih/saati düzenle",
+        dateTimeTypeLabel: "Tür",
+        dateTimeKindDate: "Tarih",
+        dateTimeKindTime: "Saat",
+        dateTimeKindDateTime: "Tarih ve saat",
+        dateTimeStyleLabel: "Stil",
+        dateTimeStyleShort: "Kısa",
+        dateTimeStyleMedium: "Orta",
+        dateTimeStyleLong: "Uzun",
+        dateTimeStyleFull: "Tam",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Özel",
+        dateTimeTimezoneLabel: "Saat dilimi",
+        dateTimeTimezoneDeviceDefault: "Cihaz varsayılanı",
+        dateTimeTimezoneSearchPlaceholder: "Saat dilimi ara",
+        dateTimePatternLabel: "Desen",
+        dateTimePreviewLabel: "Önizleme",
+        dateTimeConfirmInsert: "Ekle",
+        dateTimeConfirmUpdate: "Güncelle"
     )
 
     static let ru = SnippetFeatureStrings(
@@ -260,7 +360,27 @@ extension SnippetFeatureStrings {
         folderLabel: "Папка",
         folderPlaceholder: "Работа",
         showInLibraryLabel: "Показывать в быстром меню",
-        variablesFormatCaption: "Формат после двоеточия задаёт вид, например {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "Формат после двоеточия задаёт вид, например {{date:yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Вставить дату/время",
+        dateTimeEditButton: "Изменить дату/время",
+        dateTimeTypeLabel: "Тип",
+        dateTimeKindDate: "Дата",
+        dateTimeKindTime: "Время",
+        dateTimeKindDateTime: "Дата и время",
+        dateTimeStyleLabel: "Стиль",
+        dateTimeStyleShort: "Короткий",
+        dateTimeStyleMedium: "Средний",
+        dateTimeStyleLong: "Длинный",
+        dateTimeStyleFull: "Полный",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Свой",
+        dateTimeTimezoneLabel: "Часовой пояс",
+        dateTimeTimezoneDeviceDefault: "По умолчанию на устройстве",
+        dateTimeTimezoneSearchPlaceholder: "Поиск часовых поясов",
+        dateTimePatternLabel: "Шаблон",
+        dateTimePreviewLabel: "Предпросмотр",
+        dateTimeConfirmInsert: "Вставить",
+        dateTimeConfirmUpdate: "Обновить"
     )
 
     static let es = SnippetFeatureStrings(
@@ -299,7 +419,27 @@ extension SnippetFeatureStrings {
         folderLabel: "Carpeta",
         folderPlaceholder: "Trabajo",
         showInLibraryLabel: "Mostrar en el menú rápido",
-        variablesFormatCaption: "Un formato después de dos puntos elige la apariencia, como {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "Un formato después de dos puntos elige la apariencia, como {{date:yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Insertar fecha/hora",
+        dateTimeEditButton: "Editar fecha/hora",
+        dateTimeTypeLabel: "Tipo",
+        dateTimeKindDate: "Fecha",
+        dateTimeKindTime: "Hora",
+        dateTimeKindDateTime: "Fecha y hora",
+        dateTimeStyleLabel: "Estilo",
+        dateTimeStyleShort: "Corto",
+        dateTimeStyleMedium: "Medio",
+        dateTimeStyleLong: "Largo",
+        dateTimeStyleFull: "Completo",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Personalizado",
+        dateTimeTimezoneLabel: "Zona horaria",
+        dateTimeTimezoneDeviceDefault: "Predeterminada del dispositivo",
+        dateTimeTimezoneSearchPlaceholder: "Buscar zonas horarias",
+        dateTimePatternLabel: "Patrón",
+        dateTimePreviewLabel: "Vista previa",
+        dateTimeConfirmInsert: "Insertar",
+        dateTimeConfirmUpdate: "Actualizar"
     )
 
     static let de = SnippetFeatureStrings(
@@ -338,7 +478,27 @@ extension SnippetFeatureStrings {
         folderLabel: "Ordner",
         folderPlaceholder: "Arbeit",
         showInLibraryLabel: "Im Schnellmenü zeigen",
-        variablesFormatCaption: "Ein Format nach einem Doppelpunkt bestimmt das Aussehen, etwa {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "Ein Format nach einem Doppelpunkt bestimmt das Aussehen, etwa {{date:yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Datum/Uhrzeit einfügen",
+        dateTimeEditButton: "Datum/Uhrzeit bearbeiten",
+        dateTimeTypeLabel: "Typ",
+        dateTimeKindDate: "Datum",
+        dateTimeKindTime: "Uhrzeit",
+        dateTimeKindDateTime: "Datum und Uhrzeit",
+        dateTimeStyleLabel: "Stil",
+        dateTimeStyleShort: "Kurz",
+        dateTimeStyleMedium: "Mittel",
+        dateTimeStyleLong: "Lang",
+        dateTimeStyleFull: "Vollständig",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Benutzerdefiniert",
+        dateTimeTimezoneLabel: "Zeitzone",
+        dateTimeTimezoneDeviceDefault: "Gerätestandard",
+        dateTimeTimezoneSearchPlaceholder: "Zeitzonen suchen",
+        dateTimePatternLabel: "Muster",
+        dateTimePreviewLabel: "Vorschau",
+        dateTimeConfirmInsert: "Einfügen",
+        dateTimeConfirmUpdate: "Aktualisieren"
     )
 
     static let fr = SnippetFeatureStrings(
@@ -377,7 +537,27 @@ extension SnippetFeatureStrings {
         folderLabel: "Dossier",
         folderPlaceholder: "Travail",
         showInLibraryLabel: "Afficher dans le menu rapide",
-        variablesFormatCaption: "Un format après deux-points choisit l'apparence, par exemple {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "Un format après deux-points choisit l'apparence, par exemple {{date:yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Insérer date/heure",
+        dateTimeEditButton: "Modifier date/heure",
+        dateTimeTypeLabel: "Type",
+        dateTimeKindDate: "Date",
+        dateTimeKindTime: "Heure",
+        dateTimeKindDateTime: "Date et heure",
+        dateTimeStyleLabel: "Style",
+        dateTimeStyleShort: "Court",
+        dateTimeStyleMedium: "Moyen",
+        dateTimeStyleLong: "Long",
+        dateTimeStyleFull: "Complet",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Personnalisé",
+        dateTimeTimezoneLabel: "Fuseau horaire",
+        dateTimeTimezoneDeviceDefault: "Par défaut de l'appareil",
+        dateTimeTimezoneSearchPlaceholder: "Rechercher un fuseau horaire",
+        dateTimePatternLabel: "Motif",
+        dateTimePreviewLabel: "Aperçu",
+        dateTimeConfirmInsert: "Insérer",
+        dateTimeConfirmUpdate: "Mettre à jour"
     )
 
     static let it = SnippetFeatureStrings(
@@ -416,7 +596,27 @@ extension SnippetFeatureStrings {
         folderLabel: "Cartella",
         folderPlaceholder: "Lavoro",
         showInLibraryLabel: "Mostra nel menu rapido",
-        variablesFormatCaption: "Un formato dopo i due punti sceglie l'aspetto, ad esempio {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "Un formato dopo i due punti sceglie l'aspetto, ad esempio {{date:yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Inserisci data/ora",
+        dateTimeEditButton: "Modifica data/ora",
+        dateTimeTypeLabel: "Tipo",
+        dateTimeKindDate: "Data",
+        dateTimeKindTime: "Ora",
+        dateTimeKindDateTime: "Data e ora",
+        dateTimeStyleLabel: "Stile",
+        dateTimeStyleShort: "Breve",
+        dateTimeStyleMedium: "Medio",
+        dateTimeStyleLong: "Lungo",
+        dateTimeStyleFull: "Completo",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Personalizzato",
+        dateTimeTimezoneLabel: "Fuso orario",
+        dateTimeTimezoneDeviceDefault: "Predefinito del dispositivo",
+        dateTimeTimezoneSearchPlaceholder: "Cerca fusi orari",
+        dateTimePatternLabel: "Modello",
+        dateTimePreviewLabel: "Anteprima",
+        dateTimeConfirmInsert: "Inserisci",
+        dateTimeConfirmUpdate: "Aggiorna"
     )
 
     static let ja = SnippetFeatureStrings(
@@ -455,7 +655,27 @@ extension SnippetFeatureStrings {
         folderLabel: "フォルダ",
         folderPlaceholder: "仕事",
         showInLibraryLabel: "クイックメニューに表示",
-        variablesFormatCaption: "コロンの後に形式を書くと表示を選べます。例: {{date:yyyy-MM-dd}}"
+        variablesFormatCaption: "コロンの後に形式を書くと表示を選べます。例: {{date:yyyy-MM-dd}}",
+        dateTimeInsertButton: "日付/時刻を挿入",
+        dateTimeEditButton: "日付/時刻を編集",
+        dateTimeTypeLabel: "種類",
+        dateTimeKindDate: "日付",
+        dateTimeKindTime: "時刻",
+        dateTimeKindDateTime: "日付と時刻",
+        dateTimeStyleLabel: "スタイル",
+        dateTimeStyleShort: "短い",
+        dateTimeStyleMedium: "標準",
+        dateTimeStyleLong: "長い",
+        dateTimeStyleFull: "完全",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "カスタム",
+        dateTimeTimezoneLabel: "タイムゾーン",
+        dateTimeTimezoneDeviceDefault: "デバイスの既定値",
+        dateTimeTimezoneSearchPlaceholder: "タイムゾーンを検索",
+        dateTimePatternLabel: "パターン",
+        dateTimePreviewLabel: "プレビュー",
+        dateTimeConfirmInsert: "挿入",
+        dateTimeConfirmUpdate: "更新"
     )
 
     static let zhHans = SnippetFeatureStrings(
@@ -494,7 +714,27 @@ extension SnippetFeatureStrings {
         folderLabel: "文件夹",
         folderPlaceholder: "工作",
         showInLibraryLabel: "在快捷菜单中显示",
-        variablesFormatCaption: "冒号后加上格式就能自定样式，例如 {{date:yyyy-MM-dd}}。"
+        variablesFormatCaption: "冒号后加上格式就能自定样式，例如 {{date:yyyy-MM-dd}}。",
+        dateTimeInsertButton: "插入日期/时间",
+        dateTimeEditButton: "编辑日期/时间",
+        dateTimeTypeLabel: "类型",
+        dateTimeKindDate: "日期",
+        dateTimeKindTime: "时间",
+        dateTimeKindDateTime: "日期和时间",
+        dateTimeStyleLabel: "样式",
+        dateTimeStyleShort: "简短",
+        dateTimeStyleMedium: "中等",
+        dateTimeStyleLong: "较长",
+        dateTimeStyleFull: "完整",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "自定义",
+        dateTimeTimezoneLabel: "时区",
+        dateTimeTimezoneDeviceDefault: "设备默认",
+        dateTimeTimezoneSearchPlaceholder: "搜索时区",
+        dateTimePatternLabel: "格式",
+        dateTimePreviewLabel: "预览",
+        dateTimeConfirmInsert: "插入",
+        dateTimeConfirmUpdate: "更新"
     )
 
     static let zhTW = SnippetFeatureStrings(
@@ -533,7 +773,27 @@ extension SnippetFeatureStrings {
         folderLabel: "檔案夾",
         folderPlaceholder: "工作",
         showInLibraryLabel: "在快捷選單中顯示",
-        variablesFormatCaption: "冒號後加上格式就能自訂樣式,例如 {{date:yyyy-MM-dd}}。"
+        variablesFormatCaption: "冒號後加上格式就能自訂樣式,例如 {{date:yyyy-MM-dd}}。",
+        dateTimeInsertButton: "插入日期/時間",
+        dateTimeEditButton: "編輯日期/時間",
+        dateTimeTypeLabel: "類型",
+        dateTimeKindDate: "日期",
+        dateTimeKindTime: "時間",
+        dateTimeKindDateTime: "日期和時間",
+        dateTimeStyleLabel: "樣式",
+        dateTimeStyleShort: "簡短",
+        dateTimeStyleMedium: "中等",
+        dateTimeStyleLong: "較長",
+        dateTimeStyleFull: "完整",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "自訂",
+        dateTimeTimezoneLabel: "時區",
+        dateTimeTimezoneDeviceDefault: "裝置預設",
+        dateTimeTimezoneSearchPlaceholder: "搜尋時區",
+        dateTimePatternLabel: "格式",
+        dateTimePreviewLabel: "預覽",
+        dateTimeConfirmInsert: "插入",
+        dateTimeConfirmUpdate: "更新"
     )
 
     static let zhHK = SnippetFeatureStrings(
@@ -572,6 +832,26 @@ extension SnippetFeatureStrings {
         folderLabel: "檔案夾",
         folderPlaceholder: "工作",
         showInLibraryLabel: "在快捷選單中顯示",
-        variablesFormatCaption: "喺冒號後加上格式就可以自訂樣式,例如 {{date:yyyy-MM-dd}}。"
+        variablesFormatCaption: "喺冒號後加上格式就可以自訂樣式,例如 {{date:yyyy-MM-dd}}。",
+        dateTimeInsertButton: "插入日期/時間",
+        dateTimeEditButton: "編輯日期/時間",
+        dateTimeTypeLabel: "類型",
+        dateTimeKindDate: "日期",
+        dateTimeKindTime: "時間",
+        dateTimeKindDateTime: "日期和時間",
+        dateTimeStyleLabel: "樣式",
+        dateTimeStyleShort: "簡短",
+        dateTimeStyleMedium: "中等",
+        dateTimeStyleLong: "較長",
+        dateTimeStyleFull: "完整",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "自訂",
+        dateTimeTimezoneLabel: "時區",
+        dateTimeTimezoneDeviceDefault: "裝置預設",
+        dateTimeTimezoneSearchPlaceholder: "搜尋時區",
+        dateTimePatternLabel: "格式",
+        dateTimePreviewLabel: "預覽",
+        dateTimeConfirmInsert: "插入",
+        dateTimeConfirmUpdate: "更新"
     )
 }
