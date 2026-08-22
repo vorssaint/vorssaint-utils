@@ -15876,6 +15876,43 @@ struct MetricsTests {
 
         // MARK: Result
 
+        // MARK: Every defaults suite stays inside a namespace build.sh sweeps
+        // A UserDefaults suite leaves an empty plist in ~/Library/Preferences
+        // even after `removePersistentDomain`, and cfprefsd writes that file
+        // back out around the time this process exits, so the run cannot delete
+        // it itself. `build.sh --test` clears them afterwards, by name prefix.
+        // A suite named outside those prefixes survives every run instead.
+        let testSource = (try? String(contentsOfFile: "Tests/MetricsTests.swift",
+                                      encoding: .utf8)) ?? ""
+        expect(!testSource.isEmpty, "the test file reads back for its own source checks")
+        // The prefixes are read out of the sweep itself, so the check and the
+        // thing it guards cannot drift apart.
+        let buildScript = (try? String(contentsOfFile: "build.sh", encoding: .utf8)) ?? ""
+        let sweepBody = buildScript.components(separatedBy: "discard_test_preferences() {")
+            .dropFirst().first?.components(separatedBy: "\n}").first ?? ""
+        let sweptNamespaces = sweepBody.components(separatedBy: "\"")
+            .enumerated().filter { $0.offset % 2 == 1 }.map(\.element)
+            .filter { $0.hasSuffix(".") }
+        expect(!sweptNamespaces.isEmpty, "the swept namespaces read back out of build.sh")
+        // Split so this needle is not itself a match in the text it scans.
+        let suiteCall = "UserDefaults(suiteName" + ": "
+        let suiteArguments = testSource.components(separatedBy: suiteCall)
+            .dropFirst()
+            .map { String($0.prefix { $0 != ")" && $0 != "," && !$0.isNewline }) }
+        expect(!suiteArguments.isEmpty, "the namespace check finds the suites it guards")
+        for argument in Set(suiteArguments) {
+            let name: String?
+            if argument.hasPrefix("\"") {
+                name = String(argument.dropFirst().prefix { $0 != "\"" })
+            } else {
+                name = testSource.components(separatedBy: "let \(argument) = \"")
+                    .dropFirst().first
+                    .map { String($0.prefix { $0 != "\"" }) }
+            }
+            expect(name.map { value in sweptNamespaces.contains { value.hasPrefix($0) } } == true,
+                   "defaults suite \(argument) is named inside a namespace build.sh sweeps")
+        }
+
         if failures.isEmpty {
             print("TESTS OK (\(checks) checks)")
             exit(0)
