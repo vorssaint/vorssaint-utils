@@ -2191,6 +2191,48 @@ struct MetricsTests {
                && DockPreviewSupport.sanitizedBackgroundOpacity(.nan) == 1.0
                && DockPreviewSupport.sanitizedBackgroundOpacity(.infinity) == 1.0,
                "a broken stored Dock Preview opacity falls back to solid")
+        expect(registeredDefaults[DefaultsKey.dockPreviewOpenDelay] as? Int
+               == DockPreviewSupport.defaultOpenDelayMilliseconds,
+               "a clean install waits the default before opening a Dock Preview")
+        expect(DockPreviewSupport.openDelayMillisecondsRange
+               .contains(DockPreviewSupport.defaultOpenDelayMilliseconds),
+               "the default Dock Preview delay is one the field accepts")
+        expect(DockPreviewSupport.sanitizedOpenDelay(milliseconds: 350) == 350,
+               "a typed Dock Preview delay inside the range is kept")
+        expect(DockPreviewSupport.sanitizedOpenDelay(milliseconds: -1)
+               == DockPreviewSupport.openDelayMillisecondsRange.lowerBound
+               && DockPreviewSupport.sanitizedOpenDelay(milliseconds: 9_000)
+               == DockPreviewSupport.openDelayMillisecondsRange.upperBound,
+               "a Dock Preview delay outside the range is clamped to it")
+        expect(DockPreviewSupport.sanitizedOpenDelay(milliseconds: 0)
+               >= DockPreviewSupport.openDelayMillisecondsRange.lowerBound,
+               "an unset or zeroed Dock Preview delay cannot disarm the wait entirely")
+        expectClose(DockPreviewSupport.openDelay(milliseconds: 250), 0.25,
+                    "the stored milliseconds drive the timer in seconds")
+        let openDelays = DockPreviewSupport.openDelayMillisecondsRange
+            .map { DockPreviewSupport.openDelay(milliseconds: $0) }
+        expect(openDelays.allSatisfy { DockPreviewSupport.switchDelay <= $0 },
+               "no chosen delay makes switching slower than opening")
+        expect(openDelays.allSatisfy { DockPreviewSupport.prefetchDelay(openDelay: $0) <= $0 },
+               "the window list is never read after the panel it is read for has opened")
+        expect(openDelays.allSatisfy {
+                   $0 - DockPreviewSupport.prefetchDelay(openDelay: $0)
+                       <= DockPreviewSupport.prefetchLead + 0.0001
+               },
+               "the window list is never read further ahead than the lead, so what opens is still true")
+        expectClose(DockPreviewSupport.prefetchDelay(
+                        openDelay: DockPreviewSupport.openDelay(
+                            milliseconds: DockPreviewSupport.defaultOpenDelayMilliseconds)),
+                    0.1,
+                    "at the default the window list is read halfway through the wait")
+        expect(openDelays.allSatisfy {
+                   DockPreviewSupport.prefetchDelay(openDelay: $0) >= DockPreviewSupport.prefetchLead
+               },
+               "no setting reads the window list before the cursor has held still")
+        expect(DockPreviewSupport.switchDelay + 0.06
+               < DockPreviewSupport.openDelay(
+                   milliseconds: DockPreviewSupport.openDelayMillisecondsRange.lowerBound),
+               "a switch, reading its window list inline, still lands before the shortest fresh open")
         expect(registeredDefaults[DefaultsKey.autoCheckUpdates] as? Bool == true,
                "update checks are on for clean installs")
         expect(registeredDefaults[DefaultsKey.updateShowcaseIntroVersion] as? String == "",
@@ -8672,6 +8714,12 @@ struct MetricsTests {
             expect(!strings.dockPreviewBackgroundOpacityCaption.isEmpty
                    && !strings.dockPreviewBackgroundOpacityCaption.contains("—"),
                    "\(prefix) Dock Preview background caption is present without em dash")
+            expect(!strings.dockPreviewOpenDelay.isEmpty
+                   && !strings.dockPreviewOpenDelay.contains("—"),
+                   "\(prefix) Dock Preview open delay title is present without em dash")
+            expect(!strings.dockPreviewOpenDelayCaption.isEmpty
+                   && !strings.dockPreviewOpenDelayCaption.contains("—"),
+                   "\(prefix) Dock Preview open delay caption is present without em dash")
             expect(!strings.switcherShortcutHintApps.isEmpty, "\(prefix) App Switcher app shortcut hint is present")
             expect(!strings.switcherShortcutHintWindows.isEmpty, "\(prefix) App Switcher window shortcut hint is present")
             expect(!strings.networkApps.isEmpty, "\(prefix) network app usage title is present")
