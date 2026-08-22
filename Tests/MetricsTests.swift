@@ -1369,15 +1369,15 @@ struct MetricsTests {
         // MARK: Memory used
 
         let used = MetricFormat.memoryUsed(totalBytes: 16 * 1024,
+                                           appBytes: 5 * 1024,
                                            pageSize: 1024,
-                                           activePages: 5,
-                                           inactivePages: 3,
                                            wiredPages: 2,
-                                           compressorPages: 1)
-        expect(used == 11 * 1024, "memory used includes active, inactive, wired and compressed pages")
-        expect(MetricFormat.memoryUsed(totalBytes: 16, pageSize: 1,
-                                       activePages: 20, inactivePages: 0,
-                                       wiredPages: 0, compressorPages: 0) == 16,
+                                           compressorPages: 1,
+                                           tagStoragePages: 1)
+        expect(used == 9 * 1024, "memory used includes app, wired, compressed and tagged storage")
+        expect(MetricFormat.memoryUsed(totalBytes: 16, appBytes: 20,
+                                       pageSize: 1, wiredPages: 0,
+                                       compressorPages: 0, tagStoragePages: 0) == 16,
                "memory used clamps impossible used memory")
 
         // MARK: App memory

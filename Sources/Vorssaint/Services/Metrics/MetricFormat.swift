@@ -68,23 +68,26 @@ struct DiskIOCounters: Equatable {
 enum MetricFormat {
     // MARK: Memory
 
-    /// Matches Darwin's physical-memory used accounting: active, inactive,
-    /// wired and compressor pages. Speculative pages are already counted as
-    /// free; file-backed pages can still be actively in use.
+    /// Matches Activity Monitor's Memory Used: app memory, wired memory,
+    /// compressed memory and the reserved tagged-memory storage region.
     static func memoryUsed(totalBytes: UInt64,
+                           appBytes: UInt64,
                            pageSize: UInt64,
-                           activePages: UInt64,
-                           inactivePages: UInt64,
                            wiredPages: UInt64,
-                           compressorPages: UInt64) -> UInt64 {
+                           compressorPages: UInt64,
+                           tagStoragePages: UInt64) -> UInt64 {
         guard totalBytes > 0, pageSize > 0 else { return 0 }
-        let activeAndInactive = activePages.addingReportingOverflow(inactivePages)
-        guard !activeAndInactive.overflow else { return 0 }
-        let pageableAndWired = activeAndInactive.partialValue.addingReportingOverflow(wiredPages)
-        guard !pageableAndWired.overflow else { return 0 }
-        let usedPages = pageableAndWired.partialValue.addingReportingOverflow(compressorPages)
-        guard !usedPages.overflow else { return 0 }
-        let usedBytes = usedPages.partialValue.multipliedReportingOverflow(by: pageSize)
+        let wiredBytes = wiredPages.multipliedReportingOverflow(by: pageSize)
+        guard !wiredBytes.overflow else { return 0 }
+        let compressedBytes = compressorPages.multipliedReportingOverflow(by: pageSize)
+        guard !compressedBytes.overflow else { return 0 }
+        let tagStorageBytes = tagStoragePages.multipliedReportingOverflow(by: pageSize)
+        guard !tagStorageBytes.overflow else { return 0 }
+        let appAndWired = appBytes.addingReportingOverflow(wiredBytes.partialValue)
+        guard !appAndWired.overflow else { return 0 }
+        let withCompressed = appAndWired.partialValue.addingReportingOverflow(compressedBytes.partialValue)
+        guard !withCompressed.overflow else { return 0 }
+        let usedBytes = withCompressed.partialValue.addingReportingOverflow(tagStorageBytes.partialValue)
         guard !usedBytes.overflow else { return 0 }
         return min(usedBytes.partialValue, totalBytes)
     }

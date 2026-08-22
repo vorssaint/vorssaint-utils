@@ -63,16 +63,16 @@ enum SystemInfo {
         guard kr == KERN_SUCCESS else { return nil }
         let total = ProcessInfo.processInfo.physicalMemory
         let pageSize = UInt64(vm_kernel_page_size)
-        let used = MetricFormat.memoryUsed(totalBytes: total,
-                                           pageSize: pageSize,
-                                           activePages: UInt64(stats.active_count),
-                                           inactivePages: UInt64(stats.inactive_count),
-                                           wiredPages: UInt64(stats.wire_count),
-                                           compressorPages: UInt64(stats.compressor_page_count))
         let appUsed = MetricFormat.appMemory(totalBytes: total,
                                              pageSize: pageSize,
                                              internalPages: UInt64(stats.internal_page_count),
                                              purgeablePages: UInt64(stats.purgeable_count))
+        let used = MetricFormat.memoryUsed(totalBytes: total,
+                                           appBytes: appUsed,
+                                           pageSize: pageSize,
+                                           wiredPages: UInt64(stats.wire_count),
+                                           compressorPages: UInt64(stats.compressor_page_count),
+                                           tagStoragePages: stats.total_tag_storage_pages)
         let compressed = MetricFormat.compressedMemory(totalBytes: total,
                                                        pageSize: pageSize,
                                                        compressorPages: UInt64(stats.compressor_page_count))
