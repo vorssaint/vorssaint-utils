@@ -840,6 +840,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherShowShortcutHints) private var switcherShowShortcutHints = true
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var dockPreviewBackgroundOpacity = 1.0
+    @AppStorage(DefaultsKey.dockPreviewOpenDelay) private var dockPreviewOpenDelay = DockPreviewSupport.defaultOpenDelayMilliseconds
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
     @AppStorage(DefaultsKey.dockClickHide) private var dockClickHide = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
@@ -950,6 +951,22 @@ struct SwitcherSettings: View {
                             .font(.caption)
                             .foregroundStyle(dockPreviewWarning ? .orange : .secondary)
                         if dockPreviewEnabled {
+                            HStack {
+                                Text(l10n.s.dockPreviewOpenDelay)
+                                Spacer()
+                                TextField("", value: dockPreviewOpenDelayBinding,
+                                          formatter: Self.dockPreviewOpenDelayFormatter)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 64)
+                                Stepper("", value: dockPreviewOpenDelayBinding,
+                                        in: DockPreviewSupport.openDelayMillisecondsRange,
+                                        step: 50)
+                                    .labelsHidden()
+                                Text(verbatim: "ms")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .fixedSize(horizontal: false, vertical: true)
+                            SettingsCaptionText(l10n.s.dockPreviewOpenDelayCaption)
                             HStack {
                                 Text(l10n.s.dockPreviewBackgroundOpacity)
                                 Slider(value: dockPreviewBackgroundOpacityBinding,
@@ -1064,6 +1081,24 @@ struct SwitcherSettings: View {
     private var dockPreviewBackgroundOpacityPercent: Int {
         Int((DockPreviewSupport.sanitizedBackgroundOpacity(dockPreviewBackgroundOpacity) * 100).rounded())
     }
+
+    private var dockPreviewOpenDelayBinding: Binding<Int> {
+        Binding(
+            get: { DockPreviewSupport.sanitizedOpenDelay(milliseconds: dockPreviewOpenDelay) },
+            set: { dockPreviewOpenDelay = DockPreviewSupport.sanitizedOpenDelay(milliseconds: $0) }
+        )
+    }
+
+    /// Bounded here as well as in the binding: the field rejects an out-of-range
+    /// number as it is typed rather than silently snapping it afterwards.
+    private static let dockPreviewOpenDelayFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .none
+        formatter.minimum = NSNumber(value: DockPreviewSupport.openDelayMillisecondsRange.lowerBound)
+        formatter.maximum = NSNumber(value: DockPreviewSupport.openDelayMillisecondsRange.upperBound)
+        formatter.usesGroupingSeparator = false
+        return formatter
+    }()
 }
 
 // MARK: - About

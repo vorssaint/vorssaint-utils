@@ -40,6 +40,11 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
 
 - Clicking a Dock icon now only restores the windows that Click Dock icon to minimize
   put away. Windows minimized any other way keep the Dock's own restore. Thanks to @PathGao.
+
+- A Dock Preview now opens after 200 ms of rest on an icon instead of 400 ms, and
+  Settings carries that wait as an adjustable Open delay. Handing an open preview to
+  the next icon takes 100 ms instead of 250 ms. Thanks to @PathGao.
+
 ### Fixed
 - Super key input-source switching no longer waits on Accessibility marked text
   or a pause after every tap, so a language change takes effect before the next
@@ -54,6 +59,9 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
 - Dock Preview cards no longer draw the app icon on every thumbnail or repeat the
   window title over it, leaving the thumbnail more of the card, and a card now
   badges a window that lives on another desktop. Thanks to @PathGao.
+- Dock Preview cards now keep a full title band at every preview size rather than
+  scaling it with the card, and the app icon standing in for a thumbnail that has
+  not arrived follows the preview size as a watermark. Thanks to @PathGao.
 - Fan Control now prepares stopped fans before taking manual control and keeps a
   failed attempt visible instead of silently returning to Automatic.
 - The Clean URL settings fields now take a click anywhere across their row. Their

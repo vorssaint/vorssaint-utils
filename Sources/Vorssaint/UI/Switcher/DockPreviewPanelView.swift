@@ -329,10 +329,19 @@ private struct DockPreviewCard: View {
                         .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                         .padding(4)
                 } else if let icon = window.appIcon {
+                    // Drawn as a watermark, not as content. Every card in a
+                    // panel belongs to the app whose Dock icon opened it, and
+                    // that icon is already in the header, so this says nothing
+                    // new — it only fills the space until a capture lands. At
+                    // full strength the capture replacing it reads as a jump;
+                    // at this weight it reads as the space filling in, and it
+                    // costs no transition, so nothing takes longer.
                     Image(nsImage: icon)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 52, height: 52)
+                        .frame(width: DockPreviewSupport.cardFallbackIconSize,
+                               height: DockPreviewSupport.cardFallbackIconSize)
+                        .opacity(0.35)
                 }
 
                 if hasStatusBadges {
@@ -348,7 +357,7 @@ private struct DockPreviewCard: View {
 
                 previewControlBar
             }
-            .frame(width: DockPreviewSupport.cardWidth - DockPreviewSupport.cardPadding * 2,
+            .frame(width: DockPreviewSupport.cardThumbnailWidth,
                    height: DockPreviewSupport.cardThumbnailHeight)
 
             Text(window.displayTitle)
@@ -357,7 +366,7 @@ private struct DockPreviewCard: View {
                 .truncationMode(.middle)
                 .foregroundStyle(.primary)
                 .frame(height: DockPreviewSupport.cardTitleHeight)
-                .frame(maxWidth: DockPreviewSupport.cardWidth - DockPreviewSupport.cardPadding * 2 - 4)
+                .frame(maxWidth: DockPreviewSupport.cardThumbnailWidth - 4)
         }
         .padding(DockPreviewSupport.cardPadding)
         .frame(width: DockPreviewSupport.cardWidth, height: DockPreviewSupport.cardHeight)

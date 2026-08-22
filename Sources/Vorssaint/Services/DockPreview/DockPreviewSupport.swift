@@ -89,10 +89,39 @@ struct HoverCorridor: Equatable {
 }
 
 enum DockPreviewSupport {
-    static let hoverDelay: TimeInterval = 0.4
-    /// Shorter than the first-open delay: once a panel is already up, handing it
-    /// to the app under the cursor should feel immediate, not like a fresh open.
-    static let switchDelay: TimeInterval = 0.25
+    /// How long the cursor must rest on an icon before its panel opens. Long
+    /// enough that the Dock can be crossed on the way somewhere else, short
+    /// enough that a cursor which stopped is answered. Adjustable: that line
+    /// falls differently for every pointer speed.
+    static let defaultOpenDelayMilliseconds = 200
+    /// The floor keeps two properties: the window list is read `prefetchLead`
+    /// earlier, so a shorter wait would read it the moment the cursor lands;
+    /// and `switchDelay` plus its inline reading stays under it, so a switch is
+    /// never slower than an open.
+    static let openDelayMillisecondsRange: ClosedRange<Int> = 200 ... 900
+
+    static func sanitizedOpenDelay(milliseconds: Int) -> Int {
+        min(max(milliseconds, openDelayMillisecondsRange.lowerBound),
+            openDelayMillisecondsRange.upperBound)
+    }
+
+    static func openDelay(milliseconds: Int) -> TimeInterval {
+        TimeInterval(sanitizedOpenDelay(milliseconds: milliseconds)) / 1000
+    }
+
+    /// Handing an already open panel to the app under the cursor: the panel is
+    /// on screen and only has to re-point. Kept under the shortest open delay
+    /// on offer, so a switch is never slower than an open.
+    static let switchDelay: TimeInterval = 0.1
+
+    /// How far ahead of the panel the window list is read: far enough that an
+    /// ordinary list is in hand when the panel opens, no further, so what it
+    /// opens on is still true. Half the shortest wait.
+    static let prefetchLead: TimeInterval = 0.1
+
+    static func prefetchDelay(openDelay: TimeInterval) -> TimeInterval {
+        max(0, openDelay - prefetchLead)
+    }
     static let hideDelay: TimeInterval = 0.22
     /// A little slack around the panel so the cursor grazing its edge doesn't
     /// flicker the session between "inside" and "leaving".
@@ -139,22 +168,45 @@ enum DockPreviewSupport {
         )
     }
 
-    /// Card metrics. The thumbnail gets whatever the fixed chrome does not
-    /// take, so the card can be resized or the title band retuned without
-    /// leaving a stale magic number behind — the old code hard-coded a 54pt
-    /// deduction that no longer matched the parts it stood for.
-    static var cardWidth: CGFloat { 176 * PreviewSizing.scale }
-    static var cardHeight: CGFloat { 134 * PreviewSizing.scale }
+    // Card metrics. The preview size setting sizes what the card shows, so the
+    // thumbnail and the icon standing in for it follow it, and so do the gaps
+    // around them, which hold nothing of their own. What does not follow it is
+    // anything sized by fixed content: the title band is one line of 12pt
+    // semibold at every setting, and the panel header holds a 16pt icon beside
+    // the same 12pt. Scaling the band with the card left that line adrift in
+    // 31pt of nothing at the largest size and squeezed into 13pt at the
+    // smallest, which is the one thing here that was actually wrong.
     static var cardPadding: CGFloat { 8 * PreviewSizing.scale }
     static var cardTitleSpacing: CGFloat { 5 * PreviewSizing.scale }
-    /// One line of 12pt semibold, with just enough room for descenders.
-    static var cardTitleHeight: CGFloat { 17 * PreviewSizing.scale }
-    static var cardThumbnailHeight: CGFloat {
-        cardHeight - cardPadding * 2 - cardTitleSpacing - cardTitleHeight
-    }
+    /// One line of 12pt semibold, with just enough room for descenders. Fixed:
+    /// the line it holds is the same at every preview size.
+    static let cardTitleHeight: CGFloat = 17
     static var cardSpacing: CGFloat { 8 * PreviewSizing.scale }
     static var panelPadding: CGFloat { 12 * PreviewSizing.scale }
     static let panelHeaderHeight: CGFloat = 28
+
+    static func cardThumbnailSize(scale: CGFloat) -> CGSize {
+        CGSize(width: 160 * scale, height: 96 * scale)
+    }
+
+    static func cardSize(scale: CGFloat) -> CGSize {
+        let thumbnail = cardThumbnailSize(scale: scale)
+        let padding = 8 * scale
+        return CGSize(width: thumbnail.width + padding * 2,
+                      height: thumbnail.height + padding * 2 + 5 * scale + cardTitleHeight)
+    }
+
+    /// Stands in for the thumbnail when there is no capture, so it follows the
+    /// thumbnail rather than staying the one fixed picture on a scaling card.
+    static func cardFallbackIconSize(scale: CGFloat) -> CGFloat {
+        52 * scale
+    }
+
+    static var cardThumbnailWidth: CGFloat { cardThumbnailSize(scale: PreviewSizing.scale).width }
+    static var cardThumbnailHeight: CGFloat { cardThumbnailSize(scale: PreviewSizing.scale).height }
+    static var cardWidth: CGFloat { cardSize(scale: PreviewSizing.scale).width }
+    static var cardHeight: CGFloat { cardSize(scale: PreviewSizing.scale).height }
+    static var cardFallbackIconSize: CGFloat { cardFallbackIconSize(scale: PreviewSizing.scale) }
 
     /// How solid the panel's frosted background is drawn, as a fraction. The
     /// floor is not zero on purpose: the panel's title sits straight on the
