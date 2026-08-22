@@ -9931,6 +9931,41 @@ struct MetricsTests {
         expect(!KillProcessSupport.isProtected(pid: 12345, name: "Safari", path: "/Applications/Safari.app/Contents/MacOS/Safari"),
                "ordinary user app is not protected")
 
+        let lsofFields = """
+        p101
+        f4
+        n*:3000
+        f5
+        n127.0.0.1:3000
+        f6
+        n[::1]:8080
+        p202
+        f7
+        n*:65535
+        f8
+        n*:0
+        f9
+        n*:65536
+        f10
+        n*:not-a-port
+        """
+        let listeningPorts = KillProcessSupport.listeningTCPPorts(from: lsofFields)
+        expect(listeningPorts[101] == [3000, 8080]
+                && listeningPorts[202] == [65535],
+               "lsof fields parse valid IPv4, IPv6 and wildcard ports, de-duplicate, and reject invalid ranges")
+        expect(KillProcessSupport.listeningTCPPorts(from: "").isEmpty,
+               "empty lsof output has no listening ports")
+        expect(KillProcessSupport.matches(query: "8080", name: "Server", pid: 101, ports: [3000, 8080])
+                && KillProcessSupport.matches(query: "server", name: "Local Server", pid: 101, ports: [])
+                && KillProcessSupport.matches(query: "101", name: "Server", pid: 101, ports: [])
+                && !KillProcessSupport.matches(query: "80", name: "Server", pid: 101, ports: [8080]),
+               "Kill Process search matches exact ports and PIDs plus partial case-insensitive names")
+        expect(KillProcessSupport.mergedPorts([[8080, 3000], [3000, 9000], []]) == [3000, 8080, 9000],
+               "grouped process ports are sorted and de-duplicated")
+        expect(KillProcessSupport.processColumnWidth(availableWidth: 900) == 458
+                && KillProcessSupport.processColumnWidth(availableWidth: 500) == 80,
+               "process column consumes the remainder and respects its minimum width")
+
         for language in AppLanguage.allCases {
             let categoryValues = Mirror(reflecting: FeatureStrings.settingsCategories(language)).children
                 .compactMap { $0.value as? String }
