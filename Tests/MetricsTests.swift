@@ -12238,6 +12238,39 @@ struct MetricsTests {
         // the free width of its row on macOS 15 and starves the strip.
         expect(scratchpadViewSource.contains(".fixedSize()\n            .help(text.padActions)"),
                "the scratchpad pad actions menu stays the size of its label")
+        // The same rule for every other borderless menu in the app, so the
+        // next one written cannot repeat issue #569. Kill Process is the one
+        // deliberate exception: its row controls take a shared minimum width
+        // so the Kill button and the menu beside it line up down the list.
+        let borderlessMenuException = "Sources/Vorssaint/UI/KillProcess/KillProcessView.swift"
+        var unpinnedBorderlessMenus: [String] = []
+        let uiFiles = FileManager.default
+            .enumerator(atPath: "Sources/Vorssaint/UI")?
+            .compactMap { $0 as? String }
+            .filter { $0.hasSuffix(".swift") } ?? []
+        for file in uiFiles.sorted() {
+            let path = "Sources/Vorssaint/UI/\(file)"
+            guard path != borderlessMenuException,
+                  let source = try? String(contentsOfFile: path, encoding: .utf8) else { continue }
+            let lines = source.components(separatedBy: "\n")
+            for (index, line) in lines.enumerated()
+            where line.contains(".menuStyle(.borderlessButton)") {
+                // Read to the end of the menu's own modifier chain: the next
+                // line that is neither a modifier nor a comment belongs to
+                // something else.
+                var pinned = false
+                var cursor = index + 1
+                while cursor < lines.count {
+                    let text = lines[cursor].trimmingCharacters(in: .whitespaces)
+                    guard text.hasPrefix(".") || text.hasPrefix("//") else { break }
+                    if text.hasPrefix(".fixedSize()") { pinned = true; break }
+                    cursor += 1
+                }
+                if !pinned { unpinnedBorderlessMenus.append("\(file):\(index + 1)") }
+            }
+        }
+        expect(unpinnedBorderlessMenus.isEmpty,
+               "every borderless menu keeps its own size: \(unpinnedBorderlessMenus)")
         expect(ScratchpadRetention.sanitized("day") == .day
                 && ScratchpadRetention.sanitized("week") == .week
                 && ScratchpadRetention.sanitized("month") == .month
