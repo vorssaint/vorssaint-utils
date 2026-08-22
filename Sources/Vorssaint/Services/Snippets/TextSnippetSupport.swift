@@ -300,6 +300,40 @@ enum TextSnippetSupport {
         return formatter.string(from: date)
     }
 
+    struct DetectedDateToken: Equatable {
+        let range: Range<String.Index>
+        let kind: DateVariableKind
+        let pattern: String
+        let timeZoneIdentifier: String?
+    }
+
+    /// The recognized date/time tag containing `index`, if any: used by the
+    /// snippet editor to tell whether the cursor sits inside an existing
+    /// token (so the builder edits it) or not (so it inserts a new one).
+    /// Mirrors expandingFormattedDates's own traversal (skip past a bare
+    /// "{{" on any mismatch, rather than jumping to an unrelated "}}"), so
+    /// an earlier malformed or unrecognized tag never swallows a later
+    /// well-formed one.
+    static func dateToken(in text: String, at index: String.Index) -> DetectedDateToken? {
+        var rest = Substring(text)
+        while let start = rest.range(of: "{{") {
+            let tail = rest[start.lowerBound...]
+            guard let close = tail.range(of: "}}"),
+                  let match = formattedPattern(in: tail[..<close.lowerBound]),
+                  let kind = DateVariableKind(rawValue: match.kind) else {
+                rest = rest[start.upperBound...]
+                continue
+            }
+            let tagEnd = close.upperBound
+            if index >= start.lowerBound, index <= tagEnd {
+                return DetectedDateToken(range: start.lowerBound..<tagEnd, kind: kind,
+                                        pattern: match.pattern, timeZoneIdentifier: match.timeZoneIdentifier)
+            }
+            rest = rest[tagEnd...]
+        }
+        return nil
+    }
+
     // MARK: - Library
 
     /// One folder worth of library rows. An empty name is the loose group,

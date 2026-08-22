@@ -10851,6 +10851,36 @@ struct MetricsTests {
                                                        locale: enUS).isEmpty,
                "an empty custom pattern previews as empty rather than crashing on an empty date format")
 
+        // Date variable token detection
+        let tokenSample = "Hi {{date:MMM d}} and {{datetime-tz(UTC):yyyy}} end"
+        let insideDate = tokenSample.index(tokenSample.startIndex, offsetBy: 6)
+        let detectedDate = TextSnippetSupport.dateToken(in: tokenSample, at: insideDate)
+        expect(detectedDate?.kind == .date && detectedDate?.pattern == "MMM d"
+                && detectedDate?.timeZoneIdentifier == nil,
+               "the cursor inside a plain date token detects its kind and pattern")
+
+        let insideZoned = tokenSample.range(of: "UTC")!.lowerBound
+        let detectedZoned = TextSnippetSupport.dateToken(in: tokenSample, at: insideZoned)
+        expect(detectedZoned?.kind == .datetime && detectedZoned?.pattern == "yyyy"
+                && detectedZoned?.timeZoneIdentifier == "UTC",
+               "the cursor inside a timezone-qualified token detects its kind, pattern and zone")
+
+        expect(TextSnippetSupport.dateToken(in: tokenSample, at: tokenSample.startIndex) == nil,
+               "a cursor outside any tag detects nothing")
+
+        let unknownTagText = "see {{clipboard}} here"
+        let insideUnknown = unknownTagText.index(unknownTagText.startIndex, offsetBy: 6)
+        expect(TextSnippetSupport.dateToken(in: unknownTagText, at: insideUnknown) == nil,
+               "a cursor inside a non-date tag like clipboard detects nothing")
+
+        let unclosedText = "start {{date:yyyy no close"
+        let insideUnclosed = unclosedText.index(unclosedText.startIndex, offsetBy: 10)
+        expect(TextSnippetSupport.dateToken(in: unclosedText, at: insideUnclosed) == nil,
+               "a cursor inside an unclosed tag detects nothing")
+
+        expect(TextSnippetSupport.dateToken(in: "", at: "".startIndex) == nil,
+               "empty text detects nothing")
+
         // Per-snippet capitalization option (issue #304)
         let caseless = TextSnippet(name: "Caseless", trigger: ";email", replacement: "me@x.com",
                                    expansion: .afterDelimiter, enabled: true, ignoresCase: true)
