@@ -33,6 +33,11 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
 - Clicking a Dock icon now only restores the windows that Click Dock icon to minimize
   put away. Windows minimized any other way keep the Dock's own restore. Thanks to @PathGao.
 ### Fixed
+- The Uninstaller now names the items a removal could not move and, when the
+  permission is what stopped it, says so and offers Full Disk Access on the spot.
+  Sandboxed app data was left behind under a success tick and a line that gave no
+  reason, while the note offering the permission only ever appeared before an app
+  was picked. Thanks to @PathGao.
 - Scrolling screenshots now keep fixed page footers once at the end instead of
   repeating them after every scroll.
 - Settings now lists Dock Preview and Dock click as separate named sections, and

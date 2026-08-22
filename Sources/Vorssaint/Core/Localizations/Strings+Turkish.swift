@@ -296,6 +296,8 @@ extension Strings {
         uninstallerDoneTitle: "Tamamlandı!",
         uninstallerFreedFormat: "%@ geri kazanıldı",
         uninstallerSomeFailed: "Bazı öğeler Çöp Sepeti'ne taşınamadı.",
+        uninstallerFailedNeedsFDA: "Kum havuzundaki uygulama verileri yalnızca Tam Disk Erişimi ile taşınabilir. Yönetici parolası bu iznin yerine geçmez.",
+        uninstallerFailedMoreFormat: "ve %d tane daha",
         uninstallerAnother: "Başka uygulama kaldır",
         uninstallerCatApp: "Uygulama",
         uninstallerCatSupport: "Destek",

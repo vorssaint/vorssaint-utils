@@ -296,6 +296,8 @@ extension Strings {
         uninstallerDoneTitle: "¡Listo!",
         uninstallerFreedFormat: "%@ recuperados",
         uninstallerSomeFailed: "Algunos ítems no se pudieron mover a la Papelera.",
+        uninstallerFailedNeedsFDA: "Los datos de apps en zona protegida solo se pueden mover con Acceso a Disco Completo. La contraseña de administrador no lo sustituye.",
+        uninstallerFailedMoreFormat: "y %d más",
         uninstallerAnother: "Desinstalar otra",
         uninstallerCatApp: "Aplicación",
         uninstallerCatSupport: "Soporte",

@@ -338,22 +338,20 @@ struct PanelUninstallerView: View {
         }
     }
 
-    private func doneState(freed: Int64, failed: Int) -> some View {
+    private func doneState(freed: Int64, failed: [AppUninstaller.Leftover]) -> some View {
         VStack(spacing: 10) {
-            Image(systemName: "checkmark.circle.fill")
+            // A green tick over a list of survivors reads as a clean removal.
+            Image(systemName: failed.isEmpty ? "checkmark.circle.fill"
+                                             : "exclamationmark.triangle.fill")
                 .font(.system(size: 32))
-                .foregroundStyle(.green)
+                .foregroundStyle(failed.isEmpty ? .green : .orange)
             Text(l10n.s.uninstallerDoneTitle)
                 .font(.system(size: 14, weight: .bold))
             Text(String(format: l10n.s.uninstallerFreedFormat, Self.byteString(freed)))
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
-            if failed > 0 {
-                Text(l10n.s.uninstallerSomeFailed)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.orange)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
+            if !failed.isEmpty {
+                UninstallFailureNote(items: failed, compact: true)
             }
             Button(l10n.s.uninstallerAnother) {
                 uninstaller.reset()

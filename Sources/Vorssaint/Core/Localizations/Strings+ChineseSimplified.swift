@@ -296,6 +296,8 @@ extension Strings {
         uninstallerDoneTitle: "完成！",
         uninstallerFreedFormat: "已释放 %@",
         uninstallerSomeFailed: "部分项目无法移到废纸篓。",
+        uninstallerFailedNeedsFDA: "沙盒应用的数据只有在拥有完全磁盘访问权限时才能移动，管理员密码无法代替这项权限。",
+        uninstallerFailedMoreFormat: "另有 %d 项",
         uninstallerAnother: "卸载另一个",
         uninstallerCatApp: "应用程序",
         uninstallerCatSupport: "支持文件",

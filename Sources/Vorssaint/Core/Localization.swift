@@ -415,6 +415,8 @@ struct Strings {
     let uninstallerDoneTitle: String
     let uninstallerFreedFormat: String      // + size string
     let uninstallerSomeFailed: String
+    let uninstallerFailedNeedsFDA: String
+    let uninstallerFailedMoreFormat: String
     let uninstallerAnother: String
     let uninstallerCatApp: String
     let uninstallerCatSupport: String
@@ -1370,6 +1372,8 @@ extension Strings {
         uninstallerDoneTitle: "Pronto!",
         uninstallerFreedFormat: "%@ recuperados",
         uninstallerSomeFailed: "Alguns itens não puderam ser movidos para a Lixeira.",
+        uninstallerFailedNeedsFDA: "Os dados de apps em área restrita só podem ser movidos com Acesso Total ao Disco. A senha de administrador não substitui essa permissão.",
+        uninstallerFailedMoreFormat: "e mais %d",
         uninstallerAnother: "Desinstalar outro",
         uninstallerCatApp: "Aplicativo",
         uninstallerCatSupport: "Suporte",
@@ -2301,6 +2305,8 @@ extension Strings {
         uninstallerDoneTitle: "Done!",
         uninstallerFreedFormat: "%@ recovered",
         uninstallerSomeFailed: "Some items couldn't be moved to the Trash.",
+        uninstallerFailedNeedsFDA: "Sandboxed app data can only be moved with Full Disk Access. The administrator password does not stand in for it.",
+        uninstallerFailedMoreFormat: "and %d more",
         uninstallerAnother: "Uninstall another",
         uninstallerCatApp: "Application",
         uninstallerCatSupport: "Support",
