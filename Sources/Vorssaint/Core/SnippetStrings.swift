@@ -43,6 +43,9 @@ struct SnippetFeatureStrings {
     let folderPlaceholder: String
     let showInLibraryLabel: String
     let variablesFormatCaption: String
+    let soundToggle: String
+    let soundCaption: String
+    let soundPickerLabel: String
 }
 
 extension FeatureStrings {
@@ -102,7 +105,10 @@ extension SnippetFeatureStrings {
         folderLabel: "폴더",
         folderPlaceholder: "업무",
         showInLibraryLabel: "빠른 메뉴에 표시",
-        variablesFormatCaption: "콜론 뒤에 형식을 적으면 원하는 모양이 됩니다. 예: {{date:yyyy-MM-dd}}"
+        variablesFormatCaption: "콜론 뒤에 형식을 적으면 원하는 모양이 됩니다. 예: {{date:yyyy-MM-dd}}",
+        soundToggle: "스니펫이 확장될 때 소리 재생",
+        soundCaption: "입력한 트리거가 확장될 때마다 짧은 시스템 소리가 재생됩니다.",
+        soundPickerLabel: "소리"
     )
 }
 
@@ -143,7 +149,10 @@ extension SnippetFeatureStrings {
         folderLabel: "Folder",
         folderPlaceholder: "Work",
         showInLibraryLabel: "Show in the quick menu",
-        variablesFormatCaption: "A format after a colon picks how they look, like {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "A format after a colon picks how they look, like {{date:yyyy-MM-dd}}.",
+        soundToggle: "Play a sound when a snippet expands",
+        soundCaption: "A short system sound plays each time a typed trigger expands.",
+        soundPickerLabel: "Sound"
     )
 
     static let ptBR = SnippetFeatureStrings(
@@ -182,7 +191,10 @@ extension SnippetFeatureStrings {
         folderLabel: "Pasta",
         folderPlaceholder: "Trabalho",
         showInLibraryLabel: "Mostrar no menu rápido",
-        variablesFormatCaption: "Um formato depois de dois pontos escolhe a aparência, como {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "Um formato depois de dois pontos escolhe a aparência, como {{date:yyyy-MM-dd}}.",
+        soundToggle: "Tocar um som quando um snippet expandir",
+        soundCaption: "Um som curto do sistema toca sempre que um gatilho digitado se expande.",
+        soundPickerLabel: "Som"
     )
 
     static let tr = SnippetFeatureStrings(
@@ -221,7 +233,10 @@ extension SnippetFeatureStrings {
         folderLabel: "Klasör",
         folderPlaceholder: "İş",
         showInLibraryLabel: "Hızlı menüde göster",
-        variablesFormatCaption: "İki noktadan sonra yazılan biçim görünümü belirler, örneğin {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "İki noktadan sonra yazılan biçim görünümü belirler, örneğin {{date:yyyy-MM-dd}}.",
+        soundToggle: "Parçacık genişlediğinde ses çal",
+        soundCaption: "Yazılan bir tetikleyici genişlediğinde kısa bir sistem sesi çalar.",
+        soundPickerLabel: "Ses"
     )
 
     static let ru = SnippetFeatureStrings(
@@ -260,7 +275,10 @@ extension SnippetFeatureStrings {
         folderLabel: "Папка",
         folderPlaceholder: "Работа",
         showInLibraryLabel: "Показывать в быстром меню",
-        variablesFormatCaption: "Формат после двоеточия задаёт вид, например {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "Формат после двоеточия задаёт вид, например {{date:yyyy-MM-dd}}.",
+        soundToggle: "Воспроизводить звук при развёртывании сниппета",
+        soundCaption: "Короткий системный звук воспроизводится каждый раз, когда введённый триггер разворачивается.",
+        soundPickerLabel: "Звук"
     )
 
     static let es = SnippetFeatureStrings(
@@ -299,7 +317,10 @@ extension SnippetFeatureStrings {
         folderLabel: "Carpeta",
         folderPlaceholder: "Trabajo",
         showInLibraryLabel: "Mostrar en el menú rápido",
-        variablesFormatCaption: "Un formato después de dos puntos elige la apariencia, como {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "Un formato después de dos puntos elige la apariencia, como {{date:yyyy-MM-dd}}.",
+        soundToggle: "Reproducir un sonido al expandir un fragmento",
+        soundCaption: "Se reproduce un sonido corto del sistema cada vez que un disparador escrito se expande.",
+        soundPickerLabel: "Sonido"
     )
 
     static let de = SnippetFeatureStrings(
@@ -338,7 +359,10 @@ extension SnippetFeatureStrings {
         folderLabel: "Ordner",
         folderPlaceholder: "Arbeit",
         showInLibraryLabel: "Im Schnellmenü zeigen",
-        variablesFormatCaption: "Ein Format nach einem Doppelpunkt bestimmt das Aussehen, etwa {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "Ein Format nach einem Doppelpunkt bestimmt das Aussehen, etwa {{date:yyyy-MM-dd}}.",
+        soundToggle: "Ton abspielen, wenn ein Baustein ausgeschrieben wird",
+        soundCaption: "Ein kurzer Systemton wird jedes Mal abgespielt, wenn ein getipptes Kürzel ausgeschrieben wird.",
+        soundPickerLabel: "Ton"
     )
 
     static let fr = SnippetFeatureStrings(
@@ -377,7 +401,10 @@ extension SnippetFeatureStrings {
         folderLabel: "Dossier",
         folderPlaceholder: "Travail",
         showInLibraryLabel: "Afficher dans le menu rapide",
-        variablesFormatCaption: "Un format après deux-points choisit l'apparence, par exemple {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "Un format après deux-points choisit l'apparence, par exemple {{date:yyyy-MM-dd}}.",
+        soundToggle: "Jouer un son au développement d'un extrait",
+        soundCaption: "Un court son système est joué chaque fois qu'un déclencheur tapé se développe.",
+        soundPickerLabel: "Son"
     )
 
     static let it = SnippetFeatureStrings(
@@ -416,7 +443,10 @@ extension SnippetFeatureStrings {
         folderLabel: "Cartella",
         folderPlaceholder: "Lavoro",
         showInLibraryLabel: "Mostra nel menu rapido",
-        variablesFormatCaption: "Un formato dopo i due punti sceglie l'aspetto, ad esempio {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "Un formato dopo i due punti sceglie l'aspetto, ad esempio {{date:yyyy-MM-dd}}.",
+        soundToggle: "Riproduci un suono quando un frammento si espande",
+        soundCaption: "Un breve suono di sistema viene riprodotto ogni volta che un trigger digitato si espande.",
+        soundPickerLabel: "Suono"
     )
 
     static let ja = SnippetFeatureStrings(
@@ -455,7 +485,10 @@ extension SnippetFeatureStrings {
         folderLabel: "フォルダ",
         folderPlaceholder: "仕事",
         showInLibraryLabel: "クイックメニューに表示",
-        variablesFormatCaption: "コロンの後に形式を書くと表示を選べます。例: {{date:yyyy-MM-dd}}"
+        variablesFormatCaption: "コロンの後に形式を書くと表示を選べます。例: {{date:yyyy-MM-dd}}",
+        soundToggle: "スニペットが展開されたときに音を再生",
+        soundCaption: "入力したトリガーが展開されるたびに、短いシステム音が再生されます。",
+        soundPickerLabel: "サウンド"
     )
 
     static let zhHans = SnippetFeatureStrings(
@@ -494,7 +527,10 @@ extension SnippetFeatureStrings {
         folderLabel: "文件夹",
         folderPlaceholder: "工作",
         showInLibraryLabel: "在快捷菜单中显示",
-        variablesFormatCaption: "冒号后加上格式就能自定样式，例如 {{date:yyyy-MM-dd}}。"
+        variablesFormatCaption: "冒号后加上格式就能自定样式，例如 {{date:yyyy-MM-dd}}。",
+        soundToggle: "片段展开时播放声音",
+        soundCaption: "每次输入的触发词展开时都会播放一个简短的系统声音。",
+        soundPickerLabel: "声音"
     )
 
     static let zhTW = SnippetFeatureStrings(
@@ -533,7 +569,10 @@ extension SnippetFeatureStrings {
         folderLabel: "檔案夾",
         folderPlaceholder: "工作",
         showInLibraryLabel: "在快捷選單中顯示",
-        variablesFormatCaption: "冒號後加上格式就能自訂樣式,例如 {{date:yyyy-MM-dd}}。"
+        variablesFormatCaption: "冒號後加上格式就能自訂樣式,例如 {{date:yyyy-MM-dd}}。",
+        soundToggle: "片段展開時播放聲音",
+        soundCaption: "每次輸入的觸發詞展開時都會播放一個簡短的系統聲音。",
+        soundPickerLabel: "聲音"
     )
 
     static let zhHK = SnippetFeatureStrings(
@@ -572,6 +611,9 @@ extension SnippetFeatureStrings {
         folderLabel: "檔案夾",
         folderPlaceholder: "工作",
         showInLibraryLabel: "在快捷選單中顯示",
-        variablesFormatCaption: "喺冒號後加上格式就可以自訂樣式,例如 {{date:yyyy-MM-dd}}。"
+        variablesFormatCaption: "喺冒號後加上格式就可以自訂樣式,例如 {{date:yyyy-MM-dd}}。",
+        soundToggle: "片段展開時播放聲音",
+        soundCaption: "每次輸入嘅觸發詞展開時都會播放一個簡短嘅系統聲音。",
+        soundPickerLabel: "聲音"
     )
 }
