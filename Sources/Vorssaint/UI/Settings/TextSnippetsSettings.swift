@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 
 /// The text snippets page: the enable toggle, the snippet list and a simple
@@ -12,6 +13,8 @@ struct TextSnippetsSettings: View {
     @ObservedObject private var library = SnippetLibraryService.shared
     @AppStorage(DefaultsKey.textSnippetsEnabled) private var enabled = false
     @AppStorage(DefaultsKey.snippetLibraryEnabled) private var libraryEnabled = false
+    @AppStorage(DefaultsKey.snippetSoundEnabled) private var soundEnabled = false
+    @AppStorage(DefaultsKey.snippetSoundName) private var soundName = "Tink"
     @State private var snippets: [TextSnippet] = TextSnippetSupport.decode(
         UserDefaults.standard.data(forKey: DefaultsKey.textSnippets))
     @State private var editing: TextSnippet?
@@ -33,6 +36,24 @@ struct TextSnippetsSettings: View {
                     .foregroundStyle(.secondary)
                 if enabled, !permissions.accessibility {
                     PermissionRow(kind: .accessibility)
+                }
+                Toggle(text.soundToggle, isOn: $soundEnabled)
+                    .onChange(of: soundEnabled) { _, _ in
+                        TextSnippetService.shared.syncWithPreferences()
+                    }
+                Text(text.soundCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if soundEnabled {
+                    Picker(text.soundPickerLabel, selection: $soundName) {
+                        ForEach(TextSnippetSupport.alertSoundNames, id: \.self) { name in
+                            Text(name).tag(name)
+                        }
+                    }
+                    .onChange(of: soundName) { _, newName in
+                        NSSound(named: newName)?.play()
+                        TextSnippetService.shared.syncWithPreferences()
+                    }
                 }
             }
 
