@@ -8,6 +8,7 @@
 # The bundle is staged in a temporary directory outside ~/Documents: folders synced
 # by File Provider gain xattrs (com.apple.provenance etc.) that invalidate codesign.
 set -euo pipefail
+export PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 cd "$(dirname "$0")"
 
 # Flags: --dev builds the local-only "Vorssaint (Developer)" variant (its own
@@ -39,7 +40,7 @@ else
     BUILD_CONFIGURATION="release"
 fi
 FAN_HELPER_ID="$APP_BUNDLE_ID.fan-control"
-TARGET="arm64-apple-macosx14.0"
+TARGET="$(uname -m)-apple-macosx14.0"
 ENTITLEMENTS="Resources/Vorssaint.entitlements"
 LEGACY_IDENTITY="Vorssaint Utils Signing"
 
@@ -138,7 +139,9 @@ fi
 SDK_COMPAT_FLAGS=()
 if [[ "$SDK" == "$PINNED_SDK" ]]; then
     # Swift 6.4 can read the SDK 26 interfaces when given their compiler version.
-    SDK_COMPAT_FLAGS=(-Xfrontend -interface-compiler-version -Xfrontend 6.3.2)
+    if swiftc -Xfrontend -interface-compiler-version -Xfrontend 6.3.2 -c - </dev/null >/dev/null 2>&1; then
+        SDK_COMPAT_FLAGS=(-Xfrontend -interface-compiler-version -Xfrontend 6.3.2)
+    fi
 fi
 
 # --test: compile and run the standalone unit tests (pure helpers only: metrics,

@@ -118,7 +118,7 @@ enum TemperatureSensorSelector {
 
     static func isCPUTemperatureKey(_ key: String,
                                     platform: CPUTemperaturePlatform) -> Bool {
-        if key.hasPrefix("Tp") || key.hasPrefix("Te") { return true }
+        if key.hasPrefix("Tp") || key.hasPrefix("Te") || key.hasPrefix("TC") { return true }
         return platform == .appleM3Family && key.hasPrefix("Tf")
     }
 

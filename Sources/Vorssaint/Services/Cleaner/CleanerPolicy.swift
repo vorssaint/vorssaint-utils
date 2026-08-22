@@ -35,6 +35,10 @@ enum CleanerPolicy {
         "/Library/Developer/Xcode/iOS DeviceSupport",
         "/Library/Developer/Xcode/watchOS DeviceSupport",
         "/Library/Developer/Xcode/tvOS DeviceSupport",
+        "/Library/Caches/org.swift.swiftpm",
+        "/Library/Caches/CocoaPods",
+        "/.gradle/caches",
+        "/.npm/_cacache",
     ]
 
     /// Device backups are the user's safety net: enormous, ancient, and the

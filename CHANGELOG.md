@@ -87,6 +87,24 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
 - The recording editor now reads composition duration directly without background
   queries. Thanks to @Bald-M.
 
+## [3.3.3] - 2026-08-22
+
+### Summary
+Vorssaint 3.3.3 introduces Universal Fan Control for Apple Silicon and Intel Macs,
+Processor Power Modes (Low Power Eco, Balanced, Maximum Turbo), Safe Memory Purge,
+expanded Developer Caches cleaning, Finder Delete and Revert shortcuts, and Deep
+Hardware and Energy metrics.
+
+### Added
+- Processor Power Modes: Low Power (Eco) to save energy and reduce heat, Balanced (Default),
+  and Maximum (Turbo) for heavy compiling and sustained workloads without throttling.
+- Memory Purge: Instant RAM cache release to free inactive memory when pressure is high.
+- Universal Fan Control: Full hardware support for Apple Silicon and Intel Macs with SMC
+  FS! bitmask and dynamic RPM management.
+- Extended Developer Cleaner: Cleans CocoaPods, SwiftPM, Gradle, and NPM build caches.
+- Finder Delete & Revert shortcuts: Move to Trash with Delete and undo with Shift+Delete.
+- Deep Metrics Dashboard: Detailed breakdown of hardware, storage, networking, and battery.
+
 ## [3.3.2] - 2026-08-20
 
 ### Summary

@@ -35,6 +35,8 @@ enum DefaultsKey {
     static let statusItemPlacementGeneration = "statusItemPlacementGeneration"
     static let hasOnboarded = "hasOnboarded"
     static let sleepDisabledFlag = "vorssDisabledSleep"   // internal guard for pmset disablesleep
+    static let processorPowerMode = "processorPowerMode" // "lowPower", "balanced", "maximum"
+    static let autoPowerModeEnabled = "autoPowerModeEnabled"
     static let scrollInverterEnabled = "scrollInverterEnabled"
     static let scrollInverterHorizontalEnabled = "scrollInverterHorizontalEnabled"
     static let focusFollowsMouseEnabled = "focusFollowsMouseEnabled"
@@ -91,6 +93,9 @@ enum DefaultsKey {
     static let finderCutPasteEnabled = "finderCutPasteEnabled"
     static let finderRenameEnabled = "finderRenameEnabled"
     static let finderRenameShortcut = "finderRenameShortcut"
+    static let finderDeleteShortcutsEnabled = "finderDeleteShortcutsEnabled"
+    static let finderDeleteShortcut = "finderDeleteShortcut"
+    static let finderRevertShortcut = "finderRevertShortcut"
     static let finderPasteImageAsFile = "finderPasteImageAsFile"
     static let autoQuitEnabled = "autoQuitEnabled"
     static let autoQuitExceptions = "autoQuitExceptions"  // [bundle id] kept running
@@ -577,7 +582,7 @@ enum UpdateHighlightsInfo {
     /// The single release whose first launch shows the tour; any other
     /// version never shows it. Bump deliberately for releases with headline
     /// features worth a tour.
-    static let releaseVersion = "3.3.2"
+    static let releaseVersion = "3.3.3"
 
     static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
         appVersion == releaseVersion && lastSeenVersion != releaseVersion
@@ -588,7 +593,7 @@ enum SupportUpdateIntroInfo {
     /// The single release whose first launch shows the update intro. It used
     /// to track AppInfo.version, which re-showed the ask on every update; now a
     /// release only shows it when this constant is deliberately bumped.
-    static let releaseVersion = "3.3.2"
+    static let releaseVersion = "3.3.3"
 
     static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
         appVersion == releaseVersion && lastSeenVersion != releaseVersion
@@ -1058,6 +1063,11 @@ enum Defaults {
         DefaultsKey.pastePlainShortcut: GlobalShortcut.pastePlainDefault.storageValue,
         DefaultsKey.finderRenameEnabled: false,
         DefaultsKey.finderRenameShortcut: GlobalShortcut.finderRenameDefault.storageValue,
+        DefaultsKey.finderDeleteShortcutsEnabled: true,
+        DefaultsKey.finderDeleteShortcut: GlobalShortcut.finderDeleteDefault.storageValue,
+        DefaultsKey.finderRevertShortcut: GlobalShortcut.finderRevertDefault.storageValue,
+        DefaultsKey.processorPowerMode: "balanced",
+        DefaultsKey.autoPowerModeEnabled: false,
         DefaultsKey.colorPickerShortcutEnabled: false,
         DefaultsKey.colorPickerShortcut: GlobalShortcut.colorPickerDefault.storageValue,
         DefaultsKey.colorPickerFormat: "hex",

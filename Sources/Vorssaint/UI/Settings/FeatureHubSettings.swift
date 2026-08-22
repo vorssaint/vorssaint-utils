@@ -616,6 +616,7 @@ extension AppFeature {
         case .pastePlain: return s.pastePlainName
         case .finderCutPaste: return s.cutPasteName
         case .finderRename: return FeatureStrings.finderRename(L10n.shared.language).hubTitle
+        case .finderDeleteShortcuts: return "Atalhos de Lixeira no Finder"
         case .shelf: return s.shelfName
         case .urlCleaner: return s.urlCleanerName
         case .diskImageInstaller:
@@ -675,6 +676,7 @@ extension AppFeature {
         case .pastePlain: return hub.descPastePlain
         case .finderCutPaste: return hub.descFinderCutPaste
         case .finderRename: return FeatureStrings.finderRename(L10n.shared.language).hubDescription
+        case .finderDeleteShortcuts: return "Apague arquivos no Finder com Backspace e desfaça com Shift+Backspace"
         case .shelf: return hub.descShelf
         case .urlCleaner: return hub.descURLCleaner
         case .diskImageInstaller:

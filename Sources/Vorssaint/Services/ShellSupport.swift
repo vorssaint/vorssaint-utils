@@ -171,7 +171,7 @@ enum Sudoers {
             completion(false)
             return
         }
-        let rule = "\(user) ALL=(root) NOPASSWD: /usr/bin/pmset disablesleep 1, /usr/bin/pmset disablesleep 0"
+        let rule = "\(user) ALL=(root) NOPASSWD: /usr/bin/pmset disablesleep 1, /usr/bin/pmset disablesleep 0, /usr/bin/pmset -a lowpowermode 1, /usr/bin/pmset -a lowpowermode 0, /usr/bin/pmset lowpowermode 1, /usr/bin/pmset lowpowermode 0, /usr/sbin/purge"
         // Clear any earlier-named rule first, then write and validate the new one
         // (a failed check rolls back). Same password prompt either way.
         let legacy = legacyRulePaths.joined(separator: " ")
@@ -199,6 +199,19 @@ enum Sudoers {
 
     private static func pmsetDisableSleepOnQueue(_ on: Bool) -> Bool {
         Shell.run("/usr/bin/sudo", ["-n", "/usr/bin/pmset", "disablesleep", on ? "1" : "0"]).status == 0
+    }
+
+    /// Toggles low power mode through the password-free path.
+    @discardableResult
+    static func pmsetLowPowerMode(_ on: Bool) -> Bool {
+        Shell.run("/usr/bin/sudo", ["-n", "/usr/bin/pmset", "-a", "lowpowermode", on ? "1" : "0"]).status == 0
+            || Shell.run("/usr/bin/sudo", ["-n", "/usr/bin/pmset", "lowpowermode", on ? "1" : "0"]).status == 0
+    }
+
+    /// Purges inactive memory caches through the password-free path.
+    @discardableResult
+    static func purgeMemory() -> Bool {
+        Shell.run("/usr/bin/sudo", ["-n", "/usr/sbin/purge"]).status == 0
     }
 }
 

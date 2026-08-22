@@ -169,6 +169,8 @@ struct GlobalShortcut: Equatable, Hashable {
     static let pastePlainDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_V),
                                                   modifiers: [.shift, .option, .command])
     static let finderRenameDefault = GlobalShortcut(keyCode: Int64(kVK_F2), modifiers: [])
+    static let finderDeleteDefault = GlobalShortcut(keyCode: Int64(51), modifiers: [])
+    static let finderRevertDefault = GlobalShortcut(keyCode: Int64(51), modifiers: [.shift])
     static let colorPickerDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_C),
                                                    modifiers: [.control, .option, .command])
     static let screenOCRDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_T),
@@ -592,6 +594,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case scratchpad
     case snippetLibrary
     case commandBar
+    case finderDelete
+    case finderRevert
     case screenRecorder
 
     var id: String { storageKey }
@@ -619,6 +623,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .scratchpad: return DefaultsKey.scratchpadShortcut
         case .snippetLibrary: return DefaultsKey.snippetLibraryShortcut
         case .commandBar: return DefaultsKey.commandBarShortcut
+        case .finderDelete: return DefaultsKey.finderDeleteShortcut
+        case .finderRevert: return DefaultsKey.finderRevertShortcut
         case .screenRecorder: return DefaultsKey.recorderShortcut
         }
     }
@@ -646,6 +652,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .scratchpad: return .scratchpadDefault
         case .snippetLibrary: return .snippetLibraryDefault
         case .commandBar: return .commandBarDefault
+        case .finderDelete: return .finderDeleteDefault
+        case .finderRevert: return .finderRevertDefault
         case .screenRecorder: return .screenRecorderDefault
         }
     }
@@ -681,6 +689,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
         case .snippetLibrary: return FeatureStrings.snippets(L10n.shared.language).libraryTitle
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).pageTitle
+        case .finderDelete: return "Mover para Lixeira (Finder)"
+        case .finderRevert: return "Desfazer (Finder)"
         case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).pageTitle
         }
     }
@@ -725,6 +735,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .scratchpad: return [DefaultsKey.scratchpadShortcutEnabled]
         case .snippetLibrary: return [DefaultsKey.snippetLibraryEnabled]
         case .commandBar: return [DefaultsKey.commandBarShortcutEnabled]
+        case .finderDelete, .finderRevert: return [DefaultsKey.finderDeleteShortcutsEnabled]
         case .screenRecorder: return [DefaultsKey.recorderShortcutEnabled]
         }
     }
@@ -752,6 +763,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .scratchpad: return .scratchpad
         case .snippetLibrary: return .textSnippets
         case .commandBar: return .commandBar
+        case .finderDelete, .finderRevert: return .finderDeleteShortcuts
         case .screenRecorder: return .screenRecorder
         }
     }

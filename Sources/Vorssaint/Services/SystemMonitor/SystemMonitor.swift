@@ -567,7 +567,7 @@ final class SystemMonitor: ObservableObject {
 
     // MARK: - Refresh
 
-    private func refresh(suppressImmediateGPU: Bool = false) {
+    func refresh(suppressImmediateGPU: Bool = false) {
         if !Thread.isMainThread {
             DispatchQueue.main.async { [weak self] in self?.refresh(suppressImmediateGPU: suppressImmediateGPU) }
             return
@@ -893,16 +893,16 @@ final class SystemMonitor: ObservableObject {
         tempKeysPrepared = true
 
         let all = client.keys { name in
-            name.hasPrefix("Tp") || name.hasPrefix("Te") || name.hasPrefix("Tg")
+            name.hasPrefix("Tp") || name.hasPrefix("Te") || name.hasPrefix("Tf") || name.hasPrefix("TC") || name.hasPrefix("Tg") || name.hasPrefix("TG")
                 || name.range(of: "^TB[0-9]T$", options: .regularExpression) != nil
         }
-        cpuKeys = all.filter { $0.name.hasPrefix("Tp") || $0.name.hasPrefix("Te") }
+        cpuKeys = all.filter { $0.name.hasPrefix("Tp") || $0.name.hasPrefix("Te") || $0.name.hasPrefix("Tf") || $0.name.hasPrefix("TC") }
         preferredCPUKeys = cpuKeys.filter {
             TemperatureSensorSelector.isCPUCoreKey($0.name, platform: cpuTemperaturePlatform)
         }
         let preferredNames = Set(preferredCPUKeys.map(\.name))
         fallbackCPUKeys = cpuKeys.filter { !preferredNames.contains($0.name) }
-        gpuKeys = all.filter { $0.name.hasPrefix("Tg") }
+        gpuKeys = all.filter { $0.name.hasPrefix("Tg") || $0.name.hasPrefix("TG") }
         batteryKeys = all.filter { $0.name.hasPrefix("TB") }
     }
 
@@ -1014,10 +1014,29 @@ final class SystemMonitor: ObservableObject {
             // sampling for the menu bar expensive.
             guard let ref = IORegistryEntryCreateCFProperty(entry, "PerformanceStatistics" as CFString,
                                                             kCFAllocatorDefault, 0),
-                  let stats = ref.takeRetainedValue() as? [String: Any],
-                  let utilization = stats["Device Utilization %"] as? Int
+                  let stats = ref.takeRetainedValue() as? [String: Any]
             else { continue }
-            return Double(utilization) / 100.0
+            let keys = [
+                "Device Utilization % at cur p-state",
+                "Device Utilization %",
+                "GPU Core Utilization",
+                "GPU Activity(%)"
+            ]
+            for key in keys {
+                if let raw = stats[key] {
+                    let utilization: Int?
+                    if let v = raw as? Int {
+                        utilization = v
+                    } else if let v = raw as? NSNumber {
+                        utilization = v.intValue
+                    } else {
+                        utilization = nil
+                    }
+                    if let utilization {
+                        return Double(utilization) / 100.0
+                    }
+                }
+            }
         }
         return nil
     }

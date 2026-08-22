@@ -9,6 +9,7 @@ struct CutPasteSettings: View {
     @ObservedObject private var service = FinderCutPaste.shared
     @AppStorage(DefaultsKey.finderCutPasteEnabled) private var enabled = false
     @AppStorage(DefaultsKey.finderRenameEnabled) private var renameEnabled = false
+    @AppStorage(DefaultsKey.finderDeleteShortcutsEnabled) private var deleteShortcutsEnabled = true
     @AppStorage(DefaultsKey.finderRenameShortcut) private var renameShortcutRaw =
         GlobalShortcut.finderRenameDefault.storageValue
     @State private var renameError: String?
@@ -25,6 +26,7 @@ struct CutPasteSettings: View {
     private var needsAccessibility: Bool {
         (AppFeature.finderCutPaste.isAvailable && enabled)
             || (AppFeature.finderRename.isAvailable && renameEnabled)
+            || (AppFeature.finderDeleteShortcuts.isAvailable && deleteShortcutsEnabled)
     }
 
     var body: some View {
@@ -52,6 +54,20 @@ struct CutPasteSettings: View {
                     Text(l10n.s.cutPasteTextNote)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+            }
+
+            if AppFeature.finderDeleteShortcuts.isAvailable {
+                Section {
+                    Toggle("Atalhos de Teclado no Finder (Delete / Desfazer)", isOn: $deleteShortcutsEnabled)
+                        .onChange(of: deleteShortcutsEnabled) { _, _ in
+                            FinderDeleteShortcuts.shared.syncWithPreferences()
+                        }
+                    Text("Permite apagar arquivos selecionados no Finder usando a tecla Backspace/Delete, e desfazer com Shift+Delete.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text("Lixeira e Ações no Finder")
                 }
             }
 
