@@ -38,6 +38,12 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
   the next icon takes 100 ms instead of 250 ms. Thanks to @PathGao.
 
 ### Fixed
+- Dock Preview cards now keep a full title band at every preview size instead of
+  scaling it with the card, so Large and Extra Large no longer leave one line of
+  text adrift in empty space and Small no longer squeezes it. The app icon that
+  stands in for a thumbnail that has not arrived follows the preview size too.
+  Thanks to @PathGao.
+
 - Scrolling screenshots now keep fixed page footers once at the end instead of
   repeating them after every scroll.
 - Settings now lists Dock Preview and Dock click as separate named sections, and

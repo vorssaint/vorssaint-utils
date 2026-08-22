@@ -2141,17 +2141,34 @@ struct MetricsTests {
         expect(!DockPreviewSupport.canDragToPlace(hasWindowID: false, isOnScreen: false,
                                                   isMinimized: false, isFullscreen: false),
                "an entry without a window has nothing to move")
-        // The thumbnail is derived from the card, so a constant changed on its
-        // own must not silently eat into it or leave the card short.
-        expectClose(Double(DockPreviewSupport.cardThumbnailHeight
-                            + DockPreviewSupport.cardPadding * 2
-                            + DockPreviewSupport.cardTitleSpacing
-                            + DockPreviewSupport.cardTitleHeight),
-                    Double(DockPreviewSupport.cardHeight),
-                    "a Dock Preview card's chrome and thumbnail add up to the card")
-        expect(DockPreviewSupport.cardThumbnailHeight
-                > DockPreviewSupport.cardHeight * 0.7,
-               "the thumbnail keeps most of the Dock Preview card")
+        // The preview size setting sizes the thumbnail, not the writing around
+        // it. Both halves of that are checked across every size on offer: the
+        // picture tracks the setting exactly, and the chrome does not move at
+        // all — a title band that scaled with the card once left a 12pt line
+        // adrift in 31pt of nothing at the largest setting.
+        let previewScales = Defaults.allowedPreviewSizes.map { PreviewSizing.scale(for: $0) }
+        expect(previewScales.count == 4 && previewScales.contains(1.0),
+               "every preview size on offer has a scale, including the unscaled one")
+        expect(previewScales.allSatisfy { scale in
+                   let thumbnail = DockPreviewSupport.cardThumbnailSize(scale: scale)
+                   let base = DockPreviewSupport.cardThumbnailSize(scale: 1)
+                   return abs(thumbnail.width - base.width * scale) < 0.0001
+                       && abs(thumbnail.height - base.height * scale) < 0.0001
+               },
+               "a Dock Preview thumbnail is exactly the chosen preview size")
+        expect(previewScales.allSatisfy { scale in
+                   let card = DockPreviewSupport.cardSize(scale: scale)
+                   let thumbnail = DockPreviewSupport.cardThumbnailSize(scale: scale)
+                   return card.height - thumbnail.height - 13 * scale >= DockPreviewSupport.cardTitleHeight
+               },
+               "a card keeps a full title band at every preview size, never a scaled-down one")
+        expect(DockPreviewSupport.cardTitleHeight >= 16,
+               "the title band holds one line of 12pt semibold with its descenders")
+        expect(previewScales.allSatisfy {
+                   DockPreviewSupport.cardFallbackIconSize(scale: $0)
+                       < DockPreviewSupport.cardThumbnailSize(scale: $0).height
+               },
+               "the stand-in app icon stays inside the thumbnail it stands in for at every size")
 
         // The card used to draw the app icon on every thumbnail and the window
         // title both over the thumbnail and under it. In a panel every card

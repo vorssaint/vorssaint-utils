@@ -332,7 +332,8 @@ private struct DockPreviewCard: View {
                     Image(nsImage: icon)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 52, height: 52)
+                        .frame(width: DockPreviewSupport.cardFallbackIconSize,
+                               height: DockPreviewSupport.cardFallbackIconSize)
                 }
 
                 if hasStatusBadges {
@@ -348,7 +349,7 @@ private struct DockPreviewCard: View {
 
                 previewControlBar
             }
-            .frame(width: DockPreviewSupport.cardWidth - DockPreviewSupport.cardPadding * 2,
+            .frame(width: DockPreviewSupport.cardThumbnailWidth,
                    height: DockPreviewSupport.cardThumbnailHeight)
 
             Text(window.displayTitle)
@@ -357,7 +358,7 @@ private struct DockPreviewCard: View {
                 .truncationMode(.middle)
                 .foregroundStyle(.primary)
                 .frame(height: DockPreviewSupport.cardTitleHeight)
-                .frame(maxWidth: DockPreviewSupport.cardWidth - DockPreviewSupport.cardPadding * 2 - 4)
+                .frame(maxWidth: DockPreviewSupport.cardThumbnailWidth - 4)
         }
         .padding(DockPreviewSupport.cardPadding)
         .frame(width: DockPreviewSupport.cardWidth, height: DockPreviewSupport.cardHeight)
