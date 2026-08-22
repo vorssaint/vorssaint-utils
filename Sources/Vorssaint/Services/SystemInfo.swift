@@ -49,18 +49,7 @@ enum SystemInfo {
     }
 
     static func memoryUsage() -> (used: UInt64, appUsed: UInt64, total: UInt64, compressed: UInt64, cached: UInt64, swapUsed: UInt64?)? {
-        var stats = vm_statistics64()
-        var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.stride / MemoryLayout<integer_t>.stride)
-        // mach_host_self() returns a send right the caller owns; release it or each
-        // call leaks a mach port (this runs every couple of seconds while sampling).
-        let host = mach_host_self()
-        defer { mach_port_deallocate(mach_task_self_, host) }
-        let kr = withUnsafeMutablePointer(to: &stats) { ptr in
-            ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics64(host, HOST_VM_INFO64, $0, &count)
-            }
-        }
-        guard kr == KERN_SUCCESS else { return nil }
+        guard let stats = vmStats() else { return nil }
         let total = ProcessInfo.processInfo.physicalMemory
         let pageSize = UInt64(vm_kernel_page_size)
         let appUsed = MetricFormat.appMemory(totalBytes: total,
@@ -85,5 +74,87 @@ enum SystemInfo {
             ? swap.xsu_used
             : nil
         return (used, appUsed, total, compressed, cached, swapUsed)
+    }
+
+    /// A local copy of the HOST_VM_INFO64 rev3 layout.  Xcode 16.2's SDK only
+    /// exposes rev2, despite newer kernels reporting the tagged-storage fields.
+    private struct VMStatistics64 {
+        var free_count: natural_t = 0
+        var active_count: natural_t = 0
+        var inactive_count: natural_t = 0
+        var wire_count: natural_t = 0
+        var zero_fill_count: UInt64 = 0
+        var reactivations: UInt64 = 0
+        var pageins: UInt64 = 0
+        var pageouts: UInt64 = 0
+        var faults: UInt64 = 0
+        var cow_faults: UInt64 = 0
+        var lookups: UInt64 = 0
+        var hits: UInt64 = 0
+        var purges: UInt64 = 0
+        var purgeable_count: natural_t = 0
+        var speculative_count: natural_t = 0
+        var decompressions: UInt64 = 0
+        var compressions: UInt64 = 0
+        var swapins: UInt64 = 0
+        var swapouts: UInt64 = 0
+        var compressor_page_count: natural_t = 0
+        var throttled_count: natural_t = 0
+        var external_page_count: natural_t = 0
+        var internal_page_count: natural_t = 0
+        var total_uncompressed_pages_in_compressor: UInt64 = 0
+        var swapped_count: UInt64 = 0
+        var total_tag_storage_pages: UInt64 = 0
+        var nontag_pageable_tag_storage_pages: UInt64 = 0
+        var nontag_wired_tag_storage_pages: UInt64 = 0
+        var free_tag_storage_pages: UInt64 = 0
+        var tag_storing_tag_storage_pages: UInt64 = 0
+        var total_tagged_pages: UInt64 = 0
+        var resident_tagged_pages: UInt64 = 0
+        var compressed_tagged_pages: UInt64 = 0
+        var tagged_compressions: UInt64 = 0
+        var tagged_decompressions: UInt64 = 0
+        var compressed_tag_storage_bytes: UInt64 = 0
+
+        init() {}
+
+        init(legacy stats: vm_statistics64) {
+            free_count = stats.free_count
+            active_count = stats.active_count
+            inactive_count = stats.inactive_count
+            wire_count = stats.wire_count
+            purgeable_count = stats.purgeable_count
+            speculative_count = stats.speculative_count
+            compressor_page_count = stats.compressor_page_count
+            external_page_count = stats.external_page_count
+            internal_page_count = stats.internal_page_count
+        }
+    }
+
+    private static func vmStats() -> VMStatistics64? {
+        var stats = VMStatistics64()
+        if readVMStats(into: &stats) == KERN_SUCCESS {
+            return stats
+        }
+
+        // Older kernels may reject a rev3-sized request. In that case, retain
+        // the fields available in their SDK layout and leave tag storage at 0.
+        var legacy = vm_statistics64()
+        guard readVMStats(into: &legacy) == KERN_SUCCESS else { return nil }
+        return VMStatistics64(legacy: legacy)
+    }
+
+    private static func readVMStats<T>(into stats: inout T) -> kern_return_t {
+        var count = mach_msg_type_number_t(MemoryLayout<T>.stride / MemoryLayout<integer_t>.stride)
+        // mach_host_self() returns a send right the caller owns; release it or each
+        // call leaks a mach port (this runs every couple of seconds while sampling).
+        let host = mach_host_self()
+        defer { mach_port_deallocate(mach_task_self_, host) }
+        let kr = withUnsafeMutablePointer(to: &stats) { ptr in
+            ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                host_statistics64(host, HOST_VM_INFO64, $0, &count)
+            }
+        }
+        return kr
     }
 }
