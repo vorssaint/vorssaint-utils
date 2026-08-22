@@ -138,6 +138,28 @@ enum TextSnippetSupport {
     /// current time zone for that one token.
     private static let formattedDateKinds = ["date", "time", "datetime"]
 
+    /// Configures a DateFormatter's pattern and timezone override. Called by
+    /// both expandingFormattedDates and configuredFormatter to ensure a single
+    /// place decides how these two properties map from pattern and identifier.
+    private static func configure(_ formatter: DateFormatter,
+                                  pattern: String,
+                                  timeZoneIdentifier: String?) {
+        formatter.dateFormat = pattern
+        formatter.timeZone = timeZoneIdentifier.flatMap { TimeZone(identifier: $0) }
+    }
+
+    /// Creates and returns a DateFormatter configured with the given pattern,
+    /// timezone override, and locale. Used by dateVariablePreview for a
+    /// single-shot formatter creation.
+    private static func configuredFormatter(pattern: String,
+                                            timeZoneIdentifier: String?,
+                                            locale: Locale) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        configure(formatter, pattern: pattern, timeZoneIdentifier: timeZoneIdentifier)
+        return formatter
+    }
+
     private static func expandingFormattedDates(_ text: String,
                                                 date: Date,
                                                 locale: Locale) -> String {
@@ -155,8 +177,7 @@ enum TextSnippetSupport {
                 rest = rest[start.upperBound...]
                 continue
             }
-            formatter.dateFormat = match.pattern
-            formatter.timeZone = match.timeZoneIdentifier.flatMap { TimeZone(identifier: $0) }
+            configure(formatter, pattern: match.pattern, timeZoneIdentifier: match.timeZoneIdentifier)
             result += formatter.string(from: date)
             rest = rest[close.upperBound...]
         }
@@ -273,10 +294,9 @@ enum TextSnippetSupport {
         let pattern = resolvedDatePattern(kind: kind, style: style,
                                           customPattern: customPattern, locale: locale)
         guard !pattern.isEmpty else { return "" }
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.dateFormat = pattern
-        formatter.timeZone = timeZoneIdentifier.flatMap { TimeZone(identifier: $0) }
+        let formatter = configuredFormatter(pattern: pattern,
+                                            timeZoneIdentifier: timeZoneIdentifier,
+                                            locale: locale)
         return formatter.string(from: date)
     }
 
