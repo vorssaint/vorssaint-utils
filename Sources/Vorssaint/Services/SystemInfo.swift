@@ -48,7 +48,7 @@ enum SystemInfo {
                            isOnBattery: state == "Battery Power")
     }
 
-    static func memoryUsage() -> (used: UInt64, appUsed: UInt64, total: UInt64, swapUsed: UInt64?)? {
+    static func memoryUsage() -> (used: UInt64, appUsed: UInt64, total: UInt64, compressed: UInt64, cached: UInt64, swapUsed: UInt64?)? {
         var stats = vm_statistics64()
         var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.stride / MemoryLayout<integer_t>.stride)
         // mach_host_self() returns a send right the caller owns; release it or each
@@ -72,11 +72,17 @@ enum SystemInfo {
                                              pageSize: pageSize,
                                              internalPages: UInt64(stats.internal_page_count),
                                              purgeablePages: UInt64(stats.purgeable_count))
+        let compressed = MetricFormat.compressedMemory(totalBytes: total,
+                                                       pageSize: pageSize,
+                                                       compressorPages: UInt64(stats.compressor_page_count))
+        let cached = MetricFormat.cachedFiles(totalBytes: total,
+                                              pageSize: pageSize,
+                                              fileBackedPages: UInt64(stats.external_page_count))
         var swap = xsw_usage()
         var swapSize = MemoryLayout<xsw_usage>.stride
         let swapUsed = sysctlbyname("vm.swapusage", &swap, &swapSize, nil, 0) == 0
             ? swap.xsu_used
             : nil
-        return (used, appUsed, total, swapUsed)
+        return (used, appUsed, total, compressed, cached, swapUsed)
     }
 }

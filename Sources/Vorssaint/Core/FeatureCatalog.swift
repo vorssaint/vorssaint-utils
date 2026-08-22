@@ -329,10 +329,13 @@ extension AppFeature {
                 return AppUpdatesSupport.CheckFrequency
                     .sanitized(stringFor(DefaultsKey.appUpdatesCheckFrequency)) != .off
                     && boolFor(DefaultsKey.appUpdatesNotify)
+            case (.cleaner, .filesAndFolders):
+                return boolFor(DefaultsKey.whatsAppDownloadsEnabled)
             case (.cleaner, .notifications):
                 let cleanerNotifies = (stringFor(DefaultsKey.cleanerScheduleFrequency) ?? "off") != "off"
                     && boolFor(DefaultsKey.cleanerScheduleNotify)
-                let whatsAppNotifies = (boolFor(DefaultsKey.whatsAppDownloadsAutomaticEnabled)
+                let whatsAppNotifies = boolFor(DefaultsKey.whatsAppDownloadsEnabled)
+                    && (boolFor(DefaultsKey.whatsAppDownloadsAutomaticEnabled)
                         || boolFor(DefaultsKey.whatsAppOrganizerEnabled))
                     && boolFor(DefaultsKey.whatsAppDownloadsNotify)
                 return cleanerNotifies || whatsAppNotifies

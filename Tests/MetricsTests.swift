@@ -1402,6 +1402,21 @@ struct MetricsTests {
         expect(MetricFormat.selectedMemory(used: 12, app: 7, metric: "unknown") == 12,
                "an unknown shared memory selector falls back to used memory")
 
+        expect(MetricFormat.compressedMemory(totalBytes: 16 * 1024, pageSize: 1024, compressorPages: 5)
+               == 5 * 1024,
+               "compressed memory is compressor pages in bytes")
+        expect(MetricFormat.compressedMemory(totalBytes: 16, pageSize: 1, compressorPages: 100) == 16,
+               "compressed memory clamps to total physical memory")
+        expect(MetricFormat.compressedMemory(totalBytes: 0, pageSize: 1024, compressorPages: 5) == 0,
+               "compressed memory is zero when total is zero")
+        expect(MetricFormat.cachedFiles(totalBytes: 16 * 1024, pageSize: 1024, fileBackedPages: 3)
+               == 3 * 1024,
+               "cached files are file-backed pages in bytes")
+        expect(MetricFormat.cachedFiles(totalBytes: 16, pageSize: 1, fileBackedPages: 100) == 16,
+               "cached files clamp to total physical memory")
+        expect(MetricFormat.cachedFiles(totalBytes: 16 * 1024, pageSize: 0, fileBackedPages: 3) == 0,
+               "cached files are zero when page size is zero")
+
         // MARK: Registered defaults
 
         let registeredDefaults = Defaults.registeredDefaults
@@ -2271,10 +2286,10 @@ struct MetricsTests {
         // decision above is made consciously, never by omission.
         let releasePlist = NSDictionary(contentsOfFile: "Resources/Info.plist")
         let plistVersion = (releasePlist?["CFBundleShortVersionString"] as? String) ?? ""
-        expect(plistVersion == "3.3.3",
+        expect(plistVersion == "3.3.3-beta.2",
                "bumping the app version requires re-deciding the support prompt pin above")
         let plistBuild = (releasePlist?["CFBundleVersion"] as? String) ?? ""
-        expect(plistBuild == "79",
+        expect(plistBuild == "81",
                "every app version needs its own incremented bundle build")
         expect(SupportUpdateIntroInfo.releaseVersion == "3.3.2",
                "the support prompt remains deliberately pinned to 3.3.2")
@@ -2919,6 +2934,8 @@ struct MetricsTests {
                "the schedule defaults to nine in the morning on Mondays")
         expect(registeredDefaults[DefaultsKey.cleanerScheduleNotify] as? Bool == true,
                "the schedule reports its outcome unless the user opts out")
+        expect(registeredDefaults[DefaultsKey.whatsAppDownloadsEnabled] as? Bool == false,
+               "WhatsApp downloads stay hidden until the user turns them on")
         expect(registeredDefaults[DefaultsKey.whatsAppDownloadsAutomaticEnabled] as? Bool == false,
                "WhatsApp automatic cleanup is opt-in")
         expect(registeredDefaults[DefaultsKey.whatsAppDownloadsCategories] as? String
@@ -2989,6 +3006,34 @@ struct MetricsTests {
 
         // MARK: WhatsApp downloads
 
+        let whatsAppEnabledSuite = "vorss.tests.whatsapp.enabled"
+        if let migrationDefaults = UserDefaults(suiteName: whatsAppEnabledSuite) {
+            migrationDefaults.removePersistentDomain(forName: whatsAppEnabledSuite)
+            Defaults.migrateWhatsAppDownloadsEnabled(in: migrationDefaults)
+            expect(migrationDefaults.object(forKey: DefaultsKey.whatsAppDownloadsEnabled) == nil,
+                   "an untouched setup keeps WhatsApp downloads off by leaving the new switch unset")
+            migrationDefaults.set(true, forKey: DefaultsKey.whatsAppDownloadsAutomaticEnabled)
+            Defaults.migrateWhatsAppDownloadsEnabled(in: migrationDefaults)
+            expect(migrationDefaults.bool(forKey: DefaultsKey.whatsAppDownloadsEnabled),
+                   "an existing automatic WhatsApp cleanup keeps its Cleaner surface")
+            migrationDefaults.removePersistentDomain(forName: whatsAppEnabledSuite)
+            migrationDefaults.set(true, forKey: DefaultsKey.whatsAppOrganizerEnabled)
+            Defaults.migrateWhatsAppDownloadsEnabled(in: migrationDefaults)
+            expect(migrationDefaults.bool(forKey: DefaultsKey.whatsAppDownloadsEnabled),
+                   "an existing WhatsApp organizer keeps its Cleaner surface")
+            migrationDefaults.removePersistentDomain(forName: whatsAppEnabledSuite)
+            migrationDefaults.set(true, forKey: DefaultsKey.whatsAppDownloadsAccessConfirmed)
+            Defaults.migrateWhatsAppDownloadsEnabled(in: migrationDefaults)
+            expect(migrationDefaults.object(forKey: DefaultsKey.whatsAppDownloadsEnabled) == nil,
+                   "only opening Downloads does not keep the WhatsApp Cleaner surface")
+            migrationDefaults.set(false, forKey: DefaultsKey.whatsAppDownloadsEnabled)
+            Defaults.migrateWhatsAppDownloadsEnabled(in: migrationDefaults)
+            expect(!migrationDefaults.bool(forKey: DefaultsKey.whatsAppDownloadsEnabled),
+                   "the WhatsApp downloads migration preserves a newer off choice")
+            migrationDefaults.removePersistentDomain(forName: whatsAppEnabledSuite)
+        } else {
+            expect(false, "WhatsApp downloads migration suite can be created")
+        }
         expect(WhatsAppDownloadSupport.isWhatsAppAgent("WhatsApp")
                 && WhatsAppDownloadSupport.isWhatsAppAgent(" whatsapp ")
                 && !WhatsAppDownloadSupport.isWhatsAppAgent("SomeBrowser")
@@ -6546,6 +6591,93 @@ struct MetricsTests {
         expect(elevated.contains("'/Applications/Vorssaint.app'"),
                "elevated installer passes the app path quoted for the shell")
 
+        // MARK: - UpdateServiceSupport & SemVer channel reconciliation
+
+        let vStable = UpdateServiceSupport.SemanticVersion(raw: "3.3.3")
+        expect(vStable?.major == 3 && vStable?.minor == 3 && vStable?.patch == 3 && !vStable!.isPrerelease,
+               "parses standard stable version")
+
+        let vBeta = UpdateServiceSupport.SemanticVersion(raw: "v3.3.4-beta.1")
+        expect(vBeta?.major == 3 && vBeta?.minor == 3 && vBeta?.patch == 4 && vBeta!.isPrerelease,
+               "parses beta version with leading v")
+
+        let vBuild = UpdateServiceSupport.SemanticVersion(raw: "3.3.4-rc.2+20260822")
+        expect(vBuild?.major == 3 && vBuild?.minor == 3 && vBuild?.patch == 4 && vBuild!.isPrerelease,
+               "parses version with build metadata")
+
+        // SemVer 2.0.0 ordering rules
+        expect(UpdateServiceSupport.isNewer("3.3.4", than: "3.3.3"),
+               "newer major/minor/patch stable is newer")
+        expect(!UpdateServiceSupport.isNewer("3.3.3", than: "3.3.4"),
+               "older stable is not newer")
+        expect(UpdateServiceSupport.isNewer("3.3.4-beta.1", than: "3.3.3"),
+               "beta of higher version is newer than older stable")
+        expect(UpdateServiceSupport.isNewer("3.3.4-beta.2", than: "3.3.4-beta.1"),
+               "beta.2 is newer than beta.1 of the same cycle")
+        expect(UpdateServiceSupport.isNewer("3.3.4-rc.1", than: "3.3.4-beta.2"),
+               "rc.1 is newer than beta.2")
+        expect(UpdateServiceSupport.isNewer("3.3.4", than: "3.3.4-beta.2"),
+               "final stable release is newer than beta of same version")
+        expect(UpdateServiceSupport.isNewer("3.3.4", than: "3.3.4-rc.1"),
+               "final stable release is newer than rc of same version")
+        expect(!UpdateServiceSupport.isNewer("3.3.3", than: "3.3.4-beta.1"),
+               "older stable is never newer than a beta of higher version (no downgrade)")
+        expect(!UpdateServiceSupport.isNewer("3.3.4-beta.1", than: "3.3.4"),
+               "beta is not newer than the released final version")
+
+        // Release candidate selection
+        let dummyDMG = URL(string: "https://github.com/vorssaint/vorssaint-utils/releases/download/v3.3.4/Vorssaint.dmg")!
+        let dummyBetaDMG = URL(string: "https://github.com/vorssaint/vorssaint-utils/releases/download/v3.3.4-beta.1/Vorssaint.dmg")!
+
+        let candidateList = [
+            UpdateServiceSupport.ReleaseCandidate(tagName: "v3.3.4-beta.1", isPrerelease: true, isDraft: false, dmgURL: dummyBetaDMG, dmgExpectedBytes: 1000, body: "Beta notes"),
+            UpdateServiceSupport.ReleaseCandidate(tagName: "v3.3.3", isPrerelease: false, isDraft: false, dmgURL: dummyDMG, dmgExpectedBytes: 1000, body: "Stable notes"),
+            UpdateServiceSupport.ReleaseCandidate(tagName: "v3.3.5-beta.1", isPrerelease: true, isDraft: true, dmgURL: dummyBetaDMG, dmgExpectedBytes: 1000, body: "Draft notes")
+        ]
+
+        let selectedStable = UpdateServiceSupport.selectUpdate(from: candidateList, currentVersion: "3.3.2", includeBetas: false)
+        expect(selectedStable?.tagName == "v3.3.3", "stable channel only picks stable releases")
+
+        let selectedBeta = UpdateServiceSupport.selectUpdate(from: candidateList, currentVersion: "3.3.2", includeBetas: true)
+        expect(selectedBeta?.tagName == "v3.3.4-beta.1", "beta channel picks highest non-draft release")
+
+        let selectedFromHigherBeta = UpdateServiceSupport.selectUpdate(from: candidateList, currentVersion: "3.3.4-beta.1", includeBetas: false)
+        expect(selectedFromHigherBeta == nil, "user on beta turning off betas does not downgrade to older stable")
+
+        // Defaults registered
+        expect(Defaults.registeredDefaults[DefaultsKey.includeBetaUpdates] as? Bool == false,
+               "includeBetaUpdates defaults to false in registeredDefaults")
+
+        let testDefaults = UserDefaults(suiteName: "VorssaintTests.BetaActivation")!
+        testDefaults.removePersistentDomain(forName: "VorssaintTests.BetaActivation")
+        Defaults.activateBetaChannelIfRunningBeta(in: testDefaults, version: "3.3.3-beta.1")
+        expect(testDefaults.bool(forKey: DefaultsKey.includeBetaUpdates) == true,
+               "beta channel is activated automatically on a beta build")
+        testDefaults.set(false, forKey: DefaultsKey.includeBetaUpdates)
+        Defaults.activateBetaChannelIfRunningBeta(in: testDefaults, version: "3.3.3-beta.1")
+        expect(testDefaults.bool(forKey: DefaultsKey.includeBetaUpdates) == false,
+               "manual opt-out on a beta build is preserved across launches")
+
+        // Stable version does not activate beta channel
+        let stableDefaults = UserDefaults(suiteName: "VorssaintTests.StableActivation")!
+        stableDefaults.removePersistentDomain(forName: "VorssaintTests.StableActivation")
+        Defaults.activateBetaChannelIfRunningBeta(in: stableDefaults, version: "3.3.3")
+        expect(stableDefaults.object(forKey: DefaultsKey.includeBetaUpdates) == nil,
+               "stable release does not touch beta channel default")
+        stableDefaults.removePersistentDomain(forName: "VorssaintTests.StableActivation")
+        testDefaults.removePersistentDomain(forName: "VorssaintTests.BetaActivation")
+
+        // Localization completeness & formatting
+        for language in AppLanguage.allCases {
+            L10n.shared.language = language
+            let s = L10n.shared.s
+            expect(!s.includeBetaUpdatesToggle.isEmpty, "\(language.rawValue) includeBetaUpdatesToggle non-empty")
+            expect(!s.includeBetaUpdatesCaption.isEmpty, "\(language.rawValue) includeBetaUpdatesCaption non-empty")
+            expect(!s.betaBadgeLabel.isEmpty, "\(language.rawValue) betaBadgeLabel non-empty")
+            expect(!s.includeBetaUpdatesCaption.contains("—"), "\(language.rawValue) has no em dash")
+        }
+        L10n.shared.language = .enUS
+
         // MARK: Launch at login reconciliation
 
         expect(LaunchAtLoginSupport.startupAction(wanted: true, systemEnabled: false,
@@ -6728,6 +6860,18 @@ struct MetricsTests {
                       compactIconRowLayout.simpleTitleSurfaceWidth)
                     + SwitcherIconRowLayout.padding * 2,
                "App Switcher without shortcut hints still fits its title rail")
+        expect(SwitcherSupport.gridColumnCount(itemCount: 10, maxColumns: 8) == 5,
+               "App Switcher wrapping splits ten windows across two even rows")
+        expect(SwitcherSupport.gridColumnCount(itemCount: 9, maxColumns: 8) == 5,
+               "App Switcher wrapping keeps nine windows on five plus four")
+        expect(SwitcherSupport.gridColumnCount(itemCount: 17, maxColumns: 8) == 6,
+               "App Switcher wrapping balances three rows instead of leaving one leftover")
+        expect(SwitcherSupport.gridColumnCount(itemCount: 8, maxColumns: 8) == 8,
+               "App Switcher keeps a single full row when everything fits")
+        expect(SwitcherSupport.gridColumnCount(itemCount: 3, maxColumns: 8) == 3,
+               "App Switcher width still follows the window count on one row")
+        expect(SwitcherSupport.gridColumnCount(itemCount: 16, maxColumns: 8) == 8,
+               "App Switcher keeps the packed width when two rows are already even")
         expect(SwitcherSupport.gridSelectionIndex(after: 1,
                                                    itemCount: 8,
                                                    columns: 5,
@@ -8180,6 +8324,48 @@ struct MetricsTests {
                                                       panelFrame: switcherPanelFrame,
                                                       location: CGPoint(x: 200, y: 200)),
                "App Switcher ignores clicks while a quick switch shows no panel")
+        expect(SwitcherSupport.isMiddleClickInsidePanel(eventType: .otherMouseDown,
+                                                        buttonNumber: 2,
+                                                        panelIsVisible: true,
+                                                        panelFrame: switcherPanelFrame,
+                                                        location: CGPoint(x: 700, y: 500)),
+               "App Switcher detects middle-click inside panel to close window")
+        expect(!SwitcherSupport.isMiddleClickInsidePanel(eventType: .otherMouseDown,
+                                                         buttonNumber: 2,
+                                                         panelIsVisible: true,
+                                                         panelFrame: switcherPanelFrame,
+                                                         location: CGPoint(x: 200, y: 200)),
+               "App Switcher leaves middle-click outside panel to regular dismissal")
+        expect(!SwitcherSupport.isMiddleClickInsidePanel(eventType: .leftMouseDown,
+                                                         buttonNumber: 0,
+                                                         panelIsVisible: true,
+                                                         panelFrame: switcherPanelFrame,
+                                                         location: CGPoint(x: 700, y: 500)),
+               "App Switcher ignores non-middle clicks for direct window close")
+        expect(!SwitcherSupport.isMiddleClickInsidePanel(eventType: .otherMouseDown,
+                                                         buttonNumber: 3,
+                                                         panelIsVisible: true,
+                                                         panelFrame: switcherPanelFrame,
+                                                         location: CGPoint(x: 700, y: 500)),
+               "App Switcher ignores extra mouse buttons for direct window close")
+        expect(!SwitcherSupport.isMiddleClickInsidePanel(eventType: .otherMouseDown,
+                                                         buttonNumber: 2,
+                                                         panelIsVisible: false,
+                                                         panelFrame: switcherPanelFrame,
+                                                         location: CGPoint(x: 700, y: 500)),
+               "App Switcher ignores middle-click when panel is not visible")
+        expect(SwitcherSupport.shouldSwallowMiddleMouseUp(eventType: .otherMouseUp,
+                                                          buttonNumber: 2,
+                                                          panelIsVisible: true,
+                                                          panelFrame: switcherPanelFrame,
+                                                          location: CGPoint(x: 700, y: 500)),
+               "App Switcher swallows middle-mouse-up inside panel")
+        expect(!SwitcherSupport.shouldSwallowMiddleMouseUp(eventType: .otherMouseUp,
+                                                           buttonNumber: 2,
+                                                           panelIsVisible: true,
+                                                           panelFrame: switcherPanelFrame,
+                                                           location: CGPoint(x: 200, y: 200)),
+               "App Switcher does not swallow middle-mouse-up outside panel")
         let searchRecords = [
             SwitcherSearchRecord(id: "alpha", title: "Inbox", appName: "Alpha"),
             SwitcherSearchRecord(id: "beta", title: "Vorssaint Roadmap", appName: "Beta"),
@@ -8727,6 +8913,11 @@ struct MetricsTests {
             expect(!strings.monitorOpenActivityMonitor.isEmpty
                    && !strings.monitorOpenActivityMonitor.contains("—"),
                    "\(prefix) Activity Monitor action is present without em dash")
+            expect(!strings.memoryCompressed.isEmpty
+                   && !strings.memoryCompressed.contains("—")
+                   && !strings.memoryCachedFiles.isEmpty
+                   && !strings.memoryCachedFiles.contains("—"),
+                   "\(prefix) memory compressed and cached labels are present without em dash")
             expect(!strings.launchAtLoginNeedsApplications.isEmpty
                    && !strings.launchAtLoginNeedsApplications.contains("—"),
                    "\(prefix) launch at login location note is present without em dash")
@@ -9254,6 +9445,58 @@ struct MetricsTests {
         let unrelatedSystemEvent = CleaningSystemKeyEvent.decode(subtype: 99, data1: 0)
         expect(unrelatedSystemEvent == nil, "unrelated system-defined events do not count as unlock keys")
 
+        // MARK: Music launch blocker
+
+        func musicKeyData(keyCode: Int, state: Int = 10, repeatFlag: Bool = false) -> Int {
+            Int((UInt32(keyCode) << 16) | (UInt32(state) << 8) | (repeatFlag ? 1 : 0))
+        }
+        expect(MusicLaunchSupport.isMusicLaunchTrigger(
+            subtype: MusicLaunchSupport.auxiliaryControlButtonsSubtype,
+            data1: musicKeyData(keyCode: Int(MusicLaunchSupport.playPauseKeyCode))),
+               "play/pause arms the music-app blocker")
+        expect(MusicLaunchSupport.isMusicLaunchTrigger(
+            subtype: MusicLaunchSupport.auxiliaryControlButtonsSubtype,
+            data1: musicKeyData(keyCode: Int(MusicLaunchSupport.nextTrackKeyCode))),
+               "next track arms the music-app blocker")
+        expect(MusicLaunchSupport.isMusicLaunchTrigger(
+            subtype: MusicLaunchSupport.auxiliaryControlButtonsSubtype,
+            data1: musicKeyData(keyCode: Int(MusicLaunchSupport.previousTrackKeyCode))),
+               "previous track arms the music-app blocker")
+        expect(MusicLaunchSupport.isMusicLaunchTrigger(
+            subtype: MusicLaunchSupport.auxiliaryControlButtonsSubtype,
+            data1: musicKeyData(keyCode: Int(MusicLaunchSupport.fastForwardKeyCode))),
+               "fast-forward arms the music-app blocker")
+        expect(MusicLaunchSupport.isMusicLaunchTrigger(
+            subtype: MusicLaunchSupport.auxiliaryControlButtonsSubtype,
+            data1: musicKeyData(keyCode: Int(MusicLaunchSupport.rewindKeyCode))),
+               "rewind arms the music-app blocker")
+        expect(!MusicLaunchSupport.isMusicLaunchTrigger(
+            subtype: MusicLaunchSupport.auxiliaryControlButtonsSubtype,
+            data1: musicKeyData(keyCode: Int(MusicLaunchSupport.playPauseKeyCode), state: 11)),
+               "a media-key release does not arm the blocker")
+        expect(!MusicLaunchSupport.isMusicLaunchTrigger(
+            subtype: MusicLaunchSupport.auxiliaryControlButtonsSubtype,
+            data1: musicKeyData(keyCode: Int(MusicLaunchSupport.playPauseKeyCode), repeatFlag: true)),
+               "auto-repeat does not re-arm the blocker")
+        expect(!MusicLaunchSupport.isMusicLaunchTrigger(
+            subtype: MusicLaunchSupport.auxiliaryControlButtonsSubtype,
+            data1: musicKeyData(keyCode: 0)),
+               "volume keys do not arm the blocker")
+        expect(!MusicLaunchSupport.isMusicLaunchTrigger(
+            subtype: MusicLaunchSupport.auxiliaryControlButtonsSubtype,
+            data1: musicKeyData(keyCode: 2)),
+               "brightness keys do not arm the blocker")
+        expect(!MusicLaunchSupport.isMusicLaunchTrigger(subtype: 1, data1: musicKeyData(keyCode: 16)),
+               "other system-defined subtypes do not arm the blocker")
+        expect(!MusicLaunchSupport.shouldBlockLaunch(now: 10, lastTriggerAt: nil),
+               "without a recent media key the music app may open")
+        expect(MusicLaunchSupport.shouldBlockLaunch(now: 10, lastTriggerAt: 9.5),
+               "a launch in the arm window after a media key is blocked")
+        expect(MusicLaunchSupport.shouldBlockLaunch(now: 10, lastTriggerAt: 8.0),
+               "a launch on the arm-window edge is still blocked")
+        expect(!MusicLaunchSupport.shouldBlockLaunch(now: 10, lastTriggerAt: 7.9),
+               "a launch after the arm window is left alone")
+
         // MARK: Features hub catalog
 
         expect(AppFeature.allCases.count == 53, "feature catalog has 53 features")
@@ -9769,13 +10012,25 @@ struct MetricsTests {
                "an unscheduled cleaner does not use notifications")
         expect(activeSet(.notifications,
                          on: [DefaultsKey.whatsAppDownloadsAutomaticEnabled,
+                              DefaultsKey.whatsAppDownloadsNotify]) == [],
+               "WhatsApp cleanup notifications stay unused until that cleaner is turned on")
+        expect(activeSet(.notifications,
+                         on: [DefaultsKey.whatsAppDownloadsEnabled,
+                              DefaultsKey.whatsAppDownloadsAutomaticEnabled,
                               DefaultsKey.whatsAppDownloadsNotify]) == [.cleaner],
                "WhatsApp cleanup only uses notifications for an opted-in automatic summary")
         expect(activeSet(.notifications,
                          on: [DefaultsKey.whatsAppOrganizerEnabled,
+                              DefaultsKey.whatsAppDownloadsNotify]) == [],
+               "the experimental WhatsApp organizer stays silent until that cleaner is turned on")
+        expect(activeSet(.notifications,
+                         on: [DefaultsKey.whatsAppDownloadsEnabled,
+                              DefaultsKey.whatsAppOrganizerEnabled,
                               DefaultsKey.whatsAppDownloadsNotify]) == [.cleaner],
                "the experimental WhatsApp organizer can offer an undo notification")
-        expect(activeSet(.filesAndFolders) == [.cleaner],
+        expect(activeSet(.filesAndFolders) == [],
+               "WhatsApp Downloads folder access stays unused until that cleaner is turned on")
+        expect(activeSet(.filesAndFolders, on: [DefaultsKey.whatsAppDownloadsEnabled]) == [.cleaner],
                "the cleaner owns WhatsApp Downloads folder access")
 
         expect(activeSet(.fullDiskAccess) == [.cleaner, .uninstaller],
@@ -12651,10 +12906,6 @@ struct MetricsTests {
                 && SuperKeySupport.nextInputSourceID(currentID: nil,
                                                      enabledIDs: ["abc"]) == nil,
                "input sources cycle through the enabled system list without a hard-coded shortcut")
-        expect(!SuperKeySupport.shouldCommitMarkedText(length: nil)
-                && !SuperKeySupport.shouldCommitMarkedText(length: 0)
-                && SuperKeySupport.shouldCommitMarkedText(length: 1),
-               "only active marked text is committed before switching input source")
 
         let capsMapping = SuperKeyMapping(source: SuperKeySupport.capsLockUsage,
                                           destination: SuperKeySupport.triggerUsage)
@@ -13149,7 +13400,8 @@ struct MetricsTests {
                 && backupKeys.contains(DefaultsKey.screenshotPreviewPosition)
                 && backupKeys.contains(DefaultsKey.panelUtilityScreenshot),
                "screenshot preferences travel with the settings backup")
-        expect(backupKeys.contains(DefaultsKey.whatsAppDownloadsAutomaticEnabled)
+        expect(backupKeys.contains(DefaultsKey.whatsAppDownloadsEnabled)
+                && backupKeys.contains(DefaultsKey.whatsAppDownloadsAutomaticEnabled)
                 && backupKeys.contains(DefaultsKey.whatsAppDownloadsCategories)
                 && backupKeys.contains(DefaultsKey.whatsAppDownloadsRetentionDays)
                 && backupKeys.contains(DefaultsKey.whatsAppDownloadsNotify),

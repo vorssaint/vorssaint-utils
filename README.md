@@ -19,7 +19,6 @@
   <a href="#private-by-default">Privacy</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="mailto:hello@vorssaint.com">Contact</a> ·
-  <a href="https://discord.gg/M6BwWH4BJp">Discord</a> ·
   <a href="https://buymeacoffee.com/vorssaint">Buy Me a Coffee</a>
 </p>
 
@@ -37,17 +36,15 @@
   </a>
 </p>
 
-<h3 align="center">Join the Vorssaint community on Discord</h3>
-
-<p align="center">
-  Get help, share workflows, report bugs, request improvements, and see early previews<br>
-  while the community is still growing alongside the app.<br><br>
-  <a href="https://discord.gg/M6BwWH4BJp"><strong>Join the Discord community</strong></a>
-</p>
-
 <p align="center">
   For partnerships or anything private, email
   <a href="mailto:hello@vorssaint.com"><strong>hello@vorssaint.com</strong></a>.
+</p>
+
+<p align="center">
+  <a href="https://trendshift.io/repositories/53716?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-53716" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/53716/daily?language=Swift" alt="vorssaint/vorssaint-utils | Trendshift daily ranking" width="250" height="55"></a>
+  &nbsp;&nbsp;
+  <a href="https://trendshift.io/repositories/53716?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-53716" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/53716/weekly?language=Swift" alt="vorssaint/vorssaint-utils | Trendshift weekly ranking" width="250" height="55"></a>
 </p>
 
 <p align="center">
@@ -79,7 +76,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Per app output.** Send your music to the speakers and a call to your headset at the same time.
 - **Output switcher.** Cycle between chosen outputs with one shortcut, and drop the volume automatically when headphones disconnect.
 - **Microphone tools.** Pin your favorite input so the Mac stops guessing, and mute every microphone at once with a click or shortcut, whichever one an app is using.
-- **Music app blocker.** Stops the Music app from bursting in when headphones connect.
+- **Music app blocker.** Stops the Music app from bursting in when headphones connect. You can still open it yourself.
 
 ### Know what your Mac is doing
 
@@ -234,7 +231,7 @@ The [troubleshooting guide](docs/TROUBLESHOOTING.md) walks through the common ca
 
 ## Community
 
-Vorssaint went from first commit to the front of GitHub trending in three days, top of the Swift charts, and issues and pull requests have shaped every release since. Join the new [Discord community](https://discord.gg/M6BwWH4BJp) for help, shared workflows, early previews and feedback, or start with the [contributing guide](CONTRIBUTING.md).
+Vorssaint went from first commit to the front of GitHub trending in three days, top of the Swift charts, and issues and pull requests have shaped every release since. Bug reports, feature ideas and translations are all welcome, starting from the [contributing guide](CONTRIBUTING.md).
 
 Vorssaint is free and will stay that way. If it earned its place in your menu bar, a star helps other people find it, and a [coffee](https://buymeacoffee.com/vorssaint) keeps the maintainer awake, with or without the Keep awake feature.
 

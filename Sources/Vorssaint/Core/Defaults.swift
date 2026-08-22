@@ -78,6 +78,7 @@ enum DefaultsKey {
     static let middleClickTapFingers = "middleClickTapFingers"  // 0 = off (default); 3 or 4 = a light tap with that many fingers also middle-clicks (issue #161)
     static let previewSize = "previewSize"                // app switcher + dock preview thumbnail size
     static let autoCheckUpdates = "autoCheckUpdates"
+    static let includeBetaUpdates = "includeBetaUpdates"
     static let releaseNotesOnUpdate = "releaseNotesOnUpdate" // show What's New after an update
     static let appVolumes = "appVolumes"                  // [bundle id: 0...2]
     static let appOutputDevices = "appOutputDevices"      // [bundle id: audio device UID]
@@ -130,6 +131,7 @@ enum DefaultsKey {
     static let cleanerLastAutoRun = "cleanerLastAutoRun"                // Double, epoch seconds
     static let cleanerLastAutoFreed = "cleanerLastAutoFreed"            // Int bytes
     // Confirmed WhatsApp downloads in the top level of ~/Downloads.
+    static let whatsAppDownloadsEnabled = "whatsAppDownloadsEnabled"
     static let whatsAppDownloadsAutomaticEnabled = "whatsAppDownloadsAutomaticEnabled"
     static let whatsAppDownloadsCategories = "whatsAppDownloadsCategories" // comma-joined category ids
     static let whatsAppDownloadsRetentionDays = "whatsAppDownloadsRetentionDays"
@@ -555,6 +557,7 @@ enum DefaultsKey {
 
     // Dev-build only: force the "update available" UI for local testing.
     static let simulateUpdate = "simulateUpdate"
+    static let simulateBetaUI = "simulateBetaUI"
 
     /// Features hub availability layer, one key per AppFeature raw value.
     /// Registered true: unavailable features vanish from every surface and
@@ -787,6 +790,7 @@ enum Defaults {
         DefaultsKey.middleClickTapFingers: 0,
         DefaultsKey.previewSize: "normal",
         DefaultsKey.autoCheckUpdates: true,
+        DefaultsKey.includeBetaUpdates: false,
         DefaultsKey.releaseNotesOnUpdate: true,
         DefaultsKey.updateShowcaseIntroVersion: "",
         DefaultsKey.updateShowcaseMediaOverride: "",
@@ -827,6 +831,7 @@ enum Defaults {
         DefaultsKey.cleanerScheduleNotify: true,
         DefaultsKey.cleanerLastAutoRun: 0.0,
         DefaultsKey.cleanerLastAutoFreed: 0,
+        DefaultsKey.whatsAppDownloadsEnabled: false,
         DefaultsKey.whatsAppDownloadsAutomaticEnabled: false,
         DefaultsKey.whatsAppDownloadsCategories: "image,video,audio",
         DefaultsKey.whatsAppDownloadsRetentionDays: 7,
@@ -1187,8 +1192,10 @@ enum Defaults {
         let defaults = UserDefaults.standard
         migrateFanControlVisibility(in: defaults)
         migrateScrollInverterAxes(in: defaults)
+        migrateWhatsAppDownloadsEnabled(in: defaults)
         defaults.register(defaults: registeredDefaults)
         defaults.register(defaults: AppFeature.availabilityDefaults)
+        activateBetaChannelIfRunningBeta(in: defaults)
         migrateLegacyMenuBarTemperatureMetric(in: defaults)
         migrateLegacySwitcherWindowShortcut(in: defaults)
         migrateLegacyKeyboardDebounceWindow(in: defaults)
@@ -1199,6 +1206,37 @@ enum Defaults {
         migrateRestoredScreenCaptureShortcuts(in: defaults)
         migrateSilentHeadphonesDisconnectVolume(in: defaults)
         migrateSwitcherWindowlessFinder(in: defaults)
+    }
+
+    /// When the user installs or runs a beta pre-release, activate the beta
+    /// channel default once so they seamlessly receive subsequent beta builds.
+    static func activateBetaChannelIfRunningBeta(in defaults: UserDefaults,
+                                                 version: String = AppInfo.version,
+                                                 isBeta: Bool = AppInfo.isBeta) {
+        let isPre = isBeta || {
+            let v = version.lowercased()
+            return v.contains("-beta") || v.contains("-rc") || v.contains("-alpha")
+        }()
+        guard isPre else { return }
+        let markerKey = "betaChannelActivatedFor.\(version)"
+        guard !defaults.bool(forKey: markerKey) else { return }
+        defaults.set(true, forKey: markerKey)
+        defaults.set(true, forKey: DefaultsKey.includeBetaUpdates)
+    }
+
+    /// The downloads cleanup for a messaging app used to sit in Cleaner for
+    /// everyone. Keep it visible only when someone already turned automatic
+    /// cleanup or the organizer on; everyone else gets the new off-by-default
+    /// choice.
+    static func migrateWhatsAppDownloadsEnabled(in defaults: UserDefaults) {
+        guard defaults.object(forKey: DefaultsKey.whatsAppDownloadsEnabled) == nil else {
+            return
+        }
+        let alreadyUsing = defaults.bool(forKey: DefaultsKey.whatsAppDownloadsAutomaticEnabled)
+            || defaults.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled)
+        if alreadyUsing {
+            defaults.set(true, forKey: DefaultsKey.whatsAppDownloadsEnabled)
+        }
     }
 
     /// The former single switch also reversed vertical wheel events redirected

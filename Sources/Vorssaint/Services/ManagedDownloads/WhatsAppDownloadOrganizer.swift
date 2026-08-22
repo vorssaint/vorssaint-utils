@@ -112,6 +112,7 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
     func syncWithPreferences() {
         stopMonitoring()
         guard AppFeature.cleaner.isAvailable,
+              WhatsAppDownloadSupport.isEnabled,
               UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled),
               UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppDownloadsAccessConfirmed),
               let root = downloadsURL else {
@@ -209,7 +210,8 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
     }
 
     private func schedule(after delay: TimeInterval) {
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled) else { return }
+        guard WhatsAppDownloadSupport.isEnabled,
+              UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled) else { return }
         let date = Date().addingTimeInterval(max(1, delay))
         if let nextCheck, nextCheck <= date { return }
         timer?.invalidate()
@@ -246,6 +248,7 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
             return
         }
         guard AppFeature.cleaner.isAvailable,
+              WhatsAppDownloadSupport.isEnabled,
               UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled),
               let root = downloadsURL,
               let settings = settings(root: root) else {

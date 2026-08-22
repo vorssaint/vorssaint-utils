@@ -301,6 +301,7 @@ struct UpdatesView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var updates = UpdateService.shared
     @AppStorage(DefaultsKey.autoCheckUpdates) private var autoCheck = true
+    @AppStorage(DefaultsKey.includeBetaUpdates) private var includeBetas = AppInfo.isBeta
 
     var body: some View {
         Section(l10n.s.updatesSection) {
@@ -308,6 +309,14 @@ struct UpdatesView: View {
                 .onChange(of: autoCheck) { _, value in
                     UpdateService.shared.autoCheckEnabled = value
                 }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle(l10n.s.includeBetaUpdatesToggle, isOn: $includeBetas)
+                    .onChange(of: includeBetas) { _, value in
+                        UpdateService.shared.includeBetaUpdates = value
+                    }
+                SettingsCaptionText(l10n.s.includeBetaUpdatesCaption)
+            }
 
             statusRow
 
@@ -1123,9 +1132,20 @@ struct AboutSettings: View {
             VStack(spacing: 3) {
                 Text(AppInfo.name)
                     .font(.title2.bold())
-                Text("\(l10n.s.versionPrefix) \(AppInfo.version)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Text("\(l10n.s.versionPrefix) \(AppInfo.version)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if AppInfo.isBeta {
+                        Text(l10n.s.betaBadgeLabel)
+                            .font(.system(size: 9, weight: .bold))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(Color.orange.opacity(0.18))
+                            .foregroundStyle(.orange)
+                            .clipShape(Capsule())
+                    }
+                }
                 if AppInfo.isDeveloperBuild, let commit = AppInfo.buildCommit {
                     // Dev-only: which source commit this build came from. Never shipped.
                     Text(commit)

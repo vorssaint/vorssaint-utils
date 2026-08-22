@@ -185,6 +185,8 @@ struct Strings {
     let memorySection: String
     let memoryPressure: String
     let memorySwapUsed: String
+    let memoryCompressed: String
+    let memoryCachedFiles: String
     let pressureNormal: String
     let pressureWarning: String
     let pressureCritical: String
@@ -678,6 +680,9 @@ struct Strings {
     // MARK: Settings — updates
     let updatesSection: String
     let autoCheckToggle: String
+    let includeBetaUpdatesToggle: String
+    let includeBetaUpdatesCaption: String
+    let betaBadgeLabel: String
     let checkNowButton: String
     let updateChecking: String
     let updateUpToDate: String
@@ -1155,6 +1160,8 @@ extension Strings {
         memorySection: "Memória",
         memoryPressure: "Pressão",
         memorySwapUsed: "Swap em uso",
+        memoryCompressed: "Comprimida",
+        memoryCachedFiles: "Arquivos em cache",
         pressureNormal: "Normal",
         pressureWarning: "Atenção",
         pressureCritical: "Crítico",
@@ -1628,6 +1635,9 @@ extension Strings {
 
         updatesSection: "Atualizações",
         autoCheckToggle: "Procurar atualizações automaticamente",
+        includeBetaUpdatesToggle: "Receber atualizações beta",
+        includeBetaUpdatesCaption: "Versões beta incluem novidades em desenvolvimento e podem apresentar instabilidades ou comportamentos incompletos.",
+        betaBadgeLabel: "Beta",
         checkNowButton: "Procurar agora",
         updateChecking: "Procurando…",
         updateUpToDate: "Você está na versão mais recente.",
@@ -1911,7 +1921,7 @@ extension Strings {
         switcherUsageHintFormat: "Segure %@ para navegar; solte para ativar a janela. Shift ou ← volta; W fecha a janela; Q encerra o app; Esc cancela.",
         musicBlockSection: "Teclas de mídia",
         musicBlockTitle: "Impedir que o Música abra sozinho",
-        musicBlockCaption: "O app Música deixa de abrir ao tocar nas teclas de mídia. Desative para voltar a usar o Música.",
+        musicBlockCaption: "O app Música deixa de abrir ao tocar nas teclas de mídia. Você ainda pode abri-lo quando quiser.",
         musicBlockReplacementLabel: "Abrir no lugar",
         musicBlockReplacementNone: "Nenhum",
         musicBlockChooseApp: "Escolher app…",
@@ -2088,6 +2098,8 @@ extension Strings {
         memorySection: "Memory",
         memoryPressure: "Pressure",
         memorySwapUsed: "Swap used",
+        memoryCompressed: "Compressed",
+        memoryCachedFiles: "Cached files",
         pressureNormal: "Normal",
         pressureWarning: "Caution",
         pressureCritical: "Critical",
@@ -2561,6 +2573,9 @@ extension Strings {
 
         updatesSection: "Updates",
         autoCheckToggle: "Check for updates automatically",
+        includeBetaUpdatesToggle: "Receive beta updates",
+        includeBetaUpdatesCaption: "Beta versions include features in development and may contain bugs or incomplete behavior.",
+        betaBadgeLabel: "Beta",
         checkNowButton: "Check now",
         updateChecking: "Checking…",
         updateUpToDate: "You're on the latest version.",
@@ -2844,7 +2859,7 @@ extension Strings {
         switcherUsageHintFormat: "Hold %@ to navigate; release to activate the window. Shift or ← goes back; W closes the window; Q quits the app; Esc cancels.",
         musicBlockSection: "Media keys",
         musicBlockTitle: "Stop Music from opening on its own",
-        musicBlockCaption: "The Music app no longer opens when you press the media keys. Turn this off to use Music again.",
+        musicBlockCaption: "The Music app no longer opens when you press the media keys. You can still open it yourself.",
         musicBlockReplacementLabel: "Open instead",
         musicBlockReplacementNone: "None",
         musicBlockChooseApp: "Choose app…",

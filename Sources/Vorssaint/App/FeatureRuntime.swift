@@ -201,7 +201,7 @@ final class FeatureRuntime: ObservableObject {
             CleanerScheduler.shared.syncWithPreferences()
             WhatsAppDownloadScheduler.shared.syncWithPreferences()
             WhatsAppDownloadOrganizer.shared.syncWithPreferences()
-            if !AppFeature.cleaner.isAvailable {
+            if !AppFeature.cleaner.isAvailable || !WhatsAppDownloadSupport.isEnabled {
                 WhatsAppDownloadManager.shared.reset()
                 WhatsAppDownloadOrganizer.shared.stop()
             }
