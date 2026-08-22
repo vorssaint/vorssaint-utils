@@ -59,6 +59,8 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
   already in front. Thanks to @PathGao.
 - The recording editor now trims reliably from the beginning of a video when
   dragging the left handle. Thanks to @lmilojevicc.
+- A test run no longer leaves a preference file behind in `~/Library/Preferences`
+  for every defaults suite it uses.
 - Screen recorder, Copy text from screen and Color picker can each take a shortcut
   of their own again, opening screen capture already on that mode. Their Settings
   rows no longer record a combination that does nothing. Thanks to @wiidede and
@@ -73,8 +75,6 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
   system script. Thanks to @dbhorst.
 - The recording editor now reads composition duration directly without background
   queries. Thanks to @Bald-M.
-- A test run no longer leaves a preference file behind in `~/Library/Preferences`
-  for every defaults suite it uses.
 
 ## [3.3.2] - 2026-08-20
 
