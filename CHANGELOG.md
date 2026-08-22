@@ -73,9 +73,8 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
   system script. Thanks to @dbhorst.
 - The recording editor now reads composition duration directly without background
   queries. Thanks to @Bald-M.
-- `./build.sh --test` no longer leaves a preference file in
-  `~/Library/Preferences` for every defaults suite it uses; a run used to add two,
-  and they piled up unnoticed. Thanks to @PathGao.
+- A test run no longer leaves a preference file behind in `~/Library/Preferences`
+  for every defaults suite it uses.
 
 ## [3.3.2] - 2026-08-20
 
