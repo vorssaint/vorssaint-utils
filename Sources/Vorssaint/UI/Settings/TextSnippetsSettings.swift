@@ -37,22 +37,24 @@ struct TextSnippetsSettings: View {
                 if enabled, !permissions.accessibility {
                     PermissionRow(kind: .accessibility)
                 }
-                Toggle(text.soundToggle, isOn: $soundEnabled)
-                    .onChange(of: soundEnabled) { _, _ in
-                        TextSnippetService.shared.syncWithPreferences()
-                    }
-                Text(text.soundCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if soundEnabled {
-                    Picker(text.soundPickerLabel, selection: $soundName) {
-                        ForEach(TextSnippetSupport.alertSoundNames, id: \.self) { name in
-                            Text(name).tag(name)
+                if enabled {
+                    Toggle(text.soundToggle, isOn: $soundEnabled)
+                        .onChange(of: soundEnabled) { _, _ in
+                            TextSnippetService.shared.syncWithPreferences()
                         }
-                    }
-                    .onChange(of: soundName) { _, newName in
-                        NSSound(named: newName)?.play()
-                        TextSnippetService.shared.syncWithPreferences()
+                    Text(text.soundCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if soundEnabled {
+                        Picker(text.soundPickerLabel, selection: $soundName) {
+                            ForEach(TextSnippetSupport.alertSoundNames, id: \.self) { name in
+                                Text(name).tag(name)
+                            }
+                        }
+                        .onChange(of: soundName) { _, newName in
+                            NSSound(named: newName)?.play()
+                            TextSnippetService.shared.syncWithPreferences()
+                        }
                     }
                 }
             }

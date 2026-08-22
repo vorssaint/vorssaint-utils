@@ -331,8 +331,14 @@ final class TextSnippetService {
                                text: text,
                                trailingKeyCode: trailingKeyCode,
                                trailingFlags: trailingFlags)
-            if let name = self.inputLock.withLock({ self.expansionSoundName }) {
-                NSSound(named: name)?.play()
+            if let name = self.inputLock.withLock({ self.expansionSoundName }),
+               let sound = NSSound(named: name) {
+                // NSSound(named:) hands back the same cached instance every
+                // call, and play() is a no-op while that instance is still
+                // playing: stop it first so back-to-back expansions inside
+                // one sound's duration are still audible.
+                sound.stop()
+                sound.play()
             }
         }
         if Thread.isMainThread {
