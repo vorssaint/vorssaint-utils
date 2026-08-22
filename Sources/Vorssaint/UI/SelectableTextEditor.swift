@@ -24,6 +24,7 @@ struct SelectableTextEditor: NSViewRepresentable {
         textView.delegate = context.coordinator
         textView.font = .systemFont(ofSize: NSFont.systemFontSize)
         textView.isRichText = false
+        textView.allowsUndo = true
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDashSubstitutionEnabled = false
         textView.isAutomaticTextReplacementEnabled = false
