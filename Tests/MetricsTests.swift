@@ -12234,12 +12234,10 @@ struct MetricsTests {
         ]
         expect(scratchpadHitTargetContracts.allSatisfy { scratchpadViewSource.contains($0) },
                "the scratchpad tab bar and header controls keep their full padded hit targets")
-        // Layout the tab strip depends on: an unpinned borderless Menu claims
-        // the free width of its row on macOS 15 and starves the strip.
-        expect(scratchpadViewSource.contains(".fixedSize()\n            .help(text.padActions)"),
-               "the scratchpad pad actions menu stays the size of its label")
-        // The same rule for every other borderless menu in the app, so the
-        // next one written cannot repeat issue #569. Kill Process is the one
+        // An unpinned borderless Menu claims the free width of its row on
+        // macOS 15 and starves whatever shares that row (issue #569), so the
+        // rule is checked for every borderless menu in the app rather than for
+        // the one this fix touches. Kill Process is the one
         // deliberate exception: its row controls take a shared minimum width
         // so the Kill button and the menu beside it line up down the list.
         let borderlessMenuException = "Sources/Vorssaint/UI/KillProcess/KillProcessView.swift"
