@@ -325,9 +325,25 @@ final class BrightnessService: ObservableObject {
         let generation = rebuildGeneration
         rebuildingTopology = topology
         stateLock.unlock()
+        let screenNames = Self.localizedScreenNames()
         workQueue.async { [weak self] in
-            self?.rebuild(generation: generation, previousDisplays: previousDisplays)
+            self?.rebuild(generation: generation, previousDisplays: previousDisplays,
+                          screenNames: screenNames)
         }
+    }
+
+    /// The display names a person sees in System Settings, which is what the
+    /// sliders are labelled with. `NSScreen` is main thread only while the
+    /// rebuild runs on `workQueue`, so the whole set is read here and carried
+    /// into the rebuild rather than looked up from it.
+    private static func localizedScreenNames() -> [CGDirectDisplayID: String] {
+        var names: [CGDirectDisplayID: String] = [:]
+        for screen in NSScreen.screens {
+            guard let id = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")]
+                             as? NSNumber)?.uint32Value else { continue }
+            names[id] = screen.localizedName
+        }
+        return names
     }
 
     /// Moves one display's brightness. The published value updates on the
@@ -1126,7 +1142,8 @@ final class BrightnessService: ObservableObject {
 
     // MARK: - Rebuild (work queue)
 
-    private func rebuild(generation: Int, previousDisplays: [BrightnessDisplay]) {
+    private func rebuild(generation: Int, previousDisplays: [BrightnessDisplay],
+                         screenNames: [CGDirectDisplayID: String]) {
         var ids = [CGDirectDisplayID](repeating: 0, count: 16)
         var count: UInt32 = 0
         CGGetOnlineDisplayList(16, &ids, &count)
@@ -1149,7 +1166,7 @@ final class BrightnessService: ObservableObject {
                 continue
             }
             let isBuiltIn = CGDisplayIsBuiltin(id) != 0
-            let name = Self.displayName(id, info: info)
+            let name = Self.displayName(id, info: info, screenNames: screenNames)
             let isActive = activeTopology.contains(id)
 
             if !isActive {
@@ -1661,12 +1678,9 @@ final class BrightnessService: ObservableObject {
         return create(id)?.takeRetainedValue() as NSDictionary?
     }
 
-    private static func displayName(_ id: CGDirectDisplayID, info: NSDictionary?) -> String {
-        if let screen = NSScreen.screens.first(where: {
-            ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == id
-        }) {
-            return screen.localizedName
-        }
+    private static func displayName(_ id: CGDirectDisplayID, info: NSDictionary?,
+                                    screenNames: [CGDirectDisplayID: String]) -> String {
+        if let name = screenNames[id] { return name }
         if let names = info?["DisplayProductName"] as? [String: String],
            let name = names["en_US"] ?? names.first?.value {
             return name
