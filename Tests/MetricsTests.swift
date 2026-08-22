@@ -10515,6 +10515,22 @@ struct MetricsTests {
         expect(BrightnessSupport.headlessRecoveryCandidates(
             drawableDisplayIDs: [], managedDisabledIDs: [], builtInDisabledIDs: [1]).isEmpty,
                "a display disabled elsewhere is never changed during headless recovery")
+        // Which thread drives a display reconfiguration is not a proposition
+        // any pure helper can carry, and getting it wrong hangs the app with
+        // no way back rather than returning a wrong answer. CoreGraphics runs
+        // a transaction's callbacks inline on the driving thread and in this
+        // process those callbacks are AppKit's, so the transaction belongs to
+        // the main thread. Pinned against the public CoreGraphics contract,
+        // which survives renaming whatever helper holds it.
+        let brightnessSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Display/BrightnessService.swift",
+            encoding: .utf8)) ?? ""
+        expect(brightnessSource.components(separatedBy: "CGBeginDisplayConfiguration(").count == 2
+               && brightnessSource.components(separatedBy: "CGCompleteDisplayConfiguration(").count == 2,
+               "every display power change goes through the one reconfiguration transaction")
+        expect(String((brightnessSource.components(separatedBy: "CGBeginDisplayConfiguration(")
+                       .first ?? "").suffix(400)).contains("Thread.isMainThread"),
+               "the display reconfiguration transaction refuses to start off the main thread")
 
         expect(BrightnessSupport.ddcCommandDelay(nowMicroseconds: 1_000_000,
                                                  lastCommandEndMicroseconds: nil) == 0,

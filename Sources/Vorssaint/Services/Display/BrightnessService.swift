@@ -285,25 +285,23 @@ final class BrightnessService: ObservableObject {
         brightnessOSDSupported = false
         BrightnessOSD.teardown()
         if !displays.isEmpty { displays = [] }
-        // Restore displays and gamma on the work queue, AFTER any operation
-        // already in flight. Normal app termination uses the synchronous
-        // restoration below; gamma also reverts with the process.
-        workQueue.async { [weak self] in
-            guard let self else { return }
-            self.stateLock.lock()
-            let displaysToRestore = self.managedDisabledIDs
-            self.stateLock.unlock()
-            for id in displaysToRestore {
-                guard Self.configureDisplay(id, enabled: true) else { continue }
-                self.stateLock.lock()
-                self.managedDisabledIDs.remove(id)
-                self.managedDisabledDisplays.removeValue(forKey: id)
-                self.stateLock.unlock()
-                Self.forgetDisplaySwitchedOff(id)
+        // Queue on the work queue first so this lands AFTER any operation
+        // already in flight, then hand the reconfigurations to the main
+        // thread, which is the only place they may run (see
+        // `configureDisplay`), and put the gamma curves back behind them.
+        // Normal app termination uses the synchronous restoration below;
+        // gamma also reverts with the process.
+        workQueue.async {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.restoreManagedDisplays()
+                self.workQueue.async { [weak self] in
+                    guard let self else { return }
+                    self.restoreAllGamma()
+                    self.ddcCommandEnds = [:]
+                    Self.log.log("brightness service stopped; displays and gamma restored")
+                }
             }
-            self.restoreAllGamma()
-            self.ddcCommandEnds = [:]
-            Self.log.log("brightness service stopped; displays and gamma restored")
         }
     }
 
@@ -421,32 +419,41 @@ final class BrightnessService: ObservableObject {
                 }
             }
 
-            if !targetEnabled { Self.rememberDisplaySwitchedOff(display.id) }
-            guard Self.configureDisplay(display.id, enabled: targetEnabled) else {
-                if !targetEnabled { Self.forgetDisplaySwitchedOff(display.id) }
-                self.finishDisplayToggle(id: display.id, enabled: targetEnabled,
-                                         failure: .failed)
-                return
+            // The gamma curve above is work-queue state; the reconfiguration
+            // itself belongs to the main thread (see `configureDisplay`).
+            DispatchQueue.main.async { [weak self] in
+                self?.commitDisplayToggle(display, enabled: targetEnabled)
             }
-
-            self.stateLock.lock()
-            self.pendingLevels.removeValue(forKey: display.id)
-            if targetEnabled {
-                self.managedDisabledIDs.remove(display.id)
-                self.managedDisabledDisplays.removeValue(forKey: display.id)
-                self.knownActiveTopology.insert(display.id)
-                Self.forgetDisplaySwitchedOff(display.id)
-            } else {
-                self.managedDisabledIDs.insert(display.id)
-                var disabled = display
-                disabled.method = nil
-                disabled.isActive = false
-                self.managedDisabledDisplays[display.id] = disabled
-                self.knownActiveTopology.remove(display.id)
-            }
-            self.stateLock.unlock()
-            self.finishDisplayToggle(id: display.id, enabled: targetEnabled, failure: nil)
         }
+    }
+
+    /// Second half of `toggleDisplay`, on the main thread: the display
+    /// reconfiguration and the bookkeeping that follows it.
+    private func commitDisplayToggle(_ display: BrightnessDisplay, enabled: Bool) {
+        if !enabled { Self.rememberDisplaySwitchedOff(display.id) }
+        guard Self.configureDisplay(display.id, enabled: enabled) else {
+            if !enabled { Self.forgetDisplaySwitchedOff(display.id) }
+            finishDisplayToggle(id: display.id, enabled: enabled, failure: .failed)
+            return
+        }
+
+        stateLock.lock()
+        pendingLevels.removeValue(forKey: display.id)
+        if enabled {
+            managedDisabledIDs.remove(display.id)
+            managedDisabledDisplays.removeValue(forKey: display.id)
+            knownActiveTopology.insert(display.id)
+            Self.forgetDisplaySwitchedOff(display.id)
+        } else {
+            managedDisabledIDs.insert(display.id)
+            var disabled = display
+            disabled.method = nil
+            disabled.isActive = false
+            managedDisabledDisplays[display.id] = disabled
+            knownActiveTopology.remove(display.id)
+        }
+        stateLock.unlock()
+        finishDisplayToggle(id: display.id, enabled: enabled, failure: nil)
     }
 
     private func finishDisplayToggle(id: CGDirectDisplayID, enabled: Bool,
@@ -474,7 +481,21 @@ final class BrightnessService: ObservableObject {
             onlineDisplayIDs: online, activeDisplayIDs: active, virtualDisplayIDs: virtual)
     }
 
+    /// Switches one display on or off inside a display reconfiguration
+    /// transaction. **Main thread only.** CoreGraphics runs a
+    /// reconfiguration's callbacks inline on whichever thread drives the
+    /// transaction, and in this process those callbacks are AppKit's: they
+    /// rebuild `NSScreen` and post the screen-parameters notification, which
+    /// is main-thread work. Driven from the work queue they run off the main
+    /// thread while the main thread is itself inside CoreGraphics asking for
+    /// the display list, and neither side can finish, so the app freezes with
+    /// nothing left that can end it (issue #747). A caller on the wrong
+    /// thread is refused and logged rather than allowed to hang.
     private static func configureDisplay(_ id: CGDirectDisplayID, enabled: Bool) -> Bool {
+        guard Thread.isMainThread else {
+            log.error("refused to reconfigure display \(id) off the main thread")
+            return false
+        }
         guard let configure = DisplayConfigurationBridge.configureEnabled else { return false }
         var reference: CGDisplayConfigRef?
         guard CGBeginDisplayConfiguration(&reference) == .success,
@@ -503,26 +524,31 @@ final class BrightnessService: ObservableObject {
             active: activeDisplayIDs())
     }
 
-    /// AppKit gives termination hooks only a brief synchronous window. Queue
-    /// behind any toggle already in flight, then restore every display this
-    /// process disabled before the process exits.
+    /// AppKit gives termination hooks only a brief synchronous window. Put
+    /// every dimmed picture back first, queued behind any operation already in
+    /// flight: leaving one behind is the difference between quitting the app
+    /// and a screen that stays dark with nothing left running to explain it.
+    /// The reconfigurations then run here, on the main thread AppKit calls
+    /// this from, which is where they have to run anyway (see
+    /// `configureDisplay`).
     func restoreDisplaysBeforeTermination() {
-        workQueue.sync {
-            // Put every dimmed picture back before anything else: leaving one
-            // behind is the difference between quitting the app and a screen
-            // that stays dark with nothing left running to explain it.
-            restoreAllGamma()
+        workQueue.sync { restoreAllGamma() }
+        restoreManagedDisplays()
+    }
+
+    /// Switches every display this process disabled back on. Main thread only,
+    /// like every other reconfiguration here.
+    private func restoreManagedDisplays() {
+        stateLock.lock()
+        let ids = managedDisabledIDs
+        stateLock.unlock()
+        for id in ids {
+            guard Self.configureDisplay(id, enabled: true) else { continue }
             stateLock.lock()
-            let ids = managedDisabledIDs
+            managedDisabledIDs.remove(id)
+            managedDisabledDisplays.removeValue(forKey: id)
             stateLock.unlock()
-            for id in ids {
-                guard Self.configureDisplay(id, enabled: true) else { continue }
-                stateLock.lock()
-                managedDisabledIDs.remove(id)
-                managedDisabledDisplays.removeValue(forKey: id)
-                stateLock.unlock()
-                Self.forgetDisplaySwitchedOff(id)
-            }
+            Self.forgetDisplaySwitchedOff(id)
         }
     }
 
@@ -563,21 +589,21 @@ final class BrightnessService: ObservableObject {
         }
     }
 
-    /// Switches back on anything a previous run left off. Called at startup,
-    /// before any display work, so a screen is never stranded between runs.
+    /// Switches back on anything a previous run left off. Called at startup on
+    /// the main thread, before any display work, so a screen is never stranded
+    /// between runs. Nothing here belongs to the work queue, and the
+    /// reconfiguration itself may not run there (see `configureDisplay`).
     func restoreDisplaysLeftOff() {
         let stored = UserDefaults.standard.array(forKey: DefaultsKey.displaysSwitchedOff) as? [Int] ?? []
         guard !stored.isEmpty else { return }
         guard DisplayConfigurationBridge.configureEnabled != nil else { return }
-        workQueue.async {
-            for id in stored {
-                // The list is plain numbers on disk and can arrive edited or
-                // imported, so anything that is not a display number is
-                // skipped rather than converted.
-                guard let displayID = CGDirectDisplayID(exactly: id) else { continue }
-                guard Self.configureDisplay(displayID, enabled: true) else { continue }
-                Self.forgetDisplaySwitchedOff(displayID)
-            }
+        for id in stored {
+            // The list is plain numbers on disk and can arrive edited or
+            // imported, so anything that is not a display number is skipped
+            // rather than converted.
+            guard let displayID = CGDirectDisplayID(exactly: id) else { continue }
+            guard Self.configureDisplay(displayID, enabled: true) else { continue }
+            Self.forgetDisplaySwitchedOff(displayID)
         }
     }
 
@@ -1053,7 +1079,10 @@ final class BrightnessService: ObservableObject {
         guard !candidates.isEmpty else { return false }
 
         pendingDisplayIDs.formUnion(candidates)
-        workQueue.async { [weak self] in
+        // Already on the main thread, which is where the reconfiguration has
+        // to run (see `configureDisplay`); the hop only lets the pending state
+        // reach the panel before the transaction blocks it.
+        DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             var restored: CGDirectDisplayID?
             for id in candidates where Self.configureDisplay(id, enabled: true) {
@@ -1070,12 +1099,9 @@ final class BrightnessService: ObservableObject {
             } else {
                 Self.log.error("could not restore a display after the active display set became empty")
             }
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                self.pendingDisplayIDs.subtract(candidates)
-                self.displayControlFailure = restored == nil ? .failed : nil
-                self.refresh(force: true)
-            }
+            self.pendingDisplayIDs.subtract(candidates)
+            self.displayControlFailure = restored == nil ? .failed : nil
+            self.refresh(force: true)
         }
         return true
     }
