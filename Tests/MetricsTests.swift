@@ -2003,6 +2003,10 @@ struct MetricsTests {
                                                  focusedWindowID: nil,
                                                  items: [embeddedWindow]) == nil,
                "App Switcher leaves the system shortcut alone without a foreground app")
+        expect(SwitcherSupport.activationHandoffSteps == [.selfActivate, .yieldActivation],
+               "the switcher must self-activate before it can yield activation onward")
+        expect(SwitcherSupport.activationHandoffSteps.first == .selfActivate,
+               "self-activation must be the first handoff step, or the yield that follows is a no-op")
         expect(registeredDefaults[DefaultsKey.switcherShowWindowlessFinder] as? Bool == true,
                "the retired windowless Finder toggle keeps its shipped value so the migration can read it")
         expect(registeredDefaults[DefaultsKey.switcherWindowlessApps] as? String

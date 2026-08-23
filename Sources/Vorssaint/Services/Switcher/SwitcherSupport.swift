@@ -17,6 +17,27 @@ struct SwitcherActivationPlan: Equatable {
     let restoreSourceWhenTargetMinimizes: Bool
 }
 
+/// A step in the fixed handoff Vorssaint runs before transferring activation
+/// to another app.
+///
+/// macOS 14+ cooperative activation only lets an app hand off activation it
+/// currently owns. Vorssaint's switcher panel is a non-activating panel and
+/// Vorssaint itself is `LSUIElement`, so at the moment a selection commits it
+/// almost never already owns activation: without `.selfActivate` first,
+/// `.yieldActivation` is a silent no-op and the subsequent `activate(from:)`
+/// call is refused by the system, which is why the target's menu bar never
+/// updates. `.selfActivate` runs synchronously in direct response to the
+/// hotkey release, which macOS treats as a genuine user gesture and grants.
+///
+/// `WindowActivator.activateApp(_:allWindows:)` and
+/// `.activateSource(pid:windowID:windowOwnerPID:)` are the two call sites
+/// that hand activation to another app; both execute
+/// `activationHandoffSteps` in order before yielding onward.
+enum SwitcherActivationHandoffStep: Equatable {
+    case selfActivate
+    case yieldActivation
+}
+
 struct SwitcherSearchRecord: Equatable {
     let id: String
     let title: String
@@ -785,6 +806,13 @@ enum SwitcherSupport {
         let target = (current + delta + indices.count) % indices.count
         return indices[target]
     }
+
+    /// Order Vorssaint must follow before handing activation to another app.
+    /// Self-activation must come first: see `SwitcherActivationHandoffStep`.
+    static let activationHandoffSteps: [SwitcherActivationHandoffStep] = [
+        .selfActivate,
+        .yieldActivation,
+    ]
 
     static func activationPlan(targetsSpecificWindow: Bool) -> SwitcherActivationPlan {
         SwitcherActivationPlan(

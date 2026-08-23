@@ -327,8 +327,19 @@ enum WindowActivator {
         window.orderFrontRegardless()
     }
 
+    private static func performActivationHandoff(yieldingTo app: NSRunningApplication) {
+        for step in SwitcherSupport.activationHandoffSteps {
+            switch step {
+            case .selfActivate:
+                NSApp.activate(ignoringOtherApps: true)
+            case .yieldActivation:
+                NSApp.yieldActivation(to: app)
+            }
+        }
+    }
+
     private static func activateApp(_ app: NSRunningApplication, allWindows: Bool = true) {
-        NSApp.yieldActivation(to: app)
+        performActivationHandoff(yieldingTo: app)
         if allWindows {
             if !app.activate(from: NSRunningApplication.current, options: [.activateAllWindows]) {
                 app.activate(options: [.activateAllWindows])
@@ -557,7 +568,7 @@ enum WindowActivator {
         if let windowID {
             prepareWindowForActivation(windowID: windowID, pid: windowOwnerPID ?? pid)
         }
-        NSApp.yieldActivation(to: sourceApp)
+        performActivationHandoff(yieldingTo: sourceApp)
         if !sourceApp.activate(from: NSRunningApplication.current, options: []) {
             sourceApp.activate(options: [])
         }

@@ -167,6 +167,9 @@ final class WindowUseTracker {
     @objc private func appActivated(_ note: Notification) {
         guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
         let pid = app.processIdentifier
+        // Recording this would rank Vorssaint itself ahead of the app the user
+        // came from, since WindowActivator self-activates us before every handoff.
+        guard pid != ProcessInfo.processInfo.processIdentifier else { return }
         // The application half is exact and free, so it lands right away; the
         // window half needs Accessibility and happens on the watcher thread.
         promote(app: pid)
