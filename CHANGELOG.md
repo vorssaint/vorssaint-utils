@@ -59,7 +59,8 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
 - Dock Preview cards now carry the App Switcher's look — the app's icon and the
   window's state along the bottom of the picture, the name and its subtitle
   underneath — and run down the screen beside a Dock on the left or right
-  instead of across it. Thanks to @PathGao.
+  instead of across it. A hovered panel drops its header; a pinned one keeps it.
+  Thanks to @PathGao.
 - Fan Control now prepares stopped fans before taking manual control and keeps a
   failed attempt visible instead of silently returning to Automatic.
 - The Clean URL settings fields now take a click anywhere across their row. Their

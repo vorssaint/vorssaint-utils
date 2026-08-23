@@ -86,7 +86,7 @@ private struct DockPreviewPanelContent: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if DockPreviewSupport.showsPanelHeader(itemCount: windows.count, isPinned: isPinned) {
+            if DockPreviewSupport.showsPanelHeader(isPinned: isPinned) {
                 panelHeader
             }
             ScrollViewReader { proxy in
@@ -173,7 +173,7 @@ private struct DockPreviewPanelContent: View {
     }
 
     private var showsHeader: Bool {
-        DockPreviewSupport.showsPanelHeader(itemCount: windows.count, isPinned: isPinned)
+        DockPreviewSupport.showsPanelHeader(isPinned: isPinned)
     }
 
     /// The panel is sized by the service against the real screen; this only

@@ -314,12 +314,14 @@ enum DockPreviewSupport {
         return CGRect(x: x, y: y, width: width, height: height)
     }
 
-    /// Whether the panel draws a header row. It holds which window of how many
-    /// is selected and the steppers between them, so one window leaves it with
-    /// nothing to say. A pinned panel keeps it at any count: there it is also
-    /// the drag handle and the only way to unpin or close.
-    static func showsPanelHeader(itemCount: Int, isPinned: Bool) -> Bool {
-        isPinned || itemCount > 1
+    /// Whether the panel draws a header row. A hovered panel has no use for
+    /// one: it named the app whose Dock icon the pointer is resting on, and
+    /// carried steppers for walking windows the pointer is already on top of.
+    /// A pinned panel keeps it -- there it is the drag handle, the only way to
+    /// unpin or close, and the only place that says which app it belongs to
+    /// once the pointer has gone.
+    static func showsPanelHeader(isPinned: Bool) -> Bool {
+        isPinned
     }
 
     /// Whether a card draws the app's icon in the corner of its picture. With
@@ -383,7 +385,7 @@ enum DockPreviewSupport {
                                             spacing: spacing)
         let run = CGFloat(visibleCards) * (vertical ? cardHeight : cardWidth)
             + CGFloat(max(0, visibleCards - 1)) * spacing + padding * 2
-        let header = showsPanelHeader(itemCount: count, isPinned: isPinned) ? panelHeaderHeight : 0
+        let header = showsPanelHeader(isPinned: isPinned) ? panelHeaderHeight : 0
         if vertical {
             let maxHeight = max(cardHeight + padding * 2,
                                 min(screenVisibleFrame.height * 0.9,

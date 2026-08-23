@@ -6737,12 +6737,10 @@ struct MetricsTests {
         // to name the app instead, back at a pointer resting on that app's Dock
         // icon. A pinned panel keeps it: there it is the drag handle, and the
         // only way to unpin or close.
-        expect(!DockPreviewSupport.showsPanelHeader(itemCount: 1, isPinned: false),
-               "a hovered panel showing one window draws no header")
-        expect(DockPreviewSupport.showsPanelHeader(itemCount: 2, isPinned: false),
-               "a second window gives the header a counter and steppers to hold")
-        expect(DockPreviewSupport.showsPanelHeader(itemCount: 1, isPinned: true),
-               "a pinned panel keeps its header at any window count")
+        expect(!DockPreviewSupport.showsPanelHeader(isPinned: false),
+               "a hovered panel draws no header, whatever it is showing")
+        expect(DockPreviewSupport.showsPanelHeader(isPinned: true),
+               "a pinned panel keeps the header that names it and moves it")
         // Cards run along the Dock's own edge. A row beside a side Dock grew
         // away from it across the screen, which is the one direction the
         // pointer is not coming from.
