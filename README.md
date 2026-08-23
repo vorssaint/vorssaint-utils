@@ -189,15 +189,15 @@ Permissions get the same treatment. Every one is optional, the app explains each
   <img src="docs/assets/readme/permissions.png" width="720" alt="The Permissions page showing what each permission does, which features use it, and an unused permission warning">
 </p>
 
-| Permission                    | Used by                                                                                        | Without it                             |
-| ----------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------- |
-| Accessibility                 | Switcher, Dock features, window controls, mouse and keyboard features, snippets, cut and paste | Those features stay off                |
-| Screen Recording              | Window previews, screenshots, copy text and screen recordings                                  | Those captures stay unavailable        |
-| System Audio Recording        | Per app volume and output routing                                                              | Apps stay on normal system audio       |
-| Microphone                    | Optional voice track in screen recordings                                                      | Recordings continue without your voice |
-| Notifications                 | Keep awake, battery, monitor and update alerts                                                 | The app stays silent                   |
-| Full Disk Access, optional    | Deeper cleaner and uninstaller scans                                                           | Only reachable places are scanned      |
-| Administrator, once, optional | Password free closed lid toggling                                                              | A password prompt per toggle           |
+| Permission | Used by | Without it |
+|---|---|---|
+| Accessibility | Switcher, Dock features, window controls, mouse and keyboard features, snippets, cut and paste | Those features stay off |
+| Screen Recording | Window previews, screenshots, copy text and screen recordings | Those captures stay unavailable |
+| System Audio Recording | Per app volume and output routing | Apps stay on normal system audio |
+| Microphone | Optional voice track in screen recordings | Recordings continue without your voice |
+| Notifications | Keep awake, battery, monitor and update alerts | The app stays silent |
+| Full Disk Access, optional | Deeper cleaner and uninstaller scans | Only reachable places are scanned |
+| Administrator, once, optional | Password free closed lid toggling | A password prompt per toggle |
 
 The shelf and almost every quick toggle need no permission at all. Finder cut and paste, the uninstaller, emptying the Trash and the Homebrew terminal handoff ask macOS for Automation access the first time they talk to Finder or Terminal.
 
