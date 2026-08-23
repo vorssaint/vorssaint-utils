@@ -359,10 +359,13 @@ private struct DockPreviewTitleLine: View {
     let weight: Font.Weight
     let scrolls: Bool
 
+    @State private var began: Date?
+
     private static let size: CGFloat = 13
     private static let speed: CGFloat = 26
     private static let gap: CGFloat = 20
-    private static let startDelay: Double = 0.45
+    /// Long enough that arriving on a card is a still frame, not a moving one.
+    private static let startDelay: Double = 0.4
     private static let fade: CGFloat = 6
 
     private var width: CGFloat { DockPreviewSupport.cardTitleTextWidth }
@@ -388,23 +391,29 @@ private struct DockPreviewTitleLine: View {
         .frame(width: width, alignment: .leading)
     }
 
-    /// Two copies a gap apart, slid left by the elapsed time and wrapped, so the
-    /// name reads continuously instead of snapping back at the end.
+    /// Two copies a gap apart, slid left and wrapped, so the name reads
+    /// continuously instead of snapping back at the end. Time is counted from
+    /// the moment the pointer arrived, not from the clock: against the clock
+    /// the line appeared at whatever phase the cycle happened to be in, which
+    /// is why it looked like it started from the middle.
     private var scrollingLine: some View {
         let measured = DockPreviewSupport.titleWidth(text,
                                                      fontSize: Self.size,
                                                      weight: weight == .semibold ? .semibold : .regular)
         let run = measured + Self.gap
+        let cycle = Double(run) / Double(Self.speed) + Self.startDelay
         return TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { context in
-            let elapsed = max(0, context.date.timeIntervalSinceReferenceDate
-                .truncatingRemainder(dividingBy: Double(run) / Double(Self.speed) + Self.startDelay)
-                - Self.startDelay)
+            let start = began ?? context.date
+            let phase = context.date.timeIntervalSince(start).truncatingRemainder(dividingBy: cycle)
+            let travelled = max(0, phase - Self.startDelay)
             HStack(spacing: Self.gap) {
                 Text(text).lineLimit(1).fixedSize()
                 Text(text).lineLimit(1).fixedSize()
             }
-            .offset(x: -CGFloat(elapsed) * Self.speed)
+            .offset(x: -CGFloat(travelled) * Self.speed)
         }
+        .onAppear { began = Date() }
+        .onChange(of: text) { _, _ in began = Date() }
         .frame(width: width, alignment: .leading)
         .clipped()
         .mask(
