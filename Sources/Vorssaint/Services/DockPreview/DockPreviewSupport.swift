@@ -139,11 +139,13 @@ enum DockPreviewSupport {
     /// and a fullscreen window owns its Space and ignores the position it is
     /// given — dragging either one would move nothing while still tearing the
     /// panel down.
-    static func canDragToPlace(hasWindowID: Bool,
-                               isOnScreen: Bool,
-                               isMinimized: Bool,
-                               isFullscreen: Bool) -> Bool {
-        hasWindowID && isOnScreen && !isMinimized && !isFullscreen
+    /// A minimized window, or one parked on another desktop, is still a window
+    /// the user wants somewhere: the drop restores it and brings it here rather
+    /// than refusing the gesture. Fullscreen is the one refusal left -- it owns
+    /// a Space of its own and discards any position it is given, so a drag of
+    /// it could only ever pretend to work.
+    static func canDragToPlace(hasWindowID: Bool, isFullscreen: Bool) -> Bool {
+        hasWindowID && !isFullscreen
     }
 
     /// How far the pointer must travel before a press on a card becomes a

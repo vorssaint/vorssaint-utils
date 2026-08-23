@@ -2141,20 +2141,18 @@ struct MetricsTests {
                "hiding the active app from its Dock icon is opt-in")
         expect(DockPreviewSupport.sanitizedBackgroundOpacity(0.7) == 0.7,
                "a Dock Preview background opacity inside the range is kept")
-        expect(DockPreviewSupport.canDragToPlace(hasWindowID: true, isOnScreen: true,
-                                                 isMinimized: false, isFullscreen: false),
+        // A card is dragged for the same reason whatever state its window is in:
+        // the user wants that window here. Minimized and parked-on-another-Space
+        // used to refuse the gesture, which read as the drag doing nothing --
+        // releasing then counted as a click and the window went back to its own
+        // old place instead of the drop point.
+        expect(DockPreviewSupport.canDragToPlace(hasWindowID: true, isFullscreen: false),
                "an ordinary preview card can be dragged out of the panel")
-        expect(!DockPreviewSupport.canDragToPlace(hasWindowID: true, isOnScreen: false,
-                                                  isMinimized: false, isFullscreen: false),
-               "a window on another Space cannot be dragged from the current screen")
-        expect(!DockPreviewSupport.canDragToPlace(hasWindowID: true, isOnScreen: false,
-                                                  isMinimized: true, isFullscreen: false),
-               "a minimized window has no on-screen position to drag it to")
-        expect(!DockPreviewSupport.canDragToPlace(hasWindowID: true, isOnScreen: false,
-                                                  isMinimized: false, isFullscreen: true),
+        expect(DockPreviewSupport.canDragToPlace(hasWindowID: true, isFullscreen: false),
+               "a minimized or parked window is dragged like any other")
+        expect(!DockPreviewSupport.canDragToPlace(hasWindowID: true, isFullscreen: true),
                "a fullscreen window owns its Space and ignores a dropped position")
-        expect(!DockPreviewSupport.canDragToPlace(hasWindowID: false, isOnScreen: false,
-                                                  isMinimized: false, isFullscreen: false),
+        expect(!DockPreviewSupport.canDragToPlace(hasWindowID: false, isFullscreen: false),
                "an entry without a window has nothing to move")
         // The preview size setting sizes the thumbnail, not the writing around
         // it. Both halves of that are checked across every size on offer: the
@@ -2197,6 +2195,32 @@ struct MetricsTests {
                        < DockPreviewSupport.cardThumbnailSize(scale: $0).height
                },
                "the stand-in app icon stays inside the thumbnail it stands in for at every size")
+        // Every window takes the same steps on a drop, whatever state it was
+        // in. A branch on `isMinimized` made that drop feel like a different
+        // gesture from an ordinary one -- which is the thing being fixed, so a
+        // branch is what this guards against.
+        let placeSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Switcher/WindowActivator.swift",
+            encoding: .utf8)) ?? ""
+        let placeBody = (placeSource.components(separatedBy: "static func place(_ item: SwitcherItem")
+            .last ?? "").components(separatedBy: "\n    @discardableResult").first ?? ""
+        let placeCode = placeBody
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(!placeCode.isEmpty && !placeCode.contains("isMinimized"),
+               "a drop takes the same steps for a minimized window as for any other")
+        // The thumbnail is derived from the card, so a constant changed on its
+        // own must not silently eat into it or leave the card short.
+        expectClose(Double(DockPreviewSupport.cardThumbnailHeight
+                            + DockPreviewSupport.cardPadding * 2
+                            + DockPreviewSupport.cardTitleSpacing
+                            + DockPreviewSupport.cardTitleHeight),
+                    Double(DockPreviewSupport.cardHeight),
+                    "a Dock Preview card's chrome and thumbnail add up to the card")
+        expect(DockPreviewSupport.cardThumbnailHeight
+                > DockPreviewSupport.cardHeight * 0.7,
+               "the thumbnail keeps most of the Dock Preview card")
 
         // The card used to draw the app icon on every thumbnail and the window
         // title both over the thumbnail and under it. In a panel every card

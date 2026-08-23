@@ -27,8 +27,9 @@ Vorssaint 3.3.3-beta.1 introduces the opt-in beta release channel and in-app fee
   any of eight directions with a native glass-ring HUD. Thanks to @Bald-M.
 - The Super key can now use a quick press to switch between enabled input sources
   while a press-and-hold toggles Caps Lock. Thanks to @BenjaminD2023.
-- Dock Preview thumbnails can now be dragged to move windows freely or snap them
-  to screen regions. Thanks to @PathGao.
+- Dock Preview thumbnails can now be dragged to move any window to where they are
+  dropped, keeping the size it already had. A minimized window is restored there
+  and a window from another desktop is carried across. Thanks to @PathGao.
 - Clean URL now removes the tracking parameters that YouTube, X, Instagram, Spotify,
   Reddit, TikTok, Bilibili and Xiaohongshu add to their own share links, while leaving
   the same parameter names alone on every other site. Thanks to @PathGao.
