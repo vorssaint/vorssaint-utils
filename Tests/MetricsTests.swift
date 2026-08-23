@@ -2050,6 +2050,15 @@ struct MetricsTests {
         expect(registeredDefaults[DefaultsKey.switcherSearchPinEnabled] as? Bool == false
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherSearchPinEnabled),
                "the optional pinned search starts off and travels with the user's settings backup")
+        expect(registeredDefaults[DefaultsKey.switcherMinimizedPlacement] as? String
+               == WindowSwitchMinimizedPlacement.normal.rawValue
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherMinimizedPlacement),
+               "App Switcher leaves minimized windows in normal order by default and carries the choice in backups")
+        expect(registeredDefaults[DefaultsKey.switcherShowFullscreenWindows] as? Bool == true
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherShowFullscreenWindows),
+               "App Switcher keeps fullscreen windows visible by default and carries the choice in backups")
+        expect(WindowSwitchMinimizedPlacement.allCases.map(\.rawValue) == ["normal", "end", "hidden"],
+               "every minimized placement case has a stable raw value")
 
         // MARK: Switcher entries for apps with no window (issue #351)
         expect(SwitcherWindowlessApps.mode(storedValue: nil) == .finder

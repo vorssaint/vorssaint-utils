@@ -55,11 +55,17 @@ enum WindowEnumerator {
         let windowlessApps = SwitcherWindowlessApps.mode(
             storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherWindowlessApps))
         let currentSpaceOnly = UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
+        let minimizedPlacement = WindowSwitchMinimizedPlacement(
+            rawValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherMinimizedPlacement) ?? ""
+        ) ?? .normal
+        let showFullscreenWindows = UserDefaults.standard.object(forKey: DefaultsKey.switcherShowFullscreenWindows) as? Bool ?? true
         return listWindows(filterPID: nil,
                            maximumCount: maximumCount,
                            windowlessApps: windowlessApps,
                            appRules: appRules,
                            groupByApp: groupByApp,
+                           minimizedPlacement: minimizedPlacement,
+                           showFullscreenWindows: showFullscreenWindows,
                            preservingGroupedWindows: preservingGroupedWindows,
                            currentSpaceOnly: currentSpaceOnly,
                            marksHiddenSpaces: marksHiddenSpaces && !currentSpaceOnly)
@@ -81,6 +87,8 @@ enum WindowEnumerator {
                     windowlessApps: .off,
                     appRules: [:],
                     groupByApp: false,
+                    minimizedPlacement: .normal,
+                    showFullscreenWindows: true,
                     preservingGroupedWindows: false,
                     currentSpaceOnly: false,
                     marksHiddenSpaces: false)
@@ -91,6 +99,8 @@ enum WindowEnumerator {
                                     windowlessApps: SwitcherWindowlessApps,
                                     appRules: [String: SwitcherAppRule],
                                     groupByApp: Bool,
+                                    minimizedPlacement: WindowSwitchMinimizedPlacement,
+                                    showFullscreenWindows: Bool,
                                     preservingGroupedWindows: Bool,
                                     currentSpaceOnly: Bool,
                                     marksHiddenSpaces: Bool) -> [SwitcherItem] {
@@ -310,11 +320,25 @@ enum WindowEnumerator {
                              ownPID: pid_t(ownPid),
                              withheldPIDs: withheldPIDs,
                              appRules: appRules)
-        let groupedBackingWindows = groupByApp && preservingGroupedWindows ? windows : []
-        if groupByApp {
-            windows = groupWindowsByApp(windows)
+        let filtered = windows.filter { item in
+            if !showFullscreenWindows, item.isFullscreen { return false }
+            if minimizedPlacement == .hidden, item.isMinimized { return false }
+            return true
         }
-        let ordered = orderByUse(windows, frontToBack: frontToBack)
+        let groupedBackingWindows = groupByApp && preservingGroupedWindows ? filtered : []
+        let ordered: [SwitcherItem]
+        if minimizedPlacement == .end {
+            let primary = filtered.filter { !$0.isMinimized }
+            let deferred = filtered.filter { $0.isMinimized }
+            let orderedPrimary = orderByUse(primary, frontToBack: frontToBack)
+            let orderedDeferred = orderByUse(deferred, frontToBack: frontToBack)
+            let groupedPrimary = groupByApp ? groupWindowsByApp(orderedPrimary) : orderedPrimary
+            let groupedDeferred = groupByApp ? groupWindowsByApp(orderedDeferred) : orderedDeferred
+            ordered = groupedPrimary + groupedDeferred
+        } else {
+            let orderedRaw = orderByUse(filtered, frontToBack: frontToBack)
+            ordered = groupByApp ? groupWindowsByApp(orderedRaw) : orderedRaw
+        }
         var result = ordered
         if ordered.count > maximumCount {
             result = Array(ordered.prefix(maximumCount))
@@ -328,8 +352,16 @@ enum WindowEnumerator {
             }
         }
         if groupByApp, preservingGroupedWindows {
+            let backingOrdered: [SwitcherItem]
+            if minimizedPlacement == .end {
+                let primary = groupedBackingWindows.filter { !$0.isMinimized }
+                let deferred = groupedBackingWindows.filter { $0.isMinimized }
+                backingOrdered = orderByUse(primary, frontToBack: frontToBack) + orderByUse(deferred, frontToBack: frontToBack)
+            } else {
+                backingOrdered = orderByUse(groupedBackingWindows, frontToBack: frontToBack)
+            }
             result = SwitcherSupport.expandGroupedWindows(
-                orderedWindows: orderByUse(groupedBackingWindows, frontToBack: frontToBack),
+                orderedWindows: backingOrdered,
                 representatives: result)
         }
         // Space lookups are comparatively expensive. Resolve badges only for

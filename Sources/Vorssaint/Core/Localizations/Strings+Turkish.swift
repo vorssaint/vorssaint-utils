@@ -935,6 +935,11 @@ extension Strings {
         shelfEdgeCaption: "Bir dosyayı ekran kenarına doğru sürüklediğinde raf belirmeye başlar. Bıraktığın yerde kalır, ya da geri çekersen raf da geri çekilir.",
         focusFollowsMouseName: "Odak fareyi takip etsin",
         focusFollowsMouseCaption: "Kısa bir beklemeden sonra işaretçinin altındaki pencereye odaklanır ve öne getirir.",
-        focusFollowsMouseDelay: "Üzerinde bekleme gecikmesi"
+        focusFollowsMouseDelay: "Üzerinde bekleme gecikmesi",
+        switcherMinimizedPlacementLabel: "Küçültülmüş pencereler",
+        switcherMinimizedPlacementNormal: "Normal sıralama",
+        switcherMinimizedPlacementEnd: "Sona yerleştir",
+        switcherMinimizedPlacementHidden: "Gizle",
+        switcherShowFullscreenWindows: "Tam ekran pencereleri göster" 
     )
 }

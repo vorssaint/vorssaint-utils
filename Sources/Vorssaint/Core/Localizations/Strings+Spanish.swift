@@ -935,6 +935,11 @@ extension Strings {
         shelfEdgeCaption: "Arrastra un archivo hacia el borde de la pantalla para que el estante asome. Suéltalo ahí, o retíralo y el estante se repliega.",
         focusFollowsMouseName: "El foco sigue al ratón",
         focusFollowsMouseCaption: "Enfoca y trae al frente la ventana bajo el puntero tras una breve pausa.",
-        focusFollowsMouseDelay: "Retraso al pasar"
+        focusFollowsMouseDelay: "Retraso al pasar",
+        switcherMinimizedPlacementLabel: "Ventanas minimizadas",
+        switcherMinimizedPlacementNormal: "Orden normal",
+        switcherMinimizedPlacementEnd: "Colocar al final",
+        switcherMinimizedPlacementHidden: "Ocultar",
+        switcherShowFullscreenWindows: "Mostrar ventanas en pantalla completa" 
     )
 }

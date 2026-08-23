@@ -935,6 +935,11 @@ extension Strings {
         shelfEdgeCaption: "Ziehe eine Datei in Richtung Bildschirmrand, damit die Ablage kurz hervorschaut. Lass sie dort los, oder zieh zurück, und die Ablage verschwindet wieder.",
         focusFollowsMouseName: "Fokus folgt Maus",
         focusFollowsMouseCaption: "Fokussiert das Fenster unter dem Zeiger und bringt es nach kurzer Pause nach vorn.",
-        focusFollowsMouseDelay: "Verzögerung"
+        focusFollowsMouseDelay: "Verzögerung",
+        switcherMinimizedPlacementLabel: "Minimierte Fenster",
+        switcherMinimizedPlacementNormal: "Normale Reihenfolge",
+        switcherMinimizedPlacementEnd: "Ans Ende stellen",
+        switcherMinimizedPlacementHidden: "Ausblenden",
+        switcherShowFullscreenWindows: "Vollbildfenster anzeigen" 
     )
 }

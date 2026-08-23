@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [3.3.3-beta.2] - 2026-08-22
 
 ### Added
+- App Switcher now lets you place minimized windows at the end of the list or hide them, and toggle fullscreen window visibility. Thanks to @itsofirk.
 - The radial menu now includes a Now Playing media action with a floating track card and direct app access. Thanks to @ruvelro.
 - The radial menu editor now includes a broader built-in SF Symbol catalog with runtime availability filtering. Thanks to @ruvelro.
 - Sound Mixer now includes an option to hide inactive applications while keeping custom volume and output selections visible. Thanks to @ruvelro.
@@ -16,6 +17,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 - Beta releases now automatically turn on the beta update channel on first launch, ensuring seamless delivery of subsequent beta updates.
+- Keep Awake now preserves the order of asynchronous closed-lid sleep requests when rapidly toggled. Thanks to @Tr1meputiNe.
 
 ## [3.3.3-beta.1] - 2026-08-22
 

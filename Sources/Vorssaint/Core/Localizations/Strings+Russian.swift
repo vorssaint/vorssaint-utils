@@ -936,6 +936,11 @@ extension Strings {
         shelfEdgeCaption: "Перетащите файл к краю экрана, чтобы полка выглянула. Отпустите его там, или потяните обратно, и полка уберётся.",
         focusFollowsMouseName: "Фокус следует за мышью",
         focusFollowsMouseCaption: "Фокусирует и поднимает окно под указателем после короткой паузы.",
-        focusFollowsMouseDelay: "Задержка наведения"
+        focusFollowsMouseDelay: "Задержка наведения",
+        switcherMinimizedPlacementLabel: "Свёрнутые окна",
+        switcherMinimizedPlacementNormal: "Обычный порядок",
+        switcherMinimizedPlacementEnd: "В конец списка",
+        switcherMinimizedPlacementHidden: "Скрывать",
+        switcherShowFullscreenWindows: "Показывать полноэкранные окна" 
     )
 }

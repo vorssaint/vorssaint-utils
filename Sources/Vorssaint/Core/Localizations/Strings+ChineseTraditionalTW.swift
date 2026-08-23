@@ -936,6 +936,11 @@ extension Strings {
         shelfEdgeCaption: "將檔案拖曳到螢幕邊緣，暫存架就會探出一角。放在那裡即可放下，往回拖曳就會收回去。",
         focusFollowsMouseName: "游標停留時聚焦",
         focusFollowsMouseCaption: "游標短暫停留後，聚焦並將其下方視窗移至最前方。",
-        focusFollowsMouseDelay: "停留延遲"
+        focusFollowsMouseDelay: "停留延遲",
+        switcherMinimizedPlacementLabel: "已最小化的視窗",
+        switcherMinimizedPlacementNormal: "正常順序",
+        switcherMinimizedPlacementEnd: "放到最後",
+        switcherMinimizedPlacementHidden: "隱藏",
+        switcherShowFullscreenWindows: "顯示全螢幕視窗" 
     )
 }
