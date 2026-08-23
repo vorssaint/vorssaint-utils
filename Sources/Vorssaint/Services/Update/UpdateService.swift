@@ -45,16 +45,32 @@ final class UpdateService: ObservableObject {
         }
     }
 
+    var includeBetaUpdates: Bool {
+        get {
+            if let explicit = UserDefaults.standard.object(forKey: DefaultsKey.includeBetaUpdates) as? Bool {
+                return explicit
+            }
+            return AppInfo.isBeta
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: DefaultsKey.includeBetaUpdates)
+        }
+    }
+
     // MARK: - Scheduling
 
     /// Called at launch: checks shortly after start and then daily, if enabled.
     func startAutomaticChecks() {
         consumeInstallResult()
+        if AppInfo.isBeta && UserDefaults.standard.object(forKey: DefaultsKey.includeBetaUpdates) == nil {
+            UserDefaults.standard.set(true, forKey: DefaultsKey.includeBetaUpdates)
+        }
         // The local dev build never auto-updates, but can simulate the
         // "update available" UI via the `simulateUpdate` default, for testing.
         if AppInfo.isDeveloperBuild {
             if UserDefaults.standard.bool(forKey: DefaultsKey.simulateUpdate) {
-                state = .available(version: "9.9.9")
+                let simulatedVersion = AppInfo.isBeta ? "9.9.9-beta.1" : "9.9.9"
+                state = .available(version: simulatedVersion)
                 availableNotes = ReleaseNotes.rawNotes(for: AppInfo.version)
             }
             return
@@ -102,7 +118,11 @@ final class UpdateService: ObservableObject {
         if case .installing = state { return }
         state = .checking
 
-        var request = URLRequest(url: URL(string: "https://api.github.com/repos/\(repository)/releases/latest")!)
+        let endpoint = includeBetaUpdates
+            ? "https://api.github.com/repos/\(repository)/releases?per_page=10"
+            : "https://api.github.com/repos/\(repository)/releases/latest"
+
+        var request = URLRequest(url: URL(string: endpoint)!)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("Vorssaint/\(AppInfo.version)", forHTTPHeaderField: "User-Agent")
         request.cachePolicy = .reloadIgnoringLocalCacheData
@@ -111,26 +131,55 @@ final class UpdateService: ObservableObject {
             guard let self else { return }
             DispatchQueue.main.async {
                 self.lastChecked = Date()
-                guard let data, error == nil,
-                      let release = try? JSONDecoder().decode(GitHubRelease.self, from: data) else {
+                guard let data, error == nil else {
                     self.availableNotes = nil
                     self.state = .failed(error?.localizedDescription ?? "-")
                     return
                 }
-                let latest = release.tagName.trimmingCharacters(in: CharacterSet(charactersIn: "vV "))
-                let asset = release.assets.first { $0.name.hasSuffix(".dmg") }
-                self.downloadURL = asset?.browserDownloadURL
-                self.downloadExpectedBytes = asset?.size
 
-                if Self.isNewer(latest, than: AppInfo.version), self.downloadURL != nil {
-                    self.availableNotes = ReleaseNotes.inAppUpdateNotes(from: release.body)
-                    self.state = .available(version: latest)
+                let releases: [GitHubRelease]
+                if self.includeBetaUpdates {
+                    releases = (try? JSONDecoder().decode([GitHubRelease].self, from: data)) ?? []
+                } else if let single = try? JSONDecoder().decode(GitHubRelease.self, from: data) {
+                    releases = [single]
+                } else {
+                    releases = []
+                }
+
+                guard !releases.isEmpty else {
+                    self.availableNotes = nil
+                    self.state = .failed(error?.localizedDescription ?? "-")
+                    return
+                }
+
+                let candidates = releases.map { rel -> UpdateServiceSupport.ReleaseCandidate in
+                    let asset = rel.assets.first { $0.name.hasSuffix(".dmg") }
+                    return UpdateServiceSupport.ReleaseCandidate(
+                        tagName: rel.tagName,
+                        isPrerelease: rel.prerelease ?? false,
+                        isDraft: rel.draft ?? false,
+                        dmgURL: asset?.browserDownloadURL,
+                        dmgExpectedBytes: asset?.size,
+                        body: rel.body
+                    )
+                }
+
+                if let chosen = UpdateServiceSupport.selectUpdate(
+                    from: candidates,
+                    currentVersion: AppInfo.version,
+                    includeBetas: self.includeBetaUpdates
+                ) {
+                    let versionClean = chosen.tagName.trimmingCharacters(in: CharacterSet(charactersIn: "vV "))
+                    self.downloadURL = chosen.dmgURL
+                    self.downloadExpectedBytes = chosen.dmgExpectedBytes
+                    self.availableNotes = ReleaseNotes.inAppUpdateNotes(from: chosen.body)
+                    self.state = .available(version: versionClean)
                     // Notify once per distinct release, not on every hourly re-check.
-                    if !manual, latest != self.notifiedVersion {
-                        self.notifiedVersion = latest
+                    if !manual, versionClean != self.notifiedVersion {
+                        self.notifiedVersion = versionClean
                         let s = L10n.shared.s
                         Notifier.post(title: s.updateNotifyTitle,
-                                      body: "\(s.updateAvailablePrefix) \(latest)")
+                                      body: "\(s.updateAvailablePrefix) \(versionClean)")
                     }
                 } else {
                     self.availableNotes = nil
@@ -333,7 +382,7 @@ final class UpdateService: ObservableObject {
                                                                     pid: pid,
                                                                     resultPath: resultPath,
                                                                     uid: getuid())
-        AdminShell.run(command, prompt: L10n.shared.s.adminPromptUpdate) { [weak self] granted in
+        AdminShell.runInProcess(command, prompt: L10n.shared.s.adminPromptUpdate) { [weak self] granted in
             DispatchQueue.main.async {
                 guard let self else { return }
                 if granted {
@@ -419,14 +468,7 @@ final class UpdateService: ObservableObject {
 
     /// True when `latest` is a higher semantic version than `current`.
     static func isNewer(_ latest: String, than current: String) -> Bool {
-        func parts(_ s: String) -> [Int] { s.split(separator: ".").map { Int($0) ?? 0 } }
-        let l = parts(latest), c = parts(current)
-        for i in 0..<max(l.count, c.count) {
-            let lv = i < l.count ? l[i] : 0
-            let cv = i < c.count ? c[i] : 0
-            if lv != cv { return lv > cv }
-        }
-        return false
+        UpdateServiceSupport.isNewer(latest, than: current)
     }
 }
 
@@ -534,11 +576,15 @@ private final class BoundedUpdateDownloadDelegate: NSObject, URLSessionDataDeleg
 
 private struct GitHubRelease: Decodable {
     let tagName: String
+    let prerelease: Bool?
+    let draft: Bool?
     let assets: [Asset]
     let body: String?
 
     enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
+        case prerelease
+        case draft
         case assets
         case body
     }

@@ -59,6 +59,9 @@ struct ScreenCaptureSettings: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
+                if let keys = currentTool.dedicatedShortcut {
+                    ToolShortcutRows(tool: currentTool, keys: keys)
+                }
             } header: {
                 Text(strings.screenCaptureTitle)
             }
@@ -119,6 +122,39 @@ private extension SettingsSectionAnchor {
         case .screenOCR: return .text
         case .colorPicker: return .color
         default: return nil
+        }
+    }
+}
+
+/// The shortcut that opens the chooser straight on the tool being looked at,
+/// below the general one that opens it on whatever comes first. The toggle
+/// carries the tool's own name, so the two rows never read alike.
+private struct ToolShortcutRows: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var service = ScreenCaptureService.shared
+    @AppStorage private var enabled: Bool
+
+    private let tool: ScreenCaptureTool
+    private let keys: ScreenCaptureTool.DedicatedShortcut
+
+    init(tool: ScreenCaptureTool, keys: ScreenCaptureTool.DedicatedShortcut) {
+        self.tool = tool
+        self.keys = keys
+        _enabled = AppStorage(wrappedValue: false, keys.enabledKey)
+    }
+
+    var body: some View {
+        Toggle(keys.role.title(l10n.s), isOn: $enabled)
+            .onChange(of: enabled) { _, _ in
+                service.syncWithPreferences()
+            }
+        ShortcutPreferenceRow(role: keys.role, isEnabled: enabled) {
+            service.syncWithPreferences()
+        }
+        if enabled, service.toolShortcutRegistrationFailures.contains(tool) {
+            Text(l10n.s.shortcutUnavailable)
+                .font(.caption)
+                .foregroundStyle(.orange)
         }
     }
 }

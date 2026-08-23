@@ -152,7 +152,7 @@ final class WindowPreviewProvider {
             guard let content = try? await SCShareableContent.excludingDesktopWindows(false,
                                                                                       onScreenWindowsOnly: false)
             else { return }
-            let scWindows = Dictionary(uniqueKeysWithValues: content.windows.map { ($0.windowID, $0) })
+            let scWindows = Dictionary(content.windows.map { ($0.windowID, $0) }, uniquingKeysWith: { first, _ in first })
 
             for target in pending {
                 guard !Task.isCancelled else { return }

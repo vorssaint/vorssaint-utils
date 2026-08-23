@@ -6,7 +6,7 @@ import Foundation
 /// What a tap of the super key on its own does, when no other key was pressed
 /// while it was held.
 enum SuperKeySoloAction: String, CaseIterable, Identifiable {
-    case none, capsLock, escape
+    case none, capsLock, inputSource, escape
 
     var id: String { rawValue }
 
@@ -221,13 +221,36 @@ enum SuperKeySupport {
         return UInt64(bitPattern: value)
     }
 
+    static func soloEffect(action: SuperKeySoloAction,
+                           longHold: Bool,
+                           repeated: Bool) -> SuperKeySoloAction {
+        switch action {
+        case .none:
+            return .none
+        case .escape:
+            return repeated ? .none : .escape
+        case .capsLock:
+            return repeated ? .none : .capsLock
+        case .inputSource:
+            return longHold ? .capsLock : .inputSource
+        }
+    }
+
+    static func nextInputSourceID(currentID: String?, enabledIDs: [String]) -> String? {
+        guard enabledIDs.count > 1 else { return nil }
+        guard let currentID, let index = enabledIDs.firstIndex(of: currentID) else {
+            return enabledIDs.first
+        }
+        return enabledIDs[(index + 1) % enabledIDs.count]
+    }
+
     // MARK: - What each event means
 
     /// A key event, reduced to the only distinctions the decision needs.
     enum Event: Equatable {
         /// The key the super key arrives as, pressed (or repeating while held).
-        case triggerDown(isRepeat: Bool)
-        case triggerUp
+        case triggerDown(isRepeat: Bool, hasPrimaryModifiers: Bool, timestamp: UInt64)
+        case triggerUp(timestamp: UInt64)
         /// Any other key going down or up.
         case otherKey
         /// A real Caps Lock, which means that keyboard is not mapped yet.
@@ -244,39 +267,61 @@ enum SuperKeySupport {
         /// The event carries on untouched.
         case pass
         /// The key was tapped with nothing else, so its solo action runs.
-        case soloTap
+        case soloTap(repeated: Bool)
+        /// The key was held on its own long enough for its hold action.
+        case soloHold(repeated: Bool)
         /// A raw Caps Lock is kept out while its keyboard mapping is repaired.
         case interceptAndRemap
     }
 
-    /// Holding the key is the whole feature, so the state is just whether it is
-    /// down and whether anything else has happened since it went down.
+    /// Holding the key is the whole feature, so the state tracks whether it is
+    /// down, whether anything else has happened and when it went down.
     struct State: Equatable {
+        static let soloHoldThresholdNanoseconds: UInt64 = 500_000_000
+
         private(set) var isHeld = false
         private(set) var isAlone = false
+        private var triggerDownTimestamp: UInt64?
+        private var didRepeat = false
 
         mutating func decide(_ event: Event) -> Decision {
             switch event {
-            case .triggerDown(let isRepeat):
-                // A key that repeats is being held, not tapped.
-                if isRepeat {
-                    isAlone = false
-                } else if !isHeld {
-                    isAlone = true
+            case .triggerDown(let isRepeat, let hasPrimaryModifiers, let timestamp):
+                guard isHeld || !isRepeat else { return .swallow }
+                if !isHeld {
+                    isAlone = !hasPrimaryModifiers
+                    triggerDownTimestamp = hasPrimaryModifiers ? nil : timestamp
+                    didRepeat = false
+                } else if isRepeat {
+                    didRepeat = true
                 }
                 isHeld = true
                 return .swallow
-            case .triggerUp:
+            case .triggerUp(let timestamp):
                 let wasAlone = isHeld && isAlone
+                let wasLong = wasAlone && triggerDownTimestamp.map {
+                    timestamp >= $0
+                        && timestamp - $0 >= Self.soloHoldThresholdNanoseconds
+                } == true
+                let repeated = didRepeat
                 isHeld = false
                 isAlone = false
-                return wasAlone ? .soloTap : .swallow
+                triggerDownTimestamp = nil
+                didRepeat = false
+                if wasLong { return .soloHold(repeated: repeated) }
+                return wasAlone ? .soloTap(repeated: repeated) : .swallow
             case .otherKey:
                 guard isHeld else { return .pass }
                 isAlone = false
+                triggerDownTimestamp = nil
+                didRepeat = false
                 return .addModifiers
             case .otherModifier:
-                if isHeld { isAlone = false }
+                if isHeld {
+                    isAlone = false
+                    triggerDownTimestamp = nil
+                    didRepeat = false
+                }
                 return .pass
             case .capsLock:
                 return .interceptAndRemap
@@ -288,6 +333,8 @@ enum SuperKeySupport {
         mutating func reset() {
             isHeld = false
             isAlone = false
+            triggerDownTimestamp = nil
+            didRepeat = false
         }
     }
 }

@@ -619,6 +619,7 @@ private struct RadialItemEditor: View {
                 Text(text.mediaPlayPause).tag(RadialMenuMediaKey.playPause.rawValue)
                 Text(text.mediaPrevious).tag(RadialMenuMediaKey.previousTrack.rawValue)
                 Text(text.mediaNext).tag(RadialMenuMediaKey.nextTrack.rawValue)
+                Text(text.mediaNowPlaying).tag(RadialMenuMediaKey.nowPlaying.rawValue)
             }
         case .submenu:
             EmptyView()
@@ -654,14 +655,9 @@ private struct RadialSymbolPicker: View {
     let text: RadialMenuFeatureStrings
     @Binding var item: RadialMenuItem
 
-    private static let symbols = [
-        "star.fill", "heart.fill", "bolt.fill", "flame.fill", "sparkles",
-        "folder.fill", "doc.fill", "tray.full.fill", "terminal.fill", "globe",
-        "envelope.fill", "message.fill", "music.note", "headphones", "camera.fill",
-        "photo.fill", "video.fill", "gamecontroller.fill", "calendar", "clock.fill",
-        "house.fill", "cart.fill", "hammer.fill", "paintbrush.fill", "book.fill",
-        "keyboard", "magnifyingglass", "airplane",
-    ]
+    private static let symbols = RadialMenuSupport.symbolNames.filter {
+        NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil
+    }
 
     private let columns = [GridItem(.adaptive(minimum: 34), spacing: 6)]
 

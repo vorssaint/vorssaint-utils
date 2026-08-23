@@ -399,7 +399,10 @@ struct PermissionsPortalSections: View {
         case .screenRecording: return permissions.screenRecording ? .granted : .missing
         case .fullDiskAccess: return permissions.fullDiskAccess ? .granted : .missing
         case .filesAndFolders:
-            guard AppFeature.cleaner.isAvailable else { return .unknown }
+            guard AppFeature.cleaner.isAvailable,
+                  WhatsAppDownloadSupport.isEnabled else {
+                return .unknown
+            }
             switch WhatsAppDownloadManager.shared.accessStatus {
             case .available: return .granted
             case .denied: return .missing
@@ -638,6 +641,7 @@ extension AppFeature {
         case .mediaTools: return s.mediaName
         case .cleaner: return s.cleanerName
         case .uninstaller: return s.uninstallerName
+        case .killProcess: return FeatureStrings.killProcess(L10n.shared.language).pageTitle
         case .homebrew: return s.homebrewName
         case .appUpdates: return FeatureStrings.appUpdates(L10n.shared.language).pageTitle
         case .monitorCPU: return s.monitorShowCPU
@@ -695,9 +699,14 @@ extension AppFeature {
         case .cleaningMode: return hub.descCleaningMode
         case .mediaTools: return hub.descMediaTools
         case .cleaner:
-            return hub.descCleaner + " · "
+            let description = hub.descCleaner
+            guard WhatsAppDownloadSupport.isEnabled else {
+                return description
+            }
+            return description + " · "
                 + FeatureStrings.whatsAppDownloads(L10n.shared.language).hubDescription
         case .uninstaller: return hub.descUninstaller
+        case .killProcess: return FeatureStrings.killProcess(L10n.shared.language).hubDescription
         case .homebrew: return hub.descHomebrew
         case .appUpdates: return FeatureStrings.appUpdates(L10n.shared.language).hubDescription
         case .monitorCPU: return hub.descMonitorCPU

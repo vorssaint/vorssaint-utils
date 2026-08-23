@@ -53,6 +53,7 @@ struct SuperKeySettings: View {
                 Picker(text.soloSection, selection: soloBinding) {
                     Text(text.soloNothing).tag(SuperKeySoloAction.none)
                     Text(text.soloCapsLock).tag(SuperKeySoloAction.capsLock)
+                    Text(text.soloInputSource).tag(SuperKeySoloAction.inputSource)
                     Text(text.soloEscape).tag(SuperKeySoloAction.escape)
                 }
                 .labelsHidden()

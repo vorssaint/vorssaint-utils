@@ -46,6 +46,10 @@ enum WhatsAppDownloadSupport {
         "pages", "pdf", "ppt", "pptm", "pptx", "rtf", "tex", "txt", "xls", "xlsm", "xlsx",
     ]
 
+    static var isEnabled: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppDownloadsEnabled)
+    }
+
     static func sanitizedRetentionDays(_ value: Int) -> Int {
         allowedRetentionDays.contains(value) ? value : 7
     }

@@ -199,6 +199,24 @@ enum WindowActivator {
         return minimizedState(of: axWindow)
     }
 
+    /// Moves a window's top-left corner to a global Accessibility point.
+    ///
+    /// Our own windows are refused rather than special-cased: reading this
+    /// process's own Accessibility tree from the main thread is the one call
+    /// that can deadlock, and Vorssaint has no Dock icon to drag a preview
+    /// from in the first place.
+    @discardableResult
+    static func setWindowOrigin(_ origin: CGPoint, windowID: CGWindowID, pid: pid_t) -> Bool {
+        guard Permissions.shared.accessibility,
+              pid != ProcessInfo.processInfo.processIdentifier else { return false }
+        let axApp = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(axApp, 0.35)
+        guard let axWindow = axElement(windowID: windowID, in: axApp) else { return false }
+        var origin = origin
+        guard let value = AXValueCreate(.cgPoint, &origin) else { return false }
+        return AXUIElementSetAttributeValue(axWindow, kAXPositionAttribute as CFString, value) == .success
+    }
+
     @discardableResult
     static func setWindowMinimized(_ minimized: Bool, windowID: CGWindowID, pid: pid_t) -> Bool {
         if pid == ProcessInfo.processInfo.processIdentifier {

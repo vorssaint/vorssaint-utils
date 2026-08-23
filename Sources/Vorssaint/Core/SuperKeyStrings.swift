@@ -18,6 +18,7 @@ struct SuperKeyStrings {
     let activeNow: String
     let panelCaptionFormat: String
     let manageButton: String
+    let soloInputSource: String
 }
 
 extension FeatureStrings {
@@ -55,7 +56,8 @@ extension SuperKeyStrings {
         soloEscape: "Press Escape",
         activeNow: "Working now",
         panelCaptionFormat: "Caps Lock holds %@.",
-        manageButton: "Set up…"
+        manageButton: "Set up…",
+        soloInputSource: "Switch input source; hold for Caps Lock"
     )
 
     static let ptBR = SuperKeyStrings(
@@ -72,7 +74,8 @@ extension SuperKeyStrings {
         soloEscape: "Aperta Escape",
         activeNow: "Funcionando agora",
         panelCaptionFormat: "O Caps Lock segura %@.",
-        manageButton: "Configurar…"
+        manageButton: "Configurar…",
+        soloInputSource: "Trocar fonte de entrada; segure para Caps Lock"
     )
 
     static let tr = SuperKeyStrings(
@@ -89,7 +92,8 @@ extension SuperKeyStrings {
         soloEscape: "Escape tuşuna basar",
         activeNow: "Şu anda çalışıyor",
         panelCaptionFormat: "Caps Lock %@ tuşlarını basılı tutar.",
-        manageButton: "Ayarla…"
+        manageButton: "Ayarla…",
+        soloInputSource: "Giriş kaynağını değiştir; Caps Lock için basılı tut"
     )
 
     static let ru = SuperKeyStrings(
@@ -106,7 +110,8 @@ extension SuperKeyStrings {
         soloEscape: "Нажимает Escape",
         activeNow: "Работает",
         panelCaptionFormat: "Caps Lock удерживает %@.",
-        manageButton: "Настроить…"
+        manageButton: "Настроить…",
+        soloInputSource: "Сменить источник ввода; удерживать для Caps Lock"
     )
 
     static let es = SuperKeyStrings(
@@ -123,7 +128,8 @@ extension SuperKeyStrings {
         soloEscape: "Pulsa Escape",
         activeNow: "Funcionando ahora",
         panelCaptionFormat: "Bloq Mayús mantiene %@.",
-        manageButton: "Configurar…"
+        manageButton: "Configurar…",
+        soloInputSource: "Cambiar fuente de entrada; mantener para Bloq Mayús"
     )
 
     static let de = SuperKeyStrings(
@@ -140,7 +146,8 @@ extension SuperKeyStrings {
         soloEscape: "Drückt Escape",
         activeNow: "Läuft gerade",
         panelCaptionFormat: "Die Feststelltaste hält %@.",
-        manageButton: "Einrichten…"
+        manageButton: "Einrichten…",
+        soloInputSource: "Eingabequelle wechseln; für Feststelltaste halten"
     )
 
     static let fr = SuperKeyStrings(
@@ -157,7 +164,8 @@ extension SuperKeyStrings {
         soloEscape: "Appuie sur Échap",
         activeNow: "Actif maintenant",
         panelCaptionFormat: "Verr. Maj maintient %@.",
-        manageButton: "Configurer…"
+        manageButton: "Configurer…",
+        soloInputSource: "Changer de source d’entrée ; maintenir pour Verr. Maj"
     )
 
     static let it = SuperKeyStrings(
@@ -174,7 +182,8 @@ extension SuperKeyStrings {
         soloEscape: "Preme Escape",
         activeNow: "Attivo ora",
         panelCaptionFormat: "Blocco Maiuscole tiene premuti %@.",
-        manageButton: "Configura…"
+        manageButton: "Configura…",
+        soloInputSource: "Cambia sorgente di input; tieni premuto per Blocco Maiuscole"
     )
 
     static let ja = SuperKeyStrings(
@@ -191,7 +200,8 @@ extension SuperKeyStrings {
         soloEscape: "Escape を押す",
         activeNow: "動作中",
         panelCaptionFormat: "Caps Lock が %@ を押した状態にします。",
-        manageButton: "設定…"
+        manageButton: "設定…",
+        soloInputSource: "入力ソースを切り替え（長押しで Caps Lock）"
     )
 
     static let ko = SuperKeyStrings(
@@ -208,7 +218,8 @@ extension SuperKeyStrings {
         soloEscape: "Escape 누르기",
         activeNow: "지금 작동 중",
         panelCaptionFormat: "Caps Lock이 %@를 누른 상태로 만듭니다.",
-        manageButton: "설정…"
+        manageButton: "설정…",
+        soloInputSource: "입력 소스 전환(길게 눌러 Caps Lock)"
     )
 
     static let zhHans = SuperKeyStrings(
@@ -225,7 +236,8 @@ extension SuperKeyStrings {
         soloEscape: "按下 Escape",
         activeNow: "正在运行",
         panelCaptionFormat: "大写锁定键会按住 %@。",
-        manageButton: "设置…"
+        manageButton: "设置…",
+        soloInputSource: "切换输入法；长按开关大写锁定"
     )
 
     static let zhTW = SuperKeyStrings(
@@ -242,7 +254,8 @@ extension SuperKeyStrings {
         soloEscape: "按下 Escape",
         activeNow: "正在運作",
         panelCaptionFormat: "大寫鎖定鍵會按住 %@。",
-        manageButton: "設定…"
+        manageButton: "設定…",
+        soloInputSource: "切換輸入法；長按切換大寫鎖定"
     )
 
     static let zhHK = SuperKeyStrings(
@@ -259,6 +272,7 @@ extension SuperKeyStrings {
         soloEscape: "撳 Escape",
         activeNow: "正在運作",
         panelCaptionFormat: "大寫鎖定鍵會按住 %@。",
-        manageButton: "設定…"
+        manageButton: "設定…",
+        soloInputSource: "切換輸入法；長撳切換大寫鎖定"
     )
 }

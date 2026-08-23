@@ -15,25 +15,6 @@ private enum SwitcherIconStyle {
     static let thumbnailBackground = Color.primary.opacity(0.055)
 }
 
-private extension SwitcherItem {
-    /// Whether this entry stands for the app itself because it has no window
-    /// to switch to. Those entries have no thumbnail to draw and no window to
-    /// name, so several places have to present them differently.
-    var isAppEntry: Bool { windowID == nil }
-
-    /// What the screen reader hears. An app entry replaces the window title
-    /// with its state on screen, so the label has to carry that state too or
-    /// the entry sounds identical to a window of the same app.
-    func spokenLabel(noOpenWindow: String,
-                     hiddenApp: String,
-                     otherDesktop: String) -> String {
-        var label = isAppEntry ? "\(appName), \(noOpenWindow)" : accessibilityTitle
-        if isAppHidden { label += ", \(hiddenApp)" }
-        if isOnHiddenSpace { label += ", \(otherDesktop)" }
-        return label
-    }
-}
-
 private struct SwitcherHiddenAppBadge: ViewModifier {
     let isHidden: Bool
     let size: CGFloat
@@ -294,7 +275,7 @@ struct SwitcherView: View {
                                 .foregroundStyle(SwitcherIconStyle.text)
                                 .lineLimit(1)
                                 .truncationMode(.tail)
-                            Text(selected.isAppEntry ? l10n.s.switcherNoOpenWindow : selected.displayTitle)
+                            Text(selected.windowLabel(noOpenWindow: l10n.s.switcherNoOpenWindow))
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundStyle(SwitcherIconStyle.secondaryText)
                                 .lineLimit(1)
@@ -384,7 +365,7 @@ struct SwitcherView: View {
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(Capsule(style: .continuous).fill(SwitcherIconStyle.tile))
-                    Text(selected.isAppEntry ? l10n.s.switcherNoOpenWindow : selected.displayTitle)
+                    Text(selected.windowLabel(noOpenWindow: l10n.s.switcherNoOpenWindow))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(SwitcherIconStyle.secondaryText)
                         .lineLimit(1)
@@ -394,7 +375,7 @@ struct SwitcherView: View {
 
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 6) {
+                        HStack(spacing: SwitcherIconRowLayout.simpleTitleSpacing) {
                             ForEach(appWindows, id: \.element.id) { entry in
                                 SwitcherWindowTitleChip(
                                     window: entry.element,
@@ -410,7 +391,7 @@ struct SwitcherView: View {
                                 .id(entry.element.id)
                             }
                         }
-                        .padding(.horizontal, 1)
+                        .padding(.horizontal, SwitcherIconRowLayout.simpleTitleScrollPadding)
                     }
                     .onChange(of: switcher.selectedIndex) { _, newIndex in
                         guard switcher.windows.indices.contains(newIndex) else { return }
@@ -421,7 +402,7 @@ struct SwitcherView: View {
                 }
                 .frame(height: 25 * SwitcherIconRowLayout.scale)
             }
-            .padding(10 * SwitcherIconRowLayout.scale)
+            .padding(SwitcherIconRowLayout.simpleTitlePanelPadding)
             .frame(width: iconRowContentWidth,
                    height: SwitcherIconRowLayout.simpleTitleHeight,
                    alignment: .leading)
@@ -551,7 +532,8 @@ struct SwitcherView: View {
     private var iconRowContentWidth: CGFloat {
         if simpleMode {
             return max(switcher.iconRowLayout.appRowSurfaceWidth,
-                       SwitcherIconRowLayout.hintBarWidth)
+                       usesWindowRow ? 0 : switcher.iconRowLayout.simpleTitleSurfaceWidth,
+                       showsShortcutHints ? SwitcherIconRowLayout.hintBarWidth : 0)
         }
         return max(switcher.iconRowLayout.appRowSurfaceWidth,
                    switcher.iconRowLayout.previewSurfaceWidth,
@@ -595,7 +577,7 @@ private struct SwitcherWindowTitleChip: View {
                 Image(systemName: "rectangle.stack")
                     .font(.system(size: 9, weight: .semibold))
             }
-            Text(window.isAppEntry ? l10n.s.switcherNoOpenWindow : window.displayTitle)
+            Text(window.windowLabel(noOpenWindow: l10n.s.switcherNoOpenWindow))
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
@@ -748,21 +730,13 @@ private struct SwitcherWindowPreviewTile: View {
                         .aspectRatio(contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .padding(5)
-                } else if window.isAppEntry {
-                    VStack(spacing: SwitcherIconRowLayout.appEntrySpacing) {
-                        if let icon = window.appIcon {
-                            Image(nsImage: icon)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: SwitcherIconRowLayout.appEntryIconSize,
-                                       height: SwitcherIconRowLayout.appEntryIconSize)
-                                .switcherHiddenAppBadge(window.isAppHidden, size: 18)
-                        }
-                        Text(l10n.s.switcherNoOpenWindow)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(SwitcherIconStyle.secondaryText)
-                            .lineLimit(1)
-                    }
+                } else if window.isAppEntry, let icon = window.appIcon {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: SwitcherIconRowLayout.appEntryIconSize,
+                               height: SwitcherIconRowLayout.appEntryIconSize)
+                        .switcherHiddenAppBadge(window.isAppHidden, size: 18)
                 } else if let icon = window.appIcon {
                     Image(nsImage: icon)
                         .resizable()
@@ -794,7 +768,7 @@ private struct SwitcherWindowPreviewTile: View {
             .frame(width: SwitcherIconRowLayout.previewCardWidth - 16,
                    height: SwitcherIconRowLayout.previewCardHeight - 38)
 
-            Text(window.displayTitle)
+            Text(window.windowLabel(noOpenWindow: l10n.s.switcherNoOpenWindow))
                 .font(.system(size: 11, weight: isSelected ? .semibold : .medium))
                 .foregroundStyle(isSelected ? SwitcherIconStyle.text : SwitcherIconStyle.secondaryText)
                 .lineLimit(1)

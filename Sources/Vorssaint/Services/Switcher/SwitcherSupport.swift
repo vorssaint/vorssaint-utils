@@ -128,6 +128,7 @@ struct SwitcherIconRowLayout: Equatable {
     let appRowSurfaceWidth: CGFloat
     let previewContentWidth: CGFloat
     let previewSurfaceWidth: CGFloat
+    let simpleTitleSurfaceWidth: CGFloat
     let panelSize: CGSize
     let showsShortcutHints: Bool
 
@@ -151,7 +152,6 @@ struct SwitcherIconRowLayout: Equatable {
     static var previewCardWidth: CGFloat { 220 * scale }
     static var previewCardHeight: CGFloat { 164 * scale }
     static var appEntryIconSize: CGFloat { 66 * scale }
-    static var appEntrySpacing: CGFloat { 7 * scale }
     static var previewHeight: CGFloat { previewCardHeight + 76 * scale }
     static var hintHeight: CGFloat { 28 * scale }
     static var hintGap: CGFloat { 8 * scale }
@@ -164,11 +164,15 @@ struct SwitcherIconRowLayout: Equatable {
     static var simpleTitleHeight: CGFloat { 66 * scale }
     static var simpleTitleGap: CGFloat { 10 * scale }
     static var simpleTitleChipMaxWidth: CGFloat { 180 * scale }
+    static var simpleTitlePanelPadding: CGFloat { 10 * scale }
+    static let simpleTitleSpacing: CGFloat = 6
+    static let simpleTitleScrollPadding: CGFloat = 1
 
     /// App-only mode keeps the same icon row and shortcut preference, but
     /// removes the entire preview area so no blank space remains where captures were.
     var simplePanelSize: CGSize {
         CGSize(width: max(appRowSurfaceWidth,
+                          simpleTitleSurfaceWidth,
                           showsShortcutHints ? Self.hintBarWidth : 0) + Self.padding * 2,
                height: Self.simpleTitleHeight + Self.simpleTitleGap
                         + Self.rowHeight + shortcutHintHeight
@@ -192,6 +196,7 @@ struct SwitcherIconRowLayout: Equatable {
                                              appRowSurfaceWidth: 0,
                                              previewContentWidth: 0,
                                              previewSurfaceWidth: 0,
+                                             simpleTitleSurfaceWidth: 0,
                                              panelSize: .zero,
                                              showsShortcutHints: true)
 
@@ -213,6 +218,11 @@ struct SwitcherIconRowLayout: Equatable {
         let appRowSurfaceWidth = min(appRowWidth + rowHorizontalPadding * 2, maxContentWidth)
         let previewWidth = min(max(previewCardWidth, naturalPreviewWidth), maxPreviewContentWidth)
         let previewSurfaceWidth = min(previewWidth + previewPanelPadding * 2, maxContentWidth)
+        let naturalSimpleTitleWidth = CGFloat(windowCount) * simpleTitleChipMaxWidth
+            + CGFloat(max(0, windowCount - 1)) * simpleTitleSpacing
+            + simpleTitleScrollPadding * 2
+            + simpleTitlePanelPadding * 2
+        let simpleTitleSurfaceWidth = min(naturalSimpleTitleWidth, maxContentWidth)
         let hintWidth = showsShortcutHints ? min(hintBarWidth, maxContentWidth) : 0
         let contentWidth = min(max(appRowSurfaceWidth, previewSurfaceWidth, hintWidth), maxContentWidth)
         let visibleIconCount = max(1, min(appCount, Int((maxAppContentWidth + spacing) / (tileWidth + spacing))))
@@ -224,6 +234,7 @@ struct SwitcherIconRowLayout: Equatable {
                                      appRowSurfaceWidth: appRowSurfaceWidth,
                                      previewContentWidth: previewWidth,
                                      previewSurfaceWidth: previewSurfaceWidth,
+                                     simpleTitleSurfaceWidth: simpleTitleSurfaceWidth,
                                      panelSize: CGSize(width: width, height: height),
                                      showsShortcutHints: showsShortcutHints)
     }
@@ -268,6 +279,27 @@ enum SwitcherSupport {
     static func usesAppGroupsForMainShortcut(iconRowLayout: Bool,
                                               windowRow: Bool) -> Bool {
         iconRowLayout && !windowRow
+    }
+
+    /// The grouped simple row still needs every backing window for its title
+    /// chips and window shortcut, while its visible app cap remains grouped.
+    static func preservesGroupedWindowsDuringEnumeration(allApps: Bool,
+                                                         mergeWindowsByApp: Bool,
+                                                         simpleMode: Bool) -> Bool {
+        allApps && mergeWindowsByApp && simpleMode
+    }
+
+    /// Expands only the app representatives that survived the grouped cap.
+    /// Keeping each representative first preserves the legacy app order and
+    /// activation target; its remaining windows follow in MRU order.
+    static func expandGroupedWindows(orderedWindows: [SwitcherItem],
+                                     representatives: [SwitcherItem]) -> [SwitcherItem] {
+        let windowsByPID = Dictionary(grouping: orderedWindows, by: \.pid)
+        return representatives.flatMap { representative in
+            [representative] + (windowsByPID[representative.pid] ?? []).filter {
+                $0.id != representative.id
+            }
+        }
     }
 
     static func shouldPausePreviewCapture(frontmostBundleIdentifier: String?,
@@ -687,6 +719,16 @@ enum SwitcherSupport {
         return pids.count > 1 ? 1 : 0
     }
 
+    /// Column count for a wrapping card grid: keep the same number of rows
+    /// the screen already requires, but do not stretch to a full first row
+    /// when the leftover items would sit almost empty on the next one.
+    static func gridColumnCount(itemCount: Int, maxColumns: Int) -> Int {
+        let count = max(itemCount, 1)
+        let packed = min(count, max(maxColumns, 1))
+        let rows = (count + packed - 1) / packed
+        return min(packed, (count + rows - 1) / rows)
+    }
+
     /// Moves between rows without wrapping. When the row below is shorter,
     /// Down lands on that row's last item instead of leaving the selection in
     /// place because the same column is missing.
@@ -932,6 +974,31 @@ enum SwitcherSupport {
                                       panelFrame: CGRect,
                                       location: CGPoint) -> Bool {
         panelIsVisible && !panelFrame.contains(location)
+    }
+
+    /// Whether a mouse click is a middle click inside the active switcher panel
+    /// (which closes the highlighted/targeted window).
+    static func isMiddleClickInsidePanel(eventType: CGEventType,
+                                         buttonNumber: Int64,
+                                         panelIsVisible: Bool,
+                                         panelFrame: CGRect,
+                                         location: CGPoint) -> Bool {
+        eventType == .otherMouseDown
+            && buttonNumber == 2
+            && panelIsVisible
+            && panelFrame.contains(location)
+    }
+
+    /// Whether a middle mouse up event occurred inside the switcher panel and should be swallowed.
+    static func shouldSwallowMiddleMouseUp(eventType: CGEventType,
+                                           buttonNumber: Int64,
+                                           panelIsVisible: Bool,
+                                           panelFrame: CGRect,
+                                           location: CGPoint) -> Bool {
+        eventType == .otherMouseUp
+            && buttonNumber == 2
+            && panelIsVisible
+            && panelFrame.contains(location)
     }
 
     /// The letters the panel acts on: W closes the highlighted window, Q quits

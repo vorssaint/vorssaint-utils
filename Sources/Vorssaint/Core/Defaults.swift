@@ -72,6 +72,7 @@ enum DefaultsKey {
     static let switcherShowShortcutHints = "switcherShowShortcutHints" // show the shortcut bar under the large-icon switcher
     static let dockPreviewEnabled = "dockPreviewEnabled"
     static let dockPreviewBackgroundOpacity = "dockPreviewBackgroundOpacity" // how solid the preview panel's material is drawn (DockPreviewSupport.backgroundOpacityRange)
+    static let dockPreviewOpenDelay = "dockPreviewOpenDelay" // milliseconds the cursor must rest on a Dock icon before its panel opens (DockPreviewSupport.openDelayMillisecondsRange)
     static let dockClickMinimize = "dockClickMinimize"    // click the active app's Dock icon to minimize its windows
     static let dockClickHide = "dockClickHide"            // click the active app's Dock icon to hide the app
     static let dockClickCycleWindows = "dockClickCycleWindows" // click the active app's Dock icon to cycle through its windows
@@ -79,10 +80,12 @@ enum DefaultsKey {
     static let middleClickTapFingers = "middleClickTapFingers"  // 0 = off (default); 3 or 4 = a light tap with that many fingers also middle-clicks (issue #161)
     static let previewSize = "previewSize"                // app switcher + dock preview thumbnail size
     static let autoCheckUpdates = "autoCheckUpdates"
+    static let includeBetaUpdates = "includeBetaUpdates"
     static let releaseNotesOnUpdate = "releaseNotesOnUpdate" // show What's New after an update
     static let appVolumes = "appVolumes"                  // [bundle id: 0...2]
     static let appOutputDevices = "appOutputDevices"      // [bundle id: audio device UID]
     static let mixerShowFinder = "mixerShowFinder"
+    static let mixerHideInactiveApps = "mixerHideInactiveApps"
     static let mixerHiddenApps = "mixerHiddenApps"        // [persistence id: display name] kept out of the mixer list (issue #300)
     static let mixerLowerVolumeOnHeadphonesDisconnect = "mixerLowerVolumeOnHeadphonesDisconnect"
     static let mixerHeadphonesDisconnectVolumePercent = "mixerHeadphonesDisconnectVolumePercent"
@@ -131,6 +134,7 @@ enum DefaultsKey {
     static let cleanerLastAutoRun = "cleanerLastAutoRun"                // Double, epoch seconds
     static let cleanerLastAutoFreed = "cleanerLastAutoFreed"            // Int bytes
     // Confirmed WhatsApp downloads in the top level of ~/Downloads.
+    static let whatsAppDownloadsEnabled = "whatsAppDownloadsEnabled"
     static let whatsAppDownloadsAutomaticEnabled = "whatsAppDownloadsAutomaticEnabled"
     static let whatsAppDownloadsCategories = "whatsAppDownloadsCategories" // comma-joined category ids
     static let whatsAppDownloadsRetentionDays = "whatsAppDownloadsRetentionDays"
@@ -170,6 +174,10 @@ enum DefaultsKey {
     static let panelUtilityCleaning = "panelUtilityCleaning"
     static let panelUtilityURLCleaner = "panelUtilityURLCleaner"
     static let panelUtilityUninstaller = "panelUtilityUninstaller"
+    static let killProcessCommandBarEnabled = "killProcessCommandBarEnabled"
+    static let killProcessGroupRelated = "killProcessGroupRelated"
+    static let killProcessSortBy = "killProcessSortBy" // cpu | memory | name | pid
+    static let killProcessSortAscending = "killProcessSortAscending"
     static let panelUtilityCleaner = "panelUtilityCleaner"
     static let panelUtilityHomebrew = "panelUtilityHomebrew"
     static let panelUtilityAppUpdates = "panelUtilityAppUpdates"
@@ -267,6 +275,9 @@ enum DefaultsKey {
     static let monitorShowPower = "monitorShowPower"
     static let monitorShowMixer = "monitorShowMixer"
     static let panelShowFanControl = "panelShowFanControl"
+    static let fanControlMode = "fanControlMode"
+    static let fanControlCoolingLevel = "fanControlCoolingLevel"
+    static let fanControlCurves = "fanControlCurves"
     // Previous panel visibility key, read once by the migration below.
     static let monitorShowFanControlBeta = "monitorShowFanControlBeta"
     // Machine-only recovery state. A true value means the helper must confirm
@@ -443,6 +454,7 @@ enum DefaultsKey {
     static let screenshotShortcutEnabled = "screenshotShortcutEnabled"
     static let screenshotShortcut = "screenshotShortcut"
     static let unifiedScreenCaptureShortcutMigrated = "unifiedScreenCaptureShortcutMigrated"
+    static let restoredScreenCaptureShortcutsMigrated = "restoredScreenCaptureShortcutsMigrated"
     static let screenshotFullScreenShortcutEnabled = "screenshotFullScreenShortcutEnabled"
     static let screenshotFullScreenShortcut = "screenshotFullScreenShortcut"
     static let screenshotLastCaptureShortcutEnabled = "screenshotLastCaptureShortcutEnabled"
@@ -499,6 +511,8 @@ enum DefaultsKey {
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
+    static let windowDirectionalEnabled = "windowDirectionalEnabled"
+    static let windowDirectionalShortcut = "windowDirectionalShortcut"
     static let windowEdgeSnapEnabled = "windowEdgeSnapEnabled"
     static let windowGestureEnabled = "windowGestureEnabled"
     static let windowGestureModifiers = "windowGestureModifiers"
@@ -546,6 +560,7 @@ enum DefaultsKey {
 
     // Dev-build only: force the "update available" UI for local testing.
     static let simulateUpdate = "simulateUpdate"
+    static let simulateBetaUI = "simulateBetaUI"
 
     /// Features hub availability layer, one key per AppFeature raw value.
     /// Registered true: unavailable features vanish from every surface and
@@ -772,6 +787,7 @@ enum Defaults {
         DefaultsKey.switcherShowShortcutHints: true,
         DefaultsKey.dockPreviewEnabled: false,
         DefaultsKey.dockPreviewBackgroundOpacity: 1.0,
+        DefaultsKey.dockPreviewOpenDelay: DockPreviewSupport.defaultOpenDelayMilliseconds,
         DefaultsKey.dockClickMinimize: false,
         DefaultsKey.dockClickHide: false,
         DefaultsKey.dockClickCycleWindows: false,
@@ -779,10 +795,12 @@ enum Defaults {
         DefaultsKey.middleClickTapFingers: 0,
         DefaultsKey.previewSize: "normal",
         DefaultsKey.autoCheckUpdates: true,
+        DefaultsKey.includeBetaUpdates: false,
         DefaultsKey.releaseNotesOnUpdate: true,
         DefaultsKey.updateShowcaseIntroVersion: "",
         DefaultsKey.updateShowcaseMediaOverride: "",
         DefaultsKey.mixerShowFinder: true,
+        DefaultsKey.mixerHideInactiveApps: false,
         DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect: false,
         DefaultsKey.mixerHeadphonesDisconnectVolumePercent: defaultMixerHeadphonesDisconnectVolumePercent,
         DefaultsKey.soundOutputSwitcherEnabled: false,
@@ -819,6 +837,7 @@ enum Defaults {
         DefaultsKey.cleanerScheduleNotify: true,
         DefaultsKey.cleanerLastAutoRun: 0.0,
         DefaultsKey.cleanerLastAutoFreed: 0,
+        DefaultsKey.whatsAppDownloadsEnabled: false,
         DefaultsKey.whatsAppDownloadsAutomaticEnabled: false,
         DefaultsKey.whatsAppDownloadsCategories: "image,video,audio",
         DefaultsKey.whatsAppDownloadsRetentionDays: 7,
@@ -862,6 +881,10 @@ enum Defaults {
         DefaultsKey.panelUtilityCleaning: true,
         DefaultsKey.panelUtilityURLCleaner: true,
         DefaultsKey.panelUtilityUninstaller: true,
+        DefaultsKey.killProcessCommandBarEnabled: true,
+        DefaultsKey.killProcessGroupRelated: true,
+        DefaultsKey.killProcessSortBy: "cpu",
+        DefaultsKey.killProcessSortAscending: false,
         DefaultsKey.panelUtilityCleaner: true,
         DefaultsKey.panelUtilityHomebrew: true,
         DefaultsKey.panelUtilityAppUpdates: true,
@@ -949,6 +972,9 @@ enum Defaults {
         DefaultsKey.monitorShowPower: true,
         DefaultsKey.monitorShowMixer: true,
         DefaultsKey.panelShowFanControl: true,
+        DefaultsKey.fanControlMode: FanControlMode.system.rawValue,
+        DefaultsKey.fanControlCoolingLevel: FanControlPolicy.defaultCoolingLevel,
+        DefaultsKey.fanControlCurves: FanControlConfiguration.defaultCurvesStorage,
         DefaultsKey.fanControlRecoveryNeeded: false,
         DefaultsKey.fanControlHelperVersion: "",
         DefaultsKey.panelNavigationEnabled: true,
@@ -1100,6 +1126,7 @@ enum Defaults {
         DefaultsKey.screenshotShortcutEnabled: false,
         DefaultsKey.screenshotShortcut: GlobalShortcut.screenshotDefault.storageValue,
         DefaultsKey.unifiedScreenCaptureShortcutMigrated: false,
+        DefaultsKey.restoredScreenCaptureShortcutsMigrated: false,
         DefaultsKey.screenshotFullScreenShortcutEnabled: false,
         DefaultsKey.screenshotFullScreenShortcut: GlobalShortcut.screenshotFullScreenDefault.storageValue,
         DefaultsKey.screenshotLastCaptureShortcutEnabled: false,
@@ -1133,6 +1160,8 @@ enum Defaults {
         DefaultsKey.screenshotSharingEnabled: true,
         DefaultsKey.panelUtilityScreenshot: true,
         DefaultsKey.windowLayoutShortcutsEnabled: false,
+        DefaultsKey.windowDirectionalEnabled: false,
+        DefaultsKey.windowDirectionalShortcut: GlobalShortcut.windowDirectionalDefault.storageValue,
         DefaultsKey.windowEdgeSnapEnabled: false,
         DefaultsKey.windowGestureEnabled: false,
         DefaultsKey.windowGestureModifiers: WindowGestureSupport.defaultModifierStorageValue,
@@ -1169,8 +1198,10 @@ enum Defaults {
         let defaults = UserDefaults.standard
         migrateFanControlVisibility(in: defaults)
         migrateScrollInverterAxes(in: defaults)
+        migrateWhatsAppDownloadsEnabled(in: defaults)
         defaults.register(defaults: registeredDefaults)
         defaults.register(defaults: AppFeature.availabilityDefaults)
+        activateBetaChannelIfRunningBeta(in: defaults)
         migrateLegacyMenuBarTemperatureMetric(in: defaults)
         migrateLegacySwitcherWindowShortcut(in: defaults)
         migrateLegacyKeyboardDebounceWindow(in: defaults)
@@ -1178,8 +1209,40 @@ enum Defaults {
         migrateUtilityOrderForAppUpdates(in: defaults)
         migrateScreenshotOpenEditorDirectly(in: defaults)
         migrateUnifiedScreenCaptureShortcut(in: defaults)
+        migrateRestoredScreenCaptureShortcuts(in: defaults)
         migrateSilentHeadphonesDisconnectVolume(in: defaults)
         migrateSwitcherWindowlessFinder(in: defaults)
+    }
+
+    /// When the user installs or runs a beta pre-release, activate the beta
+    /// channel default once so they seamlessly receive subsequent beta builds.
+    static func activateBetaChannelIfRunningBeta(in defaults: UserDefaults,
+                                                 version: String = AppInfo.version,
+                                                 isBeta: Bool = AppInfo.isBeta) {
+        let isPre = isBeta || {
+            let v = version.lowercased()
+            return v.contains("-beta") || v.contains("-rc") || v.contains("-alpha")
+        }()
+        guard isPre else { return }
+        let markerKey = "betaChannelActivatedFor.\(version)"
+        guard !defaults.bool(forKey: markerKey) else { return }
+        defaults.set(true, forKey: markerKey)
+        defaults.set(true, forKey: DefaultsKey.includeBetaUpdates)
+    }
+
+    /// The downloads cleanup for a messaging app used to sit in Cleaner for
+    /// everyone. Keep it visible only when someone already turned automatic
+    /// cleanup or the organizer on; everyone else gets the new off-by-default
+    /// choice.
+    static func migrateWhatsAppDownloadsEnabled(in defaults: UserDefaults) {
+        guard defaults.object(forKey: DefaultsKey.whatsAppDownloadsEnabled) == nil else {
+            return
+        }
+        let alreadyUsing = defaults.bool(forKey: DefaultsKey.whatsAppDownloadsAutomaticEnabled)
+            || defaults.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled)
+        if alreadyUsing {
+            defaults.set(true, forKey: DefaultsKey.whatsAppDownloadsEnabled)
+        }
     }
 
     /// The former single switch also reversed vertical wheel events redirected
@@ -1261,6 +1324,32 @@ enum Defaults {
         let shortcut = defaults.string(forKey: choice.shortcut) ?? choice.fallback.storageValue
         defaults.set(true, forKey: DefaultsKey.screenshotShortcutEnabled)
         defaults.set(shortcut, forKey: DefaultsKey.screenshotShortcut)
+    }
+
+    /// The unified-capture migration copied an enabled dedicated shortcut to
+    /// the general capture role. Now that dedicated shortcuts are back, keep
+    /// the original role instead of registering the same combination twice.
+    static func migrateRestoredScreenCaptureShortcuts(in defaults: UserDefaults) {
+        guard !defaults.bool(forKey: DefaultsKey.restoredScreenCaptureShortcutsMigrated) else {
+            return
+        }
+        defer {
+            defaults.set(true, forKey: DefaultsKey.restoredScreenCaptureShortcutsMigrated)
+        }
+        guard defaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled),
+              let generalShortcut = defaults.string(forKey: DefaultsKey.screenshotShortcut)
+        else { return }
+
+        let dedicatedKeys = [
+            (DefaultsKey.recorderShortcutEnabled, DefaultsKey.recorderShortcut),
+            (DefaultsKey.screenOCRShortcutEnabled, DefaultsKey.screenOCRShortcut),
+            (DefaultsKey.colorPickerShortcutEnabled, DefaultsKey.colorPickerShortcut),
+        ]
+        guard dedicatedKeys.contains(where: { enabledKey, shortcutKey in
+            defaults.bool(forKey: enabledKey)
+                && defaults.string(forKey: shortcutKey) == generalShortcut
+        }) else { return }
+        defaults.set(false, forKey: DefaultsKey.screenshotShortcutEnabled)
     }
 
     static func migrateLegacySwitcherWindowShortcut(in defaults: UserDefaults) {

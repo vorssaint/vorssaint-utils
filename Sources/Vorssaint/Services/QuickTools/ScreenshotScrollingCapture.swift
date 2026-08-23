@@ -115,6 +115,8 @@ enum ScreenshotScrollingCapture {
             var retainedPixels = first.width * first.height
             var contentSampleColumns: Range<Int>?
             var contentPixelColumns: Range<Int>?
+            var fixedBottomPixels = 0
+            var footerSlice: CGImage?
             var lastSeenGeneration = startingGeneration
             var lastMatchedGeneration = startingGeneration
             var lastCaptureAt = ProcessInfo.processInfo.systemUptime
@@ -138,6 +140,7 @@ enum ScreenshotScrollingCapture {
                    !scrollPending || now - finishRequestedAt >= finishGraceInterval {
                     return completedByUser(
                         slices: slices,
+                        footerSlice: footerSlice,
                         region: region,
                         activityGeneration: currentActivity.generation,
                         lastMatchedGeneration: lastMatchedGeneration)
@@ -145,7 +148,10 @@ enum ScreenshotScrollingCapture {
                 if now - startedAt
                     >= ScreenshotSupport.scrollingCaptureMaximumDuration
                     || slices.count >= ScreenshotSupport.scrollingCaptureMaximumFrames {
-                    return completed(slices: slices, region: region, result: .limited)
+                    return completed(slices: slices,
+                                     footerSlice: footerSlice,
+                                     region: region,
+                                     result: .limited)
                 }
 
                 guard scrollPending else {
@@ -189,39 +195,87 @@ enum ScreenshotScrollingCapture {
                     let overlap = Int((CGFloat(sampleOverlap) / CGFloat(currentSample.height)
                         * CGFloat(current.height)).rounded())
                     guard overlap > 0, overlap < current.height else { return .failed }
-                    if contentSampleColumns == nil {
+                    let establishingContent = contentSampleColumns == nil
+                    if establishingContent {
                         guard let pixelColumns = ScreenshotSupport.scrollingPixelRange(
                             sampleColumns: matchedColumns,
                             sampleWidth: currentSample.width,
-                            imageWidth: current.width),
+                            imageWidth: current.width)
+                        else { return .failed }
+                        let fixedBottomRows = ScreenshotSupport.scrollingFixedBottomRows(
+                            previous: previousSample,
+                            current: currentSample,
+                            overlap: sampleOverlap,
+                            contentColumns: matchedColumns)
+                        fixedBottomPixels = Int(
+                            (CGFloat(fixedBottomRows) / CGFloat(currentSample.height)
+                                * CGFloat(current.height)).rounded())
+                        guard let newContentRows = ScreenshotSupport.scrollingNewContentRows(
+                            imageHeight: current.height,
+                            overlap: overlap,
+                            fixedBottomRows: fixedBottomPixels),
                               let croppedFirst = copiedStrip(from: first,
                                                             columns: pixelColumns,
-                                                            topCrop: 0)
+                                                            topCrop: 0,
+                                                            bottomCrop: fixedBottomPixels)
                         else { return .failed }
                         contentSampleColumns = matchedColumns
                         contentPixelColumns = pixelColumns
                         slices[0] = croppedFirst
                         retainedPixels = croppedFirst.width * croppedFirst.height
+
+                        if fixedBottomPixels > 0 {
+                            guard let footer = copiedStrip(
+                                from: current,
+                                columns: pixelColumns,
+                                topCrop: newContentRows.upperBound,
+                                bottomCrop: 0)
+                            else { return .failed }
+                            footerSlice = footer
+                            retainedPixels += footer.width * footer.height
+                        }
                     }
                     guard let pixelColumns = contentPixelColumns else { return .failed }
-                    let stripHeight = current.height - overlap
+                    guard let newContentRows = ScreenshotSupport.scrollingNewContentRows(
+                        imageHeight: current.height,
+                        overlap: overlap,
+                        fixedBottomRows: fixedBottomPixels)
+                    else { return .failed }
+                    let stripHeight = newContentRows.count
                     let nextHeight = totalHeight + stripHeight
                     guard !pixelColumns.isEmpty,
                           nextHeight <= ScreenshotSupport.scrollingCaptureMaximumPixels
                             / pixelColumns.count
                     else {
-                        return completed(slices: slices, region: region, result: .limited)
+                        return completed(slices: slices,
+                                         footerSlice: footerSlice,
+                                         region: region,
+                                         result: .limited)
                     }
                     guard let strip = copiedStrip(from: current,
                                                   columns: pixelColumns,
-                                                  topCrop: overlap)
+                                                  topCrop: newContentRows.lowerBound,
+                                                  bottomCrop: current.height
+                                                    - newContentRows.upperBound)
                     else { return .failed }
                     let stripPixels = strip.width * strip.height
                     guard stripPixels <= ScreenshotSupport.scrollingCaptureMaximumRetainedPixels,
                           retainedPixels
                             <= ScreenshotSupport.scrollingCaptureMaximumRetainedPixels
                                 - stripPixels else {
-                        return completed(slices: slices, region: region, result: .limited)
+                        return completed(slices: slices,
+                                         footerSlice: footerSlice,
+                                         region: region,
+                                         result: .limited)
+                    }
+                    if fixedBottomPixels > 0, !establishingContent {
+                        guard let footer = copiedStrip(
+                            from: current,
+                            columns: pixelColumns,
+                            topCrop: current.height - fixedBottomPixels,
+                            bottomCrop: 0)
+                        else { return .failed }
+                        footerSlice = footer
                     }
                     // Keep only new pixels. Retaining every full frame made a
                     // common Retina selection hit the memory guard after about
@@ -264,14 +318,21 @@ enum ScreenshotScrollingCapture {
     }
 
     private static func completedByUser(slices: [CGImage],
+                                        footerSlice: CGImage?,
                                         region: RecorderSupport.Region,
                                         activityGeneration: Int,
                                         lastMatchedGeneration: Int) -> Result {
         guard activityGeneration > lastMatchedGeneration else {
-            return completed(slices: slices, region: region, result: .success)
+            return completed(slices: slices,
+                             footerSlice: footerSlice,
+                             region: region,
+                             result: .success)
         }
         guard slices.count > 1 else { return .failed }
-        return completed(slices: slices, region: region, result: .partial)
+        return completed(slices: slices,
+                         footerSlice: footerSlice,
+                         region: region,
+                         result: .partial)
     }
 
     private enum CompletedResult {
@@ -281,10 +342,12 @@ enum ScreenshotScrollingCapture {
     }
 
     private static func completed(slices: [CGImage],
+                                  footerSlice: CGImage?,
                                   region: RecorderSupport.Region,
                                   result: CompletedResult) -> Result {
         guard !Task.isCancelled else { return .cancelled }
-        guard let image = stitch(slices) else {
+        let completedSlices = footerSlice.map { slices + [$0] } ?? slices
+        guard let image = stitch(completedSlices) else {
             return Task.isCancelled ? .cancelled : .failed
         }
         guard !Task.isCancelled else { return .cancelled }
@@ -361,9 +424,11 @@ enum ScreenshotScrollingCapture {
     /// new strip into its own bitmap makes the retained-pixel guard truthful.
     private static func copiedStrip(from image: CGImage,
                                     columns: Range<Int>,
-                                    topCrop: Int) -> CGImage? {
-        let height = image.height - topCrop
+                                    topCrop: Int,
+                                    bottomCrop: Int) -> CGImage? {
+        let height = image.height - topCrop - bottomCrop
         guard image.width > 0, height > 0,
+              topCrop >= 0, bottomCrop >= 0,
               columns.lowerBound >= 0,
               columns.upperBound <= image.width,
               !columns.isEmpty,

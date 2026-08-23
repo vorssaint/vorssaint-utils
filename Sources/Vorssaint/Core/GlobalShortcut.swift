@@ -162,6 +162,8 @@ struct GlobalShortcut: Equatable, Hashable {
                                                                   modifiers: [.control, .option])
     static let windowLayoutNextDisplayDefault = GlobalShortcut(keyCode: Int64(kVK_RightArrow),
                                                                modifiers: [.control, .option, .command])
+    static let windowDirectionalDefault = GlobalShortcut(keyCode: Int64(kVK_Space),
+                                                         modifiers: [.control, .option])
     // Quick tools. Paste plain follows the universal "Paste and Match Style"
     // combination; the others use the free ⌃⌥⌘ letters.
     static let pastePlainDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_V),
@@ -755,8 +757,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     }
 
     /// The main capture role survives while any mode in its chooser is
-    /// installed. The former dedicated shortcuts stay readable for migration
-    /// but no longer appear or register as separate commands.
+    /// installed. Dedicated roles follow their own tool.
     var availabilityFeatures: [AppFeature] {
         switch self {
         case .screenshot:
@@ -766,12 +767,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         }
     }
 
-    var isLegacyUnifiedCaptureShortcut: Bool {
-        self == .screenRecorder || self == .screenOCR || self == .colorPicker
-    }
-
     func isAvailable(using isAvailable: (AppFeature) -> Bool) -> Bool {
-        !isLegacyUnifiedCaptureShortcut && availabilityFeatures.contains(where: isAvailable)
+        availabilityFeatures.contains(where: isAvailable)
     }
 
     /// The features whose own shortcuts have to go quiet while the user is

@@ -30,11 +30,12 @@ private struct SwitcherPendingSessionStart {
 
 /// The window switcher: a global event tap takes over the configured shortcut,
 /// and while its modifiers are held a non-activating panel cycles through real
-/// windows. Releasing commits, W closes the highlighted window, and Q quits
-/// its app. When the optional pin-search preference is enabled, S pins the
-/// search field open (so typing no longer needs the modifier held). Esc and a
-/// click outside cancel. The panel joins every Space and
-/// fullscreen app, so the switcher is available wherever the user is.
+/// windows. Releasing commits, middle-clicking a card or pressing W closes the
+/// highlighted window, and Q quits its app. When the optional pin-search
+/// preference is enabled, S pins the search field open (so typing no longer
+/// needs the modifier held). Esc and a click outside cancel. The panel joins
+/// every Space and fullscreen app, so the switcher is available wherever the
+/// user is.
 final class AppSwitcher: ObservableObject {
     static let shared = AppSwitcher()
 
@@ -326,6 +327,7 @@ final class AppSwitcher: ObservableObject {
                 | CGEventMask(1 << CGEventType.leftMouseDown.rawValue)
                 | CGEventMask(1 << CGEventType.rightMouseDown.rawValue)
                 | CGEventMask(1 << CGEventType.otherMouseDown.rawValue)
+                | CGEventMask(1 << CGEventType.otherMouseUp.rawValue)
             guard let tap = CGEvent.tapCreate(
                 tap: .cgSessionEventTap,
                 place: .headInsertEventTap,
@@ -424,7 +426,7 @@ final class AppSwitcher: ObservableObject {
                 }
                 return verdict
             }
-            if type == .leftMouseDown || type == .rightMouseDown || type == .otherMouseDown {
+            if type == .leftMouseDown || type == .rightMouseDown || type == .otherMouseDown || type == .otherMouseUp {
                 let stillInactive = routeLock.withLock { () -> Bool in
                     guard !routeSessionActive else { return false }
                     routePendingSessionStart = nil
@@ -559,7 +561,31 @@ final class AppSwitcher: ObservableObject {
             }
             return Unmanaged.passUnretained(event)
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+            if type == .otherMouseDown,
+               let panel,
+               SwitcherSupport.isMiddleClickInsidePanel(
+                   eventType: type,
+                   buttonNumber: event.getIntegerValueField(.mouseEventButtonNumber),
+                   panelIsVisible: panel.isVisible,
+                   panelFrame: panel.frame,
+                   location: NSEvent.mouseLocation
+               ) {
+                closeSelectedWindow()
+                return nil
+            }
             dismissForClickOutsidePanel()
+            return Unmanaged.passUnretained(event)
+        case .otherMouseUp:
+            if let panel,
+               SwitcherSupport.shouldSwallowMiddleMouseUp(
+                   eventType: type,
+                   buttonNumber: event.getIntegerValueField(.mouseEventButtonNumber),
+                   panelIsVisible: panel.isVisible,
+                   panelFrame: panel.frame,
+                   location: NSEvent.mouseLocation
+               ) {
+                return nil
+            }
             return Unmanaged.passUnretained(event)
         default:
             return Unmanaged.passUnretained(event)
@@ -698,9 +724,15 @@ final class AppSwitcher: ObservableObject {
             ) else { return nil }
             return routePendingSessionStart
         }) else { return }
+        let allApps = requested.scope == .allApps
+        let mergeWindowsByApp = UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs)
         let allWindows = WindowEnumerator.listWindows(
-            groupByApp: requested.scope == .allApps
-                && UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs)
+            groupByApp: allApps && mergeWindowsByApp,
+            preservingGroupedWindows: SwitcherSupport.preservesGroupedWindowsDuringEnumeration(
+                allApps: allApps,
+                mergeWindowsByApp: mergeWindowsByApp,
+                simpleMode: simpleModeEnabled
+            )
         )
         let windows: [SwitcherItem]
         switch requested.scope {
@@ -1391,7 +1423,7 @@ struct SwitcherGrid: Equatable {
         let usableHeight = screen.visibleFrame.height * 0.85
 
         let maxColumns = max(1, Int((usableWidth - padding * 2 + spacing) / (cardWidth + spacing)))
-        let columns = min(count, maxColumns)
+        let columns = SwitcherSupport.gridColumnCount(itemCount: count, maxColumns: maxColumns)
         let rows = Int(ceil(Double(count) / Double(columns)))
 
         let maxRows = max(1, Int((usableHeight - padding * 2 + spacing) / (cardHeight + spacing)))

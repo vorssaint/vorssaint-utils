@@ -30,11 +30,13 @@ enum WindowEnumerator {
     /// bounded AX batches.
     private static let maximumConcurrentQueries = 24
 
-    static func listWindows(groupByApp: Bool = UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs)) -> [SwitcherItem] {
+    static func listWindows(groupByApp: Bool = UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs),
+                            preservingGroupedWindows: Bool = false) -> [SwitcherItem] {
         listWindows(
             appRules: SwitcherAppRule.rules(
                 storedValue: UserDefaults.standard.dictionary(forKey: DefaultsKey.switcherAppRules)),
             groupByApp: groupByApp,
+            preservingGroupedWindows: preservingGroupedWindows,
             marksHiddenSpaces: true
         )
     }
@@ -42,11 +44,13 @@ enum WindowEnumerator {
     /// The Command Bar shares the window walk, not the Switcher's visibility
     /// preferences. An app hidden from ⌘Tab must remain searchable there.
     static func listWindowsForCommandBar() -> [SwitcherItem] {
-        listWindows(appRules: [:], groupByApp: false, marksHiddenSpaces: false)
+        listWindows(appRules: [:], groupByApp: false,
+                    preservingGroupedWindows: false, marksHiddenSpaces: false)
     }
 
     private static func listWindows(appRules: [String: SwitcherAppRule],
                                     groupByApp: Bool,
+                                    preservingGroupedWindows: Bool,
                                     marksHiddenSpaces: Bool) -> [SwitcherItem] {
         let windowlessApps = SwitcherWindowlessApps.mode(
             storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherWindowlessApps))
@@ -57,6 +61,7 @@ enum WindowEnumerator {
                            appRules: appRules,
                            groupByApp: groupByApp,
                            switchSettings: WindowSwitchSettings.load(),
+                           preservingGroupedWindows: preservingGroupedWindows,
                            currentSpaceOnly: currentSpaceOnly,
                            marksHiddenSpaces: marksHiddenSpaces && !currentSpaceOnly)
     }
@@ -78,6 +83,7 @@ enum WindowEnumerator {
                     appRules: [:],
                     groupByApp: false,
                     switchSettings: .init(),
+                    preservingGroupedWindows: false,
                     currentSpaceOnly: false,
                     marksHiddenSpaces: false)
     }
@@ -88,6 +94,7 @@ enum WindowEnumerator {
                                     appRules: [String: SwitcherAppRule],
                                     groupByApp: Bool,
                                     switchSettings: WindowSwitchSettings,
+                                    preservingGroupedWindows: Bool,
                                     currentSpaceOnly: Bool,
                                     marksHiddenSpaces: Bool) -> [SwitcherItem] {
         let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
@@ -310,6 +317,7 @@ enum WindowEnumerator {
                              appRules: appRules)
         // collect -> filter
         let filtered = WindowSwitchCandidatePipeline.filter(windows, settings: switchSettings)
+        let groupedBackingWindows = groupByApp && preservingGroupedWindows ? filtered : []
         // partition -> order (before grouping so minimized state is preserved per-window)
         let partitioned = WindowSwitchCandidatePipeline.partition(filtered, settings: switchSettings)
         let orderedPrimary = orderByUse(partitioned.primary, frontToBack: frontToBack)
@@ -331,8 +339,13 @@ enum WindowEnumerator {
                 result.append(desktopEntry)
             }
         }
+        if groupByApp, preservingGroupedWindows {
+            result = SwitcherSupport.expandGroupedWindows(
+                orderedWindows: orderByUse(groupedBackingWindows, frontToBack: frontToBack),
+                representatives: result)
+        }
         // Space lookups are comparatively expensive. Resolve badges only for
-        // the representatives that survived grouping and the visible cap.
+        // the entries whose apps survived grouping and the visible cap.
         if marksHiddenSpaces {
             result = result.map { window in
                 guard let windowID = window.windowID else { return window }

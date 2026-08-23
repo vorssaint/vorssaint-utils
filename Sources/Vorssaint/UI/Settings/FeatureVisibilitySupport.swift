@@ -8,7 +8,7 @@ import Foundation
 /// below and the unit tests can reason about pages without pulling UI in.
 enum SettingsPage: Hashable {
     case general, features, energy, monitor
-    case mouse, switcher, keyDebounce, superKey, cutPaste, autoQuit, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar
+    case mouse, switcher, keyDebounce, superKey, cutPaste, autoQuit, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess
     case shortcuts, advanced, about, releaseNotes, support
 }
 
@@ -29,6 +29,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case middleClick
     case switcher
     case dock
+    case dockClick
     case finderCutPaste
     case finderRename
     case clipboardHistory
@@ -52,7 +53,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         case .scrollDirection, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts,
              .middleClick:
             return .mouse
-        case .switcher, .dock: return .switcher
+        case .switcher, .dock, .dockClick: return .switcher
         case .finderCutPaste, .finderRename: return .cutPaste
         case .clipboardHistory, .pastePlain: return .clipboard
         case .quickLauncher, .quickToggles, .micMute, .cameraPreview, .scratchpad:
@@ -131,8 +132,8 @@ extension AppFeature {
     var settingsDestination: FeatureSettingsDestination {
         switch self {
         case .switcher: return FeatureSettingsDestination(.switcher, sectionAnchor: .switcher)
-        case .dockPreview, .dockClick:
-            return FeatureSettingsDestination(.switcher, sectionAnchor: .dock)
+        case .dockPreview: return FeatureSettingsDestination(.switcher, sectionAnchor: .dock)
+        case .dockClick: return FeatureSettingsDestination(.switcher, sectionAnchor: .dockClick)
         case .windowMaximizer:
             return FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
         case .windowLayout: return FeatureSettingsDestination(.windowLayout)
@@ -195,6 +196,7 @@ extension AppFeature {
         case .mediaTools: return FeatureSettingsDestination(.media)
         case .cleaner: return FeatureSettingsDestination(.cleaner)
         case .uninstaller: return FeatureSettingsDestination(.uninstaller)
+        case .killProcess: return FeatureSettingsDestination(.killProcess)
         case .homebrew: return FeatureSettingsDestination(.homebrew)
         case .appUpdates: return FeatureSettingsDestination(.appUpdates)
         case .screenshot:
@@ -246,6 +248,7 @@ enum FeatureVisibilitySupport {
         case .homebrew: return [.homebrew]
         case .appUpdates: return [.appUpdates]
         case .uninstaller: return [.uninstaller]
+        case .killProcess: return [.killProcess]
         case .keyDebounce: return [.keyboardDebounce]
         case .superKey: return [.superKey]
         case .textSnippets: return [.textSnippets]

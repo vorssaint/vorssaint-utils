@@ -23,9 +23,20 @@ struct SettingsView: View {
             sidebar
                 .navigationSplitViewColumnWidth(min: 198, ideal: 210, max: 240)
         } detail: {
-            detail
-                .settingsSectionFocus(for: router.page)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            // NavigationSplitView's detail slot sometimes queries its content
+            // for an unconstrained ideal size (settling the divider, or on a
+            // page switch). `List` answers that with its full content height
+            // rather than a viewport size the way `ScrollView` does, and
+            // `.frame(maxHeight: .infinity)` only bounds a size it is given,
+            // not one it is asked to report - so a few hundred rows (Kill
+            // Process) grew the whole window. `GeometryReader` reports the
+            // real space it was actually given for normal layout, and ~zero
+            // when asked for an unconstrained ideal size, breaking the chain.
+            GeometryReader { geometry in
+                detail
+                    .settingsSectionFocus(for: router.page)
+                    .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+            }
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 772, maxWidth: .infinity, minHeight: 528, maxHeight: .infinity)
@@ -118,6 +129,7 @@ struct SettingsView: View {
         case .cutPaste: CutPasteSettings()
         case .autoQuit: AutoQuitSettings()
         case .uninstaller: UninstallerView()
+        case .killProcess: KillProcessView()
         case .urlCleaner: URLCleanerSettings()
         case .cleaner: CleanerSettings()
         case .homebrew: HomebrewSettings()
@@ -289,6 +301,7 @@ struct UpdatesView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var updates = UpdateService.shared
     @AppStorage(DefaultsKey.autoCheckUpdates) private var autoCheck = true
+    @AppStorage(DefaultsKey.includeBetaUpdates) private var includeBetas = AppInfo.isBeta
 
     var body: some View {
         Section(l10n.s.updatesSection) {
@@ -296,6 +309,14 @@ struct UpdatesView: View {
                 .onChange(of: autoCheck) { _, value in
                     UpdateService.shared.autoCheckEnabled = value
                 }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle(l10n.s.includeBetaUpdatesToggle, isOn: $includeBetas)
+                    .onChange(of: includeBetas) { _, value in
+                        UpdateService.shared.includeBetaUpdates = value
+                    }
+                SettingsCaptionText(l10n.s.includeBetaUpdatesCaption)
+            }
 
             statusRow
 
@@ -830,6 +851,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherShowShortcutHints) private var switcherShowShortcutHints = true
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var dockPreviewBackgroundOpacity = 1.0
+    @AppStorage(DefaultsKey.dockPreviewOpenDelay) private var dockPreviewOpenDelay = DockPreviewSupport.defaultOpenDelayMilliseconds
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
     @AppStorage(DefaultsKey.dockClickHide) private var dockClickHide = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
@@ -945,9 +967,9 @@ struct SwitcherSettings: View {
                 }
                 .settingsSectionAnchor(.switcher)
             }
-            if AppFeature.dockPreview.isAvailable || AppFeature.dockClick.isAvailable {
+            if AppFeature.dockPreview.isAvailable {
                 Section {
-                    if AppFeature.dockPreview.isAvailable {
+                    do {
                         Toggle(l10n.s.dockPreviewEnable, isOn: $dockPreviewEnabled)
                             .onChange(of: dockPreviewEnabled) { _, _ in
                                 DockPreviewService.shared.syncWithPreferences()
@@ -956,6 +978,22 @@ struct SwitcherSettings: View {
                             .font(.caption)
                             .foregroundStyle(dockPreviewWarning ? .orange : .secondary)
                         if dockPreviewEnabled {
+                            HStack {
+                                Text(l10n.s.dockPreviewOpenDelay)
+                                Spacer()
+                                TextField("", value: dockPreviewOpenDelayBinding,
+                                          formatter: Self.dockPreviewOpenDelayFormatter)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 64)
+                                Stepper("", value: dockPreviewOpenDelayBinding,
+                                        in: DockPreviewSupport.openDelayMillisecondsRange,
+                                        step: 50)
+                                    .labelsHidden()
+                                Text(verbatim: "ms")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .fixedSize(horizontal: false, vertical: true)
+                            SettingsCaptionText(l10n.s.dockPreviewOpenDelayCaption)
                             HStack {
                                 Text(l10n.s.dockPreviewBackgroundOpacity)
                                 Slider(value: dockPreviewBackgroundOpacityBinding,
@@ -969,7 +1007,17 @@ struct SwitcherSettings: View {
                             SettingsCaptionText(l10n.s.dockPreviewBackgroundOpacityCaption)
                         }
                     }
-                    if AppFeature.dockClick.isAvailable {
+                } header: {
+                    Text(l10n.s.dockPreviewName)
+                }
+                .settingsSectionAnchor(.dock)
+            }
+            // Clicking a Dock icon is its own installable feature in the hub, so
+            // it gets its own section here. It used to sit under the Dock Preview
+            // header, which named one feature over the controls of two.
+            if AppFeature.dockClick.isAvailable {
+                Section {
+                    do {
                         Toggle(l10n.s.dockClickMinimize, isOn: $dockClickMinimize)
                             .onChange(of: dockClickMinimize) { _, enabled in
                                 if enabled { dockClickHide = false }
@@ -995,9 +1043,9 @@ struct SwitcherSettings: View {
                             .foregroundStyle(.secondary)
                     }
                 } header: {
-                    Text(l10n.s.dockPreviewName)
+                    Text(FeatureStrings.hub(l10n.language).titleDockClick)
                 }
-                .settingsSectionAnchor(.dock)
+                .settingsSectionAnchor(.dockClick)
             }
             if AppFeature.switcher.isAvailable || AppFeature.dockPreview.isAvailable {
                 Section {
@@ -1060,6 +1108,24 @@ struct SwitcherSettings: View {
     private var dockPreviewBackgroundOpacityPercent: Int {
         Int((DockPreviewSupport.sanitizedBackgroundOpacity(dockPreviewBackgroundOpacity) * 100).rounded())
     }
+
+    private var dockPreviewOpenDelayBinding: Binding<Int> {
+        Binding(
+            get: { DockPreviewSupport.sanitizedOpenDelay(milliseconds: dockPreviewOpenDelay) },
+            set: { dockPreviewOpenDelay = DockPreviewSupport.sanitizedOpenDelay(milliseconds: $0) }
+        )
+    }
+
+    /// Bounded here as well as in the binding: the field rejects an out-of-range
+    /// number as it is typed rather than silently snapping it afterwards.
+    private static let dockPreviewOpenDelayFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .none
+        formatter.minimum = NSNumber(value: DockPreviewSupport.openDelayMillisecondsRange.lowerBound)
+        formatter.maximum = NSNumber(value: DockPreviewSupport.openDelayMillisecondsRange.upperBound)
+        formatter.usesGroupingSeparator = false
+        return formatter
+    }()
 }
 
 // MARK: - About
@@ -1084,9 +1150,20 @@ struct AboutSettings: View {
             VStack(spacing: 3) {
                 Text(AppInfo.name)
                     .font(.title2.bold())
-                Text("\(l10n.s.versionPrefix) \(AppInfo.version)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Text("\(l10n.s.versionPrefix) \(AppInfo.version)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if AppInfo.isBeta {
+                        Text(l10n.s.betaBadgeLabel)
+                            .font(.system(size: 9, weight: .bold))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(Color.orange.opacity(0.18))
+                            .foregroundStyle(.orange)
+                            .clipShape(Capsule())
+                    }
+                }
                 if AppInfo.isDeveloperBuild, let commit = AppInfo.buildCommit {
                     // Dev-only: which source commit this build came from. Never shipped.
                     Text(commit)

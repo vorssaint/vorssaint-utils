@@ -100,6 +100,27 @@ enum MetricFormat {
         return min(activeBytes.partialValue, totalBytes)
     }
 
+    /// Physical RAM held by the compressor. Already counted inside Memory Used.
+    static func compressedMemory(totalBytes: UInt64,
+                                 pageSize: UInt64,
+                                 compressorPages: UInt64) -> UInt64 {
+        pageBytes(pageCount: compressorPages, pageSize: pageSize, totalBytes: totalBytes)
+    }
+
+    /// File-backed pages the system can drop. Memory Used already excludes them.
+    static func cachedFiles(totalBytes: UInt64,
+                            pageSize: UInt64,
+                            fileBackedPages: UInt64) -> UInt64 {
+        pageBytes(pageCount: fileBackedPages, pageSize: pageSize, totalBytes: totalBytes)
+    }
+
+    private static func pageBytes(pageCount: UInt64, pageSize: UInt64, totalBytes: UInt64) -> UInt64 {
+        guard totalBytes > 0, pageSize > 0 else { return 0 }
+        let bytes = pageCount.multipliedReportingOverflow(by: pageSize)
+        guard !bytes.overflow else { return 0 }
+        return min(bytes.partialValue, totalBytes)
+    }
+
     /// Keeps every memory surface on the same persisted choice. Unknown
     /// values intentionally fall back to total memory in use.
     static func selectedMemory<Value>(used: Value, app: Value, metric: String) -> Value {
