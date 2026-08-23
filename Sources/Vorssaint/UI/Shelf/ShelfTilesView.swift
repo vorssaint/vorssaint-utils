@@ -90,12 +90,17 @@ struct ShelfTilesView: NSViewRepresentable {
     var items: [ShelfService.Item]
     var selection: Set<UUID>
     var expandedBatches: Set<UUID>
+    var revealID: UUID?
+    var revealSerial: Int
 
     static let tileSize = NSSize(width: 78, height: 88)
     static let spacing: CGFloat = 10
     static let inset: CGFloat = 4
 
     func makeNSView(context: Context) -> NSScrollView {
+        // A view built now has nothing to reveal: the docked shelf rebuilds
+        // one whenever a drag comes near, and it must open where it left off.
+        context.coordinator.revealedSerial = revealSerial
         let scroll = NSScrollView()
         scroll.drawsBackground = false
         scroll.hasHorizontalScroller = false
@@ -111,27 +116,80 @@ struct ShelfTilesView: NSViewRepresentable {
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
+        Self.rebuildTiles(scroll: scroll, items: items, selection: selection, expandedBatches: expandedBatches,
+                          revealID: revealID, revealSerial: revealSerial, coordinator: context.coordinator)
+    }
+
+    /// Lays out every tile from scratch. Shared with `ShelfTileView`, which
+    /// calls this directly (bypassing SwiftUI) right after a successful
+    /// merge onto a tile, whether the drag came from outside the app or from
+    /// another tile: SwiftUI's own `updateNSView` observably lags behind the
+    /// mutation while an AppKit drag session is still unwinding, so the
+    /// merged tile otherwise stays visually stale until some later,
+    /// unrelated event forces a redraw.
+    ///
+    /// Skips the teardown/rebuild entirely when nothing has actually
+    /// changed since the last call for this view: SwiftUI calls updateNSView
+    /// on every re-render of the enclosing view, not only when this view's
+    /// own inputs change, so without this guard every unrelated re-render
+    /// destroys and recreates every tile.
+    static func rebuildTiles(scroll: NSScrollView,
+                             items: [ShelfService.Item],
+                             selection: Set<UUID>,
+                             expandedBatches: Set<UUID>,
+                             revealID: UUID? = nil,
+                             revealSerial: Int = 0,
+                             coordinator: Coordinator? = nil) {
         guard let document = scroll.documentView else { return }
-        document.subviews.forEach { $0.removeFromSuperview() }
 
         let tile = Self.tileSize
         let inset = Self.inset
         let contentWidth = max(scroll.contentSize.width, 276)
-        let columnStride = tile.width + Self.spacing
-        let rowStride = tile.height + Self.spacing
-        let columns = max(1, Int((contentWidth - inset * 2 + Self.spacing) / columnStride))
+        let columns = ShelfTileLayout.columnCount(contentWidth: contentWidth,
+                                                   tileWidth: tile.width,
+                                                   spacing: Self.spacing,
+                                                   inset: inset)
+
+        // Item.== is id-only (by design, for selection/lookup purposes
+        // elsewhere), which isn't the question this cache needs answered:
+        // ShelfService.replaceItem swaps in a same-id item with a healed
+        // URL/title/icon after a moved or renamed file's bookmark
+        // resolves, and an id-only comparison would call that "unchanged"
+        // and leave the tile showing the stale pre-heal name indefinitely.
+        let unchanged = coordinator.map {
+            items.count == $0.lastRebuiltItems?.count
+                && zip(items, $0.lastRebuiltItems ?? []).allSatisfy { $0.hasSameContent(as: $1) }
+                && selection == $0.lastRebuiltSelection
+                && expandedBatches == $0.lastRebuiltExpandedBatches
+                && scroll.contentSize == $0.lastRebuiltContentSize
+        } ?? false
+        if unchanged {
+            // Revealing does not require rebuilding any tile, so keep the
+            // add-serial check independent from the redraw cache.
+            if let coordinator {
+                revealIfNeeded(in: document, columns: columns, items: items,
+                               revealID: revealID, revealSerial: revealSerial, coordinator: coordinator)
+            }
+            return
+        }
+        coordinator?.lastRebuiltItems = items
+        coordinator?.lastRebuiltSelection = selection
+        coordinator?.lastRebuiltExpandedBatches = expandedBatches
+        coordinator?.lastRebuiltContentSize = scroll.contentSize
+
+        document.subviews.forEach { $0.removeFromSuperview() }
+
         let rows = max(1, Int(ceil(Double(items.count) / Double(columns))))
 
         for (index, item) in items.enumerated() {
-            let column = index % columns
-            let row = index / columns
             let view = ShelfTileView(item: item,
                                      isSelected: selection.contains(item.id),
                                      isExpanded: expandedBatches.contains(item.id))
-            view.frame = NSRect(x: inset + CGFloat(column) * columnStride,
-                                y: inset + CGFloat(row) * rowStride,
-                                width: tile.width,
-                                height: tile.height)
+            view.frame = ShelfTileLayout.tileFrame(index: index,
+                                                    columns: columns,
+                                                    tileSize: tile,
+                                                    spacing: Self.spacing,
+                                                    inset: inset)
             document.addSubview(view)
         }
         let contentHeight = inset * 2 + CGFloat(rows) * tile.height + CGFloat(max(0, rows - 1)) * Self.spacing
@@ -140,6 +198,59 @@ struct ShelfTilesView: NSViewRepresentable {
                                 y: 0,
                                 width: contentWidth,
                                 height: max(contentHeight, scroll.contentSize.height))
+        if let coordinator {
+            revealIfNeeded(in: document, columns: columns, items: items,
+                           revealID: revealID, revealSerial: revealSerial, coordinator: coordinator)
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    /// Remembers which add has been honored, so the shelf scrolls once per
+    /// arrival and stays put for every other redraw. Keyed on the add serial
+    /// rather than the resolved target: the target alone changes when a pile
+    /// is expanded or collapsed with nothing added, and repeats when two
+    /// files land in the same collapsed pile back to back.
+    final class Coordinator {
+        var revealedSerial: Int?
+        var lastRebuiltItems: [ShelfService.Item]?
+        var lastRebuiltSelection: Set<UUID>?
+        var lastRebuiltExpandedBatches: Set<UUID>?
+        var lastRebuiltContentSize: NSSize?
+    }
+
+    /// Brings a newly added tile into view. scrollToVisible already does
+    /// nothing when the rect is on screen, so a shelf with room to spare
+    /// never moves.
+    private static func revealIfNeeded(in document: NSView,
+                                       columns: Int,
+                                       items: [ShelfService.Item],
+                                       revealID: UUID?,
+                                       revealSerial: Int,
+                                       coordinator: Coordinator) {
+        guard let revealID,
+              ShelfRevealSupport.shouldReveal(serial: revealSerial, lastHonored: coordinator.revealedSerial)
+        else { return }
+        guard let index = items.firstIndex(where: { $0.id == revealID }) else { return }
+        // Ordered after the index lookup so each guard reads as its own
+        // precondition, rather than recording the serial ahead of a check
+        // that still has to pass.
+        coordinator.revealedSerial = revealSerial
+        let frame = ShelfTileLayout.tileFrame(index: index,
+                                               columns: columns,
+                                               tileSize: Self.tileSize,
+                                               spacing: Self.spacing,
+                                               inset: Self.inset)
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            context.allowsImplicitAnimation = true
+            document.scrollToVisible(frame)
+        }
+        // The animated bounds change above doesn't post the notification the
+        // scroller listens for, so nudge it directly or its knob lags behind.
+        if let scrollView = document.enclosingScrollView {
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+        }
     }
 
     private final class FlippedView: ShelfPanelMoveView {
@@ -158,6 +269,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
     private var didDrag = false
     private var draggedIDs: [UUID] = []
     private var isDropTargeted = false
+    private var pendingRebuildAfterDrag = false
     private var closeButton: NSButton!
     private var expandButton: NSButton?
 
@@ -265,6 +377,39 @@ final class ShelfTileView: NSView, NSDraggingSource {
         addSubview(closeButton)
     }
 
+    private static func tooltipText(for item: ShelfService.Item) -> String {
+        switch item.payload {
+        case let .file(url):
+            return ShelfTooltipSupport.text(forFileNamed: item.title, resolvedKind: resolvedFileKind(for: url))
+        case let .text(string):
+            return ShelfTooltipSupport.text(forText: string)
+        case let .link(url):
+            return ShelfTooltipSupport.text(forLink: url)
+        case .batch:
+            let breakdown = ShelfTooltipSupport.breakdown(of: item.tooltipLeafKinds)
+            let s = L10n.shared.s
+            let strings = ShelfTooltipStrings(itemsFormat: s.shelfTooltipItemsFormat,
+                                              imageSingular: s.shelfTooltipImageSingular,
+                                              imagePlural: s.shelfTooltipImagePlural,
+                                              fileSingular: s.shelfTooltipFileSingular,
+                                              filePlural: s.shelfTooltipFilePlural,
+                                              noteSingular: s.shelfTooltipNoteSingular,
+                                              notePlural: s.shelfTooltipNotePlural,
+                                              linkSingular: s.shelfTooltipLinkSingular,
+                                              linkPlural: s.shelfTooltipLinkPlural)
+            return ShelfTooltipSupport.text(forPile: breakdown, strings: strings)
+        }
+    }
+
+    /// The one part of this that has to touch the filesystem: the system's
+    /// own localized description of what kind of file this is, the same
+    /// text Finder's Get Info panel shows. A missing file or any other read
+    /// failure is not worth surfacing here; the caller falls back to the
+    /// name alone.
+    private static func resolvedFileKind(for url: URL) -> String? {
+        (try? url.resourceValues(forKeys: [.localizedTypeDescriptionKey]))?.localizedTypeDescription
+    }
+
     private func addStackBackplates() {
         for (index, offset) in [2, 1].enumerated() {
             let view = NSView(frame: NSRect(x: 7 + CGFloat(offset) * 3,
@@ -288,8 +433,15 @@ final class ShelfTileView: NSView, NSDraggingSource {
                                        owner: self, userInfo: nil))
     }
 
-    override func mouseEntered(with event: NSEvent) { closeButton.isHidden = false }
-    override func mouseExited(with event: NSEvent) { closeButton.isHidden = true }
+    override func mouseEntered(with event: NSEvent) {
+        closeButton.isHidden = false
+        ShelfTooltipPopover.shared.scheduleShow(text: Self.tooltipText(for: item), for: self)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        closeButton.isHidden = true
+        ShelfTooltipPopover.shared.hide()
+    }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
@@ -347,6 +499,8 @@ final class ShelfTileView: NSView, NSDraggingSource {
 
     override func mouseDown(with event: NSEvent) {
         ShelfService.shared.noteInteraction()
+        window?.makeKey()
+        ShelfTooltipPopover.shared.hide()
         mouseDownPoint = event.locationInWindow
         didDrag = false
     }
@@ -364,6 +518,8 @@ final class ShelfTileView: NSView, NSDraggingSource {
         guard !didDrag else { return }
         if item.isBatch, event.clickCount >= 2 {
             ShelfService.shared.toggleBatchExpansion(item.id)
+        } else if event.modifierFlags.contains(.shift) {
+            ShelfService.shared.extendSelection(to: item.id)
         } else {
             ShelfService.shared.toggleSelection(item.id)
         }
@@ -489,11 +645,21 @@ final class ShelfTileView: NSView, NSDraggingSource {
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         let merged = ShelfService.shared.mergePasteboard(sender.draggingPasteboard, into: item.id)
         setDropTargeted(false)
+        pendingRebuildAfterDrag = merged
         return merged
     }
 
     override func concludeDragOperation(_ sender: NSDraggingInfo?) {
         setDropTargeted(false)
+        // Rebuilds here, not in performDragOperation: this is the last
+        // callback AppKit makes on this tile for the drag, so it's safe
+        // for the rebuild to remove it from the view hierarchy.
+        guard pendingRebuildAfterDrag, let scroll = superview?.enclosingScrollView else { return }
+        pendingRebuildAfterDrag = false
+        ShelfTilesView.rebuildTiles(scroll: scroll,
+                                   items: ShelfService.shared.visibleItems,
+                                   selection: ShelfService.shared.selection,
+                                   expandedBatches: ShelfService.shared.expandedBatches)
     }
 
     private func mergeOperation(for sender: NSDraggingInfo) -> NSDragOperation {

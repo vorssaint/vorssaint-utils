@@ -65,14 +65,11 @@ struct DockPreviewAvailability: Equatable {
 struct DockPreviewCloseState: Equatable {
     let remainingWindowIDs: [CGWindowID]
     let selectedWindowID: CGWindowID?
-    let activePeekWindowID: CGWindowID?
-    let desiredWindowID: CGWindowID?
     let shouldEndSession: Bool
 }
 
 struct DockPreviewMouseDownDecision: Equatable {
     let shouldEndSession: Bool
-    let restoreOrigin: Bool
 }
 
 /// A thin keep-alive region connecting a Dock icon to its preview panel.
@@ -92,12 +89,40 @@ struct HoverCorridor: Equatable {
 }
 
 enum DockPreviewSupport {
-    static let hoverDelay: TimeInterval = 0.4
-    /// Shorter than the first-open delay: once a panel is already up, handing it
-    /// to the app under the cursor should feel immediate, not like a fresh open.
-    static let switchDelay: TimeInterval = 0.25
+    /// How long the cursor must rest on an icon before its panel opens. Long
+    /// enough that the Dock can be crossed on the way somewhere else, short
+    /// enough that a cursor which stopped is answered. Adjustable: that line
+    /// falls differently for every pointer speed.
+    static let defaultOpenDelayMilliseconds = 200
+    /// The floor keeps two properties: the window list is read `prefetchLead`
+    /// earlier, so a shorter wait would read it the moment the cursor lands;
+    /// and `switchDelay` plus its inline reading stays under it, so a switch is
+    /// never slower than an open.
+    static let openDelayMillisecondsRange: ClosedRange<Int> = 200 ... 900
+
+    static func sanitizedOpenDelay(milliseconds: Int) -> Int {
+        min(max(milliseconds, openDelayMillisecondsRange.lowerBound),
+            openDelayMillisecondsRange.upperBound)
+    }
+
+    static func openDelay(milliseconds: Int) -> TimeInterval {
+        TimeInterval(sanitizedOpenDelay(milliseconds: milliseconds)) / 1000
+    }
+
+    /// Handing an already open panel to the app under the cursor: the panel is
+    /// on screen and only has to re-point. Kept under the shortest open delay
+    /// on offer, so a switch is never slower than an open.
+    static let switchDelay: TimeInterval = 0.1
+
+    /// How far ahead of the panel the window list is read: far enough that an
+    /// ordinary list is in hand when the panel opens, no further, so what it
+    /// opens on is still true. Half the shortest wait.
+    static let prefetchLead: TimeInterval = 0.1
+
+    static func prefetchDelay(openDelay: TimeInterval) -> TimeInterval {
+        max(0, openDelay - prefetchLead)
+    }
     static let hideDelay: TimeInterval = 0.22
-    static let peekDelay: TimeInterval = 0.08
     /// A little slack around the panel so the cursor grazing its edge doesn't
     /// flicker the session between "inside" and "leaving".
     static let panelStayMargin: CGFloat = 6
@@ -108,11 +133,69 @@ enum DockPreviewSupport {
     /// cursor still keeps the session, while neighbouring Dock icons (one tile
     /// width away) stay clear of the corridor.
     static let corridorMargin: CGFloat = 12
-    static var cardWidth: CGFloat { 190 * PreviewSizing.scale }
-    static var cardHeight: CGFloat { 142 * PreviewSizing.scale }
-    static let cardSpacing: CGFloat = 8
-    static let panelPadding: CGFloat = 12
+    /// Whether a preview card can be lifted out of the panel and dropped
+    /// somewhere else. A minimized window has no on-screen position to aim at,
+    /// and a fullscreen window owns its Space and ignores the position it is
+    /// given — dragging either one would move nothing while still tearing the
+    /// panel down.
+    static func canDragToPlace(hasWindowID: Bool,
+                               isOnScreen: Bool,
+                               isMinimized: Bool,
+                               isFullscreen: Bool) -> Bool {
+        hasWindowID && isOnScreen && !isMinimized && !isFullscreen
+    }
+
+    /// How far the pointer must travel before a press on a card becomes a
+    /// drag. Large enough that a click with a shaky hand still opens the
+    /// window, small enough that the lift feels immediate.
+    static let dragLiftDistance: CGFloat = 6
+
+    /// Keeps the dropped window fully reachable on the screen under the
+    /// pointer. Oversized windows align to the visible frame instead of
+    /// leaving their title bar beyond an edge.
+    static func dragOrigin(pointer: CGPoint,
+                           windowSize: CGSize,
+                           visibleFrame: CGRect) -> CGPoint {
+        guard visibleFrame.width > 0, visibleFrame.height > 0,
+              windowSize.width > 0, windowSize.height > 0
+        else { return pointer }
+
+        let visibleWidth = min(windowSize.width, visibleFrame.width)
+        let visibleHeight = min(windowSize.height, visibleFrame.height)
+        return CGPoint(
+            x: min(max(pointer.x, visibleFrame.minX), visibleFrame.maxX - visibleWidth),
+            y: min(max(pointer.y, visibleFrame.minY + visibleHeight), visibleFrame.maxY)
+        )
+    }
+
+    /// Card metrics. The thumbnail gets whatever the fixed chrome does not
+    /// take, so the card can be resized or the title band retuned without
+    /// leaving a stale magic number behind — the old code hard-coded a 54pt
+    /// deduction that no longer matched the parts it stood for.
+    static var cardWidth: CGFloat { 176 * PreviewSizing.scale }
+    static var cardHeight: CGFloat { 134 * PreviewSizing.scale }
+    static var cardPadding: CGFloat { 8 * PreviewSizing.scale }
+    static var cardTitleSpacing: CGFloat { 5 * PreviewSizing.scale }
+    /// One line of 12pt semibold, with just enough room for descenders.
+    static var cardTitleHeight: CGFloat { 17 * PreviewSizing.scale }
+    static var cardThumbnailHeight: CGFloat {
+        cardHeight - cardPadding * 2 - cardTitleSpacing - cardTitleHeight
+    }
+    static var cardSpacing: CGFloat { 8 * PreviewSizing.scale }
+    static var panelPadding: CGFloat { 12 * PreviewSizing.scale }
     static let panelHeaderHeight: CGFloat = 28
+
+    /// How solid the panel's frosted background is drawn, as a fraction. The
+    /// floor is not zero on purpose: the panel's title sits straight on the
+    /// material, so past a certain point it is reading against the desktop and
+    /// the panel stops looking like a panel. Anything the slider can reach has
+    /// to still look finished.
+    static let backgroundOpacityRange: ClosedRange<Double> = 0.4...1
+
+    static func sanitizedBackgroundOpacity(_ value: Double) -> Double {
+        guard value.isFinite else { return backgroundOpacityRange.upperBound }
+        return min(max(value, backgroundOpacityRange.lowerBound), backgroundOpacityRange.upperBound)
+    }
 
     /// How far in from the Dock's screen edge the cursor can be and still sit over
     /// a Dock item. Used to gate the per-mouse-move Accessibility hit-test to the
@@ -229,20 +312,11 @@ enum DockPreviewSupport {
 
     static func mouseDownDecision(isVisible: Bool,
                                   isPinned: Bool,
-                                  isInsidePanel: Bool,
-                                  clickedDock: Bool) -> DockPreviewMouseDownDecision {
+                                  isInsidePanel: Bool) -> DockPreviewMouseDownDecision {
         guard isVisible, !isPinned, !isInsidePanel else {
-            return DockPreviewMouseDownDecision(shouldEndSession: false, restoreOrigin: false)
+            return DockPreviewMouseDownDecision(shouldEndSession: false)
         }
-        return DockPreviewMouseDownDecision(shouldEndSession: true, restoreOrigin: !clickedDock)
-    }
-
-    static func shouldRestoreOriginAfterMinimize(originPID: pid_t?,
-                                                 originWindowID: CGWindowID?,
-                                                 targetPID: pid_t,
-                                                 targetWindowID: CGWindowID) -> Bool {
-        guard let originPID else { return false }
-        return originPID != targetPID || originWindowID != targetWindowID
+        return DockPreviewMouseDownDecision(shouldEndSession: true)
     }
 
     /// The keep-alive corridor for a session: the icon and panel (each with a
@@ -287,24 +361,14 @@ enum DockPreviewSupport {
         return HoverCorridor(rects: [icon, panel, bridge])
     }
 
-    static func shouldRestoreOnEnd(committed: Bool) -> Bool {
-        !committed
-    }
-
     static func closeState(afterRemoving closedWindowID: CGWindowID,
                            windowIDs: [CGWindowID],
-                           selectedWindowID: CGWindowID?,
-                           activePeekWindowID: CGWindowID?,
-                           desiredWindowID: CGWindowID?) -> DockPreviewCloseState {
+                           selectedWindowID: CGWindowID?) -> DockPreviewCloseState {
         let remaining = windowIDs.filter { $0 != closedWindowID }
         let removedSelection = selectedWindowID == closedWindowID
-        let removedPeek = activePeekWindowID == closedWindowID
-        let removedDesired = desiredWindowID == closedWindowID
         return DockPreviewCloseState(
             remainingWindowIDs: remaining,
             selectedWindowID: removedSelection ? nil : selectedWindowID,
-            activePeekWindowID: removedPeek ? nil : activePeekWindowID,
-            desiredWindowID: removedDesired ? nil : desiredWindowID,
             shouldEndSession: remaining.isEmpty
         )
     }

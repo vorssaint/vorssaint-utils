@@ -9,6 +9,7 @@ struct QuickLauncherView: View {
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var keepAwake = KeepAwakeManager.shared
     @ObservedObject private var micMute = MicMuteService.shared
+    @ObservedObject private var recorder = ScreenRecorderService.shared
     @State private var hoveredItem: QuickLauncherItem?
     @State private var draggingItem: QuickLauncherItem?
     /// Mirrors launcher.editingOptionsItem: the service owns it so Esc can
@@ -20,7 +21,6 @@ struct QuickLauncherView: View {
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration = 0
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.clipboardHistoryLimit) private var clipboardLimit = 50
-    @AppStorage(DefaultsKey.cleanerBadgeSeen) private var cleanerBadgeSeen = false
 
     private var columns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: 10), count: QuickLauncherService.columns)
@@ -47,7 +47,7 @@ struct QuickLauncherView: View {
         }
         .padding(16)
         .frame(width: 420)
-        .background(HUDBackdrop(cornerRadius: 22))
+        .background(HUDBackdrop(cornerRadius: 22, contrast: .high))
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .onChange(of: launcher.presentationID) { _, _ in
             hoveredItem = nil
@@ -113,29 +113,14 @@ struct QuickLauncherView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .accessibilityHidden(true)
                 HStack {
-                    Button {
-                        launcher.hide()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 26, height: 26)
+                    if launcher.activeUtility != nil {
+                        backButton
+                    } else {
+                        closeButton
                     }
-                    .buttonStyle(.plain)
-                    .help(l10n.s.menuClose)
-                    .accessibilityLabel(l10n.s.menuClose)
                     Spacer()
                     if launcher.activeUtility != nil {
-                        Button {
-                            launcher.closeUtility()
-                        } label: {
-                            Image(systemName: "chevron.backward.circle.fill")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 26, height: 26)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(l10n.s.menuClose)
+                        closeButton
                     } else {
                         Button {
                             withAnimation(.easeOut(duration: 0.15)) {
@@ -162,6 +147,34 @@ struct QuickLauncherView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    private var closeButton: some View {
+        Button {
+            launcher.hide()
+        } label: {
+            Image(systemName: "xmark.circle.fill")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 26, height: 26)
+        }
+        .buttonStyle(.plain)
+        .help(l10n.s.menuClose)
+        .accessibilityLabel(l10n.s.menuClose)
+    }
+
+    private var backButton: some View {
+        Button {
+            launcher.closeUtility()
+        } label: {
+            Image(systemName: "chevron.backward.circle.fill")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 26, height: 26)
+        }
+        .buttonStyle(.plain)
+        .help(l10n.s.obBack)
+        .accessibilityLabel(l10n.s.obBack)
     }
 
     private var grid: some View {
@@ -237,15 +250,6 @@ struct QuickLauncherView: View {
                                 .fill(Color.green)
                                 .frame(width: 8, height: 8)
                                 .offset(x: 3, y: -3)
-                        }
-                        // Red dot pointing at the brand new feature; it
-                        // retires everywhere the first time the cleaner opens.
-                        if item == .cleaner, !cleanerBadgeSeen {
-                            Circle()
-                                .fill(Color.red)
-                                .frame(width: 8, height: 8)
-                                .offset(x: 3, y: -3)
-                                .accessibilityHidden(true)
                         }
                         // Keys 1-9 activate the first nine tiles; the badge is
                         // the only hint that shortcut exists.
@@ -450,6 +454,9 @@ struct QuickLauncherView: View {
         case .uninstaller: return l10n.s.uninstallerName
         case .cleaner: return l10n.s.cleanerName
         case .screenshot: return FeatureStrings.screenshot(l10n.language).pageTitle
+        case .screenRecorder:
+            let strings = FeatureStrings.recorder(l10n.language)
+            return recorder.isRecording ? strings.stopButton : strings.pageTitle
         case .cameraPreview: return FeatureStrings.cameraPreview(l10n.language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(l10n.language).pageTitle
         }
@@ -471,6 +478,7 @@ struct QuickLauncherView: View {
         case .uninstaller: return "trash"
         case .cleaner: return "sparkle"
         case .screenshot: return "camera.viewfinder"
+        case .screenRecorder: return recorder.isRecording ? "stop.circle" : "record.circle"
         case .cameraPreview: return "web.camera"
         case .scratchpad: return "note.text"
         }
@@ -480,6 +488,7 @@ struct QuickLauncherView: View {
         switch item {
         case .keepAwake: return keepAwake.isActive
         case .micMute: return micMute.isMuted
+        case .screenRecorder: return recorder.isRecording
         default: return false
         }
     }

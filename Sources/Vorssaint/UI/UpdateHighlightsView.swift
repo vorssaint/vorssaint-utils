@@ -3,63 +3,60 @@
 
 import SwiftUI
 
-/// The one-time tour shown right after an update: one page per headline
-/// feature, each with a real capture of it working and a button that sets it
-/// up or tries it on the spot. New features arrive switched off, so without
-/// this window they stay invisible to anyone who never opens Settings.
+/// The one-time tour shown after a headline update. Every page belongs to the
+/// pinned release and uses a native illustration, so it never ships personal
+/// content or gets stale when another part of the interface changes.
 struct UpdateHighlightsView: View {
     @ObservedObject private var l10n = L10n.shared
     @State private var index = 0
     let onFinish: () -> Void
 
     private var s: Strings { l10n.s }
-    private var hub: FeatureHubStrings { FeatureStrings.hub(l10n.language) }
+    private var screenshot: ScreenshotFeatureStrings {
+        FeatureStrings.screenshot(l10n.language)
+    }
+    private var clipboard: ClipboardFeatureStrings {
+        FeatureStrings.clipboard(l10n.language)
+    }
 
-    /// The window is sized by the view, so both axes are declared here and
-    /// nothing about the content is allowed to move them: a window whose size
-    /// keeps being recomputed while it is on screen makes the layout engine
-    /// fight whoever placed it. The numbers come from measuring the tallest
-    /// page in all thirteen languages.
     private enum Layout {
         static let width: CGFloat = 600
-        static let pageHeight: CGFloat = 406
-        static let height: CGFloat = 541
-        /// Captions get two lines everywhere; the reserved page height is
-        /// built for exactly that.
+        static let pageHeight: CGFloat = 414
+        static let height: CGFloat = 552
         static let captionLines = 2
     }
 
     private struct Highlight: Identifiable {
         let id: String
-        let symbol: String
         let imageName: String
+        let symbol: String
         let title: String
         let caption: String
         let actionLabel: String
         let action: () -> Void
     }
 
-    /// The curated pages for the pinned release. Features the user
-    /// uninstalled in the hub stay out; their Settings pages are gone too.
     private var highlights: [Highlight] {
         var pages: [Highlight] = []
-        if AppFeature.textSnippets.isAvailable {
+        if AppFeature.screenshot.isAvailable {
             pages.append(Highlight(
-                id: "snippetlibrary", symbol: AppFeature.textSnippets.symbolName,
-                imageName: "highlights-snippetlibrary",
-                title: FeatureStrings.snippets(l10n.language).libraryTitle,
-                caption: s.highlightsCaptionSnippetLibrary,
+                id: "capture-palette",
+                imageName: "highlights-capture",
+                symbol: "camera.viewfinder",
+                title: screenshot.screenCaptureTitle,
+                caption: s.highlightsCaptionCapturePalette,
                 actionLabel: s.highlightsConfigure,
-                action: { openSettings(.textSnippets) }))
+                action: { openSettings(AppFeature.screenshot.settingsDestination) }))
         }
-        if AppFeature.mouseButtonShortcuts.isAvailable {
+        if AppFeature.clipboardHistory.isAvailable {
             pages.append(Highlight(
-                id: "mousebuttons", symbol: AppFeature.mouseButtonShortcuts.symbolName,
-                imageName: "highlights-mousebuttons",
-                title: AppFeature.mouseButtonShortcuts.hubTitle(s, hub: hub),
-                caption: AppFeature.mouseButtonShortcuts.hubDescription(hub),
+                id: "clipboard-palette",
+                imageName: "highlights-clipboard",
+                symbol: "doc.on.clipboard",
+                title: s.highlightsTitleClipboardRedesign,
+                caption: s.highlightsCaptionClipboardRedesign,
                 actionLabel: s.highlightsConfigure,
-                action: { openSettings(.mouse) }))
+                action: { openSettings(AppFeature.clipboardHistory.settingsDestination) }))
         }
         return pages
     }
@@ -75,25 +72,20 @@ struct UpdateHighlightsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .padding(.top, 24)
-            .padding(.bottom, 16)
+            .padding(.top, 23)
+            .padding(.bottom, 13)
 
-            // The page area keeps the same height on every page and in every
-            // language, so turning a page fades the content instead of
-            // resizing the window under it.
             ZStack {
                 if pages.indices.contains(clamped) {
                     page(pages[clamped])
                         .id(pages[clamped].id)
                         .transition(.opacity)
-                        .animation(.easeInOut(duration: 0.18), value: clamped)
                 }
             }
             .frame(height: Layout.pageHeight)
+            .animation(.easeInOut(duration: 0.18), value: clamped)
 
             ZStack {
-                // The side buttons have different widths, so the dots sit in
-                // their own layer centered on the window, not between them.
                 HStack(spacing: 6) {
                     ForEach(pages.indices, id: \.self) { dot in
                         Circle()
@@ -102,17 +94,16 @@ struct UpdateHighlightsView: View {
                     }
                 }
                 .accessibilityHidden(true)
+
                 HStack {
                     if clamped > 0 {
                         Button(s.obBack) { index = clamped - 1 }
                             .buttonStyle(.borderless)
                             .foregroundStyle(.secondary)
                     } else {
-                        Button(s.highlightsSeeAll) {
-                            openSettings(.releaseNotes)
-                        }
-                        .buttonStyle(.borderless)
-                        .foregroundStyle(.secondary)
+                        Button(s.highlightsSeeAll) { openSettings(.releaseNotes) }
+                            .buttonStyle(.borderless)
+                            .foregroundStyle(.secondary)
                     }
                     Spacer()
                     Button(s.obContinue) {
@@ -127,40 +118,25 @@ struct UpdateHighlightsView: View {
                 }
             }
             .padding(.horizontal, 24)
-            .padding(.top, 16)
-            .padding(.bottom, 20)
+            .padding(.top, 14)
+            .padding(.bottom, 18)
         }
         .frame(width: Layout.width, height: Layout.height)
     }
 
     private func page(_ highlight: Highlight) -> some View {
-        VStack(spacing: 14) {
-            Group {
-                if let image = Self.asset(highlight.imageName) {
-                    Image(nsImage: image)
-                        .resizable()
-                        .scaledToFit()
-                } else {
-                    // A release that forgot to ship a capture still gets a
-                    // presentable page.
-                    ZStack {
-                        Theme.spaceGradient
-                        Image(systemName: highlight.symbol)
-                            .font(.system(size: 44, weight: .medium))
-                            .foregroundStyle(.white)
-                    }
-                    .frame(width: 480)
+        VStack(spacing: 12) {
+            UpdateHighlightArtwork(imageName: highlight.imageName, fallbackSymbol: highlight.symbol)
+                .frame(width: 500, height: 268)
+                .accessibilityHidden(true)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
                 }
-            }
-            .frame(maxHeight: 300)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+                .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
 
-            VStack(spacing: 5) {
+            VStack(spacing: 4) {
                 HStack(spacing: 7) {
                     Image(systemName: highlight.symbol)
                         .font(.system(size: 14, weight: .semibold))
@@ -174,35 +150,78 @@ struct UpdateHighlightsView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .lineLimit(Layout.captionLines)
-                    .frame(maxWidth: 440)
+                    .frame(maxWidth: 460)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            // Acting keeps the tour open: the mirror or pad floats above it,
-            // and Settings opens next to it, so the remaining pages are never
-            // lost to one click.
             Button(highlight.actionLabel) { highlight.action() }
                 .buttonStyle(.bordered)
         }
         .padding(.horizontal, 24)
     }
 
-    /// At least one featured item survives in the hub, so the tour has a
-    /// page to show. The gate reads this before opening the window.
-    static var hasContent: Bool {
-        [AppFeature.mouseButtonShortcuts, .textSnippets]
-            .contains { $0.isAvailable }
-    }
-
-    private static func asset(_ name: String) -> NSImage? {
-        let url = Bundle.main.url(forResource: name, withExtension: "jpg", subdirectory: "Images")
-            ?? Bundle.main.url(forResource: name, withExtension: "jpg")
-        guard let url else { return nil }
-        return NSImage(contentsOf: url)
+    private func openSettings(_ destination: FeatureSettingsDestination) {
+        SettingsRouter.shared.request(destination)
+        appDelegate()?.openSettingsWindow()
     }
 
     private func openSettings(_ page: SettingsPage) {
         SettingsRouter.shared.page = page
         appDelegate()?.openSettingsWindow()
+    }
+}
+
+private struct UpdateHighlightArtwork: View {
+    let imageName: String
+    let fallbackSymbol: String
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color.accentColor.opacity(0.18),
+                         Color.purple.opacity(0.08),
+                         Color.primary.opacity(0.025)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing)
+
+            if let image = asset(imageName) {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+                    }
+                    .shadow(color: .black.opacity(0.24), radius: 10, y: 5)
+                    .padding(14)
+            } else {
+                ZStack {
+                    Theme.spaceGradient
+                    Image(systemName: fallbackSymbol)
+                        .font(.system(size: 44, weight: .medium))
+                        .foregroundStyle(.white)
+                }
+            }
+        }
+    }
+
+    private func asset(_ name: String) -> NSImage? {
+        let extensions = ["png", "jpg", "jpeg"]
+        for ext in extensions {
+            if let url = Bundle.main.url(forResource: name, withExtension: ext, subdirectory: "Images")
+                ?? Bundle.main.url(forResource: name, withExtension: ext) {
+                if let image = NSImage(contentsOf: url) {
+                    return image
+                }
+            }
+        }
+        for ext in extensions {
+            let direct = URL(fileURLWithPath: "Resources/Images/\(name).\(ext)")
+            if let image = NSImage(contentsOf: direct) {
+                return image
+            }
+        }
+        return nil
     }
 }

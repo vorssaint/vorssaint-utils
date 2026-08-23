@@ -3,6 +3,7 @@
 
 import AppKit
 import CoreServices
+import Darwin
 
 enum Shell {
     /// A command that stops answering must not keep a thread forever. Nothing
@@ -13,37 +14,13 @@ enum Shell {
     @discardableResult
     static func run(_ path: String,
                     _ args: [String],
-                    timeout: TimeInterval = defaultTimeout) -> (status: Int32, output: String) {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: path)
-        p.arguments = args
-        let pipe = Pipe()
-        p.standardOutput = pipe
-        p.standardError = pipe
-        do { try p.run() } catch { return (-1, "") }
-        // The pipe is drained on its own thread. Reading after waiting would
-        // deadlock the moment a command writes more than the pipe holds, and
-        // waiting without a limit is what turns a stuck command into a stuck
-        // app.
-        var data = Data()
-        let drained = DispatchSemaphore(value: 0)
-        DispatchQueue.global(qos: .utility).async {
-            data = pipe.fileHandleForReading.readDataToEndOfFile()
-            drained.signal()
-        }
-        let finished = DispatchSemaphore(value: 0)
-        DispatchQueue.global(qos: .utility).async {
-            p.waitUntilExit()
-            finished.signal()
-        }
-        if finished.wait(timeout: .now() + timeout) == .timedOut {
-            p.terminate()
-            _ = finished.wait(timeout: .now() + 1)
-            _ = drained.wait(timeout: .now() + 1)
-            return (-1, String(data: data, encoding: .utf8) ?? "")
-        }
-        _ = drained.wait(timeout: .now() + 1)
-        return (p.terminationStatus, String(data: data, encoding: .utf8) ?? "")
+                    timeout: TimeInterval = defaultTimeout,
+                    maxOutputBytes: Int = 4 * 1024 * 1024)
+        -> (status: Int32, output: String) {
+        let result = BoundedProcessRunner.run(path, args,
+                                              timeout: timeout,
+                                              maxOutputBytes: maxOutputBytes)
+        return (result.status, String(decoding: result.output, as: UTF8.self))
     }
 }
 
@@ -63,7 +40,16 @@ enum AdminShell {
     private static let promptLock = NSLock()
     private static var prompting = false
 
+    private enum RequestOrigin {
+        case systemScript
+        case signedApp
+    }
+
     static func runSync(_ command: String, prompt: String) -> Bool {
+        runSync(command, prompt: prompt, origin: .systemScript)
+    }
+
+    private static func runSync(_ command: String, prompt: String, origin: RequestOrigin) -> Bool {
         promptLock.lock()
         if prompting {
             promptLock.unlock()
@@ -78,16 +64,34 @@ enum AdminShell {
         }
 
         bringAppToFront()
-        let source = "do shell script \(appleScriptString(command)) with administrator privileges with prompt \(appleScriptString(prompt))"
-        // A person typing a password is not a stuck command: the short default
-        // timeout would tear the dialog down mid-typing. Ten minutes bounds a
-        // dialog nobody answers without ever rushing one that is being read.
-        return Shell.run("/usr/bin/osascript", ["-e", source], timeout: 600).status == 0
+        let source = appleScriptSource(command: command, prompt: prompt)
+        switch origin {
+        case .systemScript:
+            // A person typing a password is not a stuck command. Keep the
+            // established bound without rushing a prompt that is being read.
+            return Shell.run("/usr/bin/osascript", ["-e", source], timeout: 600).status == 0
+        case .signedApp:
+            // NSAppleScript is main-thread-only. The updater's elevated shell
+            // detaches immediately after approval, so this wait covers only the
+            // system authorization interaction.
+            return DispatchQueue.main.sync {
+                AppleScriptRunner.run(source).ok
+            }
+        }
     }
 
     static func run(_ command: String, prompt: String, completion: @escaping (Bool) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
             completion(runSync(command, prompt: prompt))
+        }
+    }
+
+    /// Runs the administrator request inside this signed process so system
+    /// policy can identify the app that initiated it. Reserved for the updater;
+    /// other administrative tools retain their bounded subprocess behavior.
+    static func runInProcess(_ command: String, prompt: String, completion: @escaping (Bool) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            completion(runSync(command, prompt: prompt, origin: .signedApp))
         }
     }
 
@@ -102,6 +106,10 @@ enum AdminShell {
             }
         }
         Thread.sleep(forTimeInterval: 0.12)
+    }
+
+    static func appleScriptSource(command: String, prompt: String) -> String {
+        "do shell script \(appleScriptString(command)) with administrator privileges with prompt \(appleScriptString(prompt))"
     }
 
     private static func appleScriptString(_ value: String) -> String {

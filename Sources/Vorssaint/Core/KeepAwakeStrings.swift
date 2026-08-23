@@ -20,6 +20,11 @@ struct KeepAwakeAutomationStrings {
     }
 }
 
+struct KeepAwakeDisplaySleepStrings {
+    let allowDisplaySleep: String
+    let allowDisplaySleepCaption: String
+}
+
 extension FeatureStrings {
     static func keepAwakeAutomation(_ language: AppLanguage) -> KeepAwakeAutomationStrings {
         switch language {
@@ -38,6 +43,91 @@ extension FeatureStrings {
         case .zhHK: return .zhHK
         }
     }
+
+    static func keepAwakeDisplaySleep(_ language: AppLanguage) -> KeepAwakeDisplaySleepStrings {
+        switch language {
+        case .enUS: return .enUS
+        case .ptBR: return .ptBR
+        case .tr: return .tr
+        case .ru: return .ru
+        case .es: return .es
+        case .de: return .de
+        case .fr: return .fr
+        case .it: return .it
+        case .ja: return .ja
+        case .ko: return .ko
+        case .zhHans: return .zhHans
+        case .zhTW: return .zhTW
+        case .zhHK: return .zhHK
+        }
+    }
+}
+
+extension KeepAwakeDisplaySleepStrings {
+    static let enUS = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Allow the display to sleep",
+        allowDisplaySleepCaption: "Keeps the Mac awake while the display follows its normal sleep timer."
+    )
+
+    static let ptBR = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Permitir que a tela apague",
+        allowDisplaySleepCaption: "Mantém o Mac acordado enquanto a tela segue o tempo de repouso normal."
+    )
+
+    static let tr = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Ekranın uyumasına izin ver",
+        allowDisplaySleepCaption: "Mac uyanık kalırken ekran normal uyku süresini izler."
+    )
+
+    static let ru = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Разрешить дисплею выключаться",
+        allowDisplaySleepCaption: "Mac остаётся активным, а дисплей выключается по обычному таймеру."
+    )
+
+    static let es = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Permitir que la pantalla se apague",
+        allowDisplaySleepCaption: "Mantiene el Mac activo mientras la pantalla sigue su temporizador de reposo habitual."
+    )
+
+    static let de = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Display-Ruhezustand erlauben",
+        allowDisplaySleepCaption: "Hält den Mac wach, während sich das Display nach der üblichen Zeit ausschaltet."
+    )
+
+    static let fr = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Autoriser l’écran à s’éteindre",
+        allowDisplaySleepCaption: "Garde le Mac éveillé pendant que l’écran suit son délai d’extinction habituel."
+    )
+
+    static let it = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Consenti lo spegnimento dello schermo",
+        allowDisplaySleepCaption: "Mantiene attivo il Mac mentre lo schermo segue il normale timer di stop."
+    )
+
+    static let ja = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "ディスプレイのスリープを許可",
+        allowDisplaySleepCaption: "Macをスリープさせず、ディスプレイは通常の時間で消灯します。"
+    )
+
+    static let ko = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "디스플레이 잠자기 허용",
+        allowDisplaySleepCaption: "Mac은 깨어 있는 상태를 유지하고 디스플레이는 평소 시간에 꺼집니다."
+    )
+
+    static let zhHans = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "允许显示器休眠",
+        allowDisplaySleepCaption: "Mac 保持唤醒，显示器仍按正常时间关闭。"
+    )
+
+    static let zhTW = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "允許顯示器進入睡眠",
+        allowDisplaySleepCaption: "Mac 保持喚醒，顯示器仍會依正常時間關閉。"
+    )
+
+    static let zhHK = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "允許顯示器進入睡眠",
+        allowDisplaySleepCaption: "Mac 保持喚醒，顯示器仍會按正常時間關閉。"
+    )
 }
 
 extension KeepAwakeAutomationStrings {

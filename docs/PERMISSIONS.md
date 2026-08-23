@@ -7,13 +7,15 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Permission | Optional | Powers |
 |---|---|---|
 | Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions |
-| Screen Recording | Yes | Window titles and thumbnails in the switcher and Dock Preview, copy text from screen |
+| Screen Recording | Yes | Window previews, screenshots, copy text from screen and screen recordings |
 | System Audio Recording | Yes | Per app volume and output routing in the mixer |
+| Microphone | Yes | Your voice in a screen recording, only when you turn it on |
 | Camera | Yes | The camera preview mirror |
 | Notifications | Yes | Keep awake, battery, Monitor and update alerts |
 | Full Disk Access | Yes | A deeper uninstaller scan |
 | Administrator (one time) | Yes | Password free closed lid toggling |
 | Automation | Yes | Finder cut and paste, moving leftovers to the Trash, emptying the Trash and Homebrew Terminal handoff |
+| App Management | Yes | Replacing or removing apps installed through the package manager |
 
 ## Accessibility
 
@@ -42,9 +44,9 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 **Why it comes up.** On macOS, reading other windows' titles and grabbing their thumbnails counts as screen recording.
 
-**What uses it.** The window switcher and Dock Preview, for live thumbnails and window titles, and copy text from screen, to capture the area you select.
+**What uses it.** The window switcher and Dock Preview for live thumbnails and titles, screenshots and copy text from screen for the area you select, and the screen recorder for the area, window or display you choose.
 
-**If you say no.** The switcher still works and falls back to app icons instead of live thumbnails and titles. Dock Preview and copy text from screen stay unavailable. Nothing on your screen is ever written to disk or sent anywhere, since the access only feeds local previews and the text recognition runs offline.
+**If you say no.** The switcher falls back to app icons. Dock Preview, screenshots, copy text from screen and screen recording stay unavailable. Previews and text recognition remain local. A screenshot or recording is written only when you ask, and leaves your Mac only if you explicitly create a temporary link.
 
 **Optional.** Yes.
 
@@ -57,6 +59,16 @@ You can review or change every grant in System Settings, under Privacy and Secur
 **If you say no.** Apps keep using normal system audio. The mixer cannot apply per app volume or output routing until the permission is granted.
 
 **Optional.** Yes. Audio is processed in memory for the mixer and is never recorded to disk or sent anywhere.
+
+## Microphone
+
+**Why it comes up.** macOS asks before an app can record your microphone.
+
+**What uses it.** The screen recorder, only when you turn on microphone audio. Your voice is kept on a separate track so you can adjust or remove it in the editor.
+
+**If you say no.** Screen recording still works without your microphone. System audio remains a separate choice.
+
+**Optional.** Yes. Microphone audio stays in the recording on your Mac unless you explicitly create a temporary link for the finished video.
 
 ## Camera
 
@@ -78,6 +90,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 - **Battery**, with the battery protection alerts.
 - **Monitor**, with optional alerts for the conditions you turn on.
 - **Updates**, with a one time note when a new version shows up, and only while automatic update checks are on.
+- **App updates**, with a note when other apps on the Mac have a newer version, and only while the background check is on.
 
 **If you say no.** Vorssaint runs without a peep, and the same information is still right there in the panel and in Settings.
 
@@ -117,6 +130,16 @@ You can review or change every grant in System Settings, under Privacy and Secur
 **If you say no.** Those Finder or Terminal handoff steps will not go through. You can switch Automation back on in System Settings, under Privacy and Security, Automation.
 
 **Optional.** Yes.
+
+## App Management
+
+**Why it comes up.** macOS protects installed app bundles from changes by apps signed by another developer.
+
+**What uses it.** The package manager and App updates, when they replace or remove an installed app.
+
+**If you say no.** Package updates keep working, but operations that change installed apps can be blocked. You can grant access later in System Settings, under Privacy and Security, App Management.
+
+**Optional.** Yes. macOS records the request when an update first tries to change an installed app, so Vorssaint cannot check the status beforehand.
 
 ## Resetting permissions
 

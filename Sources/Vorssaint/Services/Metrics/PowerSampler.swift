@@ -31,16 +31,26 @@ struct PowerReading {
 /// built on); battery flow and the charger's rating come from AppleSmartBattery.
 /// Anything the hardware does not expose stays nil.
 final class PowerSampler {
+    /// Internal-battery presence is immutable for the lifetime of a Mac boot.
+    /// Resolve it once so desktops do not keep probing a service they cannot have.
+    static let hasInternalBattery: Bool = {
+        let service = IOServiceGetMatchingService(kIOMainPortDefault,
+                                                  IOServiceMatching("AppleSmartBattery"))
+        guard service != 0 else { return false }
+        IOObjectRelease(service)
+        return true
+    }()
+
     private let smc: SMCClient?
     private var systemKey: SMCClient.Key?
     private var adapterKey: SMCClient.Key?
     private var resolvedKeys = false
     private var batteryService: io_service_t = 0
 
-    /// `PSTR` = System Total Power. `PDTR` = DC-In (adapter) Total Power. PSTR is
-    /// also a reasonable system-power fallback if a Mac only exposes PDTR.
-    private static let systemPowerKeys = ["PSTR", "PDTR"]
-    private static let adapterPowerKeys = ["PDTR"]
+    /// `PSTR` = System Total Power. `PDTR` = DC-In (adapter) Total Power.
+    /// They stay separate because adapter input can include connected devices.
+    private static let systemPowerKey = "PSTR"
+    private static let adapterPowerKey = "PDTR"
 
     init(smc: SMCClient?) {
         self.smc = smc
@@ -58,8 +68,8 @@ final class PowerSampler {
         if let smc {
             if !resolvedKeys {
                 resolvedKeys = true
-                systemKey = Self.systemPowerKeys.lazy.compactMap { smc.key(named: $0) }.first
-                adapterKey = Self.adapterPowerKeys.lazy.compactMap { smc.key(named: $0) }.first
+                systemKey = smc.key(named: Self.systemPowerKey)
+                adapterKey = smc.key(named: Self.adapterPowerKey)
             }
             reading.systemWatts = plausibleWatts(systemKey)
             reading.adapterWatts = plausibleWatts(adapterKey)
@@ -112,14 +122,10 @@ final class PowerSampler {
             }
         }
 
-        // Derive a system figure when no SMC key reports one (e.g. older chips).
-        if reading.systemWatts == nil {
-            if reading.externalConnected, let input = reading.adapterWatts {
-                reading.systemWatts = input
-            } else if let flow = reading.batteryWatts, flow < 0 {
-                reading.systemWatts = -flow
-            }
-        }
+        reading.systemWatts = MetricFormat.systemPowerWatts(
+            measured: reading.systemWatts,
+            batteryWatts: reading.batteryWatts,
+            externalConnected: reading.externalConnected)
 
         return reading
     }
@@ -189,6 +195,7 @@ final class PowerSampler {
     }
 
     private func resolvedBatteryService() -> io_service_t {
+        guard Self.hasInternalBattery else { return 0 }
         if batteryService != 0 { return batteryService }
         batteryService = IOServiceGetMatchingService(kIOMainPortDefault,
                                                      IOServiceMatching("AppleSmartBattery"))

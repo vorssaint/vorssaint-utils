@@ -26,6 +26,9 @@ final class Permissions: ObservableObject {
     /// Camera access for the preview mirror. The status read is free, so it
     /// rides the same refresh() moments as the rest.
     @Published private(set) var camera: CameraPermissionState = .unknown
+    /// Optional microphone access, used only while a recording that asked for
+    /// it is active.
+    @Published private(set) var microphone: MicrophonePermissionState = .unknown
 
     enum NotificationPermissionState {
         case granted, denied, undetermined, unknown
@@ -35,21 +38,22 @@ final class Permissions: ObservableObject {
         case granted, denied, undetermined, unknown
     }
 
+    enum MicrophonePermissionState {
+        case granted, denied, undetermined, unknown
+    }
+
     private var activePermissionTimer: Timer?
     private var activationObserver: NSObjectProtocol?
-    private var resignObserver: NSObjectProtocol?
-    private var currentPollInterval: TimeInterval = 0
+    private var defaultsObserver: NSObjectProtocol?
+    private var permissionSurfaceDemands: Set<UUID> = []
+    private var currentPollInterval: TimeInterval?
 
     private init() {
         refresh()
-        // Watch for Accessibility and Screen Recording flips so features come
-        // alive moments after the toggle flips. Both checks are TCC daemon
-        // round-trips, so the cadence adapts: fast only while a flip is
-        // plausible (the app is active — Settings, onboarding or the panel is
-        // up — or a grant is still missing, meaning the user may be in System
-        // Settings right now); slow in the steady state where everything is
-        // granted and the app sits in the background, which is where the app
-        // spends nearly its whole life.
+        // Watch Accessibility and Screen Recording only while a running
+        // feature or visible permission surface can use the result. One-shot
+        // tools refresh when invoked, so their mere availability must not keep
+        // a timer alive in the background.
         // Full Disk Access is deliberately NOT polled here: it can only change
         // across a relaunch (a running process never gains or is meant to lose
         // it mid-session), and probing it touches protected paths, so polling it
@@ -63,8 +67,8 @@ final class Permissions: ObservableObject {
             self?.refresh()
             self?.scheduleActivePermissionPolling()
         }
-        resignObserver = NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification,
-                                                                object: nil, queue: .main) { [weak self] _ in
+        defaultsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
+                                                                  object: nil, queue: .main) { [weak self] _ in
             self?.scheduleActivePermissionPolling()
         }
     }
@@ -72,13 +76,20 @@ final class Permissions: ObservableObject {
     deinit {
         activePermissionTimer?.invalidate()
         if let activationObserver { NotificationCenter.default.removeObserver(activationObserver) }
-        if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
+        if let defaultsObserver { NotificationCenter.default.removeObserver(defaultsObserver) }
     }
 
-    private var desiredPollInterval: TimeInterval {
-        if NSApp.isActive { return 2.5 }
-        if !accessibility || !screenRecording { return 2.5 }
-        return 60
+    private var desiredPollInterval: TimeInterval? {
+        let accessibilityIsNeeded = AppFeature.activeFeatures(using: .accessibility)
+            .contains { $0.monitorsPermissionChanges }
+        let screenRecordingIsNeeded = AppFeature.activeFeatures(using: .screenRecording)
+            .contains { $0.monitorsPermissionChanges }
+        return PermissionPollingSupport.interval(
+            visibleSurfaceCount: permissionSurfaceDemands.count,
+            accessibilityIsNeeded: accessibilityIsNeeded,
+            screenRecordingIsNeeded: screenRecordingIsNeeded,
+            accessibilityIsGranted: accessibility,
+            screenRecordingIsGranted: screenRecording)
     }
 
     private func scheduleActivePermissionPolling() {
@@ -86,6 +97,8 @@ final class Permissions: ObservableObject {
         guard interval != currentPollInterval else { return }
         currentPollInterval = interval
         activePermissionTimer?.invalidate()
+        activePermissionTimer = nil
+        guard let interval else { return }
         let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             self?.refreshActivePermissions()
         }
@@ -94,11 +107,24 @@ final class Permissions: ObservableObject {
         activePermissionTimer = timer
     }
 
+    /// Visible permission UI owns a stable demand identifier so repeated
+    /// SwiftUI appearances cannot accidentally leave an unbalanced timer.
+    func setActivePermissionSurface(_ id: UUID, visible: Bool) {
+        if visible {
+            permissionSurfaceDemands.insert(id)
+            refreshActivePermissions()
+        } else {
+            permissionSurfaceDemands.remove(id)
+        }
+        scheduleActivePermissionPolling()
+    }
+
     /// Full refresh including Full Disk Access. Runs at launch and on activation.
     func refresh() {
         refreshActivePermissions()
         refreshNotificationPermission()
         refreshCameraPermission()
+        refreshMicrophonePermission()
         // Checking Full Disk Access means asking the system about protected
         // folders, and every refused answer costs time. Doing that where the
         // app is starting up holds back the menu bar icon, so it moves off
@@ -121,6 +147,19 @@ final class Permissions: ObservableObject {
         }
         DispatchQueue.main.async {
             if self.camera != state { self.camera = state }
+        }
+    }
+
+    private func refreshMicrophonePermission() {
+        let state: MicrophonePermissionState
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized: state = .granted
+        case .denied, .restricted: state = .denied
+        case .notDetermined: state = .undetermined
+        @unknown default: state = .unknown
+        }
+        DispatchQueue.main.async {
+            if self.microphone != state { self.microphone = state }
         }
     }
 
@@ -162,6 +201,18 @@ final class Permissions: ObservableObject {
         }
     }
 
+    /// Protected directories safe to use both as access probes and as
+    /// registration attempts. Request-only paths stay separate because every
+    /// entry here must remain a reliable signal that access was granted.
+    private static let fdaGatedDirectories = [
+        "Library/Safari",
+        "Library/Mail",
+        "Library/Messages",
+        "Library/Cookies",
+        "Library/Suggestions",
+        "Library/Application Support/MobileSync",
+    ]
+
     /// Detects Full Disk Access without a prompt. Reading the TCC database is the
     /// classic signal, but that file is absent on some macOS versions (so a
     /// missing file would read as "no access" forever, even once granted). The
@@ -182,14 +233,7 @@ final class Permissions: ObservableObject {
 
         // Works on every version: each of these is gated by Full Disk Access, so
         // a successful listing (even of an empty directory) means it is granted.
-        let gatedDirs = [
-            "Library/Safari",
-            "Library/Mail",
-            "Library/Messages",
-            "Library/Cookies",
-            "Library/Suggestions",
-            "Library/Application Support/MobileSync",
-        ].map { (home as NSString).appendingPathComponent($0) }
+        let gatedDirs = fdaGatedDirectories.map { (home as NSString).appendingPathComponent($0) }
         return gatedDirs.contains { (try? fm.contentsOfDirectory(atPath: $0)) != nil }
     }
 
@@ -198,6 +242,7 @@ final class Permissions: ObservableObject {
     func requestAccessibility() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
+        refreshActivePermissions()
         if !accessibility {
             PermissionGuideOverlay.shared.show(for: .accessibility)
         }
@@ -207,6 +252,7 @@ final class Permissions: ObservableObject {
     /// floats the guide card, like the Accessibility path.
     func requestScreenRecording() {
         CGRequestScreenCaptureAccess()
+        refreshActivePermissions()
         if !screenRecording {
             PermissionGuideOverlay.shared.show(for: .screenRecording)
         }
@@ -248,15 +294,10 @@ final class Permissions: ObservableObject {
                 _ = try? handle.read(upToCount: 1)
                 try? handle.close()
             }
-            // A few more protected locations, harmless when absent.
-            let dirs = [
-                "Library/Application Support/com.apple.TCC",
-                "Library/Safari",
-                "Library/Mail",
-                "Library/Messages",
-                "Library/Cookies",
-                "Library/Application Support/MobileSync",
-            ].map { (home as NSString).appendingPathComponent($0) }
+            // Protected locations, harmless when absent. The TCC directory is
+            // useful for registration but is not part of the access probe.
+            let dirs = (["Library/Application Support/com.apple.TCC"] + Self.fdaGatedDirectories)
+                .map { (home as NSString).appendingPathComponent($0) }
             for path in dirs { _ = try? fm.contentsOfDirectory(atPath: path) }
 
             // Let tccd persist the denial before the pane loads its list.
@@ -274,8 +315,21 @@ final class Permissions: ObservableObject {
         }
     }
 
+    func requestMicrophone(completion: ((Bool) -> Void)? = nil) {
+        AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
+            DispatchQueue.main.async {
+                self?.microphone = granted ? .granted : .denied
+                completion?(granted)
+            }
+        }
+    }
+
     func openCameraSettings() {
         open(pane: "Privacy_Camera")
+    }
+
+    func openMicrophoneSettings() {
+        open(pane: "Privacy_Microphone")
     }
 
     func openNotificationSettings() {
@@ -289,6 +343,17 @@ final class Permissions: ObservableObject {
 
     func openAudioCaptureSettings() {
         open(pane: "Privacy_AudioCapture")
+    }
+
+    func openAppManagementSettings() {
+        let pane = URL(string:
+            "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AppBundles")!
+        if NSWorkspace.shared.open(pane) { return }
+
+        // A general Privacy & Security page is still useful if a future macOS
+        // version stops accepting the pane identifier.
+        let fallback = URL(string: "x-apple.systempreferences:com.apple.preference.security")!
+        NSWorkspace.shared.open(fallback)
     }
 
     private func open(pane: String) {

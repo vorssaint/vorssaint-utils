@@ -35,6 +35,9 @@ struct AutoQuitSettings: View {
                     .foregroundStyle(.secondary)
             }
 
+            // The exception list has one reader, the window check, and that only
+            // runs while the feature does. With the switch off every edit here
+            // is a no-op, so the list follows it.
             Section(l10n.s.autoQuitExceptionsTitle) {
                 if sortedExceptions.isEmpty {
                     Text(l10n.s.autoQuitExceptionsEmpty)
@@ -61,6 +64,7 @@ struct AutoQuitSettings: View {
                             }
                         }
                     }
+                    .disabled(!enabled)
                 }
 
                 Button {
@@ -68,6 +72,7 @@ struct AutoQuitSettings: View {
                 } label: {
                     Label(l10n.s.autoQuitAddApp, systemImage: "plus")
                 }
+                .disabled(!enabled)
 
                 Text(l10n.s.autoQuitExceptionsCaption)
                     .font(.caption)

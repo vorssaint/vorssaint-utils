@@ -4,56 +4,44 @@
 import AppKit
 import Vision
 
-/// Screen OCR: the user selects an area with the system's own crosshair
-/// (the `screencapture` selection UI, Esc cancels), the text in it is
-/// recognized offline with Vision and lands on the clipboard. Needs Screen
-/// Recording so window contents are actually visible in the capture.
+/// Screen OCR: the user picks an area on the app's own capture surface, the
+/// text in it is recognized offline with Vision and lands on the clipboard.
+/// Needs Screen Recording, requested contextually on first use.
+///
+/// The picking and the capture both happen here rather than through the
+/// system's capture command. A separate command is judged by macOS on its own
+/// standing, which on recent versions can be refused even while this app is
+/// allowed, and a refused command writes no file and says nothing: the tool
+/// looked dead with no crosshair, no message and nothing to fix (issue #364).
 final class ScreenTextService: ObservableObject {
     static let shared = ScreenTextService()
 
-    @Published private(set) var shortcutRegistrationFailed = false
+    private var recognitionGeneration = 0
 
-    private let hotkey = QuickToolHotkey(id: 13)
-    private var captureInFlight = false
-
-    private init() {
-        hotkey.onPress = { [weak self] in self?.capture() }
-    }
+    private init() {}
 
     func syncWithPreferences() {
-        let enabled = AppFeature.screenOCR.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRShortcutEnabled)
-        let shortcut = GlobalShortcut.saved(for: DefaultsKey.screenOCRShortcut,
-                                            fallback: .screenOCRDefault)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
+        guard AppFeature.screenOCR.isAvailable else {
+            cancelSession()
+            return
+        }
     }
 
     func suspend() {
-        hotkey.unregister()
+        cancelSession()
+    }
+
+    private func cancelSession() {
+        recognitionGeneration += 1
     }
 
     func capture() {
-        guard !captureInFlight else { return }
-        captureInFlight = true
+        ScreenCaptureService.shared.capture(initial: .text)
+    }
 
-        let file = FileManager.default.temporaryDirectory
-            .appendingPathComponent("vorssaint-ocr-\(UUID().uuidString).png")
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-        // -i interactive selection, -x no sound, -o no window shadow.
-        process.arguments = ["-i", "-x", "-o", file.path]
-        process.terminationHandler = { [weak self] _ in
-            DispatchQueue.main.async {
-                self?.captureInFlight = false
-                self?.recognize(at: file)
-            }
-        }
-        do {
-            try process.run()
-        } catch {
-            captureInFlight = false
-        }
+    func receiveUnifiedCapture(_ capture: ScreenshotSelectionController.Capture) {
+        recognitionGeneration += 1
+        recognize(capture.image)
     }
 
     /// What a captured region turned out to hold.
@@ -63,25 +51,16 @@ final class ScreenTextService: ObservableObject {
         case empty
     }
 
-    private func recognize(at file: URL) {
-        // Esc during selection leaves no file; that is a silent cancel.
-        guard FileManager.default.fileExists(atPath: file.path) else { return }
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            defer { try? FileManager.default.removeItem(at: file) }
-            guard let source = CGImageSourceCreateWithURL(file as CFURL, nil),
-                  let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
-            else {
-                DispatchQueue.main.async {
-                    QuickToolHUD.show(icon: "text.viewfinder", message: L10n.shared.s.ocrNoText)
-                }
-                return
-            }
-
-            let outcome = Self.outcome(for: image,
-                                       detectQRCodes: UserDefaults.standard.bool(
-                                        forKey: DefaultsKey.screenOCRDetectQRCodes))
-            DispatchQueue.main.async {
+    private func recognize(_ image: CGImage) {
+        let generation = recognitionGeneration
+        let detectQRCodes = UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRDetectQRCodes)
+        let fallbackLanguages = MediaSupport.recognitionLanguages(for: L10n.shared.language.rawValue)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let outcome = ScreenTextService.outcome(for: image,
+                                                    detectQRCodes: detectQRCodes,
+                                                    fallbackLanguages: fallbackLanguages)
+            DispatchQueue.main.async { [weak self] in
+                guard self?.recognitionGeneration == generation else { return }
                 let strings = L10n.shared.s
                 switch outcome {
                 case .qr(let reading):
@@ -102,27 +81,54 @@ final class ScreenTextService: ObservableObject {
     /// it is the thing the user pointed at, and the scan is a fast pass that
     /// falls through to text recognition when no code is found. Pure enough
     /// to exercise directly on a known image.
-    static func outcome(for image: CGImage, detectQRCodes: Bool) -> Outcome {
+    static func outcome(for image: CGImage,
+                        detectQRCodes: Bool,
+                        fallbackLanguages: [String] = ["en-US"]) -> Outcome {
         if detectQRCodes, let reading = BarcodeDetector.read(image) {
             return .qr(reading)
         }
 
+        var lines = recognizedLines(in: image,
+                                    level: .accurate,
+                                    automaticallyDetectLanguage: true,
+                                    preferredLanguages: fallbackLanguages)
+        if lines.isEmpty {
+            // The fast path uses a different recognition model. It is a
+            // separate second chance when the accurate model returns no text.
+            lines = recognizedLines(in: image,
+                                    level: .fast,
+                                    automaticallyDetectLanguage: false,
+                                    preferredLanguages: fallbackLanguages)
+        }
+        let text = QuickToolsSupport.joinedRecognizedText(lines)
+        return text.isEmpty ? .empty : .text(text)
+    }
+
+    private static func recognizedLines(
+        in image: CGImage,
+        level: VNRequestTextRecognitionLevel,
+        automaticallyDetectLanguage: Bool,
+        preferredLanguages: [String] = []
+    ) -> [QuickToolsSupport.RecognizedLine] {
         let request = VNRecognizeTextRequest()
-        request.recognitionLevel = .accurate
+        request.recognitionLevel = level
         request.usesLanguageCorrection = true
-        request.automaticallyDetectsLanguage = true
+        request.automaticallyDetectsLanguage = automaticallyDetectLanguage
+        if !preferredLanguages.isEmpty,
+           let supported = try? request.supportedRecognitionLanguages() {
+            let available = preferredLanguages.filter { supported.contains($0) }
+            if !available.isEmpty { request.recognitionLanguages = available }
+        }
 
         let handler = VNImageRequestHandler(cgImage: image, options: [:])
-        try? handler.perform([request])
+        guard (try? handler.perform([request])) != nil else { return [] }
 
-        let lines = (request.results ?? []).compactMap { observation -> QuickToolsSupport.RecognizedLine? in
+        return (request.results ?? []).compactMap { observation -> QuickToolsSupport.RecognizedLine? in
             guard let candidate = observation.topCandidates(1).first else { return nil }
             return QuickToolsSupport.RecognizedLine(text: candidate.string,
                                                     x: observation.boundingBox.minX,
                                                     y: observation.boundingBox.midY)
         }
-        let text = QuickToolsSupport.joinedRecognizedText(lines)
-        return text.isEmpty ? .empty : .text(text)
     }
 
     private static func copyToPasteboard(_ value: String) {

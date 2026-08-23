@@ -462,7 +462,7 @@ extension SnippetFeatureStrings {
         pageTitle: "文本片段",
         hubDescription: "短触发词展开为完整文本",
         enable: "输入时展开片段",
-        enableCaption: "在任何地方输入触发词,它就会变成对应文本。一切都只在这台 Mac 上。",
+        enableCaption: "在任何地方输入触发词，它就会变成对应文本。一切都只在这台 Mac 上。",
         addButton: "添加片段",
         newTitle: "新建片段",
         editTitle: "编辑片段",
@@ -475,8 +475,8 @@ extension SnippetFeatureStrings {
         expansionLabel: "展开时机",
         expansionImmediate: "立即",
         expansionDelimiter: "空格、Tab 或回车后",
-        variablesHint: "变量:{{date}}、{{time}}、{{datetime}}、{{clipboard}}",
-        variablesCaption: "展开那一刻,它们会变成日期、时间和已复制的文本。",
+        variablesHint: "变量：{{date}}、{{time}}、{{datetime}}、{{clipboard}}",
+        variablesCaption: "展开那一刻，它们会变成日期、时间和已复制的文本。",
         emptyList: "还没有片段。添加第一个吧。",
         duplicateTrigger: "另一个片段已在使用该触发词。",
         triggerTooShort: "触发词至少需要 2 个字符。",
@@ -494,7 +494,7 @@ extension SnippetFeatureStrings {
         folderLabel: "文件夹",
         folderPlaceholder: "工作",
         showInLibraryLabel: "在快捷菜单中显示",
-        variablesFormatCaption: "冒号后加上格式就能自定样式,例如 {{date:yyyy-MM-dd}}。"
+        variablesFormatCaption: "冒号后加上格式就能自定样式，例如 {{date:yyyy-MM-dd}}。"
     )
 
     static let zhTW = SnippetFeatureStrings(

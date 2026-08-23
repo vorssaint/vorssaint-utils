@@ -26,13 +26,27 @@ enum MemoryPressure {
 /// is unavailable on the current hardware, and the UI hides those rows.
 struct SystemSnapshot {
     var cpuTemperature: Double?
+    /// When the CPU sensor behind `cpuTemperature` was last read, on the
+    /// system uptime clock. The value is carried between reads, so anything
+    /// judging how long the CPU has been hot has to tell repeats apart from
+    /// fresh readings.
+    var cpuTemperatureReadAt: TimeInterval?
     var gpuTemperature: Double?
     var batteryTemperature: Double?
     var cpuUsage: Double?          // 0...1
+    /// When `cpuUsage` was last really read, on the system uptime clock; the
+    /// value is carried over failed reads, and the hot CPU alert has to tell
+    /// those repeats apart from fresh readings.
+    var cpuUsageReadAt: TimeInterval?
     var gpuUsage: Double?          // 0...1
     var memoryUsed: UInt64?
+    var memoryAppUsed: UInt64?
     var memoryTotal: UInt64?
+    var memoryCompressed: UInt64?
+    var memoryCached: UInt64?
+    var memorySwapUsed: UInt64?
     var memoryPressure: MemoryPressure = .unknown
+    var fanSpeeds: [Double] = []
 
     // Network
     var netDownBytesPerSec: Double?
@@ -51,6 +65,7 @@ struct SystemSnapshot {
     var cpuHistory: [Double] = []          // 0...1
     var gpuHistory: [Double] = []          // 0...1
     var memoryHistory: [Double] = []       // 0...1
+    var memoryAppHistory: [Double] = []    // 0...1
     var netDownHistory: [Double] = []      // bytes/sec
     var netUpHistory: [Double] = []        // bytes/sec
     var diskReadHistory: [Double] = []     // bytes/sec
@@ -75,12 +90,13 @@ struct SystemMonitorPanelNeeds: Equatable {
     var cpuTemperature = false
     var gpuTemperature = false
     var batteryTemperature = false
+    var fanSpeed = false
 
     static let none = SystemMonitorPanelNeeds()
 
     var any: Bool {
         system || network || disk || power || cpu || gpu || memory || battery ||
-            peripheralBattery || cpuTemperature || gpuTemperature || batteryTemperature
+            peripheralBattery || cpuTemperature || gpuTemperature || batteryTemperature || fanSpeed
     }
 }
 
@@ -117,7 +133,9 @@ final class SystemMonitor: ObservableObject {
     private var fallbackCPUKeys: [SMCClient.Key] = []
     private var gpuKeys: [SMCClient.Key] = []
     private var batteryKeys: [SMCClient.Key] = []
+    private var fanKeys: [SMCClient.Key] = []
     private var tempKeysPrepared = false
+    private var fanKeysPrepared = false
     private var cpuTemperaturePlatform: CPUTemperaturePlatform = .generic
 
     // Samplers
@@ -137,6 +155,7 @@ final class SystemMonitor: ObservableObject {
     /// what triggers the immediate resample instead of a wait of up to 60 s.
     private var lastSyncedPlan: SamplingPlan?
     private var lastCPUUsage: Double?
+    private var lastCPUUsageReadAt: TimeInterval?
     private var missedCPUUsageSamples = 0
     private var lastGPUUsage: Double?
     private var missedGPUUsageSamples = 0
@@ -144,6 +163,8 @@ final class SystemMonitor: ObservableObject {
     private var cpuTemperatureCache: CachedSensorReading?
     private var gpuTemperatureCache: CachedSensorReading?
     private var batteryTemperatureCache: CachedSensorReading?
+    private var lastFanSpeeds: [Double] = []
+    private var missedFanSpeedSamples = 0
     private var lastDiskReading: DiskReading?
     private var lastPowerReading: PowerReading?
     private var lastPeripheralBatteries: [PeripheralBatteryDevice] = []
@@ -155,6 +176,7 @@ final class SystemMonitor: ObservableObject {
     private var cpuHistory: MetricHistory
     private var gpuHistory: MetricHistory
     private var memoryHistory: MetricHistory
+    private var memoryAppHistory: MetricHistory
     private var netDownHistory: MetricHistory
     private var netUpHistory: MetricHistory
     private var diskReadHistory: MetricHistory
@@ -167,13 +189,16 @@ final class SystemMonitor: ObservableObject {
         cpuHistory = MetricHistory(capacity: historyCapacity)
         gpuHistory = MetricHistory(capacity: historyCapacity)
         memoryHistory = MetricHistory(capacity: historyCapacity)
+        memoryAppHistory = MetricHistory(capacity: historyCapacity)
         netDownHistory = MetricHistory(capacity: historyCapacity)
         netUpHistory = MetricHistory(capacity: historyCapacity)
         diskReadHistory = MetricHistory(capacity: historyCapacity)
         diskWriteHistory = MetricHistory(capacity: historyCapacity)
         powerHistory = MetricHistory(capacity: historyCapacity)
         batteryHistory = MetricHistory(capacity: historyCapacity)
-        installPowerSourceObserver()
+        if PowerSampler.hasInternalBattery {
+            installPowerSourceObserver()
+        }
     }
 
     deinit {
@@ -381,8 +406,9 @@ final class SystemMonitor: ObservableObject {
         var needCPUTemperature = false
         var needGPUTemperature = false
         var needBatteryTemperature = false
+        var needFanSpeed = false
 
-        var needSMC: Bool { needPower || needTemperature }
+        var needSMC: Bool { needPower || needTemperature || needFanSpeed }
 
         var needTemperature: Bool {
             needCPUTemperature || needGPUTemperature || needBatteryTemperature
@@ -390,19 +416,17 @@ final class SystemMonitor: ObservableObject {
 
         var any: Bool {
             needCPU || needMemory || needNetwork || needDisk || needPower ||
-                needPeripheralBattery || needGPUUsage || needTemperature
+                needPeripheralBattery || needGPUUsage || needTemperature || needFanSpeed
         }
-    }
-
-    private struct CachedSensorReading {
-        var value: Double
-        var updatedAt: TimeInterval
-        var missedSamples: Int
     }
 
     private struct CachedMemoryReading {
         var used: UInt64
+        var appUsed: UInt64
         var total: UInt64
+        var compressed: UInt64
+        var cached: UInt64
+        var swapUsed: UInt64?
         var pressure: MemoryPressure
         var updatedAt: TimeInterval
         var missedSamples: Int
@@ -410,6 +434,7 @@ final class SystemMonitor: ObservableObject {
 
     private func currentPlan(defaults: UserDefaults) -> SamplingPlan {
         var plan = SamplingPlan()
+        let hasInternalBattery = PowerSampler.hasInternalBattery
         let panelNeedsSystem = fullMonitorVisible || menuPanelNeeds.system
         let panelNeedsNetwork = fullMonitorVisible || menuPanelNeeds.network
         let panelNeedsDisk = fullMonitorVisible || menuPanelNeeds.disk
@@ -418,13 +443,14 @@ final class SystemMonitor: ObservableObject {
         let panelCPU = (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysCPU)) || menuPanelNeeds.cpu
         let panelGPU = (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysGPU)) || menuPanelNeeds.gpu
         let panelMemory = (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysMemory)) || menuPanelNeeds.memory
-        let panelBattery = (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysBattery)) || menuPanelNeeds.battery
+        let panelBattery = hasInternalBattery
+            && ((panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysBattery)) || menuPanelNeeds.battery)
         let panelTemps = panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysTemps)
         let alertCPU = defaults.bool(forKey: DefaultsKey.monitorAlertCPU)
         let alertCPUTemperature = defaults.bool(forKey: DefaultsKey.monitorAlertCPUTemperature)
         let alertMemory = defaults.bool(forKey: DefaultsKey.monitorAlertMemory)
         let alertDisk = defaults.bool(forKey: DefaultsKey.monitorAlertDisk)
-        let alertBattery = defaults.bool(forKey: DefaultsKey.monitorAlertBattery)
+        let alertBattery = hasInternalBattery && defaults.bool(forKey: DefaultsKey.monitorAlertBattery)
 
         plan.needCPU = panelCPU || defaults.bool(forKey: DefaultsKey.menuBarCPU) || alertCPU
         plan.needMemory = panelMemory || defaults.bool(forKey: DefaultsKey.menuBarMemory) || alertMemory
@@ -435,8 +461,8 @@ final class SystemMonitor: ObservableObject {
             || alertDisk
         plan.needPower = panelNeedsPower || panelBattery
             || defaults.bool(forKey: DefaultsKey.menuBarPower)
-            || defaults.bool(forKey: DefaultsKey.menuBarBattery)
-            || defaults.bool(forKey: DefaultsKey.menuBarBatteryTime)
+            || (hasInternalBattery && defaults.bool(forKey: DefaultsKey.menuBarBattery))
+            || (hasInternalBattery && defaults.bool(forKey: DefaultsKey.menuBarBatteryTime))
             || alertBattery
         plan.needPeripheralBattery = menuPanelNeeds.peripheralBattery
             || defaults.bool(forKey: DefaultsKey.menuBarPeripheralBattery)
@@ -445,8 +471,13 @@ final class SystemMonitor: ObservableObject {
             defaults.bool(forKey: DefaultsKey.menuBarCPUTemperature) || alertCPUTemperature
         plan.needGPUTemperature = panelTemps || menuPanelNeeds.gpuTemperature ||
             defaults.bool(forKey: DefaultsKey.menuBarGPUTemperature)
-        plan.needBatteryTemperature = panelTemps || menuPanelNeeds.batteryTemperature ||
-            defaults.bool(forKey: DefaultsKey.menuBarBatteryTemperature)
+        plan.needBatteryTemperature = hasInternalBattery && (panelTemps || menuPanelNeeds.batteryTemperature ||
+            defaults.bool(forKey: DefaultsKey.menuBarBatteryTemperature))
+        if defaults.bool(forKey: AppFeature.fanControl.availabilityKey),
+           Self.fanTelemetryAvailable {
+            plan.needFanSpeed = fullMonitorVisible || menuPanelNeeds.fanSpeed
+                || defaults.bool(forKey: DefaultsKey.menuBarFanSpeed)
+        }
 
         // The hub gates whole metric families: an unavailable metric never
         // samples, no matter what is pinned, shown or alerting.
@@ -469,6 +500,7 @@ final class SystemMonitor: ObservableObject {
             plan.needPeripheralBattery = false
             plan.needBatteryTemperature = false
         }
+        if !available(.fanControl) { plan.needFanSpeed = false }
         return plan
     }
 
@@ -513,6 +545,7 @@ final class SystemMonitor: ObservableObject {
         if plan.needPeripheralBattery { kinds.append(.peripheralBattery) }
         if plan.needGPUUsage { kinds.append(.gpuUsage) }
         if plan.needTemperature { kinds.append(.temperature) }
+        if plan.needFanSpeed { kinds.append(.fanSpeed) }
         return kinds
     }
 
@@ -562,7 +595,9 @@ final class SystemMonitor: ObservableObject {
         tickCount &+= scheduledWakeTicks
         queue.async { [weak self] in
             guard let self else { return }
-            self.prepareIfNeeded(needSMC: plan.needSMC, needTemperature: plan.needTemperature)
+            self.prepareIfNeeded(needSMC: plan.needSMC,
+                                 needTemperature: plan.needTemperature,
+                                 needFanSpeed: plan.needFanSpeed)
             let now = ProcessInfo.processInfo.systemUptime
 
             var next = SystemSnapshot()
@@ -585,24 +620,32 @@ final class SystemMonitor: ObservableObject {
                 if take(.cpu),
                    let cpu = self.readCPUUsage() {
                     self.lastCPUUsage = cpu
+                    self.lastCPUUsageReadAt = now
                     self.missedCPUUsageSamples = 0
                     self.cpuHistory.push(cpu)
                 } else if self.missedCPUUsageSamples < 3 {
                     self.missedCPUUsageSamples += 1
                 } else {
                     self.lastCPUUsage = nil
+                    self.lastCPUUsageReadAt = nil
                 }
                 next.cpuUsage = self.lastCPUUsage
+                next.cpuUsageReadAt = self.lastCPUUsageReadAt
             }
 
             if plan.needMemory {
                 if take(.memory),
-                   let memory = self.stabilizedMemoryReading(now: now) {
+                   let (memory, isFresh) = self.stabilizedMemoryReading(now: now) {
                     next.memoryUsed = memory.used
+                    next.memoryAppUsed = memory.appUsed
                     next.memoryTotal = memory.total
+                    next.memoryCompressed = memory.compressed
+                    next.memoryCached = memory.cached
+                    next.memorySwapUsed = memory.swapUsed
                     next.memoryPressure = memory.pressure
-                    if memory.isFresh, memory.total > 0 {
+                    if isFresh, memory.total > 0 {
                         self.memoryHistory.push(Double(memory.used) / Double(memory.total))
+                        self.memoryAppHistory.push(Double(memory.appUsed) / Double(memory.total))
                     }
                 }
             }
@@ -687,44 +730,76 @@ final class SystemMonitor: ObservableObject {
             let temperatureBridge = max(12, temperatureGap * 2.2)
             if plan.needCPUTemperature {
                 if take(.temperature) {
-                    next.cpuTemperature = Self.stabilizedTemperature(self.cpuTemperature(),
-                                                                     cache: &self.cpuTemperatureCache,
-                                                                     now: now,
-                                                                     maxAge: temperatureBridge)
+                    next.cpuTemperature = TemperatureSensorSelector.stabilizedTemperature(
+                        self.cpuTemperature(),
+                        cache: &self.cpuTemperatureCache,
+                        now: now,
+                        maxAge: temperatureBridge,
+                        minimum: TemperatureSensorSelector.minimumChipTemperature)
                 } else {
                     next.cpuTemperature = self.cpuTemperatureCache?.value
                 }
+                // The cache timestamp only moves on a real read, which is
+                // exactly what marks a value as fresh for the alert.
+                next.cpuTemperatureReadAt = self.cpuTemperatureCache?.updatedAt
             }
             if plan.needGPUTemperature {
                 if take(.temperature) {
-                    next.gpuTemperature = Self.stabilizedTemperature(self.maxTemperature(of: self.gpuKeys),
-                                                                     cache: &self.gpuTemperatureCache,
-                                                                     now: now,
-                                                                     maxAge: temperatureBridge)
+                    next.gpuTemperature = TemperatureSensorSelector.stabilizedTemperature(
+                        self.maxTemperature(of: self.gpuKeys),
+                        cache: &self.gpuTemperatureCache,
+                        now: now,
+                        maxAge: temperatureBridge,
+                        minimum: TemperatureSensorSelector.minimumChipTemperature)
                 } else {
                     next.gpuTemperature = self.gpuTemperatureCache?.value
                 }
             }
             if plan.needBatteryTemperature {
                 if take(.temperature) {
-                    next.batteryTemperature = Self.stabilizedTemperature(self.maxTemperature(of: self.batteryKeys),
-                                                                         cache: &self.batteryTemperatureCache,
-                                                                         now: now,
-                                                                         maxAge: temperatureBridge)
+                    next.batteryTemperature = TemperatureSensorSelector.stabilizedTemperature(
+                        self.maxTemperature(of: self.batteryKeys),
+                        cache: &self.batteryTemperatureCache,
+                        now: now,
+                        maxAge: temperatureBridge)
                 } else {
                     next.batteryTemperature = self.batteryTemperatureCache?.value
                 }
             }
+            if plan.needFanSpeed {
+                if take(.fanSpeed) {
+                    if let speeds = self.readFanSpeeds() {
+                        self.lastFanSpeeds = speeds
+                        self.missedFanSpeedSamples = 0
+                    } else if self.missedFanSpeedSamples < 3 {
+                        self.missedFanSpeedSamples += 1
+                    } else {
+                        self.lastFanSpeeds = []
+                    }
+                }
+                next.fanSpeeds = self.lastFanSpeeds
+            }
 
-            next.cpuHistory = plan.needCPU ? self.cpuHistory.values : []
-            next.gpuHistory = plan.needGPUUsage ? self.gpuHistory.values : []
-            next.memoryHistory = plan.needMemory ? self.memoryHistory.values : []
-            next.netDownHistory = plan.needNetwork ? self.netDownHistory.values : []
-            next.netUpHistory = plan.needNetwork ? self.netUpHistory.values : []
-            next.diskReadHistory = plan.needDisk ? self.diskReadHistory.values : []
-            next.diskWriteHistory = plan.needDisk ? self.diskWriteHistory.values : []
-            next.systemPowerHistory = plan.needPower ? self.powerHistory.values : []
-            next.batteryHistory = plan.needPower ? self.batteryHistory.values : []
+            next.cpuHistory = plan.needCPU
+                ? self.cpuHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.gpuHistory = plan.needGPUUsage
+                ? self.gpuHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.memoryHistory = plan.needMemory
+                ? self.memoryHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.memoryAppHistory = plan.needMemory
+                ? self.memoryAppHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.netDownHistory = plan.needNetwork
+                ? self.netDownHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.netUpHistory = plan.needNetwork
+                ? self.netUpHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.diskReadHistory = plan.needDisk
+                ? self.diskReadHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.diskWriteHistory = plan.needDisk
+                ? self.diskWriteHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.systemPowerHistory = plan.needPower
+                ? self.powerHistory.publishedValues(whileVisible: foregroundSampling) : []
+            next.batteryHistory = plan.needPower
+                ? self.batteryHistory.publishedValues(whileVisible: foregroundSampling) : []
 
             DispatchQueue.main.async {
                 // Skip pure carry-over publishes (nothing sampled, same plan,
@@ -748,9 +823,10 @@ final class SystemMonitor: ObservableObject {
         }
     }
 
-    private func stabilizedMemoryReading(now: TimeInterval) -> (used: UInt64, total: UInt64, pressure: MemoryPressure, isFresh: Bool)? {
+    private func stabilizedMemoryReading(now: TimeInterval) -> (CachedMemoryReading, isFresh: Bool)? {
         let pressure = Self.readMemoryPressure()
         if let memory = SystemInfo.memoryUsage(), memory.total > 0 {
+            let swapUsed = memory.swapUsed ?? memoryCache?.swapUsed
             let stablePressure: MemoryPressure
             switch pressure {
             case .unknown:
@@ -758,47 +834,34 @@ final class SystemMonitor: ObservableObject {
             case .normal, .warning, .critical:
                 stablePressure = pressure
             }
-            memoryCache = CachedMemoryReading(used: memory.used,
+            let reading = CachedMemoryReading(used: memory.used,
+                                              appUsed: memory.appUsed,
                                               total: memory.total,
+                                              compressed: memory.compressed,
+                                              cached: memory.cached,
+                                              swapUsed: swapUsed,
                                               pressure: stablePressure,
                                               updatedAt: now,
                                               missedSamples: 0)
-            return (memory.used, memory.total, stablePressure, true)
+            memoryCache = reading
+            return (reading, true)
         }
 
-        guard var cached = memoryCache else { return nil }
-        cached.missedSamples += 1
-        guard cached.missedSamples <= 4, now - cached.updatedAt <= 12 else {
+        guard var held = memoryCache else { return nil }
+        held.missedSamples += 1
+        guard held.missedSamples <= 4, now - held.updatedAt <= 12 else {
             memoryCache = nil
             return nil
         }
 
         switch pressure {
         case .normal, .warning, .critical:
-            cached.pressure = pressure
+            held.pressure = pressure
         case .unknown:
             break
         }
-        memoryCache = cached
-        return (cached.used, cached.total, cached.pressure, false)
-    }
-
-    private static func stabilizedTemperature(_ reading: Double?,
-                                              cache: inout CachedSensorReading?,
-                                              now: TimeInterval,
-                                              maxAge: TimeInterval) -> Double? {
-        if let reading, reading > 1, reading < 125 {
-            cache = CachedSensorReading(value: reading, updatedAt: now, missedSamples: 0)
-            return reading
-        }
-        guard var cached = cache else { return nil }
-        cached.missedSamples += 1
-        if cached.missedSamples <= 4, now - cached.updatedAt <= maxAge {
-            cache = cached
-            return cached.value
-        }
-        cache = nil
-        return nil
+        memoryCache = held
+        return (held, false)
     }
 
     // MARK: - Sensor preparation
@@ -806,16 +869,28 @@ final class SystemMonitor: ObservableObject {
     /// Opens the SMC lazily. Temperature key discovery is heavier (it enumerates
     /// every SMC key) so it waits until the panel or a pinned temperature metric
     /// actually needs it.
-    private func prepareIfNeeded(needSMC: Bool, needTemperature: Bool) {
+    private func prepareIfNeeded(needSMC: Bool,
+                                 needTemperature: Bool,
+                                 needFanSpeed: Bool) {
         if needSMC, !smcTried {
             smcTried = true
             smc = SMCClient()
             cpuTemperaturePlatform = TemperatureSensorSelector.currentPlatform()
             powerSampler = PowerSampler(smc: smc)
         }
+        guard let client = smc else { return }
+
+        if needFanSpeed, !fanKeysPrepared {
+            fanKeysPrepared = true
+            let count = Self.fanTelemetryCount
+            if count > 0 {
+                let keys = (0..<count).compactMap { client.key(named: "F\($0)Ac") }
+                if keys.count == count { fanKeys = keys }
+            }
+        }
+
         guard needTemperature, !tempKeysPrepared else { return }
         tempKeysPrepared = true
-        guard let client = smc else { return }
 
         let all = client.keys { name in
             name.hasPrefix("Tp") || name.hasPrefix("Te") || name.hasPrefix("Tg")
@@ -829,6 +904,28 @@ final class SystemMonitor: ObservableObject {
         fallbackCPUKeys = cpuKeys.filter { !preferredNames.contains($0.name) }
         gpuKeys = all.filter { $0.name.hasPrefix("Tg") }
         batteryKeys = all.filter { $0.name.hasPrefix("TB") }
+    }
+
+    static let fanTelemetryCount: Int = {
+        guard let client = SMCClient(),
+              let countKey = client.key(named: "FNum"),
+              let countValue = client.readValue(countKey),
+              let count = FanControlPolicy.fanCount(from: countValue) else { return 0 }
+        let readings = (0..<count).map { index -> Double? in
+            guard let key = client.key(named: "F\(index)Ac") else { return nil }
+            return client.readValue(key)
+        }
+        guard FanControlPolicy.telemetryReadings(expectedCount: count,
+                                                 readings: readings) != nil else { return 0 }
+        return count
+    }()
+
+    static var fanTelemetryAvailable: Bool { fanTelemetryCount > 0 }
+
+    private func readFanSpeeds() -> [Double]? {
+        guard let smc, !fanKeys.isEmpty else { return nil }
+        return FanControlPolicy.telemetryReadings(expectedCount: fanKeys.count,
+                                                  readings: fanKeys.map { smc.readValue($0) })
     }
 
     private func cpuTemperature() -> Double? {

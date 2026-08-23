@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import CoreAudio
 import Foundation
 
 struct MixerInputRouteResolution: Equatable {
@@ -66,6 +67,45 @@ struct MixerEngineBuilds {
 
 }
 
+/// Gives one dead audio path a replacement, then keeps that exact path
+/// untapped so a persistent HAL failure cannot keep muting it.
+struct MixerEngineRecovery {
+    struct Configuration: Equatable {
+        let objects: [AudioObjectID]
+        let outputDeviceUID: String
+    }
+
+    private struct Failure {
+        let configuration: Configuration
+        var count: Int
+    }
+
+    private var failures: [String: Failure] = [:]
+
+    func allowsBuild(_ id: String, configuration: Configuration) -> Bool {
+        guard let failure = failures[id], failure.configuration == configuration else {
+            return true
+        }
+        return failure.count < 2
+    }
+
+    mutating func recordFailure(_ id: String, configuration: Configuration) -> Bool {
+        let count = failures[id]?.configuration == configuration
+            ? (failures[id]?.count ?? 0) + 1
+            : 1
+        failures[id] = Failure(configuration: configuration, count: count)
+        return count < 2
+    }
+
+    mutating func clear(_ id: String) {
+        failures.removeValue(forKey: id)
+    }
+
+    mutating func clearAll() {
+        failures.removeAll()
+    }
+}
+
 /// Arbitrates the refresh passes that read the audio HAL.
 ///
 /// Reading device and process properties is done off the main thread, because
@@ -128,6 +168,34 @@ enum MixerRoutingSupport {
 
     static func isUnity(_ volume: Double) -> Bool {
         abs(volume - 1) < 0.005
+    }
+
+    /// Inactive apps with a custom volume or output remain visible so hiding
+    /// idle rows can never conceal a setting the user may want to undo.
+    static func shouldShowApp(isPlaying: Bool,
+                              volume: Double,
+                              selectedOutputDeviceUID: String?,
+                              hideInactiveApps: Bool) -> Bool {
+        guard hideInactiveApps else { return true }
+        return isPlaying || !isUnity(volume) || selectedOutputDeviceUID != nil
+    }
+
+    /// Turns the text entered beside a mixer slider into its gain. The field
+    /// accepts the same optional percent sign it displays, while the caller
+    /// supplies the limit (100 for the system output, 200 for an app row).
+    static func volumeFraction(fromPercentageText text: String,
+                               maximumPercent: Int) -> Double? {
+        guard maximumPercent >= 0 else { return nil }
+        var normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalized.hasSuffix("%") {
+            normalized.removeLast()
+            normalized = normalized.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let separator = Locale.current.decimalSeparator, separator != "." {
+            normalized = normalized.replacingOccurrences(of: separator, with: ".")
+        }
+        guard let percent = Double(normalized), percent.isFinite else { return nil }
+        return min(max(percent, 0), Double(maximumPercent)) / 100
     }
 
     static func sanitizedDeviceUID(_ value: Any?) -> String? {

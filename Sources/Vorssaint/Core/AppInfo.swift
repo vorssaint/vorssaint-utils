@@ -9,14 +9,9 @@ enum AppInfo {
     static let copyright = "© 2026 Vorssaint"
     static let websiteURL = URL(string: "https://vorssaint.com")!
     static let repositoryURL = URL(string: "https://github.com/vorssaint/vorssaint-utils")!
-    /// Buy Me a Coffee page. The project stays free; donations and stars are how
-    /// the community keeps it alive. Confirm the handle is exactly right before
-    /// shipping to main.
-    static let donateURL = URL(string: "https://buymeacoffee.com/vorssaint")!
-    /// Where previews of upcoming features are posted between weekly releases.
-    /// Handle taken from the owner's GitHub profile (twitter_username).
-    static let communityHandle = "@vorssaint"
-    static let communityURL = URL(string: "https://x.com/vorssaint")!
+    static let coffeeURL = URL(string: "https://buymeacoffee.com/vorssaint")!
+    static let discordURL = URL(string: "https://discord.gg/M6BwWH4BJp")!
+    static let socialURL = URL(string: "https://x.com/vorssaint")!
 
     /// The bundle version. The fallback only applies to the bare binary
     /// (e.g. `--selftest`), never the shipped app, which reads its Info.plist.
@@ -28,6 +23,15 @@ enum AppInfo {
     /// It is never published and never auto-updates; all work is tested here first.
     static var isDeveloperBuild: Bool {
         (Bundle.main.bundleIdentifier ?? "").hasSuffix(".dev")
+    }
+
+    /// True when the current version is a pre-release (e.g. 3.3.4-beta.1 or 3.3.4-rc.1).
+    static var isBeta: Bool {
+        if isDeveloperBuild && UserDefaults.standard.bool(forKey: DefaultsKey.simulateBetaUI) {
+            return true
+        }
+        let v = version.lowercased()
+        return v.contains("-beta") || v.contains("-rc") || v.contains("-alpha")
     }
 
     /// The git commit a Developer build was compiled from, e.g. "ed2ebba · 2026-06-15 21:30"

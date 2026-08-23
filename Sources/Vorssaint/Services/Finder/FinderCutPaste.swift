@@ -59,14 +59,26 @@ final class FinderCutPaste: ObservableObject {
     /// pasteboard since, ⌘V is left as a normal paste.
     private var markedChangeCount = 0
 
+    // An active keyboard tap makes the window server wait for its callback
+    // before delivering the key. Keep that callback on a user-interactive
+    // run loop so unrelated typing never queues behind the app's main thread.
+    private let tapLifecycleLock = NSLock()
     private var tap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
+    private var tapRunLoop: CFRunLoop?
+    private var tapThread: Thread?
+    private var shouldStopTapThread = false
+    private var pendingTapRestart = false
     private var panel: NSPanel?
     private var resultDismiss: DispatchWorkItem?
     private var operationGeneration = 0
     private var moveInProgress = false
+    private var cutPasteEnabled = false
+    private var pasteImageAsFileEnabled = false
+    private var imagePasteInProgress = false
 
     private static let finderBundleID = "com.apple.finder"
+    private static let syntheticPasteMarker: Int64 = 0x564F5249
+    private static let maxRawImageBytes = 64 * 1024 * 1024
 
     // ANSI virtual key codes.
     private enum Key {
@@ -77,16 +89,21 @@ final class FinderCutPaste: ObservableObject {
 
     private init() {}
 
-    var isRunning: Bool { tap != nil }
+    var isRunning: Bool { tapLifecycleLock.withLock { tap != nil } }
 
     /// Applies the persisted preference; safe to call repeatedly.
     func syncWithPreferences() {
-        let enabled = AppFeature.finderCutPaste.isAvailable
+        let available = AppFeature.finderCutPaste.isAvailable
+        cutPasteEnabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.finderCutPasteEnabled)
-        if enabled, Permissions.shared.accessibility {
+        pasteImageAsFileEnabled = available
+            && UserDefaults.standard.bool(forKey: DefaultsKey.finderPasteImageAsFile)
+        if (cutPasteEnabled || pasteImageAsFileEnabled), Permissions.shared.accessibility {
             installTap()
         } else {
             removeTap()
+        }
+        if !cutPasteEnabled {
             clearMarks()
         }
     }
@@ -102,89 +119,272 @@ final class FinderCutPaste: ObservableObject {
     // MARK: - Event tap
 
     private func installTap() {
-        guard tap == nil else { return }
-        let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
-        guard let tap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: mask,
-            callback: { _, type, event, userInfo in
-                guard let userInfo else { return Unmanaged.passUnretained(event) }
-                let service = Unmanaged<FinderCutPaste>.fromOpaque(userInfo).takeUnretainedValue()
-                return service.handle(type: type, event: event)
-            },
-            userInfo: Unmanaged.passUnretained(self).toOpaque()
-        ) else { return }
-
-        self.tap = tap
-        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        runLoopSource = source
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        CGEvent.tapEnable(tap: tap, enable: true)
+        let thread = tapLifecycleLock.withLock { () -> Thread? in
+            if tapThread != nil {
+                if shouldStopTapThread { pendingTapRestart = true }
+                return nil
+            }
+            shouldStopTapThread = false
+            pendingTapRestart = false
+            let thread = Thread { [weak self] in self?.runEventTap() }
+            thread.name = "Vorssaint File Shortcuts"
+            thread.qualityOfService = .userInteractive
+            tapThread = thread
+            return thread
+        }
+        thread?.start()
     }
 
     private func removeTap() {
-        if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
-        if let runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes) }
-        tap = nil
-        runLoopSource = nil
+        let snapshot = tapLifecycleLock.withLock {
+            () -> (runLoop: CFRunLoop?, tap: CFMachPort?, threadExists: Bool) in
+            shouldStopTapThread = true
+            pendingTapRestart = false
+            return (tapRunLoop, tap, tapThread != nil)
+        }
+        if let tap = snapshot.tap { CGEvent.tapEnable(tap: tap, enable: false) }
+        if let runLoop = snapshot.runLoop {
+            CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue) {
+                CFRunLoopStop(runLoop)
+            }
+            CFRunLoopWakeUp(runLoop)
+        } else if !snapshot.threadExists {
+            tapLifecycleLock.withLock {
+                shouldStopTapThread = false
+                tapThread = nil
+            }
+        }
     }
 
-    /// Runs on the main thread (the tap source lives on the main run loop), so
-    /// reading `marked` and the pasteboard here is race-free.
-    private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+    private func runEventTap() {
+        autoreleasepool {
+            let runLoop = CFRunLoopGetCurrent()
+            tapLifecycleLock.withLock { tapRunLoop = runLoop }
+            guard !tapLifecycleLock.withLock({ shouldStopTapThread }) else {
+                if clearEventTapThread() { installTap() }
+                return
+            }
+
+            let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
+            guard let tap = CGEvent.tapCreate(
+                tap: .cgSessionEventTap,
+                place: .headInsertEventTap,
+                options: .defaultTap,
+                eventsOfInterest: mask,
+                callback: { _, type, event, userInfo in
+                    guard let userInfo else { return Unmanaged.passUnretained(event) }
+                    let service = Unmanaged<FinderCutPaste>.fromOpaque(userInfo).takeUnretainedValue()
+                    return service.route(type: type, event: event)
+                },
+                userInfo: Unmanaged.passUnretained(self).toOpaque()
+            ) else {
+                _ = clearEventTapThread()
+                return
+            }
+
+            let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+            tapLifecycleLock.withLock { self.tap = tap }
+            CFRunLoopAddSource(runLoop, source, .commonModes)
+            CGEvent.tapEnable(tap: tap, enable: true)
+
+            if tapLifecycleLock.withLock({ shouldStopTapThread }) {
+                CGEvent.tapEnable(tap: tap, enable: false)
+            } else {
+                CFRunLoopRun()
+            }
+
+            CGEvent.tapEnable(tap: tap, enable: false)
+            CFRunLoopRemoveSource(runLoop, source, .commonModes)
+            CFMachPortInvalidate(tap)
+            if clearEventTapThread() { installTap() }
+        }
+    }
+
+    private func clearEventTapThread() -> Bool {
+        tapLifecycleLock.withLock {
+            let shouldRestart = pendingTapRestart
+            tap = nil
+            tapRunLoop = nil
+            tapThread = nil
+            shouldStopTapThread = false
+            pendingTapRestart = false
+            return shouldRestart
+        }
+    }
+
+    /// Runs on the tap thread. Every key except plain Command-X/C/V returns
+    /// after reading only the event itself; the rare candidate is handed to
+    /// the main thread where the service's UI and pasteboard state live.
+    private func route(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+            let currentTap = tapLifecycleLock.withLock { shouldStopTapThread ? nil : tap }
+            if let currentTap { CGEvent.tapEnable(tap: currentTap, enable: true) }
             return Unmanaged.passUnretained(event)
         }
+        guard type == .keyDown,
+              event.getIntegerValueField(.eventSourceUserData) != Self.syntheticPasteMarker
+        else { return Unmanaged.passUnretained(event) }
+
+        let flags = event.flags
+        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        guard flags.contains(.maskCommand),
+              !flags.contains(.maskControl), !flags.contains(.maskAlternate),
+              keyCode == Key.x || keyCode == Key.c || keyCode == Key.v
+        else { return Unmanaged.passUnretained(event) }
+
+        var verdict: Unmanaged<CGEvent>?
+        DispatchQueue.main.sync {
+            verdict = self.handle(event: event)
+        }
+        return verdict
+    }
+
+    /// Runs on the main thread, so reading `marked` and the pasteboard here is
+    /// race-free.
+    private func handle(event: CGEvent) -> Unmanaged<CGEvent>? {
         // Accessibility gone (e.g. reset): the AX focus check below would hang
         // inside the tap and freeze the keyboard, so pass the keystroke through.
         // Cached here to keep a live TCC round-trip off the per-keystroke path;
         // the live check sits right before the AX focus lookup, where it runs
         // only for an actual ⌘X/C/V in Finder.
         guard Permissions.shared.accessibility else { return Unmanaged.passUnretained(event) }
-        guard type == .keyDown else { return Unmanaged.passUnretained(event) }
 
         let flags = event.flags
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
 
-        // Only plain ⌘ + X/C/V, with Finder frontmost and no text being edited.
-        guard flags.contains(.maskCommand),
-              !flags.contains(.maskControl), !flags.contains(.maskAlternate),
-              keyCode == Key.x || keyCode == Key.c || keyCode == Key.v,
-              NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Self.finderBundleID,
+        guard NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Self.finderBundleID,
               AXIsProcessTrusted(),
               !isEditingText()
         else { return Unmanaged.passUnretained(event) }
 
         switch keyCode {
         case Key.x:
+            guard cutPasteEnabled else { return Unmanaged.passUnretained(event) }
             // Finder has no native cut for files, so swallowing ⌘X is safe.
             cutAsync()
             return nil
         case Key.c:
             // Copying something else supersedes a pending cut; let Finder copy.
-            if !marked.isEmpty { clearMarks() }
+            if cutPasteEnabled, !marked.isEmpty { clearMarks() }
             return Unmanaged.passUnretained(event)
         case Key.v:
-            guard !marked.isEmpty else {
-                return Unmanaged.passUnretained(event) // nothing of ours to move → normal paste
-            }
-            guard NSPasteboard.general.changeCount == markedChangeCount else {
-                // Something else wrote to the pasteboard since the cut — the
-                // cut is dead, so drop the marks (and the HUD) and let the
-                // normal paste happen.
+            if cutPasteEnabled, !marked.isEmpty {
+                if NSPasteboard.general.changeCount == markedChangeCount {
+                    guard !moveInProgress else { return nil }
+                    pasteAsync()
+                    return nil
+                }
+                // Something else wrote to the pasteboard since the cut. Drop
+                // the marks, then let the image path below inspect that new
+                // content before falling back to Finder's normal paste.
                 clearMarks()
+            }
+            guard pasteImageAsFileEnabled,
+                  !flags.contains(.maskShift),
+                  !imagePasteInProgress,
+                  let targetPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+            else {
                 return Unmanaged.passUnretained(event)
             }
-            guard !moveInProgress else {
-                return nil
-            }
-            pasteAsync()
+            pasteImageAsync(targetPID: targetPID,
+                            expectedChangeCount: NSPasteboard.general.changeCount)
             return nil
         default:
             return Unmanaged.passUnretained(event)
+        }
+    }
+
+    // MARK: - Paste image as file
+
+    /// The event tap only queues the work. Pasteboard decoding, Finder IPC and
+    /// disk writes stay off the main run loop; non-image content is handed
+    /// back to Finder as the same standard paste shortcut.
+    private func pasteImageAsync(targetPID: pid_t, expectedChangeCount: Int) {
+        imagePasteInProgress = true
+        GeneralPasteboardAccess.shared.async { [weak self] in
+            let pasteboard = NSPasteboard.general
+            guard pasteboard.changeCount == expectedChangeCount else {
+                DispatchQueue.main.async {
+                    self?.finishImagePaste(targetPID: targetPID, result: .notImage)
+                }
+                return
+            }
+            let identifiers = (pasteboard.types ?? []).map(\.rawValue)
+            guard let identifier = FinderPasteImageSupport.preferredImageType(in: identifiers) else {
+                DispatchQueue.main.async {
+                    self?.finishImagePaste(targetPID: targetPID, result: .notImage)
+                }
+                return
+            }
+            guard let source = pasteboard.data(forType: NSPasteboard.PasteboardType(identifier)),
+                  source.count <= Self.maxRawImageBytes,
+                  let bitmap = NSBitmapImageRep(data: source),
+                  let png = identifier == NSPasteboard.PasteboardType.png.rawValue
+                    ? source
+                    : bitmap.representation(using: .png, properties: [:]),
+                  png.count <= Self.maxRawImageBytes
+            else {
+                DispatchQueue.main.async {
+                    self?.finishImagePaste(targetPID: targetPID, result: .failed)
+                }
+                return
+            }
+
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                guard let path = FinderBridge.insertionLocationPath() else {
+                    DispatchQueue.main.async {
+                        self?.finishImagePaste(targetPID: targetPID, result: .failed)
+                    }
+                    return
+                }
+                let directory = URL(fileURLWithPath: path, isDirectory: true)
+                let name = FinderPasteImageSupport.fileName(for: Date())
+                let destination = Self.uniqueDestination(for: name, in: directory,
+                                                         fm: FileManager.default)
+                do {
+                    try png.write(to: destination, options: .atomic)
+                    DispatchQueue.main.async {
+                        self?.finishImagePaste(targetPID: targetPID, result: .saved)
+                    }
+                } catch {
+                    DispatchQueue.main.async {
+                        self?.finishImagePaste(targetPID: targetPID, result: .failed)
+                    }
+                }
+            }
+        }
+    }
+
+    private enum ImagePasteResult {
+        case notImage, saved, failed
+    }
+
+    private func finishImagePaste(targetPID: pid_t, result: ImagePasteResult) {
+        imagePasteInProgress = false
+        switch result {
+        case .notImage:
+            postNormalPaste(ifStillFrontmost: targetPID)
+        case .saved:
+            break
+        case .failed:
+            NSSound.beep()
+        }
+    }
+
+    private func postNormalPaste(ifStillFrontmost targetPID: pid_t) {
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == targetPID else { return }
+        let source = CGEventSource(stateID: .hidSystemState)
+        source?.userData = Self.syntheticPasteMarker
+        guard let keyDown = CGEvent(keyboardEventSource: source,
+                                    virtualKey: CGKeyCode(Key.v), keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source,
+                                  virtualKey: CGKeyCode(Key.v), keyDown: false)
+        else { return }
+        keyDown.flags = .maskCommand
+        keyUp.flags = .maskCommand
+        keyDown.post(tap: .cghidEventTap)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
+            keyUp.post(tap: .cghidEventTap)
         }
     }
 

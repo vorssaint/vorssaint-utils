@@ -12,8 +12,10 @@ import ApplicationServices
 /// visible: the app's window list omits it and direct element access is
 /// refused (measured on macOS 26 and 27). The window server is the only
 /// witness that such a window exists, and the only reliable tell between a
-/// real parked window and a stale leftover surface: real windows always belong
-/// to at least one Space, leftovers belong to none.
+/// real parked window and a stale leftover surface: real windows normally
+/// belong to at least one Space, leftovers belong to none. Some auxiliary
+/// surfaces share a Space with a real window but explicitly opt out of window
+/// cycling, so their window-server tag is checked separately.
 enum SpaceWindowBridge {
     private typealias ConnectionID = UInt32
 
@@ -25,6 +27,13 @@ enum SpaceWindowBridge {
         typealias Function = @convention(c) () -> ConnectionID
         guard let symbol = symbol("CGSMainConnectionID") else { return 0 }
         return unsafeBitCast(symbol, to: Function.self)()
+    }()
+
+    private typealias GetWindowTagsFunction =
+        @convention(c) (ConnectionID, CGWindowID, UnsafeMutablePointer<UInt32>, Int) -> CGError
+    private static let getWindowTags: GetWindowTagsFunction? = {
+        guard let symbol = symbol("CGSGetWindowTags") else { return nil }
+        return unsafeBitCast(symbol, to: GetWindowTagsFunction.self)
     }()
 
     // MARK: - Space membership
@@ -57,31 +66,53 @@ enum SpaceWindowBridge {
     }()
 
     struct Topology {
+        struct DisplayInfo {
+            let displayID: CGDirectDisplayID?
+            let spaces: [UInt64]
+            let currentSpace: UInt64?
+        }
+
+        /// Displays in order.
+        let displays: [DisplayInfo]
         /// Space ids in left-to-right order, one row per display.
-        let orderedSpacesPerDisplay: [[UInt64]]
+        var orderedSpacesPerDisplay: [[UInt64]] { displays.map(\.spaces) }
         /// The Space currently showing on each display.
-        let visibleSpaces: Set<UInt64>
+        var visibleSpaces: Set<UInt64> { Set(displays.compactMap(\.currentSpace)) }
     }
 
     static func topology() -> Topology? {
         guard connection != 0, let copyManagedDisplaySpaces,
-              let displays = copyManagedDisplaySpaces(connection)?
+              let displayDicts = copyManagedDisplaySpaces(connection)?
                 .takeRetainedValue() as? [[String: Any]],
-              !displays.isEmpty
+              !displayDicts.isEmpty
         else { return nil }
 
-        var rows: [[UInt64]] = []
-        var visible: Set<UInt64> = []
-        for display in displays {
+        let screenMap: [String: CGDirectDisplayID] = {
+            var map: [String: CGDirectDisplayID] = [:]
+            for screen in NSScreen.screens {
+                guard let screenNum = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value,
+                      let uuid = CGDisplayCreateUUIDFromDisplayID(screenNum)?.takeRetainedValue(),
+                      let uuidStr = CFUUIDCreateString(nil, uuid) as String?
+                else { continue }
+                map[uuidStr] = screenNum
+            }
+            return map
+        }()
+
+        var displays: [Topology.DisplayInfo] = []
+        for display in displayDicts {
             let row = (display["Spaces"] as? [[String: Any]])?
                 .compactMap { ($0["id64"] as? NSNumber)?.uint64Value } ?? []
-            if !row.isEmpty { rows.append(row) }
-            if let current = (display["Current Space"] as? [String: Any])?["id64"] as? NSNumber {
-                visible.insert(current.uint64Value)
-            }
+            guard !row.isEmpty else { continue }
+            let current = (display["Current Space"] as? [String: Any])?["id64"] as? NSNumber
+            let uuidStr = display["Display Identifier"] as? String
+            let displayID = uuidStr.flatMap { screenMap[$0] }
+            displays.append(Topology.DisplayInfo(displayID: displayID,
+                                                 spaces: row,
+                                                 currentSpace: current?.uint64Value))
         }
-        guard !rows.isEmpty, !visible.isEmpty else { return nil }
-        return Topology(orderedSpacesPerDisplay: rows, visibleSpaces: visible)
+        guard !displays.isEmpty else { return nil }
+        return Topology(displays: displays)
     }
 
     /// Whether the window sits on at least one Space and none of them is
@@ -91,6 +122,20 @@ enum SpaceWindowBridge {
         guard let visible = visibleSpaces ?? topology()?.visibleSpaces else { return false }
         return SpaceHopSupport.isParkedOnHiddenSpace(windowSpaces: spaces(of: windowID),
                                                      visibleSpaces: visible)
+    }
+
+    /// False when the private query is unavailable, preserving the existing
+    /// cross-Space behavior instead of hiding a legitimate window on a guess.
+    static func isExcludedFromWindowCycle(_ windowID: CGWindowID) -> Bool {
+        guard connection != 0, let getWindowTags else { return false }
+        var tags = [UInt32](repeating: 0, count: 2)
+        return tags.withUnsafeMutableBufferPointer { buffer in
+            guard let base = buffer.baseAddress,
+                  getWindowTags(connection, windowID, base,
+                                MemoryLayout<UnsafeRawPointer>.size * 8) == .success
+            else { return false }
+            return SpaceHopSupport.isExcludedFromWindowCycle(windowTagsLow: buffer[0])
+        }
     }
 
     // MARK: - Fronting a specific window

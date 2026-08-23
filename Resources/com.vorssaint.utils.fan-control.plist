@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.vorssaint.utils.fan-control</string>
+    <key>BundleProgram</key>
+    <string>Contents/Library/LaunchServices/com.vorssaint.utils.fan-control</string>
+    <key>MachServices</key>
+    <dict>
+        <key>com.vorssaint.utils.fan-control</key>
+        <true/>
+    </dict>
+    <key>KeepAlive</key>
+    <dict>
+        <key>Crashed</key>
+        <true/>
+    </dict>
+    <key>ThrottleInterval</key>
+    <integer>5</integer>
+    <key>ExitTimeOut</key>
+    <integer>60</integer>
+</dict>
+</plist>

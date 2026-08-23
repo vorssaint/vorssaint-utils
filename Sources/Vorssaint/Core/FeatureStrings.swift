@@ -76,9 +76,45 @@ enum FeatureStrings {
         }
     }
 
+    static func mixer(_ language: AppLanguage) -> MixerFeatureStrings {
+        switch language {
+        case .enUS: return .enUS
+        case .ptBR: return .ptBR
+        case .tr: return .tr
+        case .ru: return .ru
+        case .es: return .es
+        case .de: return .de
+        case .fr: return .fr
+        case .it: return .it
+        case .ja: return .ja
+        case .ko: return .ko
+        case .zhHans: return .zhHans
+        case .zhTW: return .zhTW
+        case .zhHK: return .zhHK
+        }
+    }
+
     static func whatsAppDownloads(_ language: AppLanguage) -> WhatsAppDownloadStrings {
         WhatsAppDownloadStrings.localized(language)
     }
+}
+
+struct MixerFeatureStrings {
+    let hideInactiveApps: String
+
+    static let enUS = MixerFeatureStrings(hideInactiveApps: "Hide inactive apps")
+    static let ptBR = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inativos")
+    static let tr = MixerFeatureStrings(hideInactiveApps: "Etkin olmayan uygulamaları gizle")
+    static let ru = MixerFeatureStrings(hideInactiveApps: "Скрывать неактивные приложения")
+    static let es = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inactivas")
+    static let de = MixerFeatureStrings(hideInactiveApps: "Inaktive Apps ausblenden")
+    static let fr = MixerFeatureStrings(hideInactiveApps: "Masquer les apps inactives")
+    static let it = MixerFeatureStrings(hideInactiveApps: "Nascondi le app inattive")
+    static let ja = MixerFeatureStrings(hideInactiveApps: "非アクティブなアプリを隠す")
+    static let ko = MixerFeatureStrings(hideInactiveApps: "비활성 앱 숨기기")
+    static let zhHans = MixerFeatureStrings(hideInactiveApps: "隐藏不活跃的 App")
+    static let zhTW = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App")
+    static let zhHK = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App")
 }
 
 extension SettingsCategoryStrings {
@@ -87,7 +123,8 @@ extension SettingsCategoryStrings {
         windowsControls: "윈도우 및 제어",
         files: "파일",
         utilities: "유틸리티",
-        app: "앱"
+        app: "앱",
+        appManagement: "앱 관리"
     )
 }
 
@@ -132,7 +169,19 @@ extension ClipboardFeatureStrings {
         includeImagesFiles: "복사한 이미지와 파일도 저장",
         includeImagesFilesCaption: "이미지는 기록에 추가되고 파일은 위치 링크로 저장됩니다. 텍스트 항목처럼 고정하고 붙여넣을 수 있습니다.",
         imageEntryLabel: "이미지",
-        fileCountFormat: "파일 %d개"
+        fileCountFormat: "파일 %d개",
+        pasteImageAsFile: "복사한 이미지를 파일로 붙여넣기",
+        pasteImageAsFileCaption: "Finder가 활성화되어 있을 때 ⌘V를 누르면 복사한 이미지가 현재 폴더에 PNG로 저장됩니다.",
+        previewLabel: "미리보기",
+        edit: "편집",
+        cancel: "취소",
+        save: "저장",
+        autoClearEnable: "클립보드 자동 지우기 대기 시간",
+        autoClearSecondsSuffix: "초",
+        autoClearOnSleep: "Mac이 잠자기에 들어갈 때 클립보드 지우기",
+        autoClearOnDisplaySleep: "디스플레이가 꺼질 때 클립보드 지우기",
+        autoClearOnScreenLock: "화면이 잠길 때 클립보드 지우기",
+        autoClearCaption: "시스템 클립보드만 지웁니다. 이미 저장된 항목은 기록에 남습니다."
     )
 }
 
@@ -186,14 +235,22 @@ extension WindowLayoutFeatureStrings {
         maximize: "최대화",
         center: "가운데",
         nextDisplay: "다음 디스플레이",
-        restore: "복원"
+        restore: "복원",
+        fullScreen: "전체 화면",
+        previousDisplay: "이전 디스플레이",
+        edgeSnapEnable: "화면 가장자리에 윈도우 맞추기",
+        edgeSnapCaption: "여기에서 켠 다음 윈도우 제목 막대를 화면 가장자리나 모서리로 드래그하여 놓으세요.",
+        edgeSnapSystemConflict: "macOS가 같은 가장자리를 사용 중입니다. 데스크탑 및 Dock에서 윈도우 타일링을 끄면 Vorssaint가 사용할 수 있습니다.",
+        edgeSnapOpenSystemSettings: "데스크탑 및 Dock 열기",
+        edgeSnapWaitingForSystem: "Vorssaint에서 켜졌습니다. macOS 타일링을 끄면 바로 작동합니다.",
+        marginMaximize: "여백 두고 최대화"
     )
 }
 
 extension MonitorAlertFeatureStrings {
     static let ko = MonitorAlertFeatureStrings(
         section: "알림",
-        caption: "선택한 기준에 도달하면 알림이 표시됩니다. CPU 사용량은 기준을 약 12초 동안 계속 넘어야 하므로 짧은 급증은 무시됩니다. 반복 설정은 같은 알림의 반복만 제한합니다.",
+        caption: "선택한 기준에 도달하면 알림이 표시됩니다. CPU 사용량과 온도는 기준을 약 12초 동안 계속 넘어야 하므로 짧은 급증은 무시됩니다. 반복 설정은 같은 알림의 반복만 제한합니다.",
         notificationsDenied: "시스템 설정에서 Vorssaint 알림이 꺼져 있어 경고를 표시할 수 없습니다.",
         cpu: "높은 CPU 사용량",
         cpuTemperature: "높은 CPU 온도",
@@ -229,13 +286,15 @@ struct SettingsCategoryStrings {
     let files: String
     let utilities: String
     let app: String
+    let appManagement: String
 
     static let enUS = SettingsCategoryStrings(
         essentials: "Essentials",
         windowsControls: "Window controls",
         files: "Files",
         utilities: "Utilities",
-        app: "App"
+        app: "App",
+        appManagement: "App management"
     )
 
     static let ptBR = SettingsCategoryStrings(
@@ -243,7 +302,8 @@ struct SettingsCategoryStrings {
         windowsControls: "Janelas e controles",
         files: "Arquivos",
         utilities: "Utilitários",
-        app: "App"
+        app: "App",
+        appManagement: "Gestão de apps"
     )
 
     static let tr = SettingsCategoryStrings(
@@ -251,7 +311,8 @@ struct SettingsCategoryStrings {
         windowsControls: "Pencereler ve denetimler",
         files: "Dosyalar",
         utilities: "Araçlar",
-        app: "Uygulama"
+        app: "Uygulama",
+        appManagement: "Uygulama yönetimi"
     )
 
     static let ru = SettingsCategoryStrings(
@@ -259,7 +320,8 @@ struct SettingsCategoryStrings {
         windowsControls: "Окна и управление",
         files: "Файлы",
         utilities: "Утилиты",
-        app: "Приложение"
+        app: "Приложение",
+        appManagement: "Управление приложениями"
     )
 
     static let es = SettingsCategoryStrings(
@@ -267,7 +329,8 @@ struct SettingsCategoryStrings {
         windowsControls: "Ventanas y controles",
         files: "Archivos",
         utilities: "Utilidades",
-        app: "App"
+        app: "App",
+        appManagement: "Gestión de apps"
     )
 
     static let de = SettingsCategoryStrings(
@@ -275,7 +338,8 @@ struct SettingsCategoryStrings {
         windowsControls: "Fenster und Steuerung",
         files: "Dateien",
         utilities: "Dienstprogramme",
-        app: "App"
+        app: "App",
+        appManagement: "App-Verwaltung"
     )
 
     static let fr = SettingsCategoryStrings(
@@ -283,7 +347,8 @@ struct SettingsCategoryStrings {
         windowsControls: "Fenêtres et contrôles",
         files: "Fichiers",
         utilities: "Utilitaires",
-        app: "App"
+        app: "App",
+        appManagement: "Gestion des apps"
     )
 
     static let it = SettingsCategoryStrings(
@@ -291,7 +356,8 @@ struct SettingsCategoryStrings {
         windowsControls: "Finestre e controlli",
         files: "File",
         utilities: "Utilità",
-        app: "App"
+        app: "App",
+        appManagement: "Gestione delle app"
     )
 
     static let ja = SettingsCategoryStrings(
@@ -299,7 +365,8 @@ struct SettingsCategoryStrings {
         windowsControls: "ウインドウと操作",
         files: "ファイル",
         utilities: "ユーティリティ",
-        app: "App"
+        app: "App",
+        appManagement: "Appの管理"
     )
 
     static let zhHans = SettingsCategoryStrings(
@@ -307,7 +374,8 @@ struct SettingsCategoryStrings {
         windowsControls: "窗口与控制",
         files: "文件",
         utilities: "实用工具",
-        app: "App"
+        app: "App",
+        appManagement: "App 管理"
     )
 
     static let zhTW = SettingsCategoryStrings(
@@ -315,7 +383,8 @@ struct SettingsCategoryStrings {
         windowsControls: "視窗與控制",
         files: "檔案",
         utilities: "工具程式",
-        app: "App"
+        app: "App",
+        appManagement: "App 管理"
     )
 
     static let zhHK = SettingsCategoryStrings(
@@ -323,7 +392,8 @@ struct SettingsCategoryStrings {
         windowsControls: "視窗及控制",
         files: "檔案",
         utilities: "工具",
-        app: "App"
+        app: "App",
+        appManagement: "App 管理"
     )
 }
 
@@ -368,6 +438,18 @@ struct ClipboardFeatureStrings {
     let includeImagesFilesCaption: String
     let imageEntryLabel: String
     let fileCountFormat: String
+    let pasteImageAsFile: String
+    let pasteImageAsFileCaption: String
+    let previewLabel: String
+    let edit: String
+    let cancel: String
+    let save: String
+    let autoClearEnable: String
+    let autoClearSecondsSuffix: String
+    let autoClearOnSleep: String
+    let autoClearOnDisplaySleep: String
+    let autoClearOnScreenLock: String
+    let autoClearCaption: String
 
     static let enUS = ClipboardFeatureStrings(
         title: "Clipboard",
@@ -409,7 +491,19 @@ struct ClipboardFeatureStrings {
         includeImagesFiles: "Also save copied images and files",
         includeImagesFilesCaption: "Images join the history and files are remembered as links to their location. Pin and paste them like any text item.",
         imageEntryLabel: "Image",
-        fileCountFormat: "%d files"
+        fileCountFormat: "%d files",
+        pasteImageAsFile: "Paste copied images as files",
+        pasteImageAsFileCaption: "When Finder is active, ⌘V saves a copied image as a PNG in the current folder.",
+        previewLabel: "Preview",
+        edit: "Edit",
+        cancel: "Cancel",
+        save: "Save",
+        autoClearEnable: "Auto clear clipboard with a delay of",
+        autoClearSecondsSuffix: "seconds",
+        autoClearOnSleep: "Clear clipboard on computer sleep",
+        autoClearOnDisplaySleep: "Clear clipboard on display sleep",
+        autoClearOnScreenLock: "Clear clipboard on screen lock",
+        autoClearCaption: "Clears the system clipboard only. Items already saved stay in the history."
     )
 
     static let ptBR = ClipboardFeatureStrings(
@@ -452,7 +546,19 @@ struct ClipboardFeatureStrings {
         includeImagesFiles: "Guardar também imagens e arquivos copiados",
         includeImagesFilesCaption: "Imagens entram no histórico e arquivos são lembrados como links para o local deles. Fixe e cole como qualquer texto.",
         imageEntryLabel: "Imagem",
-        fileCountFormat: "%d arquivos"
+        fileCountFormat: "%d arquivos",
+        pasteImageAsFile: "Colar imagens copiadas como arquivos",
+        pasteImageAsFileCaption: "Com o Finder ativo, ⌘V salva uma imagem copiada como PNG na pasta atual.",
+        previewLabel: "Prévia",
+        edit: "Editar",
+        cancel: "Cancelar",
+        save: "Salvar",
+        autoClearEnable: "Limpar o clipboard automaticamente após",
+        autoClearSecondsSuffix: "segundos",
+        autoClearOnSleep: "Limpar o clipboard quando o Mac dormir",
+        autoClearOnDisplaySleep: "Limpar o clipboard quando a tela apagar",
+        autoClearOnScreenLock: "Limpar o clipboard ao bloquear a tela",
+        autoClearCaption: "Limpa apenas o clipboard do sistema. Os itens já guardados continuam no histórico."
     )
 
     static let tr = ClipboardFeatureStrings(
@@ -495,7 +601,19 @@ struct ClipboardFeatureStrings {
         includeImagesFiles: "Kopyalanan görselleri ve dosyaları da kaydet",
         includeImagesFilesCaption: "Görseller geçmişe eklenir, dosyalar konumlarına bağlantı olarak hatırlanır. Metin gibi sabitle ve yapıştır.",
         imageEntryLabel: "Görsel",
-        fileCountFormat: "%d dosya"
+        fileCountFormat: "%d dosya",
+        pasteImageAsFile: "Kopyalanan görselleri dosya olarak yapıştır",
+        pasteImageAsFileCaption: "Finder etkinken ⌘V, kopyalanan görseli geçerli klasöre PNG olarak kaydeder.",
+        previewLabel: "Önizleme",
+        edit: "Düzenle",
+        cancel: "İptal",
+        save: "Kaydet",
+        autoClearEnable: "Panoyu otomatik temizle, gecikme",
+        autoClearSecondsSuffix: "saniye",
+        autoClearOnSleep: "Mac uykuya geçince panoyu temizle",
+        autoClearOnDisplaySleep: "Ekran uykuya geçince panoyu temizle",
+        autoClearOnScreenLock: "Ekran kilitlenince panoyu temizle",
+        autoClearCaption: "Yalnızca sistem panosunu temizler. Kaydedilmiş ögeler geçmişte kalır."
     )
 
     static let ru = ClipboardFeatureStrings(
@@ -538,7 +656,19 @@ struct ClipboardFeatureStrings {
         includeImagesFiles: "Сохранять также изображения и файлы",
         includeImagesFilesCaption: "Изображения попадают в историю, а файлы запоминаются как ссылки на их расположение. Закрепляйте и вставляйте их как текст.",
         imageEntryLabel: "Изображение",
-        fileCountFormat: "Файлов: %d"
+        fileCountFormat: "Файлов: %d",
+        pasteImageAsFile: "Вставлять скопированные изображения как файлы",
+        pasteImageAsFileCaption: "Когда Finder активен, ⌘V сохраняет скопированное изображение как PNG в текущей папке.",
+        previewLabel: "Просмотр",
+        edit: "Редактировать",
+        cancel: "Отмена",
+        save: "Сохранить",
+        autoClearEnable: "Очищать буфер обмена через",
+        autoClearSecondsSuffix: "секунд",
+        autoClearOnSleep: "Очищать буфер обмена при переходе в режим сна",
+        autoClearOnDisplaySleep: "Очищать буфер обмена при выключении экрана",
+        autoClearOnScreenLock: "Очищать буфер обмена при блокировке экрана",
+        autoClearCaption: "Очищается только системный буфер обмена. Сохранённые элементы остаются в истории."
     )
 
     static let es = ClipboardFeatureStrings(
@@ -581,7 +711,19 @@ struct ClipboardFeatureStrings {
         includeImagesFiles: "Guardar también imágenes y archivos copiados",
         includeImagesFilesCaption: "Las imágenes entran en el historial y los archivos se recuerdan como enlaces a su ubicación. Fíjalos y pégalos como cualquier texto.",
         imageEntryLabel: "Imagen",
-        fileCountFormat: "%d archivos"
+        fileCountFormat: "%d archivos",
+        pasteImageAsFile: "Pegar imágenes copiadas como archivos",
+        pasteImageAsFileCaption: "Con Finder activo, ⌘V guarda una imagen copiada como PNG en la carpeta actual.",
+        previewLabel: "Vista previa",
+        edit: "Editar",
+        cancel: "Cancelar",
+        save: "Guardar",
+        autoClearEnable: "Vaciar el portapapeles automáticamente tras",
+        autoClearSecondsSuffix: "segundos",
+        autoClearOnSleep: "Vaciar el portapapeles al suspender el Mac",
+        autoClearOnDisplaySleep: "Vaciar el portapapeles al apagarse la pantalla",
+        autoClearOnScreenLock: "Vaciar el portapapeles al bloquear la pantalla",
+        autoClearCaption: "Solo se vacía el portapapeles del sistema. Los elementos guardados siguen en el historial."
     )
 
     static let de = ClipboardFeatureStrings(
@@ -624,7 +766,19 @@ struct ClipboardFeatureStrings {
         includeImagesFiles: "Auch kopierte Bilder und Dateien speichern",
         includeImagesFilesCaption: "Bilder wandern in den Verlauf, Dateien werden als Verweise auf ihren Ort gemerkt. Anheften und Einsetzen wie bei Text.",
         imageEntryLabel: "Bild",
-        fileCountFormat: "%d Dateien"
+        fileCountFormat: "%d Dateien",
+        pasteImageAsFile: "Kopierte Bilder als Dateien einsetzen",
+        pasteImageAsFileCaption: "Wenn Finder aktiv ist, speichert ⌘V ein kopiertes Bild als PNG im aktuellen Ordner.",
+        previewLabel: "Vorschau",
+        edit: "Bearbeiten",
+        cancel: "Abbrechen",
+        save: "Sichern",
+        autoClearEnable: "Zwischenablage automatisch leeren nach",
+        autoClearSecondsSuffix: "Sekunden",
+        autoClearOnSleep: "Zwischenablage beim Ruhezustand leeren",
+        autoClearOnDisplaySleep: "Zwischenablage beim Ausschalten des Bildschirms leeren",
+        autoClearOnScreenLock: "Zwischenablage beim Sperren des Bildschirms leeren",
+        autoClearCaption: "Leert nur die Zwischenablage des Systems. Bereits gesicherte Einträge bleiben im Verlauf."
     )
 
     static let fr = ClipboardFeatureStrings(
@@ -667,7 +821,19 @@ struct ClipboardFeatureStrings {
         includeImagesFiles: "Enregistrer aussi les images et fichiers copiés",
         includeImagesFilesCaption: "Les images rejoignent l'historique et les fichiers sont mémorisés comme des liens vers leur emplacement. Épinglez-les et collez-les comme du texte.",
         imageEntryLabel: "Image",
-        fileCountFormat: "%d fichiers"
+        fileCountFormat: "%d fichiers",
+        pasteImageAsFile: "Coller les images copiées comme fichiers",
+        pasteImageAsFileCaption: "Lorsque Finder est actif, ⌘V enregistre l’image copiée au format PNG dans le dossier actuel.",
+        previewLabel: "Aperçu",
+        edit: "Modifier",
+        cancel: "Annuler",
+        save: "Enregistrer",
+        autoClearEnable: "Vider le presse-papiers automatiquement après",
+        autoClearSecondsSuffix: "secondes",
+        autoClearOnSleep: "Vider le presse-papiers à la mise en veille du Mac",
+        autoClearOnDisplaySleep: "Vider le presse-papiers à l'extinction de l'écran",
+        autoClearOnScreenLock: "Vider le presse-papiers au verrouillage de l'écran",
+        autoClearCaption: "Seul le presse-papiers du système est vidé. Les éléments enregistrés restent dans l'historique."
     )
 
     static let it = ClipboardFeatureStrings(
@@ -710,7 +876,19 @@ struct ClipboardFeatureStrings {
         includeImagesFiles: "Salva anche immagini e file copiati",
         includeImagesFilesCaption: "Le immagini entrano nella cronologia e i file vengono ricordati come collegamenti alla loro posizione. Fissali e incollali come qualsiasi testo.",
         imageEntryLabel: "Immagine",
-        fileCountFormat: "%d file"
+        fileCountFormat: "%d file",
+        pasteImageAsFile: "Incolla le immagini copiate come file",
+        pasteImageAsFileCaption: "Quando Finder è attivo, ⌘V salva un’immagine copiata come PNG nella cartella attuale.",
+        previewLabel: "Anteprima",
+        edit: "Modifica",
+        cancel: "Annulla",
+        save: "Salva",
+        autoClearEnable: "Svuota gli appunti automaticamente dopo",
+        autoClearSecondsSuffix: "secondi",
+        autoClearOnSleep: "Svuota gli appunti quando il Mac va in stop",
+        autoClearOnDisplaySleep: "Svuota gli appunti quando lo schermo si spegne",
+        autoClearOnScreenLock: "Svuota gli appunti al blocco dello schermo",
+        autoClearCaption: "Svuota solo gli appunti di sistema. Gli elementi salvati restano nella cronologia."
     )
 
     static let ja = ClipboardFeatureStrings(
@@ -753,7 +931,19 @@ struct ClipboardFeatureStrings {
         includeImagesFiles: "コピーした画像やファイルも保存",
         includeImagesFilesCaption: "画像は履歴に入り、ファイルは場所へのリンクとして記憶されます。テキストと同じようにピン留めやペーストができます。",
         imageEntryLabel: "画像",
-        fileCountFormat: "%d個のファイル"
+        fileCountFormat: "%d個のファイル",
+        pasteImageAsFile: "コピーした画像をファイルとしてペースト",
+        pasteImageAsFileCaption: "Finder がアクティブなとき、⌘V でコピーした画像を現在のフォルダに PNG として保存します。",
+        previewLabel: "プレビュー",
+        edit: "編集",
+        cancel: "キャンセル",
+        save: "保存",
+        autoClearEnable: "クリップボードを自動消去するまでの時間",
+        autoClearSecondsSuffix: "秒",
+        autoClearOnSleep: "システムスリープ時にクリップボードを消去",
+        autoClearOnDisplaySleep: "ディスプレイスリープ時にクリップボードを消去",
+        autoClearOnScreenLock: "画面ロック時にクリップボードを消去",
+        autoClearCaption: "システムのクリップボードのみを消去します。保存済みの項目は履歴に残ります。"
     )
 
     static let zhHans = ClipboardFeatureStrings(
@@ -796,7 +986,19 @@ struct ClipboardFeatureStrings {
         includeImagesFiles: "同时保存复制的图片和文件",
         includeImagesFilesCaption: "图片会进入历史记录，文件会以其位置链接的形式被记住。可以像文本一样固定和粘贴。",
         imageEntryLabel: "图片",
-        fileCountFormat: "%d 个文件"
+        fileCountFormat: "%d 个文件",
+        pasteImageAsFile: "将复制的图片粘贴为文件",
+        pasteImageAsFileCaption: "Finder 处于活动状态时，按 ⌘V 会将复制的图片以 PNG 格式保存到当前文件夹。",
+        previewLabel: "预览",
+        edit: "编辑",
+        cancel: "取消",
+        save: "保存",
+        autoClearEnable: "自动清空剪贴板，延迟",
+        autoClearSecondsSuffix: "秒",
+        autoClearOnSleep: "睡眠时清空剪贴板",
+        autoClearOnDisplaySleep: "显示器睡眠时清空剪贴板",
+        autoClearOnScreenLock: "锁定屏幕时清空剪贴板",
+        autoClearCaption: "仅清空系统剪贴板，已保存的条目仍保留在历史记录中。"
     )
 
     static let zhTW = ClipboardFeatureStrings(
@@ -839,7 +1041,19 @@ struct ClipboardFeatureStrings {
         includeImagesFiles: "同時保存拷貝的圖片和檔案",
         includeImagesFilesCaption: "圖片會進入歷史記錄，檔案會以其位置連結的形式被記住。可以像文字一樣固定和貼上。",
         imageEntryLabel: "圖片",
-        fileCountFormat: "%d 個檔案"
+        fileCountFormat: "%d 個檔案",
+        pasteImageAsFile: "將複製的圖片貼上為檔案",
+        pasteImageAsFileCaption: "Finder 啟用時，按下 ⌘V 會將複製的圖片以 PNG 格式儲存到目前的資料夾。",
+        previewLabel: "預覽",
+        edit: "編輯",
+        cancel: "取消",
+        save: "儲存",
+        autoClearEnable: "自動清除剪貼簿，延遲",
+        autoClearSecondsSuffix: "秒",
+        autoClearOnSleep: "睡眠時清除剪貼簿",
+        autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
+        autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
+        autoClearCaption: "僅清除系統剪貼簿，已儲存的項目仍保留在記錄中。"
     )
 
     static let zhHK = ClipboardFeatureStrings(
@@ -882,7 +1096,19 @@ struct ClipboardFeatureStrings {
         includeImagesFiles: "同時儲存拷貝的圖片和檔案",
         includeImagesFilesCaption: "圖片會加入歷史記錄，檔案會以其位置連結的形式被記住。可以像文字一樣固定和貼上。",
         imageEntryLabel: "圖片",
-        fileCountFormat: "%d 個檔案"
+        fileCountFormat: "%d 個檔案",
+        pasteImageAsFile: "將複製的圖片貼上為檔案",
+        pasteImageAsFileCaption: "Finder 啟用時，按下 ⌘V 會將複製的圖片以 PNG 格式儲存到目前的資料夾。",
+        previewLabel: "預覽",
+        edit: "編輯",
+        cancel: "取消",
+        save: "儲存",
+        autoClearEnable: "自動清除剪貼簿，延遲",
+        autoClearSecondsSuffix: "秒",
+        autoClearOnSleep: "睡眠時清除剪貼簿",
+        autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
+        autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
+        autoClearCaption: "只會清除系統剪貼簿，已儲存的項目仍會保留在記錄中。"
     )
 }
 
@@ -936,6 +1162,14 @@ struct WindowLayoutFeatureStrings {
     let center: String
     let nextDisplay: String
     let restore: String
+    let fullScreen: String
+    let previousDisplay: String
+    let edgeSnapEnable: String
+    let edgeSnapCaption: String
+    let edgeSnapSystemConflict: String
+    let edgeSnapOpenSystemSettings: String
+    let edgeSnapWaitingForSystem: String
+    let marginMaximize: String
 
     static let enUS = WindowLayoutFeatureStrings(
         title: "Window layout",
@@ -986,7 +1220,15 @@ struct WindowLayoutFeatureStrings {
         maximize: "Maximize",
         center: "Center",
         nextDisplay: "Next display",
-        restore: "Restore"
+        restore: "Restore",
+        fullScreen: "Full Screen",
+        previousDisplay: "Previous display",
+        edgeSnapEnable: "Snap windows at screen edges",
+        edgeSnapCaption: "Turn this on, then drag a window title bar to any screen edge or corner and release.",
+        edgeSnapSystemConflict: "macOS is using the same edges. Turn off window tiling in Desktop & Dock so Vorssaint can take over.",
+        edgeSnapOpenSystemSettings: "Open Desktop & Dock",
+        edgeSnapWaitingForSystem: "Enabled in Vorssaint. It starts working as soon as macOS tiling is off.",
+        marginMaximize: "Maximize with Margin"
     )
 
     static let ptBR = WindowLayoutFeatureStrings(
@@ -1038,7 +1280,15 @@ struct WindowLayoutFeatureStrings {
         maximize: "Maximizar",
         center: "Centralizar",
         nextDisplay: "Próximo display",
-        restore: "Restaurar"
+        restore: "Restaurar",
+        fullScreen: "Tela cheia",
+        previousDisplay: "Display anterior",
+        edgeSnapEnable: "Encaixar janelas nas bordas da tela",
+        edgeSnapCaption: "Ative aqui. Depois arraste a barra de título até qualquer borda ou canto da tela e solte.",
+        edgeSnapSystemConflict: "O macOS está usando as mesmas bordas. Desligue o encaixe em Mesa e Dock para o Vorssaint assumir.",
+        edgeSnapOpenSystemSettings: "Abrir Mesa e Dock",
+        edgeSnapWaitingForSystem: "Ativado no Vorssaint. Começa a funcionar assim que o encaixe do macOS for desligado.",
+        marginMaximize: "Maximizar com margem"
     )
 
     static let tr = WindowLayoutFeatureStrings(
@@ -1090,7 +1340,15 @@ struct WindowLayoutFeatureStrings {
         maximize: "Büyüt",
         center: "Ortala",
         nextDisplay: "Sonraki ekran",
-        restore: "Geri yükle"
+        restore: "Geri yükle",
+        fullScreen: "Tam ekran",
+        previousDisplay: "Önceki ekran",
+        edgeSnapEnable: "Pencereleri ekran kenarlarına yerleştir",
+        edgeSnapCaption: "Buradan açın, sonra pencerenin başlık çubuğunu herhangi bir ekran kenarına veya köşeye sürükleyip bırakın.",
+        edgeSnapSystemConflict: "macOS aynı kenarları kullanıyor. Vorssaint’ın devralması için Masaüstü ve Dock’taki pencere döşemeyi kapatın.",
+        edgeSnapOpenSystemSettings: "Masaüstü ve Dock’u Aç",
+        edgeSnapWaitingForSystem: "Vorssaint’ta açık. macOS döşemesi kapanınca çalışmaya başlar.",
+        marginMaximize: "Kenar boşluklu büyüt"
     )
 
     static let ru = WindowLayoutFeatureStrings(
@@ -1142,7 +1400,15 @@ struct WindowLayoutFeatureStrings {
         maximize: "Развернуть",
         center: "По центру",
         nextDisplay: "Следующий дисплей",
-        restore: "Восстановить"
+        restore: "Восстановить",
+        fullScreen: "Во весь экран",
+        previousDisplay: "Предыдущий дисплей",
+        edgeSnapEnable: "Привязывать окна к краям экрана",
+        edgeSnapCaption: "Включите здесь, затем перетащите заголовок окна к любой границе экрана или углу и отпустите.",
+        edgeSnapSystemConflict: "macOS использует те же края. Отключите размещение окон в разделе «Рабочий стол и Dock», чтобы их использовал Vorssaint.",
+        edgeSnapOpenSystemSettings: "Открыть «Рабочий стол и Dock»",
+        edgeSnapWaitingForSystem: "Включено в Vorssaint. Заработает сразу после отключения размещения окон macOS.",
+        marginMaximize: "Развернуть с отступом"
     )
 
     static let es = WindowLayoutFeatureStrings(
@@ -1194,7 +1460,15 @@ struct WindowLayoutFeatureStrings {
         maximize: "Maximizar",
         center: "Centrar",
         nextDisplay: "Siguiente pantalla",
-        restore: "Restaurar"
+        restore: "Restaurar",
+        fullScreen: "Pantalla completa",
+        previousDisplay: "Pantalla anterior",
+        edgeSnapEnable: "Ajustar ventanas a los bordes de la pantalla",
+        edgeSnapCaption: "Actívalo aquí y arrastra la barra de título a cualquier borde o esquina de la pantalla; luego suelta.",
+        edgeSnapSystemConflict: "macOS usa los mismos bordes. Desactiva el ajuste de ventanas en Escritorio y Dock para que Vorssaint tome el control.",
+        edgeSnapOpenSystemSettings: "Abrir Escritorio y Dock",
+        edgeSnapWaitingForSystem: "Activado en Vorssaint. Funcionará en cuanto se desactive el ajuste de ventanas de macOS.",
+        marginMaximize: "Maximizar con margen"
     )
 
     static let de = WindowLayoutFeatureStrings(
@@ -1246,7 +1520,15 @@ struct WindowLayoutFeatureStrings {
         maximize: "Maximieren",
         center: "Zentrieren",
         nextDisplay: "Nächstes Display",
-        restore: "Wiederherstellen"
+        restore: "Wiederherstellen",
+        fullScreen: "Vollbild",
+        previousDisplay: "Vorheriges Display",
+        edgeSnapEnable: "Fenster an Bildschirmrändern einrasten",
+        edgeSnapCaption: "Hier einschalten, dann die Titelleiste an einen Bildschirmrand oder eine Ecke ziehen und loslassen.",
+        edgeSnapSystemConflict: "macOS verwendet dieselben Ränder. Deaktiviere die Fensteranordnung unter Schreibtisch & Dock, damit Vorssaint übernimmt.",
+        edgeSnapOpenSystemSettings: "Schreibtisch & Dock öffnen",
+        edgeSnapWaitingForSystem: "In Vorssaint aktiviert. Es funktioniert, sobald die Fensteranordnung von macOS aus ist.",
+        marginMaximize: "Mit Rand maximieren"
     )
 
     static let fr = WindowLayoutFeatureStrings(
@@ -1298,7 +1580,15 @@ struct WindowLayoutFeatureStrings {
         maximize: "Agrandir",
         center: "Centrer",
         nextDisplay: "Écran suivant",
-        restore: "Restaurer"
+        restore: "Restaurer",
+        fullScreen: "Plein écran",
+        previousDisplay: "Écran précédent",
+        edgeSnapEnable: "Ancrer les fenêtres aux bords de l’écran",
+        edgeSnapCaption: "Activez ici, puis faites glisser la barre de titre vers n’importe quel bord ou coin de l’écran et relâchez.",
+        edgeSnapSystemConflict: "macOS utilise les mêmes bords. Désactivez le placement des fenêtres dans Bureau et Dock pour laisser Vorssaint prendre le relais.",
+        edgeSnapOpenSystemSettings: "Ouvrir Bureau et Dock",
+        edgeSnapWaitingForSystem: "Activé dans Vorssaint. Il fonctionnera dès que le placement des fenêtres de macOS sera désactivé.",
+        marginMaximize: "Agrandir avec marge"
     )
 
     static let it = WindowLayoutFeatureStrings(
@@ -1350,7 +1640,15 @@ struct WindowLayoutFeatureStrings {
         maximize: "Massimizza",
         center: "Centra",
         nextDisplay: "Display successivo",
-        restore: "Ripristina"
+        restore: "Ripristina",
+        fullScreen: "Schermo intero",
+        previousDisplay: "Display precedente",
+        edgeSnapEnable: "Allinea le finestre ai bordi dello schermo",
+        edgeSnapCaption: "Attiva qui, poi trascina la barra del titolo verso un bordo o un angolo dello schermo e rilascia.",
+        edgeSnapSystemConflict: "macOS usa gli stessi bordi. Disattiva l’affiancamento in Scrivania e Dock per lasciare il controllo a Vorssaint.",
+        edgeSnapOpenSystemSettings: "Apri Scrivania e Dock",
+        edgeSnapWaitingForSystem: "Attivato in Vorssaint. Funzionerà appena l’affiancamento di macOS sarà disattivato.",
+        marginMaximize: "Massimizza con margine"
     )
 
     static let ja = WindowLayoutFeatureStrings(
@@ -1402,7 +1700,15 @@ struct WindowLayoutFeatureStrings {
         maximize: "最大化",
         center: "中央",
         nextDisplay: "次のディスプレイ",
-        restore: "復元"
+        restore: "復元",
+        fullScreen: "フルスクリーン",
+        previousDisplay: "前のディスプレイ",
+        edgeSnapEnable: "画面の端にウインドウをスナップ",
+        edgeSnapCaption: "ここでオンにしてから、タイトルバーを画面の端または隅へドラッグして放します。",
+        edgeSnapSystemConflict: "macOSが同じ画面端を使用しています。Vorssaintで使うには「デスクトップとDock」でウインドウのタイル表示をオフにしてください。",
+        edgeSnapOpenSystemSettings: "デスクトップとDockを開く",
+        edgeSnapWaitingForSystem: "Vorssaintでオンになっています。macOSのタイル表示をオフにすると動作します。",
+        marginMaximize: "余白付きで最大化"
     )
 
     static let zhHans = WindowLayoutFeatureStrings(
@@ -1454,7 +1760,15 @@ struct WindowLayoutFeatureStrings {
         maximize: "最大化",
         center: "居中",
         nextDisplay: "下一台显示器",
-        restore: "恢复"
+        restore: "恢复",
+        fullScreen: "全屏幕",
+        previousDisplay: "上一台显示器",
+        edgeSnapEnable: "将窗口贴靠到屏幕边缘",
+        edgeSnapCaption: "在此开启，然后将窗口标题栏拖到屏幕任意边缘或角落并松开。",
+        edgeSnapSystemConflict: "macOS 正在使用相同的屏幕边缘。请在“桌面与程序坞”中关闭窗口平铺，让 Vorssaint 接管。",
+        edgeSnapOpenSystemSettings: "打开桌面与程序坞",
+        edgeSnapWaitingForSystem: "已在 Vorssaint 中开启。关闭 macOS 窗口平铺后即可使用。",
+        marginMaximize: "带边距最大化"
     )
 
     static let zhTW = WindowLayoutFeatureStrings(
@@ -1506,7 +1820,15 @@ struct WindowLayoutFeatureStrings {
         maximize: "最大化",
         center: "置中",
         nextDisplay: "下一台顯示器",
-        restore: "還原"
+        restore: "還原",
+        fullScreen: "全螢幕",
+        previousDisplay: "上一台顯示器",
+        edgeSnapEnable: "將視窗貼齊螢幕邊緣",
+        edgeSnapCaption: "在此開啟，然後將視窗標題列拖到螢幕任一邊緣或角落並放開。",
+        edgeSnapSystemConflict: "macOS 正在使用相同的螢幕邊緣。請在「桌面與 Dock」關閉視窗並排，讓 Vorssaint 接管。",
+        edgeSnapOpenSystemSettings: "開啟桌面與 Dock",
+        edgeSnapWaitingForSystem: "已在 Vorssaint 中開啟。關閉 macOS 視窗並排後即可使用。",
+        marginMaximize: "保留邊距最大化"
     )
 
     static let zhHK = WindowLayoutFeatureStrings(
@@ -1558,7 +1880,15 @@ struct WindowLayoutFeatureStrings {
         maximize: "最大化",
         center: "置中",
         nextDisplay: "下一部顯示器",
-        restore: "還原"
+        restore: "還原",
+        fullScreen: "全螢幕",
+        previousDisplay: "上一部顯示器",
+        edgeSnapEnable: "將視窗貼齊螢幕邊緣",
+        edgeSnapCaption: "在此開啟，然後將視窗標題列拖到螢幕任一邊緣或角落並放開。",
+        edgeSnapSystemConflict: "macOS 正在使用相同的螢幕邊緣。請在「桌面與 Dock」關閉視窗並排，讓 Vorssaint 接管。",
+        edgeSnapOpenSystemSettings: "開啟桌面與 Dock",
+        edgeSnapWaitingForSystem: "已在 Vorssaint 中開啟。關閉 macOS 視窗並排後即可使用。",
+        marginMaximize: "保留邊距最大化"
     )
 }
 
@@ -1594,7 +1924,7 @@ struct MonitorAlertFeatureStrings {
 
     static let enUS = MonitorAlertFeatureStrings(
         section: "Alerts",
-        caption: "Alerts fire when their selected limits are reached. High CPU ignores spikes shorter than about 12 seconds. The repeat setting only limits repeats of the same alert.",
+        caption: "Alerts fire when their selected limits are reached. CPU use and temperature ignore spikes shorter than about 12 seconds. The repeat setting only limits repeats of the same alert.",
         notificationsDenied: "Notifications for Vorssaint are off in System Settings, so alerts cannot appear.",
         cpu: "High CPU",
         cpuTemperature: "High CPU temperature",
@@ -1625,7 +1955,7 @@ struct MonitorAlertFeatureStrings {
 
     static let ptBR = MonitorAlertFeatureStrings(
         section: "Alertas",
-        caption: "Os alertas disparam quando os limites escolhidos são atingidos. A CPU ignora picos com menos de 12 segundos. A opção de repetição só limita o mesmo alerta.",
+        caption: "Os alertas disparam quando os limites escolhidos são atingidos. O uso e a temperatura da CPU ignoram picos com menos de 12 segundos. A opção de repetição só limita o mesmo alerta.",
         notificationsDenied: "As notificações do Vorssaint estão desativadas nos Ajustes do Sistema, então os alertas não aparecem.",
         cpu: "CPU alta",
         cpuTemperature: "Temperatura alta da CPU",

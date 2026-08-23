@@ -27,18 +27,7 @@ struct SystemSection: View {
     @AppStorage(DefaultsKey.monitorGraphMemory) private var graphMemory = true
     @AppStorage(DefaultsKey.monitorGraphBattery) private var graphBattery = true
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
-    @AppStorage(DefaultsKey.menuBarCPU) private var menuBarCPU = false
-    @AppStorage(DefaultsKey.menuBarGPU) private var menuBarGPU = false
-    @AppStorage(DefaultsKey.menuBarMemory) private var menuBarMemory = false
-    @AppStorage(DefaultsKey.menuBarCPUTemperature) private var menuBarCPUTemperature = false
-    @AppStorage(DefaultsKey.menuBarGPUTemperature) private var menuBarGPUTemperature = false
-    @AppStorage(DefaultsKey.menuBarBatteryTemperature) private var menuBarBatteryTemperature = false
-    @AppStorage(DefaultsKey.menuBarNetwork) private var menuBarNetwork = false
-    @AppStorage(DefaultsKey.menuBarBattery) private var menuBarBattery = false
-    @AppStorage(DefaultsKey.menuBarBatteryTime) private var menuBarBatteryTime = false
     @AppStorage(DefaultsKey.menuBarPeripheralBattery) private var menuBarPeripheralBattery = false
-    @AppStorage(DefaultsKey.menuBarPower) private var menuBarPower = false
-    @AppStorage(DefaultsKey.menuBarSeparateMetrics) private var separateMenuBarMetrics = false
     @AppStorage(DefaultsKey.monitorSysTemps) private var sysTemps = true
     @AppStorage(DefaultsKey.monitorSysCPU) private var sysCPU = true
     @AppStorage(DefaultsKey.monitorSysGPU) private var sysGPU = true
@@ -55,12 +44,6 @@ struct SystemSection: View {
                      resetAction: resetPanelDefaults) { editing in
             VStack(alignment: .leading, spacing: 10) {
                 let currentBlocks = blocks(editing: editing)
-                if hasMenuBarMetric {
-                    menuBarMetricModeControl
-                    if !currentBlocks.isEmpty {
-                        Divider()
-                    }
-                }
                 ForEach(Array(currentBlocks.enumerated()), id: \.element) { index, block in
                     if index > 0 { Divider() }
                     PanelReorderableItem(item: block,
@@ -92,32 +75,6 @@ struct SystemSection: View {
         }
     }
 
-    private var menuBarMetricModeControl: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Toggle(l10n.s.monitorSeparateMenuBarMetrics, isOn: $separateMenuBarMetrics)
-                .toggleStyle(.checkbox)
-                .font(.system(size: 11.5, weight: .medium))
-            Text(l10n.s.monitorSeparateMenuBarMetricsCaption)
-                .font(.system(size: 9.5))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private var hasMenuBarMetric: Bool {
-        menuBarCPU ||
-        menuBarGPU ||
-        menuBarMemory ||
-        menuBarCPUTemperature ||
-        menuBarGPUTemperature ||
-        menuBarBatteryTemperature ||
-        menuBarNetwork ||
-        menuBarBattery ||
-        menuBarBatteryTime ||
-        menuBarPeripheralBattery ||
-        menuBarPower
-    }
-
     /// Card subsections, in order, filtered by the per-item toggles (and whether a
     /// battery exists). Drives divider interleaving so only rendered blocks get one.
     private enum Block: String, PanelOrderItem { case temps, usage, memory, alerts, uptime }
@@ -128,10 +85,13 @@ struct SystemSection: View {
     private var gpuAvailable: Bool { AppFeature.monitorGPU.isAvailable }
     private var memoryAvailable: Bool { AppFeature.monitorMemory.isAvailable }
     private var powerAvailable: Bool { AppFeature.monitorPower.isAvailable }
+    private var batteryAvailable: Bool {
+        powerAvailable && PowerSampler.hasInternalBattery
+    }
 
     private var usageVisible: Bool {
         (sysCPU && cpuAvailable) || (sysGPU && gpuAvailable)
-            || (sysBattery && powerAvailable && monitor.snapshot.power?.chargePercent != nil)
+            || (sysBattery && batteryAvailable && monitor.snapshot.power?.chargePercent != nil)
     }
 
     private var visibleBlocks: [Block] {
@@ -144,7 +104,7 @@ struct SystemSection: View {
 
     private func isBlockAvailable(_ block: Block) -> Bool {
         switch block {
-        case .temps, .usage: return cpuAvailable || gpuAvailable || powerAvailable
+        case .temps, .usage: return cpuAvailable || gpuAvailable || batteryAvailable
         case .memory: return memoryAvailable
         case .alerts, .uptime: return true
         }
@@ -283,7 +243,7 @@ struct SystemSection: View {
                         temperatureCell(icon: "memorychip", label: l10n.s.gpuLabel,
                                         value: monitor.snapshot.gpuTemperature)
                     }
-                    if powerAvailable {
+                    if batteryAvailable {
                         temperatureCell(icon: "battery.100", label: l10n.s.batteryLabel,
                                         value: monitor.snapshot.batteryTemperature)
                     }
@@ -329,7 +289,13 @@ struct SystemSection: View {
 
     private func usageRows(editing: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            subsectionLabel(l10n.s.usageSection)
+            HStack(spacing: 6) {
+                subsectionLabel(l10n.s.usageSection)
+                Spacer(minLength: 0)
+                if !editing {
+                    ActivityMonitorButton()
+                }
+            }
             if sysCPU, cpuAvailable {
                 usageRow(label: l10n.s.cpuLabel, fraction: monitor.snapshot.cpuUsage,
                          kind: .cpu, editing: editing, visible: $sysCPU)
@@ -358,9 +324,9 @@ struct SystemSection: View {
             } else if editing, gpuAvailable {
                 PanelHiddenItemRow(title: l10n.s.gpuLabel, systemImage: "memorychip", isVisible: $sysGPU)
             }
-            if sysBattery, powerAvailable {
+            if sysBattery, batteryAvailable {
                 batteryUsageRow(editing: editing)
-            } else if editing, powerAvailable {
+            } else if editing, batteryAvailable {
                 PanelHiddenItemRow(title: l10n.s.batteryLabel,
                                    systemImage: "battery.100",
                                    isVisible: $sysBattery)
@@ -579,8 +545,12 @@ struct SystemSection: View {
                     }
                     .buttonStyle(.plain)
                 }
-                if graphMemory, monitor.snapshot.memoryHistory.count >= 2 {
-                    Sparkline(values: monitor.snapshot.memoryHistory,
+                memorySecondaryRow(l10n.s.memoryCompressed, monitor.snapshot.memoryCompressed)
+                memorySecondaryRow(l10n.s.memoryCachedFiles, monitor.snapshot.memoryCached)
+                memorySecondaryRow(l10n.s.memorySwapUsed, monitor.snapshot.memorySwapUsed)
+                let memoryHistory = MonitorMemoryMetric.current.history(in: monitor.snapshot)
+                if graphMemory, memoryHistory.count >= 2 {
+                    Sparkline(values: memoryHistory,
                               color: PanelMetricColor.mint(for: colorScheme),
                               maxValue: 1,
                               showsZeroBaseline: true)
@@ -588,6 +558,23 @@ struct SystemSection: View {
                 }
                 breakdownList(for: .memory)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func memorySecondaryRow(_ title: String, _ bytes: UInt64?) -> some View {
+        if let bytes {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(formatMemory(bytes))
+                    .font(.system(size: 11, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.leading, 16)
         }
     }
 
@@ -603,7 +590,8 @@ struct SystemSection: View {
                 .foregroundStyle(.secondary)
             PressureIndicator(pressure: monitor.snapshot.memoryPressure)
             Spacer()
-            if let used = monitor.snapshot.memoryUsed, let total = monitor.snapshot.memoryTotal {
+            let memoryValue = MonitorMemoryMetric.current.value(in: monitor.snapshot)
+            if let used = memoryValue, let total = monitor.snapshot.memoryTotal {
                 Text("\(formatMemory(used)) / \(formatMemory(total))")
                     .font(.system(size: 11, weight: .medium))
                     .monospacedDigit()

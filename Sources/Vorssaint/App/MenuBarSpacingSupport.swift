@@ -154,6 +154,15 @@ enum MenuBarSpacingSupport {
     /// preview both render there).
     private static var digitHighWater: [String: Int] = [:]
 
+    /// A finite Keep Awake countdown is the only menu-bar content whose text
+    /// changes just because time passed. Everything else refreshes from its
+    /// publisher or preference change, so no timer should live at rest.
+    static func needsTitleRefreshTimer(keepAwakeActive: Bool,
+                                       showsCountdown: Bool,
+                                       hasEndDate: Bool) -> Bool {
+        keepAwakeActive && showsCountdown && hasEndDate
+    }
+
     /// The reserve compact mode uses for a metric block: the current value's
     /// shape, widened to at least `compactMinimumDigits` digits and to the
     /// block's session high-water mark. Stable by construction; still far

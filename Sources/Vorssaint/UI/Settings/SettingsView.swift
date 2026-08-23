@@ -4,19 +4,6 @@
 import AppKit
 import SwiftUI
 
-/// One entry in the Settings sidebar. New features add a case here and a row in
-/// the Features section, so every feature gets its own page.
-/// Selects the visible Settings page; the menu bar uses it to open Settings
-/// directly on a specific page.
-final class SettingsRouter: ObservableObject {
-    static let shared = SettingsRouter()
-    @Published var page: SettingsPage = .general
-    /// One-shot hint for the Cleaner page's tool switcher, so a panel surface
-    /// can land directly on a specific tool. Consumed and cleared on arrival.
-    @Published var cleanerTool: String?
-    private init() {}
-}
-
 /// System-Settings-style window: a sidebar of pages on the left, the selected
 /// page on the right. Scales cleanly as features are added, and gives each
 /// feature a page of its own with room for examples and advanced options.
@@ -26,124 +13,9 @@ struct SettingsView: View {
     @ObservedObject private var features = FeatureRuntime.shared
     @State private var searchQuery = ""
 
-    private var categories: SettingsCategoryStrings {
-        FeatureStrings.settingsCategories(l10n.language)
-    }
-
-    private struct SidebarItem: Identifiable {
-        let page: SettingsPage
-        let title: String
-        let icon: String
-        /// Labels of options living inside the page, so the search finds a
-        /// page by what it contains, in the user's language.
-        var keywords: [String] = []
-        var id: SettingsPage { page }
-    }
-
-    private var sidebarSections: [(title: String, items: [SidebarItem])] {
-        [
-            (categories.essentials, [
-                SidebarItem(page: .general, title: l10n.s.tabGeneral, icon: "gearshape",
-                            keywords: [l10n.s.launchAtLogin, l10n.s.languageLabel, l10n.s.showMenuBarIcon,
-                                       l10n.s.musicBlockTitle, l10n.s.musicBlockSection,
-                                       FeatureStrings.appearance(l10n.language).label,
-                                       FeatureStrings.appearance(l10n.language).dark]),
-                // Searching any feature name lands here even when the feature
-                // is hidden, so the hub is always the way back.
-                SidebarItem(page: .features, title: FeatureStrings.hub(l10n.language).pageTitle,
-                            icon: "square.grid.2x2",
-                            keywords: AppFeature.allCases.map {
-                                $0.hubTitle(l10n.s, hub: FeatureStrings.hub(l10n.language))
-                            }),
-                SidebarItem(page: .energy, title: l10n.s.tabEnergy, icon: "bolt.fill",
-                            keywords: [l10n.s.keepAwakeTitle, l10n.s.clamshellTitle,
-                                       l10n.s.defaultDurationLabel, l10n.s.extraBrightnessName,
-                                       l10n.s.keepAwakeActiveIconLabel,
-                                       l10n.s.keepAwakeActiveIconCoffee,
-                                       l10n.s.keepAwakeActiveIconEye,
-                                       FeatureStrings.brightness(l10n.language).pageTitle,
-                                       FeatureStrings.brightness(l10n.language).osdToggle,
-                                       FeatureStrings.keepAwakeAutomation(l10n.language)
-                                           .externalDisplayToggle,
-                                       FeatureStrings.keepAwakeAutomation(l10n.language).powerToggle]),
-                SidebarItem(page: .monitor, title: l10n.s.tabMonitor, icon: "chart.line.uptrend.xyaxis",
-                            keywords: [l10n.s.menuBarSpacingLabel, l10n.s.menuBarHideIconToggle,
-                                       l10n.s.monitorMemoryPressureDot]),
-            ]),
-            (categories.windowsControls, [
-                SidebarItem(page: .mouse, title: l10n.s.tabMouse, icon: "computermouse",
-                            keywords: [l10n.s.invertMouseScroll, l10n.s.middleClickTapPicker,
-                                       l10n.s.smoothScrollName, l10n.s.mouseNavigationEnable,
-                                       FeatureStrings.mouseButtons(l10n.language).pageTitle,
-                                       FeatureStrings.mouseExceptions(l10n.language).listTitle]),
-                SidebarItem(page: .switcher, title: l10n.s.tabSwitcher, icon: "rectangle.on.rectangle",
-                            keywords: [l10n.s.switcherEnable, l10n.s.dockClickMinimize,
-                                       l10n.s.dockClickCycleWindows]),
-                SidebarItem(page: .windowLayout, title: FeatureStrings.windowLayout(l10n.language).title, icon: "rectangle.3.group",
-                            keywords: [l10n.s.dockClickCycleWindows,
-                                       FeatureStrings.windowLayout(l10n.language).gestureEnable,
-                                       FeatureStrings.windowLayout(l10n.language).gestureResize]),
-                SidebarItem(page: .autoQuit, title: l10n.s.autoQuitName, icon: "xmark.rectangle",
-                            keywords: [l10n.s.autoQuitEnable]),
-            ]),
-            (categories.files, [
-                SidebarItem(page: .clipboard, title: FeatureStrings.clipboard(l10n.language).title, icon: "doc.on.clipboard",
-                            keywords: [FeatureStrings.clipboard(l10n.language).limit,
-                                       FeatureStrings.clipboard(l10n.language).skipSensitive]),
-                SidebarItem(page: .cutPaste, title: l10n.s.cutPasteName, icon: "scissors",
-                            keywords: [l10n.s.cutPasteEnable]),
-                SidebarItem(page: .shelf, title: l10n.s.shelfName, icon: "tray.full",
-                            keywords: [l10n.s.shelfEnable, l10n.s.shelfDropZoneToggle]),
-                SidebarItem(page: .media, title: l10n.s.mediaName, icon: "photo.on.rectangle.angled",
-                            keywords: ["PDF", "GIF", l10n.s.mediaStartConvertPDF, l10n.s.ocrName]),
-            ]),
-            (categories.utilities, [
-                SidebarItem(page: .cleaner, title: l10n.s.cleanerName, icon: "sparkles",
-                            keywords: [l10n.s.cleanerScheduleTitle,
-                                       FeatureStrings.whatsAppDownloads(l10n.language).title,
-                                       FeatureStrings.whatsAppDownloads(l10n.language).automatic,
-                                       FeatureStrings.whatsAppDownloads(l10n.language).fileTypes]),
-                SidebarItem(page: .quickTools, title: l10n.s.quickToolsTab, icon: "wand.and.rays",
-                            keywords: [l10n.s.launcherName, l10n.s.colorPickerName,
-                                       l10n.s.micMuteName, l10n.s.ocrName,
-                                       l10n.s.colorPickerBareHexToggle, l10n.s.micMuteMenuBarToggle,
-                                       FeatureStrings.quickToggles(l10n.language).pageTitle,
-                                       FeatureStrings.quickToggles(l10n.language).darkModeToDark,
-                                       FeatureStrings.quickToggles(l10n.language).emptyTrashTitle,
-                                       FeatureStrings.cameraPreview(l10n.language).pageTitle,
-                                       FeatureStrings.scratchpad(l10n.language).pageTitle]),
-                SidebarItem(page: .screenshot,
-                            title: FeatureStrings.screenshot(l10n.language).pageTitle,
-                            icon: "camera.viewfinder",
-                            keywords: [FeatureStrings.screenshot(l10n.language).freezeToggle,
-                                       FeatureStrings.screenshot(l10n.language).pinButton,
-                                       FeatureStrings.screenshot(l10n.language).toolPixelate,
-                                       FeatureStrings.screenshot(l10n.language).toolArrow]),
-                SidebarItem(page: .urlCleaner, title: l10n.s.urlCleanerName, icon: "link"),
-                SidebarItem(page: .homebrew, title: l10n.s.homebrewName, icon: "shippingbox"),
-                SidebarItem(page: .uninstaller, title: l10n.s.uninstallerName, icon: "trash"),
-                SidebarItem(page: .keyDebounce, title: l10n.s.keyDebounceName, icon: "keyboard"),
-                SidebarItem(page: .textSnippets, title: FeatureStrings.snippets(l10n.language).pageTitle,
-                            icon: "text.append",
-                            keywords: [FeatureStrings.snippets(l10n.language).triggerLabel,
-                                       FeatureStrings.snippets(l10n.language).addButton]),
-                SidebarItem(page: .radialMenu, title: FeatureStrings.radialMenu(l10n.language).pageTitle,
-                            icon: "circle.grid.cross",
-                            keywords: [FeatureStrings.radialMenu(l10n.language).addButton,
-                                       FeatureStrings.radialMenu(l10n.language).kindApp,
-                                       FeatureStrings.radialMenu(l10n.language).kindMedia,
-                                       FeatureStrings.radialMenu(l10n.language).kindSubmenu]),
-            ]),
-            (categories.app, [
-                SidebarItem(page: .shortcuts, title: l10n.s.shortcutsPageTitle, icon: "command",
-                            keywords: [l10n.s.hotkeyToggle]),
-                SidebarItem(page: .advanced, title: l10n.s.tabAdvanced, icon: "wrench.and.screwdriver"),
-                SidebarItem(page: .about, title: l10n.s.tabAbout, icon: "info.circle",
-                            keywords: [l10n.s.reviewIntro]),
-                SidebarItem(page: .releaseNotes, title: l10n.s.tabReleaseNotes, icon: "sparkles"),
-                SidebarItem(page: .support, title: l10n.s.tabSupport, icon: "heart.fill"),
-            ]),
-        ]
+    /// The one map of pages, shared with the command bar (SettingsDirectory).
+    private var sidebarSections: [(title: String, items: [SettingsDirectoryItem])] {
+        SettingsDirectory.sections(l10n.s, language: l10n.language)
     }
 
     var body: some View {
@@ -151,13 +23,29 @@ struct SettingsView: View {
             sidebar
                 .navigationSplitViewColumnWidth(min: 198, ideal: 210, max: 240)
         } detail: {
-            detail
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            // NavigationSplitView's detail slot sometimes queries its content
+            // for an unconstrained ideal size (settling the divider, or on a
+            // page switch). `List` answers that with its full content height
+            // rather than a viewport size the way `ScrollView` does, and
+            // `.frame(maxHeight: .infinity)` only bounds a size it is given,
+            // not one it is asked to report - so a few hundred rows (Kill
+            // Process) grew the whole window. `GeometryReader` reports the
+            // real space it was actually given for normal layout, and ~zero
+            // when asked for an unconstrained ideal size, breaking the chain.
+            GeometryReader { geometry in
+                detail
+                    .settingsSectionFocus(for: router.page)
+                    .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+            }
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 772, maxWidth: .infinity, minHeight: 528, maxHeight: .infinity)
         .onAppear { ensureVisiblePage() }
         .onChange(of: features.revision) { _, _ in ensureVisiblePage() }
+        .onChange(of: router.requestID) { _, _ in
+            searchQuery = ""
+            ensureVisiblePage()
+        }
     }
 
     /// macOS 27 backs the pinned sidebar search field with a hard top scroll
@@ -169,6 +57,7 @@ struct SettingsView: View {
     /// opaque sidebar chrome.
     @ViewBuilder
     private var sidebar: some View {
+#if compiler(>=6.2)
         if #available(macOS 27, *) {
             sidebarList
                 .searchable(text: $searchQuery,
@@ -186,6 +75,12 @@ struct SettingsView: View {
                             placement: .sidebar,
                             prompt: l10n.s.settingsSearchPlaceholder)
         }
+#else
+        sidebarList
+            .searchable(text: $searchQuery,
+                        placement: .sidebar,
+                        prompt: l10n.s.settingsSearchPlaceholder)
+#endif
     }
 
     private var sidebarList: some View {
@@ -224,21 +119,25 @@ struct SettingsView: View {
         case .features: FeatureHubSettings()
         case .textSnippets: TextSnippetsSettings()
         case .radialMenu: RadialMenuSettings()
+        case .commandBar: CommandBarSettings()
         case .energy: EnergySettings()
         case .monitor: MonitorSettings()
         case .mouse: MouseSettings()
         case .switcher: SwitcherSettings()
         case .keyDebounce: KeyboardDebounceSettings()
+        case .superKey: SuperKeySettings()
         case .cutPaste: CutPasteSettings()
         case .autoQuit: AutoQuitSettings()
         case .uninstaller: UninstallerView()
+        case .killProcess: KillProcessView()
         case .urlCleaner: URLCleanerSettings()
         case .cleaner: CleanerSettings()
         case .homebrew: HomebrewSettings()
+        case .appUpdates: AppUpdatesSettings()
         case .media: MediaSettings()
         case .clipboard: ClipboardSettings()
         case .quickTools: QuickToolsSettings()
-        case .screenshot: ScreenshotSettings()
+        case .screenshot: ScreenCaptureSettings()
         case .windowLayout: WindowLayoutSettings()
         case .shelf: ShelfSettings()
         case .shortcuts: ShortcutsSettings()
@@ -260,11 +159,11 @@ struct GeneralSettings: View {
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
     @State private var loginError: String?
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
-    @AppStorage(DefaultsKey.showCountdown) private var showCountdown = false
     @AppStorage(DefaultsKey.musicBlockEnabled) private var musicBlockEnabled = false
     @AppStorage(DefaultsKey.musicBlockReplacementPath) private var musicBlockReplacementPath = ""
 
     private var appearanceStrings: AppearanceStrings { FeatureStrings.appearance(l10n.language) }
+    private var feedbackStrings: FeedbackStrings { FeatureStrings.feedback(l10n.language) }
 
     var body: some View {
         Form {
@@ -298,9 +197,6 @@ struct GeneralSettings: View {
                 .pickerStyle(.segmented)
             }
             Section(l10n.s.menuBarSection) {
-                if AppFeature.keepAwake.isAvailable {
-                    Toggle(l10n.s.showCountdown, isOn: $showCountdown)
-                }
                 Button(l10n.s.showMenuBarIcon) {
                     appDelegate()?.reshowStatusItem()
                 }
@@ -317,6 +213,7 @@ struct GeneralSettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            .settingsSectionAnchor(.panelConfiguration)
             if AppFeature.keepAwake.isAvailable {
                 Section(l10n.s.globalHotkeySection) {
                     Toggle(l10n.s.hotkeyToggle, isOn: $hotkeyEnabled)
@@ -362,6 +259,16 @@ struct GeneralSettings: View {
                     }
                     SettingsCaptionText(l10n.s.musicBlockCaption)
                 }
+                .settingsSectionAnchor(.musicBlocking)
+            }
+            Section(feedbackStrings.sectionTitle) {
+                Button {
+                    appDelegate()?.openFeedbackWindow()
+                } label: {
+                    Label(feedbackStrings.openButton,
+                          systemImage: "bubble.left.and.text.bubble.right")
+                }
+                SettingsCaptionText(feedbackStrings.sectionCaption)
             }
         }
         .formStyle(.grouped)
@@ -394,6 +301,7 @@ struct UpdatesView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var updates = UpdateService.shared
     @AppStorage(DefaultsKey.autoCheckUpdates) private var autoCheck = true
+    @AppStorage(DefaultsKey.includeBetaUpdates) private var includeBetas = AppInfo.isBeta
 
     var body: some View {
         Section(l10n.s.updatesSection) {
@@ -401,6 +309,14 @@ struct UpdatesView: View {
                 .onChange(of: autoCheck) { _, value in
                     UpdateService.shared.autoCheckEnabled = value
                 }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle(l10n.s.includeBetaUpdatesToggle, isOn: $includeBetas)
+                    .onChange(of: includeBetas) { _, value in
+                        UpdateService.shared.includeBetaUpdates = value
+                    }
+                SettingsCaptionText(l10n.s.includeBetaUpdatesCaption)
+            }
 
             statusRow
 
@@ -491,6 +407,9 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration = 0
     @AppStorage(DefaultsKey.batteryLimit) private var batteryLimit = 10
     @AppStorage(DefaultsKey.keepAwakeAutoStart) private var keepAwakeAutoStart = false
+    @AppStorage(DefaultsKey.keepAwakeRightClickToggle) private var keepAwakeRightClickToggle = false
+    @AppStorage(DefaultsKey.keepAwakeAllowDisplaySleep) private var keepAwakeAllowDisplaySleep = false
+    @AppStorage(DefaultsKey.showCountdown) private var showCountdown = false
     @AppStorage(DefaultsKey.keepAwakeIconTint) private var keepAwakeIconTint = KeepAwakeIconTint.orange.rawValue
     @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleEnabled) private var keepAwakeMouseJiggle = false
@@ -512,20 +431,33 @@ struct EnergySettings: View {
                     SettingsToggleWithCaption(title: l10n.s.keepAwakeAutoStart,
                                               caption: l10n.s.keepAwakeAutoStartCaption,
                                               isOn: $keepAwakeAutoStart)
+                    SettingsToggleWithCaption(title: l10n.s.keepAwakeRightClickToggle,
+                                              caption: l10n.s.keepAwakeRightClickToggleCaption,
+                                              isOn: $keepAwakeRightClickToggle)
+                    // The countdown is a Keep Awake session readout, so it sits
+                    // with the session options. Under the General page's menu
+                    // bar section the label gave no clue which time it meant.
+                    Toggle(l10n.s.showCountdown, isOn: $showCountdown)
+                    SettingsToggleWithCaption(title: displaySleepStrings.allowDisplaySleep,
+                                              caption: displaySleepStrings.allowDisplaySleepCaption,
+                                              isOn: $keepAwakeAllowDisplaySleep)
                 }
+                .settingsSectionAnchor(.keepAwake)
                 Section(automationStrings.automationSection) {
                     SettingsCaptionText(automationStrings.automationCaption)
                     KeepAwakeAutomationEditor()
                 }
-                Section(l10n.s.batteryProtectionSection) {
-                    Picker(l10n.s.batteryDisableBelow, selection: $batteryLimit) {
-                        Text(l10n.s.batteryNever).tag(0)
-                        Text("5%").tag(5)
-                        Text("10%").tag(10)
-                        Text("15%").tag(15)
-                        Text("20%").tag(20)
+                if PowerSampler.hasInternalBattery {
+                    Section(l10n.s.batteryProtectionSection) {
+                        Picker(l10n.s.batteryDisableBelow, selection: $batteryLimit) {
+                            Text(l10n.s.batteryNever).tag(0)
+                            Text("5%").tag(5)
+                            Text("10%").tag(10)
+                            Text("15%").tag(15)
+                            Text("20%").tag(20)
+                        }
+                        SettingsCaptionText(l10n.s.batteryProtectionCaption)
                     }
-                    SettingsCaptionText(l10n.s.batteryProtectionCaption)
                 }
                 Section(l10n.s.keepAwakeTitle) {
                     KeepAwakeIconPicker(iconValue: $keepAwakeActiveIcon,
@@ -603,6 +535,7 @@ struct EnergySettings: View {
                         SettingsCaptionText(strings.externalCaption)
                     }
                 }
+                .settingsSectionAnchor(.brightness)
             }
             if AppFeature.extraBrightness.isAvailable {
                 Section(l10n.s.extraBrightnessName) {
@@ -626,6 +559,7 @@ struct EnergySettings: View {
                         SettingsCaptionText(l10n.s.extraBrightnessUnsupported)
                     }
                 }
+                .settingsSectionAnchor(.extraBrightness)
             }
         }
         .formStyle(.grouped)
@@ -686,6 +620,10 @@ struct EnergySettings: View {
     private var automationStrings: KeepAwakeAutomationStrings {
         FeatureStrings.keepAwakeAutomation(l10n.language)
     }
+
+    private var displaySleepStrings: KeepAwakeDisplaySleepStrings {
+        FeatureStrings.keepAwakeDisplaySleep(l10n.language)
+    }
 }
 
 // MARK: - Mouse
@@ -698,7 +636,11 @@ struct MouseSettings: View {
     @ObservedObject private var smoothScroll = SmoothScrollService.shared
     @ObservedObject private var mouseNavigation = MouseNavigationService.shared
     @ObservedObject private var middleClick = MiddleClickService.shared
-    @AppStorage(DefaultsKey.scrollInverterEnabled) private var inverterEnabled = false
+    @AppStorage(DefaultsKey.scrollInverterEnabled) private var invertVertical = false
+    @AppStorage(DefaultsKey.scrollInverterHorizontalEnabled) private var invertHorizontal = false
+    @AppStorage(DefaultsKey.focusFollowsMouseEnabled) private var focusFollowsMouseEnabled = false
+    @AppStorage(DefaultsKey.focusFollowsMouseDelay) private var focusFollowsMouseDelay =
+        FocusFollowsMouseSupport.defaultDelayMilliseconds
     @AppStorage(DefaultsKey.smoothScrollEnabled) private var smoothScrollEnabled = false
     @AppStorage(DefaultsKey.smoothScrollStep) private var smoothScrollStep = SmoothScrollSupport.defaultStep
     @AppStorage(DefaultsKey.mouseNavigationEnabled) private var mouseNavigationEnabled = false
@@ -710,11 +652,15 @@ struct MouseSettings: View {
         Form {
             if AppFeature.scrollInverter.isAvailable {
                 Section(l10n.s.scrollSection) {
-                    Toggle(l10n.s.invertMouseScroll, isOn: $inverterEnabled)
-                        .onChange(of: inverterEnabled) { _, _ in
+                    Toggle(l10n.s.invertVerticalScroll, isOn: $invertVertical)
+                        .onChange(of: invertVertical) { _, _ in
                             ScrollInverter.shared.syncWithPreferences()
                         }
-                    if inverterEnabled, inverter.isRunning {
+                    Toggle(l10n.s.invertHorizontalScroll, isOn: $invertHorizontal)
+                        .onChange(of: invertHorizontal) { _, _ in
+                            ScrollInverter.shared.syncWithPreferences()
+                        }
+                    if scrollDirectionEnabled, inverter.isRunning {
                         HStack(spacing: 6) {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(.green)
@@ -723,16 +669,39 @@ struct MouseSettings: View {
                                 .foregroundStyle(.green)
                         }
                     }
-                    Text(l10n.s.invertMouseScrollCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                     Text(l10n.s.scrollTrackpadNote)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    if inverterEnabled {
+                    if scrollDirectionEnabled {
                         MouseExceptionsList(scope: .scrollDirection)
                     }
                 }
+                .settingsSectionAnchor(.scrollDirection)
+            }
+            if AppFeature.focusFollowsMouse.isAvailable {
+                Section(l10n.s.focusFollowsMouseName) {
+                    Toggle(l10n.s.focusFollowsMouseName, isOn: $focusFollowsMouseEnabled)
+                        .onChange(of: focusFollowsMouseEnabled) { _, enabled in
+                            FocusFollowsMouseService.shared.syncWithPreferences()
+                            if enabled { Permissions.shared.requestAccessibility() }
+                        }
+                    SettingsCaptionText(l10n.s.focusFollowsMouseCaption)
+                    if focusFollowsMouseEnabled {
+                        HStack {
+                            Slider(value: focusFollowsMouseDelayBinding,
+                                   in: Double(FocusFollowsMouseSupport.delayRange.lowerBound)
+                                       ... Double(FocusFollowsMouseSupport.delayRange.upperBound),
+                                   step: 50) {
+                                Text(l10n.s.focusFollowsMouseDelay)
+                            }
+                            Text("\(focusFollowsMouseDelay) ms")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 68, alignment: .trailing)
+                        }
+                    }
+                }
+                .settingsSectionAnchor(.focusFollowsMouse)
             }
             if AppFeature.smoothScroll.isAvailable {
                 Section(l10n.s.smoothScrollName) {
@@ -758,6 +727,7 @@ struct MouseSettings: View {
                         MouseExceptionsList(scope: .smoothScroll)
                     }
                 }
+                .settingsSectionAnchor(.smoothScroll)
             }
             if AppFeature.mouseNavigation.isAvailable {
                 Section(l10n.s.mouseNavigationSection) {
@@ -777,6 +747,7 @@ struct MouseSettings: View {
                         MouseExceptionsList(scope: .navigation)
                     }
                 }
+                .settingsSectionAnchor(.mouseNavigation)
             }
             if AppFeature.mouseButtonShortcuts.isAvailable {
                 MouseButtonShortcutsSection()
@@ -812,6 +783,7 @@ struct MouseSettings: View {
                         MouseExceptionsList(scope: .middleClick)
                     }
                 }
+                .settingsSectionAnchor(.middleClick)
             }
             if accessibilityNoteVisible {
                 Section(l10n.s.permissionRequired) {
@@ -828,7 +800,8 @@ struct MouseSettings: View {
     /// Only features that are on AND still available can ask for the
     /// permission note; a hub-disabled one no longer needs anything.
     private var accessibilityNoteVisible: Bool {
-        let anyEngaged = (inverterEnabled && AppFeature.scrollInverter.isAvailable)
+        let anyEngaged = (scrollDirectionEnabled && AppFeature.scrollInverter.isAvailable)
+            || (focusFollowsMouseEnabled && AppFeature.focusFollowsMouse.isAvailable)
             || (smoothScrollEnabled && AppFeature.smoothScroll.isAvailable)
             || (mouseNavigationEnabled && AppFeature.mouseNavigation.isAvailable)
             || (mouseButtonShortcutsEnabled && AppFeature.mouseButtonShortcuts.isAvailable)
@@ -836,10 +809,24 @@ struct MouseSettings: View {
         return anyEngaged && !permissions.accessibility
     }
 
+    private var scrollDirectionEnabled: Bool {
+        invertVertical || invertHorizontal
+    }
+
     private var smoothScrollStepBinding: Binding<Double> {
         Binding(
             get: { Double(SmoothScrollSupport.sanitizedStep(smoothScrollStep)) },
             set: { smoothScrollStep = Int($0) }
+        )
+    }
+
+    private var focusFollowsMouseDelayBinding: Binding<Double> {
+        Binding(
+            get: { Double(FocusFollowsMouseSupport.sanitizedDelay(focusFollowsMouseDelay)) },
+            set: {
+                focusFollowsMouseDelay = Int($0)
+                FocusFollowsMouseService.shared.preferencesDidChange()
+            }
         )
     }
 }
@@ -852,18 +839,29 @@ struct SwitcherSettings: View {
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var dockPreview = DockPreviewService.shared
     @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
+    @AppStorage(DefaultsKey.switcherShortcut) private var switcherShortcutStorage = GlobalShortcut.switcherDefault.storageValue
     @AppStorage(DefaultsKey.switcherIconRowMode) private var switcherIconRowMode = false
     @AppStorage(DefaultsKey.switcherSimpleMode) private var switcherSimpleMode = false
     @AppStorage(DefaultsKey.switcherMergeTabs) private var switcherMergeTabs = false
-    @AppStorage(DefaultsKey.switcherShowWindowlessFinder) private var switcherShowWindowlessFinder = true
+    @AppStorage(DefaultsKey.switcherWindowlessApps) private var switcherWindowlessApps = SwitcherWindowlessApps.fallback.rawValue
+    @AppStorage(DefaultsKey.switcherMinimizedPlacement) private var switcherMinimizedPlacement = WindowSwitchMinimizedPlacement.normal.rawValue
+    @AppStorage(DefaultsKey.switcherShowFullscreenWindows) private var switcherShowFullscreenWindows = true
     @AppStorage(DefaultsKey.switcherCurrentSpaceOnly) private var switcherCurrentSpaceOnly = false
+    @AppStorage(DefaultsKey.switcherSearchPinEnabled) private var switcherSearchPinEnabled = false
+    @AppStorage(DefaultsKey.switcherShowShortcutHints) private var switcherShowShortcutHints = true
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
+    @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var dockPreviewBackgroundOpacity = 1.0
+    @AppStorage(DefaultsKey.dockPreviewOpenDelay) private var dockPreviewOpenDelay = DockPreviewSupport.defaultOpenDelayMilliseconds
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
+    @AppStorage(DefaultsKey.dockClickHide) private var dockClickHide = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
     @AppStorage(DefaultsKey.previewSize) private var previewSize = "normal"
 
     private var switcherEngaged: Bool { switcherEnabled && AppFeature.switcher.isAvailable }
     private var dockPreviewEngaged: Bool { dockPreviewEnabled && AppFeature.dockPreview.isAvailable }
+    private var switcherShortcutDisplayString: String {
+        (GlobalShortcut(storageValue: switcherShortcutStorage) ?? .switcherDefault).displayString
+    }
 
     var body: some View {
         Form {
@@ -894,6 +892,12 @@ struct SwitcherSettings: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
+                    Toggle(l10n.s.switcherSearchPin, isOn: $switcherSearchPinEnabled)
+                        .disabled(!switcherEnabled)
+                    Text(l10n.s.switcherSearchPinCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
                     Toggle(l10n.s.switcherSimpleMode, isOn: $switcherSimpleMode)
                         .disabled(!switcherEnabled)
                         .onChange(of: switcherSimpleMode) { _, _ in
@@ -903,7 +907,8 @@ struct SwitcherSettings: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    Toggle(l10n.s.switcherIconRowMode, isOn: $switcherIconRowMode)
+                    Toggle(String(format: l10n.s.switcherIconRowMode, switcherShortcutDisplayString),
+                           isOn: $switcherIconRowMode)
                         .disabled(!switcherEnabled || switcherSimpleMode)
                         .onChange(of: switcherIconRowMode) { _, _ in
                             AppSwitcher.shared.syncWithPreferences()
@@ -912,11 +917,36 @@ struct SwitcherSettings: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
+                    if switcherSimpleMode || switcherIconRowMode {
+                        Toggle(l10n.s.switcherShowShortcutHints,
+                               isOn: $switcherShowShortcutHints)
+                            .disabled(!switcherEnabled)
+                        Text(l10n.s.switcherShowShortcutHintsCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
                     Toggle(l10n.s.switcherMergeTabs, isOn: $switcherMergeTabs)
                         .disabled(!switcherEnabled)
                     Text(l10n.s.switcherMergeTabsCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    Picker(l10n.s.switcherMinimizedPlacementLabel, selection: $switcherMinimizedPlacement) {
+                        Text(l10n.s.switcherMinimizedPlacementNormal).tag(WindowSwitchMinimizedPlacement.normal.rawValue)
+                        Text(l10n.s.switcherMinimizedPlacementEnd).tag(WindowSwitchMinimizedPlacement.end.rawValue)
+                        Text(l10n.s.switcherMinimizedPlacementHidden).tag(WindowSwitchMinimizedPlacement.hidden.rawValue)
+                    }
+                    .disabled(!switcherEnabled)
+                    .onChange(of: switcherMinimizedPlacement) { _, _ in
+                        AppSwitcher.shared.syncWithPreferences()
+                    }
+
+                    Toggle(l10n.s.switcherShowFullscreenWindows, isOn: $switcherShowFullscreenWindows)
+                        .disabled(!switcherEnabled)
+                        .onChange(of: switcherShowFullscreenWindows) { _, _ in
+                            AppSwitcher.shared.syncWithPreferences()
+                        }
 
                     Toggle(l10n.s.switcherCurrentSpaceOnly, isOn: $switcherCurrentSpaceOnly)
                         .disabled(!switcherEnabled)
@@ -924,17 +954,22 @@ struct SwitcherSettings: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    if switcherEnabled {
-                        Toggle(l10n.s.switcherShowFinder, isOn: $switcherShowWindowlessFinder)
-                        Text(l10n.s.switcherShowFinderCaption)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    Picker(l10n.s.switcherWindowlessApps, selection: $switcherWindowlessApps) {
+                        Text(l10n.s.switcherWindowlessAppsOff).tag(SwitcherWindowlessApps.off.rawValue)
+                        Text(l10n.s.switcherWindowlessAppsFinder).tag(SwitcherWindowlessApps.finder.rawValue)
+                        Text(l10n.s.switcherWindowlessAppsAll).tag(SwitcherWindowlessApps.all.rawValue)
                     }
+                    .disabled(!switcherEnabled)
+                    Text(l10n.s.switcherWindowlessAppsCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    SwitcherAppRulesList()
                 }
+                .settingsSectionAnchor(.switcher)
             }
-            if AppFeature.dockPreview.isAvailable || AppFeature.dockClick.isAvailable {
+            if AppFeature.dockPreview.isAvailable {
                 Section {
-                    if AppFeature.dockPreview.isAvailable {
+                    do {
                         Toggle(l10n.s.dockPreviewEnable, isOn: $dockPreviewEnabled)
                             .onChange(of: dockPreviewEnabled) { _, _ in
                                 DockPreviewService.shared.syncWithPreferences()
@@ -942,13 +977,61 @@ struct SwitcherSettings: View {
                         Text(dockPreviewCaption)
                             .font(.caption)
                             .foregroundStyle(dockPreviewWarning ? .orange : .secondary)
+                        if dockPreviewEnabled {
+                            HStack {
+                                Text(l10n.s.dockPreviewOpenDelay)
+                                Spacer()
+                                TextField("", value: dockPreviewOpenDelayBinding,
+                                          formatter: Self.dockPreviewOpenDelayFormatter)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 64)
+                                Stepper("", value: dockPreviewOpenDelayBinding,
+                                        in: DockPreviewSupport.openDelayMillisecondsRange,
+                                        step: 50)
+                                    .labelsHidden()
+                                Text(verbatim: "ms")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .fixedSize(horizontal: false, vertical: true)
+                            SettingsCaptionText(l10n.s.dockPreviewOpenDelayCaption)
+                            HStack {
+                                Text(l10n.s.dockPreviewBackgroundOpacity)
+                                Slider(value: dockPreviewBackgroundOpacityBinding,
+                                       in: DockPreviewSupport.backgroundOpacityRange,
+                                       step: 0.05)
+                                Text("\(dockPreviewBackgroundOpacityPercent)%")
+                                    .font(.system(.body, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 52, alignment: .trailing)
+                            }
+                            SettingsCaptionText(l10n.s.dockPreviewBackgroundOpacityCaption)
+                        }
                     }
-                    if AppFeature.dockClick.isAvailable {
+                } header: {
+                    Text(l10n.s.dockPreviewName)
+                }
+                .settingsSectionAnchor(.dock)
+            }
+            // Clicking a Dock icon is its own installable feature in the hub, so
+            // it gets its own section here. It used to sit under the Dock Preview
+            // header, which named one feature over the controls of two.
+            if AppFeature.dockClick.isAvailable {
+                Section {
+                    do {
                         Toggle(l10n.s.dockClickMinimize, isOn: $dockClickMinimize)
-                            .onChange(of: dockClickMinimize) { _, _ in
+                            .onChange(of: dockClickMinimize) { _, enabled in
+                                if enabled { dockClickHide = false }
                                 DockClickService.shared.syncWithPreferences()
                             }
                         Text(l10n.s.dockClickMinimizeCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Toggle(l10n.s.dockClickHide, isOn: $dockClickHide)
+                            .onChange(of: dockClickHide) { _, enabled in
+                                if enabled { dockClickMinimize = false }
+                                DockClickService.shared.syncWithPreferences()
+                            }
+                        Text(l10n.s.dockClickHideCaption)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Toggle(l10n.s.dockClickCycleWindows, isOn: $dockClickCycleWindows)
@@ -960,12 +1043,14 @@ struct SwitcherSettings: View {
                             .foregroundStyle(.secondary)
                     }
                 } header: {
-                    Text(l10n.s.dockPreviewName)
+                    Text(FeatureStrings.hub(l10n.language).titleDockClick)
                 }
+                .settingsSectionAnchor(.dockClick)
             }
             if AppFeature.switcher.isAvailable || AppFeature.dockPreview.isAvailable {
                 Section {
                     Picker(l10n.s.previewSizeLabel, selection: $previewSize) {
+                        Text(l10n.s.previewSizeSmall).tag("small")
                         Text(l10n.s.previewSizeNormal).tag("normal")
                         Text(l10n.s.previewSizeLarge).tag("large")
                         Text(l10n.s.previewSizeXLarge).tag("xlarge")
@@ -974,8 +1059,9 @@ struct SwitcherSettings: View {
                     .onChange(of: previewSize) { _, _ in
                         AppSwitcher.shared.syncWithPreferences()
                     }
+                    WindowPreviewExclusionsList()
                 } header: {
-                    Text(l10n.s.previewSizeLabel)
+                    Text(FeatureStrings.windowPreviewExclusions(l10n.language).sectionTitle)
                 }
             }
             if switcherEngaged || dockPreviewEngaged {
@@ -1011,6 +1097,35 @@ struct SwitcherSettings: View {
     private var dockPreviewWarning: Bool {
         dockPreviewEnabled && dockPreview.blockedReason != nil
     }
+
+    private var dockPreviewBackgroundOpacityBinding: Binding<Double> {
+        Binding(
+            get: { DockPreviewSupport.sanitizedBackgroundOpacity(dockPreviewBackgroundOpacity) },
+            set: { dockPreviewBackgroundOpacity = DockPreviewSupport.sanitizedBackgroundOpacity($0) }
+        )
+    }
+
+    private var dockPreviewBackgroundOpacityPercent: Int {
+        Int((DockPreviewSupport.sanitizedBackgroundOpacity(dockPreviewBackgroundOpacity) * 100).rounded())
+    }
+
+    private var dockPreviewOpenDelayBinding: Binding<Int> {
+        Binding(
+            get: { DockPreviewSupport.sanitizedOpenDelay(milliseconds: dockPreviewOpenDelay) },
+            set: { dockPreviewOpenDelay = DockPreviewSupport.sanitizedOpenDelay(milliseconds: $0) }
+        )
+    }
+
+    /// Bounded here as well as in the binding: the field rejects an out-of-range
+    /// number as it is typed rather than silently snapping it afterwards.
+    private static let dockPreviewOpenDelayFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .none
+        formatter.minimum = NSNumber(value: DockPreviewSupport.openDelayMillisecondsRange.lowerBound)
+        formatter.maximum = NSNumber(value: DockPreviewSupport.openDelayMillisecondsRange.upperBound)
+        formatter.usesGroupingSeparator = false
+        return formatter
+    }()
 }
 
 // MARK: - About
@@ -1035,9 +1150,20 @@ struct AboutSettings: View {
             VStack(spacing: 3) {
                 Text(AppInfo.name)
                     .font(.title2.bold())
-                Text("\(l10n.s.versionPrefix) \(AppInfo.version)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Text("\(l10n.s.versionPrefix) \(AppInfo.version)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if AppInfo.isBeta {
+                        Text(l10n.s.betaBadgeLabel)
+                            .font(.system(size: 9, weight: .bold))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(Color.orange.opacity(0.18))
+                            .foregroundStyle(.orange)
+                            .clipShape(Capsule())
+                    }
+                }
                 if AppInfo.isDeveloperBuild, let commit = AppInfo.buildCommit {
                     // Dev-only: which source commit this build came from. Never shipped.
                     Text(commit)
@@ -1053,6 +1179,9 @@ struct AboutSettings: View {
             HStack(spacing: 12) {
                 Button(l10n.s.reviewIntro) {
                     appDelegate()?.showOnboarding()
+                }
+                Button(l10n.s.reviewHighlights) {
+                    appDelegate()?.showUpdateHighlights(includeSupportIntro: true)
                 }
                 Link(l10n.s.viewOnGitHub, destination: AppInfo.repositoryURL)
             }
@@ -1200,64 +1329,159 @@ struct ReleaseNotesSettings: View {
     }
 }
 
-// MARK: - Support / donate
+// MARK: - Support and community
 
-/// A calm, visual page inviting people to support the project. Nothing is
-/// nagged or gated: the message and a single Buy Me a Coffee button that opens
-/// the donate page in the browser.
 struct SupportSettings: View {
-    @ObservedObject private var l10n = L10n.shared
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Spacer()
-            ZStack {
-                Circle()
-                    .fill(Theme.spaceGradient)
-                    .frame(width: 84, height: 84)
-                Image(systemName: "cup.and.saucer.fill")
-                    .font(.system(size: 33))
-                    .foregroundStyle(.white)
-            }
-            Text(l10n.s.donateHeading)
-                .font(.title2.bold())
-            Text(l10n.s.donateMessage)
-                .font(.system(size: 12.5))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 360)
-            CoffeeButton()
-                .padding(.top, 4)
-            Text(l10n.s.donateThanks)
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-
-/// The Buy Me a Coffee call to action for the Support page. Opens the donate
-/// page in the default browser.
-struct CoffeeButton: View {
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.openURL) private var openURL
 
     var body: some View {
+        ScrollView {
+            VStack(spacing: 18) {
+                ZStack {
+                    Circle()
+                        .fill(Theme.spaceGradient)
+                        .frame(width: 78, height: 78)
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 29, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+
+                VStack(spacing: 7) {
+                    Text(l10n.s.donateHeading)
+                        .font(.title2.bold())
+                        .multilineTextAlignment(.center)
+                    Text(l10n.s.donateMessage)
+                        .font(.system(size: 13.5))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: 460)
+                }
+
+                Button {
+                    openURL(AppInfo.coffeeURL)
+                } label: {
+                    Label(l10n.s.donateButton, systemImage: "cup.and.saucer.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+
+                HStack(alignment: .top, spacing: 14) {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.yellow)
+                        .frame(width: 38, height: 38)
+                        .background(Circle().fill(Color.yellow.opacity(0.14)))
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(l10n.s.supportIntroStarMessage)
+                            .font(.system(size: 13.5, weight: .medium))
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Button {
+                            openURL(AppInfo.repositoryURL)
+                        } label: {
+                            Label(l10n.s.supportIntroStarButton, systemImage: "star.fill")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(16)
+                .frame(maxWidth: 510)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color(nsColor: .controlBackgroundColor))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Color(nsColor: .separatorColor).opacity(0.45))
+                )
+
+                HStack(alignment: .top, spacing: 14) {
+                    DiscordMark(width: 24)
+                        .frame(width: 38, height: 38)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color(red: 0.35, green: 0.40, blue: 0.94))
+                        )
+
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text(l10n.s.discordIntroTitle)
+                            .font(.headline)
+                        Text(l10n.s.discordIntroMessage)
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        communityActions
+                            .padding(.top, 3)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(16)
+                .frame(maxWidth: 510)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color(nsColor: .controlBackgroundColor))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Color(nsColor: .separatorColor).opacity(0.45))
+                )
+
+                Text(l10n.s.donateThanks)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 28)
+            .padding(.vertical, 26)
+        }
+    }
+
+    private var communityActions: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 9) {
+                discordButton
+                socialButton
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                discordButton
+                socialButton
+            }
+        }
+    }
+
+    private var discordButton: some View {
         Button {
-            openURL(AppInfo.donateURL)
+            openURL(AppInfo.discordURL)
         } label: {
             HStack(spacing: 8) {
-                Text("☕").font(.system(size: 15))
-                Text(l10n.s.donateButton)
-                    .font(.system(size: 14, weight: .semibold))
+                DiscordMark(width: 19)
+                Text(l10n.s.discordIntroJoinButton)
             }
-            .foregroundStyle(.black)
-            .padding(.horizontal, 22)
-            .padding(.vertical, 11)
-            .background(Capsule().fill(Color(red: 1.0, green: 0.84, blue: 0.0)))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .tint(Color(red: 0.35, green: 0.40, blue: 0.94))
+    }
+
+    private var socialButton: some View {
+        Button {
+            openURL(AppInfo.socialURL)
+        } label: {
+            HStack(spacing: 7) {
+                XLogoShape()
+                    .fill(Color.primary, style: FillStyle(eoFill: true))
+                    .frame(width: 12, height: 12)
+                Text(l10n.s.communityIntroFollowButton)
+            }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
     }
 }
 
@@ -1300,20 +1524,38 @@ private struct SettingsToggleWithCaption: View {
 enum PermissionKind {
     case accessibility
     case screenRecording
+    case microphone
 }
 
 /// Status + actions for one TCC permission; shared by Settings and onboarding.
 struct PermissionRow: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
+    @State private var pollingDemandID = UUID()
     let kind: PermissionKind
 
     private var granted: Bool {
-        kind == .accessibility ? permissions.accessibility : permissions.screenRecording
+        switch kind {
+        case .accessibility: return permissions.accessibility
+        case .screenRecording: return permissions.screenRecording
+        case .microphone: return permissions.microphone == .granted
+        }
+    }
+
+    private var monitorsActivePermission: Bool {
+        switch kind {
+        case .accessibility, .screenRecording: return true
+        case .microphone: return false
+        }
     }
 
     private var name: String {
-        kind == .accessibility ? l10n.s.permissionAccessibility : l10n.s.permissionScreenRecording
+        switch kind {
+        case .accessibility: return l10n.s.permissionAccessibility
+        case .screenRecording: return l10n.s.permissionScreenRecording
+        case .microphone:
+            return FeatureStrings.recorder(l10n.language).microphonePermissionName
+        }
     }
 
     var body: some View {
@@ -1330,22 +1572,36 @@ struct PermissionRow: View {
             if !granted {
                 HStack(spacing: 8) {
                     Button(l10n.s.permissionRequest) {
-                        if kind == .accessibility {
+                        switch kind {
+                        case .accessibility:
                             permissions.requestAccessibility()
-                        } else {
+                        case .screenRecording:
                             permissions.requestScreenRecording()
+                        case .microphone:
+                            permissions.requestMicrophone()
                         }
                     }
                     Button(l10n.s.permissionOpenSettings) {
-                        if kind == .accessibility {
+                        switch kind {
+                        case .accessibility:
                             permissions.openAccessibilitySettings()
-                        } else {
+                        case .screenRecording:
                             permissions.openScreenRecordingSettings()
+                        case .microphone:
+                            permissions.openMicrophoneSettings()
                         }
                     }
                 }
                 .controlSize(.small)
             }
+        }
+        .onAppear {
+            if monitorsActivePermission {
+                permissions.setActivePermissionSurface(pollingDemandID, visible: true)
+            }
+        }
+        .onDisappear {
+            permissions.setActivePermissionSurface(pollingDemandID, visible: false)
         }
     }
 }

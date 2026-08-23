@@ -9,13 +9,28 @@ import SwiftUI
 struct UninstallerView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var uninstaller = AppUninstaller.shared
+    @ObservedObject private var homebrew = HomebrewManager.shared
     @ObservedObject private var permissions = Permissions.shared
     @State private var dropTargeted = false
     @State private var showingAppPicker = false
+    @State private var pendingHomebrewRemoval: HomebrewPackage?
+    @State private var showHomebrewDetails = false
 
     var body: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .alert(l10n.s.homebrewConfirmUninstallTitle,
+                   isPresented: Binding(get: { pendingHomebrewRemoval != nil },
+                                        set: { if !$0 { pendingHomebrewRemoval = nil } }),
+                   presenting: pendingHomebrewRemoval) { package in
+                Button(l10n.s.uninstallerCancel, role: .cancel) {}
+                Button(l10n.s.homebrewUninstall, role: .destructive) {
+                    pendingHomebrewRemoval = nil
+                    uninstaller.removeSelectedWithHomebrew()
+                }
+            } message: { package in
+                Text(String(format: l10n.s.homebrewConfirmUninstallBodyFormat, package.displayName))
+            }
     }
 
     @ViewBuilder
@@ -63,7 +78,9 @@ struct UninstallerView: View {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
 
-            if !permissions.fullDiskAccess { fullDiskAccessNote }
+            if !permissions.fullDiskAccess {
+                FullDiskAccessNote().frame(width: 360)
+            }
             Spacer()
         }
         .padding(28)
@@ -80,31 +97,6 @@ struct UninstallerView: View {
             uninstaller.select(appURL: app)
             return true
         } isTargeted: { dropTargeted = $0 }
-    }
-
-    private var fullDiskAccessNote: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "info.circle").foregroundStyle(.secondary)
-                Text(l10n.s.uninstallerFDANote)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Text(l10n.s.uninstallerFDAHint)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 8) {
-                Button(l10n.s.uninstallerFDAGrant) { permissions.requestFullDiskAccess() }
-                // Shown alongside because access only takes effect on relaunch.
-                Button(l10n.s.uninstallerFDARelaunch) { appDelegate()?.relaunchApp() }
-            }
-            .controlSize(.small)
-        }
-        .padding(11)
-        .frame(width: 360)
-        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(0.05)))
     }
 
     // MARK: Busy
@@ -142,6 +134,7 @@ struct UninstallerView: View {
             }
             .listStyle(.inset)
             Divider()
+            homebrewStatus
             footer
         }
     }
@@ -167,6 +160,7 @@ struct UninstallerView: View {
                 Image(systemName: "xmark.circle.fill").font(.system(size: 16)).foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            .disabled(uninstaller.isRemovingWithHomebrew)
         }
         .padding(16)
     }
@@ -201,12 +195,63 @@ struct UninstallerView: View {
             }
             Spacer()
             Button(l10n.s.uninstallerCancel) { uninstaller.reset() }
-            Button(l10n.s.uninstallerRemove) { uninstaller.removeSelected() }
+                .disabled(uninstaller.isRemovingWithHomebrew)
+            Button(removeButtonTitle) {
+                if let package = uninstaller.selectedHomebrewPackage {
+                    pendingHomebrewRemoval = package
+                } else {
+                    uninstaller.removeSelected()
+                }
+            }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
-                .disabled(!uninstaller.items.contains(where: \.include))
+                .disabled(!uninstaller.items.contains(where: \.include)
+                          || (uninstaller.selectedHomebrewPackage != nil && homebrew.isBusy))
         }
         .padding(16)
+    }
+
+    private var removeButtonTitle: String {
+        uninstaller.selectedHomebrewPackage == nil ? l10n.s.uninstallerRemove : l10n.s.homebrewUninstall
+    }
+
+    @ViewBuilder
+    private var homebrewStatus: some View {
+        if let package = uninstaller.selectedHomebrewPackage {
+            if let status = homebrew.operationStatus,
+               status.action == .uninstall,
+               status.package?.id == package.id {
+                HomebrewOperationStatusView(status: status,
+                                            log: homebrew.log,
+                                            terminalFallbackCommand: homebrew.terminalFallbackCommand,
+                                            compact: false,
+                                            showDetails: $showHomebrewDetails,
+                                            onCancel: homebrew.cancelOperation,
+                                            onClear: homebrew.clearLog,
+                                            onOpenTerminal: homebrew.openTerminalFallback)
+                    .padding(12)
+                if let tap = homebrew.untrustedTap {
+                    HomebrewTrustCard(tap: tap)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 12)
+                }
+                if let error = homebrew.errorMessage, !error.isEmpty {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 12)
+                }
+            } else {
+                Label(String(format: l10n.s.uninstallerHomebrewPackageFormat, package.displayName),
+                      systemImage: "shippingbox")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+            }
+            Divider()
+        }
     }
 
     // MARK: Done

@@ -70,7 +70,7 @@ struct MenuPanelView: View {
     @AppStorage(DefaultsKey.monitorShowNetwork) private var showNetwork = true
     @AppStorage(DefaultsKey.monitorShowDisk) private var showDisk = true
     @AppStorage(DefaultsKey.monitorShowPower) private var showPower = true
-    @AppStorage(DefaultsKey.monitorShowFanControlBeta) private var showFanControlBeta = false
+    @AppStorage(DefaultsKey.panelShowFanControl) private var showFanControl = true
     @AppStorage(DefaultsKey.panelShowKeepAwake) private var showKeepAwake = true
     @AppStorage(DefaultsKey.panelShowBrightness) private var showBrightness = true
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
@@ -78,13 +78,12 @@ struct MenuPanelView: View {
     @AppStorage(DefaultsKey.panelShowControls) private var showControls = true
     @AppStorage(DefaultsKey.panelShowToggles) private var showToggles = true
     @AppStorage(DefaultsKey.panelSectionOrder) private var sectionOrderRaw = ""
-    @AppStorage(DefaultsKey.cleanerBadgeSeen) private var cleanerBadgeSeen = false
-    @AppStorage(DefaultsKey.panelUtilityCleaner) private var cleanerRowVisible = true
     @State private var navigableContentHeight: CGFloat = 0
     @State private var metricContentHeight: CGFloat = 0
     @State private var updateBannerHeight: CGFloat = 0
-    @State private var selectedSection: PanelSectionID = .keepAwake
+    @State private var selectedSection: PanelSectionID = PanelLayout.order.first ?? .keepAwake
     @State private var selectedMetric: MetricDetailKind?
+    @FocusState private var focusedSection: PanelSectionID?
 
     /// Cap the panel to the usable screen height so it never overflows the menu
     /// bar; taller content scrolls inside. Measured against the display the
@@ -127,6 +126,9 @@ struct MenuPanelView: View {
         .onChange(of: panelFocus.request) { _, request in
             applyFocus(request)
         }
+        .onChange(of: focusedSection) { _, section in
+            if let section { selectedSection = section }
+        }
     }
 
     private var monitorNeeds: SystemMonitorPanelNeeds {
@@ -155,7 +157,9 @@ struct MenuPanelView: View {
             guard isSectionVisible(section) else { return }
             selectedMetric = nil
             selectedSection = section
+            focusedSection = section
         case .metric(let metric):
+            focusedSection = nil
             selectedMetric = metric
             selectedSection = metric.panelSection
         }
@@ -256,7 +260,7 @@ struct MenuPanelView: View {
         case .network: return 190
         case .disk: return 360
         case .power: return 170
-        case .fanControl: return 92
+        case .fanControl: return 220
         case .utilities: return 500
         case .controls: return 360
         case .toggles: return 420
@@ -270,6 +274,7 @@ struct MenuPanelView: View {
         case .network: return 330
         case .disk: return 360
         case .battery, .power: return 360
+        case .fan: return 240
         }
     }
 
@@ -286,7 +291,7 @@ struct MenuPanelView: View {
         case .network: if showNetwork { NetworkSection(collapsible: collapsible) }
         case .disk: if showDisk { DiskSection(collapsible: collapsible) }
         case .power: if showPower { PowerSection(collapsible: collapsible) }
-        case .fanControl: if showFanControlBeta { FanControlSection(collapsible: collapsible) }
+        case .fanControl: if showFanControl { FanControlSection(collapsible: collapsible) }
         case .utilities: UtilitiesSection(collapsible: collapsible, startCleaning: startCleaning)
         case .controls: QuickControlsSection(collapsible: collapsible)
         case .toggles: QuickTogglesSection(collapsible: collapsible)
@@ -305,7 +310,7 @@ struct MenuPanelView: View {
         case .network: return showNetwork
         case .disk: return showDisk
         case .power: return showPower
-        case .fanControl: return showFanControlBeta
+        case .fanControl: return showFanControl
         case .utilities: return showUtilities
         case .controls: return showControls
         case .toggles: return showToggles
@@ -318,26 +323,16 @@ struct MenuPanelView: View {
                 let isActive = activeSection == id
                 Button {
                     selectedSection = id
+                    focusedSection = id
                 } label: {
                     Image(systemName: id.symbolName)
                         .font(.system(size: 13.5, weight: .semibold))
-                        .overlay(alignment: .topTrailing) {
-                            // Trail of the cleaner's red dot: it marks the
-                            // Utilities tab too, so the guidance starts on the
-                            // panel's first screen and not one click deep.
-                            if id == .utilities, !cleanerBadgeSeen, cleanerRowVisible {
-                                Circle()
-                                    .fill(Color.red)
-                                    .frame(width: 6, height: 6)
-                                    .offset(x: 5, y: -3)
-                                    .accessibilityHidden(true)
-                            }
-                        }
                         .frame(maxWidth: .infinity)
                         .frame(height: 30)
                         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .focused($focusedSection, equals: id)
                 .foregroundStyle(isActive ? Color.accentColor : Color.secondary.opacity(0.86))
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -452,13 +447,43 @@ struct MenuPanelView: View {
 
 private struct MenuPanelHeader: View {
     @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
-        BrandMark(width: 48, tint: markTint)
-            .frame(height: 28)
-            .padding(.vertical, 4)
-            .accessibilityHidden(true)
-            .frame(maxWidth: .infinity, alignment: .center)
+        ZStack {
+            BrandMark(width: 48, tint: markTint)
+                .frame(height: 28)
+                .accessibilityHidden(true)
+
+            if AppInfo.isBeta {
+                HStack {
+                    Text(l10n.s.betaBadgeLabel.uppercased())
+                        .font(.system(size: 9, weight: .bold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.orange.opacity(0.18))
+                        .foregroundStyle(.orange)
+                        .clipShape(Capsule())
+
+                    Spacer()
+
+                    Button {
+                        appDelegate()?.openFeedbackWindow()
+                    } label: {
+                        Image(systemName: "bubble.left.and.text.bubble.right")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .padding(4)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(FeatureStrings.feedback(l10n.language).openButton)
+                }
+            }
+        }
+        .frame(height: 28)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity)
     }
 
     private var markTint: Color {
@@ -470,8 +495,9 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // Case order IS the default panel order (PanelLayout.itemOrder falls back
     // to allCases). Screenshot leads in 3.1.13; existing orders that predate it
     // are migrated once without disturbing the rest of the user's layout.
-    case screenshot, quickLauncher, cleaner, homebrew, media, clipboard, windowLayout, uninstaller,
-         cleanURL, cleaning, screenOCR, colorPicker, micMute, cameraPreview, scratchpad
+    case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
+         uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
+         commandBar, screenRecorder
 
     var id: String { rawValue }
 
@@ -482,6 +508,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .quickLauncher: return .quickLauncher
         case .cleaner: return .cleaner
         case .homebrew: return .homebrew
+        case .appUpdates: return .appUpdates
         case .media: return .mediaTools
         case .clipboard: return .clipboardHistory
         case .windowLayout: return .windowLayout
@@ -490,10 +517,11 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .cleaning: return .cleaningMode
         case .screenOCR: return .screenOCR
         case .colorPicker: return .colorPicker
-        case .micMute: return .micMute
         case .screenshot: return .screenshot
+        case .screenRecorder: return .screenRecorder
         case .cameraPreview: return .cameraPreview
         case .scratchpad: return .scratchpad
+        case .commandBar: return .commandBar
         }
     }
 }
@@ -506,15 +534,17 @@ struct UtilitiesSection: View {
     @State private var showCleanerPanel = false
     @State private var showURLCleaner = false
     @State private var showHomebrewPanel = false
+    @State private var showAppUpdatesPanel = false
     @State private var showMediaPanel = false
     @State private var showClipboardPanel = false
+    @State private var showRecentCapturesPanel = false
     @State private var showWindowLayoutPanel = false
     @AppStorage(DefaultsKey.panelUtilityCleaning) private var showCleaning = true
     @AppStorage(DefaultsKey.panelUtilityURLCleaner) private var showCleanURL = true
     @AppStorage(DefaultsKey.panelUtilityUninstaller) private var showUninstallerAction = true
     @AppStorage(DefaultsKey.panelUtilityCleaner) private var showCleanerAction = true
-    @AppStorage(DefaultsKey.cleanerBadgeSeen) private var cleanerBadgeSeen = false
     @AppStorage(DefaultsKey.panelUtilityHomebrew) private var showHomebrew = true
+    @AppStorage(DefaultsKey.panelUtilityAppUpdates) private var showAppUpdates = true
     @AppStorage(DefaultsKey.panelUtilityMedia) private var showMedia = true
     @AppStorage(DefaultsKey.panelUtilityClipboard) private var showClipboard = true
     @AppStorage(DefaultsKey.panelUtilityWindowLayout) private var showWindowLayout = true
@@ -522,10 +552,11 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityScreenshot) private var showScreenshot = true
     @AppStorage(DefaultsKey.panelUtilityQuickLauncher) private var showQuickLauncher = true
     @AppStorage(DefaultsKey.panelUtilityColorPicker) private var showColorPicker = true
-    @AppStorage(DefaultsKey.panelUtilityMicMute) private var showMicMute = true
     @AppStorage(DefaultsKey.panelUtilityCameraPreview) private var showCameraPreview = true
     @AppStorage(DefaultsKey.panelUtilityScratchpad) private var showScratchpad = true
-    @ObservedObject private var micMute = MicMuteService.shared
+    @AppStorage(DefaultsKey.panelUtilityCommandBar) private var showCommandBar = true
+    @AppStorage(DefaultsKey.panelUtilityScreenRecorder) private var showScreenRecorder = true
+    @ObservedObject private var recorder = ScreenRecorderService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
     @State private var draggingItem: UtilityPanelItem?
@@ -535,13 +566,7 @@ struct UtilitiesSection: View {
     var body: some View {
         PanelSection(.utilities, title: l10n.s.utilitiesSection, collapsible: collapsible,
                      supportsEditing: true,
-                     editButtonVisible: !showUninstaller
-                        && !showCleanerPanel
-                        && !showURLCleaner
-                        && !showHomebrewPanel
-                        && !showMediaPanel
-                        && !showClipboardPanel
-                        && !showWindowLayoutPanel,
+                     editButtonVisible: !isHostingUtility,
                      resetAction: resetPanelDefaults) { editing in
             if showUninstaller {
                 PanelUninstallerView {
@@ -570,10 +595,20 @@ struct UtilitiesSection: View {
                     PanelInteractionState.shared.keepsPopoverOpen = false
                     showClipboardPanel = false
                 }
+            } else if showRecentCapturesPanel {
+                PanelRecentCapturesView {
+                    PanelInteractionState.shared.keepsPopoverOpen = false
+                    showRecentCapturesPanel = false
+                }
             } else if showWindowLayoutPanel {
                 PanelWindowLayoutView {
                     PanelInteractionState.shared.keepsPopoverOpen = false
                     showWindowLayoutPanel = false
+                }
+            } else if showAppUpdatesPanel {
+                PanelAppUpdatesView {
+                    PanelInteractionState.shared.keepsPopoverOpen = false
+                    showAppUpdatesPanel = false
                 }
             } else {
                 VStack(alignment: .leading, spacing: 8) {
@@ -588,45 +623,23 @@ struct UtilitiesSection: View {
                 }
             }
         }
-        .onChange(of: showHomebrewPanel) { _, shown in
-            if shown {
-                PanelInteractionState.shared.keepsPopoverOpen = true
-            } else if !showUninstaller && !showCleanerPanel && !showURLCleaner && !showMediaPanel && !showClipboardPanel && !showWindowLayoutPanel {
-                PanelInteractionState.shared.keepsPopoverOpen = false
-            }
-        }
-        .onChange(of: showMediaPanel) { _, shown in
-            if shown {
-                PanelInteractionState.shared.keepsPopoverOpen = true
-            } else if !showUninstaller && !showCleanerPanel && !showURLCleaner && !showHomebrewPanel && !showClipboardPanel && !showWindowLayoutPanel {
-                PanelInteractionState.shared.keepsPopoverOpen = false
-            }
-        }
-        .onChange(of: showClipboardPanel) { _, shown in
-            if shown {
-                PanelInteractionState.shared.keepsPopoverOpen = true
-            } else if !showUninstaller && !showCleanerPanel && !showURLCleaner && !showHomebrewPanel && !showMediaPanel && !showWindowLayoutPanel {
-                PanelInteractionState.shared.keepsPopoverOpen = false
-            }
-        }
-        .onChange(of: showWindowLayoutPanel) { _, shown in
-            if shown {
-                PanelInteractionState.shared.keepsPopoverOpen = true
-            } else if !showUninstaller && !showCleanerPanel && !showURLCleaner && !showHomebrewPanel && !showMediaPanel && !showClipboardPanel {
-                PanelInteractionState.shared.keepsPopoverOpen = false
-            }
+        .onChange(of: isHostingUtility) { _, hosting in
+            PanelInteractionState.shared.keepsPopoverOpen = hosting
         }
         .onDisappear {
-            if !showUninstaller
-                && !showCleanerPanel
-                && !showURLCleaner
-                && !showHomebrewPanel
-                && !showMediaPanel
-                && !showClipboardPanel
-                && !showWindowLayoutPanel {
+            if !isHostingUtility {
                 PanelInteractionState.shared.keepsPopoverOpen = false
             }
         }
+    }
+
+    /// True while the section is showing one of the tools instead of its own
+    /// list. A hosted tool turns the panel into a work surface, so clicks
+    /// elsewhere in the app must not dismiss it.
+    private var isHostingUtility: Bool {
+        showUninstaller || showCleanerPanel || showURLCleaner || showHomebrewPanel
+            || showMediaPanel || showClipboardPanel || showRecentCapturesPanel
+            || showWindowLayoutPanel || showAppUpdatesPanel
     }
 
     private var cleaningNeedsAccessibility: Bool {
@@ -659,6 +672,7 @@ struct UtilitiesSection: View {
     private func isVisible(_ item: UtilityPanelItem) -> Bool {
         switch item {
         case .homebrew: return showHomebrew
+        case .appUpdates: return showAppUpdates
         case .media: return showMedia
         case .clipboard: return showClipboard
         case .windowLayout: return showWindowLayout
@@ -668,11 +682,12 @@ struct UtilitiesSection: View {
         case .cleaning: return showCleaning
         case .screenOCR: return showScreenOCR
         case .colorPicker: return showColorPicker
-        case .micMute: return showMicMute
         case .cameraPreview: return showCameraPreview
         case .scratchpad: return showScratchpad
+        case .commandBar: return showCommandBar
         case .quickLauncher: return showQuickLauncher
         case .screenshot: return showScreenshot
+        case .screenRecorder: return showScreenRecorder
         }
     }
 
@@ -689,6 +704,17 @@ struct UtilitiesSection: View {
                                 action: {
                                     PanelInteractionState.shared.keepsPopoverOpen = true
                                     showHomebrewPanel = true
+                                })
+        case .appUpdates:
+            UtilityActionButton(title: FeatureStrings.appUpdates(l10n.language).pageTitle,
+                                caption: FeatureStrings.appUpdates(l10n.language).panelCaption,
+                                systemImage: "arrow.down.app",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showAppUpdates,
+                                action: {
+                                    PanelInteractionState.shared.keepsPopoverOpen = true
+                                    showAppUpdatesPanel = true
                                 })
         case .media:
             UtilityActionButton(title: l10n.s.mediaName,
@@ -741,7 +767,6 @@ struct UtilitiesSection: View {
             UtilityActionButton(title: l10n.s.cleanerName,
                                 caption: l10n.s.cleanerPanelCaption,
                                 systemImage: "sparkle",
-                                showsNewDot: !cleanerBadgeSeen,
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: $showCleanerAction,
@@ -781,7 +806,7 @@ struct UtilitiesSection: View {
                                 needsAttention: !permissions.screenRecording,
                                 permissionButtonTitle: l10n.s.permissionRequest,
                                 permissionAction: permissions.screenRecording ? nil : grantScreenRecordingPermission,
-                                shortcutHint: shortcutHint(.screenOCR),
+                                shortcutHint: shortcutHint(.screenshot),
                                 action: {
                                     appDelegate()?.closePopover()
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
@@ -799,10 +824,35 @@ struct UtilitiesSection: View {
                                 permissionButtonTitle: l10n.s.permissionRequest,
                                 permissionAction: permissions.screenRecording ? nil : grantScreenRecordingPermission,
                                 shortcutHint: shortcutHint(.screenshot),
+                                accessoryTitle: FeatureStrings.recentCaptures(l10n.language).title,
+                                accessorySystemImage: "clock.arrow.circlepath",
+                                accessoryAction: showRecentCaptures,
                                 action: {
                                     appDelegate()?.closePopover()
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                                         ScreenshotService.shared.capture()
+                                    }
+                                })
+        case .screenRecorder:
+            UtilityActionButton(title: screenRecorderTitle,
+                                caption: screenRecorderCaption,
+                                systemImage: recorder.isRecording ? "stop.circle" : "record.circle",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showScreenRecorder,
+                                needsAttention: !permissions.screenRecording,
+                                permissionButtonTitle: l10n.s.permissionRequest,
+                                permissionAction: permissions.screenRecording ? nil : grantScreenRecordingPermission,
+                                shortcutHint: shortcutHint(.screenshot),
+                                accessoryTitle: recorder.isRecording
+                                    ? nil
+                                    : FeatureStrings.recentCaptures(l10n.language).title,
+                                accessorySystemImage: "clock.arrow.circlepath",
+                                accessoryAction: recorder.isRecording ? nil : showRecentCaptures,
+                                action: {
+                                    appDelegate()?.closePopover()
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                        ScreenRecorderService.shared.toggle()
                                     }
                                 })
         case .colorPicker:
@@ -812,23 +862,12 @@ struct UtilitiesSection: View {
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: $showColorPicker,
-                                shortcutHint: shortcutHint(.colorPicker),
+                                shortcutHint: shortcutHint(.screenshot),
                                 action: {
                                     appDelegate()?.closePopover()
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                                         ColorSamplerService.shared.pick()
                                     }
-                                })
-        case .micMute:
-            UtilityActionButton(title: micMute.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName,
-                                caption: l10n.s.micMuteCaption,
-                                systemImage: micMute.isMuted ? "mic.slash.fill" : "mic",
-                                isEditing: editing,
-                                showsDragHandle: true,
-                                visibility: $showMicMute,
-                                shortcutHint: shortcutHint(.micMute),
-                                action: {
-                                    MicMuteService.shared.toggle()
                                 })
         case .cameraPreview:
             UtilityActionButton(title: FeatureStrings.cameraPreview(l10n.language).pageTitle,
@@ -877,6 +916,20 @@ struct UtilitiesSection: View {
                                         QuickLauncherService.shared.show()
                                     }
                                 })
+        case .commandBar:
+            UtilityActionButton(title: FeatureStrings.commandBar(l10n.language).pageTitle,
+                                caption: FeatureStrings.commandBar(l10n.language).panelCaption,
+                                systemImage: "command",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showCommandBar,
+                                shortcutHint: shortcutHint(.commandBar),
+                                action: {
+                                    appDelegate()?.closePopover()
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                        CommandBarService.shared.show()
+                                    }
+                                })
         }
     }
 
@@ -885,7 +938,8 @@ struct UtilitiesSection: View {
     /// feature and its shortcut toggle), so the badge never advertises a
     /// combo that does nothing.
     private func shortcutHint(_ role: GlobalShortcutRole) -> String? {
-        guard role.requiredEnableKeys.allSatisfy({ UserDefaults.standard.bool(forKey: $0) })
+        guard role.isAvailable(using: { $0.isAvailable }),
+              role.requiredEnableKeys.allSatisfy({ UserDefaults.standard.bool(forKey: $0) })
         else { return nil }
         return role.savedShortcut.displayString
     }
@@ -894,6 +948,23 @@ struct UtilitiesSection: View {
         permissions.screenRecording
             ? l10n.s.ocrCaption
             : "\(l10n.s.permissionRequired): \(l10n.s.permissionScreenRecording)"
+    }
+
+    /// While a recording runs the tile becomes the way to end it, so the
+    /// panel never shows an action the person cannot take.
+    private var screenRecorderTitle: String {
+        let strings = FeatureStrings.recorder(l10n.language)
+        return recorder.isRecording ? strings.stopButton : strings.pageTitle
+    }
+
+    private var screenRecorderCaption: String {
+        guard permissions.screenRecording else {
+            return "\(l10n.s.permissionRequired): \(l10n.s.permissionScreenRecording)"
+        }
+        let strings = FeatureStrings.recorder(l10n.language)
+        return recorder.isRecording
+            ? RecorderSupport.elapsedLabel(seconds: recorder.elapsedSeconds)
+            : strings.panelCaption
     }
 
     private var screenshotCaption: String {
@@ -912,10 +983,16 @@ struct UtilitiesSection: View {
         Permissions.shared.requestScreenRecording()
     }
 
+    private func showRecentCaptures() {
+        PanelInteractionState.shared.keepsPopoverOpen = true
+        showRecentCapturesPanel = true
+    }
+
     private func resetPanelDefaults() {
         PanelLayout.resetItemOrder(key: DefaultsKey.panelUtilityOrder)
         utilityOrderRaw = ""
         showHomebrew = true
+        showAppUpdates = true
         showMedia = true
         showClipboard = true
         showWindowLayout = true
@@ -926,10 +1003,10 @@ struct UtilitiesSection: View {
         showScreenOCR = true
         showScreenshot = true
         showColorPicker = true
-        showMicMute = true
         showCameraPreview = true
         showScratchpad = true
         showQuickLauncher = true
+        showCommandBar = true
     }
 
     private func grantAccessibility() {
@@ -939,8 +1016,8 @@ struct UtilitiesSection: View {
 }
 
 private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
-    case mouseScroll, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
-         dockClick, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts
+    case mouseScroll, focusFollowsMouse, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
+         dockClick, dockClickHide, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts, superKey
 
     var id: String { rawValue }
 
@@ -949,6 +1026,7 @@ private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
     var feature: AppFeature {
         switch self {
         case .mouseScroll: return .scrollInverter
+        case .focusFollowsMouse: return .focusFollowsMouse
         case .mouseNavigation: return .mouseNavigation
         case .switcher: return .switcher
         case .cutPaste: return .finderCutPaste
@@ -957,11 +1035,12 @@ private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
         case .windowMaximize: return .windowMaximizer
         case .dockPreview: return .dockPreview
         case .keyDebounce: return .keyboardDebounce
-        case .dockClick, .dockClickCycle: return .dockClick
+        case .dockClick, .dockClickHide, .dockClickCycle: return .dockClick
         case .middleClick: return .middleClick
         case .textSnippets: return .textSnippets
         case .radialMenu: return .radialMenu
         case .mouseButtonShortcuts: return .mouseButtonShortcuts
+        case .superKey: return .superKey
         }
     }
 }
@@ -975,10 +1054,10 @@ private enum ControlCategory: String, CaseIterable, Identifiable {
 
     static func category(for item: ControlPanelItem) -> ControlCategory {
         switch item {
-        case .switcher, .dockPreview, .dockClick, .dockClickCycle, .windowMaximize, .autoQuit:
+        case .switcher, .dockPreview, .dockClick, .dockClickHide, .dockClickCycle, .windowMaximize, .autoQuit:
             return .windows
-        case .mouseScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
-             .textSnippets, .radialMenu:
+        case .mouseScroll, .focusFollowsMouse, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
+             .textSnippets, .radialMenu, .superKey:
             return .inputDevices
         case .cutPaste, .shelf:
             return .files
@@ -999,9 +1078,12 @@ struct QuickControlsSection: View {
     @ObservedObject private var keyDebounce = KeyboardDebounceService.shared
     @ObservedObject private var middleClick = MiddleClickService.shared
     @ObservedObject private var shelf = ShelfService.shared
-    @AppStorage(DefaultsKey.scrollInverterEnabled) private var scrollEnabled = false
+    @AppStorage(DefaultsKey.scrollInverterEnabled) private var invertVertical = false
+    @AppStorage(DefaultsKey.scrollInverterHorizontalEnabled) private var invertHorizontal = false
+    @AppStorage(DefaultsKey.focusFollowsMouseEnabled) private var focusFollowsMouseEnabled = false
     @AppStorage(DefaultsKey.mouseNavigationEnabled) private var mouseNavigationEnabled = false
     @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
+    @AppStorage(DefaultsKey.switcherShortcut) private var switcherShortcutStorage = GlobalShortcut.switcherDefault.storageValue
     @AppStorage(DefaultsKey.switcherIconRowMode) private var switcherIconRowMode = false
     @AppStorage(DefaultsKey.switcherSimpleMode) private var switcherSimpleMode = false
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
@@ -1012,12 +1094,17 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.keyboardDebounceEnabled) private var keyDebounceEnabled = false
     @AppStorage(DefaultsKey.keyboardDebounceWindowMs) private var keyDebounceWindow = Defaults.defaultKeyboardDebounceWindowMs
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickEnabled = false
+    @AppStorage(DefaultsKey.dockClickHide) private var dockClickHideEnabled = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.textSnippetsEnabled) private var textSnippetsEnabled = false
     @AppStorage(DefaultsKey.radialMenuEnabled) private var radialMenuEnabled = false
     @AppStorage(DefaultsKey.mouseButtonShortcutsEnabled) private var mouseButtonShortcutsEnabled = false
+    @AppStorage(DefaultsKey.superKeyEnabled) private var superKeyEnabled = false
+    @AppStorage(DefaultsKey.superKeyModifiers) private var superKeyModifierStorage =
+        SuperKeySupport.defaultModifierStorageValue
     @AppStorage(DefaultsKey.panelControlMouseScroll) private var showScroll = true
+    @AppStorage(DefaultsKey.panelControlFocusFollowsMouse) private var showFocusFollowsMouse = true
     @AppStorage(DefaultsKey.panelControlMouseNavigation) private var showMouseNavigation = true
     @AppStorage(DefaultsKey.panelControlSwitcher) private var showSwitcher = true
     @AppStorage(DefaultsKey.panelControlDockPreview) private var showDockPreview = true
@@ -1027,11 +1114,13 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.panelControlWindowMaximize) private var showWindowMaximize = true
     @AppStorage(DefaultsKey.panelControlKeyDebounce) private var showKeyDebounce = true
     @AppStorage(DefaultsKey.panelControlDockClick) private var showDockClick = true
+    @AppStorage(DefaultsKey.panelControlDockClickHide) private var showDockClickHide = true
     @AppStorage(DefaultsKey.panelControlDockClickCycle) private var showDockClickCycle = true
     @AppStorage(DefaultsKey.panelControlMiddleClick) private var showMiddleClick = true
     @AppStorage(DefaultsKey.panelControlTextSnippets) private var showTextSnippets = true
     @AppStorage(DefaultsKey.panelControlRadialMenu) private var showRadialMenu = true
     @AppStorage(DefaultsKey.panelControlMouseButtonShortcuts) private var showMouseButtonShortcuts = true
+    @AppStorage(DefaultsKey.panelControlSuperKey) private var showSuperKey = true
     @AppStorage(DefaultsKey.panelControlWindowsExpanded) private var windowsExpanded = false
     @AppStorage(DefaultsKey.panelControlInputExpanded) private var inputExpanded = false
     @AppStorage(DefaultsKey.panelControlFilesExpanded) private var filesExpanded = false
@@ -1131,7 +1220,8 @@ struct QuickControlsSection: View {
 
     private func isEnabled(_ item: ControlPanelItem) -> Bool {
         switch item {
-        case .mouseScroll: return scrollEnabled
+        case .mouseScroll: return scrollDirectionEnabled
+        case .focusFollowsMouse: return focusFollowsMouseEnabled
         case .mouseNavigation: return mouseNavigationEnabled
         case .switcher: return switcherEnabled
         case .cutPaste: return cutPasteEnabled
@@ -1141,11 +1231,13 @@ struct QuickControlsSection: View {
         case .dockPreview: return dockPreviewEnabled
         case .keyDebounce: return keyDebounceEnabled
         case .dockClick: return dockClickEnabled
+        case .dockClickHide: return dockClickHideEnabled
         case .dockClickCycle: return dockClickCycleEnabled
         case .middleClick: return middleClickEnabled
         case .textSnippets: return textSnippetsEnabled
         case .radialMenu: return radialMenuEnabled
         case .mouseButtonShortcuts: return mouseButtonShortcutsEnabled
+        case .superKey: return superKeyEnabled
         }
     }
 
@@ -1204,6 +1296,7 @@ struct QuickControlsSection: View {
     private func isVisible(_ item: ControlPanelItem) -> Bool {
         switch item {
         case .mouseScroll: return showScroll
+        case .focusFollowsMouse: return showFocusFollowsMouse
         case .mouseNavigation: return showMouseNavigation
         case .switcher: return showSwitcher
         case .keyDebounce: return showKeyDebounce
@@ -1213,11 +1306,13 @@ struct QuickControlsSection: View {
         case .windowMaximize: return showWindowMaximize
         case .dockPreview: return showDockPreview
         case .dockClick: return showDockClick
+        case .dockClickHide: return showDockClickHide
         case .dockClickCycle: return showDockClickCycle
         case .middleClick: return showMiddleClick
         case .textSnippets: return showTextSnippets
         case .radialMenu: return showRadialMenu
         case .mouseButtonShortcuts: return showMouseButtonShortcuts
+        case .superKey: return showSuperKey
         }
     }
 
@@ -1226,17 +1321,34 @@ struct QuickControlsSection: View {
         switch item {
         case .mouseScroll:
             PanelToggleRow(title: l10n.s.invertMouseScroll,
-                           caption: caption(l10n.s.invertMouseScrollCaption, needsAccessibility: scrollEnabled),
+                           caption: caption(l10n.s.invertMouseScrollCaption,
+                                            needsAccessibility: scrollDirectionEnabled),
                            systemImage: "computermouse",
-                           isOn: $scrollEnabled,
+                           isOn: scrollDirectionBinding,
                            isEditing: editing,
                            showsDragHandle: true,
                            visibility: $showScroll,
-                           needsAttention: scrollEnabled && !permissions.accessibility,
+                           needsAttention: scrollDirectionEnabled && !permissions.accessibility,
                            permissionButtonTitle: l10n.s.permissionRequest,
-                           permissionAction: accessibilityPermissionAction(scrollEnabled))
-                .onChange(of: scrollEnabled) { _, enabled in
+                           permissionAction: accessibilityPermissionAction(scrollDirectionEnabled))
+                .onChange(of: scrollDirectionEnabled) { _, enabled in
                     ScrollInverter.shared.syncWithPreferences()
+                    requestAccessibilityIfNeeded(enabled)
+                }
+        case .focusFollowsMouse:
+            PanelToggleRow(title: l10n.s.focusFollowsMouseName,
+                           caption: caption(l10n.s.focusFollowsMouseCaption,
+                                            needsAccessibility: focusFollowsMouseEnabled),
+                           systemImage: "cursorarrow.and.square.on.square.dashed",
+                           isOn: $focusFollowsMouseEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showFocusFollowsMouse,
+                           needsAttention: focusFollowsMouseEnabled && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: accessibilityPermissionAction(focusFollowsMouseEnabled))
+                .onChange(of: focusFollowsMouseEnabled) { _, enabled in
+                    FocusFollowsMouseService.shared.syncWithPreferences()
                     requestAccessibilityIfNeeded(enabled)
                 }
         case .mouseNavigation:
@@ -1395,6 +1507,23 @@ struct QuickControlsSection: View {
                            permissionButtonTitle: l10n.s.permissionRequest,
                            permissionAction: accessibilityPermissionAction(dockClickEnabled))
                 .onChange(of: dockClickEnabled) { _, enabled in
+                    if enabled { dockClickHideEnabled = false }
+                    DockClickService.shared.syncWithPreferences()
+                    requestAccessibilityIfNeeded(enabled)
+                }
+        case .dockClickHide:
+            PanelToggleRow(title: l10n.s.dockClickHide,
+                           caption: caption(l10n.s.dockClickHideCaption, needsAccessibility: dockClickHideEnabled),
+                           systemImage: "eye.slash",
+                           isOn: $dockClickHideEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showDockClickHide,
+                           needsAttention: dockClickHideEnabled && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: accessibilityPermissionAction(dockClickHideEnabled))
+                .onChange(of: dockClickHideEnabled) { _, enabled in
+                    if enabled { dockClickEnabled = false }
                     DockClickService.shared.syncWithPreferences()
                     requestAccessibilityIfNeeded(enabled)
                 }
@@ -1506,6 +1635,32 @@ struct QuickControlsSection: View {
                     MouseButtonShortcutService.shared.syncWithPreferences()
                     requestAccessibilityIfNeeded(enabled)
                 }
+        case .superKey:
+            let superKeyStrings = FeatureStrings.superKey(l10n.language)
+            let modifierCaption = String(
+                format: superKeyStrings.panelCaptionFormat,
+                SuperKeySupport.modifiers(from: superKeyModifierStorage).keyCaps.joined()
+            )
+            PanelToggleRow(title: superKeyStrings.pageTitle,
+                           caption: caption(modifierCaption,
+                                            needsAccessibility: superKeyEnabled),
+                           systemImage: "capslock",
+                           isOn: $superKeyEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showSuperKey,
+                           needsAttention: superKeyEnabled && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: accessibilityPermissionAction(superKeyEnabled),
+                           accessoryTitle: superKeyEnabled ? superKeyStrings.manageButton : nil,
+                           accessoryAction: {
+                               SettingsRouter.shared.page = .superKey
+                               appDelegate()?.openSettingsWindow()
+                           })
+                .onChange(of: superKeyEnabled) { _, enabled in
+                    SuperKeyService.shared.syncWithPreferences()
+                    requestAccessibilityIfNeeded(enabled)
+                }
         }
     }
 
@@ -1520,6 +1675,7 @@ struct QuickControlsSection: View {
         PanelLayout.resetItemOrder(key: DefaultsKey.panelControlOrder)
         controlOrderRaw = ""
         showScroll = true
+        showFocusFollowsMouse = true
         showMouseNavigation = true
         showSwitcher = true
         showCutPaste = true
@@ -1529,11 +1685,13 @@ struct QuickControlsSection: View {
         showDockPreview = true
         showKeyDebounce = true
         showDockClick = true
+        showDockClickHide = true
         showDockClickCycle = true
         showMiddleClick = true
         showTextSnippets = true
         showRadialMenu = true
         showMouseButtonShortcuts = true
+        showSuperKey = true
         windowsExpanded = false
         inputExpanded = false
         filesExpanded = false
@@ -1587,15 +1745,32 @@ struct QuickControlsSection: View {
         }
     }
 
+    private var scrollDirectionEnabled: Bool {
+        invertVertical || invertHorizontal
+    }
+
+    private var scrollDirectionBinding: Binding<Bool> {
+        Binding {
+            scrollDirectionEnabled
+        } set: { enabled in
+            invertVertical = enabled
+            invertHorizontal = enabled
+        }
+    }
+
     private func accessibilityPermissionAction(_ enabled: Bool) -> (() -> Void)? {
         guard enabled, !permissions.accessibility else { return nil }
         return { grantAccessibility() }
     }
 
+    private var switcherShortcutDisplayString: String {
+        (GlobalShortcut(storageValue: switcherShortcutStorage) ?? .switcherDefault).displayString
+    }
+
     private var switcherIconRowOption: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 8) {
-                Text(l10n.s.switcherIconRowMode)
+                Text(String(format: l10n.s.switcherIconRowMode, switcherShortcutDisplayString))
                     .font(.system(size: 10.5, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -1659,10 +1834,6 @@ struct UtilityActionButton: View {
     let caption: String
     let systemImage: String
     var badge: String? = nil
-    /// Small red dot on the icon pointing people at a brand new feature.
-    /// Purely visual and one-shot: the caller stops passing true once the
-    /// feature was opened somewhere.
-    var showsNewDot = false
     var isEditing = false
     var showsDragHandle = false
     var visibility: Binding<Bool>? = nil
@@ -1672,6 +1843,9 @@ struct UtilityActionButton: View {
     /// The feature's enabled global shortcut, shown as a quiet key hint so
     /// the panel row doubles as a reminder that the keyboard path exists.
     var shortcutHint: String? = nil
+    var accessoryTitle: String? = nil
+    var accessorySystemImage: String? = nil
+    var accessoryAction: (() -> Void)? = nil
     let action: () -> Void
 
     var body: some View {
@@ -1679,10 +1853,15 @@ struct UtilityActionButton: View {
             if isEditing {
                 rowContent(showChevron: false)
                     .panelCard()
-            } else if permissionAction != nil {
+            } else if permissionAction != nil || accessoryAction != nil {
                 VStack(alignment: .leading, spacing: 7) {
-                    rowContent(showChevron: false)
-                    permissionButton
+                    if permissionAction != nil {
+                        rowContent(showChevron: false)
+                        permissionButton
+                    } else {
+                        mainButton
+                    }
+                    accessoryButton
                 }
                 .panelCard()
             } else {
@@ -1695,6 +1874,27 @@ struct UtilityActionButton: View {
         }
     }
 
+    private var mainButton: some View {
+        Button(action: action) {
+            rowContent(showChevron: true)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var accessoryButton: some View {
+        if let accessoryTitle, let accessoryAction {
+            Button(action: accessoryAction) {
+                Label(accessoryTitle, systemImage: accessorySystemImage ?? "clock")
+                    .font(.system(size: 9.5, weight: .semibold))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.mini)
+            .padding(.leading, 31)
+        }
+    }
+
     private func rowContent(showChevron: Bool) -> some View {
         HStack(spacing: 9) {
             if isEditing && showsDragHandle {
@@ -1704,15 +1904,6 @@ struct UtilityActionButton: View {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(iconColor)
                 .frame(width: 22)
-                .overlay(alignment: .topTrailing) {
-                    if showsNewDot && !isEditing {
-                        Circle()
-                            .fill(Color.red)
-                            .frame(width: 7, height: 7)
-                            .offset(x: 2, y: -3)
-                            .accessibilityHidden(true)
-                    }
-                }
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 5) {
                     Text(title)
@@ -1783,7 +1974,8 @@ struct UtilityActionButton: View {
 }
 
 
-private struct PanelToggleRow: View {
+/// Shared switch row used by Quick Controls and Quick toggles.
+struct PanelToggleRow: View {
     let title: String
     let caption: String
     let systemImage: String
@@ -2067,6 +2259,9 @@ struct UpdateBanner: View {
     var body: some View {
         switch updates.state {
         case let .available(version):
+            let isBeta = UpdateServiceSupport.SemanticVersion(raw: version)?.isPrerelease ?? false
+            let tintColor: Color = isBeta ? .orange : .accentColor
+
             Button {
                 appDelegate()?.showUpdatePreview()
             } label: {
@@ -2078,14 +2273,17 @@ struct UpdateBanner: View {
                         Text(l10n.s.updateBannerTitle)
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.white)
-                        Text("\(l10n.s.updateAvailablePrefix) \(version)")
+                        // The title above already says an update is waiting,
+                        // so this line carries the version instead of saying
+                        // the same words a second time.
+                        Text("\(l10n.s.versionPrefix) \(version)")
                             .font(.system(size: 10.5))
                             .foregroundStyle(.white.opacity(0.85))
                     }
                     Spacer()
                     Text(l10n.s.updateBannerAction)
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(tintColor)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
                         .background(Capsule().fill(.white))
@@ -2094,7 +2292,7 @@ struct UpdateBanner: View {
                 .padding(.vertical, 9)
                 .background(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color.accentColor)
+                        .fill(tintColor)
                 )
             }
             .buttonStyle(.plain)
@@ -2143,6 +2341,7 @@ struct KeepAwakeCard: View {
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration: Int = 0
     @AppStorage(DefaultsKey.keepAwakeAutoStart) private var keepAwakeAutoStart = false
+    @AppStorage(DefaultsKey.keepAwakeAllowDisplaySleep) private var keepAwakeAllowDisplaySleep = false
     @AppStorage(DefaultsKey.keepAwakeExternalDisplay) private var keepAwakeExternalDisplay = false
     @AppStorage(DefaultsKey.keepAwakeConnectedToPower) private var keepAwakeConnectedToPower = false
     @AppStorage(DefaultsKey.keepAwakeIconTint) private var keepAwakeIconTint = KeepAwakeIconTint.orange.rawValue
@@ -2229,6 +2428,11 @@ struct KeepAwakeCard: View {
                     KeepAwakeIconPicker(iconValue: $keepAwakeActiveIcon,
                                         tintValue: $keepAwakeIconTint,
                                         compact: true)
+                    compactOptionToggle(
+                        icon: "display",
+                        title: displaySleepStrings.allowDisplaySleep,
+                        isOn: $keepAwakeAllowDisplaySleep
+                    )
                     compactOptionToggle(
                         icon: "play.circle",
                         title: l10n.s.keepAwakeAutoStart,
@@ -2328,6 +2532,7 @@ struct KeepAwakeCard: View {
                 Text(title)
                     .font(.system(size: 11, weight: .medium))
                     .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
                 Toggle("", isOn: isOn)
                     .toggleStyle(.switch)
@@ -2386,6 +2591,10 @@ struct KeepAwakeCard: View {
 
     private var automationStrings: KeepAwakeAutomationStrings {
         FeatureStrings.keepAwakeAutomation(l10n.language)
+    }
+
+    private var displaySleepStrings: KeepAwakeDisplaySleepStrings {
+        FeatureStrings.keepAwakeDisplaySleep(l10n.language)
     }
 
     private var clamshellCaption: String {
