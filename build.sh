@@ -336,6 +336,36 @@ swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIAN
 echo "▸ Generating app icon…"
 swift Tools/MakeIcon.swift build/AppIcon.iconset
 xattr -c -r build/AppIcon.iconset build/AppIcon.icns build/MenuBarIcon.png build/MenuBarIcon@2x.png build/BrandMark.png 2>/dev/null || true
+ACTOOL_BIN="$(xcrun --find actool 2>/dev/null || true)"
+ICON_TMP="$(mktemp -d)"
+ADAPTIVE_SKIP=""
+if [[ -z "$ACTOOL_BIN" ]]; then
+    ADAPTIVE_SKIP="actool not found (adaptive icons need Xcode 26+)"
+else
+    echo "▸ Compiling adaptive icon catalog…"
+    # actool crashes on File Provider-synced paths, so compile a local copy.
+    ditto "Resources/Brand/AppIcon.icon" "$ICON_TMP/AppIcon.icon"
+    # Xcode 27 beta actool requires the --compile target directory to already exist.
+    mkdir -p "$ICON_TMP/catalog"
+    if "$ACTOOL_BIN" "$ICON_TMP/AppIcon.icon" \
+            --compile "$ICON_TMP/catalog" \
+            --app-icon AppIcon \
+            --platform macosx \
+            --target-device mac \
+            --minimum-deployment-target 14.0 \
+            --enable-on-demand-resources NO \
+            --output-partial-info-plist "$ICON_TMP/partial-info.plist" \
+            >"$ICON_TMP/actool.log" 2>&1 && [[ -s "$ICON_TMP/catalog/Assets.car" ]]; then
+        mv "$ICON_TMP/catalog/Assets.car" build/Assets.car
+    else
+        ADAPTIVE_SKIP="actool could not compile the catalog"
+    fi
+fi
+if [[ -n "$ADAPTIVE_SKIP" ]]; then
+    cp "$ICON_TMP/actool.log" build/actool-failure.log 2>/dev/null || true
+    echo "  adaptive icon skipped: $ADAPTIVE_SKIP (Dock falls back to AppIcon.icns)"
+fi
+rm -rf "$ICON_TMP"
 
 echo "▸ Assembling and signing bundle…"
 STAGE="$(mktemp -d)/$APP_NAME.app"
@@ -383,6 +413,9 @@ FAN_HELPER_VERSION="$(
 printf 'APPL????' > "$STAGE/Contents/PkgInfo"
 cp build/AppIcon.icns "$STAGE/Contents/Resources/AppIcon.icns"
 cp build/MenuBarIcon.png build/MenuBarIcon@2x.png build/BrandMark.png "$STAGE/Contents/Resources/"
+if [[ -f build/Assets.car ]]; then
+    cp build/Assets.car "$STAGE/Contents/Resources/Assets.car"
+fi
 if [[ -d Resources/Gifs ]]; then
     mkdir -p "$STAGE/Contents/Resources/Gifs"
     cp Resources/Gifs/*.gif "$STAGE/Contents/Resources/Gifs/"

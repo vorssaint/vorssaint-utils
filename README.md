@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/logo-dark.png">
-    <img src="docs/assets/readme/logo.png" width="220" alt="Vorssaint logo">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/logo-dark.svg">
+    <img src="docs/assets/readme/logo.svg" width="220" alt="Vorssaint logo">
   </picture>
 </p>
 
@@ -234,6 +234,10 @@ The [troubleshooting guide](docs/TROUBLESHOOTING.md) walks through the common ca
 Vorssaint went from first commit to the front of GitHub trending in three days, top of the Swift charts, and issues and pull requests have shaped every release since. Bug reports, feature ideas and translations are all welcome, starting from the [contributing guide](CONTRIBUTING.md).
 
 Vorssaint is free and will stay that way. If it earned its place in your menu bar, a star helps other people find it, and a [coffee](https://buymeacoffee.com/vorssaint) keeps the maintainer awake, with or without the Keep awake feature.
+
+## Acknowledgements
+
+- App icon designed by [@divisionseven](https://github.com/divisionseven)
 
 ## License
 
