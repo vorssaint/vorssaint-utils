@@ -134,16 +134,25 @@ struct CommandBarView: View {
                 Divider()
                 shortcutCard(entryID: entryID)
             }
-            Divider()
-            footer
+            // A footer under a bare field reads as a second row of chrome on
+            // something meant to be one strip. It comes back the moment there
+            // is anything above it.
+            if !service.isCompactHome {
+                Divider()
+                footer
+            }
         }
         .frame(width: 560)
-        .background(HUDBackdrop(cornerRadius: 22, contrast: .high))
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(HUDBackdrop(cornerRadius: cornerRadius, contrast: .high))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .onAppear { focusSearch() }
         .onChange(of: service.presentationID) { _, _ in focusSearch() }
         .onChange(of: service.mode) { _, _ in focusSearch() }
     }
+
+    /// A 22 pt radius on a 50 pt strip reads as a pill. The collapsed bar wants
+    /// the same corner the expanded one has, not a rounder one.
+    private var cornerRadius: CGFloat { service.isCompactHome ? 16 : 22 }
 
     private func focusSearch() {
         DispatchQueue.main.async { searchFocused = true }
