@@ -944,10 +944,10 @@ private struct WindowCard: View {
                    height: SwitcherGrid.cardHeight - 72)
 
             VStack(spacing: 2) {
-                Text(window.displayTitle)
-                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                ScrollingTitle(text: window.displayTitle,
+                               weight: isSelected ? .semibold : .regular,
+                               width: SwitcherGrid.cardWidth - 28,
+                               scrolls: isHovering)
                     .foregroundStyle(isSelected ? .primary : .secondary)
                 if let subtitle = window.displaySubtitle {
                     Text(subtitle)

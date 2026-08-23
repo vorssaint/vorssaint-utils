@@ -2156,17 +2156,47 @@ struct MetricsTests {
         expect(!DockPreviewSupport.canDragToPlace(hasWindowID: false, isOnScreen: false,
                                                   isMinimized: false, isFullscreen: false),
                "an entry without a window has nothing to move")
-        // The thumbnail is derived from the card, so a constant changed on its
-        // own must not silently eat into it or leave the card short.
-        expectClose(Double(DockPreviewSupport.cardThumbnailHeight
-                            + DockPreviewSupport.cardPadding * 2
-                            + DockPreviewSupport.cardTitleSpacing
-                            + DockPreviewSupport.cardTitleHeight),
-                    Double(DockPreviewSupport.cardHeight),
-                    "a Dock Preview card's chrome and thumbnail add up to the card")
-        expect(DockPreviewSupport.cardThumbnailHeight
-                > DockPreviewSupport.cardHeight * 0.7,
-               "the thumbnail keeps most of the Dock Preview card")
+        // The preview size setting sizes the thumbnail, not the writing around
+        // it. Both halves of that are checked across every size on offer: the
+        // picture tracks the setting exactly, and the chrome does not move at
+        // all — a title band that scaled with the card once left a 12pt line
+        // adrift in 31pt of nothing at the largest setting.
+        let previewScales = Defaults.allowedPreviewSizes.map { PreviewSizing.scale(for: $0) }
+        expect(previewScales.count == 4 && previewScales.contains(1.0),
+               "every preview size on offer has a scale, including the unscaled one")
+        expect(previewScales.allSatisfy { scale in
+                   let thumbnail = DockPreviewSupport.cardThumbnailSize(scale: scale)
+                   let base = DockPreviewSupport.cardThumbnailSize(scale: 1)
+                   return abs(thumbnail.width - base.width * scale) < 0.0001
+                       && abs(thumbnail.height - base.height * scale) < 0.0001
+               },
+               "a Dock Preview thumbnail is exactly the chosen preview size")
+        expect(previewScales.allSatisfy { scale in
+                   let card = DockPreviewSupport.cardSize(scale: scale)
+                   let thumbnail = DockPreviewSupport.cardThumbnailSize(scale: scale)
+                   return card.height - thumbnail.height - 13 * scale >= DockPreviewSupport.cardTitleHeight
+               },
+               "a card keeps a full title band at every preview size, never a scaled-down one")
+        expect(DockPreviewSupport.cardTitleHeight >= 20,
+               "the title band holds one line of 12pt semibold beside two 16pt controls")
+        // The well is cut to the shape of the screen the capture came from, so
+        // a full-height window fills it instead of sitting between two bars.
+        expect(previewScales.allSatisfy { scale in
+                   let picture = DockPreviewSupport.cardPictureSize(scale: scale)
+                   return abs(picture.width / picture.height - 1.6) < 0.001
+               },
+               "the picture inside a thumbnail is 16:10 at every preview size")
+        expect(previewScales.allSatisfy { scale in
+                   let picture = DockPreviewSupport.cardPictureSize(scale: scale)
+                   let thumbnail = DockPreviewSupport.cardThumbnailSize(scale: scale)
+                   return picture.width < thumbnail.width && picture.height < thumbnail.height
+               },
+               "the picture keeps its inset inside the thumbnail well at every size")
+        expect(previewScales.allSatisfy {
+                   DockPreviewSupport.cardFallbackIconSize(scale: $0)
+                       < DockPreviewSupport.cardThumbnailSize(scale: $0).height
+               },
+               "the stand-in app icon stays inside the thumbnail it stands in for at every size")
 
         // The card used to draw the app icon on every thumbnail and the window
         // title both over the thumbnail and under it. In a panel every card
@@ -2174,10 +2204,35 @@ struct MetricsTests {
         let dockPreviewCardSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Switcher/DockPreviewPanelView.swift",
             encoding: .utf8)) ?? ""
-        expect(dockPreviewCardSource.components(separatedBy: "Text(window.displayTitle)").count - 1 == 1,
+        let dockPreviewCardCode = dockPreviewCardSource
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(dockPreviewCardCode.components(separatedBy: "window.displayTitle").count - 1 == 1,
                "a Dock Preview card names its window once")
-        expect(dockPreviewCardSource.components(separatedBy: "window.appIcon").count - 1 == 1,
-               "a Dock Preview card only falls back to the app icon when it has no thumbnail")
+        // Nothing is drawn on top of the picture any more. The close and
+        // minimize buttons sat in a 28pt capsule in its top-right corner --
+        // over a third of its height -- and the pinned badge sat beside them.
+        expect(!dockPreviewCardCode.contains("previewControlBar"),
+               "no control bar floats over a Dock Preview thumbnail")
+        let titleBandBody = dockPreviewCardCode
+            .components(separatedBy: "private var titleBand: some View {").last ?? ""
+        let bandDeclaration = titleBandBody.components(separatedBy: "private var").first ?? ""
+        expect(bandDeclaration.contains("closeButton") && bandDeclaration.contains("minimizeButton"),
+               "both window controls sit in the title band, beside the name")
+        expect(!DockPreviewSupport.showsCardControls(isHovering: false, isSelected: false),
+               "a card with no pointer on it and no selection draws no window controls")
+        expect(DockPreviewSupport.showsCardControls(isHovering: true, isSelected: false),
+               "the pointer summons a card's window controls")
+        let contextMenuBody = dockPreviewCardCode
+            .components(separatedBy: "private var cardContextMenu: some View {").last ?? ""
+        expect((contextMenuBody.components(separatedBy: "private var").first ?? "")
+                   .contains("dockPreviewPinPanel"),
+               "pinning is offered by name in the card menu, not by a bare pushpin")
+        expect(DockPreviewSupport.showsCardAppBadge(hasPreview: true),
+               "a card with a capture badges it with the app's icon, as the App Switcher does")
+        expect(!DockPreviewSupport.showsCardAppBadge(hasPreview: false),
+               "a card without one already shows that icon as its watermark, so it takes no badge")
         expect(dockPreviewCardSource.contains("window.isOnHiddenSpace"),
                "a Dock Preview card badges a window that lives on another desktop")
 
@@ -6829,14 +6884,80 @@ struct MetricsTests {
         expect(DockPreviewSupport.dockProximityBand(tileSize: 200)
                > DockPreviewSupport.dockProximityBand(tileSize: 64),
                "Dock proximity band grows with the Dock tile size")
-        let onePreviewSize = DockPreviewSupport.panelSize(itemCount: 1, screenVisibleFrame: screen)
-        let twoPreviewSize = DockPreviewSupport.panelSize(itemCount: 2, screenVisibleFrame: screen)
+        let onePreviewSize = DockPreviewSupport.panelSize(itemCount: 1, screenVisibleFrame: screen,
+                                                          isPinned: false)
+        let twoPreviewSize = DockPreviewSupport.panelSize(itemCount: 2, screenVisibleFrame: screen,
+                                                          isPinned: false)
         expect(twoPreviewSize.width > onePreviewSize.width,
                "Dock Preview panel size shrinks when a card is removed")
+        // The header carries the window counter and the steppers that move
+        // between windows, so one window leaves it with nothing to say. It used
+        // to name the app instead, back at a pointer resting on that app's Dock
+        // icon. A pinned panel keeps it: there it is the drag handle, and the
+        // only way to unpin or close.
+        // A long name is clipped at rest and scrolled under the pointer. The
+        // measurement runs off the font rather than a layout pass, so it holds
+        // before the band has ever been drawn.
+        let bandWidth = DockPreviewSupport.cardTitleTextWidth
+        expect(bandWidth > 0 && bandWidth < DockPreviewSupport.cardThumbnailWidth,
+               "the name's room is the band less the two controls beside it")
+        expect(!SwitcherSupport.titleOverflows("Mail", width: bandWidth),
+               "a short window name is not scrolled")
+        expect(SwitcherSupport.titleOverflows(String(repeating: "measurement ", count: 8),
+                                              width: bandWidth),
+               "a name longer than the band is")
+        expect(!SwitcherSupport.titleOverflows("anything", width: 0),
+               "a band with no room to measure against scrolls nothing")
+        expect(SwitcherSupport.titleWidth("Preferences", weight: .semibold)
+               > SwitcherSupport.titleWidth("Preferences", weight: .regular),
+               "the selected card's heavier name is measured as the heavier name")
+        // Both panels show windows of the same kind, so a name too long for its
+        // room behaves the same in each. One view, two callers, two widths.
+        let scrollingTitleSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Switcher/ScrollingTitle.swift",
+            encoding: .utf8)) ?? ""
+        expect(scrollingTitleSource.contains("struct ScrollingTitle: View"),
+               "the scrolling name is one view, not a copy in each panel")
+        let switcherCardSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Switcher/SwitcherView.swift",
+            encoding: .utf8)) ?? ""
+        expect(switcherCardSource.contains("ScrollingTitle(")
+               && dockPreviewCardSource.contains("ScrollingTitle("),
+               "the App Switcher and the Dock preview both draw their name through it")
+        expect(!DockPreviewSupport.showsPanelHeader(isPinned: false),
+               "a hovered panel draws no header, whatever it is showing")
+        expect(DockPreviewSupport.showsPanelHeader(isPinned: true),
+               "a pinned panel keeps the header that names it and moves it")
+        // Cards run along the Dock's own edge. A row beside a side Dock grew
+        // away from it across the screen, which is the one direction the
+        // pointer is not coming from.
+        expect(!DockPreviewSupport.stacksVertically(orientation: .bottom, isPinned: false),
+               "a Dock at the bottom gets a row of cards")
+        expect(DockPreviewSupport.stacksVertically(orientation: .left, isPinned: false)
+               && DockPreviewSupport.stacksVertically(orientation: .right, isPinned: false),
+               "a Dock at either side gets a column of cards")
+        expect(!DockPreviewSupport.stacksVertically(orientation: .right, isPinned: true),
+               "a pinned panel is detached from the Dock, so it keeps the row")
+        let sideSize = DockPreviewSupport.panelSize(itemCount: 3, screenVisibleFrame: screen,
+                                                    isPinned: false, orientation: .right)
+        let bottomSize = DockPreviewSupport.panelSize(itemCount: 3, screenVisibleFrame: screen,
+                                                      isPinned: false, orientation: .bottom)
+        expect(sideSize.width == DockPreviewSupport.cardWidth + DockPreviewSupport.panelPadding * 2,
+               "a side Dock's panel is one card wide however many windows it holds")
+        expect(sideSize.height > bottomSize.height && sideSize.width < bottomSize.width,
+               "the same three windows make a tall narrow panel beside a side Dock")
+        expect(DockPreviewSupport.visibleCardCount(itemCount: 99, screenVisibleFrame: screen,
+                                                   orientation: .bottom, isPinned: false) < 99,
+               "the panel reports how many cards it can show before it has to scroll")
+        expect(DockPreviewSupport.visibleCardCount(itemCount: 2, screenVisibleFrame: screen,
+                                                   orientation: .bottom, isPinned: false) == 2,
+               "two cards that fit are both counted, so the panel does not scroll for them")
         expect(onePreviewSize.height == DockPreviewSupport.cardHeight
-               + DockPreviewSupport.panelPadding * 2
-               + DockPreviewSupport.panelHeaderHeight,
-               "Dock Preview panel reserves room for the pinned header")
+               + DockPreviewSupport.panelPadding * 2,
+               "a headerless panel is the card and the padding, nothing more")
+        expect(DockPreviewSupport.panelSize(itemCount: 1, screenVisibleFrame: screen, isPinned: true).height
+               == onePreviewSize.height + DockPreviewSupport.panelHeaderHeight,
+               "the header is the whole difference a pinned panel makes to the height")
         expect(DockPreviewSupport.windowPositionText(selectedWindowID: nil, windowIDs: [11]) == nil,
                "Dock Preview hides the window counter for a single window")
         expect(DockPreviewSupport.windowPositionText(selectedWindowID: nil, windowIDs: [11, 22, 33]) == "3",
@@ -6935,8 +7056,9 @@ struct MetricsTests {
                     "App Switcher Small keeps the selection outline inside its icon row")
         expectClose(Double(DockPreviewSupport.cardSpacing), 6,
                     "Dock Preview Small previews tighten card spacing")
-        expectClose(Double(DockPreviewSupport.panelPadding), 9,
-                    "Dock Preview Small previews tighten panel padding")
+        expectClose(Double(DockPreviewSupport.panelPadding),
+                    Double(DockPreviewSupport.cardPadding),
+                    "Dock Preview Small previews tighten panel padding with the card's")
         UserDefaults.standard.set("xlarge", forKey: DefaultsKey.previewSize)
         let xlargeIconRowLayout = SwitcherIconRowLayout.compute(appCount: 6,
                                                                  selectedWindowCount: 1,

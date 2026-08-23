@@ -695,13 +695,17 @@ enum PreviewSizing {
         Defaults.allowedPreviewSizes.contains(value) ? value : "normal"
     }
 
-    static var scale: CGFloat {
-        switch sanitized(UserDefaults.standard.string(forKey: DefaultsKey.previewSize) ?? "normal") {
+    static func scale(for value: String) -> CGFloat {
+        switch sanitized(value) {
         case "small": return 0.75
         case "large": return 1.4
         case "xlarge": return 1.8
         default: return 1.0
         }
+    }
+
+    static var scale: CGFloat {
+        scale(for: UserDefaults.standard.string(forKey: DefaultsKey.previewSize) ?? "normal")
     }
 }
 
