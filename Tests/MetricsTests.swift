@@ -6674,8 +6674,8 @@ struct MetricsTests {
         expect(Defaults.registeredDefaults[DefaultsKey.includeBetaUpdates] as? Bool == false,
                "includeBetaUpdates defaults to false in registeredDefaults")
 
-        let testDefaults = UserDefaults(suiteName: "VorssaintTests.BetaActivation")!
-        testDefaults.removePersistentDomain(forName: "VorssaintTests.BetaActivation")
+        let testDefaults = UserDefaults(suiteName: "com.vorssaint.tests.betaActivation")!
+        testDefaults.removePersistentDomain(forName: "com.vorssaint.tests.betaActivation")
         Defaults.activateBetaChannelIfRunningBeta(in: testDefaults, version: "3.3.3-beta.1")
         expect(testDefaults.bool(forKey: DefaultsKey.includeBetaUpdates) == true,
                "beta channel is activated automatically on a beta build")
@@ -6685,13 +6685,13 @@ struct MetricsTests {
                "manual opt-out on a beta build is preserved across launches")
 
         // Stable version does not activate beta channel
-        let stableDefaults = UserDefaults(suiteName: "VorssaintTests.StableActivation")!
-        stableDefaults.removePersistentDomain(forName: "VorssaintTests.StableActivation")
+        let stableDefaults = UserDefaults(suiteName: "com.vorssaint.tests.stableActivation")!
+        stableDefaults.removePersistentDomain(forName: "com.vorssaint.tests.stableActivation")
         Defaults.activateBetaChannelIfRunningBeta(in: stableDefaults, version: "3.3.3")
         expect(stableDefaults.object(forKey: DefaultsKey.includeBetaUpdates) == nil,
                "stable release does not touch beta channel default")
-        stableDefaults.removePersistentDomain(forName: "VorssaintTests.StableActivation")
-        testDefaults.removePersistentDomain(forName: "VorssaintTests.BetaActivation")
+        stableDefaults.removePersistentDomain(forName: "com.vorssaint.tests.stableActivation")
+        testDefaults.removePersistentDomain(forName: "com.vorssaint.tests.betaActivation")
 
         // Localization completeness & formatting
         for language in AppLanguage.allCases {
@@ -16089,6 +16089,43 @@ struct MetricsTests {
         try? FileManager.default.removeItem(at: privateRoot)
 
         // MARK: Result
+
+        // MARK: Every defaults suite stays inside a namespace build.sh sweeps
+        // A UserDefaults suite leaves an empty plist in ~/Library/Preferences
+        // even after `removePersistentDomain`, and cfprefsd writes that file
+        // back out around the time this process exits, so the run cannot delete
+        // it itself. `build.sh --test` clears them afterwards, by name prefix.
+        // A suite named outside those prefixes survives every run instead.
+        let testSource = (try? String(contentsOfFile: "Tests/MetricsTests.swift",
+                                      encoding: .utf8)) ?? ""
+        expect(!testSource.isEmpty, "the test file reads back for its own source checks")
+        // The prefixes are read out of the sweep itself, so the check and the
+        // thing it guards cannot drift apart.
+        let buildScript = (try? String(contentsOfFile: "build.sh", encoding: .utf8)) ?? ""
+        let sweepBody = buildScript.components(separatedBy: "discard_test_preferences() {")
+            .dropFirst().first?.components(separatedBy: "\n}").first ?? ""
+        let sweptNamespaces = sweepBody.components(separatedBy: "\"")
+            .enumerated().filter { $0.offset % 2 == 1 }.map(\.element)
+            .filter { $0.hasSuffix(".") }
+        expect(!sweptNamespaces.isEmpty, "the swept namespaces read back out of build.sh")
+        // Split so this needle is not itself a match in the text it scans.
+        let suiteCall = "UserDefaults(suiteName" + ": "
+        let suiteArguments = testSource.components(separatedBy: suiteCall)
+            .dropFirst()
+            .map { String($0.prefix { $0 != ")" && $0 != "," && !$0.isNewline }) }
+        expect(!suiteArguments.isEmpty, "the namespace check finds the suites it guards")
+        for argument in Set(suiteArguments) {
+            let name: String?
+            if argument.hasPrefix("\"") {
+                name = String(argument.dropFirst().prefix { $0 != "\"" })
+            } else {
+                name = testSource.components(separatedBy: "let \(argument) = \"")
+                    .dropFirst().first
+                    .map { String($0.prefix { $0 != "\"" }) }
+            }
+            expect(name.map { value in sweptNamespaces.contains { value.hasPrefix($0) } } == true,
+                   "defaults suite \(argument) is named inside a namespace build.sh sweeps")
+        }
 
         if failures.isEmpty {
             print("TESTS OK (\(checks) checks)")
