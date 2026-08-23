@@ -6743,16 +6743,29 @@ struct MetricsTests {
         let bandWidth = DockPreviewSupport.cardTitleTextWidth
         expect(bandWidth > 0 && bandWidth < DockPreviewSupport.cardThumbnailWidth,
                "the name's room is the band less the two controls beside it")
-        expect(!DockPreviewSupport.titleOverflows("Mail", width: bandWidth),
+        expect(!SwitcherSupport.titleOverflows("Mail", width: bandWidth),
                "a short window name is not scrolled")
-        expect(DockPreviewSupport.titleOverflows(String(repeating: "measurement ", count: 8),
-                                                 width: bandWidth),
+        expect(SwitcherSupport.titleOverflows(String(repeating: "measurement ", count: 8),
+                                              width: bandWidth),
                "a name longer than the band is")
-        expect(!DockPreviewSupport.titleOverflows("anything", width: 0),
+        expect(!SwitcherSupport.titleOverflows("anything", width: 0),
                "a band with no room to measure against scrolls nothing")
-        expect(DockPreviewSupport.titleWidth("Preferences", weight: .semibold)
-               > DockPreviewSupport.titleWidth("Preferences", weight: .regular),
+        expect(SwitcherSupport.titleWidth("Preferences", weight: .semibold)
+               > SwitcherSupport.titleWidth("Preferences", weight: .regular),
                "the selected card's heavier name is measured as the heavier name")
+        // Both panels show windows of the same kind, so a name too long for its
+        // room behaves the same in each. One view, two callers, two widths.
+        let scrollingTitleSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Switcher/ScrollingTitle.swift",
+            encoding: .utf8)) ?? ""
+        expect(scrollingTitleSource.contains("struct ScrollingTitle: View"),
+               "the scrolling name is one view, not a copy in each panel")
+        let switcherCardSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Switcher/SwitcherView.swift",
+            encoding: .utf8)) ?? ""
+        expect(switcherCardSource.contains("ScrollingTitle(")
+               && dockPreviewCardSource.contains("ScrollingTitle("),
+               "the App Switcher and the Dock preview both draw their name through it")
         expect(!DockPreviewSupport.showsPanelHeader(isPinned: false),
                "a hovered panel draws no header, whatever it is showing")
         expect(DockPreviewSupport.showsPanelHeader(isPinned: true),

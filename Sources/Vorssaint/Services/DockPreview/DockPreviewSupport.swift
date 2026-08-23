@@ -332,22 +332,6 @@ enum DockPreviewSupport {
     /// Whether a name is longer than the room it has. Measured against the font
     /// it is drawn in rather than a layout pass, so the answer is the same
     /// before the band has ever been on screen and can be checked without one.
-    static func titleWidth(_ title: String,
-                           fontSize: CGFloat = 13,
-                           weight: NSFont.Weight = .regular) -> CGFloat {
-        guard !title.isEmpty else { return 0 }
-        let font = NSFont.systemFont(ofSize: fontSize, weight: weight)
-        return (title as NSString).size(withAttributes: [.font: font]).width
-    }
-
-    static func titleOverflows(_ title: String,
-                               width: CGFloat,
-                               fontSize: CGFloat = 13,
-                               weight: NSFont.Weight = .regular) -> Bool {
-        guard width > 0 else { return false }
-        return titleWidth(title, fontSize: fontSize, weight: weight) > width
-    }
-
     /// Whether a card draws the app's icon in the corner of its picture. With
     /// no capture the icon already fills the well as a watermark, so the badge
     /// would only repeat it.

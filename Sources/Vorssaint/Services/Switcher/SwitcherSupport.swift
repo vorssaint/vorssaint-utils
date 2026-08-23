@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import CoreGraphics
 import Foundation
 
@@ -255,6 +256,26 @@ struct SwitcherShortcutHints: Equatable {
 }
 
 enum SwitcherSupport {
+    /// How wide a window's name is in the font a card draws it in. Measured
+    /// against the font rather than a layout pass, so a card can decide whether
+    /// to scroll the name before the band has ever been on screen -- and a test
+    /// can ask the same question without one.
+    static func titleWidth(_ title: String,
+                           fontSize: CGFloat = 13,
+                           weight: NSFont.Weight = .regular) -> CGFloat {
+        guard !title.isEmpty else { return 0 }
+        let font = NSFont.systemFont(ofSize: fontSize, weight: weight)
+        return (title as NSString).size(withAttributes: [.font: font]).width
+    }
+
+    static func titleOverflows(_ title: String,
+                               width: CGFloat,
+                               fontSize: CGFloat = 13,
+                               weight: NSFont.Weight = .regular) -> Bool {
+        guard width > 0 else { return false }
+        return titleWidth(title, fontSize: fontSize, weight: weight) > width
+    }
+
     /// Grid resolution used to classify window captures.
     static let captureAlphaGridSize = 8
 
