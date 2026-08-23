@@ -39,11 +39,11 @@ struct MixerSection: View {
             VStack(alignment: .leading, spacing: 8) {
                 audioDevicesSection
 
-                if AppVolumeMixer.isSupported, (!visibleApps.isEmpty || mixer.needsPermission) {
+                if AudioProcessActivitySupport.isSupported, (!visibleApps.isEmpty || mixer.needsPermission) {
                     Divider()
                 }
 
-                if !AppVolumeMixer.isSupported {
+                if !AudioProcessActivitySupport.isSupported {
                     emptyLabel(l10n.s.mixerUnavailable)
                 } else if mixer.needsPermission {
                     permissionHint
@@ -103,7 +103,7 @@ struct MixerSection: View {
 
             if optionsExpanded {
                 VStack(alignment: .leading, spacing: 8) {
-                    if AppVolumeMixer.isSupported {
+                    if AudioProcessActivitySupport.isSupported {
                         inactiveAppsVisibilityToggle
                     }
                     headphoneDisconnectProtectionToggle
@@ -111,7 +111,7 @@ struct MixerSection: View {
                     if AppFeature.soundOutputSwitcher.isAvailable {
                         soundOutputSwitcherControls
                     }
-                    if AppVolumeMixer.isSupported, !listChoices.isEmpty {
+                    if AudioProcessActivitySupport.isSupported, !listChoices.isEmpty {
                         listVisibilityFooter
                     }
                 }

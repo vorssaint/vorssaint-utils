@@ -26,6 +26,7 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .general, title: s.tabGeneral, icon: "gearshape",
                                       keywords: [s.launchAtLogin, s.languageLabel, s.showMenuBarIcon,
                                                  s.musicBlockTitle, s.musicBlockSection,
+                                                 s.autoPauseMusicTitle, s.autoPauseMusicSection,
                                                  FeatureStrings.appearance(language).label,
                                                  FeatureStrings.appearance(language).dark]),
                 // Searching any feature name lands here even when the feature

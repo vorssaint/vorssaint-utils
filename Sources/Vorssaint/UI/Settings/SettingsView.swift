@@ -161,6 +161,9 @@ struct GeneralSettings: View {
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
     @AppStorage(DefaultsKey.musicBlockEnabled) private var musicBlockEnabled = false
     @AppStorage(DefaultsKey.musicBlockReplacementPath) private var musicBlockReplacementPath = ""
+    @AppStorage(DefaultsKey.autoPauseMusicEnabled) private var autoPauseMusicEnabled = false
+    @AppStorage(DefaultsKey.autoPauseMusicPlayerPath) private var autoPauseMusicPlayerPath = ""
+    @AppStorage(DefaultsKey.autoPauseMusicResumeEnabled) private var autoPauseMusicResumeEnabled = true
 
     private var appearanceStrings: AppearanceStrings { FeatureStrings.appearance(l10n.language) }
     private var feedbackStrings: FeedbackStrings { FeatureStrings.feedback(l10n.language) }
@@ -249,6 +252,9 @@ struct GeneralSettings: View {
                             if !musicBlockReplacementPath.isEmpty {
                                 Button {
                                     musicBlockReplacementPath = ""
+                                    if autoPauseMusicPlayerPath.isEmpty {
+                                        AutoPauseMusicService.shared.syncWithPreferences()
+                                    }
                                 } label: {
                                     Image(systemName: "xmark.circle.fill")
                                 }
@@ -260,6 +266,51 @@ struct GeneralSettings: View {
                     SettingsCaptionText(l10n.s.musicBlockCaption)
                 }
                 .settingsSectionAnchor(.musicBlocking)
+            }
+            if AppFeature.autoPauseMusic.isAvailable {
+                Section(l10n.s.autoPauseMusicSection) {
+                    Toggle(l10n.s.autoPauseMusicTitle, isOn: $autoPauseMusicEnabled)
+                        .onChange(of: autoPauseMusicEnabled) { _, enabled in
+                            AutoPauseMusicService.shared.syncWithPreferences()
+                            if enabled {
+                                AutoPauseMusicService.shared.requestAutomationPermission(
+                                    forAppAtPath: autoPauseMusicPlayerPath)
+                            }
+                        }
+                    if autoPauseMusicEnabled {
+                        HStack {
+                            Text(l10n.s.autoPauseMusicPlayerLabel)
+                            Spacer()
+                            Text(autoPauseMusicPlayerName)
+                                .foregroundStyle(.secondary)
+                            Button(l10n.s.autoPauseMusicChooseApp) { chooseAutoPauseMusicPlayer() }
+                            if !autoPauseMusicPlayerPath.isEmpty {
+                                Button {
+                                    autoPauseMusicPlayerPath = ""
+                                    AutoPauseMusicService.shared.syncWithPreferences()
+                                    if !musicBlockReplacementPath.isEmpty {
+                                        AutoPauseMusicService.shared.requestAutomationPermission(
+                                            forAppAtPath: musicBlockReplacementPath)
+                                    }
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.secondary)
+                            }
+                        }
+                        if autoPauseMusicPlayerPath.isEmpty,
+                           !musicBlockReplacementPath.isEmpty {
+                            Text(String(format: l10n.s.autoPauseMusicPlayerInheritedFormat,
+                                        autoPauseMusicPlayerName))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Toggle(l10n.s.autoPauseMusicResumeTitle, isOn: $autoPauseMusicResumeEnabled)
+                    }
+                    SettingsCaptionText(l10n.s.autoPauseMusicCaption)
+                }
+                .settingsSectionAnchor(.autoPauseMusic)
             }
             Section(feedbackStrings.sectionTitle) {
                 Button {
@@ -292,6 +343,33 @@ struct GeneralSettings: View {
         if let bundleID = Bundle(url: url)?.bundleIdentifier,
            MusicLaunchBlocker.blockedBundleIDs.contains(bundleID) { return }
         musicBlockReplacementPath = url.path
+        if autoPauseMusicPlayerPath.isEmpty, autoPauseMusicEnabled {
+            AutoPauseMusicService.shared.syncWithPreferences()
+            AutoPauseMusicService.shared.requestAutomationPermission(forAppAtPath: url.path)
+        }
+    }
+
+    private var autoPauseMusicPlayerName: String {
+        let path = AutoPauseMusicSupport.selectedPlayerPath(
+            autoPausePath: autoPauseMusicPlayerPath,
+            musicBlockReplacementPath: musicBlockReplacementPath)
+        guard !path.isEmpty else { return l10n.s.autoPauseMusicPlayerNone }
+        let name = FileManager.default.displayName(atPath: path)
+        return (name as NSString).deletingPathExtension
+    }
+
+    private func chooseAutoPauseMusicPlayer() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.applicationBundle]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        autoPauseMusicPlayerPath = url.path
+        if autoPauseMusicEnabled {
+            AutoPauseMusicService.shared.requestAutomationPermission(forAppAtPath: url.path)
+        }
     }
 }
 

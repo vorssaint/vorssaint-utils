@@ -133,6 +133,9 @@ enum DefaultsKey {
     static let bluetoothSleepRestorePending = "bluetoothSleepRestorePending"
     static let musicBlockEnabled = "musicBlockEnabled"
     static let musicBlockReplacementPath = "musicBlockReplacementPath"  // app bundle path ("" = none)
+    static let autoPauseMusicEnabled = "autoPauseMusicEnabled"
+    static let autoPauseMusicPlayerPath = "autoPauseMusicPlayerPath"    // chosen player .app path ("" = none)
+    static let autoPauseMusicResumeEnabled = "autoPauseMusicResumeEnabled"
     static let cleanerScheduleFrequency = "cleanerScheduleFrequency"    // off | daily | weekly
     static let cleanerScheduleHour = "cleanerScheduleHour"
     static let cleanerScheduleMinute = "cleanerScheduleMinute"
@@ -855,6 +858,9 @@ enum Defaults {
         DefaultsKey.bluetoothSleepRestorePending: false,
         DefaultsKey.musicBlockEnabled: false,
         DefaultsKey.musicBlockReplacementPath: "",
+        DefaultsKey.autoPauseMusicEnabled: false,
+        DefaultsKey.autoPauseMusicPlayerPath: "",
+        DefaultsKey.autoPauseMusicResumeEnabled: true,
         DefaultsKey.cleanerScheduleFrequency: "off",
         DefaultsKey.cleanerScheduleHour: 9,
         DefaultsKey.cleanerScheduleMinute: 0,

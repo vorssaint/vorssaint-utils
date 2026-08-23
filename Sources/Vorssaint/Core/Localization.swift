@@ -1000,6 +1000,16 @@ struct Strings {
     let musicBlockReplacementNone: String
     let musicBlockChooseApp: String
 
+    // MARK: Auto-pause music
+    let autoPauseMusicSection: String
+    let autoPauseMusicTitle: String
+    let autoPauseMusicCaption: String
+    let autoPauseMusicPlayerLabel: String
+    let autoPauseMusicPlayerNone: String
+    let autoPauseMusicPlayerInheritedFormat: String
+    let autoPauseMusicChooseApp: String
+    let autoPauseMusicResumeTitle: String
+
     // MARK: Cleaner
     let cleanerName: String
     let cleanerIntroTitle: String
@@ -1966,6 +1976,14 @@ extension Strings {
         musicBlockReplacementLabel: "Abrir no lugar",
         musicBlockReplacementNone: "Nenhum",
         musicBlockChooseApp: "Escolher app…",
+        autoPauseMusicSection: "Pausar música automaticamente",
+        autoPauseMusicTitle: "Pausar a música quando outro som tocar",
+        autoPauseMusicCaption: "Quando outro app começar a reproduzir som ou vídeo, o Vorssaint pausa o player de música escolhido abaixo e pode retomá-lo assim que o outro áudio parar. Na primeira vez, o macOS vai pedir para permitir que o Vorssaint controle seu player de música.",
+        autoPauseMusicPlayerLabel: "Player de música",
+        autoPauseMusicPlayerNone: "Não definido",
+        autoPauseMusicPlayerInheritedFormat: "Usando %@ do bloqueador do app Música",
+        autoPauseMusicChooseApp: "Escolher app…",
+        autoPauseMusicResumeTitle: "Retomar automaticamente ao parar",
         cleanerName: "Limpeza",
         cleanerIntroTitle: "Limpe o lixo do Mac",
         cleanerIntroCaption: "Procura restos de apps desinstalados, caches, registros e a Lixeira. Você revisa tudo antes e os itens removidos vão para a Lixeira.",
@@ -2932,6 +2950,14 @@ extension Strings {
         musicBlockReplacementLabel: "Open instead",
         musicBlockReplacementNone: "None",
         musicBlockChooseApp: "Choose app…",
+        autoPauseMusicSection: "Auto-pause music",
+        autoPauseMusicTitle: "Pause music when something else plays audio",
+        autoPauseMusicCaption: "When another app starts playing sound or video, Vorssaint pauses the music player you pick below and can resume it once the other audio stops. The first time, macOS will ask you to allow Vorssaint to control your music player.",
+        autoPauseMusicPlayerLabel: "Music player",
+        autoPauseMusicPlayerNone: "Not set",
+        autoPauseMusicPlayerInheritedFormat: "Using %@ from Music app blocker",
+        autoPauseMusicChooseApp: "Choose app…",
+        autoPauseMusicResumeTitle: "Resume automatically when it stops",
         cleanerName: "Cleaner",
         cleanerIntroTitle: "Clean up your Mac",
         cleanerIntroCaption: "Scans for leftovers from uninstalled apps, caches, logs and the Trash. You review everything first and removed items go to the Trash.",

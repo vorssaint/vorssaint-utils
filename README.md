@@ -77,6 +77,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Output switcher.** Cycle between chosen outputs with one shortcut, and drop the volume automatically when headphones disconnect.
 - **Microphone tools.** Pin your favorite input so the Mac stops guessing, and mute every microphone at once with a click or shortcut, whichever one an app is using.
 - **Music app blocker.** Stops the Music app from bursting in when headphones connect. You can still open it yourself.
+- **Auto-pause music.** Pauses your chosen music player when a browser video or another eligible app keeps an output stream active, then optionally resumes it after the interruption ends.
 
 ### Know what your Mac is doing
 

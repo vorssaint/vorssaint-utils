@@ -4,6 +4,16 @@
 import CoreAudio
 import Foundation
 
+/// The single runtime gate for Core Audio process objects and process taps.
+/// Keeping the OS decision here prevents the mixer, shared process monitor and
+/// AutoPauseMusic fallback from drifting onto different version checks.
+enum AudioProcessActivitySupport {
+    static var isSupported: Bool {
+        if #available(macOS 14.4, *) { return true }
+        return false
+    }
+}
+
 struct MixerInputRouteResolution: Equatable {
     let effectiveUID: String?
     let selectedUnavailable: Bool

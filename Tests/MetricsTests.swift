@@ -3096,6 +3096,12 @@ struct MetricsTests {
                "blocking the music app from launching is opt-in")
         expect(registeredDefaults[DefaultsKey.musicBlockReplacementPath] as? String == "",
                "the music replacement app starts unset")
+        expect(registeredDefaults[DefaultsKey.autoPauseMusicEnabled] as? Bool == false,
+               "auto-pausing music for other audio is opt-in")
+        expect(registeredDefaults[DefaultsKey.autoPauseMusicPlayerPath] as? String == "",
+               "the auto-pause music player starts unset")
+        expect(registeredDefaults[DefaultsKey.autoPauseMusicResumeEnabled] as? Bool == true,
+               "resuming the player automatically defaults on once a player is chosen")
         expect(registeredDefaults[DefaultsKey.panelUtilityCleaner] as? Bool == true,
                "the cleaner row is visible in the panel utilities like its siblings")
         expect(registeredDefaults[DefaultsKey.cleanerScheduleFrequency] as? String == "off",
@@ -5222,6 +5228,15 @@ struct MetricsTests {
                                                    targetOutputDeviceUID: "BuiltInSpeakerDevice",
                                                    defaultOutputDeviceUID: "BuiltInSpeakerDevice"),
                "a persistent mixer row waits for an audio connection before building a tap")
+        let mixerSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Audio/AppVolumeMixer.swift",
+            encoding: .utf8)) ?? ""
+        expect(mixerSource.contains("let isBypassed = existing.isBypassed || app.isBypassed")
+                && mixerSource.contains(
+                    "selectedOutputDeviceUID: isBypassed ? nil : existing.selectedOutputDeviceUID")
+                && mixerSource.contains(
+                    "effectiveOutputDeviceUID: isBypassed ? nil : existing.effectiveOutputDeviceUID"),
+               "a merged bypassed mixer row cannot retain an output route")
         expect(MixerRoutingSupport.shouldShowApp(isPlaying: false,
                                                  volume: 1,
                                                  selectedOutputDeviceUID: nil,
@@ -9609,6 +9624,8 @@ struct MetricsTests {
             expect(!strings.homebrewOperationUpdatedHomebrew.isEmpty, "\(prefix) Homebrew operation updated Homebrew is present")
             expectFormat(strings.homebrewOperationFailedFormat, ["@"], "\(prefix) Homebrew operation failed format")
             expectFormat(strings.homebrewOperationElapsedFormat, ["@"], "\(prefix) Homebrew operation elapsed format")
+            expectFormat(strings.autoPauseMusicPlayerInheritedFormat, ["@"],
+                         "\(prefix) inherited auto-pause player format")
 
             let rendered = [
                 String(format: strings.cutMovedPluralFormat, 2),
@@ -9617,6 +9634,7 @@ struct MetricsTests {
                 String(format: strings.shelfSelectedFormat, 2),
                 String(format: strings.powerAdapterMaxFormat, "30 W"),
                 String(format: strings.mixerInputErrorFormat, "OSStatus -1"),
+                String(format: strings.autoPauseMusicPlayerInheritedFormat, "Spotify"),
                 String(format: strings.homebrewConfirmInstallBodyFormat, "jq"),
                 String(format: strings.homebrewConfirmUninstallBodyFormat, "jq"),
                 String(format: strings.homebrewPopularityFormat, "1,234", "30"),
@@ -9638,6 +9656,10 @@ struct MetricsTests {
         let baseAudioPrompt = infoPlist?["NSAudioCaptureUsageDescription"] as? String ?? ""
         expect(baseAudioPrompt.contains("Vorssaint taps individual app audio"),
                "base audio permission prompt is an English fallback")
+        let baseAutomationPrompt = infoPlist?["NSAppleEventsUsageDescription"] as? String ?? ""
+        expect(baseAutomationPrompt.contains("music player")
+                && baseAutomationPrompt.contains("Homebrew"),
+               "base Automation prompt names both player control and Homebrew")
         let organizerFolderPromptKeys = [
             "NSDesktopFolderUsageDescription", "NSDocumentsFolderUsageDescription",
             "NSNetworkVolumesUsageDescription", "NSRemovableVolumesUsageDescription",
@@ -9653,6 +9675,11 @@ struct MetricsTests {
                                      encoding: .utf8)) ?? ""
             return organizerFolderPromptKeys.allSatisfy(value.contains)
         }, "every localization explains custom organizer folder access")
+        expect(localizedInfoPlists.allSatisfy { folder in
+            let value = (try? String(contentsOfFile: "Resources/\(folder)/InfoPlist.strings",
+                                     encoding: .utf8)) ?? ""
+            return value.contains("NSAppleEventsUsageDescription") && value.contains("Homebrew")
+        }, "every localized Automation prompt still names Homebrew")
         let turkishInfoPlistStrings = (try? String(contentsOfFile: "Resources/tr.lproj/InfoPlist.strings",
                                                    encoding: .utf8)) ?? ""
         expect(turkishInfoPlistStrings.contains("NSAudioCaptureUsageDescription")
@@ -10070,7 +10097,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 54, "feature catalog has 54 features")
+        expect(AppFeature.allCases.count == 55, "feature catalog has 55 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -10079,7 +10106,7 @@ struct MetricsTests {
             "keyboardDebounce", "textSnippets", "superKey",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
-            "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
+            "mixer", "soundOutputSwitcher", "micMute", "musicBlock", "autoPauseMusic",
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
@@ -10094,9 +10121,10 @@ struct MetricsTests {
                 && (AppFeature.availabilityDefaults[AppFeature.diskImageInstaller.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.autoPauseMusic.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
                     $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                        && $0 != .killProcess
+                        && $0 != .killProcess && $0 != .autoPauseMusic
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
@@ -11057,6 +11085,8 @@ struct MetricsTests {
         }
         expect(AppFeature.monitorCPU.energyProfile == .periodic
                 && AppFeature.clipboardHistory.energyProfile == .periodic
+                && AppFeature.autoPauseMusic.energyProfile
+                    == (AudioProcessActivitySupport.isSupported ? .idle : .periodic)
                 && AppFeature.textSnippets.energyProfile == .inputs
                 && AppFeature.dockPreview.energyProfile == .mouse
                 && AppFeature.switcher.energyProfile == .keyboard
@@ -17082,6 +17112,119 @@ struct MetricsTests {
         expect(privateMode(privateRoot) == 0o700,
                "a container an earlier version left world readable is tightened on the next write")
         try? FileManager.default.removeItem(at: privateRoot)
+
+        // MARK: Auto-pause music
+
+        expect(AutoPauseMusicSupport.otherSourceIsActive(
+            nowPlayingBundleID: "com.apple.Safari", nowPlayingIsPlaying: true,
+            musicPlayerBundleID: "com.spotify.client"),
+            "a different, playing app counts as another source")
+        expect(!AutoPauseMusicSupport.otherSourceIsActive(
+            nowPlayingBundleID: "com.spotify.client", nowPlayingIsPlaying: true,
+            musicPlayerBundleID: "com.spotify.client"),
+            "the chosen player itself is never treated as another source")
+        expect(!AutoPauseMusicSupport.otherSourceIsActive(
+            nowPlayingBundleID: "com.apple.Safari", nowPlayingIsPlaying: false,
+            musicPlayerBundleID: "com.spotify.client"),
+            "a silent app is not an active source, even if it owns Now Playing")
+        expect(!AutoPauseMusicSupport.otherSourceIsActive(
+            nowPlayingBundleID: nil, nowPlayingIsPlaying: true,
+            musicPlayerBundleID: "com.spotify.client"),
+            "no Now Playing owner means no other source")
+        expect(!AutoPauseMusicSupport.otherSourceIsActive(
+            nowPlayingBundleID: "com.apple.Safari", nowPlayingIsPlaying: true,
+            musicPlayerBundleID: ""),
+            "no music player chosen means the feature has nothing to protect")
+        expect(AutoPauseMusicSupport.otherAudioSourceIsActive(
+            activeBundleIDs: ["com.apple.Music", "com.apple.Safari"],
+            musicPlayerBundleID: "com.apple.Music"),
+            "an audible Core Audio app other than the player triggers a pause")
+        expect(!AutoPauseMusicSupport.otherAudioSourceIsActive(
+            activeBundleIDs: ["com.apple.Music"],
+            musicPlayerBundleID: "com.apple.Music"),
+            "the selected player alone never triggers its own pause")
+        expect(!AutoPauseMusicSupport.otherAudioSourceIsActive(
+            activeBundleIDs: [], musicPlayerBundleID: "com.apple.Music"),
+            "no active Core Audio process means no interruption")
+        let filteredAutoPauseSources = AutoPauseMusicSupport.activeBundleIdentifiers(from: [
+            .init(bundleIdentifier: "com.apple.Safari",
+                  isRunningOutput: true, bypassesProcessTap: false),
+            .init(bundleIdentifier: "us.zoom.xos",
+                  isRunningOutput: true, bypassesProcessTap: true),
+            .init(bundleIdentifier: "com.apple.finder",
+                  isRunningOutput: false, bypassesProcessTap: false),
+        ])
+        expect(filteredAutoPauseSources == ["com.apple.Safari"],
+               "auto-pause uses active streams but excludes calls and DAWs known to hold streams open")
+        expect(AutoPauseMusicSupport.nowPlayingBundleIdentifier(
+            displayID: "com.apple.Safari",
+            pidBundleIdentifier: "com.apple.WebKit.WebContent") == "com.apple.Safari",
+            "MediaRemote's direct display identifier wins over a helper PID")
+        expect(AutoPauseMusicSupport.nowPlayingBundleIdentifier(
+            displayID: nil,
+            pidBundleIdentifier: "com.spotify.client") == "com.spotify.client",
+            "the PID-derived identifier remains available as a fallback")
+        expect(AutoPauseMusicSupport.nowPlayingBundleIdentifier(
+            displayID: "  ", pidBundleIdentifier: nil) == nil,
+            "blank MediaRemote identifiers are ignored")
+
+        expect(AutoPauseMusicSupport.decide(otherSourceIsActive: true, weAutoPaused: false, resumeEnabled: true) == .pause,
+               "a fresh interruption pauses the player")
+        expect(AutoPauseMusicSupport.decide(otherSourceIsActive: true, weAutoPaused: true, resumeEnabled: true) == .none,
+               "an interruption already handled does not pause again")
+        expect(AutoPauseMusicSupport.decide(otherSourceIsActive: false, weAutoPaused: true, resumeEnabled: true) == .resume,
+               "the interruption ending resumes a player this feature paused")
+        expect(AutoPauseMusicSupport.decide(otherSourceIsActive: false, weAutoPaused: true, resumeEnabled: false) == .clearFlag,
+               "resume disabled still clears the flag instead of resuming")
+        expect(AutoPauseMusicSupport.decide(otherSourceIsActive: false, weAutoPaused: false, resumeEnabled: true) == .none,
+               "nothing to do when no interruption is active and nothing was paused")
+        expect(AutoPauseMusicSupport.transitionDelay(
+            stableOtherSourceIsActive: false,
+            observedOtherSourceIsActive: true) == AutoPauseMusicSupport.competingAudioStartDelay,
+               "a new competing stream waits through the notification-sound debounce")
+        expect(AutoPauseMusicSupport.transitionDelay(
+            stableOtherSourceIsActive: true,
+            observedOtherSourceIsActive: false) == AutoPauseMusicSupport.competingAudioStopDelay,
+               "resume waits through short gaps in continuous playback")
+        expect(AutoPauseMusicSupport.transitionDelay(
+            stableOtherSourceIsActive: true,
+            observedOtherSourceIsActive: true) == nil,
+               "an unchanged activity state schedules no transition")
+
+        expectEqual(AutoPauseMusicSupport.playScript(bundleID: "com.spotify.client"),
+                    "tell application id \"com.spotify.client\" to play", "play script targets the chosen player")
+        let pauseIfPlayingScript = AutoPauseMusicSupport.pauseIfPlayingScript(
+            bundleID: "com.example.quoted\"player")
+        expect(pauseIfPlayingScript.contains("tell application id \"com.example.quoted\\\"player\"")
+                && pauseIfPlayingScript.contains("player state as string")
+                && pauseIfPlayingScript.contains("pause"),
+               "one escaped AppleScript checks state and pauses without interpolating a raw bundle id")
+        var autoPauseCompileError: NSDictionary?
+        expect(NSAppleScript(source: AutoPauseMusicSupport.pauseIfPlayingScript(
+            bundleID: "com.apple.Music"))?.compileAndReturnError(&autoPauseCompileError) == true,
+               "the combined Music state-and-pause AppleScript compiles")
+        expect(AutoPauseMusicSupport.didPause(output: "  vorssaint-paused  ")
+                && !AutoPauseMusicSupport.didPause(output: "vorssaint-unchanged")
+                && !AutoPauseMusicSupport.didPause(output: nil),
+               "only the combined script's pause marker grants automatic-resume ownership")
+        expect(AutoPauseMusicSupport.selectedPlayerPath(
+            autoPausePath: "/Applications/Music.app",
+            musicBlockReplacementPath: "/Applications/Spotify.app") == "/Applications/Music.app"
+                && AutoPauseMusicSupport.selectedPlayerPath(
+                    autoPausePath: "",
+                    musicBlockReplacementPath: "/Applications/Spotify.app") == "/Applications/Spotify.app"
+                && AutoPauseMusicSupport.selectedPlayerPath(
+                    autoPausePath: "",
+                    musicBlockReplacementPath: "").isEmpty,
+               "auto-pause uses its explicit player, inherits the music blocker's replacement, and is not set only when both are empty")
+        expect(String(format: Strings.enUS.autoPauseMusicPlayerInheritedFormat, "Spotify")
+                == "Using Spotify from Music app blocker",
+               "auto-pause settings disclose the inherited Music blocker player")
+
+        expect(AutoPauseMusicSupport.bundleIdentifier(forAppAtPath: "") == nil,
+               "an empty path has no bundle identifier")
+        expect(AutoPauseMusicSupport.bundleIdentifier(forAppAtPath: "/nonexistent/Nowhere.app") == nil,
+               "a missing app resolves to no bundle identifier instead of crashing")
 
         // MARK: Result
 

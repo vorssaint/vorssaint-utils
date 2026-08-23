@@ -53,7 +53,7 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Vorssaint uses Automation to move files in Finder, send items to the Trash and open Terminal commands when you ask for Homebrew actions.</string>
+	<string>Vorssaint uses Automation to pause or resume the music player you choose, move files in Finder, send items to the Trash and open Terminal commands when you ask for Homebrew actions.</string>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>Vorssaint taps individual app audio only to adjust each app's volume in the mixer. Nothing is recorded or leaves your Mac.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>

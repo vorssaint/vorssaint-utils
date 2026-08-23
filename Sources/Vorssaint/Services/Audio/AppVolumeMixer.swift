@@ -65,11 +65,6 @@ struct MixerHiddenApp: Identifiable, Equatable {
 final class AppVolumeMixer: ObservableObject {
     static let shared = AppVolumeMixer()
 
-    static var isSupported: Bool {
-        if #available(macOS 14.4, *) { return true }
-        return false
-    }
-
     /// Volumes run 0...2: 1.0 is 100% (untouched passthrough), up to 2.0 is a
     /// 200% boost for sources that play too quietly.
     static let maxVolume: Double = 2.0
@@ -114,14 +109,13 @@ final class AppVolumeMixer: ObservableObject {
     private var sessionRoutes: [String: String] = [:]
     private var lastAudibleVolume: [String: Double] = [:]
     private var listenerInstalled = false
-    /// The global HAL listeners (devices, default output, process list), kept
+    /// The global HAL listeners (devices and default outputs), kept
     /// so stop() can remove each one again when the mixer leaves the hub.
     private var globalListeners: [AudioObjectPropertySelector] = []
-    /// One IsRunningOutput listener per live process object, kept so the
-    /// registration can be removed when the process disappears. Without
-    /// removal, a week of app churn leaves thousands of dead listeners
-    /// registered with the HAL.
-    private var runningListeners = Set<AudioObjectID>()
+    /// Process discovery and IsRunningOutput listeners are shared with other
+    /// audio features instead of being implemented independently here.
+    private var audioProcessObservation: UUID?
+    private var audioProcessSnapshot = AudioProcessActivitySnapshot.empty
     /// Volume and mute belong to the current output device, not the HAL's
     /// system object, so these listeners move whenever that device changes.
     private var outputControlListenerDevice: AudioObjectID?
@@ -182,8 +176,12 @@ final class AppVolumeMixer: ObservableObject {
         installListener(selector: kAudioHardwarePropertyDevices)
         installListener(selector: kAudioHardwarePropertyDefaultOutputDevice)
         installListener(selector: kAudioHardwarePropertyDefaultSystemOutputDevice)
-        if Self.isSupported {
-            installListener(selector: kAudioHardwarePropertyProcessObjectList)
+        if AudioProcessActivitySupport.isSupported, audioProcessObservation == nil {
+            audioProcessObservation = AudioProcessActivityMonitor.shared.observe { [weak self] snapshot in
+                guard let self else { return }
+                self.audioProcessSnapshot = snapshot
+                self.scheduleListenerRefresh()
+            }
         }
         if wakeObserver == nil {
             wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
@@ -229,7 +227,11 @@ final class AppVolumeMixer: ObservableObject {
         // A refresh already reading the HAL must not publish into a mixer that
         // is no longer watching, nor re-register the listeners just removed.
         refresh.discardInFlight()
-        pruneRunningListeners(keeping: [])
+        if let audioProcessObservation {
+            AudioProcessActivityMonitor.shared.removeObserver(audioProcessObservation)
+            self.audioProcessObservation = nil
+        }
+        audioProcessSnapshot = .empty
         removeGlobalListeners()
         if let wakeObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
@@ -246,7 +248,7 @@ final class AppVolumeMixer: ObservableObject {
         if needsPermission { needsPermission = false }
     }
 
-    /// What the audio system calls when something changes.
+    /// What the device side of the audio system calls when something changes.
     ///
     /// Deliberately the smallest possible answer: the system decides which
     /// thread this arrives on and it is not always the same one, so all it
@@ -371,40 +373,11 @@ final class AppVolumeMixer: ObservableObject {
         }
     }
 
-    private func subscribeToRunningChanges(of object: AudioObjectID) {
-        guard !runningListeners.contains(object) else { return }
-        var address = Self.isRunningOutputAddress()
-        if AudioObjectAddPropertyListener(object, &address,
-                                          Self.listenerCallback, listenerClient) == noErr {
-            runningListeners.insert(object)
-        }
-    }
-
-    /// Drops the listeners of process objects that no longer exist. Removal on
-    /// a dead object can fail; the entry is forgotten either way. Object ids do
-    /// come back (the HAL reuses them for later processes), and a returning id
-    /// is simply subscribed again on the next refresh.
-    private func pruneRunningListeners(keeping current: Set<AudioObjectID>) {
-        for object in runningListeners where !current.contains(object) {
-            var address = Self.isRunningOutputAddress()
-            AudioObjectRemovePropertyListener(object, &address,
-                                              Self.listenerCallback, listenerClient)
-            runningListeners.remove(object)
-        }
-    }
-
-    private static func isRunningOutputAddress() -> AudioObjectPropertyAddress {
-        AudioObjectPropertyAddress(mSelector: kAudioProcessPropertyIsRunningOutput,
-                                   mScope: kAudioObjectPropertyScopeGlobal,
-                                   mElement: kAudioObjectPropertyElementMain)
-    }
-
-    /// One hardware event fires several of the listeners above back-to-back
-    /// (device list, default device, process list, plus one IsRunningOutput per
-    /// process), and a busy audio HAL can keep that stream going for as long as
-    /// the panel is open. An isolated notification still refreshes immediately
+    /// Device changes and the shared process monitor can arrive back-to-back,
+    /// and a busy audio HAL can keep that stream going for as long as the panel
+    /// is open. An isolated notification still refreshes immediately
     /// (headphone unplug must react now); a burst is coalesced into one trailing
-    /// refresh so the panel does not redraw once per listener.
+    /// refresh so the panel does not redraw once per event.
     private func scheduleListenerRefresh() {
         guard !refreshPending else { return }
         let now = CFAbsoluteTimeGetCurrent()
@@ -748,7 +721,7 @@ final class AppVolumeMixer: ObservableObject {
         /// Persistence ids the list must leave out: the apps the user hid,
         /// plus the Finder while its toggle is off (issue #300).
         let hiddenRowIDs: Set<String>
-        let ownPid: pid_t
+        let processActivities: [AudioProcessActivity]
     }
 
     /// Everything one refresh read from the HAL, handed back for the main
@@ -761,9 +734,8 @@ final class AppVolumeMixer: ObservableObject {
         let systemOutputVolume: Double?
         let systemOutputMuted: Bool?
         /// Nil where process taps do not exist (before macOS 14.4): the app
-        /// list stays empty and no process object is looked at.
+        /// list stays empty.
         let apps: [MixerApp]?
-        let processObjects: [AudioObjectID]
         let lowered: LoweredOutputState
     }
 
@@ -794,7 +766,7 @@ final class AppVolumeMixer: ObservableObject {
             hiddenRowIDs: MixerRoutingSupport.hiddenRowIDs(
                 hiddenApps: savedHiddenApps(),
                 showFinder: UserDefaults.standard.bool(forKey: DefaultsKey.mixerShowFinder)),
-            ownPid: ProcessInfo.processInfo.processIdentifier)
+            processActivities: audioProcessSnapshot.apps)
 
         halQueue.async { [weak self] in
             let snapshot = Self.readSnapshot(request)
@@ -865,13 +837,6 @@ final class AppVolumeMixer: ObservableObject {
             return
         }
 
-        pruneRunningListeners(keeping: Set(snapshot.processObjects))
-        for object in snapshot.processObjects {
-            // Audio starting/stopping in a process flips IsRunningOutput
-            // without changing the object list — subscribe per object.
-            subscribeToRunningChanges(of: object)
-        }
-
         guard audioEnvironmentChanged || next != apps else { return }
         if apps != next {
             apps = next
@@ -904,7 +869,7 @@ final class AppVolumeMixer: ObservableObject {
         }
         let systemOutputMuted = defaultDevice.flatMap { outputMuted(for: $0.audioObjectID) }
 
-        guard isSupported else {
+        guard AudioProcessActivitySupport.isSupported else {
             return RefreshSnapshot(defaultUID: defaultUID,
                                    systemSoundUID: systemSoundUID,
                                    outputDevices: nextOutputDevices,
@@ -912,59 +877,20 @@ final class AppVolumeMixer: ObservableObject {
                                    systemOutputVolume: systemOutputVolume,
                                    systemOutputMuted: systemOutputMuted,
                                    apps: nil,
-                                   processObjects: [],
                                    lowered: lowered)
         }
 
-        let ownPid = request.ownPid
         let saved = request.savedVolumes
         let savedOutputs = request.savedOutputs
         let showFinder = request.showFinder
-        var groups: [pid_t: [AudioObjectID]] = [:]
-        var playing: Set<pid_t> = []
-        var bypassed: Set<pid_t> = []
-        var bundleHints: [pid_t: String] = [:]
-        let processObjects = audioProcessObjects()
-        for object in processObjects {
-            var pid: pid_t = -1
-            guard Self.read(object, kAudioProcessPropertyPID, &pid), pid > 0, pid != ownPid else { continue }
-
-            // Show every regular app that holds an audio connection, not only
-            // the ones making sound this instant, so apps are adjustable before
-            // they play and stay put between sounds.
-            guard let app = ResponsibleProcess.regularAppOwner(of: pid) else { continue }
-            let owner = app.processIdentifier
-            let name = ResponsibleProcess.displayName(pid: owner, fallback: app.localizedName ?? "pid \(owner)")
-            // Bypassed apps (Zoom, DAWs) still get a row — hiding them read
-            // as a bug (issue #177) — but they are never tapped: volume
-            // pinned at unity, no saved routing, so appNeedsEngine is always
-            // false for them.
-            if MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: app.bundleIdentifier,
-                                                      name: name) {
-                bypassed.insert(owner)
-            }
-
-            var running: UInt32 = 0
-            _ = Self.read(object, kAudioProcessPropertyIsRunningOutput, &running)
-            if running != 0 { playing.insert(owner) }
-
-            groups[owner, default: []].append(object)
-            if bundleHints[owner] == nil {
-                // The audio object knows the bundle id of its own process,
-                // which is the app itself whenever it plays its own sound.
-                // For a helper that plays on an app's behalf the owner found
-                // above is the app, and its bundle id is the one that counts.
-                bundleHints[owner] = app.bundleIdentifier
-                    ?? (pid == owner ? Self.processBundleIdentifier(of: object) : nil)
-            }
-        }
-
         var next: [MixerApp] = []
-        for (owner, objects) in groups {
-            let fallbackName = "pid \(owner)"
-            let name = ResponsibleProcess.displayName(pid: owner, fallback: fallbackName)
+        for activity in request.processActivities {
+            let owner = activity.ownerPid
+            let objects = activity.audioObjects
+            let name = activity.name
             // The pid fallback is not a name to save under: pids recycle.
-            let identity = MixerRoutingSupport.rowIdentity(bundleIdentifier: bundleHints[owner],
+            let fallbackName = "pid \(owner)"
+            let identity = MixerRoutingSupport.rowIdentity(bundleIdentifier: activity.bundleIdentifier,
                                                            ownerPid: owner,
                                                            displayName: name == fallbackName ? nil : name)
             // Hidden means no row, and with no row the engine reconciliation
@@ -972,7 +898,7 @@ final class AppVolumeMixer: ObservableObject {
             // plays untouched, never silently attenuated (issue #300).
             if MixerRoutingSupport.isHiddenFromMixer(persistenceID: identity.persistenceID,
                                                      hiddenIDs: request.hiddenRowIDs) { continue }
-            let isBypassed = bypassed.contains(owner)
+            let isBypassed = activity.bypassesProcessTap
             let route = isBypassed ? nil : storedRoute(for: identity,
                                                        saved: savedOutputs,
                                                        session: request.sessionRoutes)
@@ -980,8 +906,8 @@ final class AppVolumeMixer: ObservableObject {
                                  persistenceID: identity.persistenceID,
                                  ownerPid: owner,
                                  name: name,
-                                 audioObjects: objects.sorted(),
-                                 isPlaying: playing.contains(owner),
+                                 audioObjects: objects,
+                                 isPlaying: activity.isRunningOutput,
                                  isBypassed: isBypassed,
                                  selectedOutputDeviceUID: route,
                                  effectiveOutputDeviceUID: isBypassed ? nil : MixerRoutingSupport.effectiveDeviceUID(
@@ -1031,7 +957,6 @@ final class AppVolumeMixer: ObservableObject {
                                systemOutputVolume: systemOutputVolume,
                                systemOutputMuted: systemOutputMuted,
                                apps: next,
-                               processObjects: processObjects,
                                lowered: lowered)
     }
 
@@ -1048,16 +973,18 @@ final class AppVolumeMixer: ObservableObject {
 
             let existing = merged[index]
             let audioObjects = Array(Set(existing.audioObjects).union(app.audioObjects)).sorted()
+            let isBypassed = existing.isBypassed || app.isBypassed
             merged[index] = MixerApp(id: existing.id,
                                      persistenceID: existing.persistenceID,
                                      ownerPid: existing.ownerPid,
                                      name: existing.name,
                                      audioObjects: audioObjects,
                                      isPlaying: existing.isPlaying || app.isPlaying,
-                                     selectedOutputDeviceUID: existing.selectedOutputDeviceUID,
-                                     effectiveOutputDeviceUID: existing.effectiveOutputDeviceUID,
-                                     outputDeviceUnavailable: existing.outputDeviceUnavailable,
-                                     volume: existing.volume)
+                                     isBypassed: isBypassed,
+                                     selectedOutputDeviceUID: isBypassed ? nil : existing.selectedOutputDeviceUID,
+                                     effectiveOutputDeviceUID: isBypassed ? nil : existing.effectiveOutputDeviceUID,
+                                     outputDeviceUnavailable: isBypassed ? false : existing.outputDeviceUnavailable,
+                                     volume: isBypassed ? 1 : existing.volume)
         }
 
         return merged
@@ -1452,30 +1379,6 @@ final class AppVolumeMixer: ObservableObject {
     }
 
     // MARK: - CoreAudio plumbing
-
-    private static func audioProcessObjects() -> [AudioObjectID] {
-        var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyProcessObjectList,
-                                                 mScope: kAudioObjectPropertyScopeGlobal,
-                                                 mElement: kAudioObjectPropertyElementMain)
-        var size: UInt32 = 0
-        guard AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject),
-                                             &address, 0, nil, &size) == noErr else { return [] }
-        var objects = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
-        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject),
-                                         &address, 0, nil, &size, &objects) == noErr else { return [] }
-        return objects
-    }
-
-    /// The bundle id the audio HAL itself reports for a process object. Used
-    /// only to fill in an identity the running-application lookup could not
-    /// provide, never to override it.
-    private static func processBundleIdentifier(of object: AudioObjectID) -> String? {
-        guard #available(macOS 14.4, *) else { return nil }
-        var bundleRef: CFString = "" as CFString
-        guard read(object, kAudioProcessPropertyBundleID, &bundleRef) else { return nil }
-        let bundleID = bundleRef as String
-        return bundleID.isEmpty ? nil : bundleID
-    }
 
     private static let outputVolumeSelectors: [AudioObjectPropertySelector] = [
         kAudioHardwareServiceDeviceProperty_VirtualMainVolume,

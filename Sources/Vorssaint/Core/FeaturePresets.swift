@@ -110,6 +110,10 @@ extension AppFeature {
              .monitorCPU, .monitorGPU, .monitorMemory,
              .monitorNetwork, .monitorDisk, .monitorPower:
             return .periodic
+        case .autoPauseMusic:
+            // Core Audio pushes process activity on 14.4 and later. Only the
+            // older MediaRemote fallback retains its low-frequency poll.
+            return AudioProcessActivitySupport.isSupported ? .idle : .periodic
         case .mixer:
             return UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
                 ? .keyboard : .idle

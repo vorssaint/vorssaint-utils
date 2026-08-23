@@ -223,13 +223,22 @@ enum AppleScriptRunner {
     /// false without nagging.
     @discardableResult
     static func consentToAutomate(bundleID: String) -> Bool {
+        automationPermissionStatus(bundleID: bundleID, askUserIfNeeded: true) == noErr
+    }
+
+    /// The raw TCC result for callers that need to distinguish undetermined,
+    /// denied and a target that is not running. Like `run`, call this off the
+    /// main thread because asking can wait for the consent sheet.
+    static func automationPermissionStatus(bundleID: String,
+                                           askUserIfNeeded: Bool) -> OSStatus {
         var target = AEAddressDesc()
         let created = bundleID.withCString { ptr in
             AECreateDesc(typeApplicationBundleID, ptr, bundleID.utf8.count, &target)
         }
-        guard created == noErr else { return false }
+        guard created == noErr else { return OSStatus(created) }
         defer { AEDisposeDesc(&target) }
-        return AEDeterminePermissionToAutomateTarget(&target, typeWildCard, typeWildCard, true) == noErr
+        return AEDeterminePermissionToAutomateTarget(
+            &target, typeWildCard, typeWildCard, askUserIfNeeded)
     }
 
     /// Runs the AppleScript in this process. Returns whether it succeeded and the
