@@ -1052,11 +1052,6 @@ struct Strings {
     let highlightsSeeAll: String
     let switcherCurrentSpaceOnly: String
     let switcherCurrentSpaceOnlyCaption: String
-    let switcherMinimizedPlacementLabel: String
-    let switcherMinimizedPlacementNormal: String
-    let switcherMinimizedPlacementEnd: String
-    let switcherMinimizedPlacementHidden: String
-    let switcherShowFullscreenWindows: String
     let shelfFileMissing: String
     let previewSizeSmall: String
     let mixerSoundEffectsOutputTitle: String
@@ -1085,6 +1080,11 @@ struct Strings {
     let focusFollowsMouseName: String
     let focusFollowsMouseCaption: String
     let focusFollowsMouseDelay: String
+    let switcherMinimizedPlacementLabel: String
+    let switcherMinimizedPlacementNormal: String
+    let switcherMinimizedPlacementEnd: String
+    let switcherMinimizedPlacementHidden: String
+    let switcherShowFullscreenWindows: String
 }
 
 // MARK: - Português (Brasil)
@@ -1994,11 +1994,6 @@ extension Strings {
         highlightsSeeAll: "Ver todas as mudanças",
         switcherCurrentSpaceOnly: "Mostrar só a Mesa atual",
         switcherCurrentSpaceOnlyCaption: "Mostra no alternador apenas as janelas da Mesa em que você está. Escolher uma janela nunca leva você para outra Mesa.",
-        switcherMinimizedPlacementLabel: "Janelas minimizadas",
-        switcherMinimizedPlacementNormal: "Ordem normal",
-        switcherMinimizedPlacementEnd: "Colocar no final",
-        switcherMinimizedPlacementHidden: "Ocultar",
-        switcherShowFullscreenWindows: "Mostrar janelas em tela cheia",
         shelfFileMissing: "O arquivo não existe mais",
         previewSizeSmall: "Pequeno",
         mixerSoundEffectsOutputTitle: "Sons do sistema",
@@ -2026,7 +2021,12 @@ extension Strings {
         shelfEdgeCaption: "Ao arrastar um arquivo para perto da borda da tela, a área espia para dentro. Solte ali, ou puxe de volta e ela recua.",
         focusFollowsMouseName: "Foco ao passar o mouse",
         focusFollowsMouseCaption: "Coloca em foco e traz para frente a janela sob o ponteiro após uma breve pausa.",
-        focusFollowsMouseDelay: "Atraso ao passar o mouse"
+        focusFollowsMouseDelay: "Atraso ao passar o mouse",
+        switcherMinimizedPlacementLabel: "Janelas minimizadas",
+        switcherMinimizedPlacementNormal: "Ordem normal",
+        switcherMinimizedPlacementEnd: "Colocar no final",
+        switcherMinimizedPlacementHidden: "Ocultar",
+        switcherShowFullscreenWindows: "Mostrar janelas em tela cheia"
     )
 }
 
@@ -2937,11 +2937,6 @@ extension Strings {
         highlightsSeeAll: "See all changes",
         switcherCurrentSpaceOnly: "Show only the current desktop",
         switcherCurrentSpaceOnlyCaption: "Lists only windows from the desktop you are on. Picking a window never moves you to another desktop.",
-        switcherMinimizedPlacementLabel: "Minimized windows",
-        switcherMinimizedPlacementNormal: "Normal ordering",
-        switcherMinimizedPlacementEnd: "Place at end",
-        switcherMinimizedPlacementHidden: "Hide",
-        switcherShowFullscreenWindows: "Show fullscreen windows",
         shelfFileMissing: "The file no longer exists",
         previewSizeSmall: "Small",
         mixerSoundEffectsOutputTitle: "System sounds",
@@ -2969,6 +2964,11 @@ extension Strings {
         shelfEdgeCaption: "Drag a file toward the screen edge to peek the shelf in. Drop it there, or pull back and it retreats.",
         focusFollowsMouseName: "Focus follows mouse",
         focusFollowsMouseCaption: "Focuses and raises the window under the pointer after a short pause.",
-        focusFollowsMouseDelay: "Hover delay"
+        focusFollowsMouseDelay: "Hover delay",
+        switcherMinimizedPlacementLabel: "Minimized windows",
+        switcherMinimizedPlacementNormal: "Normal ordering",
+        switcherMinimizedPlacementEnd: "Place at end",
+        switcherMinimizedPlacementHidden: "Hide",
+        switcherShowFullscreenWindows: "Show fullscreen windows"
     )
 }

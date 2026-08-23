@@ -908,11 +908,6 @@ extension Strings {
         highlightsSeeAll: "Ver todos los cambios",
         switcherCurrentSpaceOnly: "Mostrar solo el escritorio actual",
         switcherCurrentSpaceOnlyCaption: "Muestra en el selector solo las ventanas del escritorio en el que estás. Elegir una ventana nunca te lleva a otro escritorio.",
-        switcherMinimizedPlacementLabel: "Ventanas minimizadas",
-        switcherMinimizedPlacementNormal: "Orden normal",
-        switcherMinimizedPlacementEnd: "Colocar al final",
-        switcherMinimizedPlacementHidden: "Ocultar",
-        switcherShowFullscreenWindows: "Mostrar ventanas en pantalla completa",
         shelfFileMissing: "El archivo ya no existe",
         previewSizeSmall: "Pequeño",
         mixerSoundEffectsOutputTitle: "Sonidos del sistema",
@@ -940,6 +935,11 @@ extension Strings {
         shelfEdgeCaption: "Arrastra un archivo hacia el borde de la pantalla para que el estante asome. Suéltalo ahí, o retíralo y el estante se repliega.",
         focusFollowsMouseName: "El foco sigue al ratón",
         focusFollowsMouseCaption: "Enfoca y trae al frente la ventana bajo el puntero tras una breve pausa.",
-        focusFollowsMouseDelay: "Retraso al pasar"
+        focusFollowsMouseDelay: "Retraso al pasar",
+        switcherMinimizedPlacementLabel: "Ventanas minimizadas",
+        switcherMinimizedPlacementNormal: "Orden normal",
+        switcherMinimizedPlacementEnd: "Colocar al final",
+        switcherMinimizedPlacementHidden: "Ocultar",
+        switcherShowFullscreenWindows: "Mostrar ventanas en pantalla completa" 
     )
 }

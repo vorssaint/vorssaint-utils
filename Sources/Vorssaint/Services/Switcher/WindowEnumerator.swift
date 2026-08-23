@@ -55,12 +55,17 @@ enum WindowEnumerator {
         let windowlessApps = SwitcherWindowlessApps.mode(
             storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherWindowlessApps))
         let currentSpaceOnly = UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
+        let minimizedPlacement = WindowSwitchMinimizedPlacement(
+            rawValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherMinimizedPlacement) ?? ""
+        ) ?? .normal
+        let showFullscreenWindows = UserDefaults.standard.object(forKey: DefaultsKey.switcherShowFullscreenWindows) as? Bool ?? true
         return listWindows(filterPID: nil,
                            maximumCount: maximumCount,
                            windowlessApps: windowlessApps,
                            appRules: appRules,
                            groupByApp: groupByApp,
-                           switchSettings: WindowSwitchSettings.load(),
+                           minimizedPlacement: minimizedPlacement,
+                           showFullscreenWindows: showFullscreenWindows,
                            preservingGroupedWindows: preservingGroupedWindows,
                            currentSpaceOnly: currentSpaceOnly,
                            marksHiddenSpaces: marksHiddenSpaces && !currentSpaceOnly)
@@ -82,7 +87,8 @@ enum WindowEnumerator {
                     windowlessApps: .off,
                     appRules: [:],
                     groupByApp: false,
-                    switchSettings: .init(),
+                    minimizedPlacement: .normal,
+                    showFullscreenWindows: true,
                     preservingGroupedWindows: false,
                     currentSpaceOnly: false,
                     marksHiddenSpaces: false)
@@ -93,7 +99,8 @@ enum WindowEnumerator {
                                     windowlessApps: SwitcherWindowlessApps,
                                     appRules: [String: SwitcherAppRule],
                                     groupByApp: Bool,
-                                    switchSettings: WindowSwitchSettings,
+                                    minimizedPlacement: WindowSwitchMinimizedPlacement,
+                                    showFullscreenWindows: Bool,
                                     preservingGroupedWindows: Bool,
                                     currentSpaceOnly: Bool,
                                     marksHiddenSpaces: Bool) -> [SwitcherItem] {
@@ -245,7 +252,6 @@ enum WindowEnumerator {
             guard let frame = switchableFrame(cgFrame, fallback: axWindow?.frame, isMinimized: isMinimized) else {
                 continue
             }
-            let isMaximized = !isFullscreen && frameLooksMaximized(frame)
 
             if let alpha = (info[kCGWindowAlpha as String] as? NSNumber)?.doubleValue,
                alpha == 0, !isMinimized, !isConfirmedHiddenAppWindow {
@@ -288,7 +294,6 @@ enum WindowEnumerator {
                                    isOnScreen: isOnScreen,
                                    isAppHidden: isAppHidden,
                                    isMinimized: isMinimized,
-                                   isMaximized: isMaximized,
                                    isFullscreen: isFullscreen,
                                    frame: frame))
         }
@@ -315,18 +320,25 @@ enum WindowEnumerator {
                              ownPID: pid_t(ownPid),
                              withheldPIDs: withheldPIDs,
                              appRules: appRules)
-        // collect -> filter
-        let filtered = WindowSwitchCandidatePipeline.filter(windows, settings: switchSettings)
+        let filtered = windows.filter { item in
+            if !showFullscreenWindows, item.isFullscreen { return false }
+            if minimizedPlacement == .hidden, item.isMinimized { return false }
+            return true
+        }
         let groupedBackingWindows = groupByApp && preservingGroupedWindows ? filtered : []
-        // partition -> order (before grouping so minimized state is preserved per-window)
-        let partitioned = WindowSwitchCandidatePipeline.partition(filtered, settings: switchSettings)
-        let orderedPrimary = orderByUse(partitioned.primary, frontToBack: frontToBack)
-        let orderedDeferred = orderByUse(partitioned.deferred, frontToBack: frontToBack)
-        // group by app after partitioning so hidden states do not remove an app
-        // that still has another eligible window
-        let primary = groupByApp ? groupWindowsByApp(orderedPrimary) : orderedPrimary
-        let deferred = groupByApp ? groupWindowsByApp(orderedDeferred) : orderedDeferred
-        let ordered = WindowSwitchCandidatePipeline.merge(primary: primary, deferred: deferred)
+        let ordered: [SwitcherItem]
+        if minimizedPlacement == .end {
+            let primary = filtered.filter { !$0.isMinimized }
+            let deferred = filtered.filter { $0.isMinimized }
+            let orderedPrimary = orderByUse(primary, frontToBack: frontToBack)
+            let orderedDeferred = orderByUse(deferred, frontToBack: frontToBack)
+            let groupedPrimary = groupByApp ? groupWindowsByApp(orderedPrimary) : orderedPrimary
+            let groupedDeferred = groupByApp ? groupWindowsByApp(orderedDeferred) : orderedDeferred
+            ordered = groupedPrimary + groupedDeferred
+        } else {
+            let orderedRaw = orderByUse(filtered, frontToBack: frontToBack)
+            ordered = groupByApp ? groupWindowsByApp(orderedRaw) : orderedRaw
+        }
         var result = ordered
         if ordered.count > maximumCount {
             result = Array(ordered.prefix(maximumCount))
@@ -340,8 +352,16 @@ enum WindowEnumerator {
             }
         }
         if groupByApp, preservingGroupedWindows {
+            let backingOrdered: [SwitcherItem]
+            if minimizedPlacement == .end {
+                let primary = groupedBackingWindows.filter { !$0.isMinimized }
+                let deferred = groupedBackingWindows.filter { $0.isMinimized }
+                backingOrdered = orderByUse(primary, frontToBack: frontToBack) + orderByUse(deferred, frontToBack: frontToBack)
+            } else {
+                backingOrdered = orderByUse(groupedBackingWindows, frontToBack: frontToBack)
+            }
             result = SwitcherSupport.expandGroupedWindows(
-                orderedWindows: orderByUse(groupedBackingWindows, frontToBack: frontToBack),
+                orderedWindows: backingOrdered,
                 representatives: result)
         }
         // Space lookups are comparatively expensive. Resolve badges only for
@@ -362,7 +382,6 @@ enum WindowEnumerator {
         let title: String
         let frame: CGRect?
         let isMinimized: Bool
-        let isMaximized: Bool
         let isFullscreen: Bool
     }
 
@@ -448,13 +467,12 @@ enum WindowEnumerator {
         for window in axWindows {
             if let id = AXWindowResolver.windowID(for: window) {
                 let frame = accessibilityFrame(for: window)
-                let fullscreen = isFullscreenWindow(window)
                 let snapshot = AccessibilityWindowSnapshot(title: accessibilityTitle(for: window),
                                                            frame: frame,
                                                            isMinimized: boolAttribute(window, kAXMinimizedAttribute as String),
-                                                           isMaximized: !fullscreen && frameLooksMaximized(frame),
-                                                           isFullscreen: fullscreen || frameLooksFullscreen(frame,
-                                                                                                            screenFrames: screenFrames))
+                                                           isFullscreen: isFullscreenWindow(window)
+                                                            || frameLooksFullscreen(frame,
+                                                                                    screenFrames: screenFrames))
                 byID[id] = snapshot
                 ordered.append((id, snapshot))
             }
@@ -520,7 +538,6 @@ enum WindowEnumerator {
                                        isOnScreen: false,
                                        isAppHidden: hiddenAppPIDs.contains(appPID),
                                        isMinimized: entry.snapshot.isMinimized,
-                                       isMaximized: entry.snapshot.isMaximized,
                                        isFullscreen: entry.snapshot.isFullscreen,
                                        frame: frame))
             }
@@ -574,16 +591,6 @@ enum WindowEnumerator {
         return frames.contains { screenFrame in
             abs(frame.width - screenFrame.width) <= 2
                 && abs(frame.height - screenFrame.height) <= 2
-        }
-    }
-
-    private static func frameLooksMaximized(_ frame: CGRect?) -> Bool {
-        guard let frame else { return false }
-        return NSScreen.screens.contains { screen in
-            abs(frame.origin.x - screen.visibleFrame.origin.x) <= 2
-                && abs(frame.origin.y - screen.visibleFrame.origin.y) <= 2
-                && abs(frame.width - screen.visibleFrame.width) <= 6
-                && abs(frame.height - screen.visibleFrame.height) <= 6
         }
     }
 

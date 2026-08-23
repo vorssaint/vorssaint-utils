@@ -908,11 +908,6 @@ extension Strings {
         highlightsSeeAll: "Tüm değişiklikleri gör",
         switcherCurrentSpaceOnly: "Yalnızca geçerli masaüstünü göster",
         switcherCurrentSpaceOnlyCaption: "Değiştiricide yalnızca bulunduğunuz masaüstündeki pencereler listelenir. Bir pencere seçmek sizi asla başka bir masaüstüne taşımaz.",
-        switcherMinimizedPlacementLabel: "Küçültülmüş pencereler",
-        switcherMinimizedPlacementNormal: "Normal sıralama",
-        switcherMinimizedPlacementEnd: "Sona yerleştir",
-        switcherMinimizedPlacementHidden: "Gizle",
-        switcherShowFullscreenWindows: "Tam ekran pencereleri göster",
         shelfFileMissing: "Dosya artık yok",
         previewSizeSmall: "Küçük",
         mixerSoundEffectsOutputTitle: "Sistem sesleri",
@@ -940,6 +935,11 @@ extension Strings {
         shelfEdgeCaption: "Bir dosyayı ekran kenarına doğru sürüklediğinde raf belirmeye başlar. Bıraktığın yerde kalır, ya da geri çekersen raf da geri çekilir.",
         focusFollowsMouseName: "Odak fareyi takip etsin",
         focusFollowsMouseCaption: "Kısa bir beklemeden sonra işaretçinin altındaki pencereye odaklanır ve öne getirir.",
-        focusFollowsMouseDelay: "Üzerinde bekleme gecikmesi"
+        focusFollowsMouseDelay: "Üzerinde bekleme gecikmesi",
+        switcherMinimizedPlacementLabel: "Küçültülmüş pencereler",
+        switcherMinimizedPlacementNormal: "Normal sıralama",
+        switcherMinimizedPlacementEnd: "Sona yerleştir",
+        switcherMinimizedPlacementHidden: "Gizle",
+        switcherShowFullscreenWindows: "Tam ekran pencereleri göster" 
     )
 }

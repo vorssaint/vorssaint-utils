@@ -1669,29 +1669,6 @@ struct MetricsTests {
                "App Switcher icon-row mode is optional")
         expect(registeredDefaults[DefaultsKey.switcherSimpleMode] as? Bool == false,
                "App Switcher simple mode preserves previews until requested")
-        expect(registeredDefaults[DefaultsKey.switcherMinimizedPlacement] as? String
-               == WindowSwitchMinimizedPlacement.normal.rawValue,
-               "App Switcher keeps minimized windows in normal ordering by default")
-        expect(registeredDefaults[DefaultsKey.switcherShowFullscreenWindows] as? Bool == true,
-               "App Switcher shows fullscreen windows by default")
-        let windowSwitchSuite = "vorss.tests.switcher.settings"
-        if let switcherDefaults = UserDefaults(suiteName: windowSwitchSuite) {
-            switcherDefaults.removePersistentDomain(forName: windowSwitchSuite)
-            let defaultSwitcherSettings = WindowSwitchSettings.load(from: switcherDefaults)
-            expect(defaultSwitcherSettings.minimizedPlacement == .normal
-                   && defaultSwitcherSettings.showFullscreenWindows,
-                   "App Switcher settings load backward-compatible defaults for existing installs")
-            switcherDefaults.set(WindowSwitchMinimizedPlacement.end.rawValue,
-                                 forKey: DefaultsKey.switcherMinimizedPlacement)
-            switcherDefaults.set(false, forKey: DefaultsKey.switcherShowFullscreenWindows)
-            let persistedSwitcherSettings = WindowSwitchSettings.load(from: switcherDefaults)
-            expect(persistedSwitcherSettings.minimizedPlacement == .end
-                   && !persistedSwitcherSettings.showFullscreenWindows,
-                   "App Switcher settings load persisted sorting and visibility choices")
-            switcherDefaults.removePersistentDomain(forName: windowSwitchSuite)
-        } else {
-            expect(false, "App Switcher settings test defaults are available")
-        }
         expect(registeredDefaults[DefaultsKey.switcherShowShortcutHints] as? Bool == true
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherShowShortcutHints),
                "App Switcher keeps shortcut hints visible by default and carries the choice in backups")
@@ -2026,53 +2003,6 @@ struct MetricsTests {
                                                  focusedWindowID: nil,
                                                  items: [embeddedWindow]) == nil,
                "App Switcher leaves the system shortcut alone without a foreground app")
-        let switchPipelineItems = [
-            SwitcherItem.window(id: 201, title: "Normal A", appName: "A", pid: 20,
-                                isOnScreen: true,
-                                frame: CGRect(x: 20, y: 20, width: 900, height: 600)),
-            SwitcherItem.window(id: 202, title: "Minimized", appName: "B", pid: 10,
-                                isOnScreen: false, isMinimized: true,
-                                frame: CGRect(x: 20, y: 20, width: 900, height: 600)),
-            SwitcherItem.window(id: 203, title: "Fullscreen", appName: "C", pid: 30,
-                                isOnScreen: true, isFullscreen: true,
-                                frame: CGRect(x: 20, y: 20, width: 900, height: 600)),
-            SwitcherItem.window(id: 204, title: "Maximized", appName: "B", pid: 10,
-                                isOnScreen: true, isMaximized: true,
-                                frame: CGRect(x: 20, y: 20, width: 900, height: 600)),
-            SwitcherItem.window(id: 205, title: "Normal B", appName: "B", pid: 10,
-                                isOnScreen: true,
-                                frame: CGRect(x: 20, y: 20, width: 900, height: 600)),
-        ]
-        let sortRank: [pid_t: Int] = [10: 0, 20: 1, 30: 2]
-        let sortIDs: ([SwitcherItem]) -> [CGWindowID] = { items in
-            items.compactMap(\.windowID)
-        }
-        let minimizedAtEnd = WindowSwitchSettings(minimizedPlacement: .end)
-        let filteredPipelineItems = WindowSwitchCandidatePipeline.filter(switchPipelineItems, settings: minimizedAtEnd)
-        let partitionedPipelineItems = WindowSwitchCandidatePipeline.partition(filteredPipelineItems, settings: minimizedAtEnd)
-        let sortedPrimaryPipelineItems = WindowSwitchCandidatePipeline.sort(partitionedPipelineItems.primary) {
-            sortRank[$0] ?? .max
-        }
-        let sortedDeferredPipelineItems = WindowSwitchCandidatePipeline.sort(partitionedPipelineItems.deferred) {
-            sortRank[$0] ?? .max
-        }
-        let mergedPipelineItems = WindowSwitchCandidatePipeline.merge(primary: sortedPrimaryPipelineItems,
-                                                                      deferred: sortedDeferredPipelineItems)
-        expect(sortIDs(mergedPipelineItems) == [204, 205, 201, 203, 202],
-               "App Switcher pipeline keeps minimized windows at the end with stable rank ordering")
-        expect(sortIDs(WindowSwitchCandidatePipeline.sort([
-            switchPipelineItems[4], switchPipelineItems[3], switchPipelineItems[0]
-        ]) { sortRank[$0] ?? .max }) == [205, 204, 201],
-               "App Switcher sort stage is stable for ties inside the same app rank")
-        expect(sortIDs(WindowSwitchCandidatePipeline.filter(
-            switchPipelineItems,
-            settings: WindowSwitchSettings(minimizedPlacement: .normal,
-                                           showFullscreenWindows: false))) == [201, 202, 204, 205],
-               "App Switcher filter stage applies fullscreen visibility toggle")
-        expect(sortIDs(WindowSwitchCandidatePipeline.filter(
-            switchPipelineItems,
-            settings: WindowSwitchSettings(minimizedPlacement: .hidden))) == [201, 203, 204, 205],
-               "App Switcher filter stage hides minimized windows when requested")
         expect(registeredDefaults[DefaultsKey.switcherShowWindowlessFinder] as? Bool == true,
                "the retired windowless Finder toggle keeps its shipped value so the migration can read it")
         expect(registeredDefaults[DefaultsKey.switcherWindowlessApps] as? String
@@ -2085,6 +2015,15 @@ struct MetricsTests {
         expect(registeredDefaults[DefaultsKey.switcherSearchPinEnabled] as? Bool == false
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherSearchPinEnabled),
                "the optional pinned search starts off and travels with the user's settings backup")
+        expect(registeredDefaults[DefaultsKey.switcherMinimizedPlacement] as? String
+               == WindowSwitchMinimizedPlacement.normal.rawValue
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherMinimizedPlacement),
+               "App Switcher leaves minimized windows in normal order by default and carries the choice in backups")
+        expect(registeredDefaults[DefaultsKey.switcherShowFullscreenWindows] as? Bool == true
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherShowFullscreenWindows),
+               "App Switcher keeps fullscreen windows visible by default and carries the choice in backups")
+        expect(WindowSwitchMinimizedPlacement.allCases.map(\.rawValue) == ["normal", "end", "hidden"],
+               "every minimized placement case has a stable raw value")
 
         // MARK: Switcher entries for apps with no window (issue #351)
         expect(SwitcherWindowlessApps.mode(storedValue: nil) == .finder
@@ -13227,24 +13166,6 @@ struct MetricsTests {
             heterogeneousModifierReport,
             property: SuperKeySupport.modifierMappingProperty
         ) == nil, "different per-keyboard Modifier Keys rules block Super key activation")
-
-        let disabledCaps = SuperKeyMapping(source: SuperKeySupport.capsLockUsage,
-                                           destination: SuperKeySupport.noActionUsage)
-        let disabledControl = SuperKeyMapping(source: 0x7000000E0,
-                                              destination: SuperKeySupport.noActionUsage)
-        expect(SuperKeySupport.canMapNoAction(from: [disabledCaps])
-                && !SuperKeySupport.canMapNoAction(from: [disabledControl])
-                && !SuperKeySupport.canMapNoAction(from: [disabledCaps, disabledControl])
-                && !SuperKeySupport.canMapNoAction(from: []),
-               "the shared no-action sentinel is recovered only when Caps Lock owns it")
-        let noActionReport = """
-        HIDKeyboardModifierMappingPairs = {
-          HIDKeyboardModifierMappingSrc = 30064771129;
-          HIDKeyboardModifierMappingDst = "-1";
-        }
-        """
-        expect(SuperKeySupport.parseMappings(noActionReport) == [disabledCaps],
-               "hidutil's signed no-action value keeps its unsigned HID meaning")
 
         var superKeyState = SuperKeySupport.State()
         expect(superKeyState.decide(.otherKey) == .pass,

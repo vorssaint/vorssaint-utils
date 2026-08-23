@@ -908,11 +908,6 @@ extension Strings {
         highlightsSeeAll: "Voir tous les changements",
         switcherCurrentSpaceOnly: "Afficher uniquement le bureau actuel",
         switcherCurrentSpaceOnlyCaption: "N'affiche dans le sélecteur que les fenêtres du bureau où vous êtes. Choisir une fenêtre ne vous emmène jamais sur un autre bureau.",
-        switcherMinimizedPlacementLabel: "Fenêtres réduites",
-        switcherMinimizedPlacementNormal: "Ordre normal",
-        switcherMinimizedPlacementEnd: "Placer à la fin",
-        switcherMinimizedPlacementHidden: "Masquer",
-        switcherShowFullscreenWindows: "Afficher les fenêtres plein écran",
         shelfFileMissing: "Le fichier n'existe plus",
         previewSizeSmall: "Petite",
         mixerSoundEffectsOutputTitle: "Sons du système",
@@ -940,6 +935,11 @@ extension Strings {
         shelfEdgeCaption: "Faites glisser un fichier vers le bord de l’écran pour entrevoir l’étagère. Déposez-le là, ou reculez et elle se retire.",
         focusFollowsMouseName: "Le focus suit la souris",
         focusFollowsMouseCaption: "Active et place au premier plan la fenêtre sous le pointeur après une courte pause.",
-        focusFollowsMouseDelay: "Délai de survol"
+        focusFollowsMouseDelay: "Délai de survol",
+        switcherMinimizedPlacementLabel: "Fenêtres réduites",
+        switcherMinimizedPlacementNormal: "Ordre normal",
+        switcherMinimizedPlacementEnd: "Placer à la fin",
+        switcherMinimizedPlacementHidden: "Masquer",
+        switcherShowFullscreenWindows: "Afficher les fenêtres plein écran" 
     )
 }

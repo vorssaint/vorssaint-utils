@@ -909,11 +909,6 @@ extension Strings {
         highlightsSeeAll: "모든 변경 사항 보기",
         switcherCurrentSpaceOnly: "현재 데스크탑만 표시",
         switcherCurrentSpaceOnlyCaption: "지금 있는 데스크탑의 윈도우만 전환기에 표시합니다. 윈도우를 선택해도 다른 데스크탑으로 이동하지 않습니다.",
-        switcherMinimizedPlacementLabel: "최소화된 윈도우",
-        switcherMinimizedPlacementNormal: "일반 순서",
-        switcherMinimizedPlacementEnd: "끝으로 보내기",
-        switcherMinimizedPlacementHidden: "숨기기",
-        switcherShowFullscreenWindows: "전체 화면 윈도우 표시",
         shelfFileMissing: "파일이 더 이상 존재하지 않습니다",
         previewSizeSmall: "작게",
         mixerSoundEffectsOutputTitle: "시스템 사운드",
@@ -941,6 +936,11 @@ extension Strings {
         shelfEdgeCaption: "파일을 화면 가장자리 쪽으로 드래그하면 선반이 살짝 나타납니다. 그 자리에 놓거나, 다시 뒤로 당기면 선반이 들어갑니다.",
         focusFollowsMouseName: "마우스를 따라 포커스",
         focusFollowsMouseCaption: "잠시 멈춘 뒤 포인터 아래의 윈도우에 포커스를 주고 앞으로 가져옵니다.",
-        focusFollowsMouseDelay: "호버 지연"
+        focusFollowsMouseDelay: "호버 지연",
+        switcherMinimizedPlacementLabel: "최소화된 윈도우",
+        switcherMinimizedPlacementNormal: "일반 순서",
+        switcherMinimizedPlacementEnd: "끝으로 보내기",
+        switcherMinimizedPlacementHidden: "숨기기",
+        switcherShowFullscreenWindows: "전체 화면 윈도우 표시" 
     )
 }

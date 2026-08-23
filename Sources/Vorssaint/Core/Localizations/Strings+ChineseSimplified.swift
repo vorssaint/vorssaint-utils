@@ -908,11 +908,6 @@ extension Strings {
         highlightsSeeAll: "查看全部更改",
         switcherCurrentSpaceOnly: "仅显示当前桌面",
         switcherCurrentSpaceOnlyCaption: "切换器中只显示你所在桌面的窗口。选择窗口不会把你带到其他桌面。",
-        switcherMinimizedPlacementLabel: "最小化的窗口",
-        switcherMinimizedPlacementNormal: "正常顺序",
-        switcherMinimizedPlacementEnd: "放到末尾",
-        switcherMinimizedPlacementHidden: "隐藏",
-        switcherShowFullscreenWindows: "显示全屏窗口",
         shelfFileMissing: "文件已不存在",
         previewSizeSmall: "小",
         mixerSoundEffectsOutputTitle: "系统声音",
@@ -940,6 +935,11 @@ extension Strings {
         shelfEdgeCaption: "将文件拖向屏幕边缘，暂存架就会探出一角。放在那里即可放下，往回拖则会收回去。",
         focusFollowsMouseName: "悬停聚焦",
         focusFollowsMouseCaption: "鼠标短暂停留后，聚焦并置前指针下方的窗口。",
-        focusFollowsMouseDelay: "悬停延迟"
+        focusFollowsMouseDelay: "悬停延迟",
+        switcherMinimizedPlacementLabel: "最小化的窗口",
+        switcherMinimizedPlacementNormal: "正常顺序",
+        switcherMinimizedPlacementEnd: "放到末尾",
+        switcherMinimizedPlacementHidden: "隐藏",
+        switcherShowFullscreenWindows: "显示全屏窗口" 
     )
 }

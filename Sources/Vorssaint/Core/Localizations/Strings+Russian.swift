@@ -909,11 +909,6 @@ extension Strings {
         highlightsSeeAll: "Все изменения",
         switcherCurrentSpaceOnly: "Показывать только текущий рабочий стол",
         switcherCurrentSpaceOnlyCaption: "В переключателе видны только окна рабочего стола, на котором вы находитесь. Выбор окна никогда не переносит вас на другой рабочий стол.",
-        switcherMinimizedPlacementLabel: "Свёрнутые окна",
-        switcherMinimizedPlacementNormal: "Обычный порядок",
-        switcherMinimizedPlacementEnd: "В конец списка",
-        switcherMinimizedPlacementHidden: "Скрывать",
-        switcherShowFullscreenWindows: "Показывать полноэкранные окна",
         shelfFileMissing: "Файл больше не существует",
         previewSizeSmall: "Маленький",
         mixerSoundEffectsOutputTitle: "Системные звуки",
@@ -941,6 +936,11 @@ extension Strings {
         shelfEdgeCaption: "Перетащите файл к краю экрана, чтобы полка выглянула. Отпустите его там, или потяните обратно, и полка уберётся.",
         focusFollowsMouseName: "Фокус следует за мышью",
         focusFollowsMouseCaption: "Фокусирует и поднимает окно под указателем после короткой паузы.",
-        focusFollowsMouseDelay: "Задержка наведения"
+        focusFollowsMouseDelay: "Задержка наведения",
+        switcherMinimizedPlacementLabel: "Свёрнутые окна",
+        switcherMinimizedPlacementNormal: "Обычный порядок",
+        switcherMinimizedPlacementEnd: "В конец списка",
+        switcherMinimizedPlacementHidden: "Скрывать",
+        switcherShowFullscreenWindows: "Показывать полноэкранные окна" 
     )
 }

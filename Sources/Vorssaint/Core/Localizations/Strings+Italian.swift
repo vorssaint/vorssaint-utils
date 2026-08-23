@@ -908,11 +908,6 @@ extension Strings {
         highlightsSeeAll: "Vedi tutte le modifiche",
         switcherCurrentSpaceOnly: "Mostra solo la scrivania attuale",
         switcherCurrentSpaceOnlyCaption: "Mostra nel commutatore solo le finestre della scrivania in cui ti trovi. Scegliere una finestra non ti porta mai su un'altra scrivania.",
-        switcherMinimizedPlacementLabel: "Finestre ridotte a icona",
-        switcherMinimizedPlacementNormal: "Ordine normale",
-        switcherMinimizedPlacementEnd: "Sposta alla fine",
-        switcherMinimizedPlacementHidden: "Nascondi",
-        switcherShowFullscreenWindows: "Mostra le finestre a schermo intero",
         shelfFileMissing: "Il file non esiste più",
         previewSizeSmall: "Piccola",
         mixerSoundEffectsOutputTitle: "Suoni di sistema",
@@ -940,6 +935,11 @@ extension Strings {
         shelfEdgeCaption: "Trascina un file verso il bordo dello schermo per far intravedere il ripiano. Rilascialo lì, oppure torna indietro e si ritira.",
         focusFollowsMouseName: "Il focus segue il mouse",
         focusFollowsMouseCaption: "Mette a fuoco e porta in primo piano la finestra sotto il puntatore dopo una breve pausa.",
-        focusFollowsMouseDelay: "Ritardo al passaggio"
+        focusFollowsMouseDelay: "Ritardo al passaggio",
+        switcherMinimizedPlacementLabel: "Finestre ridotte a icona",
+        switcherMinimizedPlacementNormal: "Ordine normale",
+        switcherMinimizedPlacementEnd: "Sposta alla fine",
+        switcherMinimizedPlacementHidden: "Nascondi",
+        switcherShowFullscreenWindows: "Mostra le finestre a schermo intero" 
     )
 }

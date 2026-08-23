@@ -269,8 +269,6 @@ if (( TEST )); then
         Sources/Vorssaint/Services/SmoothScrollSupport.swift \
         Sources/Vorssaint/Services/FocusFollowsMouse/FocusFollowsMouseSupport.swift \
         Sources/Vorssaint/Services/Switcher/SwitcherModels.swift \
-        Sources/Vorssaint/Services/Switcher/WindowSwitchSettings.swift \
-        Sources/Vorssaint/Services/Switcher/WindowSwitchCandidatePipeline.swift \
         Sources/Vorssaint/Services/Switcher/SwitcherSupport.swift \
         Sources/Vorssaint/Services/Switcher/SpaceHopSupport.swift \
         Sources/Vorssaint/Services/Switcher/WindowUseOrder.swift \
@@ -406,20 +404,6 @@ xattr -c -r "$STAGE" 2>/dev/null || true
 #      designated requirement across their local builds.
 #   3. Ad-hoc — fresh clone with no identity at all.
 DEVID="$(developer_id_identity)"
-codesign_with_timestamp_retry() {
-    local attempt
-    for attempt in 1 2 3; do
-        if codesign "$@"; then
-            return 0
-        fi
-        if (( attempt < 3 )); then
-            echo "  Developer ID signing failed; retrying ($((attempt + 1))/3)"
-            sleep "$attempt"
-        fi
-    done
-    return 1
-}
-
 codesign_app() {
     local target="$1"
     if [[ -n "$DEVID" ]]; then

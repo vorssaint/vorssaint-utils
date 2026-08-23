@@ -908,11 +908,6 @@ extension Strings {
         highlightsSeeAll: "Alle Änderungen ansehen",
         switcherCurrentSpaceOnly: "Nur den aktuellen Schreibtisch anzeigen",
         switcherCurrentSpaceOnlyCaption: "Zeigt im Umschalter nur Fenster des Schreibtischs, auf dem du gerade bist. Die Auswahl eines Fensters wechselt nie zu einem anderen Schreibtisch.",
-        switcherMinimizedPlacementLabel: "Minimierte Fenster",
-        switcherMinimizedPlacementNormal: "Normale Reihenfolge",
-        switcherMinimizedPlacementEnd: "Ans Ende stellen",
-        switcherMinimizedPlacementHidden: "Ausblenden",
-        switcherShowFullscreenWindows: "Vollbildfenster anzeigen",
         shelfFileMissing: "Die Datei existiert nicht mehr",
         previewSizeSmall: "Klein",
         mixerSoundEffectsOutputTitle: "Systemtöne",
@@ -940,6 +935,11 @@ extension Strings {
         shelfEdgeCaption: "Ziehe eine Datei in Richtung Bildschirmrand, damit die Ablage kurz hervorschaut. Lass sie dort los, oder zieh zurück, und die Ablage verschwindet wieder.",
         focusFollowsMouseName: "Fokus folgt Maus",
         focusFollowsMouseCaption: "Fokussiert das Fenster unter dem Zeiger und bringt es nach kurzer Pause nach vorn.",
-        focusFollowsMouseDelay: "Verzögerung"
+        focusFollowsMouseDelay: "Verzögerung",
+        switcherMinimizedPlacementLabel: "Minimierte Fenster",
+        switcherMinimizedPlacementNormal: "Normale Reihenfolge",
+        switcherMinimizedPlacementEnd: "Ans Ende stellen",
+        switcherMinimizedPlacementHidden: "Ausblenden",
+        switcherShowFullscreenWindows: "Vollbildfenster anzeigen" 
     )
 }
