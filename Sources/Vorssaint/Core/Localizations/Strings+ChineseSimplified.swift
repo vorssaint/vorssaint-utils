@@ -926,6 +926,7 @@ extension Strings {
         urlCleanerRulesCountPluralFormat: "%d 个参数",
         urlCleanerRulesAddSite: "添加网站",
         urlCleanerRulesParameterPlaceholder: "参数名称",
+        urlCleanerRulesMatchCaption: "填 = 左边的名字，比如 utm_source。命中的名字只会让那一个参数从链接里消失，其余部分原样保留。",
         urlCleanerRulesAddButton: "添加",
         urlCleanerRulesRemoveButton: "删除名称",
         urlCleanerRulesRemoveSiteButton: "关闭这个网站的全部规则",

@@ -926,6 +926,7 @@ extension Strings {
         urlCleanerRulesCountPluralFormat: "%d parametri",
         urlCleanerRulesAddSite: "Aggiungi sito",
         urlCleanerRulesParameterPlaceholder: "Nome del parametro",
+        urlCleanerRulesMatchCaption: "Scrivi il nome a sinistra dell' = , per esempio utm_source. Un nome che corrisponde toglie dal link solo quel parametro e lascia il resto com'era.",
         urlCleanerRulesAddButton: "Aggiungi",
         urlCleanerRulesRemoveButton: "Elimina nome",
         urlCleanerRulesRemoveSiteButton: "Disattiva tutte le regole di questo sito",

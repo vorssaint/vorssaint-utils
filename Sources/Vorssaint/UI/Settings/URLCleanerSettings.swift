@@ -169,16 +169,24 @@ struct URLCleanerSettings: View {
         }
     }
 
+    /// The caption belongs beside the field rather than in the section's own,
+    /// which is where someone is when they need to know what a rule matches:
+    /// a name, not a position, and one parameter at a time.
     private func addParameterRow(site: String) -> some View {
-        HStack(spacing: 8) {
-            TextField("", text: parameterDraftBinding(for: site),
-                      prompt: Text(l10n.s.urlCleanerRulesParameterPlaceholder))
-                .textFieldStyle(.roundedBorder)
-                .labelsHidden()
-                .accessibilityLabel(l10n.s.urlCleanerRulesParameterPlaceholder)
-                .onSubmit { addParameter(to: site) }
-            Button(l10n.s.urlCleanerRulesAddButton) { addParameter(to: site) }
-                .disabled(URLCleaning.parameterName(from: parameterDrafts[site] ?? "") == nil)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                TextField("", text: parameterDraftBinding(for: site),
+                          prompt: Text(l10n.s.urlCleanerRulesParameterPlaceholder))
+                    .textFieldStyle(.roundedBorder)
+                    .labelsHidden()
+                    .accessibilityLabel(l10n.s.urlCleanerRulesParameterPlaceholder)
+                    .onSubmit { addParameter(to: site) }
+                Button(l10n.s.urlCleanerRulesAddButton) { addParameter(to: site) }
+                    .disabled(URLCleaning.parameterName(from: parameterDrafts[site] ?? "") == nil)
+            }
+            Text(l10n.s.urlCleanerRulesMatchCaption)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
         }
     }
 

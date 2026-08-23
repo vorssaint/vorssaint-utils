@@ -926,6 +926,7 @@ extension Strings {
         urlCleanerRulesCountPluralFormat: "%d parametre",
         urlCleanerRulesAddSite: "Site ekle",
         urlCleanerRulesParameterPlaceholder: "Parametre adı",
+        urlCleanerRulesMatchCaption: "= işaretinin solundaki adı yazın, örneğin utm_source. Eşleşen bir ad bağlantıdan yalnızca o parametreyi çıkarır, gerisini olduğu gibi bırakır.",
         urlCleanerRulesAddButton: "Ekle",
         urlCleanerRulesRemoveButton: "Adı sil",
         urlCleanerRulesRemoveSiteButton: "Bu sitenin tüm kurallarını kapat",

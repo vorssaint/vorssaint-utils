@@ -927,6 +927,7 @@ extension Strings {
         urlCleanerRulesCountPluralFormat: "매개변수 %d개",
         urlCleanerRulesAddSite: "사이트 추가",
         urlCleanerRulesParameterPlaceholder: "매개변수 이름",
+        urlCleanerRulesMatchCaption: "= 왼쪽의 이름을 입력하세요(예: utm_source). 일치한 이름은 그 매개변수만 링크에서 빼고 나머지는 그대로 둡니다.",
         urlCleanerRulesAddButton: "추가",
         urlCleanerRulesRemoveButton: "이름 삭제",
         urlCleanerRulesRemoveSiteButton: "이 사이트의 규칙 모두 끄기",

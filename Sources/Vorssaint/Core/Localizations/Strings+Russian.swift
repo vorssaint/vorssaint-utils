@@ -927,6 +927,7 @@ extension Strings {
         urlCleanerRulesCountPluralFormat: "Параметров: %d",
         urlCleanerRulesAddSite: "Добавить сайт",
         urlCleanerRulesParameterPlaceholder: "Название параметра",
+        urlCleanerRulesMatchCaption: "Впишите название слева от = , например utm_source. Совпавшее название убирает из ссылки только этот параметр, остальное остаётся как было.",
         urlCleanerRulesAddButton: "Добавить",
         urlCleanerRulesRemoveButton: "Удалить название",
         urlCleanerRulesRemoveSiteButton: "Отключить все правила этого сайта",

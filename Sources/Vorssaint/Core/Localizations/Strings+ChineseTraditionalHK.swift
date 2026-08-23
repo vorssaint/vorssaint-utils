@@ -927,6 +927,7 @@ extension Strings {
         urlCleanerRulesCountPluralFormat: "%d 個參數",
         urlCleanerRulesAddSite: "加入網站",
         urlCleanerRulesParameterPlaceholder: "參數名稱",
+        urlCleanerRulesMatchCaption: "填 = 左邊的名字，例如 utm_source。命中的名字只會讓那一個參數從連結裡消失，其餘部分原樣保留。",
         urlCleanerRulesAddButton: "加入",
         urlCleanerRulesRemoveButton: "刪除名稱",
         urlCleanerRulesRemoveSiteButton: "關閉這個網站的全部規則",

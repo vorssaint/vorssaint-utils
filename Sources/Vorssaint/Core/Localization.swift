@@ -1070,6 +1070,7 @@ struct Strings {
     let urlCleanerRulesCountPluralFormat: String   // + count
     let urlCleanerRulesAddSite: String
     let urlCleanerRulesParameterPlaceholder: String
+    let urlCleanerRulesMatchCaption: String
     let urlCleanerRulesAddButton: String
     let urlCleanerRulesRemoveButton: String
     let urlCleanerRulesRemoveSiteButton: String
@@ -2013,6 +2014,7 @@ extension Strings {
         urlCleanerRulesCountPluralFormat: "%d parâmetros",
         urlCleanerRulesAddSite: "Adicionar site",
         urlCleanerRulesParameterPlaceholder: "Nome do parâmetro",
+        urlCleanerRulesMatchCaption: "Escreva o nome à esquerda do = , como utm_source. Um nome que corresponde tira aquele parâmetro do link e deixa o resto como está.",
         urlCleanerRulesAddButton: "Adicionar",
         urlCleanerRulesRemoveButton: "Excluir nome",
         urlCleanerRulesRemoveSiteButton: "Desativar todas as regras deste site",
@@ -2957,6 +2959,7 @@ extension Strings {
         urlCleanerRulesCountPluralFormat: "%d parameters",
         urlCleanerRulesAddSite: "Add a site",
         urlCleanerRulesParameterPlaceholder: "Parameter name",
+        urlCleanerRulesMatchCaption: "Write the name to the left of the = , like utm_source. A name that matches takes that one parameter out of the link and leaves the rest as it was.",
         urlCleanerRulesAddButton: "Add",
         urlCleanerRulesRemoveButton: "Delete name",
         urlCleanerRulesRemoveSiteButton: "Turn off every rule for this site",
