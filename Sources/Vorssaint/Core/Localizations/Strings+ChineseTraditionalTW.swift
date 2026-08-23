@@ -312,8 +312,8 @@ extension Strings {
         uninstallerCatOther: "其他",
 
         urlCleanerName: "清理 URL",
-        urlCleanerEnable: "清理複製的 URL",
-        urlCleanerEnableCaption: "移除複製連結中的追蹤參數。",
+        urlCleanerEnable: "複製時自動清理 URL",
+        urlCleanerEnableCaption: "連結一進剪貼簿就移除其中的追蹤參數。",
         urlCleanerActiveNow: "目前已啟用",
         urlCleanerManualTitle: "立即清理",
         urlCleanerInputPlaceholder: "貼上 URL",

@@ -312,8 +312,8 @@ extension Strings {
         uninstallerCatOther: "Другое",
 
         urlCleanerName: "Очистка URL",
-        urlCleanerEnable: "Очищать скопированные URL",
-        urlCleanerEnableCaption: "Удаляет параметры отслеживания из скопированных ссылок.",
+        urlCleanerEnable: "Очищать URL при копировании",
+        urlCleanerEnableCaption: "Удаляет параметры отслеживания из ссылки, как только она попадает в буфер обмена.",
         urlCleanerActiveNow: "Сейчас активно",
         urlCleanerManualTitle: "Очистить сейчас",
         urlCleanerInputPlaceholder: "Вставьте URL",
