@@ -127,7 +127,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 
 ### Everyday tools
 
-- **Command Bar.** One shortcut opens a field over whatever you are doing. A compact mode opens it as just the field, with results appearing only as you type. Drag its mark to place it anywhere on a screen, or double-click the mark to put it back. Type a few letters to run any Vorssaint action, open an app, switch to a window, insert an emoji or snippet, paste from your clipboard history at the cursor, and it reaches into the app you are using to run any command from its menus, showing that command's own shortcut. It answers sums, conversions, dates and questions about your Mac as you type, opens a web address you enter, and acts on the text you already have selected. Saved shortcuts can also run a local script and show its output as you type. Name a few folders and it finds files in them by name too, through the Mac's own search, without building its own index or looking beyond the folders you choose. Apps also answer to alternate names known by macOS, and the Mac's own Settings panes are one row away. Press ⌘K on an app to quit, restart, force quit or send it to the Uninstaller, and on any row to name it, pin it, hide it or give it a shortcut of its own; ⌘Return shows an app, a folder or a file where it lives. Bug reports and feature ideas can also be sent from here, with every technical detail shown before you choose whether to include it. It learns what you use most and forgets everything you type into the bar.
+- **Command Bar.** One shortcut opens a field over whatever you are doing. Drag its mark to place it anywhere on a screen, or double-click the mark to put it back. Type a few letters to run any Vorssaint action, open an app, switch to a window, insert an emoji or snippet, paste from your clipboard history at the cursor, and it reaches into the app you are using to run any command from its menus, showing that command's own shortcut. It answers sums, conversions, dates and questions about your Mac as you type, opens a web address you enter, and acts on the text you already have selected. Saved shortcuts can also run a local script and show its output as you type. Name a few folders and it finds files in them by name too, through the Mac's own search, without building its own index or looking beyond the folders you choose. Apps also answer to alternate names known by macOS, and the Mac's own Settings panes are one row away. Press ⌘K on an app to quit, restart, force quit or send it to the Uninstaller, and on any row to name it, pin it, hide it or give it a shortcut of its own; ⌘Return shows an app, a folder or a file where it lives. Bug reports and feature ideas can also be sent from here, with every technical detail shown before you choose whether to include it. It learns what you use most and forgets everything you type into the bar.
 - **Quick panel.** ⌃⌘V opens a small floating palette with your favorite tools one key away.
 - **Quick toggles.** One-click system actions in their own panel tab: switch light and dark mode, toggle the keyboard light, empty the Trash, eject every disk, show hidden files, hide desktop icons, lock the screen and more.
 - **Radial menu.** Hold a shortcut, or any extra mouse button, and a wheel of your favorite actions opens around the pointer: apps, files, links, key combos, media controls, quick toggles and Vorssaint tools, with submenus for more. Point and release to run one.
@@ -189,15 +189,15 @@ Permissions get the same treatment. Every one is optional, the app explains each
   <img src="docs/assets/readme/permissions.png" width="720" alt="The Permissions page showing what each permission does, which features use it, and an unused permission warning">
 </p>
 
-| Permission | Used by | Without it |
-|---|---|---|
-| Accessibility | Switcher, Dock features, window controls, mouse and keyboard features, snippets, cut and paste | Those features stay off |
-| Screen Recording | Window previews, screenshots, copy text and screen recordings | Those captures stay unavailable |
-| System Audio Recording | Per app volume and output routing | Apps stay on normal system audio |
-| Microphone | Optional voice track in screen recordings | Recordings continue without your voice |
-| Notifications | Keep awake, battery, monitor and update alerts | The app stays silent |
-| Full Disk Access, optional | Deeper cleaner and uninstaller scans | Only reachable places are scanned |
-| Administrator, once, optional | Password free closed lid toggling | A password prompt per toggle |
+| Permission                    | Used by                                                                                        | Without it                             |
+| ----------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------- |
+| Accessibility                 | Switcher, Dock features, window controls, mouse and keyboard features, snippets, cut and paste | Those features stay off                |
+| Screen Recording              | Window previews, screenshots, copy text and screen recordings                                  | Those captures stay unavailable        |
+| System Audio Recording        | Per app volume and output routing                                                              | Apps stay on normal system audio       |
+| Microphone                    | Optional voice track in screen recordings                                                      | Recordings continue without your voice |
+| Notifications                 | Keep awake, battery, monitor and update alerts                                                 | The app stays silent                   |
+| Full Disk Access, optional    | Deeper cleaner and uninstaller scans                                                           | Only reachable places are scanned      |
+| Administrator, once, optional | Password free closed lid toggling                                                              | A password prompt per toggle           |
 
 The shelf and almost every quick toggle need no permission at all. Finder cut and paste, the uninstaller, emptying the Trash and the Homebrew terminal handoff ask macOS for Automation access the first time they talk to Finder or Terminal.
 
