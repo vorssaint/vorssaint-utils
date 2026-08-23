@@ -49,9 +49,13 @@ enum SystemInfo {
     }
 
     static func memoryUsage() -> (used: UInt64, appUsed: UInt64, total: UInt64, compressed: UInt64, cached: UInt64, swapUsed: UInt64?)? {
-        guard let stats = vmStats() else { return nil }
+        guard let stats = VMStatisticsDecoder.read() else { return nil }
         let total = ProcessInfo.processInfo.physicalMemory
         let pageSize = UInt64(vm_kernel_page_size)
+        let tagStoragePages = VMStatisticsDecoder.validatedTagStoragePages(
+            stats.tagStoragePages,
+            totalBytes: total,
+            pageSize: pageSize)
         let appUsed = MetricFormat.appMemory(totalBytes: total,
                                              pageSize: pageSize,
                                              internalPages: stats.internalPages,
@@ -61,7 +65,7 @@ enum SystemInfo {
                                            pageSize: pageSize,
                                            wiredPages: stats.wiredPages,
                                            compressorPages: stats.compressorPages,
-                                           tagStoragePages: stats.tagStoragePages)
+                                           tagStoragePages: tagStoragePages)
         let compressed = MetricFormat.compressedMemory(totalBytes: total,
                                                        pageSize: pageSize,
                                                        compressorPages: stats.compressorPages)
@@ -74,64 +78,5 @@ enum SystemInfo {
             ? swap.xsu_used
             : nil
         return (used, appUsed, total, compressed, cached, swapUsed)
-    }
-
-    private struct VMStatisticsSnapshot {
-        let wiredPages: UInt64
-        let purgeablePages: UInt64
-        let compressorPages: UInt64
-        let externalPages: UInt64
-        let internalPages: UInt64
-        let tagStoragePages: UInt64
-    }
-
-    /// Byte offsets in Apple's public HOST_VM_INFO64 rev3 ABI. Requesting the
-    /// rev3 size is backward-compatible: older kernels return a shorter count,
-    /// leaving the zero-initialized tagged-storage tail unavailable.
-    private enum VMStatistics64Layout {
-        static let integerSize = MemoryLayout<integer_t>.stride
-        static let rev3ByteCount = 248
-        static let rev3Count = rev3ByteCount / integerSize
-
-        static let wired = 12
-        static let purgeable = 88
-        static let compressor = 128
-        static let external = 136
-        static let `internal` = 140
-        static let totalTagStorage = 160
-    }
-
-    private static func vmStats() -> VMStatisticsSnapshot? {
-        let layout = VMStatistics64Layout.self
-        let buffer = UnsafeMutableRawPointer.allocate(byteCount: layout.rev3ByteCount,
-                                                      alignment: MemoryLayout<UInt64>.alignment)
-        defer { buffer.deallocate() }
-        buffer.initializeMemory(as: UInt8.self, repeating: 0, count: layout.rev3ByteCount)
-        var count = mach_msg_type_number_t(layout.rev3Count)
-        // mach_host_self() returns a send right the caller owns; release it or each
-        // call leaks a mach port (this runs every couple of seconds while sampling).
-        let host = mach_host_self()
-        defer { mach_port_deallocate(mach_task_self_, host) }
-        let kr = host_statistics64(host,
-                                   HOST_VM_INFO64,
-                                   buffer.assumingMemoryBound(to: integer_t.self),
-                                   &count)
-        guard kr == KERN_SUCCESS else { return nil }
-
-        func natural(at offset: Int) -> UInt64 {
-            UInt64(buffer.load(fromByteOffset: offset, as: natural_t.self))
-        }
-        func uint64(at offset: Int) -> UInt64 {
-            buffer.load(fromByteOffset: offset, as: UInt64.self)
-        }
-        let hasRev3 = Int(count) >= layout.rev3Count
-
-        return VMStatisticsSnapshot(
-            wiredPages: natural(at: layout.wired),
-            purgeablePages: natural(at: layout.purgeable),
-            compressorPages: natural(at: layout.compressor),
-            externalPages: natural(at: layout.external),
-            internalPages: natural(at: layout.internal),
-            tagStoragePages: hasRev3 ? uint64(at: layout.totalTagStorage) : 0)
     }
 }
