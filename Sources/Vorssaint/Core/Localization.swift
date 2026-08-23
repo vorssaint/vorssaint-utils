@@ -1071,6 +1071,7 @@ struct Strings {
     let urlCleanerRulesParameterPlaceholder: String
     let urlCleanerRulesAddButton: String
     let urlCleanerRulesRemoveButton: String
+    let urlCleanerRulesRemoveSiteButton: String
     let urlCleanerRemovedFormat: String            // + comma separated names
     let switcherSearchPin: String
     let switcherSearchPinCaption: String
@@ -2004,7 +2005,7 @@ extension Strings {
         keepAwakeRightClickToggle: "Clique com o botão direito no ícone da barra de menus para alternar “Manter acordado”",
         keepAwakeRightClickToggleCaption: "Substitui o menu de contexto do clique com o botão direito.",
         urlCleanerRulesTitle: "Regras de limpeza",
-        urlCleanerRulesCaption: "Desmarque um nome para mantê-lo nos links. Os nomes que você adicionar podem ser excluídos.",
+        urlCleanerRulesCaption: "Um site anexa estes parâmetros aos próprios links de compartilhamento para rastrear de onde o link veio. Ligado, o nome é removido ao limpar um link; desligado, ele permanece. Os nomes que você adicionar podem ser excluídos.",
         urlCleanerRulesAllSites: "Todos os sites",
         urlCleanerRulesCountSingular: "1 parâmetro",
         urlCleanerRulesCountPluralFormat: "%d parâmetros",
@@ -2012,6 +2013,7 @@ extension Strings {
         urlCleanerRulesParameterPlaceholder: "Nome do parâmetro",
         urlCleanerRulesAddButton: "Adicionar",
         urlCleanerRulesRemoveButton: "Excluir nome",
+        urlCleanerRulesRemoveSiteButton: "Desativar todas as regras deste site",
         urlCleanerRemovedFormat: "Removidos %@",
         switcherSearchPin: "Fixar busca com S",
         switcherSearchPinCaption: "S inicia uma busca e fixa o alternador aberto, assim digitar não produz mais caracteres especiais quando o atalho usa ⌥, e uma busca que comece com Q ou W não fecha a janela nem encerra o app por engano.",
@@ -2946,7 +2948,7 @@ extension Strings {
         keepAwakeRightClickToggle: "Right-click the menu bar icon to toggle Keep Awake",
         keepAwakeRightClickToggleCaption: "Replaces the right-click context menu.",
         urlCleanerRulesTitle: "Cleaning rules",
-        urlCleanerRulesCaption: "Switch a name off to keep it in your links. Names you add can be deleted.",
+        urlCleanerRulesCaption: "A site attaches these parameters to its own share links to track where the link came from. Switched on, a name is removed when a link is cleaned; switched off, it stays. Names you add can be deleted.",
         urlCleanerRulesAllSites: "All sites",
         urlCleanerRulesCountSingular: "1 parameter",
         urlCleanerRulesCountPluralFormat: "%d parameters",
@@ -2954,6 +2956,7 @@ extension Strings {
         urlCleanerRulesParameterPlaceholder: "Parameter name",
         urlCleanerRulesAddButton: "Add",
         urlCleanerRulesRemoveButton: "Delete name",
+        urlCleanerRulesRemoveSiteButton: "Turn off every rule for this site",
         urlCleanerRemovedFormat: "Removed %@",
         switcherSearchPin: "Pin search with S",
         switcherSearchPinCaption: "S starts a search and pins the switcher open, so typing no longer produces special characters when your shortcut uses ⌥, and a search starting with Q or W no longer closes the window or quits the app by mistake.",

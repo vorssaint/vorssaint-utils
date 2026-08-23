@@ -63,6 +63,20 @@ struct URLCleanerSettings: View {
                             Spacer()
                             Text(countLabel(group.enabledCount))
                                 .foregroundStyle(.secondary)
+                            // Two dozen names for one site is a lot of clicking
+                            // to say "not this site". The names stay listed and
+                            // can be switched back on one at a time.
+                            Button {
+                                disableEverything(in: group)
+                            } label: {
+                                Image(systemName: "minus.circle")
+                                    .frame(width: 20, height: 20)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .disabled(group.enabledCount == 0)
+                            .help(l10n.s.urlCleanerRulesRemoveSiteButton)
+                            .accessibilityLabel(l10n.s.urlCleanerRulesRemoveSiteButton)
                         }
                     }
                 }
@@ -241,6 +255,29 @@ struct URLCleanerSettings: View {
             var added = URLCleaning.tokens(from: siteNames)
             added[site, default: []].insert(name)
             siteNames = URLCleaning.storageValue(forTokens: added)
+        }
+    }
+
+    /// Switches off every built-in name for a site and drops the ones the user
+    /// added to it, which is what "not this site" means in a model that stores
+    /// edits as a difference from the shipped tables rather than a copy.
+    private func disableEverything(in group: URLCleaning.RuleGroup) {
+        var disabled = URLCleaning.tokens(from: disabledNames)
+        for entry in group.entries where entry.isBuiltIn {
+            disabled[group.site, default: []].insert(entry.name)
+        }
+        disabledNames = URLCleaning.storageValue(forTokens: disabled)
+
+        let added = group.entries.filter { !$0.isBuiltIn }.map(\.name)
+        guard !added.isEmpty else { return }
+        if group.site == URLCleaning.allSites {
+            var names = URLCleaning.customParameters(from: globalNames)
+            for name in added { names.remove(name) }
+            globalNames = URLCleaning.storageValue(forNames: names)
+        } else {
+            var siteTokens = URLCleaning.tokens(from: siteNames)
+            for name in added { siteTokens[group.site]?.remove(name) }
+            siteNames = URLCleaning.storageValue(forTokens: siteTokens)
         }
     }
 
