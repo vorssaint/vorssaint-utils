@@ -2189,15 +2189,15 @@ struct MetricsTests {
         let dockPreviewCardSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Switcher/DockPreviewPanelView.swift",
             encoding: .utf8)) ?? ""
-        expect(dockPreviewCardSource.components(separatedBy: "Text(window.displayTitle)").count - 1 == 1,
-               "a Dock Preview card names its window once")
-        // Nothing is drawn on top of the picture any more. The close and
-        // minimize buttons sat in a 28pt capsule in its top-right corner --
-        // over a third of its height -- and the pinned badge sat beside them.
         let dockPreviewCardCode = dockPreviewCardSource
             .split(separator: "\n", omittingEmptySubsequences: false)
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
+        expect(dockPreviewCardCode.components(separatedBy: "window.displayTitle").count - 1 == 1,
+               "a Dock Preview card names its window once")
+        // Nothing is drawn on top of the picture any more. The close and
+        // minimize buttons sat in a 28pt capsule in its top-right corner --
+        // over a third of its height -- and the pinned badge sat beside them.
         expect(!dockPreviewCardCode.contains("previewControlBar"),
                "no control bar floats over a Dock Preview thumbnail")
         let titleBandBody = dockPreviewCardCode
@@ -6737,6 +6737,22 @@ struct MetricsTests {
         // to name the app instead, back at a pointer resting on that app's Dock
         // icon. A pinned panel keeps it: there it is the drag handle, and the
         // only way to unpin or close.
+        // A long name is clipped at rest and scrolled under the pointer. The
+        // measurement runs off the font rather than a layout pass, so it holds
+        // before the band has ever been drawn.
+        let bandWidth = DockPreviewSupport.cardTitleTextWidth
+        expect(bandWidth > 0 && bandWidth < DockPreviewSupport.cardThumbnailWidth,
+               "the name's room is the band less the two controls beside it")
+        expect(!DockPreviewSupport.titleOverflows("Mail", width: bandWidth),
+               "a short window name is not scrolled")
+        expect(DockPreviewSupport.titleOverflows(String(repeating: "measurement ", count: 8),
+                                                 width: bandWidth),
+               "a name longer than the band is")
+        expect(!DockPreviewSupport.titleOverflows("anything", width: 0),
+               "a band with no room to measure against scrolls nothing")
+        expect(DockPreviewSupport.titleWidth("Preferences", weight: .semibold)
+               > DockPreviewSupport.titleWidth("Preferences", weight: .regular),
+               "the selected card's heavier name is measured as the heavier name")
         expect(!DockPreviewSupport.showsPanelHeader(isPinned: false),
                "a hovered panel draws no header, whatever it is showing")
         expect(DockPreviewSupport.showsPanelHeader(isPinned: true),

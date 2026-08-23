@@ -60,6 +60,7 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
   window's state along the bottom of the picture, the name and its subtitle
   underneath — and run down the screen beside a Dock on the left or right
   instead of across it. A hovered panel drops its header; a pinned one keeps it.
+  A name too long for its band scrolls while the pointer is on that card.
   Thanks to @PathGao.
 - Fan Control now prepares stopped fans before taking manual control and keeps a
   failed attempt visible instead of silently returning to Automatic.

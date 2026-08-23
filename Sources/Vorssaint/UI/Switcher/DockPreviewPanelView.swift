@@ -349,6 +349,75 @@ private struct NativeWindowDragHandle: NSViewRepresentable {
     }
 }
 
+/// The window's name, scrolled instead of clipped while the pointer is on the
+/// card. A middle ellipsis is what a long name looks like at rest, and it eats
+/// exactly the part that tells two windows of one app apart -- but the pointer
+/// is already on the card by the time anybody is trying to read it, so that is
+/// where the name is allowed to move.
+private struct DockPreviewTitleLine: View {
+    let text: String
+    let weight: Font.Weight
+    let scrolls: Bool
+
+    private static let size: CGFloat = 13
+    private static let speed: CGFloat = 26
+    private static let gap: CGFloat = 20
+    private static let startDelay: Double = 0.45
+    private static let fade: CGFloat = 6
+
+    private var width: CGFloat { DockPreviewSupport.cardTitleTextWidth }
+
+    private var overflows: Bool {
+        DockPreviewSupport.titleOverflows(text,
+                                          width: width,
+                                          fontSize: Self.size,
+                                          weight: weight == .semibold ? .semibold : .regular)
+    }
+
+    var body: some View {
+        Group {
+            if scrolls, overflows {
+                scrollingLine
+            } else {
+                Text(text)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+        }
+        .font(.system(size: Self.size, weight: weight))
+        .frame(width: width, alignment: .leading)
+    }
+
+    /// Two copies a gap apart, slid left by the elapsed time and wrapped, so the
+    /// name reads continuously instead of snapping back at the end.
+    private var scrollingLine: some View {
+        let measured = DockPreviewSupport.titleWidth(text,
+                                                     fontSize: Self.size,
+                                                     weight: weight == .semibold ? .semibold : .regular)
+        let run = measured + Self.gap
+        return TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { context in
+            let elapsed = max(0, context.date.timeIntervalSinceReferenceDate
+                .truncatingRemainder(dividingBy: Double(run) / Double(Self.speed) + Self.startDelay)
+                - Self.startDelay)
+            HStack(spacing: Self.gap) {
+                Text(text).lineLimit(1).fixedSize()
+                Text(text).lineLimit(1).fixedSize()
+            }
+            .offset(x: -CGFloat(elapsed) * Self.speed)
+        }
+        .frame(width: width, alignment: .leading)
+        .clipped()
+        .mask(
+            LinearGradient(stops: [
+                .init(color: .clear, location: 0),
+                .init(color: .black, location: Self.fade / width),
+                .init(color: .black, location: 1 - Self.fade / width),
+                .init(color: .clear, location: 1),
+            ], startPoint: .leading, endPoint: .trailing)
+        )
+    }
+}
+
 private struct DockPreviewCard: View {
     let window: SwitcherItem
     let preview: CGImage?
@@ -503,10 +572,9 @@ private struct DockPreviewCard: View {
     private var titleBand: some View {
         HStack(alignment: .top, spacing: 4) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(window.displayTitle)
-                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                DockPreviewTitleLine(text: window.displayTitle,
+                                     weight: isSelected ? .semibold : .regular,
+                                     scrolls: isHovering)
                     .foregroundStyle(isSelected ? .primary : .secondary)
                 if let subtitle = window.displaySubtitle {
                     Text(subtitle)
