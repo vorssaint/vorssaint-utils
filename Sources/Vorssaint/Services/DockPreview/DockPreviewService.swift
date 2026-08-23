@@ -242,6 +242,7 @@ final class DockPreviewService: ObservableObject {
         endSession()
         if moved {
             WindowActivator.activate(item)
+            WindowActivator.focusPlacedWindow(item)
         }
     }
 

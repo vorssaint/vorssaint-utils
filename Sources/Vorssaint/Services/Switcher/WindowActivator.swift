@@ -260,6 +260,17 @@ enum WindowActivator {
         return placed
     }
 
+    /// Hands the keyboard to a window a drag just placed. Dropping a window
+    /// somewhere is a request to use it, and the app-level activation that
+    /// follows raises the app without saying which of its windows the user was
+    /// pointing at.
+    static func focusPlacedWindow(_ item: SwitcherItem) {
+        guard let windowID = item.windowID,
+              item.windowOwnerPID != ProcessInfo.processInfo.processIdentifier
+        else { return }
+        SpaceWindowBridge.frontWindow(windowID, ownerPID: item.windowOwnerPID)
+    }
+
     @discardableResult
     static func setWindowMinimized(_ minimized: Bool, windowID: CGWindowID, pid: pid_t) -> Bool {
         if pid == ProcessInfo.processInfo.processIdentifier {
