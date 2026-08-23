@@ -223,6 +223,8 @@ extension Strings {
         dockPreviewEnableCaption: "將指標停在 Dock 中已開啟的 App 上查看視窗，然後點按要開啟的視窗。",
         dockPreviewBackgroundOpacity: "面板背景",
         dockPreviewBackgroundOpacityCaption: "調低後可以看到更多面板後面的內容。",
+        dockPreviewOpenDelay: "開啟延遲",
+        dockPreviewOpenDelayCaption: "指標停在圖示上多久之後才打開面板。",
         dockClickMinimize: "點按 Dock 圖示最小化",
         dockClickMinimizeCaption: "點按最前面 App 的 Dock 圖示可將其視窗最小化。再點按一次即可還原。",
         dockClickCycleWindows: "點按 Dock 圖示切換視窗",
@@ -553,6 +555,9 @@ extension Strings {
 
         updatesSection: "更新",
         autoCheckToggle: "自動檢查更新",
+        includeBetaUpdatesToggle: "接收 Beta 測試版更新",
+        includeBetaUpdatesCaption: "Beta 版本包含開發中的新功能，可能存在不穩定或未完善的情況。",
+        betaBadgeLabel: "Beta",
         checkNowButton: "立即檢查",
         updateChecking: "檢查中…",
         updateUpToDate: "你已使用最新版本。",

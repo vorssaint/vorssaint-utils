@@ -123,6 +123,13 @@ jobs:
             echo ""
             echo "Signed with an Apple Developer ID and notarized by Apple, so it downloads and opens normally. Requires macOS 14 or later. Open the .dmg below and drag Vorssaint to Applications."
             echo "__VRSS_EOF__"
+            if [[ "$VERSION" =~ -(beta|rc|alpha) ]]; then
+              echo "PRERELEASE=true"
+              echo "MAKE_LATEST=false"
+            else
+              echo "PRERELEASE=false"
+              echo "MAKE_LATEST=true"
+            fi
           } >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub release
@@ -130,4 +137,5 @@ jobs:
         with:
           files: ${{ steps.release_files.outputs.FILES }}
           body: ${{ steps.notes.outputs.NOTES }}
-          make_latest: true
+          prerelease: ${{ steps.notes.outputs.PRERELEASE == 'true' }}
+          make_latest: ${{ steps.notes.outputs.MAKE_LATEST }}

@@ -222,6 +222,8 @@ extension Strings {
         dockPreviewEnableCaption: "Passa il mouse su un'app aperta nel Dock per vedere le sue finestre, poi fai clic su quella da aprire.",
         dockPreviewBackgroundOpacity: "Sfondo del pannello",
         dockPreviewBackgroundOpacityCaption: "Abbassalo per vedere di più di ciò che sta dietro al pannello.",
+        dockPreviewOpenDelay: "Ritardo di apertura",
+        dockPreviewOpenDelayCaption: "Quanto a lungo il puntatore deve restare su un'icona prima che il pannello si apra.",
         dockClickMinimize: "Riduci con un clic sul Dock",
         dockClickMinimizeCaption: "Le finestre dell'app attiva si riducono nel Dock cliccando la sua icona. Fai clic di nuovo per ripristinarle.",
         dockClickCycleWindows: "Clic sul Dock per alternare le finestre",
@@ -552,6 +554,9 @@ extension Strings {
 
         updatesSection: "Aggiornamenti",
         autoCheckToggle: "Cerca aggiornamenti automaticamente",
+        includeBetaUpdatesToggle: "Ricevi aggiornamenti beta",
+        includeBetaUpdatesCaption: "Le versioni beta includono funzionalità in fase di sviluppo e potrebbero presentare instabilità o comportamenti incompleti.",
+        betaBadgeLabel: "Beta",
         checkNowButton: "Cerca ora",
         updateChecking: "Ricerca…",
         updateUpToDate: "Hai la versione più recente.",

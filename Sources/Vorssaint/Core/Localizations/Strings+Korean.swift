@@ -223,6 +223,8 @@ extension Strings {
         dockPreviewEnableCaption: "Dock의 열린 앱 위에 포인터를 올려 윈도우를 확인한 다음 원하는 윈도우를 클릭하세요.",
         dockPreviewBackgroundOpacity: "패널 배경",
         dockPreviewBackgroundOpacityCaption: "낮추면 패널 뒤에 있는 것이 더 많이 보입니다.",
+        dockPreviewOpenDelay: "열림 지연",
+        dockPreviewOpenDelayCaption: "포인터가 아이콘 위에 머문 뒤 패널이 열리기까지의 시간입니다.",
         dockClickMinimize: "Dock 클릭으로 최소화",
         dockClickMinimizeCaption: "앞에 있는 앱의 Dock 아이콘을 클릭하면 윈도우를 최소화합니다. 다시 클릭하면 복원됩니다.",
         dockClickCycleWindows: "Dock 클릭으로 윈도우 전환",
@@ -553,6 +555,9 @@ extension Strings {
 
         updatesSection: "업데이트",
         autoCheckToggle: "업데이트 자동 확인",
+        includeBetaUpdatesToggle: "베타 업데이트 받기",
+        includeBetaUpdatesCaption: "베타 버전에는 개발 중인 기능이 포함되어 있으며 불안정하거나 오류가 발생할 수 있습니다.",
+        betaBadgeLabel: "베타",
         checkNowButton: "지금 확인",
         updateChecking: "확인하는 중…",
         updateUpToDate: "최신 버전을 사용하고 있습니다.",

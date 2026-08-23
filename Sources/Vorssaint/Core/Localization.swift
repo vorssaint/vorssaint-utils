@@ -338,6 +338,8 @@ struct Strings {
     let dockPreviewEnableCaption: String
     let dockPreviewBackgroundOpacity: String
     let dockPreviewBackgroundOpacityCaption: String
+    let dockPreviewOpenDelay: String
+    let dockPreviewOpenDelayCaption: String
     let dockClickMinimize: String
     let dockClickMinimizeCaption: String
     let dockClickCycleWindows: String
@@ -678,6 +680,9 @@ struct Strings {
     // MARK: Settings — updates
     let updatesSection: String
     let autoCheckToggle: String
+    let includeBetaUpdatesToggle: String
+    let includeBetaUpdatesCaption: String
+    let betaBadgeLabel: String
     let checkNowButton: String
     let updateChecking: String
     let updateUpToDate: String
@@ -1298,6 +1303,8 @@ extension Strings {
         dockPreviewEnableCaption: "Passe o mouse em um app aberto no Dock para ver suas janelas e clique na que quiser abrir.",
         dockPreviewBackgroundOpacity: "Fundo do painel",
         dockPreviewBackgroundOpacityCaption: "Diminua para ver mais do que está atrás do painel.",
+        dockPreviewOpenDelay: "Atraso de abertura",
+        dockPreviewOpenDelayCaption: "Quanto tempo o ponteiro precisa ficar sobre um ícone antes de o painel abrir.",
         dockClickMinimize: "Clicar no Dock minimiza",
         dockClickMinimizeCaption: "As janelas do app ativo são minimizadas ao clicar no ícone dele no Dock. Clique de novo para trazê-las de volta.",
         dockClickCycleWindows: "Clicar no Dock alterna janelas",
@@ -1628,6 +1635,9 @@ extension Strings {
 
         updatesSection: "Atualizações",
         autoCheckToggle: "Procurar atualizações automaticamente",
+        includeBetaUpdatesToggle: "Receber atualizações beta",
+        includeBetaUpdatesCaption: "Versões beta incluem novidades em desenvolvimento e podem apresentar instabilidades ou comportamentos incompletos.",
+        betaBadgeLabel: "Beta",
         checkNowButton: "Procurar agora",
         updateChecking: "Procurando…",
         updateUpToDate: "Você está na versão mais recente.",
@@ -2231,6 +2241,8 @@ extension Strings {
         dockPreviewEnableCaption: "Hover over an open app in the Dock to see its windows, then click the one you want.",
         dockPreviewBackgroundOpacity: "Panel background",
         dockPreviewBackgroundOpacityCaption: "Turn it down to see more of what sits behind the panel.",
+        dockPreviewOpenDelay: "Open delay",
+        dockPreviewOpenDelayCaption: "How long the pointer has to rest on an icon before its panel opens.",
         dockClickMinimize: "Click the Dock icon to minimize",
         dockClickMinimizeCaption: "The active app's windows minimize when you click its Dock icon. Click again to bring them back.",
         dockClickCycleWindows: "Click the Dock icon to cycle windows",
@@ -2561,6 +2573,9 @@ extension Strings {
 
         updatesSection: "Updates",
         autoCheckToggle: "Check for updates automatically",
+        includeBetaUpdatesToggle: "Receive beta updates",
+        includeBetaUpdatesCaption: "Beta versions include features in development and may contain bugs or incomplete behavior.",
+        betaBadgeLabel: "Beta",
         checkNowButton: "Check now",
         updateChecking: "Checking…",
         updateUpToDate: "You're on the latest version.",
