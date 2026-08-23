@@ -154,6 +154,8 @@ struct CommandBarFeatureStrings {
     let filesIgnoreCaption: String
     let filesIgnorePlaceholder: String
     let filesIgnoreAdd: String
+    let compactModeToggle: String
+    let compactModeCaption: String
 }
 
 extension FeatureStrings {
@@ -324,7 +326,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "Add a folder",
         filesIgnoreCaption: "Names never worth showing: a whole folder or file name, or an extension written as *.log.",
         filesIgnorePlaceholder: "A folder or file name",
-        filesIgnoreAdd: "Add")
+        filesIgnoreAdd: "Add",
+        compactModeToggle: "Compact mode",
+        compactModeCaption: "The bar opens as a field and nothing else. Results appear as you type.")
 
     static let ptBR = CommandBarFeatureStrings(
         pageTitle: "Barra de comando",
@@ -473,7 +477,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "Adicionar pasta",
         filesIgnoreCaption: "Nomes que nunca vale a pena mostrar: uma pasta ou um arquivo inteiro, ou uma extensão escrita como *.log.",
         filesIgnorePlaceholder: "Nome de pasta ou arquivo",
-        filesIgnoreAdd: "Adicionar")
+        filesIgnoreAdd: "Adicionar",
+        compactModeToggle: "Modo compacto",
+        compactModeCaption: "A barra abre só como um campo. Os resultados aparecem conforme você digita.")
 
     static let tr = CommandBarFeatureStrings(
         pageTitle: "Komut çubuğu",
@@ -622,7 +628,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "Klasör ekle",
         filesIgnoreCaption: "Asla gösterilmeye değmeyen adlar: tam bir klasör veya dosya adı ya da *.log gibi yazılmış bir uzantı.",
         filesIgnorePlaceholder: "Klasör veya dosya adı",
-        filesIgnoreAdd: "Ekle")
+        filesIgnoreAdd: "Ekle",
+        compactModeToggle: "Kompakt mod",
+        compactModeCaption: "Çubuk yalnızca bir alan olarak açılır. Sonuçlar siz yazdıkça görünür.")
 
     static let ru = CommandBarFeatureStrings(
         pageTitle: "Командная панель",
@@ -771,7 +779,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "Добавить папку",
         filesIgnoreCaption: "Имена, которые никогда не стоит показывать: целая папка или имя файла либо расширение вида *.log.",
         filesIgnorePlaceholder: "Имя папки или файла",
-        filesIgnoreAdd: "Добавить")
+        filesIgnoreAdd: "Добавить",
+        compactModeToggle: "Компактный режим",
+        compactModeCaption: "Строка открывается просто полем. Результаты появляются по мере ввода.")
 
     static let es = CommandBarFeatureStrings(
         pageTitle: "Barra de comandos",
@@ -920,7 +930,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "Añadir una carpeta",
         filesIgnoreCaption: "Nombres que nunca merece la pena mostrar: una carpeta o un archivo entero, o una extensión escrita como *.log.",
         filesIgnorePlaceholder: "Nombre de carpeta o archivo",
-        filesIgnoreAdd: "Añadir")
+        filesIgnoreAdd: "Añadir",
+        compactModeToggle: "Modo compacto",
+        compactModeCaption: "La barra se abre solo como un campo. Los resultados aparecen mientras escribes.")
 
     static let de = CommandBarFeatureStrings(
         pageTitle: "Befehlsleiste",
@@ -1069,7 +1081,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "Ordner hinzufügen",
         filesIgnoreCaption: "Namen, die nie gezeigt werden sollen: ein ganzer Ordner- oder Dateiname oder eine Endung wie *.log.",
         filesIgnorePlaceholder: "Ordner- oder Dateiname",
-        filesIgnoreAdd: "Hinzufügen")
+        filesIgnoreAdd: "Hinzufügen",
+        compactModeToggle: "Kompaktmodus",
+        compactModeCaption: "Die Leiste öffnet sich nur als Feld. Die Ergebnisse erscheinen beim Tippen.")
 
     static let fr = CommandBarFeatureStrings(
         pageTitle: "Barre de commande",
@@ -1218,7 +1232,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "Ajouter un dossier",
         filesIgnoreCaption: "Noms à ne jamais montrer : un dossier ou un fichier entier, ou une extension écrite ainsi : *.log.",
         filesIgnorePlaceholder: "Nom de dossier ou de fichier",
-        filesIgnoreAdd: "Ajouter")
+        filesIgnoreAdd: "Ajouter",
+        compactModeToggle: "Mode compact",
+        compactModeCaption: "La barre s'ouvre comme un simple champ. Les résultats apparaissent à mesure que vous tapez.")
 
     static let it = CommandBarFeatureStrings(
         pageTitle: "Barra dei comandi",
@@ -1367,7 +1383,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "Aggiungi una cartella",
         filesIgnoreCaption: "Nomi che non vale mai la pena mostrare: una cartella o un file intero, o un'estensione scritta come *.log.",
         filesIgnorePlaceholder: "Nome di cartella o file",
-        filesIgnoreAdd: "Aggiungi")
+        filesIgnoreAdd: "Aggiungi",
+        compactModeToggle: "Modalità compatta",
+        compactModeCaption: "La barra si apre solo come campo. I risultati appaiono mentre scrivi.")
 
     static let ja = CommandBarFeatureStrings(
         pageTitle: "コマンドバー",
@@ -1516,7 +1534,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "フォルダを追加",
         filesIgnoreCaption: "決して表示しない名前。フォルダやファイルの名前そのもの、または *.log のような拡張子。",
         filesIgnorePlaceholder: "フォルダまたはファイルの名前",
-        filesIgnoreAdd: "追加")
+        filesIgnoreAdd: "追加",
+        compactModeToggle: "コンパクトモード",
+        compactModeCaption: "バーは入力欄だけで開きます。入力すると結果が現れます。")
 
     static let ko = CommandBarFeatureStrings(
         pageTitle: "명령 막대",
@@ -1665,7 +1685,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "폴더 추가",
         filesIgnoreCaption: "절대 보이지 않을 이름. 폴더나 파일 이름 전체, 또는 *.log처럼 쓴 확장자.",
         filesIgnorePlaceholder: "폴더 또는 파일 이름",
-        filesIgnoreAdd: "추가")
+        filesIgnoreAdd: "추가",
+        compactModeToggle: "컴팩트 모드",
+        compactModeCaption: "막대가 입력란만으로 열립니다. 입력하면 결과가 나타납니다.")
 
     static let zhHans = CommandBarFeatureStrings(
         pageTitle: "命令栏",
@@ -1814,7 +1836,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "添加文件夹",
         filesIgnoreCaption: "永远不显示的名称：完整的文件夹或文件名，或写成 *.log 的扩展名。",
         filesIgnorePlaceholder: "文件夹或文件名",
-        filesIgnoreAdd: "添加")
+        filesIgnoreAdd: "添加",
+        compactModeToggle: "紧凑模式",
+        compactModeCaption: "命令栏只以一个输入框打开，输入时才显示结果。")
 
     static let zhTW = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -1963,7 +1987,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "加入檔案夾",
         filesIgnoreCaption: "永遠不顯示的名稱：完整的檔案夾或檔案名稱，或寫成 *.log 的副檔名。",
         filesIgnorePlaceholder: "檔案夾或檔案名稱",
-        filesIgnoreAdd: "加入")
+        filesIgnoreAdd: "加入",
+        compactModeToggle: "精簡模式",
+        compactModeCaption: "命令列只以一個輸入框開啟，輸入時才顯示結果。")
 
     static let zhHK = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -2112,5 +2138,7 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "加入檔案夾",
         filesIgnoreCaption: "永遠不顯示的名稱：完整的檔案夾或檔案名稱，或寫成 *.log 的副檔名。",
         filesIgnorePlaceholder: "檔案夾或檔案名稱",
-        filesIgnoreAdd: "加入")
+        filesIgnoreAdd: "加入",
+        compactModeToggle: "精簡模式",
+        compactModeCaption: "命令列只以一個輸入框開啟，輸入時才顯示結果。")
 }
