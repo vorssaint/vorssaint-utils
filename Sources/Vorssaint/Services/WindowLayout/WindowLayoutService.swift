@@ -232,36 +232,6 @@ final class WindowLayoutService: ObservableObject {
     /// goes through the same settling and recovery path as every Window Layout
     /// placement instead of maintaining a second AX mutation algorithm.
     @discardableResult
-    func place(windowID: CGWindowID,
-               pid: pid_t,
-               at snapTarget: WindowEdgeSnapTarget) -> Bool {
-        guard AXIsProcessTrusted(),
-              let app = NSRunningApplication(processIdentifier: pid),
-              !app.isTerminated,
-              let onScreenWindowIDs = onScreenWindowIDs()
-        else { return false }
-
-        let axApp = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(axApp, 0.35)
-        guard let windows = windowsAttribute(axApp),
-              let window = windows.first(where: {
-            AXWindowResolver.windowID(for: $0) == windowID
-        }),
-              let target = target(from: window,
-                                  app: app,
-                                  onScreenWindowIDs: onScreenWindowIDs,
-                                  capability: .frame)
-        else { return false }
-
-        pruneWindowState(keeping: target.key)
-        let result = applyPlacement(snapTarget.action,
-                                    to: target,
-                                    visibleFrame: snapTarget.visibleFrame,
-                                    cyclesRepeatedAction: false)
-        if case .success = result { return true }
-        return false
-    }
-
     private func finish(_ result: WindowLayoutResult) -> WindowLayoutResult {
         resultGeneration += 1
         lastResult = result

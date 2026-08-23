@@ -22,7 +22,6 @@ final class DockPreviewService: ObservableObject {
     @Published private(set) var currentAppName: String?
     @Published private(set) var isPinned = false
     private var isDraggingWindow = false
-    private var snapTarget: WindowEdgeSnapTarget?
 
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -202,14 +201,11 @@ final class DockPreviewService: ObservableObject {
         guard isVisible,
               windows.contains(item),
               DockPreviewSupport.canDragToPlace(hasWindowID: item.windowID != nil,
-                                                isOnScreen: item.isOnScreen,
-                                                isMinimized: item.isMinimized,
                                                 isFullscreen: item.isFullscreen),
               let image = item.previewWindowID.flatMap({ previews[$0] })
         else { return }
 
         isDraggingWindow = true
-        snapTarget = nil
         cancelPendingHide()
         cancelPendingHover()
         DockPreviewDragGhost.shared.begin(image: image, at: NSEvent.mouseLocation)
@@ -217,63 +213,32 @@ final class DockPreviewService: ObservableObject {
 
     func updateWindowDrag() {
         guard isDraggingWindow else { return }
-        let pointer = NSEvent.mouseLocation
-        snapTarget = edgeSnapTarget(at: pointer)
-        if let snapTarget {
-            DockPreviewDragGhost.shared.snap(to: snapTarget.frame)
-        } else {
-            DockPreviewDragGhost.shared.move(to: pointer)
-        }
-    }
-
-    /// Reuses the edge model that dragging a window's own title bar already
-    /// uses, so both gestures snap to the same regions. Skipped while macOS is
-    /// doing its own edge tiling — two things claiming the same edge is worse
-    /// than one, and the user has already picked which one they want.
-    private func edgeSnapTarget(at pointer: CGPoint) -> WindowEdgeSnapTarget? {
-        guard !WindowEdgeSnapSupport.isSystemTilingEnabled else { return nil }
-        let screens = NSScreen.screens.map {
-            WindowEdgeSnapScreen(frame: $0.frame, visibleFrame: $0.visibleFrame)
-        }
-        return WindowEdgeSnapSupport.target(at: pointer, screens: screens)
+        DockPreviewDragGhost.shared.move(to: NSEvent.mouseLocation)
     }
 
     /// Drops the window where the stand-in was: its top-left corner goes to the
-    /// pointer, then the window comes forward. The session ends either way, so
-    /// a drop that could not move the window still gets the user out of the
-    /// panel instead of leaving it hanging over the desktop.
+    /// pointer and the window keeps the size the user gave it, restored and
+    /// carried to this desktop if it was somewhere else. The session ends
+    /// either way, so a drop that could not move the window still gets the user
+    /// out of the panel instead of leaving it hanging over the desktop.
     func endWindowDrag(_ item: SwitcherItem) {
         guard isDraggingWindow else { return }
         isDraggingWindow = false
         DockPreviewDragGhost.shared.end()
 
-        guard let windowID = item.windowID else {
+        guard item.windowID != nil else {
             endSession()
             return
         }
         let pointer = NSEvent.mouseLocation
-        let selectedSnapTarget = snapTarget
-        snapTarget = nil
-
-        // A snapped drop owns position and size; a free drop only moves the
-        // window, leaving whatever size the user already chose for it.
-        let moved: Bool
-        if let selectedSnapTarget {
-            moved = WindowLayoutService.shared.place(windowID: windowID,
-                                                     pid: item.windowOwnerPID,
-                                                     at: selectedSnapTarget)
-        } else {
-            let visibleFrame = (NSScreen.screens.first { $0.frame.contains(pointer) }
-                ?? NSScreen.withMouse)?.visibleFrame ?? .zero
-            let origin = axPoint(fromAppKit: DockPreviewSupport.dragOrigin(
-                pointer: pointer,
-                windowSize: item.frame.size,
-                visibleFrame: visibleFrame
-            ))
-            moved = WindowActivator.setWindowOrigin(origin,
-                                                     windowID: windowID,
-                                                     pid: item.windowOwnerPID)
-        }
+        let visibleFrame = (NSScreen.screens.first { $0.frame.contains(pointer) }
+            ?? NSScreen.withMouse)?.visibleFrame ?? .zero
+        let origin = axPoint(fromAppKit: DockPreviewSupport.dragOrigin(
+            pointer: pointer,
+            windowSize: item.frame.size,
+            visibleFrame: visibleFrame
+        ))
+        let moved = WindowActivator.place(item, origin: origin, pointer: pointer)
         endSession()
         if moved {
             WindowActivator.activate(item)
@@ -669,7 +634,6 @@ final class DockPreviewService: ObservableObject {
     /// Fully ends the session and tears down the panel.
     private func endSession() {
         isDraggingWindow = false
-        snapTarget = nil
         DockPreviewDragGhost.shared.end()
         cancelPendingHover()
         cancelPendingHide()

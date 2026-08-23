@@ -217,6 +217,49 @@ enum WindowActivator {
         return AXUIElementSetAttributeValue(axWindow, kAXPositionAttribute as CFString, value) == .success
     }
 
+    private static func windowOrigin(windowID: CGWindowID, pid: pid_t) -> CGPoint? {
+        let axApp = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(axApp, 0.35)
+        guard let axWindow = axElement(windowID: windowID, in: axApp) else { return nil }
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(axWindow, kAXPositionAttribute as CFString, &value) == .success,
+              let raw = value, CFGetTypeID(raw) == AXValueGetTypeID()
+        else { return nil }
+        var point = CGPoint.zero
+        guard AXValueGetValue(raw as! AXValue, .cgPoint, &point) else { return nil }
+        return point
+    }
+
+    /// Puts a window where a drag dropped it, whatever state it was in. The
+    /// order matters: the position is written before the window is restored, so
+    /// the restore animation ends at the drop point instead of flying to the
+    /// window's old place and jumping from there. Not every app accepts a
+    /// position while it is minimized, so a restored window has its position
+    /// read back and written again when the first write did not take.
+    @discardableResult
+    static func place(_ item: SwitcherItem, origin: CGPoint, pointer: CGPoint) -> Bool {
+        guard Permissions.shared.accessibility,
+              let windowID = item.windowID,
+              item.windowOwnerPID != ProcessInfo.processInfo.processIdentifier
+        else { return false }
+        let pid = item.windowOwnerPID
+
+        if item.isAppHidden {
+            NSRunningApplication(processIdentifier: item.pid)?.unhide()
+        }
+        var placed = setWindowOrigin(origin, windowID: windowID, pid: pid)
+        SpaceWindowBridge.moveToVisibleSpace(windowID, near: pointer)
+
+        guard item.isMinimized else { return placed }
+        guard setWindowMinimized(false, windowID: windowID, pid: pid) else { return placed }
+        if let landed = windowOrigin(windowID: windowID, pid: pid),
+           SwitcherSupport.originsMatch(landed, origin) {
+            return true
+        }
+        placed = setWindowOrigin(origin, windowID: windowID, pid: pid) || placed
+        return placed
+    }
+
     @discardableResult
     static func setWindowMinimized(_ minimized: Bool, windowID: CGWindowID, pid: pid_t) -> Bool {
         if pid == ProcessInfo.processInfo.processIdentifier {

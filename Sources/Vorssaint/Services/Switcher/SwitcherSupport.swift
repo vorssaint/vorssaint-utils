@@ -255,6 +255,14 @@ struct SwitcherShortcutHints: Equatable {
 }
 
 enum SwitcherSupport {
+    /// Whether a window landed where a drop asked it to. Apps round or clamp a
+    /// position they are given -- a minimum size, their own grid -- so an exact
+    /// comparison would call every one of those a failure and write again for
+    /// nothing.
+    static func originsMatch(_ landed: CGPoint, _ asked: CGPoint, tolerance: CGFloat = 2) -> Bool {
+        abs(landed.x - asked.x) <= tolerance && abs(landed.y - asked.y) <= tolerance
+    }
+
     /// Grid resolution used to classify window captures.
     static let captureAlphaGridSize = 8
 
