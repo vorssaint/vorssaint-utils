@@ -59,23 +59,29 @@ struct ScrollingTitle: View {
             let start = began ?? context.date
             let phase = context.date.timeIntervalSince(start).truncatingRemainder(dividingBy: cycle)
             let travelled = max(0, phase - Self.startDelay)
+            let moved = CGFloat(travelled) * Self.speed
+            // The leading fade arrives with the movement. Drawn from the first
+            // frame it ate the first characters while the line was still parked
+            // at the edge, which read as the selection outline covering them.
+            let lead = min(1, moved / Self.fade) * Self.fade / width
             HStack(spacing: Self.gap) {
                 Text(text).lineLimit(1).fixedSize()
                 Text(text).lineLimit(1).fixedSize()
             }
-            .offset(x: -CGFloat(travelled) * Self.speed)
+            .offset(x: -moved)
+            .frame(width: width, alignment: .leading)
+            .mask(
+                LinearGradient(stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: .black, location: lead),
+                    .init(color: .black, location: 1 - Self.fade / width),
+                    .init(color: .clear, location: 1),
+                ], startPoint: .leading, endPoint: .trailing)
+            )
         }
-        .onAppear { began = Date() }
-        .onChange(of: text) { _, _ in began = Date() }
         .frame(width: width, alignment: .leading)
         .clipped()
-        .mask(
-            LinearGradient(stops: [
-                .init(color: .clear, location: 0),
-                .init(color: .black, location: Self.fade / width),
-                .init(color: .black, location: 1 - Self.fade / width),
-                .init(color: .clear, location: 1),
-            ], startPoint: .leading, endPoint: .trailing)
-        )
+        .onAppear { began = Date() }
+        .onChange(of: text) { _, _ in began = Date() }
     }
 }

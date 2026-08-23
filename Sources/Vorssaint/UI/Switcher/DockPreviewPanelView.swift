@@ -409,29 +409,28 @@ private struct DockPreviewCard: View {
                 // left, the window's state on the right, sharing a baseline --
                 // the App Switcher's card, which shows the same two things
                 // about the same kind of thing.
-                if showsAppBadge || hasStatusBadges {
-                    VStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    HStack(alignment: .bottom, spacing: 8) {
+                        if let icon = window.appIcon {
+                            Image(nsImage: icon)
+                                .resizable()
+                                .frame(width: DockPreviewSupport.cardAppBadgeSize,
+                                       height: DockPreviewSupport.cardAppBadgeSize)
+                                .shadow(radius: 3)
+                                .padding(.leading, -DockPreviewSupport.cardAppBadgeArtworkInset)
+                                .padding(.bottom, -DockPreviewSupport.cardAppBadgeArtworkInset)
+                                .opacity(showsAppBadge ? 1 : 0)
+                                .accessibilityHidden(true)
+                        }
                         Spacer(minLength: 0)
-                        HStack(alignment: .bottom, spacing: 8) {
-                            if showsAppBadge, let icon = window.appIcon {
-                                Image(nsImage: icon)
-                                    .resizable()
-                                    .frame(width: DockPreviewSupport.cardAppBadgeSize,
-                                           height: DockPreviewSupport.cardAppBadgeSize)
-                                    .shadow(radius: 3)
-                                    .padding(.leading, -DockPreviewSupport.cardAppBadgeArtworkInset)
-                                    .padding(.bottom, -DockPreviewSupport.cardAppBadgeArtworkInset)
-                                    .accessibilityHidden(true)
-                            }
-                            Spacer(minLength: 0)
-                            if hasStatusBadges {
-                                HStack(spacing: 5) {
-                                    statusBadges
-                                }
+                        if hasStatusBadges {
+                            HStack(spacing: 5) {
+                                statusBadges
                             }
                         }
-                        .padding(7)
                     }
+                    .padding(7)
                 }
 
             }
@@ -442,13 +441,18 @@ private struct DockPreviewCard: View {
         }
         .padding(DockPreviewSupport.cardPadding)
         .frame(width: DockPreviewSupport.cardWidth, height: DockPreviewSupport.cardHeight)
+        // The selection animates on the two layers that draw it. Animating
+        // the card instead put every child in the transaction, so arriving on a
+        // card re-composited the shadowed app badge and it blinked once.
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(isSelected ? Color.white.opacity(0.14) : Color.clear)
+                .animation(.spring(response: 0.2, dampingFraction: 0.82), value: isSelected)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
+                .animation(.spring(response: 0.2, dampingFraction: 0.82), value: isSelected)
         )
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .contextMenu {
@@ -459,8 +463,6 @@ private struct DockPreviewCard: View {
             onCommit()
         }
         .onHover { isHovering = $0 }
-        .animation(.spring(response: 0.2, dampingFraction: 0.82), value: isSelected)
-        .animation(.easeOut(duration: 0.12), value: showsPreviewControls)
         .accessibilityLabel(window.spokenLabel(noOpenWindow: l10n.s.switcherNoOpenWindow,
                                                hiddenApp: l10n.s.panelHiddenItem,
                                                otherDesktop: l10n.s.switcherOtherDesktop))
