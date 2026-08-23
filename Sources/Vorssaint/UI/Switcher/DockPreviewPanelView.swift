@@ -572,16 +572,21 @@ private struct DockPreviewCard: View {
     private var titleBand: some View {
         HStack(alignment: .top, spacing: 4) {
             VStack(alignment: .leading, spacing: 2) {
+                // Full strength whether or not the card is selected. The App
+                // Switcher dims an unselected name because a grid of them is
+                // read at a glance and the selection has to carry; a Dock
+                // preview holds the windows of one app, where the name is the
+                // only thing telling them apart.
                 DockPreviewTitleLine(text: window.displayTitle,
                                      weight: isSelected ? .semibold : .regular,
                                      scrolls: isHovering)
-                    .foregroundStyle(isSelected ? .primary : .secondary)
+                    .foregroundStyle(.primary)
                 if let subtitle = window.displaySubtitle {
                     Text(subtitle)
                         .font(.system(size: 10.5, weight: .medium))
                         .lineLimit(1)
                         .truncationMode(.middle)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
