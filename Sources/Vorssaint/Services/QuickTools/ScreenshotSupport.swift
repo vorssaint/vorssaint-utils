@@ -1417,7 +1417,7 @@ enum ScreenshotSupport {
     /// A stable square of source pixels for the crop loupe. Near an image
     /// edge the sample slides inward instead of shrinking, and the loupe's
     /// reticle still marks the exact adjusted pixel.
-    static let captureLoupeBaseSampleSide: CGFloat = 12
+    static let captureLoupeBaseSampleSide: CGFloat = 13
     static let captureLoupeMinZoom: CGFloat = 0.5
     static let captureLoupeMaxZoom: CGFloat = 4
 
@@ -1434,13 +1434,25 @@ enum ScreenshotSupport {
         return captureLoupeBaseSampleSide / clamped
     }
 
+    /// The square of source pixels a loupe magnifies, centred on the pixel the
+    /// color is read from. The side is forced odd because an even one has no
+    /// middle cell: the sampled pixel then sat half a cell right of and below
+    /// the frame's centre, and so did the ring drawn around it. Centring on the
+    /// floored coordinate rather than the pointer keeps the pointer's
+    /// sub-pixel position out of the result.
     static func cropLoupeSampleRect(around point: CGPoint,
                                     imageSize: CGSize,
-                                    sideLength: CGFloat = 14) -> CGRect {
-        let width = min(max(1, floor(sideLength)), max(1, floor(imageSize.width)))
-        let height = min(max(1, floor(sideLength)), max(1, floor(imageSize.height)))
-        let x = min(max(floor(point.x - width / 2), 0), max(0, floor(imageSize.width) - width))
-        let y = min(max(floor(point.y - height / 2), 0), max(0, floor(imageSize.height) - height))
+                                    sideLength: CGFloat = 13) -> CGRect {
+        let imageWidth = max(1, floor(imageSize.width))
+        let imageHeight = max(1, floor(imageSize.height))
+        var side = max(1, floor(sideLength))
+        if side.truncatingRemainder(dividingBy: 2) == 0 {
+            side = max(1, side - 1)
+        }
+        let width = min(side, imageWidth)
+        let height = min(side, imageHeight)
+        let x = min(max(floor(point.x) - floor(width / 2), 0), imageWidth - width)
+        let y = min(max(floor(point.y) - floor(height / 2), 0), imageHeight - height)
         return CGRect(x: x, y: y, width: width, height: height)
     }
 
