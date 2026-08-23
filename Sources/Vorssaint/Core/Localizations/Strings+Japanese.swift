@@ -920,6 +920,7 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "右クリックのコンテキストメニューを置き換えます。",
         urlCleanerRulesTitle: "クリーンのルール",
         urlCleanerRulesCaption: "サイトが自身の共有リンクに付ける、どこから来たリンクかを追跡するためのパラメータです。チェックを入れた名前はリンクの整理時に削除され、外すと残ります。自分で追加した名前は削除できます。",
+        urlCleanerRulesCoverageCaption: "一覧はサイトごとの共有経路——ウェブページ、アプリ、ライブルーム——をまとめて扱うため長くなります。実際のリンクが持つのは通常 2〜4 個です。",
         urlCleanerRulesAllSites: "すべてのサイト",
         urlCleanerRulesCountSingular: "パラメータ 1 個",
         urlCleanerRulesCountPluralFormat: "パラメータ %d 個",

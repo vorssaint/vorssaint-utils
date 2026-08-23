@@ -920,6 +920,7 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "将取代右键点按菜单。",
         urlCleanerRulesTitle: "清理规则",
         urlCleanerRulesCaption: "网站会把这些参数附加在自己的分享链接上，用来追踪链接从哪里来。勾上表示清理时把它删掉，取消勾选表示保留。自己添加的名称可以删除。",
+        urlCleanerRulesCoverageCaption: "表里覆盖的是同一个站点的不同分享入口——网页、App、直播间——所以条目多；一条真实链接通常只带其中 2 到 4 个。",
         urlCleanerRulesAllSites: "全部网站",
         urlCleanerRulesCountSingular: "1 个参数",
         urlCleanerRulesCountPluralFormat: "%d 个参数",

@@ -921,6 +921,7 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "Заменяет контекстное меню правой кнопки мыши.",
         urlCleanerRulesTitle: "Правила очистки",
         urlCleanerRulesCaption: "Сайт добавляет эти параметры в собственные ссылки для обмена, чтобы отследить, откуда пришла ссылка. С флажком название удаляется при очистке ссылки, без флажка остаётся. Добавленные вами названия можно удалить.",
+        urlCleanerRulesCoverageCaption: "Список охватывает разные способы поделиться на одном сайте — страницу, приложение, эфир, — поэтому он длинный; в настоящей ссылке обычно всего два-четыре из них.",
         urlCleanerRulesAllSites: "Все сайты",
         urlCleanerRulesCountSingular: "1 параметр",
         urlCleanerRulesCountPluralFormat: "Параметров: %d",

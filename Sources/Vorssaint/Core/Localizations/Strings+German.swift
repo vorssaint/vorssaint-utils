@@ -920,6 +920,7 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "Ersetzt das Kontextmenü beim Rechtsklick.",
         urlCleanerRulesTitle: "Bereinigungsregeln",
         urlCleanerRulesCaption: "Eine Website hängt diese Parameter an ihre eigenen Teilen-Links, um zu verfolgen, woher ein Link kam. Mit Haken wird der Name beim Bereinigen entfernt, ohne Haken bleibt er. Selbst hinzugefügte Namen lassen sich löschen.",
+        urlCleanerRulesCoverageCaption: "Die Liste deckt die verschiedenen Teilen-Wege einer Website ab — Webseite, App, Livestream —, deshalb ist sie lang; ein echter Link trägt meist nur zwei bis vier davon.",
         urlCleanerRulesAllSites: "Alle Websites",
         urlCleanerRulesCountSingular: "1 Parameter",
         urlCleanerRulesCountPluralFormat: "%d Parameter",

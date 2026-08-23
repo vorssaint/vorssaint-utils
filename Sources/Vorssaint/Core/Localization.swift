@@ -1064,6 +1064,7 @@ struct Strings {
     let keepAwakeRightClickToggleCaption: String
     let urlCleanerRulesTitle: String
     let urlCleanerRulesCaption: String
+    let urlCleanerRulesCoverageCaption: String
     let urlCleanerRulesAllSites: String
     let urlCleanerRulesCountSingular: String
     let urlCleanerRulesCountPluralFormat: String   // + count
@@ -2006,6 +2007,7 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "Substitui o menu de contexto do clique com o botão direito.",
         urlCleanerRulesTitle: "Regras de limpeza",
         urlCleanerRulesCaption: "Um site anexa estes parâmetros aos próprios links de compartilhamento para rastrear de onde o link veio. Ligado, o nome é removido ao limpar um link; desligado, ele permanece. Os nomes que você adicionar podem ser excluídos.",
+        urlCleanerRulesCoverageCaption: "A lista cobre os diferentes caminhos de compartilhamento de um site — a página, o app, uma sala ao vivo — por isso é longa; um link real costuma carregar apenas dois a quatro deles.",
         urlCleanerRulesAllSites: "Todos os sites",
         urlCleanerRulesCountSingular: "1 parâmetro",
         urlCleanerRulesCountPluralFormat: "%d parâmetros",
@@ -2949,6 +2951,7 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "Replaces the right-click context menu.",
         urlCleanerRulesTitle: "Cleaning rules",
         urlCleanerRulesCaption: "A site attaches these parameters to its own share links to track where the link came from. Switched on, a name is removed when a link is cleaned; switched off, it stays. Names you add can be deleted.",
+        urlCleanerRulesCoverageCaption: "The list covers a site's different share paths — the web page, the app, a live room — which is why it is long; a real link usually carries only two to four of them.",
         urlCleanerRulesAllSites: "All sites",
         urlCleanerRulesCountSingular: "1 parameter",
         urlCleanerRulesCountPluralFormat: "%d parameters",

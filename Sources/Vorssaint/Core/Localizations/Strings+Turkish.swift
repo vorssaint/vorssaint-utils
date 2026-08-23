@@ -920,6 +920,7 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "Sağ tık bağlam menüsünün yerini alır.",
         urlCleanerRulesTitle: "Temizleme kuralları",
         urlCleanerRulesCaption: "Bir site, bağlantının nereden geldiğini izlemek için bu parametreleri kendi paylaşım bağlantılarına ekler. İşaretliyken ad temizlik sırasında kaldırılır, işaret kaldırılınca kalır. Eklediğiniz adlar silinebilir.",
+        urlCleanerRulesCoverageCaption: "Liste, bir sitenin farklı paylaşım yollarını — web sayfası, uygulama, canlı yayın — kapsadığı için uzundur; gerçek bir bağlantı genelde bunlardan yalnızca iki ila dördünü taşır.",
         urlCleanerRulesAllSites: "Tüm siteler",
         urlCleanerRulesCountSingular: "1 parametre",
         urlCleanerRulesCountPluralFormat: "%d parametre",

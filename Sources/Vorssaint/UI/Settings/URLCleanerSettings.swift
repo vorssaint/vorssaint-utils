@@ -86,6 +86,12 @@ struct URLCleanerSettings: View {
                 Text(l10n.s.urlCleanerRulesCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                // Why the list is as long as it is. Without this the length
+                // reads as "we delete a lot from your links", when a real link
+                // only ever carries a handful of these.
+                Text(l10n.s.urlCleanerRulesCoverageCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section(l10n.s.urlCleanerManualTitle) {

@@ -921,6 +921,7 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "會取代按右鍵選單。",
         urlCleanerRulesTitle: "清理規則",
         urlCleanerRulesCaption: "網站會把這些參數加在自己的分享連結上，用來追蹤連結從哪裡來。勾選表示清理時把它刪掉，取消勾選表示保留。自行加入的名稱可以刪除。",
+        urlCleanerRulesCoverageCaption: "表裡涵蓋的是同一個網站的不同分享入口——網頁、App、直播間——所以條目多；一條真實連結通常只帶當中 2 至 4 個。",
         urlCleanerRulesAllSites: "所有網站",
         urlCleanerRulesCountSingular: "1 個參數",
         urlCleanerRulesCountPluralFormat: "%d 個參數",

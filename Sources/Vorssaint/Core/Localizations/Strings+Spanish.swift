@@ -920,6 +920,7 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "Sustituye el menú contextual del clic derecho.",
         urlCleanerRulesTitle: "Reglas de limpieza",
         urlCleanerRulesCaption: "Un sitio añade estos parámetros a sus propios enlaces para compartir y así rastrear de dónde vino el enlace. Marcado, el nombre se elimina al limpiar; sin marcar, permanece. Los nombres que añadas se pueden eliminar.",
+        urlCleanerRulesCoverageCaption: "La lista abarca las distintas vías para compartir de un sitio — la página web, la app, una sala en directo —, por eso es larga; un enlace real suele llevar solo entre dos y cuatro.",
         urlCleanerRulesAllSites: "Todos los sitios",
         urlCleanerRulesCountSingular: "1 parámetro",
         urlCleanerRulesCountPluralFormat: "%d parámetros",

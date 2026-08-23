@@ -921,6 +921,7 @@ extension Strings {
         keepAwakeRightClickToggleCaption: "오른쪽 클릭 메뉴를 대체합니다.",
         urlCleanerRulesTitle: "정리 규칙",
         urlCleanerRulesCaption: "사이트가 자체 공유 링크에 붙여 링크의 출처를 추적하는 매개변수입니다. 체크한 이름은 링크를 정리할 때 제거되고, 해제하면 남습니다. 직접 추가한 이름은 삭제할 수 있습니다.",
+        urlCleanerRulesCoverageCaption: "목록은 한 사이트의 여러 공유 경로——웹 페이지, 앱, 라이브 방송——를 모두 담고 있어 길어집니다. 실제 링크에는 보통 2~4개만 붙습니다.",
         urlCleanerRulesAllSites: "모든 사이트",
         urlCleanerRulesCountSingular: "매개변수 1개",
         urlCleanerRulesCountPluralFormat: "매개변수 %d개",
