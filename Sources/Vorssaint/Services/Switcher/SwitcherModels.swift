@@ -4,6 +4,12 @@
 import AppKit
 import CoreGraphics
 
+enum WindowSwitchMinimizedPlacement: String, CaseIterable {
+    case normal
+    case end
+    case hidden
+}
+
 /// One selectable entry in the switcher. Most entries are real user-facing
 /// windows; Finder can also appear as an app entry when it has no windows, so
 /// the user can still switch to the desktop/menu bar like the system switcher.

@@ -935,6 +935,11 @@ extension Strings {
         shelfEdgeCaption: "ファイルを画面の端に向けてドラッグすると、シェルフが少しだけ現れます。そこでドロップするか、手を戻すとシェルフは引っ込みます。",
         focusFollowsMouseName: "マウス追従フォーカス",
         focusFollowsMouseCaption: "短い停止後、ポインタの下にあるウインドウをフォーカスして手前に表示します。",
-        focusFollowsMouseDelay: "ホバー遅延"
+        focusFollowsMouseDelay: "ホバー遅延",
+        switcherMinimizedPlacementLabel: "最小化されたウインドウ",
+        switcherMinimizedPlacementNormal: "通常の順序",
+        switcherMinimizedPlacementEnd: "最後に配置",
+        switcherMinimizedPlacementHidden: "非表示",
+        switcherShowFullscreenWindows: "フルスクリーンのウインドウを表示" 
     )
 }
