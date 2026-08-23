@@ -1837,10 +1837,36 @@ struct MetricsTests {
         expect(SwitcherSupport.isConfirmedHiddenAppWindow(appIsHidden: true,
                                                           windowSpaces: [3])
                && !SwitcherSupport.isConfirmedHiddenAppWindow(appIsHidden: false,
-                                                               windowSpaces: [3])
+                                                              windowSpaces: [3])
                && !SwitcherSupport.isConfirmedHiddenAppWindow(appIsHidden: true,
-                                                               windowSpaces: []),
+                                                              windowSpaces: []),
                "App Switcher keeps only hidden-app surfaces assigned to a real desktop")
+
+        // MARK: Stale surfaces without an Accessibility witness (issue #807)
+
+        expect(!SwitcherSupport.unwitnessedSurfaceIsLeftover(isOnScreen: true,
+                                                             canResolveSpaces: true,
+                                                             windowSpacesCount: 0),
+               "App Switcher keeps a visible surface even when its app never answered Accessibility")
+        expect(!SwitcherSupport.unwitnessedSurfaceIsLeftover(isOnScreen: false,
+                                                             canResolveSpaces: true,
+                                                             windowSpacesCount: 2),
+               "App Switcher keeps an off-screen surface the window server parked on a desktop")
+        expect(!SwitcherSupport.unwitnessedSurfaceIsLeftover(isOnScreen: false,
+                                                             canResolveSpaces: true,
+                                                             windowSpacesCount: 7),
+               "App Switcher keeps an off-screen surface assigned to any desktop, visible or not")
+        expect(SwitcherSupport.unwitnessedSurfaceIsLeftover(isOnScreen: false,
+                                                            canResolveSpaces: true,
+                                                            windowSpacesCount: 0),
+               "App Switcher drops an off-screen surface that belongs to no desktop at all")
+        expect(!SwitcherSupport.unwitnessedSurfaceIsLeftover(isOnScreen: true,
+                                                             canResolveSpaces: true,
+                                                             windowSpacesCount: 0)
+               && !SwitcherSupport.unwitnessedSurfaceIsLeftover(isOnScreen: false,
+                                                                canResolveSpaces: false,
+                                                                windowSpacesCount: 0),
+               "App Switcher keeps the old behavior when the desktop queries are unavailable")
         expect(SwitcherSupport.sessionSourceItem(frontmostPID: 101,
                                                  focusedWindowID: nil,
                                                  items: [embeddedWindow])?.id == embeddedWindow.id,
