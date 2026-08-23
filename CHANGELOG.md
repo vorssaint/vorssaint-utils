@@ -68,23 +68,20 @@ Vorssaint 3.3.3-beta.1 introduces the opt-in beta release channel and in-app fee
   the Dock Preview block. Thanks to @PathGao.
 - Scratchpad tabs and the pin, close, new pad and pad actions buttons now respond
   across their whole area. Thanks to @AB-boi and @PathGao.
-- Dock Preview cards no longer draw the app icon on every thumbnail or repeat the
-  window title over it, leaving the thumbnail more of the card, and a card now
-  badges a window that lives on another desktop. Thanks to @PathGao.
-- Dock Preview cards now keep a full title band at every preview size rather than
-  scaling it with the card, and the app icon standing in for a thumbnail that has
-  not arrived follows the preview size as a watermark. Thanks to @PathGao.
+- Dock Preview cards now carry the App Switcher's look: the app's icon and the window's
+  state along the bottom of a 16:10 picture, the name and its subtitle underneath, and the
+  close and minimize buttons in that band rather than over the picture. Thanks to @PathGao.
 
-- Dock Preview thumbnails are now 16:10 and twice the area, with the close
-  and minimize buttons moved off the picture into the title band. A panel showing one
-  window drops its header, and pinning one is now a named item in a card's menu.
+- Dock Preview cards keep a full title band at every preview size rather than scaling it
+  with the card, and the app icon standing in for a thumbnail that has not arrived follows
+  the preview size as a watermark. Thanks to @PathGao.
 
-- Dock Preview cards now carry the App Switcher's look — the app's icon and the
-  window's state along the bottom of the picture, the name and its subtitle
-  underneath — and run down the screen beside a Dock on the left or right
-  instead of across it. A hovered panel drops its header; a pinned one keeps it.
-  A name too long for its band scrolls while the pointer is on that card, in the
-  App Switcher as well. Thanks to @PathGao.
+- A Dock Preview beside a Dock on the left or right now runs its cards down the screen
+  instead of across it, a hovered panel draws no header, and pinning one is a named item
+  in a card's menu. Thanks to @PathGao.
+
+- A window name too long for its band now scrolls while the pointer is on that card, in
+  the App Switcher as well as a Dock Preview. Thanks to @PathGao.
 - Fan Control now prepares stopped fans before taking manual control and keeps a
   failed attempt visible instead of silently returning to Automatic.
 - The Clean URL settings fields now take a click anywhere across their row. Their
