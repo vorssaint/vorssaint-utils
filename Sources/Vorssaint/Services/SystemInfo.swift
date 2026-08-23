@@ -54,20 +54,20 @@ enum SystemInfo {
         let pageSize = UInt64(vm_kernel_page_size)
         let appUsed = MetricFormat.appMemory(totalBytes: total,
                                              pageSize: pageSize,
-                                             internalPages: UInt64(stats.internal_page_count),
-                                             purgeablePages: UInt64(stats.purgeable_count))
+                                             internalPages: stats.internalPages,
+                                             purgeablePages: stats.purgeablePages)
         let used = MetricFormat.memoryUsed(totalBytes: total,
                                            appBytes: appUsed,
                                            pageSize: pageSize,
-                                           wiredPages: UInt64(stats.wire_count),
-                                           compressorPages: UInt64(stats.compressor_page_count),
-                                           tagStoragePages: stats.total_tag_storage_pages)
+                                           wiredPages: stats.wiredPages,
+                                           compressorPages: stats.compressorPages,
+                                           tagStoragePages: stats.tagStoragePages)
         let compressed = MetricFormat.compressedMemory(totalBytes: total,
                                                        pageSize: pageSize,
-                                                       compressorPages: UInt64(stats.compressor_page_count))
+                                                       compressorPages: stats.compressorPages)
         let cached = MetricFormat.cachedFiles(totalBytes: total,
                                               pageSize: pageSize,
-                                              fileBackedPages: UInt64(stats.external_page_count))
+                                              fileBackedPages: stats.externalPages)
         var swap = xsw_usage()
         var swapSize = MemoryLayout<xsw_usage>.stride
         let swapUsed = sysctlbyname("vm.swapusage", &swap, &swapSize, nil, 0) == 0
@@ -76,85 +76,62 @@ enum SystemInfo {
         return (used, appUsed, total, compressed, cached, swapUsed)
     }
 
-    /// A local copy of the HOST_VM_INFO64 rev3 layout.  Xcode 16.2's SDK only
-    /// exposes rev2, despite newer kernels reporting the tagged-storage fields.
-    private struct VMStatistics64 {
-        var free_count: natural_t = 0
-        var active_count: natural_t = 0
-        var inactive_count: natural_t = 0
-        var wire_count: natural_t = 0
-        var zero_fill_count: UInt64 = 0
-        var reactivations: UInt64 = 0
-        var pageins: UInt64 = 0
-        var pageouts: UInt64 = 0
-        var faults: UInt64 = 0
-        var cow_faults: UInt64 = 0
-        var lookups: UInt64 = 0
-        var hits: UInt64 = 0
-        var purges: UInt64 = 0
-        var purgeable_count: natural_t = 0
-        var speculative_count: natural_t = 0
-        var decompressions: UInt64 = 0
-        var compressions: UInt64 = 0
-        var swapins: UInt64 = 0
-        var swapouts: UInt64 = 0
-        var compressor_page_count: natural_t = 0
-        var throttled_count: natural_t = 0
-        var external_page_count: natural_t = 0
-        var internal_page_count: natural_t = 0
-        var total_uncompressed_pages_in_compressor: UInt64 = 0
-        var swapped_count: UInt64 = 0
-        var total_tag_storage_pages: UInt64 = 0
-        var nontag_pageable_tag_storage_pages: UInt64 = 0
-        var nontag_wired_tag_storage_pages: UInt64 = 0
-        var free_tag_storage_pages: UInt64 = 0
-        var tag_storing_tag_storage_pages: UInt64 = 0
-        var total_tagged_pages: UInt64 = 0
-        var resident_tagged_pages: UInt64 = 0
-        var compressed_tagged_pages: UInt64 = 0
-        var tagged_compressions: UInt64 = 0
-        var tagged_decompressions: UInt64 = 0
-        var compressed_tag_storage_bytes: UInt64 = 0
-
-        init() {}
-
-        init(legacy stats: vm_statistics64) {
-            free_count = stats.free_count
-            active_count = stats.active_count
-            inactive_count = stats.inactive_count
-            wire_count = stats.wire_count
-            purgeable_count = stats.purgeable_count
-            speculative_count = stats.speculative_count
-            compressor_page_count = stats.compressor_page_count
-            external_page_count = stats.external_page_count
-            internal_page_count = stats.internal_page_count
-        }
+    private struct VMStatisticsSnapshot {
+        let wiredPages: UInt64
+        let purgeablePages: UInt64
+        let compressorPages: UInt64
+        let externalPages: UInt64
+        let internalPages: UInt64
+        let tagStoragePages: UInt64
     }
 
-    private static func vmStats() -> VMStatistics64? {
-        var stats = VMStatistics64()
-        if readVMStats(into: &stats) == KERN_SUCCESS {
-            return stats
-        }
+    /// Byte offsets in Apple's public HOST_VM_INFO64 rev3 ABI. Requesting the
+    /// rev3 size is backward-compatible: older kernels return a shorter count,
+    /// leaving the zero-initialized tagged-storage tail unavailable.
+    private enum VMStatistics64Layout {
+        static let integerSize = MemoryLayout<integer_t>.stride
+        static let rev3ByteCount = 248
+        static let rev3Count = rev3ByteCount / integerSize
 
-        // Older kernels may reject a rev3-sized request. In that case, retain
-        // the fields available in their SDK layout and leave tag storage at 0.
-        var legacy = vm_statistics64()
-        guard readVMStats(into: &legacy) == KERN_SUCCESS else { return nil }
-        return VMStatistics64(legacy: legacy)
+        static let wired = 12
+        static let purgeable = 88
+        static let compressor = 128
+        static let external = 136
+        static let `internal` = 140
+        static let totalTagStorage = 160
     }
 
-    private static func readVMStats<T>(into stats: inout T) -> kern_return_t {
-        var count = mach_msg_type_number_t(MemoryLayout<T>.stride / MemoryLayout<integer_t>.stride)
+    private static func vmStats() -> VMStatisticsSnapshot? {
+        let layout = VMStatistics64Layout.self
+        let buffer = UnsafeMutableRawPointer.allocate(byteCount: layout.rev3ByteCount,
+                                                      alignment: MemoryLayout<UInt64>.alignment)
+        defer { buffer.deallocate() }
+        buffer.initializeMemory(as: UInt8.self, repeating: 0, count: layout.rev3ByteCount)
+        var count = mach_msg_type_number_t(layout.rev3Count)
         // mach_host_self() returns a send right the caller owns; release it or each
         // call leaks a mach port (this runs every couple of seconds while sampling).
         let host = mach_host_self()
         defer { mach_port_deallocate(mach_task_self_, host) }
-        let kr = withUnsafeMutablePointer(to: &stats) { ptr in
-            ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics64(host, HOST_VM_INFO64, $0, &count)
-            }
+        let kr = host_statistics64(host,
+                                   HOST_VM_INFO64,
+                                   buffer.assumingMemoryBound(to: integer_t.self),
+                                   &count)
+        guard kr == KERN_SUCCESS else { return nil }
+
+        func natural(at offset: Int) -> UInt64 {
+            UInt64(buffer.load(fromByteOffset: offset, as: natural_t.self))
         }
-        return kr
+        func uint64(at offset: Int) -> UInt64 {
+            buffer.load(fromByteOffset: offset, as: UInt64.self)
+        }
+        let hasRev3 = Int(count) >= layout.rev3Count
+
+        return VMStatisticsSnapshot(
+            wiredPages: natural(at: layout.wired),
+            purgeablePages: natural(at: layout.purgeable),
+            compressorPages: natural(at: layout.compressor),
+            externalPages: natural(at: layout.external),
+            internalPages: natural(at: layout.internal),
+            tagStoragePages: hasRev3 ? uint64(at: layout.totalTagStorage) : 0)
     }
 }
