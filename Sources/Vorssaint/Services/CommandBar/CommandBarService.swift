@@ -529,6 +529,19 @@ final class CommandBarService: ObservableObject {
         return true
     }
 
+    /// The way back to the list from a collapsed field. Compact mode promises
+    /// that nothing appears until it is asked for; this is the asking. It
+    /// lasts one opening, so the next summon is a bare field again.
+    ///
+    /// Returns whether it handled the key, so the caller can pass it on.
+    @discardableResult
+    func peekHome() -> Bool {
+        guard case .search = mode, isCompactHome, !isPeekingHome else { return false }
+        isPeekingHome = true
+        refreshResults()
+        return true
+    }
+
     /// Back to the unfiltered bar: clears whatever was typed and leaves the
     /// category. What the no-results state offers, so an empty category is
     /// never a room without a door.
@@ -1881,11 +1894,15 @@ final class CommandBarService: ObservableObject {
         case .search:
             // A long query typed by mistake should be clearable without
             // throwing the whole session away; then Esc leaves the category,
-            // and only from home does it close.
+            // then it puts a peeked list away, and only from home does it
+            // close.
             if !query.isEmpty {
                 query = ""
             } else if activeCategory != nil {
                 setCategory(nil)
+            } else if isPeekingHome {
+                isPeekingHome = false
+                refreshResults()
             } else {
                 hide()
             }
@@ -2486,7 +2503,11 @@ final class CommandBarService: ObservableObject {
                 if case .actions = self.mode { self.moveActionSelection(-1) } else { self.moveSelection(-1) }
                 return nil
             case kVK_DownArrow:
-                if case .actions = self.mode { self.moveActionSelection(1) } else { self.moveSelection(1) }
+                if case .actions = self.mode {
+                    self.moveActionSelection(1)
+                } else if !self.peekHome() {
+                    self.moveSelection(1)
+                }
                 return nil
             case kVK_LeftArrow:
                 // Handed back untouched when the field has text in it.
@@ -2511,7 +2532,13 @@ final class CommandBarService: ObservableObject {
                     // follow the keys the person sees.
                     switch key {
                     case "n":
-                        if case .actions = self.mode { self.moveActionSelection(1) } else { self.moveSelection(1) }
+                        // The footer offers ⌃N and ↓ as one gesture, so the
+                        // peek answers to both or the hint would be lying.
+                        if case .actions = self.mode {
+                            self.moveActionSelection(1)
+                        } else if !self.peekHome() {
+                            self.moveSelection(1)
+                        }
                         return nil
                     case "p":
                         if case .actions = self.mode { self.moveActionSelection(-1) } else { self.moveSelection(-1) }
