@@ -7,6 +7,13 @@ import Combine
 import CoreGraphics
 import SwiftUI
 
+@discardableResult
+private func requestDockPreviewApplicationQuit(_ item: SwitcherItem) -> Bool {
+    guard let app = NSRunningApplication(processIdentifier: item.pid),
+          !app.isTerminated else { return false }
+    return app.terminate()
+}
+
 final class DockPreviewService: ObservableObject {
     static let shared = DockPreviewService()
 
@@ -162,6 +169,15 @@ final class DockPreviewService: ObservableObject {
               windows.contains(item),
               let windowID = item.windowID
         else { return }
+
+        if DockPreviewSupport.closeAction(
+            quitAppOnClose: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewQuitAppOnClose)
+        ) == .quitApp {
+            if requestDockPreviewApplicationQuit(item) {
+                endSession()
+            }
+            return
+        }
 
         WindowActivator.closeWindowIncludingHiddenState(item) { [weak self] didClose in
             guard didClose, let self else { return }
@@ -1284,6 +1300,15 @@ final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
         guard windows.contains(item),
               let windowID = item.windowID
         else { return }
+
+        if DockPreviewSupport.closeAction(
+            quitAppOnClose: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewQuitAppOnClose)
+        ) == .quitApp {
+            if requestDockPreviewApplicationQuit(item) {
+                closePreviewPanel()
+            }
+            return
+        }
 
         WindowActivator.closeWindowIncludingHiddenState(item) { [weak self] didClose in
             guard didClose else { return }
