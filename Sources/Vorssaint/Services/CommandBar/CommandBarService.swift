@@ -2524,7 +2524,7 @@ final class CommandBarService: ObservableObject {
                     // follow the keys the person sees.
                     switch key {
                     case "n":
-                        // Same key as ↓ in the footer's own hint.
+                        // Same ↓ in the footer's own hint.
                         if case .actions = self.mode {
                             self.moveActionSelection(1)
                         } else if !self.peekHome() {

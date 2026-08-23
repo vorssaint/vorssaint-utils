@@ -142,16 +142,12 @@ struct CommandBarView: View {
             }
         }
         .frame(width: 560)
-        .background(HUDBackdrop(cornerRadius: cornerRadius, contrast: .high))
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .background(HUDBackdrop(cornerRadius: 22, contrast: .high))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .onAppear { focusSearch() }
         .onChange(of: service.presentationID) { _, _ in focusSearch() }
         .onChange(of: service.mode) { _, _ in focusSearch() }
     }
-
-    /// 22 pt on a 50 pt strip rounds into a pill; the collapsed bar uses a
-    /// tighter corner instead.
-    private var cornerRadius: CGFloat { service.isCompactHome ? 16 : 22 }
 
     private func focusSearch() {
         DispatchQueue.main.async { searchFocused = true }

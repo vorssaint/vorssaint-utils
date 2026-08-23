@@ -328,7 +328,7 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "A folder or file name",
         filesIgnoreAdd: "Add",
         compactModeToggle: "Compact mode",
-        compactModeCaption: "The bar opens as a field and nothing else. Results appear as you type.")
+        compactModeCaption: "Bar opens without suggestions. Results appear as you type.")
 
     static let ptBR = CommandBarFeatureStrings(
         pageTitle: "Barra de comando",
@@ -479,7 +479,7 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Nome de pasta ou arquivo",
         filesIgnoreAdd: "Adicionar",
         compactModeToggle: "Modo compacto",
-        compactModeCaption: "A barra abre só como um campo. Os resultados aparecem conforme você digita.")
+        compactModeCaption: "A barra abre sem sugestões. Os resultados aparecem conforme você digita.")
 
     static let tr = CommandBarFeatureStrings(
         pageTitle: "Komut çubuğu",
@@ -630,7 +630,7 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Klasör veya dosya adı",
         filesIgnoreAdd: "Ekle",
         compactModeToggle: "Kompakt mod",
-        compactModeCaption: "Çubuk yalnızca bir alan olarak açılır. Sonuçlar siz yazdıkça görünür.")
+        compactModeCaption: "Çubuk önerilmeden açılır. Sonuçlar siz yazdıkça görünür.")
 
     static let ru = CommandBarFeatureStrings(
         pageTitle: "Командная панель",
@@ -781,7 +781,7 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Имя папки или файла",
         filesIgnoreAdd: "Добавить",
         compactModeToggle: "Компактный режим",
-        compactModeCaption: "Строка открывается просто полем. Результаты появляются по мере ввода.")
+        compactModeCaption: "Строка открывается без подсказок. Результаты появляются по мере ввода.")
 
     static let es = CommandBarFeatureStrings(
         pageTitle: "Barra de comandos",
@@ -932,7 +932,7 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Nombre de carpeta o archivo",
         filesIgnoreAdd: "Añadir",
         compactModeToggle: "Modo compacto",
-        compactModeCaption: "La barra se abre solo como un campo. Los resultados aparecen mientras escribes.")
+        compactModeCaption: "La barra se abre sin sugerencias. Los resultados aparecen mientras escribes.")
 
     static let de = CommandBarFeatureStrings(
         pageTitle: "Befehlsleiste",
@@ -1083,7 +1083,7 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Ordner- oder Dateiname",
         filesIgnoreAdd: "Hinzufügen",
         compactModeToggle: "Kompaktmodus",
-        compactModeCaption: "Die Leiste öffnet sich nur als Feld. Die Ergebnisse erscheinen beim Tippen.")
+        compactModeCaption: "Die Leiste öffnet sich ohne Vorschläge. Die Ergebnisse erscheinen beim Tippen.")
 
     static let fr = CommandBarFeatureStrings(
         pageTitle: "Barre de commande",
@@ -1234,7 +1234,7 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Nom de dossier ou de fichier",
         filesIgnoreAdd: "Ajouter",
         compactModeToggle: "Mode compact",
-        compactModeCaption: "La barre s'ouvre comme un simple champ. Les résultats apparaissent à mesure que vous tapez.")
+        compactModeCaption: "La barre s'ouvre sans suggestions. Les résultats apparaissent à mesure que vous tapez.")
 
     static let it = CommandBarFeatureStrings(
         pageTitle: "Barra dei comandi",
@@ -1385,7 +1385,7 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Nome di cartella o file",
         filesIgnoreAdd: "Aggiungi",
         compactModeToggle: "Modalità compatta",
-        compactModeCaption: "La barra si apre solo come campo. I risultati appaiono mentre scrivi.")
+        compactModeCaption: "La barra si apre senza suggerimenti. I risultati appaiono mentre scrivi.")
 
     static let ja = CommandBarFeatureStrings(
         pageTitle: "コマンドバー",
@@ -1536,7 +1536,7 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "フォルダまたはファイルの名前",
         filesIgnoreAdd: "追加",
         compactModeToggle: "コンパクトモード",
-        compactModeCaption: "バーは入力欄だけで開きます。入力すると結果が現れます。")
+        compactModeCaption: "バーは候補なしで開きます。入力すると結果が現れます。")
 
     static let ko = CommandBarFeatureStrings(
         pageTitle: "명령 막대",
@@ -1687,7 +1687,7 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "폴더 또는 파일 이름",
         filesIgnoreAdd: "추가",
         compactModeToggle: "컴팩트 모드",
-        compactModeCaption: "막대가 입력란만으로 열립니다. 입력하면 결과가 나타납니다.")
+        compactModeCaption: "막대가 추천 없이 열립니다. 입력하면 결과가 나타납니다.")
 
     static let zhHans = CommandBarFeatureStrings(
         pageTitle: "命令栏",
@@ -1838,7 +1838,7 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "文件夹或文件名",
         filesIgnoreAdd: "添加",
         compactModeToggle: "紧凑模式",
-        compactModeCaption: "命令栏只以一个输入框打开，输入时才显示结果。")
+        compactModeCaption: "命令栏打开时不显示建议，输入时才显示结果。")
 
     static let zhTW = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -1989,7 +1989,7 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "檔案夾或檔案名稱",
         filesIgnoreAdd: "加入",
         compactModeToggle: "精簡模式",
-        compactModeCaption: "命令列只以一個輸入框開啟，輸入時才顯示結果。")
+        compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。")
 
     static let zhHK = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -2140,5 +2140,5 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "檔案夾或檔案名稱",
         filesIgnoreAdd: "加入",
         compactModeToggle: "精簡模式",
-        compactModeCaption: "命令列只以一個輸入框開啟，輸入時才顯示結果。")
+        compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。")
 }
