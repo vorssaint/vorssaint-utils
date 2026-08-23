@@ -88,6 +88,11 @@ final class CommandBarService: ObservableObject {
     /// so Settings can offer the way back.
     @Published private(set) var hasCustomPosition = false
 
+    /// True while the bar is the field alone: compact mode, nothing typed and
+    /// no category open. The panel reads it to leave out the divider, the list
+    /// and the footer, so what is on screen is one strip.
+    @Published private(set) var isCompactHome = false
+
     private let hotkey = QuickToolHotkey(id: 20)
     private var rowHotkeys: [QuickToolHotkey] = []
     private var panel: NSPanel?
@@ -282,6 +287,7 @@ final class CommandBarService: ObservableObject {
         selectedID = nil
         lastRankedQuery = nil
         activeCategory = nil
+        isPeekingHome = false
         return id
     }
 
@@ -651,6 +657,12 @@ final class CommandBarService: ObservableObject {
     /// from disk there means parsing the same JSON ninety times for one frame.
     private var pinCache: Set<String> = []
     private var shortcutCache: [String: GlobalShortcut] = [:]
+    /// Whether an empty field shows nothing but itself. Read here with the
+    /// pins because the results pass asks it on every keystroke.
+    private var compactMode = false
+    /// The person asked a compact bar for its list anyway. Lives for one
+    /// opening; the next summon is a bare field again.
+    private var isPeekingHome = false
     /// The folders a file search looks in, already resolved, and the names it
     /// never shows. Resolving reads the home folder, which is far too much to
     /// do on a keystroke and never changes between two of them.
@@ -662,6 +674,7 @@ final class CommandBarService: ObservableObject {
     private func reloadPreferenceCaches() {
         pinCache = Set(pins)
         shortcutCache = rowShortcuts
+        compactMode = UserDefaults.standard.bool(forKey: DefaultsKey.commandBarCompactMode)
         hasCustomPosition = positionOffset != .zero
         reloadFileSearchCaches()
     }
@@ -855,6 +868,11 @@ final class CommandBarService: ObservableObject {
             rows = []
             sectionTitles = [:]
             categoryChips = []
+            isShowingSuggestions = false
+            // The panel is already on screen for this one turn, so a compact
+            // bar has to open collapsed instead of dropping its footer a frame
+            // later.
+            setCompactHome(compactMode)
             return
         }
         if let builtLanguage, builtLanguage != L10n.shared.language {
@@ -865,9 +883,20 @@ final class CommandBarService: ObservableObject {
         case .search:
             let trimmed = query.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty {
-                let disabled = CommandBarPreferences.disabledSources(from: disabledSourcesRaw)
-                categoryChips = Self.chipOrder.filter {
-                    !disabled.contains($0) && categoryHasContent($0)
+                let showsBrowse = CommandBarHome.showsBrowseList(
+                    compact: compactMode,
+                    hasCategory: activeCategory != nil,
+                    isPeeking: isPeekingHome)
+                if showsBrowse {
+                    let disabled = CommandBarPreferences.disabledSources(from: disabledSourcesRaw)
+                    categoryChips = Self.chipOrder.filter {
+                        !disabled.contains($0) && categoryHasContent($0)
+                    }
+                } else {
+                    // Not merely hidden: a chip probe per kind and a walk of
+                    // the whole catalog are the work compact mode exists to
+                    // skip.
+                    categoryChips = []
                 }
                 if let category = activeCategory {
                     let bar = FeatureStrings.commandBar(L10n.shared.language)
@@ -875,10 +904,13 @@ final class CommandBarService: ObservableObject {
                     sectionTitles = rows.isEmpty
                         ? [:]
                         : [0: categoryHeading(category, count: rows.count)]
-                } else {
+                } else if showsBrowse {
                     let suggestions = suggestionRows()
                     rows = suggestions.rows
                     sectionTitles = suggestions.titles
+                } else {
+                    rows = []
+                    sectionTitles = [:]
                 }
                 isShowingSuggestions = !rows.isEmpty
             } else {
@@ -916,10 +948,22 @@ final class CommandBarService: ObservableObject {
                 selectedIndex = 0
             }
             selectedID = rows.indices.contains(selectedIndex) ? rows[selectedIndex].id : nil
+            setCompactHome(CommandBarHome.isCollapsed(compact: compactMode,
+                                                      query: query,
+                                                      hasCategory: activeCategory != nil,
+                                                      isPeeking: isPeekingHome))
         case .argument, .confirm, .actions, .naming, .capturingShortcut:
-            break
+            // Every card carries chrome of its own; none of them is a bare
+            // field.
+            setCompactHome(false)
         }
         refreshPanelLayout()
+    }
+
+    /// Only publishes on a real change: this is asked on every keystroke, and
+    /// an unchanged value would re-render the whole panel for nothing.
+    private func setCompactHome(_ value: Bool) {
+        if isCompactHome != value { isCompactHome = value }
     }
 
     /// The same rows with any repeated id dropped, keeping the first, which is
