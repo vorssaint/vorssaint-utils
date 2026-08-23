@@ -2154,13 +2154,21 @@ struct MetricsTests {
                "a fullscreen window owns its Space and ignores a dropped position")
         expect(!DockPreviewSupport.canDragToPlace(hasWindowID: false, isFullscreen: false),
                "an entry without a window has nothing to move")
-        // The drop reads the position back before deciding it failed. Apps
-        // round or clamp what they are given, so an exact comparison would call
-        // every one of those a miss and write again for nothing.
-        expect(SwitcherSupport.originsMatch(CGPoint(x: 100, y: 200), CGPoint(x: 101, y: 199)),
-               "a window that landed within a point or two of the drop counts as placed")
-        expect(!SwitcherSupport.originsMatch(CGPoint(x: 100, y: 200), CGPoint(x: 100, y: 260)),
-               "a window that stayed at its old place does not")
+        // Every window takes the same steps on a drop, whatever state it was
+        // in. A branch on `isMinimized` made that drop feel like a different
+        // gesture from an ordinary one -- which is the thing being fixed, so a
+        // branch is what this guards against.
+        let placeSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Switcher/WindowActivator.swift",
+            encoding: .utf8)) ?? ""
+        let placeBody = (placeSource.components(separatedBy: "static func place(_ item: SwitcherItem")
+            .last ?? "").components(separatedBy: "\n    @discardableResult").first ?? ""
+        let placeCode = placeBody
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(!placeCode.isEmpty && !placeCode.contains("isMinimized"),
+               "a drop takes the same steps for a minimized window as for any other")
         // The thumbnail is derived from the card, so a constant changed on its
         // own must not silently eat into it or leave the card short.
         expectClose(Double(DockPreviewSupport.cardThumbnailHeight

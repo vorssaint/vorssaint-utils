@@ -217,25 +217,14 @@ enum WindowActivator {
         return AXUIElementSetAttributeValue(axWindow, kAXPositionAttribute as CFString, value) == .success
     }
 
-    private static func windowOrigin(windowID: CGWindowID, pid: pid_t) -> CGPoint? {
-        let axApp = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(axApp, 0.35)
-        guard let axWindow = axElement(windowID: windowID, in: axApp) else { return nil }
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(axWindow, kAXPositionAttribute as CFString, &value) == .success,
-              let raw = value, CFGetTypeID(raw) == AXValueGetTypeID()
-        else { return nil }
-        var point = CGPoint.zero
-        guard AXValueGetValue(raw as! AXValue, .cgPoint, &point) else { return nil }
-        return point
-    }
-
-    /// Puts a window where a drag dropped it, whatever state it was in. The
-    /// order matters: the position is written before the window is restored, so
-    /// the restore animation ends at the drop point instead of flying to the
-    /// window's old place and jumping from there. Not every app accepts a
-    /// position while it is minimized, so a restored window has its position
-    /// read back and written again when the first write did not take.
+    /// Puts a window where a drag dropped it. Every window takes the same four
+    /// steps in the same order whatever state it was in, because a drop that
+    /// stops to check on a minimized window feels like a different gesture from
+    /// a drop that does not. Un-minimizing a window that is already out returns
+    /// immediately, so the step costs one attribute read.
+    ///
+    /// The position goes on before the window is restored: the restore then
+    /// ends at the drop point rather than flying to the window's old place.
     @discardableResult
     static func place(_ item: SwitcherItem, origin: CGPoint, pointer: CGPoint) -> Bool {
         guard Permissions.shared.accessibility,
@@ -247,16 +236,9 @@ enum WindowActivator {
         if item.isAppHidden {
             NSRunningApplication(processIdentifier: item.pid)?.unhide()
         }
-        var placed = setWindowOrigin(origin, windowID: windowID, pid: pid)
+        let placed = setWindowOrigin(origin, windowID: windowID, pid: pid)
         SpaceWindowBridge.moveToVisibleSpace(windowID, near: pointer)
-
-        guard item.isMinimized else { return placed }
-        guard setWindowMinimized(false, windowID: windowID, pid: pid) else { return placed }
-        if let landed = windowOrigin(windowID: windowID, pid: pid),
-           SwitcherSupport.originsMatch(landed, origin) {
-            return true
-        }
-        placed = setWindowOrigin(origin, windowID: windowID, pid: pid) || placed
+        setWindowMinimized(false, windowID: windowID, pid: pid)
         return placed
     }
 
