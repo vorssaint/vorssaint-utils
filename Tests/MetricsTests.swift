@@ -7657,6 +7657,62 @@ struct MetricsTests {
                                                                  selectedIndex: 2,
                                                                  delta: 1) == 2,
                "App Switcher icon-row window navigation stays put when the app has one window")
+        expect(SwitcherSupport.iconRowEdgeHoverInterval > 0.15
+               && SwitcherSupport.iconRowEdgeHoverAnimationDuration > 0.15,
+               "App Switcher overflow hover steps slower than the previous centered jump")
+        expect(SwitcherSupport.clampedIconRowFirstVisibleIndex(itemCount: 12,
+                                                              visibleCount: 6,
+                                                              firstVisibleIndex: -2) == 0
+               && SwitcherSupport.clampedIconRowFirstVisibleIndex(itemCount: 12,
+                                                                 visibleCount: 6,
+                                                                 firstVisibleIndex: 20) == 6
+               && SwitcherSupport.clampedIconRowFirstVisibleIndex(itemCount: 5,
+                                                                 visibleCount: 6,
+                                                                 firstVisibleIndex: 3) == 0,
+               "App Switcher overflow row never scrolls past either end")
+        expect(SwitcherSupport.iconRowFirstVisibleIndex(revealing: 8,
+                                                        itemCount: 12,
+                                                        visibleCount: 6,
+                                                        currentFirstVisibleIndex: 0) == 3
+               && SwitcherSupport.iconRowFirstVisibleIndex(revealing: 1,
+                                                           itemCount: 12,
+                                                           visibleCount: 6,
+                                                           currentFirstVisibleIndex: 3) == 1
+               && SwitcherSupport.iconRowFirstVisibleIndex(revealing: 4,
+                                                           itemCount: 12,
+                                                           visibleCount: 6,
+                                                           currentFirstVisibleIndex: 3) == 3,
+               "App Switcher overflow row slides just far enough to keep the selection visible")
+        expect(SwitcherSupport.iconRowEdgeHoverDelta(hoveredIndex: 5,
+                                                     firstVisibleIndex: 0,
+                                                     visibleCount: 6,
+                                                     itemCount: 12) == 1
+               && SwitcherSupport.iconRowEdgeHoverDelta(hoveredIndex: 3,
+                                                        firstVisibleIndex: 3,
+                                                        visibleCount: 6,
+                                                        itemCount: 12) == -1
+               && SwitcherSupport.iconRowEdgeHoverDelta(hoveredIndex: 2,
+                                                        firstVisibleIndex: 0,
+                                                        visibleCount: 6,
+                                                        itemCount: 12) == nil
+               && SwitcherSupport.iconRowEdgeHoverDelta(hoveredIndex: 5,
+                                                        firstVisibleIndex: 6,
+                                                        visibleCount: 6,
+                                                        itemCount: 12) == nil
+               && SwitcherSupport.iconRowEdgeHoverDelta(hoveredIndex: 3,
+                                                        firstVisibleIndex: 0,
+                                                        visibleCount: 6,
+                                                        itemCount: 5) == nil,
+               "App Switcher overflow hover only steps from the last visible icon on a side")
+        expect(SwitcherSupport.iconRowIndexAfterEdgeHoverStep(firstVisibleIndex: 1,
+                                                              visibleCount: 6,
+                                                              itemCount: 12,
+                                                              delta: 1) == 6
+               && SwitcherSupport.iconRowIndexAfterEdgeHoverStep(firstVisibleIndex: 2,
+                                                                 visibleCount: 6,
+                                                                 itemCount: 12,
+                                                                 delta: -1) == 2,
+               "App Switcher overflow hover lands on the newly revealed last visible icon")
         let frontmostScoped = SwitcherSupport.frontmostAppWindows(allItems: groupedSwitcherItems,
                                                                     frontmostPID: 101)
         expect(frontmostScoped.count == 2
