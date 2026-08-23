@@ -14782,6 +14782,9 @@ struct MetricsTests {
                "compact mode ships off: the browse list is how the bar introduces itself")
         expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarCompactMode),
                "compact mode is configuration, so it travels with an exported setup")
+        expect(SettingsBackupSupport.valueLooksRight(DefaultsKey.commandBarCompactMode, true)
+                && !SettingsBackupSupport.valueLooksRight(DefaultsKey.commandBarCompactMode, "yes"),
+               "a restored compact mode has to be a switch, not text that looks like one")
 
         // MARK: What the bar noticed about this session
         expect(CommandBarQueryMemory.prefixes(of: "wha") == ["w", "wh", "wha"],
