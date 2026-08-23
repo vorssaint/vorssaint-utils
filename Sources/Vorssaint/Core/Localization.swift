@@ -1064,10 +1064,19 @@ struct Strings {
     let memoryMetricApp: String
     let keepAwakeRightClickToggle: String
     let keepAwakeRightClickToggleCaption: String
-    let urlCleanerCustomTitle: String
-    let urlCleanerCustomPlaceholder: String
-    let urlCleanerCustomCaption: String
-    let urlCleanerCustomSaveButton: String
+    let urlCleanerRulesTitle: String
+    let urlCleanerRulesCaption: String
+    let urlCleanerRulesCoverageCaption: String
+    let urlCleanerRulesAllSites: String
+    let urlCleanerRulesCountSingular: String
+    let urlCleanerRulesCountPluralFormat: String   // + count
+    let urlCleanerRulesAddSite: String
+    let urlCleanerRulesParameterPlaceholder: String
+    let urlCleanerRulesMatchCaption: String
+    let urlCleanerRulesAddButton: String
+    let urlCleanerRulesRemoveButton: String
+    let urlCleanerRulesRemoveSiteButton: String
+    let urlCleanerRemovedFormat: String            // + comma separated names
     let switcherSearchPin: String
     let switcherSearchPinCaption: String
     let invertVerticalScroll: String
@@ -2001,10 +2010,19 @@ extension Strings {
         memoryMetricApp: "Memória de apps",
         keepAwakeRightClickToggle: "Clique com o botão direito no ícone da barra de menus para alternar “Manter acordado”",
         keepAwakeRightClickToggleCaption: "Substitui o menu de contexto do clique com o botão direito.",
-        urlCleanerCustomTitle: "Mais nomes para remover",
-        urlCleanerCustomPlaceholder: "ref, origem",
-        urlCleanerCustomCaption: "Separe os nomes dos parâmetros com vírgulas. Eles serão removidos de todos os links.",
-        urlCleanerCustomSaveButton: "Salvar",
+        urlCleanerRulesTitle: "Regras de limpeza",
+        urlCleanerRulesCaption: "Um site anexa estes parâmetros aos próprios links de compartilhamento para rastrear de onde o link veio. Ligado, o nome é removido ao limpar um link; desligado, ele permanece. Os nomes que você adicionar podem ser excluídos.",
+        urlCleanerRulesCoverageCaption: "A lista cobre os diferentes caminhos de compartilhamento de um site — a página, o app, uma sala ao vivo — por isso é longa; um link real costuma carregar apenas dois a quatro deles.",
+        urlCleanerRulesAllSites: "Todos os sites",
+        urlCleanerRulesCountSingular: "1 parâmetro",
+        urlCleanerRulesCountPluralFormat: "%d parâmetros",
+        urlCleanerRulesAddSite: "Adicionar site",
+        urlCleanerRulesParameterPlaceholder: "Nome do parâmetro",
+        urlCleanerRulesMatchCaption: "Escreva o nome à esquerda do = , como utm_source. Um nome que corresponde tira aquele parâmetro do link e deixa o resto como está.",
+        urlCleanerRulesAddButton: "Adicionar",
+        urlCleanerRulesRemoveButton: "Excluir nome",
+        urlCleanerRulesRemoveSiteButton: "Desativar todas as regras deste site",
+        urlCleanerRemovedFormat: "Removidos %@",
         switcherSearchPin: "Fixar busca com S",
         switcherSearchPinCaption: "S inicia uma busca e fixa o alternador aberto, assim digitar não produz mais caracteres especiais quando o atalho usa ⌥, e uma busca que comece com Q ou W não fecha a janela nem encerra o app por engano.",
         invertVerticalScroll: "Inverter rolagem vertical",
@@ -2939,10 +2957,19 @@ extension Strings {
         memoryMetricApp: "App Memory",
         keepAwakeRightClickToggle: "Right-click the menu bar icon to toggle Keep Awake",
         keepAwakeRightClickToggleCaption: "Replaces the right-click context menu.",
-        urlCleanerCustomTitle: "More names to remove",
-        urlCleanerCustomPlaceholder: "ref, source",
-        urlCleanerCustomCaption: "Separate parameter names with commas. They are removed from every link.",
-        urlCleanerCustomSaveButton: "Save",
+        urlCleanerRulesTitle: "Cleaning rules",
+        urlCleanerRulesCaption: "A site attaches these parameters to its own share links to track where the link came from. Switched on, a name is removed when a link is cleaned; switched off, it stays. Names you add can be deleted.",
+        urlCleanerRulesCoverageCaption: "The list covers a site's different share paths — the web page, the app, a live room — which is why it is long; a real link usually carries only two to four of them.",
+        urlCleanerRulesAllSites: "All sites",
+        urlCleanerRulesCountSingular: "1 parameter",
+        urlCleanerRulesCountPluralFormat: "%d parameters",
+        urlCleanerRulesAddSite: "Add a site",
+        urlCleanerRulesParameterPlaceholder: "Parameter name",
+        urlCleanerRulesMatchCaption: "Write the name to the left of the = , like utm_source. A name that matches takes that one parameter out of the link and leaves the rest as it was.",
+        urlCleanerRulesAddButton: "Add",
+        urlCleanerRulesRemoveButton: "Delete name",
+        urlCleanerRulesRemoveSiteButton: "Turn off every rule for this site",
+        urlCleanerRemovedFormat: "Removed %@",
         switcherSearchPin: "Pin search with S",
         switcherSearchPinCaption: "S starts a search and pins the switcher open, so typing no longer produces special characters when your shortcut uses ⌥, and a search starting with Q or W no longer closes the window or quits the app by mistake.",
         invertVerticalScroll: "Invert vertical scrolling",

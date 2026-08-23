@@ -32,6 +32,10 @@ Vorssaint 3.3.3-beta.1 introduces the opt-in beta release channel and in-app fee
 - Clean URL now removes the tracking parameters that YouTube, X, Instagram, Spotify,
   Reddit, TikTok, Bilibili and Xiaohongshu add to their own share links, while leaving
   the same parameter names alone on every other site. Thanks to @PathGao.
+- Clean URL now lists every rule it applies in Settings, where any name can be switched off
+  and names of your own can be added to one site or to every site. A whole site's rules can
+  be turned off at once, and the list says what the names are for. Cleaning now also names
+  the parameters it removed. Thanks to @PathGao.
 - An opt-in Kill Process feature searches running processes to force quit, restart or terminate
   process trees from Settings and the Command Bar. It ships uninstalled. Thanks to @naveenkrdy.
 - The System panel now shows compressed memory and cached files next to swap.

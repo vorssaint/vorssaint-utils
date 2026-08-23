@@ -165,6 +165,8 @@ enum DefaultsKey {
     static let shelfItems = "shelfItems"                  // Data: [ShelfPersistedItem] JSON
     static let urlCleanerEnabled = "urlCleanerEnabled"
     static let urlCleanerCustomParameters = "urlCleanerCustomParameters"
+    static let urlCleanerSiteParameters = "urlCleanerSiteParameters"       // host|name pairs added to one site
+    static let urlCleanerDisabledParameters = "urlCleanerDisabledParameters" // built-in host|name pairs switched off
     static let windowMaximizeEnabled = "windowMaximizeEnabled"
     static let keyboardDebounceEnabled = "keyboardDebounceEnabled"
     static let keyboardDebounceWindowMs = "keyboardDebounceWindowMs"
@@ -862,6 +864,8 @@ enum Defaults {
         DefaultsKey.whatsAppOrganizerLastFailed: 0,
         DefaultsKey.urlCleanerEnabled: false,
         DefaultsKey.urlCleanerCustomParameters: "",
+        DefaultsKey.urlCleanerSiteParameters: "",
+        DefaultsKey.urlCleanerDisabledParameters: "",
         DefaultsKey.textSnippetsEnabled: false,
         DefaultsKey.snippetLibraryEnabled: false,
         DefaultsKey.snippetLibraryShortcut: GlobalShortcut.snippetLibraryDefault.storageValue,
