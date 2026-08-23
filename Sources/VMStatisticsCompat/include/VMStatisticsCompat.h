@@ -87,6 +87,23 @@ _Static_assert(offsetof(vorssaint_vm_statistics64_rev3_t, external_page_count) =
 _Static_assert(offsetof(vorssaint_vm_statistics64_rev3_t, internal_page_count) ==
                    offsetof(vm_statistics64_data_t, internal_page_count),
                "internal_page_count layout mismatch");
+_Static_assert(offsetof(vorssaint_vm_statistics64_rev3_t,
+                        total_uncompressed_pages_in_compressor) ==
+                   offsetof(vm_statistics64_data_t,
+                            total_uncompressed_pages_in_compressor),
+               "total_uncompressed_pages_in_compressor layout mismatch");
+_Static_assert(VORSSAINT_HOST_VM_INFO64_REV1_COUNT == HOST_VM_INFO64_REV1_COUNT,
+               "HOST_VM_INFO64 rev1 count mismatch with the active SDK");
+
+#ifdef HOST_VM_INFO64_REV2_COUNT
+// SDK 15 stops at rev1; newer SDKs can also anchor the appended rev2 field and
+// its boundary to Apple's definitions.
+_Static_assert(offsetof(vorssaint_vm_statistics64_rev3_t, swapped_count) ==
+                   offsetof(vm_statistics64_data_t, swapped_count),
+               "swapped_count layout mismatch with the active SDK");
+_Static_assert(VORSSAINT_HOST_VM_INFO64_REV2_COUNT == HOST_VM_INFO64_REV2_COUNT,
+               "HOST_VM_INFO64 rev2 count mismatch with the active SDK");
+#endif
 
 #ifdef HOST_VM_INFO64_REV3_COUNT
 _Static_assert(VORSSAINT_HOST_VM_INFO64_REV3_COUNT == HOST_VM_INFO64_REV3_COUNT,
