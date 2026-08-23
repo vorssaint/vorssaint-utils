@@ -259,14 +259,19 @@ enum SwitcherSupport {
     static let captureAlphaGridSize = 8
 
     /// How long the pointer must stay on the last visible icon before the
-    /// overflow row reveals the next one. The previous centered scroll jumped
-    /// several icons in 0.15s the moment that last icon was hovered, so a
-    /// parked mouse raced through the list.
-    static let iconRowEdgeHoverInterval: TimeInterval = 0.42
+    /// overflow row reveals the next one. Long enough that crossing the
+    /// edge does not start a scroll, short enough that a parked pointer
+    /// does not feel stuck.
+    static let iconRowEdgeHoverInterval: TimeInterval = 0.24
 
-    /// Duration of the one-icon slide. Kept slower than the previous 0.15s
-    /// center jump so each newly revealed icon can be aimed at.
-    static let iconRowEdgeHoverAnimationDuration: TimeInterval = 0.28
+    /// Cadence for later one-icon steps while the pointer stays parked.
+    /// Kept just above the slide so the next icon appears as soon as the
+    /// previous one has settled.
+    static let iconRowEdgeHoverRepeatInterval: TimeInterval = 0.20
+
+    /// Duration of the one-icon slide. Slightly slower than the previous
+    /// 0.15s center jump so the newly revealed icon can still be aimed at.
+    static let iconRowEdgeHoverAnimationDuration: TimeInterval = 0.18
 
     static func firstValuesByPID<Value>(_ pairs: [(pid_t, Value)]) -> [pid_t: Value] {
         Dictionary(pairs, uniquingKeysWith: { first, _ in first })

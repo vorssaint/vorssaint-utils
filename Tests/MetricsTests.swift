@@ -7657,9 +7657,11 @@ struct MetricsTests {
                                                                  selectedIndex: 2,
                                                                  delta: 1) == 2,
                "App Switcher icon-row window navigation stays put when the app has one window")
-        expect(SwitcherSupport.iconRowEdgeHoverInterval > 0.15
+        expect(SwitcherSupport.iconRowEdgeHoverInterval > SwitcherSupport.iconRowEdgeHoverAnimationDuration
+               && SwitcherSupport.iconRowEdgeHoverRepeatInterval >= SwitcherSupport.iconRowEdgeHoverAnimationDuration
+               && SwitcherSupport.iconRowEdgeHoverRepeatInterval < SwitcherSupport.iconRowEdgeHoverInterval
                && SwitcherSupport.iconRowEdgeHoverAnimationDuration > 0.15,
-               "App Switcher overflow hover steps slower than the previous centered jump")
+               "App Switcher overflow hover waits to start, then steps with the slide")
         expect(SwitcherSupport.clampedIconRowFirstVisibleIndex(itemCount: 12,
                                                               visibleCount: 6,
                                                               firstVisibleIndex: -2) == 0

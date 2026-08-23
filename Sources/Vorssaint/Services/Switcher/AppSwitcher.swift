@@ -1489,7 +1489,7 @@ final class AppSwitcher: ObservableObject {
             self?.stepIconRowFromEdgeHover()
         }
         iconRowEdgeHoverWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + SwitcherSupport.iconRowEdgeHoverInterval,
+        DispatchQueue.main.asyncAfter(deadline: .now() + SwitcherSupport.iconRowEdgeHoverRepeatInterval,
                                       execute: work)
     }
 
