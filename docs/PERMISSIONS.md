@@ -12,7 +12,8 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Microphone | Yes | Your voice in a screen recording, only when you turn it on |
 | Camera | Yes | The camera preview mirror |
 | Notifications | Yes | Keep awake, battery, Monitor and update alerts |
-| Full Disk Access | Yes | A deeper uninstaller scan |
+| Files & Folders | Yes | The Video Downloader's explicitly chosen destination folder, plus WhatsApp download cleanup and experimental organizer checks when you use them |
+| Full Disk Access | Yes | A deeper uninstaller scan, and reading browser cookies in Video Downloader when you turn that on |
 | Administrator (one time) | Yes | Password free closed lid toggling |
 | Automation | Yes | Finder cut and paste, moving leftovers to the Trash, emptying the Trash and Homebrew Terminal handoff |
 | App Management | Yes | Replacing or removing apps installed through the package manager |
@@ -96,11 +97,21 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 **Optional.** Yes.
 
+## Files & Folders
+
+**Why it comes up.** macOS asks before an app can read or write files in user folders like Downloads, Desktop or Documents.
+
+**What uses it.** The Video Downloader, to save finished video and audio files into your chosen destination folder. WhatsApp download cleanup and the experimental organizer use it only when you ask them to inspect or change a folder. The downloader never scans your folders at launch or in the background.
+
+**If you say no.** The Video Downloader cannot save completed media to that folder, and organizer actions will not go through. You can grant access later in System Settings, under Privacy and Security, Files and Folders. The rest of Vorssaint keeps working.
+
+**Optional.** Yes. Access is scoped by macOS only to the destination folder you choose.
+
 ## Full Disk Access
 
 **Why it comes up.** The uninstaller hunts down the files an app leaves behind, like caches, preferences and logs. Some of those spots are protected by macOS and only open up with Full Disk Access.
 
-**What uses it.** The uninstaller, for a deeper scan.
+**What uses it.** The uninstaller, for a deeper scan, and Video Downloader, when you choose to use browser cookies for member-only or age-restricted videos.
 
 **If you say no.** The uninstaller still works and scans the places it can reach. It just might not surface files tucked away in protected folders.
 

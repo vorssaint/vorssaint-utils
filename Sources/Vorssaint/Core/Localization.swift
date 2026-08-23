@@ -1099,6 +1099,85 @@ struct Strings {
     let switcherMinimizedPlacementEnd: String
     let switcherMinimizedPlacementHidden: String
     let switcherShowFullscreenWindows: String
+    let videoDownloaderPageTitle: String
+    let videoDownloaderHubDescription: String
+    let videoDownloaderPanelCaption: String
+    let videoDownloaderUrlPlaceholder: String
+    let videoDownloaderUrlHelp: String
+    let videoDownloaderPaste: String
+    let videoDownloaderInspecting: String
+    let videoDownloaderVideo: String
+    let videoDownloaderAudio: String
+    let videoDownloaderQuality: String
+    let videoDownloaderHeightFormat: String
+    let videoDownloaderQualityFallbackFormat: String
+    let videoDownloaderSubtitles: String
+    let videoDownloaderNone: String
+    let videoDownloaderManual: String
+    let videoDownloaderAutomatic: String
+    let videoDownloaderChoose: String
+    let videoDownloaderShowInPanel: String
+    let videoDownloaderSettingsCaption: String
+    let videoDownloaderUsageNotice: String
+    let videoDownloaderDownloadLocation: String
+    let videoDownloaderResetDownloads: String
+    let videoDownloaderUseCookies: String
+    let videoDownloaderCookiesBrowser: String
+    let videoDownloaderCookiesNote: String
+    let videoDownloaderFAQ: String
+    let videoDownloaderCookiesDiskAccessNote: String
+    let videoDownloaderErrorExtractorFormat: String
+    let videoDownloaderDependencies: String
+    let videoDownloaderMissingToolsFormat: String
+    let videoDownloaderInstallMissingTools: String
+    let videoDownloaderSetUpDownloader: String
+    let videoDownloaderBrewSetupNote: String
+    let videoDownloaderTerminalSetupNote: String
+    let videoDownloaderCheckingTools: String
+    let videoDownloaderDownloadVideo: String
+    let videoDownloaderDownloadAudio: String
+    let videoDownloaderDownloading: String
+    let videoDownloaderPercentFormat: String
+    let videoDownloaderSpeedFormat: String
+    let videoDownloaderEtaFormat: String
+    let videoDownloaderFinalizing: String
+    let videoDownloaderCancel: String
+    let videoDownloaderCancelling: String
+    let videoDownloaderComplete: String
+    let videoDownloaderDownloadAnother: String
+    let videoDownloaderRevealFinder: String
+    let videoDownloaderRetry: String
+    let videoDownloaderCancelled: String
+    let videoDownloaderFailureTitle: String
+    let videoDownloaderUploader: String
+    let videoDownloaderDuration: String
+    let videoDownloaderThumbnail: String
+    let videoDownloaderErrorURLInvalid: String
+    let videoDownloaderErrorURLTooLong: String
+    let videoDownloaderErrorURLControl: String
+    let videoDownloaderErrorURLCredentials: String
+    let videoDownloaderErrorInspectionTimeout: String
+    let videoDownloaderErrorInspectionFailed: String
+    let videoDownloaderErrorInspectionTooLarge: String
+    let videoDownloaderErrorInspectionMalformed: String
+    let videoDownloaderInspectionFailedNotice: String
+    let videoDownloaderErrorPlaylist: String
+    let videoDownloaderErrorLive: String
+    let videoDownloaderErrorDRM: String
+    let videoDownloaderErrorRestricted: String
+    let videoDownloaderErrorNoVideo: String
+    let videoDownloaderErrorNoAudio: String
+    let videoDownloaderErrorMissingDependencies: String
+    let videoDownloaderErrorSetupBusy: String
+    let videoDownloaderErrorSetupFailed: String
+    let videoDownloaderErrorTerminalPermission: String
+    let videoDownloaderErrorDownloadFailed: String
+    let videoDownloaderErrorCookiesPermission: String
+    let videoDownloaderErrorRemux: String
+    let videoDownloaderErrorSubtitle: String
+    let videoDownloaderErrorSubtitleRateLimited: String
+    let videoDownloaderErrorOptionalData: String
+    let videoDownloaderErrorFileSafety: String
 }
 
 // MARK: - Português (Brasil)
@@ -1221,10 +1300,10 @@ extension Strings {
         advancedClearConfirmTitle: "Limpar todas as permissões?",
         advancedClearConfirmBody: "Os recursos que dependem de permissão vão parar de funcionar até você conceder de novo. As suas configurações são mantidas.",
         advancedUninstallSection: "Desinstalar",
-        advancedUninstallDescription: "Faz tudo acima e ainda apaga as preferências e move o Vorssaint para a Lixeira, sem deixar rastro no sistema. O app fecha ao final. Você pode reinstalar quando quiser.",
+        advancedUninstallDescription: "Limpa as permissões e o estado pertencente ao Vorssaint, remove o item de início e a regra de tampa fechada e move apenas o app para a Lixeira. Não apaga vídeos, downloads nem arquivos nas pastas que você escolheu. O app fecha ao final. Você pode reinstalar quando quiser.",
         advancedUninstallButton: "Desinstalar o Vorssaint completamente",
         advancedUninstallConfirmTitle: "Desinstalar o Vorssaint?",
-        advancedUninstallConfirmBody: "O Vorssaint vai limpar as permissões, apagar as preferências e ir para a Lixeira, e então fechar. Esta ação não pode ser desfeita pelo app, mas ele fica na Lixeira até você esvaziá-la.",
+        advancedUninstallConfirmBody: "O Vorssaint vai limpar as permissões e o próprio estado, mover o app para a Lixeira e então fechar. Vídeos baixados e arquivos nas pastas escolhidas não serão apagados. Esta ação não pode ser desfeita pelo app, mas ele fica na Lixeira até você esvaziá-la.",
 
         launchAtLogin: "Iniciar junto com o Mac",
         languageLabel: "Idioma",
@@ -2054,7 +2133,86 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Ordem normal",
         switcherMinimizedPlacementEnd: "Colocar no final",
         switcherMinimizedPlacementHidden: "Ocultar",
-        switcherShowFullscreenWindows: "Mostrar janelas em tela cheia"
+        switcherShowFullscreenWindows: "Mostrar janelas em tela cheia",
+        videoDownloaderPageTitle: "Baixador de vídeos",
+        videoDownloaderHubDescription: "Baixe um vídeo ou áudio com opções de qualidade e legenda",
+        videoDownloaderPanelCaption: "Salve um link de mídia como MP4/MKV ou M4A",
+        videoDownloaderUrlPlaceholder: "Cole um link de mídia HTTP ou HTTPS",
+        videoDownloaderUrlHelp: "A URL só é analisada quando é válida. Ela não é salva nem colocada nos argumentos do processo.",
+        videoDownloaderPaste: "Colar",
+        videoDownloaderInspecting: "Analisando mídia…",
+        videoDownloaderVideo: "Vídeo",
+        videoDownloaderAudio: "Áudio",
+        videoDownloaderQuality: "Qualidade do vídeo",
+        videoDownloaderHeightFormat: "%dp",
+        videoDownloaderQualityFallbackFormat: "%dp não estava disponível; %dp foi selecionado.",
+        videoDownloaderSubtitles: "Legendas",
+        videoDownloaderNone: "Nenhuma",
+        videoDownloaderManual: "Manual",
+        videoDownloaderAutomatic: "Automática",
+        videoDownloaderChoose: "Escolher…",
+        videoDownloaderShowInPanel: "Mostrar no painel do menu",
+        videoDownloaderSettingsCaption: "Os downloads ficam numa área temporária privada e só o MP4/MKV ou M4A final vai para sua pasta.",
+        videoDownloaderUsageNotice: "Baixe somente conteúdo que você tem permissão para usar.",
+        videoDownloaderDownloadLocation: "Local de download",
+        videoDownloaderResetDownloads: "Redefinir para Downloads",
+        videoDownloaderUseCookies: "Usar cookies do navegador",
+        videoDownloaderCookiesBrowser: "Navegador",
+        videoDownloaderCookiesNote: "Permite que o yt-dlp use os cookies de login do seu navegador para baixar vídeos com restrição de idade ou exclusivos para membros. Os cookies são lidos apenas durante a inspeção e o download e nunca são armazenados pelo Vorssaint.",
+        videoDownloaderFAQ: "FAQ do yt-dlp",
+        videoDownloaderCookiesDiskAccessNote: "Ler os arquivos de cookies do navegador exige Acesso Total ao Disco. Ative o Vorssaint em Ajustes do Sistema > Privacidade e Segurança > Acesso Total ao Disco e tente novamente.",
+        videoDownloaderErrorExtractorFormat: "O yt-dlp informou: %@",
+        videoDownloaderDependencies: "Ferramentas do baixador",
+        videoDownloaderMissingToolsFormat: "Faltando: %@",
+        videoDownloaderInstallMissingTools: "Instalar ferramentas ausentes",
+        videoDownloaderSetUpDownloader: "Configurar baixador",
+        videoDownloaderBrewSetupNote: "O Homebrew instala apenas os itens ausentes: yt-dlp, FFmpeg (incluindo ffprobe) e Deno.",
+        videoDownloaderTerminalSetupNote: "O Terminal abrirá a configuração oficial do Homebrew e poderá pedir confirmação ou senha; depois instalará yt-dlp, FFmpeg (incluindo ffprobe) e Deno.",
+        videoDownloaderCheckingTools: "Verificando ferramentas…",
+        videoDownloaderDownloadVideo: "Baixar vídeo",
+        videoDownloaderDownloadAudio: "Baixar áudio",
+        videoDownloaderDownloading: "Baixando…",
+        videoDownloaderPercentFormat: "%.0f%%",
+        videoDownloaderSpeedFormat: "%@/s",
+        videoDownloaderEtaFormat: "Tempo restante %@",
+        videoDownloaderFinalizing: "Finalizando…",
+        videoDownloaderCancel: "Cancelar",
+        videoDownloaderCancelling: "Cancelando…",
+        videoDownloaderComplete: "Download concluído",
+        videoDownloaderDownloadAnother: "Baixar outro",
+        videoDownloaderRevealFinder: "Mostrar no Finder",
+        videoDownloaderRetry: "Tentar novamente",
+        videoDownloaderCancelled: "Download cancelado",
+        videoDownloaderFailureTitle: "Não foi possível concluir o download",
+        videoDownloaderUploader: "Publicador",
+        videoDownloaderDuration: "Duração",
+        videoDownloaderThumbnail: "Miniatura da mídia",
+        videoDownloaderErrorURLInvalid: "Digite um link de mídia HTTP ou HTTPS completo.",
+        videoDownloaderErrorURLTooLong: "Esta URL é longa demais para uma análise segura.",
+        videoDownloaderErrorURLControl: "A URL contém quebra de linha ou caractere de controle.",
+        videoDownloaderErrorURLCredentials: "URLs com nome de usuário ou senha não são aceitas.",
+        videoDownloaderErrorInspectionTimeout: "A análise demorou demais. Verifique o link e tente novamente.",
+        videoDownloaderErrorInspectionFailed: "Não foi possível analisar a mídia. Confirme que ela está disponível e acessível.",
+        videoDownloaderErrorInspectionTooLarge: "O site retornou mais informações de mídia do que é seguro processar.",
+        videoDownloaderErrorInspectionMalformed: "As informações retornadas pelo yt-dlp não puderam ser usadas.",
+        videoDownloaderInspectionFailedNotice: "A análise falhou — as opções de qualidade e a miniatura ficam indisponíveis, mas você ainda pode tentar baixar.",
+        videoDownloaderErrorPlaylist: "Playlists, canais e coleções não são aceitos. Cole um único item.",
+        videoDownloaderErrorLive: "Transmissões ao vivo ou futuras não são aceitas.",
+        videoDownloaderErrorDRM: "Mídia protegida por DRM não pode ser baixada.",
+        videoDownloaderErrorRestricted: "Mídia privada, paga ou restrita por login não é aceita.",
+        videoDownloaderErrorNoVideo: "Este item não tem vídeo utilizável. Escolha Áudio.",
+        videoDownloaderErrorNoAudio: "Este item não tem áudio utilizável.",
+        videoDownloaderErrorMissingDependencies: "yt-dlp, FFmpeg (incluindo ffprobe) e Deno são necessários para baixar.",
+        videoDownloaderErrorSetupBusy: "Outra operação do Homebrew está em andamento. Tente depois que terminar.",
+        videoDownloaderErrorSetupFailed: "Não foi possível instalar as ferramentas. Verifique o Homebrew e tente novamente.",
+        videoDownloaderErrorTerminalPermission: "Não foi possível abrir o Terminal. Permita Automação do Terminal nos Ajustes do Sistema.",
+        videoDownloaderErrorDownloadFailed: "O download falhou. Confirme que o link continua disponível e acessível.",
+        videoDownloaderErrorCookiesPermission: "O Vorssaint não conseguiu ler os cookies do navegador selecionado. O macOS negou acesso aos arquivos de cookies. Conceda Acesso Total ao Disco em Ajustes do Sistema > Privacidade e Segurança > Acesso Total ao Disco e tente novamente.",
+        videoDownloaderErrorRemux: "Os fluxos selecionados não podem ser unidos ou remultiplexados em MP4/MKV sem transcodificação. Escolha outra qualidade.",
+        videoDownloaderErrorSubtitle: "Não foi possível baixar e incorporar a legenda selecionada. Se ela exigir login, ative os cookies do navegador e tente novamente.",
+        videoDownloaderErrorSubtitleRateLimited: "Foram feitas muitas solicitações de legendas (HTTP 429). O site de vídeo recusou temporariamente a legenda selecionada. Tente novamente mais tarde ou escolha a legenda no idioma original.",
+        videoDownloaderErrorOptionalData: "Não foi possível incorporar a capa, os metadados ou os capítulos solicitados.",
+        videoDownloaderErrorFileSafety: "Não foi possível verificar ou colocar com segurança o arquivo final na pasta selecionada."
     )
 }
 
@@ -2178,10 +2336,10 @@ extension Strings {
         advancedClearConfirmTitle: "Clear all permissions?",
         advancedClearConfirmBody: "Features that need permissions will stop working until you grant them again. Your settings are kept.",
         advancedUninstallSection: "Uninstall",
-        advancedUninstallDescription: "Does all of the above, then removes the preferences and moves Vorssaint to the Trash, leaving nothing behind. The app quits when done. You can reinstall anytime.",
+        advancedUninstallDescription: "Clears Vorssaint's permissions and app-owned state, removes its login item and closed-lid rule, and moves only the app to the Trash. It does not delete videos, downloads or files in folders you chose. The app quits when done. You can reinstall anytime.",
         advancedUninstallButton: "Uninstall Vorssaint completely",
         advancedUninstallConfirmTitle: "Uninstall Vorssaint?",
-        advancedUninstallConfirmBody: "Vorssaint will clear its permissions, remove its preferences and move to the Trash, then quit. This can't be undone from the app, but it stays in the Trash until you empty it.",
+        advancedUninstallConfirmBody: "Vorssaint will clear its permissions and own state, move the app to the Trash, then quit. It will not delete downloaded media or files in folders you chose. This can't be undone from the app, but it stays in the Trash until you empty it.",
 
         launchAtLogin: "Launch at login",
         languageLabel: "Language",
@@ -2846,7 +3004,7 @@ extension Strings {
         cleaningOverlayUnlock: "Unlock",
         cleaningOverlayMouseHint: "Your mouse and trackpad still work",
         cleaningNeedsAxTitle: "Accessibility needed",
-        cleaningNeedsAxBody: "To lock the keyboard safely, Vorssaint needs Accessibility permission. Grant it in System Settings and try again.",
+        cleaningNeedsAxBody: "To lock the keyboard safely, Vorssaint needs Accessibility permission. Enable it in System Settings and try again.",
 
         tabSupport: "Support",
         shortcutsPageCaption: "Edit every global shortcut from the features installed on this Mac. Inactive shortcuts stay saved but do not run.",
@@ -3011,6 +3169,85 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Normal ordering",
         switcherMinimizedPlacementEnd: "Place at end",
         switcherMinimizedPlacementHidden: "Hide",
-        switcherShowFullscreenWindows: "Show fullscreen windows"
+        switcherShowFullscreenWindows: "Show fullscreen windows",
+        videoDownloaderPageTitle: "Video Downloader",
+        videoDownloaderHubDescription: "Download a video or audio track with quality and subtitle choices",
+        videoDownloaderPanelCaption: "Save a media link as MP4/MKV or M4A",
+        videoDownloaderUrlPlaceholder: "Paste an HTTP or HTTPS media link",
+        videoDownloaderUrlHelp: "The URL is inspected only after it is valid. It is not saved or put in process arguments.",
+        videoDownloaderPaste: "Paste",
+        videoDownloaderInspecting: "Inspecting media…",
+        videoDownloaderVideo: "Video",
+        videoDownloaderAudio: "Audio",
+        videoDownloaderQuality: "Video quality",
+        videoDownloaderHeightFormat: "%dp",
+        videoDownloaderQualityFallbackFormat: "%dp was unavailable; %dp was selected instead.",
+        videoDownloaderSubtitles: "Subtitles",
+        videoDownloaderNone: "None",
+        videoDownloaderManual: "Manual",
+        videoDownloaderAutomatic: "Automatic",
+        videoDownloaderChoose: "Choose…",
+        videoDownloaderShowInPanel: "Show in menu panel",
+        videoDownloaderSettingsCaption: "Downloads are staged privately and only the finished MP4/MKV or M4A is placed in your folder.",
+        videoDownloaderUsageNotice: "Only download content you have permission to use.",
+        videoDownloaderDownloadLocation: "Download location",
+        videoDownloaderResetDownloads: "Reset to Downloads",
+        videoDownloaderUseCookies: "Use browser cookies",
+        videoDownloaderCookiesBrowser: "Browser",
+        videoDownloaderCookiesNote: "Let yt-dlp use your browser's login cookies so age-restricted or member-only videos can download. Cookies are read only during inspection and download and are never stored by Vorssaint.",
+        videoDownloaderFAQ: "yt-dlp FAQ",
+        videoDownloaderCookiesDiskAccessNote: "Reading browser cookie files requires Full Disk Access. Enable Vorssaint in System Settings > Privacy & Security > Full Disk Access, then try again.",
+        videoDownloaderErrorExtractorFormat: "yt-dlp reported: %@",
+        videoDownloaderDependencies: "Downloader tools",
+        videoDownloaderMissingToolsFormat: "Missing: %@",
+        videoDownloaderInstallMissingTools: "Install missing tools",
+        videoDownloaderSetUpDownloader: "Set up downloader",
+        videoDownloaderBrewSetupNote: "Homebrew installs only the missing yt-dlp, FFmpeg (including ffprobe), and Deno tools.",
+        videoDownloaderTerminalSetupNote: "Terminal will open for the official Homebrew setup and may ask for confirmation or your password, then installs yt-dlp, FFmpeg (including ffprobe), and Deno.",
+        videoDownloaderCheckingTools: "Checking downloader tools…",
+        videoDownloaderDownloadVideo: "Download video",
+        videoDownloaderDownloadAudio: "Download audio",
+        videoDownloaderDownloading: "Downloading…",
+        videoDownloaderPercentFormat: "%.0f%%",
+        videoDownloaderSpeedFormat: "%@/s",
+        videoDownloaderEtaFormat: "ETA %@",
+        videoDownloaderFinalizing: "Finalizing…",
+        videoDownloaderCancel: "Cancel",
+        videoDownloaderCancelling: "Cancelling…",
+        videoDownloaderComplete: "Download complete",
+        videoDownloaderDownloadAnother: "Download Another",
+        videoDownloaderRevealFinder: "Show in Finder",
+        videoDownloaderRetry: "Retry",
+        videoDownloaderCancelled: "Download cancelled",
+        videoDownloaderFailureTitle: "Could not finish the download",
+        videoDownloaderUploader: "Uploader",
+        videoDownloaderDuration: "Duration",
+        videoDownloaderThumbnail: "Media thumbnail",
+        videoDownloaderErrorURLInvalid: "Enter a complete HTTP or HTTPS media link.",
+        videoDownloaderErrorURLTooLong: "This URL is too long to inspect safely.",
+        videoDownloaderErrorURLControl: "The URL contains a line break or control character.",
+        videoDownloaderErrorURLCredentials: "URLs containing a username or password are not supported.",
+        videoDownloaderErrorInspectionTimeout: "Inspection took too long. Check the link and try again.",
+        videoDownloaderErrorInspectionFailed: "The media could not be inspected. Make sure it is available and accessible.",
+        videoDownloaderErrorInspectionTooLarge: "The site returned more media information than can be handled safely.",
+        videoDownloaderErrorInspectionMalformed: "The media information returned by yt-dlp was not usable.",
+        videoDownloaderInspectionFailedNotice: "Inspection failed — quality options and the thumbnail are unavailable, but you can still try downloading.",
+        videoDownloaderErrorPlaylist: "Playlists, channels and collections are not supported. Paste one media item.",
+        videoDownloaderErrorLive: "Live and upcoming streams are not supported.",
+        videoDownloaderErrorDRM: "DRM-protected media cannot be downloaded.",
+        videoDownloaderErrorRestricted: "Private, paid or sign-in restricted media is not supported.",
+        videoDownloaderErrorNoVideo: "This item has no usable video stream. Choose Audio instead.",
+        videoDownloaderErrorNoAudio: "This item has no usable audio stream.",
+        videoDownloaderErrorMissingDependencies: "yt-dlp, FFmpeg (including ffprobe), and Deno are all required to download.",
+        videoDownloaderErrorSetupBusy: "Another Homebrew operation is already running. Try again when it finishes.",
+        videoDownloaderErrorSetupFailed: "The downloader tools could not be installed. Check Homebrew and try again.",
+        videoDownloaderErrorTerminalPermission: "Terminal could not be opened. Allow Terminal Automation in System Settings and try again.",
+        videoDownloaderErrorDownloadFailed: "The media download failed. Check that the link is still available and accessible.",
+        videoDownloaderErrorCookiesPermission: "Vorssaint could not read the selected browser's cookies. macOS denied access to the browser's cookie files. Grant Full Disk Access in System Settings > Privacy & Security > Full Disk Access, then try again.",
+        videoDownloaderErrorRemux: "The selected streams cannot be merged or remuxed to MP4/MKV without transcoding. Choose another quality.",
+        videoDownloaderErrorSubtitle: "The selected subtitle could not be downloaded and embedded. If it requires sign-in, enable browser cookies and try again.",
+        videoDownloaderErrorSubtitleRateLimited: "Too many subtitle requests were made (HTTP 429). The video site temporarily rejected the selected subtitle. Try again later or choose the original-language subtitle.",
+        videoDownloaderErrorOptionalData: "The requested artwork, metadata or chapters could not be embedded.",
+        videoDownloaderErrorFileSafety: "The finished file could not be verified or safely placed in the selected folder."
     )
 }

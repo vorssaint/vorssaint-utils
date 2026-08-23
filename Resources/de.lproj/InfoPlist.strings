@@ -14,10 +14,10 @@
 "NSCameraUsageDescription" = "Vorssaint zeigt deine Kamera nur im Vorschaufenster, das du öffnest, damit du vor einem Anruf prüfen kannst, wie du aussiehst. Es wird nichts aufgezeichnet und nichts verlässt deinen Mac.";
 
 /* macOS Downloads folder permission prompt. */
-"NSDownloadsFolderUsageDescription" = "Vorssaint prüft lokale Metadaten in Downloads, um nur ausgewählte bestätigte WhatsApp-Dateien zu prüfen, zu organisieren oder in den Papierkorb zu verschieben.";
+"NSDownloadsFolderUsageDescription" = "Vorssaint greift nur auf Downloads zu, wenn du den Video-Downloader verwendest oder bestätigte WhatsApp-Dateien prüfen, organisieren oder in den Papierkorb verschieben lässt.";
 
-/* macOS user-selected organizer destination prompts. */
-"NSDesktopFolderUsageDescription" = "Vorssaint organisiert bestätigte WhatsApp-Downloads in einem Zielordner, den du ausdrücklich auswählst.";
-"NSDocumentsFolderUsageDescription" = "Vorssaint organisiert bestätigte WhatsApp-Downloads in einem Zielordner, den du ausdrücklich auswählst.";
-"NSNetworkVolumesUsageDescription" = "Vorssaint organisiert bestätigte WhatsApp-Downloads in einem Zielordner, den du ausdrücklich auswählst.";
-"NSRemovableVolumesUsageDescription" = "Vorssaint organisiert bestätigte WhatsApp-Downloads in einem Zielordner, den du ausdrücklich auswählst.";
+/* macOS user-selected destination prompts. */
+"NSDesktopFolderUsageDescription" = "Vorssaint speichert Videos oder organisiert bestätigte WhatsApp-Downloads nur in einem Zielordner, den du ausdrücklich auswählst.";
+"NSDocumentsFolderUsageDescription" = "Vorssaint speichert Videos oder organisiert bestätigte WhatsApp-Downloads nur in einem Zielordner, den du ausdrücklich auswählst.";
+"NSNetworkVolumesUsageDescription" = "Vorssaint speichert Videos oder organisiert bestätigte WhatsApp-Downloads nur in einem Zielordner, den du ausdrücklich auswählst.";
+"NSRemovableVolumesUsageDescription" = "Vorssaint speichert Videos oder organisiert bestätigte WhatsApp-Downloads nur in einem Zielordner, den du ausdrücklich auswählst.";

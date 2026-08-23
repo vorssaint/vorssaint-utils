@@ -14,10 +14,10 @@
 "NSCameraUsageDescription" = "O Vorssaint mostra sua câmera apenas na janela de prévia que você abre, para conferir como você está antes de uma chamada. Nada é gravado nem sai do seu Mac.";
 
 /* macOS Downloads folder permission prompt. */
-"NSDownloadsFolderUsageDescription" = "O Vorssaint consulta metadados locais em Downloads para revisar, organizar ou mover para a Lixeira apenas os arquivos confirmados do WhatsApp que você escolher.";
+"NSDownloadsFolderUsageDescription" = "O Vorssaint acessa Downloads apenas quando você usa o baixador de vídeos ou pede para revisar, organizar ou mover arquivos confirmados do WhatsApp para a Lixeira.";
 
-/* macOS user-selected organizer destination prompts. */
-"NSDesktopFolderUsageDescription" = "O Vorssaint organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você.";
-"NSDocumentsFolderUsageDescription" = "O Vorssaint organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você.";
-"NSNetworkVolumesUsageDescription" = "O Vorssaint organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você.";
-"NSRemovableVolumesUsageDescription" = "O Vorssaint organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você.";
+/* macOS user-selected destination prompts. */
+"NSDesktopFolderUsageDescription" = "O Vorssaint salva vídeos ou organiza downloads confirmados do WhatsApp somente em uma pasta de destino que você escolher explicitamente.";
+"NSDocumentsFolderUsageDescription" = "O Vorssaint salva vídeos ou organiza downloads confirmados do WhatsApp somente em uma pasta de destino que você escolher explicitamente.";
+"NSNetworkVolumesUsageDescription" = "O Vorssaint salva vídeos ou organiza downloads confirmados do WhatsApp somente em uma pasta de destino que você escolher explicitamente.";
+"NSRemovableVolumesUsageDescription" = "O Vorssaint salva vídeos ou organiza downloads confirmados do WhatsApp somente em uma pasta de destino que você escolher explicitamente.";

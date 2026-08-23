@@ -8,7 +8,7 @@ import Foundation
 /// below and the unit tests can reason about pages without pulling UI in.
 enum SettingsPage: Hashable {
     case general, features, energy, monitor
-    case mouse, switcher, keyDebounce, superKey, cutPaste, autoQuit, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess
+    case mouse, switcher, keyDebounce, superKey, cutPaste, autoQuit, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, videoDownloader, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, screenRecorder, radialMenu, commandBar, killProcess
     case shortcuts, advanced, about, releaseNotes, support
 }
 
@@ -100,6 +100,7 @@ final class SettingsRouter: ObservableObject {
     /// One-shot hint for the Cleaner page's tool switcher, so a panel surface
     /// can land directly on a specific tool. Consumed and cleared on arrival.
     @Published var cleanerTool: String?
+    @Published private(set) var videoDownloaderCookiesRequested = false
 
     private init() {}
 
@@ -117,6 +118,18 @@ final class SettingsRouter: ObservableObject {
     func consumeDestinationRequest(id: UUID) {
         guard pendingDestinationRequest?.id == id else { return }
         pendingDestinationRequest = nil
+    }
+
+    func requestVideoDownloaderCookies() {
+        videoDownloaderCookiesRequested = true
+        request(FeatureSettingsDestination(.videoDownloader))
+    }
+
+    @discardableResult
+    func consumeVideoDownloaderCookiesRequest() -> Bool {
+        guard videoDownloaderCookiesRequested else { return false }
+        videoDownloaderCookiesRequested = false
+        return true
     }
 }
 
@@ -212,6 +225,7 @@ extension AppFeature {
         case .commandBar: return FeatureSettingsDestination(.commandBar)
         case .screenRecorder:
             return FeatureSettingsDestination(.screenshot, sectionAnchor: .screenRecorder)
+        case .videoDownloader: return FeatureSettingsDestination(.videoDownloader)
 
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
             return FeatureSettingsDestination(.monitor)
@@ -244,6 +258,7 @@ enum FeatureVisibilitySupport {
         case .cutPaste: return [.finderCutPaste, .finderRename]
         case .shelf: return [.shelf]
         case .media: return [.mediaTools]
+        case .videoDownloader: return [.videoDownloader]
         case .quickTools: return [.quickLauncher, .quickToggles, .micMute,
                                   .cameraPreview, .scratchpad]
         case .urlCleaner: return [.urlCleaner]

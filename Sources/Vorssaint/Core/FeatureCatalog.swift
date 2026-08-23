@@ -26,7 +26,7 @@ enum AppFeature: String, CaseIterable {
     // Energy and display
     case keepAwake, brightness, extraBrightness, bluetoothSleep
     // Tools
-    case quickLauncher, quickToggles, colorPicker, screenOCR, cleaningMode, mediaTools,
+    case quickLauncher, quickToggles, colorPicker, screenOCR, cleaningMode, mediaTools, videoDownloader,
          cleaner, uninstaller, homebrew, appUpdates, screenshot, cameraPreview, radialMenu, scratchpad,
          commandBar, screenRecorder, killProcess
     // System monitor, one entry per metric family (temperatures live with
@@ -60,6 +60,17 @@ enum PermissionPollingSupport {
             return 2.5
         }
         return 60
+    }
+}
+
+enum PermissionStatusAggregation {
+    enum Status: Equatable { case granted, missing, unknown }
+
+    static func status(for statuses: [Status]) -> Status {
+        guard !statuses.isEmpty else { return .unknown }
+        if statuses.contains(.missing) { return .missing }
+        if statuses.allSatisfy({ $0 == .granted }) { return .granted }
+        return .unknown
     }
 }
 
@@ -99,6 +110,7 @@ extension AppFeature {
         case .keepAwake, .brightness, .extraBrightness, .bluetoothSleep:
             return .energyDisplay
         case .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
+             .videoDownloader,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
              .scratchpad, .commandBar, .screenRecorder, .killProcess:
             return .tools
@@ -146,6 +158,7 @@ extension AppFeature {
         case .screenOCR: return "text.viewfinder"
         case .cleaningMode: return "bubbles.and.sparkles"
         case .mediaTools: return "photo.on.rectangle.angled"
+        case .videoDownloader: return "arrow.down.circle"
         case .cleaner: return "sparkles"
         case .uninstaller: return "trash"
         case .homebrew: return "shippingbox"
@@ -215,6 +228,7 @@ extension AppFeature {
         case .bluetoothSleep: return [DefaultsKey.bluetoothSleepEnabled]
         case .windowLayout, .diskImageInstaller, .mixer, .micMute, .keepAwake,
              .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
+             .videoDownloader,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
              .commandBar, .screenRecorder, .killProcess,
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
@@ -254,6 +268,10 @@ extension AppFeature {
         case .cleaner: return [.fullDiskAccess, .filesAndFolders, .notifications]
         case .uninstaller: return [.fullDiskAccess, .automationFinder]
         case .homebrew: return [.automationTerminal, .appManagement]
+        // Browser-cookie authentication is optional. It only counts as an
+        // active Full Disk Access consumer when that toggle is on; the regular
+        // destination still uses Files & Folders.
+        case .videoDownloader: return [.filesAndFolders, .automationTerminal, .fullDiskAccess]
         case .appUpdates: return [.notifications, .appManagement]
         case .diskImageInstaller: return [.appManagement]
         case .mixer: return [.audioCapture, .accessibility]
@@ -273,7 +291,7 @@ extension AppFeature {
         switch self {
         case .keepAwake, .brightness, .radialMenu, .quickToggles, .cleaner,
              .uninstaller, .homebrew, .appUpdates, .mixer, .cameraPreview,
-             .micMute:
+             .micMute, .videoDownloader:
             return []
         default:
             return permissions.filter { $0 == .accessibility || $0 == .screenRecording }
@@ -343,6 +361,10 @@ extension AppFeature {
                         || boolFor(DefaultsKey.whatsAppOrganizerEnabled))
                     && boolFor(DefaultsKey.whatsAppDownloadsNotify)
                 return cleanerNotifies || whatsAppNotifies
+            case (.videoDownloader, .automationTerminal):
+                return boolFor(DefaultsKey.videoDownloaderTerminalSetupUsed)
+            case (.videoDownloader, .fullDiskAccess):
+                return boolFor(DefaultsKey.videoDownloaderUseBrowserCookies)
             case (.screenRecorder, .microphone):
                 return boolFor(DefaultsKey.recorderMicrophone)
             default:

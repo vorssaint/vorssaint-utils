@@ -10,6 +10,9 @@ All notable changes to this project are documented here. The format follows
 - The app icon has been redesigned and now supports adaptive system appearance modes for light, dark, tinted, or clear icon styles on macOS 26 and later, while macOS 14 and 15 keep the classic icon. Thanks to @divisionseven.
 - A new Bluetooth on sleep feature switches Bluetooth off while the Mac sleeps, so a closed laptop stops connecting to headphones it should leave alone. Bluetooth that was already off before sleep stays off, and only what Vorssaint switched off is put back on wake. Thanks to @marcfusch.
 - App Switcher now lets you place minimized windows at the end of the list or hide them, and toggle fullscreen window visibility. Thanks to @itsofirk.
+- Video Downloader downloads video as Apple-ready MP4/MKV or highest-quality M4A audio
+  from YouTube and supported media links, with resolution choice, subtitle embedding,
+  cover art and live progress. Thanks to @huseyinbal05.
 - The radial menu now includes a Now Playing media action with a floating track card and direct app access. Thanks to @ruvelro.
 - The radial menu editor now includes a broader built-in SF Symbol catalog with runtime availability filtering. Thanks to @ruvelro.
 - Sound Mixer now includes an option to hide inactive applications while keeping custom volume and output selections visible. Thanks to @ruvelro.
@@ -152,6 +155,8 @@ Fan Control, Settings and app maintenance.
 - Command Bar can now search chosen folders, open system settings, reveal saved
   items and assign a direct shortcut to Emoji. Thanks to @ruvelro and
   @MaximilianMauroner.
+- Window Layout can send the active window to the previous or next desktop with
+  optional shortcuts.
 - The clipboard can now clear itself after a delay, and when the Mac sleeps, the
   display sleeps or the screen locks.
 - The quick panel and Radial Menu can now control recording, and the Radial Menu

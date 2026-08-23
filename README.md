@@ -143,6 +143,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Messaging downloads.** The Cleaner can also tidy the media a messaging app saves into Downloads, confirmed by macOS metadata and only ever moved to the Trash, with a review list, retention rules and an optional organizer that files new ones into a folder of your choice.
 - **Uninstaller.** Drop an app in and take its verified caches, preferences, helpers and other leftovers to the Trash with it.
 - **Media tools.** Compress videos or open any one in the editor to trim, cut and crop it, convert images one at a time or in batches with resizing, watermarks and reusable profiles, make GIFs and extract text, all locally.
+- **Video Downloader.** Paste a link from YouTube or supported media sites to check available resolutions, captions and audio tracks, then save an Apple-ready MP4 or high-quality M4A. Embeds artwork, chapters and metadata cleanly without extra files, shows live download speed and ETA, and runs completely on your Mac.
 - **Homebrew manager.** Search, install and remove formulae and casks without opening a terminal.
 - **Cleaning Mode.** Locks the keyboard and blacks out every display while you clean.
 
@@ -179,9 +180,13 @@ To remove Vorssaint completely, including its settings and permissions:
 ./Tools/uninstall.sh
 ```
 
+The complete uninstall removes only Vorssaint-owned app state, permissions,
+login items and the app bundle. It does not delete downloaded media or files
+in folders you chose for the Video Downloader or other features.
+
 ## Private by default
 
-Vorssaint is local-first, with no account, analytics or tracking. The network is touched only by things you can see: update checks, the speed test, Homebrew actions, temporary screenshot or recording links and feedback you explicitly send. The full story is in the [privacy notes](docs/PRIVACY.md).
+Vorssaint is local-first, with no account, analytics or tracking. The network is touched only by things you can see: update checks, the speed test, Homebrew actions, Video Downloader inspection and downloads, temporary screenshot or recording links and feedback you explicitly send. The full story is in the [privacy notes](docs/PRIVACY.md).
 
 Permissions get the same treatment. Every one is optional, the app explains each in plain words, shows which features actually use it, and even tells you when a permission you granted is no longer needed by anything, with a shortcut to revoke it.
 
@@ -196,6 +201,7 @@ Permissions get the same treatment. Every one is optional, the app explains each
 | System Audio Recording | Per app volume and output routing | Apps stay on normal system audio |
 | Microphone | Optional voice track in screen recordings | Recordings continue without your voice |
 | Notifications | Keep awake, battery, monitor and update alerts | The app stays silent |
+| Files & Folders | Video Downloader's chosen destination, WhatsApp cleanup and organizer checks | Only explicitly chosen or requested folders are used |
 | Full Disk Access, optional | Deeper cleaner and uninstaller scans | Only reachable places are scanned |
 | Administrator, once, optional | Password free closed lid toggling | A password prompt per toggle |
 
@@ -219,7 +225,7 @@ Xcode Command Line Tools are the only requirement. The [contributing guide](CONT
 
 ## When something misbehaves
 
-The [troubleshooting guide](docs/TROUBLESHOOTING.md) walks through the common cases: the app blocked on first launch, a permission that will not stick, thumbnails showing as icons. To remove Vorssaint completely, `./Tools/uninstall.sh` quits the app, drops the login item, resets its privacy grants and deletes every trace.
+The [troubleshooting guide](docs/TROUBLESHOOTING.md) walks through the common cases: the app blocked on first launch, a permission that will not stick, thumbnails showing as icons. To remove Vorssaint completely, `./Tools/uninstall.sh` quits the app, drops the login item, resets its privacy grants and removes Vorssaint-owned state; it does not delete downloaded media or files in your chosen folders.
 
 ## Documentation
 

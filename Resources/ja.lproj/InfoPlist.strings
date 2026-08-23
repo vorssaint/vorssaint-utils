@@ -14,10 +14,10 @@
 "NSCameraUsageDescription" = "Vorssaintは、開いたプレビューウインドウにのみカメラを表示し、通話前に自分の映りを確認できるようにします。何も録画されず、Macの外に送信されることもありません。";
 
 /* macOS Downloads folder permission prompt. */
-"NSDownloadsFolderUsageDescription" = "Vorssaintは、ダウンロード内のローカルメタデータを確認し、選択した確認済みWhatsAppファイルだけを確認、整理、またはゴミ箱へ移動します。";
+"NSDownloadsFolderUsageDescription" = "Vorssaintは、ビデオダウンローダーを使用するとき、または確認済みのWhatsAppファイルの確認、整理、ゴミ箱への移動を指示したときにのみ、ダウンロードフォルダにアクセスします。";
 
-/* macOS user-selected organizer destination prompts. */
-"NSDesktopFolderUsageDescription" = "Vorssaintは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。";
-"NSDocumentsFolderUsageDescription" = "Vorssaintは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。";
-"NSNetworkVolumesUsageDescription" = "Vorssaintは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。";
-"NSRemovableVolumesUsageDescription" = "Vorssaintは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。";
+/* macOS user-selected destination prompts. */
+"NSDesktopFolderUsageDescription" = "Vorssaintは、明示的に選択した保存先フォルダにのみ、動画を保存したり、確認済みのWhatsAppダウンロードを整理したりします。";
+"NSDocumentsFolderUsageDescription" = "Vorssaintは、明示的に選択した保存先フォルダにのみ、動画を保存したり、確認済みのWhatsAppダウンロードを整理したりします。";
+"NSNetworkVolumesUsageDescription" = "Vorssaintは、明示的に選択した保存先フォルダにのみ、動画を保存したり、確認済みのWhatsAppダウンロードを整理したりします。";
+"NSRemovableVolumesUsageDescription" = "Vorssaintは、明示的に選択した保存先フォルダにのみ、動画を保存したり、確認済みのWhatsAppダウンロードを整理したりします。";
