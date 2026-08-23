@@ -176,40 +176,47 @@ enum DockPreviewSupport {
     // the same 12pt. Scaling the band with the card left that line adrift in
     // 31pt of nothing at the largest size and squeezed into 13pt at the
     // smallest, which is the one thing here that was actually wrong.
-    static var cardPadding: CGFloat { 8 * PreviewSizing.scale }
-    static var cardTitleSpacing: CGFloat { 5 * PreviewSizing.scale }
-    /// One line of 12pt semibold beside the two 16pt window controls, with just
-    /// enough room for descenders. Fixed: what it holds is the same at every
-    /// preview size.
-    static let cardTitleHeight: CGFloat = 20
+    static var cardPadding: CGFloat { 10 * PreviewSizing.scale }
+    static var cardTitleSpacing: CGFloat { 7 * PreviewSizing.scale }
+    /// A 13pt name over a 10.5pt subtitle, beside the two 16pt window controls
+    /// -- the App Switcher's title block, to the point. Fixed: what it holds is
+    /// the same at every preview size.
+    static let cardTitleHeight: CGFloat = 29
     static var cardSpacing: CGFloat { 8 * PreviewSizing.scale }
-    static var panelPadding: CGFloat { 12 * PreviewSizing.scale }
+    static var panelPadding: CGFloat { 10 * PreviewSizing.scale }
     static let panelHeaderHeight: CGFloat = 28
 
     /// 16:10, the shape of the screen the captured window came from, so a
-    /// full-height window fills the thumbnail instead of sitting between two
-    /// bars. The picture inside keeps a 4pt inset, which is why this is 248x158
-    /// rather than 240x150.
+    /// full-height window fills the well instead of sitting between two bars.
+    /// The picture inside keeps a 5pt inset, which is why this is 210x135
+    /// rather than 200x125.
     static func cardThumbnailSize(scale: CGFloat) -> CGSize {
-        CGSize(width: 248 * scale, height: 158 * scale)
+        CGSize(width: 210 * scale, height: 135 * scale)
     }
 
     static func cardSize(scale: CGFloat) -> CGSize {
         let thumbnail = cardThumbnailSize(scale: scale)
-        let padding = 8 * scale
+        let padding = 10 * scale
         return CGSize(width: thumbnail.width + padding * 2,
-                      height: thumbnail.height + padding * 2 + 5 * scale + cardTitleHeight)
+                      height: thumbnail.height + padding * 2 + 7 * scale + cardTitleHeight)
     }
 
     /// The picture's inset inside the thumbnail well. It scales with the well,
     /// so the 16:10 the well is cut to survives every preview size.
     static func cardPictureSize(scale: CGFloat) -> CGSize {
         let thumbnail = cardThumbnailSize(scale: scale)
-        let inset = 4 * scale
+        let inset = 5 * scale
         return CGSize(width: thumbnail.width - inset * 2, height: thumbnail.height - inset * 2)
     }
 
-    static var cardThumbnailInset: CGFloat { 4 * PreviewSizing.scale }
+    static var cardThumbnailInset: CGFloat { 5 * PreviewSizing.scale }
+
+    /// The app's icon along the bottom edge of the picture, the size the App
+    /// Switcher draws it. App artwork sits on the system icon grid with a clear
+    /// margin around it, so the frame hangs past the row by that margin and the
+    /// artwork, not its empty edge, lines up with the picture.
+    static var cardAppBadgeSize: CGFloat { 32 * PreviewSizing.scale }
+    static var cardAppBadgeArtworkInset: CGFloat { (cardAppBadgeSize * 0.094).rounded() }
 
     /// Stands in for the thumbnail when there is no capture, so it follows the
     /// thumbnail rather than staying the one fixed picture on a scaling card.
@@ -315,6 +322,13 @@ enum DockPreviewSupport {
         isPinned || itemCount > 1
     }
 
+    /// Whether a card draws the app's icon in the corner of its picture. With
+    /// no capture the icon already fills the well as a watermark, so the badge
+    /// would only repeat it.
+    static func showsCardAppBadge(hasPreview: Bool) -> Bool {
+        hasPreview
+    }
+
     /// Whether a card draws its close and minimize buttons. A pinned panel
     /// counted as permanent hover, which held both open on every card it
     /// showed for as long as it stayed up.
@@ -322,21 +336,65 @@ enum DockPreviewSupport {
         isHovering || isSelected
     }
 
+    /// Cards run along the Dock's own edge. A Dock at the bottom gets a row; a
+    /// Dock at the side gets a column, because a row there grows away from the
+    /// Dock across the screen, which is the one direction the pointer is not
+    /// coming from. A pinned panel is detached from the Dock, so it keeps the
+    /// row at any Dock position.
+    static func stacksVertically(orientation: DockPreviewOrientation, isPinned: Bool) -> Bool {
+        !isPinned && (orientation == .left || orientation == .right)
+    }
+
+    /// How many cards the panel can show before it has to scroll.
+    static func visibleCardCount(itemCount: Int,
+                                 screenVisibleFrame: CGRect,
+                                 orientation: DockPreviewOrientation,
+                                 isPinned: Bool,
+                                 padding: CGFloat = panelPadding,
+                                 cardWidth: CGFloat = cardWidth,
+                                 cardHeight: CGFloat = cardHeight,
+                                 spacing: CGFloat = cardSpacing) -> Int {
+        let vertical = stacksVertically(orientation: orientation, isPinned: isPinned)
+        let cardExtent = vertical ? cardHeight : cardWidth
+        let screenExtent = vertical ? screenVisibleFrame.height : screenVisibleFrame.width
+        let maxExtent = max(cardExtent + padding * 2,
+                            min(screenExtent * 0.9, screenExtent - edgePadding * 2))
+        let available = max(1, Int((maxExtent - padding * 2 + spacing) / (cardExtent + spacing)))
+        return min(max(1, itemCount), available)
+    }
+
     static func panelSize(itemCount: Int,
                           screenVisibleFrame: CGRect,
                           isPinned: Bool,
+                          orientation: DockPreviewOrientation = .bottom,
                           padding: CGFloat = panelPadding,
                           cardWidth: CGFloat = cardWidth,
                           cardHeight: CGFloat = cardHeight,
                           spacing: CGFloat = cardSpacing) -> CGSize {
         let count = max(1, itemCount)
-        let maxWidth = max(cardWidth + padding * 2,
-                           min(screenVisibleFrame.width * 0.9, screenVisibleFrame.width - edgePadding * 2))
-        let availableCards = max(1, Int((maxWidth - padding * 2 + spacing) / (cardWidth + spacing)))
-        let visibleCards = min(count, availableCards)
-        let width = CGFloat(visibleCards) * cardWidth + CGFloat(max(0, visibleCards - 1)) * spacing + padding * 2
+        let vertical = stacksVertically(orientation: orientation, isPinned: isPinned)
+        let visibleCards = visibleCardCount(itemCount: count,
+                                            screenVisibleFrame: screenVisibleFrame,
+                                            orientation: orientation,
+                                            isPinned: isPinned,
+                                            padding: padding,
+                                            cardWidth: cardWidth,
+                                            cardHeight: cardHeight,
+                                            spacing: spacing)
+        let run = CGFloat(visibleCards) * (vertical ? cardHeight : cardWidth)
+            + CGFloat(max(0, visibleCards - 1)) * spacing + padding * 2
         let header = showsPanelHeader(itemCount: count, isPinned: isPinned) ? panelHeaderHeight : 0
-        return CGSize(width: min(width, maxWidth), height: cardHeight + padding * 2 + header)
+        if vertical {
+            let maxHeight = max(cardHeight + padding * 2,
+                                min(screenVisibleFrame.height * 0.9,
+                                    screenVisibleFrame.height - edgePadding * 2))
+            return CGSize(width: cardWidth + padding * 2,
+                          height: min(run + header, maxHeight + header))
+        }
+        let maxWidth = max(cardWidth + padding * 2,
+                           min(screenVisibleFrame.width * 0.9,
+                               screenVisibleFrame.width - edgePadding * 2))
+        return CGSize(width: min(run, maxWidth), height: cardHeight + padding * 2 + header)
     }
 
     static func windowPositionText(selectedWindowID: CGWindowID?, windowIDs: [CGWindowID]) -> String? {

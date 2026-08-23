@@ -14,6 +14,7 @@ struct DockPreviewPanelView: View {
             selectedWindowID: service.selectedWindowID,
             currentAppName: service.currentAppName,
             isPinned: service.isPinned,
+            orientation: service.orientation,
             onPreview: service.preview,
             onEndPreview: service.endPreview,
             onCommit: service.commit,
@@ -40,6 +41,7 @@ struct DockPreviewPinnedPanelView: View {
             selectedWindowID: panel.selectedWindowID,
             currentAppName: panel.currentAppName,
             isPinned: true,
+            orientation: .bottom,
             onPreview: panel.preview,
             onEndPreview: panel.endPreview,
             onCommit: panel.commit,
@@ -64,6 +66,7 @@ private struct DockPreviewPanelContent: View {
     let selectedWindowID: CGWindowID?
     let currentAppName: String?
     let isPinned: Bool
+    let orientation: DockPreviewOrientation
     let onPreview: (SwitcherItem) -> Void
     let onEndPreview: (SwitcherItem) -> Void
     let onCommit: (SwitcherItem) -> Void
@@ -87,8 +90,8 @@ private struct DockPreviewPanelContent: View {
                 panelHeader
             }
             ScrollViewReader { proxy in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: DockPreviewSupport.cardSpacing) {
+                ScrollView(stacksVertically ? .vertical : .horizontal, showsIndicators: false) {
+                    cardRun {
                         ForEach(windows) { window in
                             DockPreviewCard(
                                 window: window,
@@ -135,7 +138,12 @@ private struct DockPreviewPanelContent: View {
                     }
                     .padding(.horizontal, DockPreviewSupport.panelPadding)
                     .padding(.bottom, DockPreviewSupport.panelPadding)
+                    .padding(.top, showsHeader ? 0 : DockPreviewSupport.panelPadding)
                 }
+                // A panel that already shows every window has nothing to
+                // scroll, and a scroll view that can move steals the drag that
+                // carries a window out of the panel.
+                .scrollDisabled(showsEveryWindow)
                 .onChange(of: selectedWindowID) { _, selectedWindowID in
                     guard let selectedWindowID,
                           let selected = windows.first(where: { $0.windowID == selectedWindowID })
@@ -146,9 +154,9 @@ private struct DockPreviewPanelContent: View {
                 }
             }
         }
-        .frame(height: DockPreviewSupport.panelSize(itemCount: windows.count,
-                                                    screenVisibleFrame: CGRect(x: 0, y: 0, width: 500, height: 500),
-                                                    isPinned: isPinned).height)
+        .frame(width: stacksVertically ? DockPreviewSupport.cardWidth
+                   + DockPreviewSupport.panelPadding * 2 : nil,
+               height: stacksVertically ? nil : cardRunHeight)
         .background(HUDBackdrop(cornerRadius: 18,
                                 opacity: DockPreviewSupport.sanitizedBackgroundOpacity(backgroundOpacity)))
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -158,6 +166,40 @@ private struct DockPreviewPanelContent: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
         )
+    }
+
+    private var stacksVertically: Bool {
+        DockPreviewSupport.stacksVertically(orientation: orientation, isPinned: isPinned)
+    }
+
+    private var showsHeader: Bool {
+        DockPreviewSupport.showsPanelHeader(itemCount: windows.count, isPinned: isPinned)
+    }
+
+    /// The panel is sized by the service against the real screen; this only
+    /// keeps the content from collapsing before the first capture lands, so a
+    /// nominal screen is enough for it.
+    private var showsEveryWindow: Bool {
+        DockPreviewSupport.visibleCardCount(
+            itemCount: windows.count,
+            screenVisibleFrame: NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 900),
+            orientation: orientation,
+            isPinned: isPinned
+        ) >= windows.count
+    }
+
+    private var cardRunHeight: CGFloat {
+        DockPreviewSupport.cardHeight + DockPreviewSupport.panelPadding * 2
+            + (showsHeader ? DockPreviewSupport.panelHeaderHeight : 0)
+    }
+
+    @ViewBuilder
+    private func cardRun<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        if stacksVertically {
+            VStack(spacing: DockPreviewSupport.cardSpacing) { content() }
+        } else {
+            HStack(spacing: DockPreviewSupport.cardSpacing) { content() }
+        }
     }
 
     private var panelHeader: some View {
@@ -331,17 +373,21 @@ private struct DockPreviewCard: View {
         window.isMinimized || window.isFullscreen || window.isOnHiddenSpace
     }
 
+    private var showsAppBadge: Bool {
+        DockPreviewSupport.showsCardAppBadge(hasPreview: preview != nil)
+    }
+
     var body: some View {
         VStack(spacing: DockPreviewSupport.cardTitleSpacing) {
             ZStack {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(Color.white.opacity(0.07))
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.white.opacity(0.06))
 
                 if let preview {
                     Image(decorative: preview, scale: 2)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .padding(DockPreviewSupport.cardThumbnailInset)
                 } else if let icon = window.appIcon {
                     // Drawn as a watermark, not as content. Every card in a
@@ -359,14 +405,32 @@ private struct DockPreviewCard: View {
                         .opacity(0.35)
                 }
 
-                if hasStatusBadges {
-                    VStack {
-                        Spacer()
-                        HStack(spacing: 4) {
-                            statusBadges
-                            Spacer()
+                // One row along the bottom of the picture: the app on the
+                // left, the window's state on the right, sharing a baseline --
+                // the App Switcher's card, which shows the same two things
+                // about the same kind of thing.
+                if showsAppBadge || hasStatusBadges {
+                    VStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        HStack(alignment: .bottom, spacing: 8) {
+                            if showsAppBadge, let icon = window.appIcon {
+                                Image(nsImage: icon)
+                                    .resizable()
+                                    .frame(width: DockPreviewSupport.cardAppBadgeSize,
+                                           height: DockPreviewSupport.cardAppBadgeSize)
+                                    .shadow(radius: 3)
+                                    .padding(.leading, -DockPreviewSupport.cardAppBadgeArtworkInset)
+                                    .padding(.bottom, -DockPreviewSupport.cardAppBadgeArtworkInset)
+                                    .accessibilityHidden(true)
+                            }
+                            Spacer(minLength: 0)
+                            if hasStatusBadges {
+                                HStack(spacing: 5) {
+                                    statusBadges
+                                }
+                            }
                         }
-                        .padding(6)
+                        .padding(7)
                     }
                 }
 
@@ -379,14 +443,14 @@ private struct DockPreviewCard: View {
         .padding(DockPreviewSupport.cardPadding)
         .frame(width: DockPreviewSupport.cardWidth, height: DockPreviewSupport.cardHeight)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(isSelected ? Color.white.opacity(0.15) : Color.clear)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(isSelected ? Color.white.opacity(0.14) : Color.clear)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
         )
-        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .contextMenu {
             cardContextMenu
         }
@@ -437,18 +501,30 @@ private struct DockPreviewCard: View {
     /// its height. The room they take here is held whether or not they are
     /// drawn, so the title does not shift as the pointer arrives.
     private var titleBand: some View {
-        HStack(spacing: 4) {
-            Text(window.displayTitle)
-                .font(.system(size: 12, weight: .semibold))
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .foregroundStyle(.primary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            closeButton
-            minimizeButton
+        HStack(alignment: .top, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(window.displayTitle)
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .foregroundStyle(isSelected ? .primary : .secondary)
+                if let subtitle = window.displaySubtitle {
+                    Text(subtitle)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 4) {
+                closeButton
+                minimizeButton
+            }
         }
         .frame(width: DockPreviewSupport.cardThumbnailWidth,
-               height: DockPreviewSupport.cardTitleHeight)
+               height: DockPreviewSupport.cardTitleHeight,
+               alignment: .top)
     }
 
     @ViewBuilder

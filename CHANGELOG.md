@@ -52,9 +52,14 @@ Vorssaint 3.3.3 adds full manual and temperature-based Fan Control, directional 
   scaling it with the card, and the app icon standing in for a thumbnail that has
   not arrived follows the preview size as a watermark. Thanks to @PathGao.
 
-- Dock Preview thumbnails are now 16:10 and near three times the area, with the close
+- Dock Preview thumbnails are now 16:10 and twice the area, with the close
   and minimize buttons moved off the picture into the title band. A panel showing one
   window drops its header, and pinning one is now a named item in a card's menu.
+
+- Dock Preview cards now carry the App Switcher's look — the app's icon and the
+  window's state along the bottom of the picture, the name and its subtitle
+  underneath — and run down the screen beside a Dock on the left or right
+  instead of across it. Thanks to @PathGao.
 - Fan Control now prepares stopped fans before taking manual control and keeps a
   failed attempt visible instead of silently returning to Automatic.
 - The Clean URL settings fields now take a click anywhere across their row. Their

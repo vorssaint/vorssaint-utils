@@ -21,6 +21,8 @@ final class DockPreviewService: ObservableObject {
     @Published private(set) var selectedWindowID: CGWindowID?
     @Published private(set) var currentAppName: String?
     @Published private(set) var isPinned = false
+    /// Which edge the Dock is on, so the panel can run its cards along it.
+    @Published private(set) var orientation: DockPreviewOrientation = .bottom
     private var isDraggingWindow = false
     private var snapTarget: WindowEdgeSnapTarget?
 
@@ -821,7 +823,8 @@ final class DockPreviewService: ObservableObject {
         let screenVisibleFrame = visibleFrameForScreen(containing: hit.iconFrame)
         let size = DockPreviewSupport.panelSize(itemCount: itemCount,
                                                 screenVisibleFrame: screenVisibleFrame,
-                                                isPinned: false)
+                                                isPinned: false,
+                                                orientation: hit.preferences.orientation)
         let gap = hit.preferences.autohide ? DockPreviewSupport.autohidePanelGap : DockPreviewSupport.panelGap
         let frame = DockPreviewSupport.panelFrame(anchor: hit.iconFrame,
                                                   panelSize: size,
@@ -836,6 +839,7 @@ final class DockPreviewService: ObservableObject {
         )
         activeIconFrame = hit.iconFrame
         activeDockPreferences = hit.preferences
+        orientation = hit.preferences.orientation
 
         panel.setFrame(frame, display: true, animate: false)
         panel.contentViewController?.view.layoutSubtreeIfNeeded()
@@ -852,7 +856,8 @@ final class DockPreviewService: ObservableObject {
         let screenVisibleFrame = visibleFrameForScreen(containing: iconFrame)
         let size = DockPreviewSupport.panelSize(itemCount: windows.count,
                                                 screenVisibleFrame: screenVisibleFrame,
-                                                isPinned: false)
+                                                isPinned: false,
+                                                orientation: preferences.orientation)
         let gap = preferences.autohide ? DockPreviewSupport.autohidePanelGap : DockPreviewSupport.panelGap
         let frame = DockPreviewSupport.panelFrame(anchor: iconFrame,
                                                   panelSize: size,

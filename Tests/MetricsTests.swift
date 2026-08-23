@@ -2214,8 +2214,10 @@ struct MetricsTests {
         expect((contextMenuBody.components(separatedBy: "private var").first ?? "")
                    .contains("dockPreviewPinPanel"),
                "pinning is offered by name in the card menu, not by a bare pushpin")
-        expect(dockPreviewCardSource.components(separatedBy: "window.appIcon").count - 1 == 1,
-               "a Dock Preview card only falls back to the app icon when it has no thumbnail")
+        expect(DockPreviewSupport.showsCardAppBadge(hasPreview: true),
+               "a card with a capture badges it with the app's icon, as the App Switcher does")
+        expect(!DockPreviewSupport.showsCardAppBadge(hasPreview: false),
+               "a card without one already shows that icon as its watermark, so it takes no badge")
         expect(dockPreviewCardSource.contains("window.isOnHiddenSpace"),
                "a Dock Preview card badges a window that lives on another desktop")
 
@@ -6741,6 +6743,30 @@ struct MetricsTests {
                "a second window gives the header a counter and steppers to hold")
         expect(DockPreviewSupport.showsPanelHeader(itemCount: 1, isPinned: true),
                "a pinned panel keeps its header at any window count")
+        // Cards run along the Dock's own edge. A row beside a side Dock grew
+        // away from it across the screen, which is the one direction the
+        // pointer is not coming from.
+        expect(!DockPreviewSupport.stacksVertically(orientation: .bottom, isPinned: false),
+               "a Dock at the bottom gets a row of cards")
+        expect(DockPreviewSupport.stacksVertically(orientation: .left, isPinned: false)
+               && DockPreviewSupport.stacksVertically(orientation: .right, isPinned: false),
+               "a Dock at either side gets a column of cards")
+        expect(!DockPreviewSupport.stacksVertically(orientation: .right, isPinned: true),
+               "a pinned panel is detached from the Dock, so it keeps the row")
+        let sideSize = DockPreviewSupport.panelSize(itemCount: 3, screenVisibleFrame: screen,
+                                                    isPinned: false, orientation: .right)
+        let bottomSize = DockPreviewSupport.panelSize(itemCount: 3, screenVisibleFrame: screen,
+                                                      isPinned: false, orientation: .bottom)
+        expect(sideSize.width == DockPreviewSupport.cardWidth + DockPreviewSupport.panelPadding * 2,
+               "a side Dock's panel is one card wide however many windows it holds")
+        expect(sideSize.height > bottomSize.height && sideSize.width < bottomSize.width,
+               "the same three windows make a tall narrow panel beside a side Dock")
+        expect(DockPreviewSupport.visibleCardCount(itemCount: 99, screenVisibleFrame: screen,
+                                                   orientation: .bottom, isPinned: false) < 99,
+               "the panel reports how many cards it can show before it has to scroll")
+        expect(DockPreviewSupport.visibleCardCount(itemCount: 2, screenVisibleFrame: screen,
+                                                   orientation: .bottom, isPinned: false) == 2,
+               "two cards that fit are both counted, so the panel does not scroll for them")
         expect(onePreviewSize.height == DockPreviewSupport.cardHeight
                + DockPreviewSupport.panelPadding * 2,
                "a headerless panel is the card and the padding, nothing more")
@@ -6833,8 +6859,9 @@ struct MetricsTests {
                     "App Switcher Small keeps the selection outline inside its icon row")
         expectClose(Double(DockPreviewSupport.cardSpacing), 6,
                     "Dock Preview Small previews tighten card spacing")
-        expectClose(Double(DockPreviewSupport.panelPadding), 9,
-                    "Dock Preview Small previews tighten panel padding")
+        expectClose(Double(DockPreviewSupport.panelPadding),
+                    Double(DockPreviewSupport.cardPadding),
+                    "Dock Preview Small previews tighten panel padding with the card's")
         UserDefaults.standard.set("xlarge", forKey: DefaultsKey.previewSize)
         let xlargeIconRowLayout = SwitcherIconRowLayout.compute(appCount: 6,
                                                                  selectedWindowCount: 1,
