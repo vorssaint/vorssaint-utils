@@ -311,8 +311,8 @@ extension Strings {
         uninstallerCatOther: "その他",
 
         urlCleanerName: "URL をクリーン",
-        urlCleanerEnable: "コピーした URL をクリーン",
-        urlCleanerEnableCaption: "コピーしたリンクからトラッキング用パラメータを削除します。",
+        urlCleanerEnable: "コピー時に URL を自動でクリーン",
+        urlCleanerEnableCaption: "リンクがクリップボードに入った時点でトラッキング用パラメータを削除します。",
         urlCleanerActiveNow: "現在有効",
         urlCleanerManualTitle: "今すぐクリーン",
         urlCleanerInputPlaceholder: "URL をペースト",

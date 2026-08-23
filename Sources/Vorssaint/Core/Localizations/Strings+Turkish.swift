@@ -311,8 +311,8 @@ extension Strings {
         uninstallerCatOther: "Diğer",
 
         urlCleanerName: "URL temizle",
-        urlCleanerEnable: "Kopyalanan URL'leri temizle",
-        urlCleanerEnableCaption: "Kopyalanan bağlantılardan izleme parametrelerini kaldırır.",
+        urlCleanerEnable: "URL'leri kopyalarken temizle",
+        urlCleanerEnableCaption: "Bir bağlantı panoya ulaşır ulaşmaz izleme parametrelerini kaldırır.",
         urlCleanerActiveNow: "Şu anda etkin",
         urlCleanerManualTitle: "Şimdi temizle",
         urlCleanerInputPlaceholder: "Bir URL yapıştır",

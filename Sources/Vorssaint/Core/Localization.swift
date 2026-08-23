@@ -1401,8 +1401,8 @@ extension Strings {
         uninstallerCatOther: "Outros",
 
         urlCleanerName: "Limpar URL",
-        urlCleanerEnable: "Limpar URLs copiadas",
-        urlCleanerEnableCaption: "Remove parâmetros de rastreamento de links copiados.",
+        urlCleanerEnable: "Limpar URLs ao copiar",
+        urlCleanerEnableCaption: "Remove os parâmetros de rastreamento de um link assim que ele chega à área de transferência.",
         urlCleanerActiveNow: "Ativo agora",
         urlCleanerManualTitle: "Limpar agora",
         urlCleanerInputPlaceholder: "Cole uma URL",
@@ -2348,8 +2348,8 @@ extension Strings {
         uninstallerCatOther: "Other",
 
         urlCleanerName: "Clean URL",
-        urlCleanerEnable: "Clean copied URLs",
-        urlCleanerEnableCaption: "Removes tracking parameters from copied links.",
+        urlCleanerEnable: "Clean URLs as you copy them",
+        urlCleanerEnableCaption: "Removes tracking parameters from a link the moment it reaches the clipboard.",
         urlCleanerActiveNow: "Active now",
         urlCleanerManualTitle: "Clean now",
         urlCleanerInputPlaceholder: "Paste a URL",

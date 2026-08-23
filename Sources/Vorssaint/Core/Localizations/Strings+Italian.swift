@@ -311,8 +311,8 @@ extension Strings {
         uninstallerCatOther: "Altro",
 
         urlCleanerName: "Pulisci URL",
-        urlCleanerEnable: "Pulisci URL copiati",
-        urlCleanerEnableCaption: "Rimuove i parametri di tracciamento dai link copiati.",
+        urlCleanerEnable: "Pulisci gli URL quando li copi",
+        urlCleanerEnableCaption: "Rimuove i parametri di tracciamento da un link non appena arriva negli appunti.",
         urlCleanerActiveNow: "Attivo ora",
         urlCleanerManualTitle: "Pulisci ora",
         urlCleanerInputPlaceholder: "Incolla un URL",

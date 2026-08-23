@@ -36,6 +36,9 @@ Vorssaint 3.3.3-beta.1 introduces the opt-in beta release channel and in-app fee
   and names of your own can be added to one site or to every site. A whole site's rules can
   be turned off at once, and the list says what the names are for. Cleaning now also names
   the parameters it removed. Thanks to @PathGao.
+
+- The Clean URL switch now says when it acts: it cleans a link as it reaches the
+  clipboard, rather than reading as a name for the page it sits on.
 - An opt-in Kill Process feature searches running processes to force quit, restart or terminate
   process trees from Settings and the Command Bar. It ships uninstalled. Thanks to @naveenkrdy.
 - The System panel now shows compressed memory and cached files next to swap.

@@ -312,8 +312,8 @@ extension Strings {
         uninstallerCatOther: "기타",
 
         urlCleanerName: "URL 정리",
-        urlCleanerEnable: "복사한 URL 정리",
-        urlCleanerEnableCaption: "복사한 링크에서 추적 매개변수를 제거합니다.",
+        urlCleanerEnable: "복사할 때 URL 자동 정리",
+        urlCleanerEnableCaption: "링크가 클립보드에 들어오는 즉시 추적 매개변수를 제거합니다.",
         urlCleanerActiveNow: "현재 활성화됨",
         urlCleanerManualTitle: "지금 정리",
         urlCleanerInputPlaceholder: "URL 붙여넣기",
