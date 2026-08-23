@@ -70,6 +70,7 @@ enum DefaultsKey {
     static let switcherShowShortcutHints = "switcherShowShortcutHints" // show the shortcut bar under the large-icon switcher
     static let dockPreviewEnabled = "dockPreviewEnabled"
     static let dockPreviewBackgroundOpacity = "dockPreviewBackgroundOpacity" // how solid the preview panel's material is drawn (DockPreviewSupport.backgroundOpacityRange)
+    static let dockPreviewOpenDelay = "dockPreviewOpenDelay" // milliseconds the cursor must rest on a Dock icon before its panel opens (DockPreviewSupport.openDelayMillisecondsRange)
     static let dockClickMinimize = "dockClickMinimize"    // click the active app's Dock icon to minimize its windows
     static let dockClickHide = "dockClickHide"            // click the active app's Dock icon to hide the app
     static let dockClickCycleWindows = "dockClickCycleWindows" // click the active app's Dock icon to cycle through its windows
@@ -82,6 +83,7 @@ enum DefaultsKey {
     static let appVolumes = "appVolumes"                  // [bundle id: 0...2]
     static let appOutputDevices = "appOutputDevices"      // [bundle id: audio device UID]
     static let mixerShowFinder = "mixerShowFinder"
+    static let mixerHideInactiveApps = "mixerHideInactiveApps"
     static let mixerHiddenApps = "mixerHiddenApps"        // [persistence id: display name] kept out of the mixer list (issue #300)
     static let mixerLowerVolumeOnHeadphonesDisconnect = "mixerLowerVolumeOnHeadphonesDisconnect"
     static let mixerHeadphonesDisconnectVolumePercent = "mixerHeadphonesDisconnectVolumePercent"
@@ -781,6 +783,7 @@ enum Defaults {
         DefaultsKey.switcherShowShortcutHints: true,
         DefaultsKey.dockPreviewEnabled: false,
         DefaultsKey.dockPreviewBackgroundOpacity: 1.0,
+        DefaultsKey.dockPreviewOpenDelay: DockPreviewSupport.defaultOpenDelayMilliseconds,
         DefaultsKey.dockClickMinimize: false,
         DefaultsKey.dockClickHide: false,
         DefaultsKey.dockClickCycleWindows: false,
@@ -793,6 +796,7 @@ enum Defaults {
         DefaultsKey.updateShowcaseIntroVersion: "",
         DefaultsKey.updateShowcaseMediaOverride: "",
         DefaultsKey.mixerShowFinder: true,
+        DefaultsKey.mixerHideInactiveApps: false,
         DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect: false,
         DefaultsKey.mixerHeadphonesDisconnectVolumePercent: defaultMixerHeadphonesDisconnectVolumePercent,
         DefaultsKey.soundOutputSwitcherEnabled: false,
@@ -1193,6 +1197,7 @@ enum Defaults {
         migrateWhatsAppDownloadsEnabled(in: defaults)
         defaults.register(defaults: registeredDefaults)
         defaults.register(defaults: AppFeature.availabilityDefaults)
+        activateBetaChannelIfRunningBeta(in: defaults)
         migrateLegacyMenuBarTemperatureMetric(in: defaults)
         migrateLegacySwitcherWindowShortcut(in: defaults)
         migrateLegacyKeyboardDebounceWindow(in: defaults)
@@ -1203,6 +1208,22 @@ enum Defaults {
         migrateRestoredScreenCaptureShortcuts(in: defaults)
         migrateSilentHeadphonesDisconnectVolume(in: defaults)
         migrateSwitcherWindowlessFinder(in: defaults)
+    }
+
+    /// When the user installs or runs a beta pre-release, activate the beta
+    /// channel default once so they seamlessly receive subsequent beta builds.
+    static func activateBetaChannelIfRunningBeta(in defaults: UserDefaults,
+                                                 version: String = AppInfo.version,
+                                                 isBeta: Bool = AppInfo.isBeta) {
+        let isPre = isBeta || {
+            let v = version.lowercased()
+            return v.contains("-beta") || v.contains("-rc") || v.contains("-alpha")
+        }()
+        guard isPre else { return }
+        let markerKey = "betaChannelActivatedFor.\(version)"
+        guard !defaults.bool(forKey: markerKey) else { return }
+        defaults.set(true, forKey: markerKey)
+        defaults.set(true, forKey: DefaultsKey.includeBetaUpdates)
     }
 
     /// The downloads cleanup for a messaging app used to sit in Cleaner for

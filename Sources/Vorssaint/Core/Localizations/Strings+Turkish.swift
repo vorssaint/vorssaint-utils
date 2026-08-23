@@ -222,6 +222,8 @@ extension Strings {
         dockPreviewEnableCaption: "Pencerelerini görmek için Dock'taki açık bir uygulamanın üzerine gel, ardından açmak istediğin pencereye tıkla.",
         dockPreviewBackgroundOpacity: "Panel arka planı",
         dockPreviewBackgroundOpacityCaption: "Panelin arkasındakileri daha çok görmek için azalt.",
+        dockPreviewOpenDelay: "Açılma gecikmesi",
+        dockPreviewOpenDelayCaption: "Panelin açılması için imlecin bir simgenin üzerinde ne kadar bekleyeceği.",
         dockClickMinimize: "Dock simgesine tıklayınca küçült",
         dockClickMinimizeCaption: "Etkin uygulamanın pencereleri Dock simgesine tıklandığında küçülür. Geri getirmek için yeniden tıklayın.",
         dockClickCycleWindows: "Dock simgesine tıklayınca pencere değiştir",

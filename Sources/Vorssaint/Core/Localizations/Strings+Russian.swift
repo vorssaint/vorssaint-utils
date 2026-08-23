@@ -223,6 +223,8 @@ extension Strings {
         dockPreviewEnableCaption: "Наведите указатель на открытое приложение в Dock, чтобы увидеть его окна, затем нажмите нужное.",
         dockPreviewBackgroundOpacity: "Фон панели",
         dockPreviewBackgroundOpacityCaption: "Уменьшите, чтобы видеть больше того, что находится за панелью.",
+        dockPreviewOpenDelay: "Задержка открытия",
+        dockPreviewOpenDelayCaption: "Сколько указатель должен оставаться на значке, прежде чем откроется панель.",
         dockClickMinimize: "Сворачивать кликом по Dock",
         dockClickMinimizeCaption: "Окна активного приложения сворачиваются при клике по его значку в Dock. Кликните ещё раз, чтобы вернуть их.",
         dockClickCycleWindows: "Кликом по Dock переключать окна",

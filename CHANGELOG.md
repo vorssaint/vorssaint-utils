@@ -11,6 +11,19 @@ All notable changes to this project are documented here. The format follows
   dark, tinted, or clear icon styles. Available on macOS 26 and later, while macOS 14 and
   15 keep the classic icon. Thanks to @divisionseven.
 
+## [3.3.3-beta.2] - 2026-08-22
+
+### Added
+- The radial menu now includes a Now Playing media action with a floating track card and direct app access. Thanks to @ruvelro.
+- The radial menu editor now includes a broader built-in SF Symbol catalog with runtime availability filtering. Thanks to @ruvelro.
+- Sound Mixer now includes an option to hide inactive applications while keeping custom volume and output selections visible. Thanks to @ruvelro.
+
+### Changed
+- Embedded utilities in the Quick Launcher now provide distinct Back and Close buttons. Thanks to @ruvelro.
+
+### Fixed
+- Beta releases now automatically turn on the beta update channel on first launch, ensuring seamless delivery of subsequent beta updates.
+
 ## [3.3.3-beta.1] - 2026-08-22
 
 ### Summary
@@ -45,6 +58,11 @@ Vorssaint 3.3.3-beta.1 introduces the opt-in beta release channel and in-app fee
 
 - Clicking a Dock icon now only restores the windows that Click Dock icon to minimize
   put away. Windows minimized any other way keep the Dock's own restore. Thanks to @PathGao.
+
+- A Dock Preview now opens after 200 ms of rest on an icon instead of 400 ms, and
+  Settings carries that wait as an adjustable Open delay. Handing an open preview to
+  the next icon takes 100 ms instead of 250 ms. Thanks to @PathGao.
+
 ### Fixed
 - Super key input-source switching no longer waits on Accessibility marked text
   or a pause after every tap, so a language change takes effect before the next

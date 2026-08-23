@@ -2206,6 +2206,48 @@ struct MetricsTests {
                && DockPreviewSupport.sanitizedBackgroundOpacity(.nan) == 1.0
                && DockPreviewSupport.sanitizedBackgroundOpacity(.infinity) == 1.0,
                "a broken stored Dock Preview opacity falls back to solid")
+        expect(registeredDefaults[DefaultsKey.dockPreviewOpenDelay] as? Int
+               == DockPreviewSupport.defaultOpenDelayMilliseconds,
+               "a clean install waits the default before opening a Dock Preview")
+        expect(DockPreviewSupport.openDelayMillisecondsRange
+               .contains(DockPreviewSupport.defaultOpenDelayMilliseconds),
+               "the default Dock Preview delay is one the field accepts")
+        expect(DockPreviewSupport.sanitizedOpenDelay(milliseconds: 350) == 350,
+               "a typed Dock Preview delay inside the range is kept")
+        expect(DockPreviewSupport.sanitizedOpenDelay(milliseconds: -1)
+               == DockPreviewSupport.openDelayMillisecondsRange.lowerBound
+               && DockPreviewSupport.sanitizedOpenDelay(milliseconds: 9_000)
+               == DockPreviewSupport.openDelayMillisecondsRange.upperBound,
+               "a Dock Preview delay outside the range is clamped to it")
+        expect(DockPreviewSupport.sanitizedOpenDelay(milliseconds: 0)
+               >= DockPreviewSupport.openDelayMillisecondsRange.lowerBound,
+               "an unset or zeroed Dock Preview delay cannot disarm the wait entirely")
+        expectClose(DockPreviewSupport.openDelay(milliseconds: 250), 0.25,
+                    "the stored milliseconds drive the timer in seconds")
+        let openDelays = DockPreviewSupport.openDelayMillisecondsRange
+            .map { DockPreviewSupport.openDelay(milliseconds: $0) }
+        expect(openDelays.allSatisfy { DockPreviewSupport.switchDelay <= $0 },
+               "no chosen delay makes switching slower than opening")
+        expect(openDelays.allSatisfy { DockPreviewSupport.prefetchDelay(openDelay: $0) <= $0 },
+               "the window list is never read after the panel it is read for has opened")
+        expect(openDelays.allSatisfy {
+                   $0 - DockPreviewSupport.prefetchDelay(openDelay: $0)
+                       <= DockPreviewSupport.prefetchLead + 0.0001
+               },
+               "the window list is never read further ahead than the lead, so what opens is still true")
+        expectClose(DockPreviewSupport.prefetchDelay(
+                        openDelay: DockPreviewSupport.openDelay(
+                            milliseconds: DockPreviewSupport.defaultOpenDelayMilliseconds)),
+                    0.1,
+                    "at the default the window list is read halfway through the wait")
+        expect(openDelays.allSatisfy {
+                   DockPreviewSupport.prefetchDelay(openDelay: $0) >= DockPreviewSupport.prefetchLead
+               },
+               "no setting reads the window list before the cursor has held still")
+        expect(DockPreviewSupport.switchDelay + 0.06
+               < DockPreviewSupport.openDelay(
+                   milliseconds: DockPreviewSupport.openDelayMillisecondsRange.lowerBound),
+               "a switch, reading its window list inline, still lands before the shortest fresh open")
         expect(registeredDefaults[DefaultsKey.autoCheckUpdates] as? Bool == true,
                "update checks are on for clean installs")
         expect(registeredDefaults[DefaultsKey.updateShowcaseIntroVersion] as? String == "",
@@ -2244,10 +2286,10 @@ struct MetricsTests {
         // decision above is made consciously, never by omission.
         let releasePlist = NSDictionary(contentsOfFile: "Resources/Info.plist")
         let plistVersion = (releasePlist?["CFBundleShortVersionString"] as? String) ?? ""
-        expect(plistVersion == "3.3.3-beta.1",
+        expect(plistVersion == "3.3.3-beta.2",
                "bumping the app version requires re-deciding the support prompt pin above")
         let plistBuild = (releasePlist?["CFBundleVersion"] as? String) ?? ""
-        expect(plistBuild == "80",
+        expect(plistBuild == "81",
                "every app version needs its own incremented bundle build")
         expect(SupportUpdateIntroInfo.releaseVersion == "3.3.2",
                "the support prompt remains deliberately pinned to 3.3.2")
@@ -2277,6 +2319,8 @@ struct MetricsTests {
                "the headphone disconnect default is a real reduction that can still be heard")
         expect(registeredDefaults[DefaultsKey.mixerShowFinder] as? Bool == true,
                "Finder returns to the mixer by default")
+        expect(registeredDefaults[DefaultsKey.mixerHideInactiveApps] as? Bool == false,
+               "inactive mixer apps remain visible by default")
         expect(registeredDefaults[DefaultsKey.soundOutputSwitcherEnabled] as? Bool == false,
                "sound output switcher is opt-in")
         expect(registeredDefaults[DefaultsKey.soundOutputSwitcherShortcut] as? String
@@ -4889,6 +4933,30 @@ struct MetricsTests {
                                                    targetOutputDeviceUID: "BuiltInSpeakerDevice",
                                                    defaultOutputDeviceUID: "BuiltInSpeakerDevice"),
                "a persistent mixer row waits for an audio connection before building a tap")
+        expect(MixerRoutingSupport.shouldShowApp(isPlaying: false,
+                                                 volume: 1,
+                                                 selectedOutputDeviceUID: nil,
+                                                 hideInactiveApps: false),
+               "the inactive-app filter changes nothing until the user enables it")
+        expect(!MixerRoutingSupport.shouldShowApp(isPlaying: false,
+                                                  volume: 1,
+                                                  selectedOutputDeviceUID: nil,
+                                                  hideInactiveApps: true),
+               "an idle uncustomized mixer app can be hidden")
+        expect(MixerRoutingSupport.shouldShowApp(isPlaying: true,
+                                                 volume: 1,
+                                                 selectedOutputDeviceUID: nil,
+                                                 hideInactiveApps: true),
+               "a playing mixer app remains visible")
+        expect(MixerRoutingSupport.shouldShowApp(isPlaying: false,
+                                                 volume: 0.75,
+                                                 selectedOutputDeviceUID: nil,
+                                                 hideInactiveApps: true)
+                && MixerRoutingSupport.shouldShowApp(isPlaying: false,
+                                                     volume: 1,
+                                                     selectedOutputDeviceUID: "ExternalDisplay",
+                                                     hideInactiveApps: true),
+               "custom volume and output choices keep inactive mixer apps visible")
 
         // Issue #296. A tap mutes the app on the real output, so which build
         // may be installed, when an engine is allowed to go away and who may
@@ -6605,6 +6673,25 @@ struct MetricsTests {
         // Defaults registered
         expect(Defaults.registeredDefaults[DefaultsKey.includeBetaUpdates] as? Bool == false,
                "includeBetaUpdates defaults to false in registeredDefaults")
+
+        let testDefaults = UserDefaults(suiteName: "VorssaintTests.BetaActivation")!
+        testDefaults.removePersistentDomain(forName: "VorssaintTests.BetaActivation")
+        Defaults.activateBetaChannelIfRunningBeta(in: testDefaults, version: "3.3.3-beta.1")
+        expect(testDefaults.bool(forKey: DefaultsKey.includeBetaUpdates) == true,
+               "beta channel is activated automatically on a beta build")
+        testDefaults.set(false, forKey: DefaultsKey.includeBetaUpdates)
+        Defaults.activateBetaChannelIfRunningBeta(in: testDefaults, version: "3.3.3-beta.1")
+        expect(testDefaults.bool(forKey: DefaultsKey.includeBetaUpdates) == false,
+               "manual opt-out on a beta build is preserved across launches")
+
+        // Stable version does not activate beta channel
+        let stableDefaults = UserDefaults(suiteName: "VorssaintTests.StableActivation")!
+        stableDefaults.removePersistentDomain(forName: "VorssaintTests.StableActivation")
+        Defaults.activateBetaChannelIfRunningBeta(in: stableDefaults, version: "3.3.3")
+        expect(stableDefaults.object(forKey: DefaultsKey.includeBetaUpdates) == nil,
+               "stable release does not touch beta channel default")
+        stableDefaults.removePersistentDomain(forName: "VorssaintTests.StableActivation")
+        testDefaults.removePersistentDomain(forName: "VorssaintTests.BetaActivation")
 
         // Localization completeness & formatting
         for language in AppLanguage.allCases {
@@ -8839,6 +8926,12 @@ struct MetricsTests {
             expect(!strings.dockPreviewBackgroundOpacityCaption.isEmpty
                    && !strings.dockPreviewBackgroundOpacityCaption.contains("—"),
                    "\(prefix) Dock Preview background caption is present without em dash")
+            expect(!strings.dockPreviewOpenDelay.isEmpty
+                   && !strings.dockPreviewOpenDelay.contains("—"),
+                   "\(prefix) Dock Preview open delay title is present without em dash")
+            expect(!strings.dockPreviewOpenDelayCaption.isEmpty
+                   && !strings.dockPreviewOpenDelayCaption.contains("—"),
+                   "\(prefix) Dock Preview open delay caption is present without em dash")
             expect(!strings.switcherShortcutHintApps.isEmpty, "\(prefix) App Switcher app shortcut hint is present")
             expect(!strings.switcherShortcutHintWindows.isEmpty, "\(prefix) App Switcher window shortcut hint is present")
             expect(!strings.networkApps.isEmpty, "\(prefix) network app usage title is present")
@@ -10075,6 +10168,10 @@ struct MetricsTests {
                    "every backup string is set for \(language.rawValue)")
             expect(backupValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible backup strings (\(language.rawValue))")
+            let mixerValues = Mirror(reflecting: FeatureStrings.mixer(language)).children
+                .compactMap { $0.value as? String }
+            expect(!mixerValues.isEmpty && mixerValues.allSatisfy { !$0.isEmpty },
+                   "every mixer feature string is set for \(language.rawValue)")
             expect(FeatureStrings.backup(language).description.contains(
                 FeatureStrings.scratchpad(language).pageTitle),
                    "every backup description discloses its Scratchpad note content (\(language.rawValue))")
@@ -10222,10 +10319,12 @@ struct MetricsTests {
                    "no em-dash in visible camera preview strings (\(language.rawValue))")
             let radialMenuValues = Mirror(reflecting: FeatureStrings.radialMenu(language)).children
                 .compactMap { $0.value as? String }
-            expect(radialMenuValues.count == 55 && radialMenuValues.allSatisfy { !$0.isEmpty },
+            expect(radialMenuValues.count == 58 && radialMenuValues.allSatisfy { !$0.isEmpty },
                    "every radial menu string is set for \(language.rawValue)")
             expect(radialMenuValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible radial menu strings (\(language.rawValue))")
+            expect(FeatureStrings.radialMenu(language).mediaOpenAppFormat.contains("%@"),
+                   "Now Playing keeps the app-name placeholder (\(language.rawValue))")
             let scratchpadValues = Mirror(reflecting: FeatureStrings.scratchpad(language)).children
                 .compactMap { $0.value as? String }
             expect(scratchpadValues.count == 30 && scratchpadValues.allSatisfy { !$0.isEmpty },
@@ -11019,6 +11118,11 @@ struct MetricsTests {
                "the starter wheel is already clean")
         expect(starter.allSatisfy { !$0.effectiveSymbolName.isEmpty },
                "every starter slice has a symbol to draw")
+        expect(RadialMenuSupport.symbolNames.count >= 80
+                && Set(RadialMenuSupport.symbolNames).count == RadialMenuSupport.symbolNames.count
+                && RadialMenuSupport.symbolNames.contains("speaker.wave.2.fill")
+                && RadialMenuSupport.symbolNames.contains("square.and.arrow.up"),
+               "the radial editor offers a broad, duplicate-free built-in symbol catalog")
         expect(RadialMenuSupport.decode(nil) == starter,
                "a fresh install decodes to the starter wheel")
         expect(RadialMenuSupport.decode(RadialMenuSupport.encode([])) == [],
@@ -11083,6 +11187,13 @@ struct MetricsTests {
                     RadialMenuItem(kind: .submenu, children: [RadialMenuItem(kind: .shortcut, payload: "command:8")]),
                 ]),
                "keyboard and window actions need Accessibility, submenus included")
+        let nowPlayingItem = RadialMenuItem(kind: .media, payload: RadialMenuMediaKey.nowPlaying.rawValue)
+        expect(!RadialMenuSupport.needsAccessibility([nowPlayingItem])
+                && RadialMenuSupport.containsNowPlaying([nowPlayingItem])
+                && RadialMenuSupport.containsNowPlaying([
+                    RadialMenuItem(kind: .submenu, children: [nowPlayingItem]),
+                ]),
+               "Now Playing is found inside wheels without claiming a key-posting permission")
         let radialLayout = RadialMenuItem(kind: .windowLayout,
                                           payload: WindowLayoutAction.leftThird.rawValue)
         expect(RadialMenuSupport.sanitized([radialLayout]) == [radialLayout]
@@ -11095,8 +11206,42 @@ struct MetricsTests {
                "window-layout slices keep a valid placement and its automatic icon")
         expect(RadialMenuMediaKey.playPause.auxKeyType == 16
                 && RadialMenuMediaKey.previousTrack.auxKeyType == 20
-                && RadialMenuMediaKey.nextTrack.auxKeyType == 19,
+                && RadialMenuMediaKey.nextTrack.auxKeyType == 19
+                && RadialMenuMediaKey.nowPlaying.auxKeyType == nil,
                "media slices post the aux codes of the physical keys")
+        let nowPlayingInfo: [String: Any] = [
+            RadialNowPlayingSupport.titleKey: " Midnight City ",
+            RadialNowPlayingSupport.artistKey: "M83",
+            RadialNowPlayingSupport.albumKey: "Hurry Up, We're Dreaming",
+            RadialNowPlayingSupport.artworkDataKey: Data([1, 2, 3]),
+            RadialNowPlayingSupport.playbackRateKey: 1.0,
+        ]
+        expect(RadialNowPlayingSupport.playbackIsActive(remoteIsPlaying: nil, info: nowPlayingInfo)
+                && RadialNowPlayingSupport.playbackIsActive(remoteIsPlaying: true, info: [:])
+                && !RadialNowPlayingSupport.playbackIsActive(remoteIsPlaying: false, info: nowPlayingInfo),
+               "Now Playing accepts the remote state or a positive playback rate")
+        let nowPlayingSnapshot = RadialNowPlayingSupport.snapshot(
+            info: nowPlayingInfo,
+            isPlaying: true,
+            appBundleIdentifier: " com.apple.Music ",
+            appPID: 42)
+        expect(nowPlayingSnapshot?.title == "Midnight City"
+                && nowPlayingSnapshot?.artist == "M83"
+                && nowPlayingSnapshot?.album == "Hurry Up, We're Dreaming"
+                && nowPlayingSnapshot?.artworkData == Data([1, 2, 3])
+                && nowPlayingSnapshot?.appBundleIdentifier == "com.apple.Music"
+                && nowPlayingSnapshot?.appPID == 42
+                && nowPlayingSnapshot?.radialLabel == "Midnight City\nM83",
+               "Now Playing metadata is sanitized into the radial label and floating card")
+        expect(RadialNowPlayingSupport.snapshot(info: nowPlayingInfo,
+                                                isPlaying: false,
+                                                appBundleIdentifier: "com.apple.Music",
+                                                appPID: 42) == nil
+                && RadialNowPlayingSupport.snapshot(info: [:],
+                                                    isPlaying: true,
+                                                    appBundleIdentifier: nil,
+                                                    appPID: 0) == nil,
+               "paused or ownerless metadata degrades to Nothing Playing")
         let radialQuickToggle = RadialMenuItem(kind: .quickToggle,
                                                payload: RadialMenuQuickToggle.darkMode.rawValue)
         expect(RadialMenuSupport.sanitized([radialQuickToggle]) == [radialQuickToggle]
@@ -13276,6 +13421,7 @@ struct MetricsTests {
                 && backupKeys.contains(DefaultsKey.language)
                 && backupKeys.contains(DefaultsKey.appVolumes)
                 && backupKeys.contains(DefaultsKey.mixerShowFinder)
+                && backupKeys.contains(DefaultsKey.mixerHideInactiveApps)
                 && backupKeys.contains(DefaultsKey.keepAwakeActiveIcon)
                 && backupKeys.contains(AppFeature.dockPreview.availabilityKey),
                "backup carries preferences, menu bar pins, Keep Awake appearance, language and hub availability")

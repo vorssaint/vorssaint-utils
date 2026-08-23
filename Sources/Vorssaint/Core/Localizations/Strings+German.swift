@@ -222,6 +222,8 @@ extension Strings {
         dockPreviewEnableCaption: "Zeige auf eine geöffnete App im Dock, um ihre Fenster zu sehen, und klicke dann auf das gewünschte.",
         dockPreviewBackgroundOpacity: "Hintergrund des Panels",
         dockPreviewBackgroundOpacityCaption: "Verringere ihn, um mehr von dem zu sehen, was hinter dem Panel liegt.",
+        dockPreviewOpenDelay: "Öffnungsverzögerung",
+        dockPreviewOpenDelayCaption: "Wie lange der Zeiger auf einem Symbol ruhen muss, bevor sich das Panel öffnet.",
         dockClickMinimize: "Klick aufs Dock-Symbol minimiert",
         dockClickMinimizeCaption: "Die Fenster der aktiven App werden beim Klick auf ihr Dock-Symbol im Dock abgelegt. Ein weiterer Klick holt sie zurück.",
         dockClickCycleWindows: "Klick aufs Dock-Symbol wechselt Fenster",
