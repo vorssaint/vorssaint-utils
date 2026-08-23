@@ -9,12 +9,8 @@ enum CommandBarClipboardAccess {
     }
 }
 
-/// What an empty field shows.
-///
-/// Compact mode is this one decision: with nothing typed and no category to
-/// browse, the bar is a field and nothing else. Pure, and kept here, because
-/// the answer is read by the ranking, by the panel's own chrome and by the
-/// tests, and all three have to agree about it.
+/// What an empty field shows. Pure, because the ranking, the panel and the
+/// tests all need the same answer.
 enum CommandBarHome {
     /// Whether an empty field still draws the browse list and its chips. A
     /// category is an explicit drill-in and always shows its rows; a peek is
@@ -23,8 +19,7 @@ enum CommandBarHome {
         hasCategory || isPeeking || !compact
     }
 
-    /// Whether the panel is the field alone, with no divider, no list and no
-    /// footer under it.
+    /// Whether the panel is the field alone, with no divider, list or footer.
     static func isCollapsed(compact: Bool,
                             query: String,
                             hasCategory: Bool,

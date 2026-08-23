@@ -88,9 +88,9 @@ final class CommandBarService: ObservableObject {
     /// so Settings can offer the way back.
     @Published private(set) var hasCustomPosition = false
 
-    /// True while the bar is the field alone: compact mode, nothing typed and
-    /// no category open. The panel reads it to leave out the divider, the list
-    /// and the footer, so what is on screen is one strip.
+    /// True while the bar is the field alone: compact mode, nothing typed,
+    /// no category open. The panel drops its divider and footer while this
+    /// is set.
     @Published private(set) var isCompactHome = false
 
     private let hotkey = QuickToolHotkey(id: 20)
@@ -529,10 +529,7 @@ final class CommandBarService: ObservableObject {
         return true
     }
 
-    /// The way back to the list from a collapsed field. Compact mode promises
-    /// that nothing appears until it is asked for; this is the asking. It
-    /// lasts one opening, so the next summon is a bare field again.
-    ///
+    /// Shows the list on a collapsed field for the rest of this opening.
     /// Returns whether it handled the key, so the caller can pass it on.
     @discardableResult
     func peekHome() -> Bool {
@@ -670,11 +667,10 @@ final class CommandBarService: ObservableObject {
     /// from disk there means parsing the same JSON ninety times for one frame.
     private var pinCache: Set<String> = []
     private var shortcutCache: [String: GlobalShortcut] = [:]
-    /// Whether an empty field shows nothing but itself. Read here with the
-    /// pins because the results pass asks it on every keystroke.
+    /// Cached like the pins: read once per open, checked on every keystroke.
     private var compactMode = false
-    /// The person asked a compact bar for its list anyway. Lives for one
-    /// opening; the next summon is a bare field again.
+    /// The list was asked for anyway, through `peekHome()`. Cleared on the
+    /// next open.
     private var isPeekingHome = false
     /// The folders a file search looks in, already resolved, and the names it
     /// never shows. Resolving reads the home folder, which is far too much to
@@ -882,9 +878,8 @@ final class CommandBarService: ObservableObject {
             sectionTitles = [:]
             categoryChips = []
             isShowingSuggestions = false
-            // The panel is already on screen for this one turn, so a compact
-            // bar has to open collapsed instead of dropping its footer a frame
-            // later.
+            // The panel is on screen for this turn already, so a compact bar
+            // has to start collapsed rather than drop its footer a frame later.
             setCompactHome(compactMode)
             return
         }
@@ -906,9 +901,8 @@ final class CommandBarService: ObservableObject {
                         !disabled.contains($0) && categoryHasContent($0)
                     }
                 } else {
-                    // Not merely hidden: a chip probe per kind and a walk of
-                    // the whole catalog are the work compact mode exists to
-                    // skip.
+                    // Skipped, not just hidden: this is the walk of the whole
+                    // catalog compact mode exists to avoid.
                     categoryChips = []
                 }
                 if let category = activeCategory {
@@ -966,8 +960,6 @@ final class CommandBarService: ObservableObject {
                                                       hasCategory: activeCategory != nil,
                                                       isPeeking: isPeekingHome))
         case .argument, .confirm, .actions, .naming, .capturingShortcut:
-            // Every card carries chrome of its own; none of them is a bare
-            // field.
             setCompactHome(false)
         }
         refreshPanelLayout()
@@ -2532,8 +2524,7 @@ final class CommandBarService: ObservableObject {
                     // follow the keys the person sees.
                     switch key {
                     case "n":
-                        // The footer offers ⌃N and ↓ as one gesture, so the
-                        // peek answers to both or the hint would be lying.
+                        // Same key as ↓ in the footer's own hint.
                         if case .actions = self.mode {
                             self.moveActionSelection(1)
                         } else if !self.peekHome() {

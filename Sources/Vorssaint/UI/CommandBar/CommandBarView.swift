@@ -135,8 +135,7 @@ struct CommandBarView: View {
                 shortcutCard(entryID: entryID)
             }
             // A footer under a bare field reads as a second row of chrome on
-            // something meant to be one strip. It comes back the moment there
-            // is anything above it.
+            // something meant to be one strip.
             if !service.isCompactHome {
                 Divider()
                 footer
@@ -150,8 +149,8 @@ struct CommandBarView: View {
         .onChange(of: service.mode) { _, _ in focusSearch() }
     }
 
-    /// A 22 pt radius on a 50 pt strip reads as a pill. The collapsed bar wants
-    /// the same corner the expanded one has, not a rounder one.
+    /// 22 pt on a 50 pt strip rounds into a pill; the collapsed bar uses a
+    /// tighter corner instead.
     private var cornerRadius: CGFloat { service.isCompactHome ? 16 : 22 }
 
     private func focusSearch() {
@@ -217,11 +216,8 @@ struct CommandBarView: View {
         .padding(.vertical, 14)
     }
 
-    /// The collapsed bar has no footer to teach with, so the keys that still do
-    /// something say so at the end of the field itself. Only those two: there
-    /// is no row to act on and nothing to walk, and a hint for a key that does
-    /// nothing is worse than no hint. They are the same words and glyphs the
-    /// footer uses, so the two surfaces read as one bar.
+    /// The collapsed bar has no footer, so the keys that still work (↓ to
+    /// peek, Esc to close) say so inline instead, in the footer's own glyphs.
     private var compactHints: some View {
         HStack(spacing: 4) {
             Text("↓")
