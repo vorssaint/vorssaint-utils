@@ -425,6 +425,11 @@ enum DefaultsKey {
     static let scratchpadShortcut = "scratchpadShortcut"
     static let commandBarShortcutEnabled = "commandBarShortcutEnabled"
     static let commandBarShortcut = "commandBarShortcut"
+    /// Compact mode: an empty field shows nothing but itself, so every list the
+    /// bar can draw is a consequence of a keystroke rather than of being
+    /// opened. Off by default: the browse list is how somebody opening the bar
+    /// for the first time finds out how much is in it.
+    static let commandBarCompactMode = "commandBarCompactMode"
     static let commandBarUsage = "commandBarUsage"           // per-command run counts, never queries
     static let commandBarDisabledSources = "commandBarDisabledSources" // kinds of result switched off
     static let commandBarAliases = "commandBarAliases"       // {row id: the name the person gave it}
@@ -1103,6 +1108,7 @@ enum Defaults {
         DefaultsKey.scratchpadShortcutEnabled: false,
         DefaultsKey.scratchpadShortcut: GlobalShortcut.scratchpadDefault.storageValue,
         DefaultsKey.commandBarShortcutEnabled: false,
+        DefaultsKey.commandBarCompactMode: false,
         DefaultsKey.commandBarDisabledSources: "",
         DefaultsKey.commandBarAliases: "",
         DefaultsKey.commandBarPins: "",

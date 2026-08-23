@@ -14750,6 +14750,39 @@ struct MetricsTests {
         expect(!CommandBarClipboardAccess.canUseHistory(captureEnabled: false,
                                                         hasSavedItems: false),
                "an empty disabled clipboard still points to setup")
+
+        // MARK: Compact mode, what an empty field shows
+        expect(CommandBarHome.showsBrowseList(compact: false, hasCategory: false, isPeeking: false),
+               "the browse list is what an ordinary empty bar shows")
+        expect(!CommandBarHome.showsBrowseList(compact: true, hasCategory: false, isPeeking: false),
+               "a compact bar draws no list until something is typed")
+        expect(CommandBarHome.showsBrowseList(compact: true, hasCategory: true, isPeeking: false),
+               "a category is an explicit drill-in and always shows its rows")
+        expect(CommandBarHome.showsBrowseList(compact: true, hasCategory: false, isPeeking: true),
+               "a peek is the person asking for the list anyway")
+        expect(CommandBarHome.isCollapsed(compact: true, query: "",
+                                          hasCategory: false, isPeeking: false),
+               "an empty compact field is the whole panel")
+        expect(CommandBarHome.isCollapsed(compact: true, query: "   ",
+                                          hasCategory: false, isPeeking: false),
+               "whitespace is not something typed")
+        expect(!CommandBarHome.isCollapsed(compact: true, query: "fire",
+                                           hasCategory: false, isPeeking: false),
+               "one letter brings the list and the footer back")
+        expect(!CommandBarHome.isCollapsed(compact: true, query: "",
+                                           hasCategory: true, isPeeking: false),
+               "a category keeps the panel open")
+        expect(!CommandBarHome.isCollapsed(compact: true, query: "",
+                                           hasCategory: false, isPeeking: true),
+               "a peeked bar is not collapsed either")
+        expect(!CommandBarHome.isCollapsed(compact: false, query: "",
+                                           hasCategory: false, isPeeking: false),
+               "the ordinary bar is never collapsed")
+        expect(Defaults.registeredDefaults[DefaultsKey.commandBarCompactMode] as? Bool == false,
+               "compact mode ships off: the browse list is how the bar introduces itself")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarCompactMode),
+               "compact mode is configuration, so it travels with an exported setup")
+
         // MARK: What the bar noticed about this session
         expect(CommandBarQueryMemory.prefixes(of: "wha") == ["w", "wh", "wha"],
                "choosing a row for what was typed also answers every shorter piece of it")

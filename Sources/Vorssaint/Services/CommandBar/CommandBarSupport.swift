@@ -9,6 +9,31 @@ enum CommandBarClipboardAccess {
     }
 }
 
+/// What an empty field shows.
+///
+/// Compact mode is this one decision: with nothing typed and no category to
+/// browse, the bar is a field and nothing else. Pure, and kept here, because
+/// the answer is read by the ranking, by the panel's own chrome and by the
+/// tests, and all three have to agree about it.
+enum CommandBarHome {
+    /// Whether an empty field still draws the browse list and its chips. A
+    /// category is an explicit drill-in and always shows its rows; a peek is
+    /// the person asking for the list anyway.
+    static func showsBrowseList(compact: Bool, hasCategory: Bool, isPeeking: Bool) -> Bool {
+        hasCategory || isPeeking || !compact
+    }
+
+    /// Whether the panel is the field alone, with no divider, no list and no
+    /// footer under it.
+    static func isCollapsed(compact: Bool,
+                            query: String,
+                            hasCategory: Bool,
+                            isPeeking: Bool) -> Bool {
+        guard compact, !hasCategory, !isPeeking else { return false }
+        return query.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+}
+
 /// The bar can be visible before home has finished preparing, but only the
 /// presentation that asked for that work may receive it.
 struct CommandBarPresentationLifecycle {
