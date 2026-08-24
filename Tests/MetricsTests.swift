@@ -10532,6 +10532,20 @@ struct MetricsTests {
                 .contains("Thread.isMainThread"),
                "the display reconfiguration transaction refuses to start off the main thread")
 
+        // A `UserDefaults` write posts `didChangeNotification`, and the
+        // observers registered with `queue: .main` make that post wait for the
+        // main thread. Held under `stateLock` it waits on a main thread that
+        // can itself be waiting for the same lock inside `canToggleDisplay`,
+        // called from a SwiftUI body, and the app hangs with nothing left that
+        // can end it (issue #647). Which thread the write happens to run on
+        // does not change that, so it is the locked region that is pinned.
+        let lockedRegions = brightnessSource.components(separatedBy: "stateLock.lock()")
+            .dropFirst()
+            .map { $0.components(separatedBy: "stateLock.unlock()").first ?? $0 }
+        expect(!lockedRegions.isEmpty
+               && lockedRegions.allSatisfy { !$0.contains("SwitchedOff(") },
+               "the list of displays switched off is never written while stateLock is held")
+
         expect(BrightnessSupport.ddcCommandDelay(nowMicroseconds: 1_000_000,
                                                  lastCommandEndMicroseconds: nil) == 0,
                "the first DDC command to a display waits nothing")

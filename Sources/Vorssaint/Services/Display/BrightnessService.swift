@@ -443,7 +443,6 @@ final class BrightnessService: ObservableObject {
             managedDisabledIDs.remove(display.id)
             managedDisabledDisplays.removeValue(forKey: display.id)
             knownActiveTopology.insert(display.id)
-            Self.forgetDisplaySwitchedOff(display.id)
         } else {
             managedDisabledIDs.insert(display.id)
             var disabled = display
@@ -453,6 +452,16 @@ final class BrightnessService: ObservableObject {
             knownActiveTopology.remove(display.id)
         }
         stateLock.unlock()
+        // The stored list is written with the lock released, like every other
+        // place that touches it. A `UserDefaults` write posts
+        // `didChangeNotification`, and the observers registered with
+        // `queue: .main` make that post wait for the main thread; held under
+        // `stateLock` it waits on a main thread that is itself waiting for the
+        // same lock inside `canToggleDisplay`, called from a SwiftUI body
+        // (issue #647). Running here on the main thread is what keeps that from
+        // happening today, and the thread this runs on is not something the
+        // lock should have to depend on.
+        if enabled { Self.forgetDisplaySwitchedOff(display.id) }
         finishDisplayToggle(id: display.id, enabled: enabled, failure: nil)
     }
 
