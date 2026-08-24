@@ -43,6 +43,10 @@ final class ClipboardHistoryService: ObservableObject {
 
     private var timer: Timer?
     private var lastChangeCount = 0
+    /// Signature of the most recent image capture, kept briefly so a source
+    /// app re-declaring the pasteboard while resolving a promised flavor is
+    /// folded into the entry it already produced (see ClipboardImageRedeclare).
+    private var lastImageSignature: ClipboardImageRedeclare.Signature?
     /// The poll reads the pasteboard off the main thread: while a password
     /// prompt is up the pasteboard server can take seconds to answer, and a
     /// blocked main thread stalls every event tap with it, so typing freezes
@@ -637,6 +641,16 @@ final class ClipboardHistoryService: ObservableObject {
 
     private func promoteImage(_ image: (data: Data, width: Int, height: Int)) {
         let hash = Self.sha256Hex(image.data)
+        let thumbnail = ClipboardImageRedeclare.thumbnail(of: image.data)
+        defer {
+            lastImageSignature = thumbnail.map {
+                ClipboardImageRedeclare.Signature(width: image.width,
+                                                  height: image.height,
+                                                  thumbnail: $0,
+                                                  capturedAt: Date(),
+                                                  entryID: entries.first { $0.kind == .image }?.id ?? UUID())
+            }
+        }
         if let existing = entries.first(where: { $0.kind == .image && $0.imageHash == hash }) {
             entries.removeAll { $0.id == existing.id }
             insertPromoted(ClipboardHistoryEntry(id: existing.id,
@@ -646,6 +660,27 @@ final class ClipboardHistoryService: ObservableObject {
                                                  kind: .image,
                                                  imageFile: existing.imageFile,
                                                  imageHash: hash,
+                                                 imageWidth: existing.imageWidth,
+                                                 imageHeight: existing.imageHeight))
+        } else if let thumbnail,
+                  let redeclaredID = ClipboardImageRedeclare.redeclaredEntryID(
+                      previous: lastImageSignature,
+                      width: image.width,
+                      height: image.height,
+                      thumbnail: thumbnail),
+                  let existing = entries.first(where: { $0.id == redeclaredID }) {
+            // The source app re-posted the same picture while resolving a
+            // promised flavor (Chromium image copies do this seconds after the
+            // copy, re-encoded to sRGB). Refresh the entry it already has
+            // instead of recording a twin.
+            entries.removeAll { $0.id == existing.id }
+            insertPromoted(ClipboardHistoryEntry(id: existing.id,
+                                                 text: "",
+                                                 copiedAt: Date(),
+                                                 pinnedAt: existing.pinnedAt,
+                                                 kind: .image,
+                                                 imageFile: existing.imageFile,
+                                                 imageHash: existing.imageHash,
                                                  imageWidth: existing.imageWidth,
                                                  imageHeight: existing.imageHeight))
         } else {

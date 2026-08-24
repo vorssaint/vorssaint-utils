@@ -169,6 +169,117 @@ struct MetricsTests {
         expect(ClipboardHistorySearch.rankedIndexes(candidates: clipboardCandidates,
                                                     matching: "cleanup token") == [1],
                "clipboard search matches pinned entries with reordered query terms")
+
+        // MARK: Clipboard image re-declare detection
+
+        func solidThumbnail(_ value: UInt8) -> [UInt8] {
+            [UInt8](repeating: value,
+                    count: ClipboardImageRedeclare.thumbnailSide
+                        * ClipboardImageRedeclare.thumbnailSide * 4)
+        }
+        let redeclareID = UUID()
+        let baseSignature = ClipboardImageRedeclare.Signature(width: 300,
+                                                              height: 200,
+                                                              thumbnail: solidThumbnail(120),
+                                                              capturedAt: Date(),
+                                                              entryID: redeclareID)
+        expect(ClipboardImageRedeclare.redeclaredEntryID(previous: baseSignature,
+                                                         width: 300,
+                                                         height: 200,
+                                                         thumbnail: solidThumbnail(122)) == redeclareID,
+               "re-declare match: same size, near-identical pixels inside the window")
+        expect(ClipboardImageRedeclare.redeclaredEntryID(previous: baseSignature,
+                                                         width: 300,
+                                                         height: 200,
+                                                         thumbnail: solidThumbnail(140)) == nil,
+               "different pixels are a new copy, not a re-declare")
+        expect(ClipboardImageRedeclare.redeclaredEntryID(previous: baseSignature,
+                                                         width: 200,
+                                                         height: 300,
+                                                         thumbnail: solidThumbnail(120)) == nil,
+               "different pixel size is a new copy")
+        expect(ClipboardImageRedeclare.redeclaredEntryID(previous: nil,
+                                                         width: 300,
+                                                         height: 200,
+                                                         thumbnail: solidThumbnail(120)) == nil,
+               "no prior capture means no re-declare")
+        let staleSignature = ClipboardImageRedeclare.Signature(
+            width: 300,
+            height: 200,
+            thumbnail: solidThumbnail(120),
+            capturedAt: Date().addingTimeInterval(-ClipboardImageRedeclare.window - 1),
+            entryID: redeclareID)
+        expect(ClipboardImageRedeclare.redeclaredEntryID(previous: staleSignature,
+                                                         width: 300,
+                                                         height: 200,
+                                                         thumbnail: solidThumbnail(120)) == nil,
+               "a matching image after the window is a deliberate re-copy")
+        expect(!ClipboardImageRedeclare.matches(solidThumbnail(120), []),
+               "empty thumbnails never match")
+        // Same picture through two encoders/colorspaces must land inside the
+        // tolerance: render one bitmap, tag it P3 vs sRGB, and compare.
+        let redeclareSide = ClipboardImageRedeclare.thumbnailSide
+        var gradient = [UInt8](repeating: 0, count: redeclareSide * redeclareSide * 4)
+        for y in 0..<redeclareSide {
+            for x in 0..<redeclareSide {
+                let offset = (y * redeclareSide + x) * 4
+                gradient[offset] = UInt8((x * 255) / (redeclareSide - 1))
+                gradient[offset + 1] = UInt8((y * 255) / (redeclareSide - 1))
+                gradient[offset + 2] = 96
+                gradient[offset + 3] = 255
+            }
+        }
+        func gradientImage(space name: CFString) -> CGImage? {
+            gradient.withUnsafeMutableBytes { raw -> CGImage? in
+                guard let space = CGColorSpace(name: name),
+                      let context = CGContext(data: raw.baseAddress,
+                                              width: redeclareSide,
+                                              height: redeclareSide,
+                                              bitsPerComponent: 8,
+                                              bytesPerRow: redeclareSide * 4,
+                                              space: space,
+                                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+                else { return nil }
+                return context.makeImage()
+            }
+        }
+        // A real re-declare is a color-managed CONVERSION: the pixel values
+        // change to keep the picture looking the same. Simulate it by
+        // normalizing a P3-tagged render to sRGB (what the detector's own
+        // thumbnail pass does) and re-wrapping that result as an sRGB image —
+        // the two must compare as the same picture. Same bytes merely
+        // re-TAGGED with a different profile are genuinely different colors
+        // and must NOT match.
+        if let p3 = gradientImage(space: CGColorSpace.displayP3),
+           let p3Thumb = ClipboardImageRedeclare.thumbnail(of: p3) {
+            var converted = p3Thumb
+            let convertedImage = converted.withUnsafeMutableBytes { raw -> CGImage? in
+                guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+                      let context = CGContext(data: raw.baseAddress,
+                                              width: redeclareSide,
+                                              height: redeclareSide,
+                                              bitsPerComponent: 8,
+                                              bytesPerRow: redeclareSide * 4,
+                                              space: space,
+                                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+                else { return nil }
+                return context.makeImage()
+            }
+            if let convertedImage,
+               let srgbThumb = ClipboardImageRedeclare.thumbnail(of: convertedImage) {
+                expect(ClipboardImageRedeclare.matches(p3Thumb, srgbThumb),
+                       "a color-managed P3→sRGB re-encode compares as the same image")
+            } else {
+                expect(false, "converted sRGB image can be produced")
+            }
+            if let retagged = gradientImage(space: CGColorSpace.sRGB),
+               let retaggedThumb = ClipboardImageRedeclare.thumbnail(of: retagged) {
+                expect(!ClipboardImageRedeclare.matches(p3Thumb, retaggedThumb),
+                       "same bytes re-tagged with a different profile are different colors")
+            }
+        } else {
+            expect(false, "colorspace-normalized thumbnails can be produced")
+        }
         expect(ClipboardHistorySearch.rankedIndexes(candidates: clipboardCandidates,
                                                     matching: "missing") == [],
                "clipboard search returns no results for unmatched terms")
