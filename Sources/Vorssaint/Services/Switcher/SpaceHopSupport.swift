@@ -12,6 +12,22 @@ enum SpaceHopSupport {
     /// with synthetic shortcuts.
     static let maximumArrowSteps = 16
 
+    /// What a hop does right after activating the app.
+    enum FirstStage: Equatable {
+        /// Activating the app travels on its own, so wait for it to land.
+        case waitForActivationTravel
+        /// Activation cannot travel; the move has to be asked for right away.
+        case moveASpace
+    }
+
+    /// macOS follows an activation to another Space only when the app has no
+    /// window where the user is already looking. With one there, activating
+    /// just raises that window, so waiting for a travel that cannot happen is
+    /// pure delay and the hop asks for the move immediately (issue #422).
+    static func firstStage(appHasWindowOnVisibleSpace: Bool) -> FirstStage {
+        appHasWindowOnVisibleSpace ? .moveASpace : .waitForActivationTravel
+    }
+
     /// A window the window server places on at least one Space, none of which
     /// is visible right now, is a real window parked elsewhere. A window on no
     /// Space at all is a leftover surface (the ghosts the Accessibility veto
@@ -21,17 +37,22 @@ enum SpaceHopSupport {
         return !windowSpaces.contains { visibleSpaces.contains($0) }
     }
 
+    /// The window server marks surfaces that must stay out of app window
+    /// cycling. This remains meaningful when Accessibility cannot inspect a
+    /// window because it lives on another Space.
+    static func isExcludedFromWindowCycle(windowTagsLow: UInt32) -> Bool {
+        let ignoresCycleTag: UInt32 = 1 << 18
+        return windowTagsLow & ignoresCycleTag != 0
+    }
+
     /// How many "move a space" presses take the user from the visible Space to
     /// `target`. Positive means move right, negative means move left. Returns
     /// nil when the target is already visible, cannot be found, or sits
-    /// farther than `maximumArrowSteps` away. With more than one display it
-    /// always returns nil: the replayed shortcut moves whichever display has
-    /// keyboard focus, which is not necessarily the display owning the target,
-    /// so a hop there could shuffle the wrong display's desktops.
+    /// farther than `maximumArrowSteps` away.
     static func arrowSteps(orderedSpacesPerDisplay: [[UInt64]],
                            visibleSpaces: Set<UInt64>,
                            target: UInt64) -> Int? {
-        guard orderedSpacesPerDisplay.count == 1, let row = orderedSpacesPerDisplay.first else { return nil }
+        guard let row = orderedSpacesPerDisplay.first(where: { $0.contains(target) }) else { return nil }
         guard !visibleSpaces.contains(target) else { return nil }
         guard let targetIndex = row.firstIndex(of: target),
               let currentIndex = row.firstIndex(where: { visibleSpaces.contains($0) })

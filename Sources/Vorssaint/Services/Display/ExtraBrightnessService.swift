@@ -65,10 +65,16 @@ final class ExtraBrightnessService: ObservableObject {
 
     func syncWithPreferences() {
         refreshSupported()
-        let wanted = AppFeature.extraBrightness.isAvailable
+        let enabled = AppFeature.extraBrightness.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.extraBrightnessEnabled)
-            && supported
-        if wanted { start() } else { stop() }
+        if enabled, supported {
+            start()
+        } else if enabled {
+            installObserver()
+            stop(preservingObservers: true)
+        } else {
+            stop()
+        }
     }
 
     /// Re-applies a level change immediately instead of waiting for the poll.
@@ -129,10 +135,14 @@ final class ExtraBrightnessService: ObservableObject {
     }
 
     func stop() {
-        guard pollTimer != nil || overlayWindow != nil else { return }
+        stop(preservingObservers: false)
+    }
+
+    private func stop(preservingObservers: Bool) {
+        guard pollTimer != nil || overlayWindow != nil || screenObserver != nil else { return }
         pollTimer?.invalidate()
         pollTimer = nil
-        removeObserver()
+        if !preservingObservers { removeObserver() }
         overlayWindow?.orderOut(nil)
         overlayWindow = nil
         overlayLayer = nil
@@ -181,10 +191,10 @@ final class ExtraBrightnessService: ObservableObject {
         screensAsleep = false
     }
 
-    /// Fullscreen windows live in their own Space. AppKit normally carries the
-    /// overlay pair into the active app's fullscreen set; keep that live pair
-    /// instead of tearing it down during the handoff. Rebuild only when either
-    /// window did not arrive or the built-in display actually changed.
+    /// The pair is resident on every Space, so a desktop or fullscreen change
+    /// normally needs nothing beyond a fresh present. Rebuilding stays as the
+    /// fallback for what can still move the ground under it: a different
+    /// built-in display, or AppKit reporting that a window is not there.
     private func handleActiveSpaceChange() {
         guard pollTimer != nil else { return }
         guard let screen = Self.builtInXDRScreen() else {
@@ -205,12 +215,20 @@ final class ExtraBrightnessService: ObservableObject {
 
     private func handleScreenChange() {
         refreshSupported()
-        guard pollTimer != nil else { return }
+        let enabled = AppFeature.extraBrightness.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.extraBrightnessEnabled)
+        guard enabled else {
+            stop()
+            return
+        }
         guard let screen = Self.builtInXDRScreen() else {
             // Built-in display gone (clamshell): release everything; the
             // preference stays on and a later screen change brings it back.
-            stop()
-            syncWithPreferences()
+            stop(preservingObservers: true)
+            return
+        }
+        guard pollTimer != nil else {
+            start()
             return
         }
         // The same panel re-announces itself in storms: an EDR headroom ramp
@@ -239,12 +257,21 @@ final class ExtraBrightnessService: ObservableObject {
         NSRect(x: screen.frame.maxX - 1, y: screen.frame.minY, width: 1, height: 1)
     }
 
-    /// Let the pair join the active app's fullscreen set without cloning it
-    /// across every Space. The observer above remains as a fallback when AppKit
-    /// reports that either live window did not make the transition.
+    /// The pair belongs to every Space and sits out Exposé. Bound to a single
+    /// Space it travelled with that Space: swiping to another desktop slid the
+    /// overlay off screen for the whole animation, taking the boost with it
+    /// until the transition ended and a rebuild brought it back (measured).
+    /// Resident everywhere there is no handoff at all, and the presents that
+    /// hold the panel's headroom never pause.
     private static let overlayCollectionBehavior: NSWindow.CollectionBehavior = [
         .ignoresCycle, .fullScreenAuxiliary, .canJoinAllApplications,
+        .canJoinAllSpaces, .stationary,
     ]
+
+    /// Desktop and window-overview transitions composite above ordinary
+    /// screen-saver windows. Keep the multiplier and its headroom trigger at
+    /// the display-shield level so both remain in the final picture.
+    private static let overlayWindowLevel = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
 
     // MARK: - Overlay
 
@@ -257,7 +284,7 @@ final class ExtraBrightnessService: ObservableObject {
                               backing: .buffered, defer: false)
         // Above regular windows and the menu bar so the whole picture is
         // boosted evenly; it ignores clicks, so it is never in the way.
-        window.level = .screenSaver
+        window.level = Self.overlayWindowLevel
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = false
@@ -311,7 +338,7 @@ final class ExtraBrightnessService: ObservableObject {
 
         let window = NSWindow(contentRect: Self.triggerFrame(on: screen), styleMask: [.borderless],
                               backing: .buffered, defer: false)
-        window.level = .screenSaver
+        window.level = Self.overlayWindowLevel
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = false

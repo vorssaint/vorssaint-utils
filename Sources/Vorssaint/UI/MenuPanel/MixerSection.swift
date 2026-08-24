@@ -13,29 +13,33 @@ struct MixerSection: View {
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var inputManager = AudioInputDeviceManager.shared
     @ObservedObject private var outputSwitcher = SoundOutputSwitcher.shared
+    @ObservedObject private var preciseVolumeRoller = PreciseVolumeRollerService.shared
+    @ObservedObject private var permissions = Permissions.shared
+    @AppStorage(DefaultsKey.mixerHideInactiveApps)
+    private var hideInactiveApps = false
     @AppStorage(DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect)
     private var lowerOnHeadphonesDisconnect = false
     @AppStorage(DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
     private var headphonesDisconnectVolumePercent = Defaults.defaultMixerHeadphonesDisconnectVolumePercent
+    @AppStorage(DefaultsKey.preciseVolumeRollerEnabled)
+    private var preciseVolumeRollerEnabled = false
     @AppStorage(DefaultsKey.soundOutputSwitcherEnabled)
     private var soundOutputSwitcherEnabled = false
     @State private var soundOutputSwitcherUIDs: [String] = []
     @State private var showListChooser = false
+    @State private var optionsExpanded = false
     @State private var normalSliderTint = Color(nsColor: .controlAccentColor)
     @State private var accentRevision = 0
     @State private var lastResolvedAccent: NSColor?
+    @State private var editingVolumeID: String?
     var collapsible = true
 
     var body: some View {
         PanelSection(.mixer, title: l10n.s.mixerSection, collapsible: collapsible) {
             VStack(alignment: .leading, spacing: 8) {
-                universalOutputPicker
-                headphoneDisconnectProtectionToggle
-                if AppFeature.soundOutputSwitcher.isAvailable {
-                    soundOutputSwitcherControls
-                }
-                microphonePicker
-                if AppVolumeMixer.isSupported, (!mixer.apps.isEmpty || mixer.needsPermission) {
+                audioDevicesSection
+
+                if AppVolumeMixer.isSupported, (!visibleApps.isEmpty || mixer.needsPermission) {
                     Divider()
                 }
 
@@ -43,15 +47,14 @@ struct MixerSection: View {
                     emptyLabel(l10n.s.mixerUnavailable)
                 } else if mixer.needsPermission {
                     permissionHint
-                } else if mixer.apps.isEmpty {
+                } else if visibleApps.isEmpty {
                     emptyLabel(l10n.s.mixerEmpty)
                 } else {
                     mixerRows
                 }
-                if AppVolumeMixer.isSupported, !listChoices.isEmpty {
-                    Divider()
-                    listVisibilityFooter
-                }
+
+                Divider()
+                optionsDisclosure
             }
             .panelCard()
         }
@@ -63,6 +66,57 @@ struct MixerSection: View {
         }
         .onAppear {
             soundOutputSwitcherUIDs = SoundOutputSwitcher.shared.selectedDeviceUIDs()
+        }
+    }
+
+    private var audioDevicesSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            universalOutputPicker
+            systemSoundOutputPicker
+            microphonePicker
+            if let outputSwitchError = mixer.outputSwitchError {
+                inputMessage(String(format: l10n.s.mixerSystemOutputErrorFormat, outputSwitchError),
+                             systemImage: "exclamationmark.triangle")
+            }
+        }
+    }
+
+    private var optionsDisclosure: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                optionsExpanded.toggle()
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 12)
+                        .rotationEffect(.degrees(optionsExpanded ? 90 : 0))
+                    Text(l10n.s.keepAwakeOptions)
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if optionsExpanded {
+                VStack(alignment: .leading, spacing: 8) {
+                    if AppVolumeMixer.isSupported {
+                        inactiveAppsVisibilityToggle
+                    }
+                    headphoneDisconnectProtectionToggle
+                    preciseVolumeRollerToggle
+                    if AppFeature.soundOutputSwitcher.isAvailable {
+                        soundOutputSwitcherControls
+                    }
+                    if AppVolumeMixer.isSupported, !listChoices.isEmpty {
+                        listVisibilityFooter
+                    }
+                }
+                .padding(.leading, 19)
+            }
         }
     }
 
@@ -103,11 +157,85 @@ struct MixerSection: View {
                 .help(l10n.s.mixerSystemOutputTooltip)
             }
 
+            if let volume = mixer.systemOutputVolume {
+                HStack(spacing: 8) {
+                    Image(systemName: mixer.systemOutputMuted == true || volume <= 0.001
+                          ? "speaker.slash.fill"
+                          : "speaker.wave.2.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16)
+
+                    MixerVolumeSlider(value: systemOutputVolumeBinding,
+                                      normalTint: normalSliderTint,
+                                      boostTint: normalSliderTint,
+                                      isBoosting: false,
+                                      accentRevision: accentRevision,
+                                      maximum: 1,
+                                      accessibilityLabel: l10n.s.mixerSystemOutputTitle)
+
+                    EditableVolumePercent(currentPercent: Int((volume * 100).rounded()),
+                                          maximumPercent: 100,
+                                          width: 36,
+                                          editorID: "system-output",
+                                          editingID: $editingVolumeID,
+                                          accessibilityLabel: l10n.s.mixerSystemOutputTitle) {
+                        Text("\(Int((volume * 100).rounded()))%")
+                            .font(.system(size: 10.5, weight: .medium))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    } onCommit: {
+                        mixer.setCurrentOutputVolume($0)
+                    }
+                }
+            }
+
             if universalOutputDevices.isEmpty {
                 inputMessage(l10n.s.mixerSystemOutputNoDevices, systemImage: "speaker.slash")
-            } else if let outputSwitchError = mixer.outputSwitchError {
-                inputMessage(String(format: l10n.s.mixerSystemOutputErrorFormat, outputSwitchError),
-                             systemImage: "exclamationmark.triangle")
+            }
+        }
+    }
+
+    private var systemSoundOutputPicker: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Label {
+                    Text(l10n.s.mixerSoundEffectsOutputTitle)
+                        .font(.system(size: 11.5, weight: .medium))
+                } icon: {
+                    Image(systemName: "bell.fill")
+                        .font(.system(size: 10.5, weight: .semibold))
+                }
+                .foregroundStyle(.secondary)
+
+                Spacer(minLength: 6)
+
+                Picker(l10n.s.mixerSoundEffectsOutputTooltip,
+                       selection: systemSoundOutputSelectionBinding) {
+                    if mixer.currentSystemSoundOutputDeviceUID == nil {
+                        Text(l10n.s.mixerOutputUnavailable)
+                            .tag(MixerRoutingSupport.systemDefaultSelectionID)
+                    }
+                    ForEach(systemSoundOutputDevices) { device in
+                        Text(systemSoundOutputDeviceTitle(device))
+                            .tag(device.uid)
+                    }
+                    if let selected = mixer.currentSystemSoundOutputDeviceUID,
+                       !systemSoundOutputDevices.contains(where: { $0.uid == selected }) {
+                        Text(l10n.s.mixerOutputUnavailable)
+                            .tag(selected)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .controlSize(.small)
+                .frame(width: 164)
+                .disabled(systemSoundOutputDevices.isEmpty)
+                .help(l10n.s.mixerSoundEffectsOutputTooltip)
+            }
+
+            if systemSoundOutputDevices.isEmpty {
+                inputMessage(l10n.s.mixerSystemOutputNoDevices, systemImage: "bell.slash")
             }
         }
     }
@@ -116,12 +244,36 @@ struct MixerSection: View {
         mixer.outputDevices.filter(\.canBeDefaultOutput)
     }
 
+    private var systemSoundOutputDevices: [MixerOutputDevice] {
+        mixer.outputDevices.filter(\.canBeDefaultSystemOutput)
+    }
+
     private var universalOutputSelectionBinding: Binding<String> {
         Binding(
             get: { mixer.currentOutputDeviceUID ?? MixerRoutingSupport.systemDefaultSelectionID },
             set: { selection in
                 guard selection != MixerRoutingSupport.systemDefaultSelectionID else { return }
                 mixer.setUniversalOutputDeviceUID(selection)
+            }
+        )
+    }
+
+    private var systemOutputVolumeBinding: Binding<Double> {
+        Binding(
+            get: { mixer.systemOutputVolume ?? 0 },
+            set: { mixer.setCurrentOutputVolume($0) }
+        )
+    }
+
+    private var systemSoundOutputSelectionBinding: Binding<String> {
+        Binding(
+            get: {
+                mixer.currentSystemSoundOutputDeviceUID
+                    ?? MixerRoutingSupport.systemDefaultSelectionID
+            },
+            set: { selection in
+                guard selection != MixerRoutingSupport.systemDefaultSelectionID else { return }
+                mixer.setSystemSoundOutputDeviceUID(selection)
             }
         )
     }
@@ -167,6 +319,36 @@ struct MixerSection: View {
 
     private var headphonesDisconnectDisplayPercent: Int {
         Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(headphonesDisconnectVolumePercent)
+    }
+
+    private var preciseVolumeRollerToggle: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Toggle(l10n.s.preciseVolumeRollerEnable, isOn: $preciseVolumeRollerEnabled)
+                .toggleStyle(.checkbox)
+                .font(.system(size: 11.5, weight: .medium))
+                .onChange(of: preciseVolumeRollerEnabled) { _, enabled in
+                    if enabled { permissions.requestAccessibility() }
+                    PreciseVolumeRollerService.shared.syncWithPreferences()
+                }
+
+            Text(l10n.s.preciseVolumeRollerCaption)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if preciseVolumeRollerEnabled, !permissions.accessibility {
+                Button {
+                    Permissions.shared.openAccessibilitySettings()
+                } label: {
+                    Label(l10n.s.permissionOpenSettings, systemImage: "hand.raised")
+                }
+                .buttonStyle(.link)
+                .font(.system(size: 10.5, weight: .medium))
+            } else if preciseVolumeRoller.tapFailed {
+                inputMessage(l10n.s.preciseVolumeRollerTapFailed,
+                             systemImage: "exclamationmark.triangle")
+            }
+        }
     }
 
     private var soundOutputSwitcherControls: some View {
@@ -387,7 +569,6 @@ struct MixerSection: View {
                 }
             }
         }
-        .animation(.easeOut(duration: 0.15), value: showListChooser)
     }
 
     private func listedBinding(for choice: MixerListChoice) -> Binding<Bool> {
@@ -403,12 +584,42 @@ struct MixerSection: View {
         )
     }
 
+    private var inactiveAppsVisibilityToggle: some View {
+        let label = FeatureStrings.mixer(l10n.language).hideInactiveApps
+        return HStack(spacing: 8) {
+            Text(label)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 6)
+            Toggle(label, isOn: $hideInactiveApps)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .accessibilityLabel(label)
+        }
+    }
+
+    private var visibleApps: [MixerApp] {
+        mixer.apps.filter { app in
+            MixerRoutingSupport.shouldShowApp(isPlaying: app.isPlaying,
+                                              volume: app.volume,
+                                              selectedOutputDeviceUID: app.selectedOutputDeviceUID,
+                                              hideInactiveApps: hideInactiveApps)
+        }
+    }
+
     private func inputDeviceTitle(_ device: MixerInputDevice) -> String {
         device.isDefault ? "\(device.name) (\(l10n.s.mixerOutputCurrent))" : device.name
     }
 
     private func outputDeviceTitle(_ device: MixerOutputDevice) -> String {
         device.isDefault ? "\(device.name) (\(l10n.s.mixerOutputCurrent))" : device.name
+    }
+
+    private func systemSoundOutputDeviceTitle(_ device: MixerOutputDevice) -> String {
+        device.uid == mixer.currentSystemSoundOutputDeviceUID
+            ? "\(device.name) (\(l10n.s.mixerOutputCurrent))"
+            : device.name
     }
 
     private func inputMessage(_ text: String, systemImage: String) -> some View {
@@ -421,6 +632,7 @@ struct MixerSection: View {
 
     @ViewBuilder
     private var mixerRows: some View {
+#if compiler(>=6.2)
         if #available(macOS 26.0, *) {
             GlassEffectContainer(spacing: 8) {
                 rowList
@@ -428,14 +640,18 @@ struct MixerSection: View {
         } else {
             rowList
         }
+#else
+        rowList
+#endif
     }
 
     @ViewBuilder
     private var rowList: some View {
-        ForEach(mixer.apps) { app in
+        ForEach(visibleApps) { app in
             MixerRow(app: app,
                      normalTint: normalSliderTint,
-                     accentRevision: accentRevision)
+                     accentRevision: accentRevision,
+                     editingVolumeID: $editingVolumeID)
         }
     }
 
@@ -485,6 +701,7 @@ private struct MixerRow: View {
     let app: MixerApp
     let normalTint: Color
     let accentRevision: Int
+    @Binding var editingVolumeID: String?
 
     /// Warm accent to flag the boost range, darkened in Light Mode for contrast.
     private var boostColor: Color { PanelMetricColor.orange(for: colorScheme) }
@@ -543,20 +760,29 @@ private struct MixerRow: View {
                                           boostTint: boostColor,
                                           isBoosting: isBoosting,
                                           accentRevision: accentRevision,
+                                          maximum: AppVolumeMixer.maxVolume,
                                           accessibilityLabel: app.name)
 
-                        HStack(spacing: 2) {
-                            if isBoosting {
-                                Image(systemName: "bolt.fill")
-                                    .font(.system(size: 8, weight: .bold))
-                                    .foregroundStyle(boostColor)
+                        EditableVolumePercent(currentPercent: Int((app.volume * 100).rounded()),
+                                              maximumPercent: Int(AppVolumeMixer.maxVolume * 100),
+                                              width: 42,
+                                              editorID: "app:\(app.id)",
+                                              editingID: $editingVolumeID,
+                                              accessibilityLabel: app.name) {
+                            HStack(spacing: 2) {
+                                if isBoosting {
+                                    Image(systemName: "bolt.fill")
+                                        .font(.system(size: 8, weight: .bold))
+                                        .foregroundStyle(boostColor)
+                                }
+                                Text("\(Int((app.volume * 100).rounded()))%")
+                                    .font(.system(size: 10.5, weight: .medium))
+                                    .monospacedDigit()
+                                    .foregroundStyle(isBoosting ? boostColor : Color.secondary)
                             }
-                            Text("\(Int((app.volume * 100).rounded()))%")
-                                .font(.system(size: 10.5, weight: .medium))
-                                .monospacedDigit()
-                                .foregroundStyle(isBoosting ? boostColor : Color.secondary)
+                        } onCommit: {
+                            mixer.setVolume($0, for: app)
                         }
-                        .frame(width: 42, alignment: .trailing)
 
                         Button {
                             mixer.setVolume(1, for: app)
@@ -648,12 +874,245 @@ private struct MixerRow: View {
     }
 }
 
+/// The percentage keeps its compact read-only appearance until clicked, then
+/// becomes a selected text field so the next keystroke replaces the old value.
+private struct EditableVolumePercent<Label: View>: View {
+    let currentPercent: Int
+    let maximumPercent: Int
+    let width: CGFloat
+    let editorID: String
+    @Binding var editingID: String?
+    let accessibilityLabel: String
+    @ViewBuilder let label: () -> Label
+    let onCommit: (Double) -> Void
+
+    @State private var draft = ""
+
+    private var isEditing: Bool { editingID == editorID }
+
+    var body: some View {
+        ZStack {
+            HStack(spacing: 1) {
+                AutofocusingVolumeTextField(text: $draft,
+                                            isActive: isEditing,
+                                            accessibilityLabel: accessibilityLabel,
+                                            onSubmit: commit,
+                                            onCancel: cancel)
+                Text("%")
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, 3)
+            .frame(width: width, height: 18)
+            .background(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .strokeBorder(Color.accentColor.opacity(0.7), lineWidth: 1)
+            )
+            .opacity(isEditing ? 1 : 0)
+            .allowsHitTesting(isEditing)
+            .accessibilityHidden(!isEditing)
+
+            Button(action: beginEditing) {
+                label()
+                    .frame(width: width, alignment: .trailing)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .opacity(isEditing ? 0 : 1)
+            .allowsHitTesting(!isEditing)
+            .accessibilityLabel("\(accessibilityLabel) \(currentPercent)%")
+            .accessibilityHidden(isEditing)
+        }
+        .frame(width: width, alignment: .trailing)
+    }
+
+    private func beginEditing() {
+        draft = String(currentPercent)
+        editingID = editorID
+    }
+
+    @discardableResult
+    private func commit() -> Bool {
+        guard let volume = MixerRoutingSupport.volumeFraction(
+            fromPercentageText: draft,
+            maximumPercent: maximumPercent
+        ) else {
+            NSSound.beep()
+            return false
+        }
+        onCommit(volume)
+        editingID = nil
+        return true
+    }
+
+    private func cancel() {
+        if isEditing { editingID = nil }
+    }
+}
+
+/// A native field is used because an NSPopover can attach its SwiftUI backing
+/// view after a FocusState request has already fired. The field retries when it
+/// joins the window, then owns Return, Escape and loss-of-focus behavior.
+private struct AutofocusingVolumeTextField: NSViewRepresentable {
+    @Binding var text: String
+    let isActive: Bool
+    let accessibilityLabel: String
+    let onSubmit: () -> Bool
+    let onCancel: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text,
+                    isActive: isActive,
+                    onSubmit: onSubmit,
+                    onCancel: onCancel)
+    }
+
+    func makeNSView(context: Context) -> MixerPercentNativeTextField {
+        let field = MixerPercentNativeTextField()
+        field.delegate = context.coordinator
+        field.isBordered = false
+        field.drawsBackground = false
+        field.focusRingType = .none
+        field.alignment = .right
+        field.font = .systemFont(ofSize: 10.5, weight: .medium)
+        field.cell?.wraps = false
+        field.cell?.isScrollable = true
+        field.isEnabled = isActive
+        field.isHidden = !isActive
+        field.setAccessibilityLabel(accessibilityLabel)
+        field.didAttachToWindow = { [weak field, weak coordinator = context.coordinator] in
+            guard let field else { return }
+            coordinator?.focusIfNeeded(field)
+        }
+        return field
+    }
+
+    func updateNSView(_ field: MixerPercentNativeTextField, context: Context) {
+        context.coordinator.text = $text
+        context.coordinator.onSubmit = onSubmit
+        context.coordinator.onCancel = onCancel
+        field.setAccessibilityLabel(accessibilityLabel)
+        if field.stringValue != text { field.stringValue = text }
+        context.coordinator.setActive(isActive, field: field)
+    }
+
+    static func dismantleNSView(_ field: MixerPercentNativeTextField,
+                                coordinator: Coordinator) {
+        coordinator.stopMonitoringEscape()
+        field.didAttachToWindow = nil
+        field.delegate = nil
+    }
+
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        var text: Binding<String>
+        private var isActive: Bool
+        var onSubmit: () -> Bool
+        var onCancel: () -> Void
+        private var didFocus = false
+        private var isFinishing = false
+        private var escapeMonitor: Any?
+
+        init(text: Binding<String>,
+             isActive: Bool,
+             onSubmit: @escaping () -> Bool,
+             onCancel: @escaping () -> Void) {
+            self.text = text
+            self.isActive = isActive
+            self.onSubmit = onSubmit
+            self.onCancel = onCancel
+            super.init()
+            if isActive { startMonitoringEscape() }
+        }
+
+        func controlTextDidChange(_ notification: Notification) {
+            guard let field = notification.object as? NSTextField else { return }
+            text.wrappedValue = field.stringValue
+        }
+
+        func controlTextDidEndEditing(_ notification: Notification) {
+            guard isActive, didFocus, !isFinishing,
+                  let field = notification.object as? NSTextField else { return }
+            text.wrappedValue = field.stringValue
+            isFinishing = true
+            if !onSubmit() { onCancel() }
+        }
+
+        func control(_ control: NSControl,
+                     textView: NSTextView,
+                     doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                text.wrappedValue = (control as? NSTextField)?.stringValue ?? text.wrappedValue
+                if onSubmit() { isFinishing = true }
+                return true
+            }
+            if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+                finish(onCancel)
+                return true
+            }
+            return false
+        }
+
+        func focusIfNeeded(_ field: MixerPercentNativeTextField) {
+            guard isActive, !didFocus else { return }
+            DispatchQueue.main.async { [weak self, weak field] in
+                guard let self, let field, self.isActive, !self.didFocus else { return }
+                if field.focusAndSelectAll() { self.didFocus = true }
+            }
+        }
+
+        func setActive(_ active: Bool, field: MixerPercentNativeTextField) {
+            if active != isActive {
+                isActive = active
+                didFocus = false
+                isFinishing = false
+                if active {
+                    field.isHidden = false
+                    field.isEnabled = true
+                    startMonitoringEscape()
+                } else {
+                    stopMonitoringEscape()
+                    field.isEnabled = false
+                    field.isHidden = true
+                }
+            }
+            if active { focusIfNeeded(field) }
+        }
+
+        private func startMonitoringEscape() {
+            guard escapeMonitor == nil else { return }
+            escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self, self.isActive, event.keyCode == 53 else { return event }
+                self.finish(self.onCancel)
+                return nil
+            }
+        }
+
+        func stopMonitoringEscape() {
+            guard let escapeMonitor else { return }
+            NSEvent.removeMonitor(escapeMonitor)
+            self.escapeMonitor = nil
+        }
+
+        private func finish(_ action: () -> Void) {
+            guard !isFinishing else { return }
+            isFinishing = true
+            action()
+        }
+    }
+}
+
 private struct MixerVolumeSlider: View {
     @Binding var value: Double
     let normalTint: Color
     let boostTint: Color
     let isBoosting: Bool
     let accentRevision: Int
+    let maximum: Double
     let accessibilityLabel: String
 
     private var activeTint: Color { isBoosting ? boostTint : normalTint }
@@ -661,21 +1120,28 @@ private struct MixerVolumeSlider: View {
 
     var body: some View {
         Group {
+#if compiler(>=6.2)
             if #available(macOS 26.0, *) {
                 LiquidGlassMixerSlider(value: $value,
                                        tint: activeTint,
                                        isBoosting: isBoosting,
+                                       maximum: maximum,
                                        accessibilityLabel: accessibilityLabel)
             } else {
                 nativeSlider
                     .accessibilityLabel(accessibilityLabel)
                     .accessibilityValue("\(percentage)%")
             }
+#else
+            nativeSlider
+                .accessibilityLabel(accessibilityLabel)
+                .accessibilityValue("\(percentage)%")
+#endif
         }
     }
 
     private var nativeSlider: some View {
-        Slider(value: $value, in: 0...AppVolumeMixer.maxVolume)
+        Slider(value: $value, in: 0...maximum)
             .controlSize(.small)
             // Pass an explicit accent (not nil) for the normal state: on the
             // macOS slider, tint(nil) does not reliably clear a previously
@@ -685,11 +1151,13 @@ private struct MixerVolumeSlider: View {
     }
 }
 
+#if compiler(>=6.2)
 @available(macOS 26.0, *)
 private struct LiquidGlassMixerSlider: View {
     @Binding var value: Double
     let tint: Color
     let isBoosting: Bool
+    let maximum: Double
     let accessibilityLabel: String
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var colorScheme
@@ -699,8 +1167,8 @@ private struct LiquidGlassMixerSlider: View {
     private let trackHeight: CGFloat = 5
 
     private var progress: CGFloat {
-        let clamped = min(max(value, 0), AppVolumeMixer.maxVolume)
-        return CGFloat(clamped / AppVolumeMixer.maxVolume)
+        let clamped = min(max(value, 0), maximum)
+        return CGFloat(clamped / maximum)
     }
 
     var body: some View {
@@ -737,7 +1205,7 @@ private struct LiquidGlassMixerSlider: View {
         .accessibilityAdjustableAction { direction in
             switch direction {
             case .increment:
-                value = min(AppVolumeMixer.maxVolume, value + 0.05)
+                value = min(maximum, value + 0.05)
             case .decrement:
                 value = max(0, value - 0.05)
             @unknown default:
@@ -784,6 +1252,7 @@ private struct LiquidGlassMixerSlider: View {
     private func updateValue(at x: CGFloat, width: CGFloat) {
         let travel = max(width - knobWidth, 1)
         let normalized = min(max((x - knobWidth / 2) / travel, 0), 1)
-        value = Double(normalized) * AppVolumeMixer.maxVolume
+        value = Double(normalized) * maximum
     }
 }
+#endif

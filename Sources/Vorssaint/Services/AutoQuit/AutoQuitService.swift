@@ -283,7 +283,9 @@ final class AutoQuitService: ObservableObject {
     private func checkWindows(pid: pid_t, confirm: Bool = true) {
         guard running, hadWindows[pid] == true,
               let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else { return }
-        let appIsExcepted = app.bundleIdentifier.map { exceptions.contains($0) } ?? false
+        let appIsExcepted = AutoQuitSupport.isExcepted(bundleIdentifier: app.bundleIdentifier,
+                                                       bundleURL: app.bundleURL,
+                                                       exceptions: exceptions)
         let hiddenByCloseRequest = app.isHidden && hasRecentCloseButtonRequest(pid: pid)
 
         // Cheap early-outs before any synchronous AX IPC: excepted apps and
@@ -304,6 +306,8 @@ final class AutoQuitService: ObservableObject {
                                                          hiddenByCloseRequest: hiddenByCloseRequest,
                                                          hasKnownMinimizedWindow: hasMinimizedWindow,
                                                          hasUserFacingWindow: hasVisibleWindow) else { return }
+        guard !hasRunningDependentApplication(hostBundleIdentifier: app.bundleIdentifier,
+                                              excluding: pid) else { return }
 
         // Zero windows can be a transient state, most notably when leaving full
         // screen with the green button: the full-screen window is destroyed a
@@ -327,12 +331,27 @@ final class AutoQuitService: ObservableObject {
                                                          hiddenByCloseRequest: stillHiddenByCloseRequest,
                                                          hasKnownMinimizedWindow: stillHasKnownMinimizedWindow,
                                                          hasUserFacingWindow: stillHasUserFacingWindow) else { return }
+        guard !hasRunningDependentApplication(hostBundleIdentifier: app.bundleIdentifier,
+                                              excluding: pid) else { return }
 
         hadWindows[pid] = false
         recentCloseButtonRequests[pid] = nil
         minimizedWindows[pid] = nil
         appsWithUnresolvedMinimizedWindows.remove(pid)
         app.terminate()
+    }
+
+    private func hasRunningDependentApplication(hostBundleIdentifier: String?,
+                                                excluding hostPID: pid_t) -> Bool {
+        let bundleURLs = NSWorkspace.shared.runningApplications.compactMap { app -> URL? in
+            guard app.processIdentifier != hostPID,
+                  !app.isTerminated,
+                  app.activationPolicy == .regular else { return nil }
+            return app.bundleURL
+        }
+        return AutoQuitSupport.hasDependentApplication(
+            hostBundleIdentifier: hostBundleIdentifier,
+            applicationBundleURLs: bundleURLs)
     }
 
     private func refreshWindows(pid: pid_t, observer: AXObserver) {

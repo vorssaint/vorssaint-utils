@@ -10,7 +10,11 @@ import SwiftUI
 struct CommandBarView: View {
     /// Short enough to sit on one line, chosen to show three different things
     /// the bar can do that a list of commands would never reveal.
-    static let examples = ["100 km to mi", "2+2*3", "battery", "fire"]
+    static var examples: [String] {
+        ["100 km to mi", "2+2*3", "battery", "fire"].filter {
+            $0 != "battery" || PowerSampler.hasInternalBattery
+        }
+    }
     /// As tall as the list is ever allowed to be, so the panel never grows
     /// past what a laptop screen can show above the fold.
     static let listCeiling: CGFloat = 452
@@ -20,6 +24,72 @@ struct CommandBarView: View {
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.colorScheme) private var colorScheme
     @FocusState private var searchFocused: Bool
+
+    /// The mark, made a handle. Dragging rides on AppKit's own window
+    /// dragging — the same machinery a title bar uses — rather than a
+    /// SwiftUI gesture, whose translation is read in a coordinate space
+    /// that moves with the window and jitters under its own feet.
+    private struct DragHandle: NSViewRepresentable {
+        func makeNSView(context: Context) -> HandleView { HandleView() }
+        func updateNSView(_ view: HandleView, context: Context) {}
+
+        final class HandleView: NSView {
+            private var moveObserver: NSObjectProtocol?
+            private var saveTask: DispatchWorkItem?
+
+            deinit {
+                saveTask?.cancel()
+                if let moveObserver { NotificationCenter.default.removeObserver(moveObserver) }
+            }
+
+            override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+            override func resetCursorRects() {
+                // Cursor rects, not a pushed NSCursor: the system hands the
+                // arrow back on its own the moment the pointer leaves, even
+                // if the bar hides mid-hover.
+                addCursorRect(bounds, cursor: .openHand)
+            }
+
+            override func mouseDown(with event: NSEvent) {
+                if event.clickCount == 2 {
+                    CommandBarService.shared.resetPanelPosition()
+                    return
+                }
+                guard let window else { return }
+                NSCursor.closedHand.set()
+                observeMovement(of: window)
+                window.performDrag(with: event)
+                scheduleSave()
+                NSCursor.openHand.set()
+            }
+
+            private func observeMovement(of window: NSWindow) {
+                saveTask?.cancel()
+                if let moveObserver { NotificationCenter.default.removeObserver(moveObserver) }
+                moveObserver = NotificationCenter.default.addObserver(
+                    forName: NSWindow.didMoveNotification,
+                    object: window,
+                    queue: .main
+                ) { [weak self] _ in
+                    self?.scheduleSave()
+                }
+            }
+
+            private func scheduleSave() {
+                saveTask?.cancel()
+                let task = DispatchWorkItem { [weak self] in
+                    guard let self else { return }
+                    if let moveObserver { NotificationCenter.default.removeObserver(moveObserver) }
+                    moveObserver = nil
+                    saveTask = nil
+                    CommandBarService.shared.finishPanelDrag()
+                }
+                saveTask = task
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: task)
+            }
+        }
+    }
 
     private var markTint: Color {
         colorScheme == .light ? Color(white: 0.03) : .white
@@ -87,10 +157,16 @@ struct CommandBarView: View {
             // radial menu wear; modes speak through the chip and the cards.
             // Both axes are pinned: the panel re-fits on every keystroke and
             // a mark left to follow the proposed height shrinks or vanishes
-            // mid-layout.
+            // mid-layout. It is also the handle that carries the bar to
+            // wherever the hand wants it; a double-click brings it home.
             BrandMark(width: 22, tint: markTint)
                 .opacity(0.85)
                 .frame(width: 22, height: 22)
+                .allowsHitTesting(false)
+                .overlay(
+                    DragHandle()
+                        .help(text.dragHint)
+                )
             if case .naming(let entryID) = service.mode,
                let entry = service.entry(withID: entryID) {
                 Text(entry.title)
@@ -150,10 +226,12 @@ struct CommandBarView: View {
                         HStack(spacing: 10) {
                             Image(systemName: action.symbolName)
                                 .font(.system(size: 13.5, weight: .semibold))
-                                .foregroundStyle(Color.primary.opacity(0.85))
+                                .foregroundStyle(action.isDestructive
+                                                 ? Color.red : Color.primary.opacity(0.85))
                                 .frame(width: 30, height: 30)
                             Text(action.title)
                                 .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(action.isDestructive ? Color.red : Color.primary)
                             Spacer(minLength: 12)
                             Image(systemName: "return")
                                 .font(.system(size: 10, weight: .semibold))
@@ -166,7 +244,10 @@ struct CommandBarView: View {
                         .background(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
                                 .fill(index == service.actionIndex
-                                      ? Color.accentColor.opacity(0.14) : .clear)
+                                      ? (action.isDestructive
+                                         ? Color.red.opacity(0.12)
+                                         : Color.accentColor.opacity(0.14))
+                                      : .clear)
                         )
                     }
                     .buttonStyle(.plain)
@@ -695,7 +776,7 @@ struct CommandBarView: View {
                     .foregroundStyle(.tertiary)
                     .padding(.trailing, 4)
             }
-            Text(service.isShowingSuggestions && !service.categoryChips.isEmpty ? "↑↓ ←→" : "↑↓")
+            Text(service.isShowingSuggestions && !service.categoryChips.isEmpty ? "⌃P ⌃N ↑↓ ←→" : "⌃P ⌃N ↑↓")
                 .font(.system(size: 9, weight: .semibold, design: .rounded))
                 .foregroundStyle(.tertiary)
             Image(systemName: "return")

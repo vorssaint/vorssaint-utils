@@ -10,6 +10,11 @@ struct ScrollWheelEventTraits: Equatable {
     let scrollCount: Int64
 }
 
+struct ScrollWheelInversionPlan: Equatable {
+    let vertical: Bool
+    let horizontal: Bool
+}
+
 /// Tells mouse wheels apart from touch devices, shared by the scroll
 /// inverter and smooth scrolling so both features classify events the same
 /// way: discrete events are wheels; events flagged continuous are wheels
@@ -50,5 +55,23 @@ enum ScrollWheelSupport {
             return false
         }
         return true
+    }
+
+    /// Shift redirects a discrete vertical wheel tick sideways above the event tap.
+    /// Select the setting for the direction the user will see, while leaving
+    /// genuine two-axis events independent.
+    static func inversionPlan(hasVerticalMovement: Bool,
+                              hasHorizontalMovement: Bool,
+                              shiftRedirectsVertical: Bool,
+                              invertVertical: Bool,
+                              invertHorizontal: Bool) -> ScrollWheelInversionPlan {
+        let shiftRedirectsVertically = shiftRedirectsVertical
+            && hasVerticalMovement
+            && !hasHorizontalMovement
+        return ScrollWheelInversionPlan(
+            vertical: hasVerticalMovement
+                && (shiftRedirectsVertically ? invertHorizontal : invertVertical),
+            horizontal: hasHorizontalMovement && invertHorizontal
+        )
     }
 }

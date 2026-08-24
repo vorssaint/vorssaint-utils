@@ -27,11 +27,13 @@ final class UpdateService: ObservableObject {
     /// preview. Set alongside `.available`; cleared otherwise.
     @Published private(set) var availableNotes: String?
 
-    private let repository = "vorssaint/vorssaint-utils"
+    private let repository = "vorssaintapp/vorssaint-utils"
     private var downloadURL: URL?
+    /// Size the release advertises for the asset, used to bound the download.
+    private var downloadExpectedBytes: Int64?
     private var refreshTimer: Timer?
     private var notifiedVersion: String?   // last release we posted a notification for
-    private var downloadObservation: NSKeyValueObservation?
+    private var downloadSession: URLSession?
 
     private init() {}
 
@@ -43,16 +45,32 @@ final class UpdateService: ObservableObject {
         }
     }
 
+    var includeBetaUpdates: Bool {
+        get {
+            if let explicit = UserDefaults.standard.object(forKey: DefaultsKey.includeBetaUpdates) as? Bool {
+                return explicit
+            }
+            return AppInfo.isBeta
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: DefaultsKey.includeBetaUpdates)
+        }
+    }
+
     // MARK: - Scheduling
 
     /// Called at launch: checks shortly after start and then daily, if enabled.
     func startAutomaticChecks() {
         consumeInstallResult()
+        if AppInfo.isBeta && UserDefaults.standard.object(forKey: DefaultsKey.includeBetaUpdates) == nil {
+            UserDefaults.standard.set(true, forKey: DefaultsKey.includeBetaUpdates)
+        }
         // The local dev build never auto-updates, but can simulate the
         // "update available" UI via the `simulateUpdate` default, for testing.
         if AppInfo.isDeveloperBuild {
             if UserDefaults.standard.bool(forKey: DefaultsKey.simulateUpdate) {
-                state = .available(version: "9.9.9")
+                let simulatedVersion = AppInfo.isBeta ? "9.9.9-beta.1" : "9.9.9"
+                state = .available(version: simulatedVersion)
                 availableNotes = ReleaseNotes.rawNotes(for: AppInfo.version)
             }
             return
@@ -100,7 +118,11 @@ final class UpdateService: ObservableObject {
         if case .installing = state { return }
         state = .checking
 
-        var request = URLRequest(url: URL(string: "https://api.github.com/repos/\(repository)/releases/latest")!)
+        let endpoint = includeBetaUpdates
+            ? "https://api.github.com/repos/\(repository)/releases?per_page=10"
+            : "https://api.github.com/repos/\(repository)/releases/latest"
+
+        var request = URLRequest(url: URL(string: endpoint)!)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("Vorssaint/\(AppInfo.version)", forHTTPHeaderField: "User-Agent")
         request.cachePolicy = .reloadIgnoringLocalCacheData
@@ -109,25 +131,55 @@ final class UpdateService: ObservableObject {
             guard let self else { return }
             DispatchQueue.main.async {
                 self.lastChecked = Date()
-                guard let data, error == nil,
-                      let release = try? JSONDecoder().decode(GitHubRelease.self, from: data) else {
+                guard let data, error == nil else {
                     self.availableNotes = nil
                     self.state = .failed(error?.localizedDescription ?? "-")
                     return
                 }
-                let latest = release.tagName.trimmingCharacters(in: CharacterSet(charactersIn: "vV "))
-                let asset = release.assets.first { $0.name.hasSuffix(".dmg") }
-                self.downloadURL = asset?.browserDownloadURL
 
-                if Self.isNewer(latest, than: AppInfo.version), self.downloadURL != nil {
-                    self.availableNotes = ReleaseNotes.inAppUpdateNotes(from: release.body)
-                    self.state = .available(version: latest)
+                let releases: [GitHubRelease]
+                if self.includeBetaUpdates {
+                    releases = (try? JSONDecoder().decode([GitHubRelease].self, from: data)) ?? []
+                } else if let single = try? JSONDecoder().decode(GitHubRelease.self, from: data) {
+                    releases = [single]
+                } else {
+                    releases = []
+                }
+
+                guard !releases.isEmpty else {
+                    self.availableNotes = nil
+                    self.state = .failed(error?.localizedDescription ?? "-")
+                    return
+                }
+
+                let candidates = releases.map { rel -> UpdateServiceSupport.ReleaseCandidate in
+                    let asset = rel.assets.first { $0.name.hasSuffix(".dmg") }
+                    return UpdateServiceSupport.ReleaseCandidate(
+                        tagName: rel.tagName,
+                        isPrerelease: rel.prerelease ?? false,
+                        isDraft: rel.draft ?? false,
+                        dmgURL: asset?.browserDownloadURL,
+                        dmgExpectedBytes: asset?.size,
+                        body: rel.body
+                    )
+                }
+
+                if let chosen = UpdateServiceSupport.selectUpdate(
+                    from: candidates,
+                    currentVersion: AppInfo.version,
+                    includeBetas: self.includeBetaUpdates
+                ) {
+                    let versionClean = chosen.tagName.trimmingCharacters(in: CharacterSet(charactersIn: "vV "))
+                    self.downloadURL = chosen.dmgURL
+                    self.downloadExpectedBytes = chosen.dmgExpectedBytes
+                    self.availableNotes = ReleaseNotes.inAppUpdateNotes(from: chosen.body)
+                    self.state = .available(version: versionClean)
                     // Notify once per distinct release, not on every hourly re-check.
-                    if !manual, latest != self.notifiedVersion {
-                        self.notifiedVersion = latest
+                    if !manual, versionClean != self.notifiedVersion {
+                        self.notifiedVersion = versionClean
                         let s = L10n.shared.s
                         Notifier.post(title: s.updateNotifyTitle,
-                                      body: "\(s.updateAvailablePrefix) \(latest)")
+                                      body: "\(s.updateAvailablePrefix) \(versionClean)")
                     }
                 } else {
                     self.availableNotes = nil
@@ -176,61 +228,96 @@ final class UpdateService: ObservableObject {
         if case let .available(version) = state { offered = version } else { offered = nil }
         state = .downloading(progress: nil)
 
-        let task = URLSession.shared.downloadTask(with: downloadURL) { [weak self] tempURL, _, error in
-            guard let self else { return }
-            DispatchQueue.main.async { self.downloadObservation = nil }
-            guard let tempURL, error == nil else {
-                DispatchQueue.main.async {
-                    self.state = offered.map { State.available(version: $0) } ?? .failed(error?.localizedDescription ?? "-")
-                }
-                return
-            }
-            // Move out of the URL session's scratch space before handing off.
-            let dmgURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("Vorssaint-update.dmg")
-            try? FileManager.default.removeItem(at: dmgURL)
-            do {
-                try FileManager.default.moveItem(at: tempURL, to: dmgURL)
-            } catch {
-                DispatchQueue.main.async {
-                    self.state = offered.map { State.available(version: $0) } ?? .failed(error.localizedDescription)
-                }
-                return
-            }
+        let expectedBytes = downloadExpectedBytes
+        let byteLimit = UpdateInstallerSupport.downloadByteLimit(expectedBytes: expectedBytes)
+        let delegate: BoundedUpdateDownloadDelegate
+        do {
+            delegate = try BoundedUpdateDownloadDelegate(
+                byteLimit: byteLimit,
+                progress: { [weak self] receivedBytes, responseExpectedBytes in
+                    let totalBytes = expectedBytes ?? responseExpectedBytes
+                    guard let totalBytes, totalBytes > 0 else { return }
+                    let fraction = min(Double(receivedBytes) / Double(totalBytes), 1)
+                    DispatchQueue.main.async {
+                        guard let self, case let .downloading(current) = self.state else { return }
+                        if UpdateInstallerSupport.progressStepAdvanced(from: current, to: fraction) {
+                            self.state = .downloading(progress: fraction)
+                        }
+                    }
+                },
+                completion: { [weak self] tempURL, response, error in
+                    guard let self else { return }
+                    self.downloadSession?.finishTasksAndInvalidate()
+                    DispatchQueue.main.async {
+                        self.downloadSession = nil
+                    }
+                    guard let tempURL, error == nil else {
+                        DispatchQueue.main.async {
+                            self.state = offered.map { State.available(version: $0) }
+                                ?? .failed(error?.localizedDescription ?? "-")
+                        }
+                        return
+                    }
+                    // A response that cannot be the asset is dropped here, before it is
+                    // moved out of the scratch space and mounted. The installer still
+                    // verifies the signature; this only keeps a wrong body from getting
+                    // that far.
+                    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    let received = (try? FileManager.default.attributesOfItem(atPath: tempURL.path))
+                        .flatMap { $0[.size] as? NSNumber }?.int64Value ?? 0
+                    guard UpdateInstallerSupport.downloadIsUsable(status: status,
+                                                                  receivedBytes: received,
+                                                                  expectedBytes: expectedBytes) else {
+                        try? FileManager.default.removeItem(at: tempURL)
+                        DispatchQueue.main.async {
+                            self.state = offered.map { State.available(version: $0) }
+                                ?? .failed("HTTP \(status)")
+                        }
+                        return
+                    }
+                    // Move out of the session's scratch space before handing off.
+                    let dmgURL = FileManager.default.temporaryDirectory
+                        .appendingPathComponent("Vorssaint-update.dmg")
+                    try? FileManager.default.removeItem(at: dmgURL)
+                    do {
+                        try FileManager.default.moveItem(at: tempURL, to: dmgURL)
+                    } catch {
+                        DispatchQueue.main.async {
+                            self.state = offered.map { State.available(version: $0) }
+                                ?? .failed(error.localizedDescription)
+                        }
+                        return
+                    }
+                    DispatchQueue.main.async {
+                        self.state = .installing
+                        self.launchInstaller(dmgPath: dmgURL.path, offered: offered)
+                    }
+                })
+        } catch {
             DispatchQueue.main.async {
-                self.state = .installing
-                self.launchInstaller(dmgPath: dmgURL.path, offered: offered)
+                self.state = offered.map { State.available(version: $0) }
+                    ?? .failed(error.localizedDescription)
             }
+            return
         }
-        // Publish download progress in whole-percent steps (Progress fires
-        // far more often than the bar can show). While the server has not
-        // sent a total size the fraction stays meaningless, so it publishes
-        // nil and the UI keeps its indeterminate spinner.
-        downloadObservation = task.progress.observe(\.fractionCompleted) { [weak self] progress, _ in
-            let fraction = progress.totalUnitCount > 0 ? progress.fractionCompleted : nil
-            DispatchQueue.main.async {
-                guard let self, case let .downloading(current) = self.state else { return }
-                guard let fraction else { return }
-                if UpdateInstallerSupport.progressStepAdvanced(from: current, to: fraction) {
-                    self.state = .downloading(progress: fraction)
-                }
-            }
-        }
+        let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+        downloadSession = session
+        let task = session.dataTask(with: downloadURL)
         task.resume()
     }
 
     /// Hands the swap to a detached shell script: it waits for this process to
-    /// quit, mounts the DMG, replaces the bundle, clears quarantine and
-    /// relaunches. Running it outside the app means the bundle can be replaced
-    /// safely while we exit. When the app's folder is not writable by this
-    /// user (standard account with the app in /Applications), the script runs
-    /// through an admin prompt instead of failing silently.
+    /// quit, verifies and mounts the DMG, replaces the bundle, clears
+    /// quarantine and relaunches. Running it outside the app means the bundle
+    /// can be replaced safely while we exit. When the app's folder is not
+    /// writable by this user (standard account with the app in /Applications),
+    /// the script runs through an admin prompt instead of failing silently.
     private func launchInstaller(dmgPath: String, offered: String?) {
         let appPath = Bundle.main.bundlePath
         let pid = ProcessInfo.processInfo.processIdentifier
         let fm = FileManager.default
 
-        guard let resultURL = Self.installResultURL else {
+        guard let resultURL = Self.installResultURL, let expectedVersion = offered else {
             abortInstall(dmgPath: dmgPath, offered: offered)
             return
         }
@@ -244,18 +331,18 @@ final class UpdateService: ObservableObject {
         if fm.isWritableFile(atPath: appDirectory),
            !UpdateInstallerSupport.shouldForceAdminInstall(afterFailureCode: lastFailure) {
             launchUserInstaller(appPath: appPath, dmgPath: dmgPath, pid: pid,
-                                resultPath: resultURL.path, offered: offered)
+                                resultPath: resultURL.path, expectedVersion: expectedVersion)
         } else {
             // Either the folder is not writable, or the last attempt died at
             // the copy/swap step: retry with admin rights instead of failing
             // the same way twice.
             launchAdminInstaller(appPath: appPath, dmgPath: dmgPath, pid: pid,
-                                 resultPath: resultURL.path, offered: offered)
+                                 resultPath: resultURL.path, expectedVersion: expectedVersion)
         }
     }
 
     private func launchUserInstaller(appPath: String, dmgPath: String, pid: Int32,
-                                     resultPath: String, offered: String?) {
+                                     resultPath: String, expectedVersion: String) {
         let scriptURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("vorssaint-update-\(pid)-\(UUID().uuidString).sh")
         do {
@@ -268,7 +355,8 @@ final class UpdateService: ObservableObject {
 
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/bin/sh")
-        task.arguments = [scriptURL.path, appPath, dmgPath, "\(pid)", resultPath, "\(getuid())"]
+        task.arguments = [scriptURL.path, appPath, dmgPath, "\(pid)", resultPath,
+                          "\(getuid())", expectedVersion]
         do {
             try task.run()
         } catch {
@@ -289,13 +377,14 @@ final class UpdateService: ObservableObject {
     /// with nohup so the prompt returns while the installer waits for our
     /// exit.
     private func launchAdminInstaller(appPath: String, dmgPath: String, pid: Int32,
-                                      resultPath: String, offered: String?) {
+                                      resultPath: String, expectedVersion: String) {
         let command = UpdateInstallerSupport.elevatedInstallCommand(appPath: appPath,
                                                                     dmgPath: dmgPath,
                                                                     pid: pid,
                                                                     resultPath: resultPath,
-                                                                    uid: getuid())
-        AdminShell.run(command, prompt: L10n.shared.s.adminPromptUpdate) { [weak self] granted in
+                                                                    uid: getuid(),
+                                                                    expectedVersion: expectedVersion)
+        AdminShell.runInProcess(command, prompt: L10n.shared.s.adminPromptUpdate) { [weak self] granted in
             DispatchQueue.main.async {
                 guard let self else { return }
                 if granted {
@@ -303,7 +392,7 @@ final class UpdateService: ObservableObject {
                 } else {
                     // The user dismissed the admin prompt: keep the offer so
                     // the button simply works again.
-                    self.abortInstall(dmgPath: dmgPath, offered: offered)
+                    self.abortInstall(dmgPath: dmgPath, offered: expectedVersion)
                 }
             }
         }
@@ -381,14 +470,107 @@ final class UpdateService: ObservableObject {
 
     /// True when `latest` is a higher semantic version than `current`.
     static func isNewer(_ latest: String, than current: String) -> Bool {
-        func parts(_ s: String) -> [Int] { s.split(separator: ".").map { Int($0) ?? 0 } }
-        let l = parts(latest), c = parts(current)
-        for i in 0..<max(l.count, c.count) {
-            let lv = i < l.count ? l[i] : 0
-            let cv = i < c.count ? c[i] : 0
-            if lv != cv { return lv > cv }
+        UpdateServiceSupport.isNewer(latest, than: current)
+    }
+}
+
+private final class BoundedUpdateDownloadDelegate: NSObject, URLSessionDataDelegate {
+    private let byteLimit: Int64
+    private let progress: (Int64, Int64?) -> Void
+    private let completion: (URL?, URLResponse?, Error?) -> Void
+    private let fileURL: URL
+    private let fileHandle: FileHandle
+    private var response: URLResponse?
+    private var responseExpectedBytes: Int64?
+    private var receivedBytes: Int64 = 0
+    private var completed = false
+    private var exceededLimit = false
+    private var writeError: Error?
+
+    init(byteLimit: Int64,
+         progress: @escaping (Int64, Int64?) -> Void,
+         completion: @escaping (URL?, URLResponse?, Error?) -> Void) throws {
+        self.byteLimit = byteLimit
+        self.progress = progress
+        self.completion = completion
+        let temporaryFileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Vorssaint-update-\(UUID().uuidString).download")
+        fileURL = temporaryFileURL
+        guard FileManager.default.createFile(atPath: temporaryFileURL.path, contents: nil) else {
+            throw CocoaError(.fileWriteUnknown)
         }
-        return false
+        do {
+            fileHandle = try FileHandle(forWritingTo: temporaryFileURL)
+        } catch {
+            try? FileManager.default.removeItem(at: temporaryFileURL)
+            throw error
+        }
+    }
+
+    deinit {
+        try? fileHandle.close()
+        try? FileManager.default.removeItem(at: fileURL)
+    }
+
+    func urlSession(_ session: URLSession,
+                    dataTask: URLSessionDataTask,
+                    didReceive response: URLResponse,
+                    completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        self.response = response
+        responseExpectedBytes = response.expectedContentLength > 0 ? response.expectedContentLength : nil
+        completionHandler(.allow)
+    }
+
+    func urlSession(_ session: URLSession,
+                    dataTask: URLSessionDataTask,
+                    didReceive data: Data) {
+        guard writeError == nil, !exceededLimit else { return }
+        let chunkBytes = Int64(data.count)
+        guard chunkBytes <= byteLimit - receivedBytes else {
+            exceededLimit = true
+            dataTask.cancel()
+            return
+        }
+        do {
+            try fileHandle.write(contentsOf: data)
+            receivedBytes += chunkBytes
+            progress(receivedBytes, responseExpectedBytes)
+        } catch {
+            writeError = error
+            dataTask.cancel()
+        }
+    }
+
+    func urlSession(_ session: URLSession,
+                    task: URLSessionTask,
+                    didCompleteWithError error: Error?) {
+        let closeError: Error?
+        do {
+            try fileHandle.close()
+            closeError = nil
+        } catch {
+            closeError = error
+        }
+        if let writeError {
+            complete(location: nil, response: response, error: writeError)
+        } else if exceededLimit {
+            complete(location: nil, response: response, error: POSIXError(.EFBIG))
+        } else if let error {
+            complete(location: nil, response: response, error: error)
+        } else if let closeError {
+            complete(location: nil, response: response, error: closeError)
+        } else {
+            complete(location: fileURL, response: response, error: nil)
+        }
+    }
+
+    private func complete(location: URL?, response: URLResponse?, error: Error?) {
+        guard !completed else { return }
+        completed = true
+        if location == nil {
+            try? FileManager.default.removeItem(at: fileURL)
+        }
+        completion(location, response, error)
     }
 }
 
@@ -396,11 +578,15 @@ final class UpdateService: ObservableObject {
 
 private struct GitHubRelease: Decodable {
     let tagName: String
+    let prerelease: Bool?
+    let draft: Bool?
     let assets: [Asset]
     let body: String?
 
     enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
+        case prerelease
+        case draft
         case assets
         case body
     }
@@ -408,10 +594,12 @@ private struct GitHubRelease: Decodable {
     struct Asset: Decodable {
         let name: String
         let browserDownloadURL: URL
+        let size: Int64?
 
         enum CodingKeys: String, CodingKey {
             case name
             case browserDownloadURL = "browser_download_url"
+            case size
         }
     }
 }

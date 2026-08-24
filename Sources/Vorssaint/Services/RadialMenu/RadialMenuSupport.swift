@@ -9,7 +9,7 @@ import Foundation
 /// value. Submenus keep their actions in `children`.
 struct RadialMenuItem: Codable, Identifiable, Equatable {
     enum Kind: String, Codable, CaseIterable {
-        case app, file, url, shortcut, tool, windowLayout, media, submenu
+        case app, file, url, shortcut, tool, quickToggle, windowLayout, media, submenu
     }
 
     var id = UUID()
@@ -27,6 +27,10 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
         kind == .media ? RadialMenuMediaKey(rawValue: payload) : nil
     }
 
+    var quickToggle: RadialMenuQuickToggle? {
+        kind == .quickToggle ? RadialMenuQuickToggle(rawValue: payload) : nil
+    }
+
     var windowLayoutAction: WindowLayoutAction? {
         kind == .windowLayout ? WindowLayoutAction(rawValue: payload) : nil
     }
@@ -40,11 +44,13 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
         case .url: return "link"
         case .shortcut: return "command"
         case .tool: return tool?.symbolName ?? "wrench.and.screwdriver"
+        case .quickToggle: return quickToggle?.symbolName ?? "togglepower"
         case .windowLayout: return windowLayoutAction?.symbolName ?? AppFeature.windowLayout.symbolName
         case .media:
             switch mediaKey {
             case .previousTrack: return "backward.fill"
             case .nextTrack: return "forward.fill"
+            case .nowPlaying: return "music.note"
             default: return "playpause.fill"
             }
         case .submenu: return "ellipsis.circle"
@@ -53,6 +59,28 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
 
     var effectiveSymbolName: String {
         symbolName.isEmpty ? defaultSymbolName : symbolName
+    }
+}
+
+/// Quick toggle actions a slice can trigger. Raw values persist inside the
+/// items blob; never rename them.
+enum RadialMenuQuickToggle: String, Codable, CaseIterable, Identifiable {
+    case darkMode, emptyTrash, ejectDisks, hiddenFiles, desktopIcons,
+         lockScreen, displayOff, screenSaver
+
+    var id: String { rawValue }
+
+    var symbolName: String {
+        switch self {
+        case .darkMode: return "moon.fill"
+        case .emptyTrash: return "trash"
+        case .ejectDisks: return "eject.fill"
+        case .hiddenFiles: return "eye"
+        case .desktopIcons: return "desktopcomputer"
+        case .lockScreen: return "lock.fill"
+        case .displayOff: return "display"
+        case .screenSaver: return "sparkles.tv"
+        }
     }
 }
 
@@ -89,14 +117,15 @@ private struct FailableRadialMenuItem: Decodable {
 /// Vorssaint tools a slice can trigger. Raw values persist inside the items
 /// blob; never rename them.
 enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
-    case screenshot, colorPicker, screenOCR, micMute, clipboardHistory, quickLauncher, cameraPreview,
-         scratchpad, shelf, cleaningMode, keepAwake
+    case screenshot, screenRecorder, colorPicker, screenOCR, micMute, clipboardHistory, quickLauncher,
+         cameraPreview, scratchpad, shelf, cleaner, uninstaller, appUpdates, cleaningMode, keepAwake
 
     var id: String { rawValue }
 
     var feature: AppFeature {
         switch self {
         case .screenshot: return .screenshot
+        case .screenRecorder: return .screenRecorder
         case .colorPicker: return .colorPicker
         case .screenOCR: return .screenOCR
         case .micMute: return .micMute
@@ -105,6 +134,9 @@ enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
         case .cameraPreview: return .cameraPreview
         case .scratchpad: return .scratchpad
         case .shelf: return .shelf
+        case .cleaner: return .cleaner
+        case .uninstaller: return .uninstaller
+        case .appUpdates: return .appUpdates
         case .cleaningMode: return .cleaningMode
         case .keepAwake: return .keepAwake
         }
@@ -122,24 +154,44 @@ enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-/// The optional second summoner: a spare side mouse button. Raw values are
-/// persisted; button numbers follow the HID convention the side buttons
-/// report (3 back, 4 forward).
-enum RadialMenuMouseTrigger: String, CaseIterable, Identifiable {
-    case off, back, forward
+/// The optional second summoner: any extra mouse button. The original raw
+/// values stay stable for existing settings; newer buttons use their
+/// CoreGraphics number, which follows USB order from 3 through 31.
+enum RadialMenuMouseTrigger: Equatable, Identifiable {
+    case off
+    case button(Int64)
+
+    static let back = button(MouseButtonShortcutSupport.backButtonNumber)
+    static let forward = button(MouseButtonShortcutSupport.forwardButtonNumber)
 
     var id: String { rawValue }
 
-    var buttonNumber: Int64? {
+    var rawValue: String {
         switch self {
-        case .off: return nil
-        case .back: return 3
-        case .forward: return 4
+        case .off: return "off"
+        case .button(let number):
+            if number == MouseButtonShortcutSupport.backButtonNumber { return "back" }
+            if number == MouseButtonShortcutSupport.forwardButtonNumber { return "forward" }
+            return "button:\(number)"
         }
     }
 
+    var buttonNumber: Int64? {
+        guard case .button(let number) = self else { return nil }
+        return number
+    }
+
     static func sanitized(_ raw: String?) -> RadialMenuMouseTrigger {
-        RadialMenuMouseTrigger(rawValue: raw ?? "") ?? .off
+        switch raw {
+        case "back": return .back
+        case "forward": return .forward
+        case let value?:
+            guard value.hasPrefix("button:"),
+                  let number = Int64(value.dropFirst("button:".count)),
+                  MouseButtonShortcutSupport.buttonRange.contains(number) else { return .off }
+            return .button(number)
+        default: return .off
+        }
     }
 }
 
@@ -178,7 +230,13 @@ enum RadialMenuReleaseAction: Equatable {
 }
 
 extension RadialMenuSupport {
-    /// Whether the radial menu currently owns this side button as its
+    /// The Super Key is a virtual modifier: it decorates the summoning key but
+    /// never appears in the system's current physical-modifier state.
+    static func shortcutIsStillHeld(modifiersHeld: Bool, superKeyHeld: Bool) -> Bool {
+        modifiersHeld || superKeyHeld
+    }
+
+    /// Whether the radial menu currently owns this extra button as its
     /// summoner. Mouse navigation asks this from its own tap and lets a
     /// claimed button through; pure defaults reads, so asking never wakes
     /// the radial menu service.
@@ -194,16 +252,99 @@ extension RadialMenuSupport {
 /// Media keys a slice can press, mapped to the aux-button codes the physical
 /// keys post (NX_KEYTYPE_PLAY / FAST / REWIND).
 enum RadialMenuMediaKey: String, Codable, CaseIterable, Identifiable {
-    case playPause, previousTrack, nextTrack
+    case playPause, previousTrack, nextTrack, nowPlaying
 
     var id: String { rawValue }
 
-    var auxKeyType: Int32 {
+    /// Now Playing opens Vorssaint's metadata card rather than posting a key.
+    var auxKeyType: Int32? {
         switch self {
         case .playPause: return 16
         case .previousTrack: return 20
         case .nextTrack: return 19
+        case .nowPlaying: return nil
         }
+    }
+}
+
+struct RadialNowPlayingSnapshot: Equatable {
+    let title: String?
+    let artist: String?
+    let album: String?
+    let artworkData: Data?
+    let appBundleIdentifier: String?
+    let appPID: Int32?
+
+    var radialLabel: String? {
+        let parts = [title, artist].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: "\n")
+    }
+}
+
+enum RadialNowPlayingState: Equatable {
+    case loading
+    case nothingPlaying
+    case playing(RadialNowPlayingSnapshot)
+}
+
+enum RadialNowPlayingSupport {
+    static let titleKey = "kMRMediaRemoteNowPlayingInfoTitle"
+    static let artistKey = "kMRMediaRemoteNowPlayingInfoArtist"
+    static let albumKey = "kMRMediaRemoteNowPlayingInfoAlbum"
+    static let artworkDataKey = "kMRMediaRemoteNowPlayingInfoArtworkData"
+    static let playbackRateKey = "kMRMediaRemoteNowPlayingInfoPlaybackRate"
+
+    private static let forbiddenScalars = CharacterSet.controlCharacters.union(.newlines)
+    private static let maximumArtworkBytes = 12 * 1_024 * 1_024
+
+    static func playbackIsActive(remoteIsPlaying: Bool?, info: [String: Any]) -> Bool {
+        if let remoteIsPlaying { return remoteIsPlaying }
+        return (info[playbackRateKey] as? NSNumber)?.doubleValue ?? 0 > 0
+    }
+
+    static func snapshot(info: [String: Any],
+                         isPlaying: Bool,
+                         appBundleIdentifier: String?,
+                         appPID: Int32) -> RadialNowPlayingSnapshot? {
+        guard isPlaying else { return nil }
+        let title = sanitizedText(info[titleKey])
+        let artist = sanitizedText(info[artistKey])
+        let album = sanitizedText(info[albumKey])
+        let bundleIdentifier = sanitizedBundleIdentifier(appBundleIdentifier)
+        let pid = appPID > 0 ? appPID : nil
+        let artworkData = sanitizedArtworkData(info[artworkDataKey])
+        guard title != nil || bundleIdentifier != nil || pid != nil else { return nil }
+        return RadialNowPlayingSnapshot(title: title,
+                                        artist: artist,
+                                        album: album,
+                                        artworkData: artworkData,
+                                        appBundleIdentifier: bundleIdentifier,
+                                        appPID: pid)
+    }
+
+    private static func sanitizedText(_ value: Any?) -> String? {
+        guard let value = value as? String else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let clean = String(String.UnicodeScalarView(
+            trimmed.unicodeScalars.filter { !forbiddenScalars.contains($0) }))
+        return clean.isEmpty ? nil : String(clean.prefix(300))
+    }
+
+    private static func sanitizedBundleIdentifier(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 255,
+              !trimmed.unicodeScalars.contains(where: { forbiddenScalars.contains($0) })
+        else { return nil }
+        return trimmed
+    }
+
+    private static func sanitizedArtworkData(_ value: Any?) -> Data? {
+        guard let data = value as? Data, !data.isEmpty, data.count <= maximumArtworkBytes else {
+            return nil
+        }
+        return data
     }
 }
 
@@ -211,6 +352,34 @@ enum RadialMenuSupport {
     static let maxItemsPerWheel = 12
     /// Root plus one submenu level. Deeper nesting turns the wheel into a maze.
     static let maxDepth = 2
+
+    /// Curated built-in symbols for the editor. The picker filters this list
+    /// at runtime so older supported macOS releases only show symbols they own.
+    static let symbolNames = [
+        "star.fill", "heart.fill", "bolt.fill", "flame.fill", "sparkles",
+        "folder.fill", "doc.fill", "tray.full.fill", "terminal.fill", "globe",
+        "envelope.fill", "message.fill", "music.note", "headphones", "camera.fill",
+        "photo.fill", "video.fill", "gamecontroller.fill", "calendar", "clock.fill",
+        "house.fill", "cart.fill", "hammer.fill", "paintbrush.fill", "book.fill",
+        "keyboard", "magnifyingglass", "airplane",
+        "checkmark.circle.fill", "xmark.circle.fill", "plus.circle.fill", "minus.circle.fill",
+        "exclamationmark.triangle.fill", "questionmark.circle.fill", "info.circle.fill",
+        "lock.fill", "lock.open.fill", "key.fill", "person.fill", "person.2.fill",
+        "bell.fill", "flag.fill", "bookmark.fill", "tag.fill",
+        "paperclip", "link", "scissors", "doc.on.clipboard",
+        "square.and.arrow.up", "square.and.arrow.down", "trash.fill", "archivebox.fill",
+        "externaldrive.fill", "internaldrive.fill", "display", "desktopcomputer",
+        "laptopcomputer", "iphone", "ipad", "applewatch",
+        "wifi", "network", "antenna.radiowaves.left.and.right",
+        "speaker.wave.2.fill", "mic.fill", "waveform",
+        "play.fill", "pause.fill", "stop.fill", "backward.fill", "forward.fill",
+        "shuffle", "repeat",
+        "sun.max.fill", "moon.fill", "lightbulb.fill", "battery.100", "power",
+        "eye.fill", "eye.slash.fill", "location.fill", "map.fill",
+        "paperplane.fill", "bubble.left.fill", "phone.fill",
+        "gearshape.fill", "slider.horizontal.3", "switch.2", "command",
+        "printer.fill", "textformat", "number",
+    ]
 
     /// Whether the target can actually run for this kind. The editor blocks
     /// saving what fails here, and `sanitized` drops it, so the two can never
@@ -221,6 +390,7 @@ enum RadialMenuSupport {
         case .url: return normalizedURL(item.payload) != nil
         case .shortcut: return GlobalShortcut(storageValue: item.payload) != nil
         case .tool: return item.tool != nil
+        case .quickToggle: return item.quickToggle != nil
         case .windowLayout: return item.windowLayoutAction != nil
         case .media: return item.mediaKey != nil
         case .submenu: return true
@@ -317,10 +487,18 @@ enum RadialMenuSupport {
     static func needsAccessibility(_ items: [RadialMenuItem]) -> Bool {
         items.contains { item in
             switch item.kind {
-            case .shortcut, .windowLayout, .media: return true
+            case .shortcut, .windowLayout: return true
+            case .media: return item.mediaKey?.auxKeyType != nil
             case .submenu: return needsAccessibility(item.children)
             default: return false
             }
+        }
+    }
+
+    static func containsNowPlaying(_ items: [RadialMenuItem]) -> Bool {
+        items.contains { item in
+            item.mediaKey == .nowPlaying
+                || (item.kind == .submenu && containsNowPlaying(item.children))
         }
     }
 

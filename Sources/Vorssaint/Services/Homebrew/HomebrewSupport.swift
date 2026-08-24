@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import Darwin
 import Foundation
 
 enum HomebrewPackageKind: String, CaseIterable, Identifiable {
@@ -54,6 +55,48 @@ struct HomebrewCaskRecord: Hashable {
     let displayName: String
     let installedVersion: String?
     let appFileNames: [String]
+    let appPaths: [String]
+
+    init(token: String,
+         displayName: String,
+         installedVersion: String?,
+         appFileNames: [String],
+         appPaths: [String] = []) {
+        self.token = token
+        self.displayName = displayName
+        self.installedVersion = installedVersion
+        self.appFileNames = appFileNames
+        self.appPaths = appPaths
+    }
+}
+
+enum HomebrewOwnershipSupport {
+    /// Resolves a package only when its catalog points at this exact app. A
+    /// same-named copy elsewhere must never make an unrelated package eligible
+    /// for a destructive command.
+    static func packageManagingApplication(atPath rawPath: String,
+                                           installed: [HomebrewCaskRecord]) -> HomebrewPackage? {
+        let path = URL(fileURLWithPath: rawPath).standardizedFileURL.path
+        let exact = installed.filter { record in
+            record.appPaths.contains {
+                URL(fileURLWithPath: $0).standardizedFileURL.path == path
+            }
+        }
+        if exact.count == 1 {
+            return package(from: exact[0])
+        }
+        return nil
+    }
+
+    private static func package(from record: HomebrewCaskRecord) -> HomebrewPackage {
+        HomebrewPackage(kind: .cask,
+                        name: record.token,
+                        displayName: record.displayName,
+                        desc: nil,
+                        installedVersion: record.installedVersion,
+                        stableVersion: nil,
+                        homepage: nil)
+    }
 }
 
 enum HomebrewPackageOrdering {
@@ -88,6 +131,15 @@ struct HomebrewOperation {
         case upgrade
         case upgradeAll
         case updateHomebrew
+
+        var clearsSelectionOnSuccess: Bool {
+            switch self {
+            case .uninstall:
+                return true
+            case .install, .upgrade, .upgradeAll, .updateHomebrew:
+                return false
+            }
+        }
 
         var runningSystemImage: String {
             switch self {
@@ -157,6 +209,12 @@ struct HomebrewPendingAction {
 enum HomebrewCommandBuilder {
     static let candidatePaths = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
     static let installerCommand = #"/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)""#
+    static var currentShellPath: String {
+        if let shell = getpwuid(getuid())?.pointee.pw_shell {
+            return String(cString: shell)
+        }
+        return ProcessInfo.processInfo.environment["SHELL"] ?? ""
+    }
 
     static func installed(brewPath: String) -> HomebrewCommand {
         HomebrewCommand(executable: brewPath, arguments: ["info", "--json=v2", "--installed"])
@@ -268,15 +326,21 @@ enum HomebrewCommandBuilder {
         return "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
-    static func shellEnvLine(brewPath: String) -> String {
-        #"eval "$(\#(brewPath) shellenv)""#
+    static func shellEnvLine(brewPath: String,
+                             shellPath: String = HomebrewCommandBuilder.currentShellPath) -> String {
+        if URL(fileURLWithPath: shellPath).lastPathComponent == "fish" {
+            return "eval (\(shellQuote(brewPath)) shellenv fish)"
+        }
+        return #"eval "$(\#(shellQuote(brewPath)) shellenv)""#
     }
 
     static func shellProfilePath(homeDirectory: String = NSHomeDirectory(),
-                                 shellPath: String = ProcessInfo.processInfo.environment["SHELL"] ?? "") -> String {
+                                 shellPath: String = HomebrewCommandBuilder.currentShellPath) -> String {
         switch URL(fileURLWithPath: shellPath).lastPathComponent {
         case "bash":
             return "\(homeDirectory)/.bash_profile"
+        case "fish":
+            return "\(homeDirectory)/.config/fish/config.fish"
         case "zsh":
             return "\(homeDirectory)/.zprofile"
         default:
@@ -285,9 +349,10 @@ enum HomebrewCommandBuilder {
     }
 
     static func shellProfilePathsToCheck(homeDirectory: String = NSHomeDirectory(),
-                                         shellPath: String = ProcessInfo.processInfo.environment["SHELL"] ?? "") -> [String] {
+                                         shellPath: String = HomebrewCommandBuilder.currentShellPath) -> [String] {
         let primary = shellProfilePath(homeDirectory: homeDirectory, shellPath: shellPath)
         let common = [
+            "\(homeDirectory)/.config/fish/config.fish",
             "\(homeDirectory)/.zprofile",
             "\(homeDirectory)/.zshrc",
             "\(homeDirectory)/.bash_profile",
@@ -303,16 +368,20 @@ enum HomebrewCommandBuilder {
 
     static func shellConfigCommand(brewPath: String,
                                    homeDirectory: String = NSHomeDirectory(),
-                                   shellPath: String = ProcessInfo.processInfo.environment["SHELL"] ?? "") -> String {
+                                   shellPath: String = HomebrewCommandBuilder.currentShellPath) -> String {
         let profile = shellProfilePath(homeDirectory: homeDirectory, shellPath: shellPath)
-        let line = shellEnvLine(brewPath: brewPath)
-        let brew = shellQuote(brewPath)
-        return [
+        let profileDirectory = URL(fileURLWithPath: profile).deletingLastPathComponent().path
+        let line = shellEnvLine(brewPath: brewPath, shellPath: shellPath)
+        let setup = [
             "PROFILE=\(shellQuote(profile))",
             "LINE=\(shellQuote(line))",
+            "/bin/mkdir -p \(shellQuote(profileDirectory))",
             #"/usr/bin/touch "$PROFILE""#,
             #"if /usr/bin/grep -qxF "$LINE" "$PROFILE" 2>/dev/null; then echo "Homebrew shell setup already exists in $PROFILE"; else { echo; echo "$LINE"; } >> "$PROFILE"; echo "Added Homebrew shell setup to $PROFILE"; fi"#,
-            #"eval "$(\#(brew) shellenv)""#,
+        ].joined(separator: "; ")
+        return [
+            "/bin/sh -c \(shellQuote(setup))",
+            line,
             "brew --version",
         ].joined(separator: "; ")
     }
@@ -618,18 +687,41 @@ enum HomebrewParser {
         let displayName = (item["name"] as? [String])?.first(where: { !$0.isEmpty }) ?? token
         let installed = item["installed"] as? String
         var appFileNames: [String] = []
+        var appPaths: [String] = []
         for artifact in (item["artifacts"] as? [Any] ?? []) {
             guard let entry = artifact as? [String: Any],
                   let apps = entry["app"] as? [Any] else { continue }
-            // A cask can rename the bundle it installs, in which case the
-            // entry is [source, {target: name}]; the first string is the
-            // name that lands in the Applications folder.
-            appFileNames += apps.compactMap { $0 as? String }.filter { $0.hasSuffix(".app") }
+            // A package can rename the bundle it installs. Prefer that target
+            // name, then keep the source name as a fallback for older output.
+            var targets: [String] = []
+            var sources: [String] = []
+            if let target = entry["target"] as? String { targets.append(target) }
+            for app in apps {
+                if let source = app as? String {
+                    sources.append(source)
+                } else if let mapping = app as? [String: Any],
+                          let target = mapping["target"] as? String {
+                    targets.append(target)
+                }
+            }
+            for candidate in targets.isEmpty ? sources : targets {
+                let fileName = URL(fileURLWithPath: candidate).lastPathComponent
+                if fileName.hasSuffix(".app"), !appFileNames.contains(fileName) {
+                    appFileNames.append(fileName)
+                }
+            }
+            for candidate in targets + sources where candidate.hasPrefix("/") {
+                let path = URL(fileURLWithPath: candidate).standardizedFileURL.path
+                if path.hasSuffix(".app"), !appPaths.contains(path) {
+                    appPaths.append(path)
+                }
+            }
         }
         return HomebrewCaskRecord(token: token,
                                   displayName: displayName,
                                   installedVersion: installed?.isEmpty == false ? installed : nil,
-                                  appFileNames: appFileNames)
+                                  appFileNames: appFileNames,
+                                  appPaths: appPaths)
     }
 
     static func parseOutdatedJSON(_ data: Data) throws -> [String: HomebrewPackageUpdate] {

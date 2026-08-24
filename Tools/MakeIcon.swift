@@ -1,28 +1,25 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-// Generates all icon assets from the official artwork (Resources/Brand/logo.png):
-// - the app iconset (black mark on a clean light squircle)
-// - the menu bar template glyph (trimmed mark, 1x/2x)
-// Usage: swift Tools/MakeIcon.swift <output-folder.iconset>
+// Generates all icon assets:
+// - the app iconset and .icns from the exported Default rendition of the
+//   adaptive source (Resources/Brand/AppIcon-Default.png)
+// - the menu bar template glyph and BrandMark from the wordmark master
+//   (Resources/Brand/logo.png)
+// AppIcon-Default.png is a hand-exported twin of Resources/Brand/AppIcon.icon;
+// re-export it whenever the Icon Composer project changes. The build cannot read
+// .icon bundles directly: actool exists only inside full Xcode 26, and the
+// supported local floor is Command Line Tools alone.
 import AppKit
 
-let iconSizes: [(name: String, px: Int)] = [
-    ("icon_16x16", 16), ("icon_16x16@2x", 32),
-    ("icon_32x32", 32), ("icon_32x32@2x", 64),
-    ("icon_128x128", 128), ("icon_128x128@2x", 256),
-    ("icon_256x256", 256), ("icon_256x256@2x", 512),
-    ("icon_512x512", 512), ("icon_512x512@2x", 1024),
-]
-
-let icnsTypesByPixelSize: [Int: String] = [
-    16: "icp4",
-    32: "icp5",
-    64: "icp6",
-    128: "ic07",
-    256: "ic08",
-    512: "ic09",
-    1024: "ic10",
+// Current macOS misreads PNG payloads in the legacy small chunks. It downsamples
+// ic07 for 1x and uses the explicit ic11/ic12 representations on Retina displays.
+let iconSizes: [(name: String, px: Int, icnsType: String?)] = [
+    ("icon_16x16", 16, nil), ("icon_16x16@2x", 32, "ic11"),
+    ("icon_32x32", 32, nil), ("icon_32x32@2x", 64, "ic12"),
+    ("icon_128x128", 128, "ic07"), ("icon_128x128@2x", 256, "ic13"),
+    ("icon_256x256", 256, "ic08"), ("icon_256x256@2x", 512, "ic14"),
+    ("icon_512x512", 512, "ic09"), ("icon_512x512@2x", 1024, "ic10"),
 ]
 
 let outDir = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "AppIcon.iconset"
@@ -35,6 +32,12 @@ guard let logo = NSImage(contentsOfFile: logoPath),
       let logoRep = NSBitmapImageRep(data: logoTIFF)
 else {
     print("could not load \(logoPath)")
+    exit(1)
+}
+
+let appIconPath = projectDir.appendingPathComponent("Resources/Brand/AppIcon-Default.png").path
+guard let appIconMaster = NSImage(contentsOfFile: appIconPath) else {
+    print("could not load \(appIconPath)")
     exit(1)
 }
 
@@ -88,38 +91,55 @@ func renderAppIcon(px: Int) -> Data? {
     guard let rep = bitmapCanvas(px, px), let ctx = NSGraphicsContext(bitmapImageRep: rep) else { return nil }
     rep.size = NSSize(width: size, height: size)
 
+    // Every renderer in MakeIcon.swift focuses the graphics context before
+    // drawing; without this the draws land nowhere and the PNGs come out empty.
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = ctx
-
-    // Squircle on the standard macOS icon grid (~82% of the canvas).
-    let inset = size * 0.097
-    let bgRect = NSRect(x: inset, y: inset, width: size - inset * 2, height: size - inset * 2)
-    let squircle = NSBezierPath(roundedRect: bgRect, xRadius: bgRect.width * 0.225, yRadius: bgRect.width * 0.225)
-
-    NSGraphicsContext.saveGraphicsState()
-    squircle.addClip()
-    NSGradient(colors: [
-        NSColor(calibratedWhite: 0.99, alpha: 1),
-        NSColor(calibratedWhite: 0.93, alpha: 1),
-    ])?.draw(in: bgRect, angle: -90)
-    drawMark(into: bgRect.insetBy(dx: bgRect.width * 0.115, dy: bgRect.height * 0.115))
-    NSGraphicsContext.restoreGraphicsState()
-
+    // The exported Default rendition is the finished icon design: background,
+    // layering and system-grid margins are baked in, so it maps onto the canvas
+    // 1:1 instead of being re-framed like the old mark-on-squircle composite.
+    // Source rect = the ENTIRE master, in the MASTER's coordinate space
+    // (appIconMaster.size), never the target's — a size-sized source rect would
+    // crop the bottom-left corner of the 1024x1024 master instead of scaling.
+    // (This SDK's draw(in:from:...) types from: as non-optional NSRect, so
+    // full-source must be spelled out rather than passed as nil.)
+    appIconMaster.draw(in: NSRect(x: 0, y: 0, width: size, height: size),
+                       from: NSRect(origin: .zero, size: appIconMaster.size),
+                       operation: .sourceOver, fraction: 1,
+                       respectFlipped: false,
+                       hints: [.interpolation: NSImageInterpolation.high.rawValue])
     NSGraphicsContext.restoreGraphicsState()
     return rep.representation(using: .png, properties: [:])
 }
 
 // MARK: - Menu bar glyph (template)
 
+// The mark is ~1.97:1, so fitting it into a fixed box made the width the
+// limiting side and left the height unused, rendering it far shorter than the
+// menu bar icons around it. Size from the height and let the width follow.
+let menuBarGlyphHeight: CGFloat = 12.5
+// Centered geometrically the mark reads high, since the thin ring tails carry
+// the bounding box below the planet body. Drop it onto the same visual floor
+// as its neighbours.
+let menuBarGlyphDrop: CGFloat = 1
+// Taller than the mark needs: the same canvas holds the compact Keep Awake
+// symbols. Keep in sync with BlackHoleGlyph.pointSize in
+// Sources/Vorssaint/App/StatusItemController.swift; `--selftest` enforces it.
+let menuBarCanvas = (width: 26, height: 20)
+
 func renderMenuBarIcon(scale: Int) -> Data? {
-    // 20×14 pt canvas fits the wide mark nicely in a 24 pt menu bar.
-    let width = 20 * scale, height = 14 * scale
+    let width = menuBarCanvas.width * scale, height = menuBarCanvas.height * scale
     guard let rep = bitmapCanvas(width, height), let ctx = NSGraphicsContext(bitmapImageRep: rep) else { return nil }
-    rep.size = NSSize(width: 20, height: 14)
+    rep.size = NSSize(width: menuBarCanvas.width, height: menuBarCanvas.height)
 
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = ctx
-    drawMark(into: CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height)))
+    // Height-limited target spanning the full canvas width: drawMark keeps the
+    // aspect ratio and centers, landing the mark at 24.6×12.5 pt. Coordinates
+    // are bottom-up, so dropping it lowers y.
+    let ink = menuBarGlyphHeight * CGFloat(scale)
+    let y = (CGFloat(height) - ink) / 2 - menuBarGlyphDrop * CGFloat(scale)
+    drawMark(into: CGRect(x: 0, y: y, width: CGFloat(width), height: ink))
     NSGraphicsContext.restoreGraphicsState()
     return rep.representation(using: .png, properties: [:])
 }
@@ -151,15 +171,14 @@ func writeICNS(entries: [(type: String, data: Data)], to url: URL) throws {
 
 try? FileManager.default.createDirectory(atPath: outDir, withIntermediateDirectories: true)
 var icnsEntries: [(type: String, data: Data)] = []
-var usedICNSTypes = Set<String>()
-for (name, px) in iconSizes {
+for (name, px, icnsType) in iconSizes {
     guard let data = renderAppIcon(px: px) else {
         print("failed to render \(name)")
         exit(1)
     }
     try data.write(to: URL(fileURLWithPath: "\(outDir)/\(name).png"))
-    if let type = icnsTypesByPixelSize[px], usedICNSTypes.insert(type).inserted {
-        icnsEntries.append((type: type, data: data))
+    if let icnsType {
+        icnsEntries.append((type: icnsType, data: data))
     }
 }
 try writeICNS(entries: icnsEntries, to: URL(fileURLWithPath: "\(outDir)/../AppIcon.icns"))

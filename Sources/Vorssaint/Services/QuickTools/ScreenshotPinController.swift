@@ -18,6 +18,10 @@ final class ScreenshotPinController {
 
     private init() {}
 
+    var protectedWindowIDs: Set<CGWindowID> {
+        Set(pins.compactMap { $0.isVisible && $0.windowNumber > 0 ? CGWindowID($0.windowNumber) : nil })
+    }
+
     func pin(image: CGImage, scale: CGFloat) {
         let window = ScreenshotPinWindow(image: image, scale: scale, controller: self)
         pins.append(window)
@@ -112,7 +116,8 @@ private final class ScreenshotPinWindow: NSPanel {
     // MARK: Actions
 
     func copyImage() {
-        guard ScreenshotEditorController.copyImage(image) else {
+        guard ScreenshotEditorController.copyImage(
+            image, fileNamePrefix: strings.fileNamePrefix) else {
             NSSound.beep()
             return
         }

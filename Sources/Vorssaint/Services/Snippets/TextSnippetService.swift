@@ -15,24 +15,43 @@ final class TextSnippetService {
     /// Marks our own synthetic events so the tap never re-processes them.
     private static let syntheticMarker: Int64 = 0x564F5253 // "VORS"
 
+    // The tap callback and its mutable text state live off the main thread so
+    // demanding foreground apps cannot turn a main-thread stall into queued
+    // keyboard input for the whole session.
+    private let tapLifecycleLock = NSLock()
     private var tap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
+    private var tapRunLoop: CFRunLoop?
+    private var tapThread: Thread?
+    private var shouldStopTapThread = false
+    private var pendingTapRestart = false
     private var activationObserver: NSObjectProtocol?
+    private let inputLock = NSLock()
     private var buffer = ""
+    private var libraryVisible = false
+    private var commandBarVisible = false
     /// Split by expansion mode at load time; the tap callback only scans.
     private var immediateSnippets: [TextSnippet] = []
     private var delimiterSnippets: [TextSnippet] = []
 
     private init() {}
 
-    var isRunning: Bool { tap != nil }
+    var isRunning: Bool { tapLifecycleLock.withLock { tap != nil } }
 
     func syncWithPreferences() {
         let enabled = AppFeature.textSnippets.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.textSnippetsEnabled)
         reloadSnippets()
-        let hasWork = !(immediateSnippets.isEmpty && delimiterSnippets.isEmpty)
+        let hasWork = inputLock.withLock {
+            !(immediateSnippets.isEmpty && delimiterSnippets.isEmpty)
+        }
         if enabled, hasWork, Permissions.shared.accessibility {
+            let libraryIsVisible = SnippetLibraryService.shared.isVisible
+            let commandBarIsVisible = AppFeature.commandBar.isAvailable
+                && CommandBarService.shared.isVisible
+            inputLock.withLock {
+                libraryVisible = libraryIsVisible
+                commandBarVisible = commandBarIsVisible
+            }
             start()
         } else {
             stop()
@@ -41,73 +60,168 @@ final class TextSnippetService {
 
     func suspend() { stop() }
 
+    func setLibraryVisible(_ visible: Bool) {
+        inputLock.withLock {
+            libraryVisible = visible
+            if visible { buffer = "" }
+        }
+    }
+
+    func setCommandBarVisible(_ visible: Bool) {
+        inputLock.withLock {
+            commandBarVisible = visible
+            if visible { buffer = "" }
+        }
+    }
+
     /// Reloads the stored snippets; called by the settings page after edits.
     private func reloadSnippets() {
         let all = TextSnippetSupport.decode(
             UserDefaults.standard.data(forKey: DefaultsKey.textSnippets))
-        immediateSnippets = all.filter { $0.enabled && $0.expansion == .immediate }
-        delimiterSnippets = all.filter { $0.enabled && $0.expansion == .afterDelimiter }
+        inputLock.withLock {
+            immediateSnippets = all.filter { $0.enabled && $0.expansion == .immediate }
+            delimiterSnippets = all.filter { $0.enabled && $0.expansion == .afterDelimiter }
+        }
     }
 
     private func start() {
-        guard tap == nil else { return }
-        let mask: CGEventMask = (1 << CGEventType.keyDown.rawValue)
-            | (1 << CGEventType.leftMouseDown.rawValue)
-            | (1 << CGEventType.rightMouseDown.rawValue)
-        guard let tap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: mask,
-            callback: { _, type, event, userInfo in
-                guard let userInfo else { return Unmanaged.passUnretained(event) }
-                let service = Unmanaged<TextSnippetService>.fromOpaque(userInfo).takeUnretainedValue()
-                return service.handle(type: type, event: event)
-            },
-            userInfo: Unmanaged.passUnretained(self).toOpaque()
-        ) else { return }
-
-        self.tap = tap
-        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        runLoopSource = source
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        CGEvent.tapEnable(tap: tap, enable: true)
-
-        // Switching apps invalidates whatever was half-typed there.
-        activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didActivateApplicationNotification,
-            object: nil, queue: .main) { [weak self] _ in
-            self?.buffer = ""
+        let thread = tapLifecycleLock.withLock { () -> Thread? in
+            if tapThread != nil {
+                if shouldStopTapThread { pendingTapRestart = true }
+                return nil
+            }
+            shouldStopTapThread = false
+            pendingTapRestart = false
+            let thread = Thread { [weak self] in self?.runEventTap() }
+            thread.name = "Vorssaint Text Expansion"
+            thread.qualityOfService = .userInteractive
+            tapThread = thread
+            return thread
         }
+        thread?.start()
     }
 
     private func stop() {
-        if let tap {
-            CGEvent.tapEnable(tap: tap, enable: false)
+        let snapshot = tapLifecycleLock.withLock {
+            () -> (runLoop: CFRunLoop?, tap: CFMachPort?, threadExists: Bool) in
+            shouldStopTapThread = true
+            pendingTapRestart = false
+            return (tapRunLoop, tap, tapThread != nil)
         }
-        if let runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+        if let tap = snapshot.tap { CGEvent.tapEnable(tap: tap, enable: false) }
+        if let runLoop = snapshot.runLoop {
+            CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue) {
+                CFRunLoopStop(runLoop)
+            }
+            CFRunLoopWakeUp(runLoop)
+        } else if !snapshot.threadExists {
+            tapLifecycleLock.withLock {
+                shouldStopTapThread = false
+                tapThread = nil
+            }
         }
-        tap = nil
-        runLoopSource = nil
         if let activationObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
             self.activationObserver = nil
         }
-        buffer = ""
+        resetBuffer()
+    }
+
+    private func runEventTap() {
+        autoreleasepool {
+            let runLoop = CFRunLoopGetCurrent()
+            tapLifecycleLock.withLock { tapRunLoop = runLoop }
+            guard !tapLifecycleLock.withLock({ shouldStopTapThread }) else {
+                if clearEventTapThread() { startOnMain() }
+                return
+            }
+
+            let mask: CGEventMask = (1 << CGEventType.keyDown.rawValue)
+                | (1 << CGEventType.leftMouseDown.rawValue)
+                | (1 << CGEventType.rightMouseDown.rawValue)
+            guard let tap = CGEvent.tapCreate(
+                tap: .cgSessionEventTap,
+                place: .headInsertEventTap,
+                options: .defaultTap,
+                eventsOfInterest: mask,
+                callback: { _, type, event, userInfo in
+                    guard let userInfo else { return Unmanaged.passUnretained(event) }
+                    let service = Unmanaged<TextSnippetService>.fromOpaque(userInfo)
+                        .takeUnretainedValue()
+                    return service.handle(type: type, event: event)
+                },
+                userInfo: Unmanaged.passUnretained(self).toOpaque()
+            ) else {
+                _ = clearEventTapThread()
+                return
+            }
+
+            let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+            tapLifecycleLock.withLock { self.tap = tap }
+            CFRunLoopAddSource(runLoop, source, .commonModes)
+            CGEvent.tapEnable(tap: tap, enable: true)
+            DispatchQueue.main.async { [weak self] in self?.tapDidStart(tap) }
+
+            if tapLifecycleLock.withLock({ shouldStopTapThread }) {
+                CGEvent.tapEnable(tap: tap, enable: false)
+            } else {
+                CFRunLoopRun()
+            }
+
+            CGEvent.tapEnable(tap: tap, enable: false)
+            CFRunLoopRemoveSource(runLoop, source, .commonModes)
+            CFMachPortInvalidate(tap)
+            if clearEventTapThread() { startOnMain() }
+        }
+    }
+
+    private func clearEventTapThread() -> Bool {
+        tapLifecycleLock.withLock {
+            let shouldRestart = pendingTapRestart
+            tap = nil
+            tapRunLoop = nil
+            tapThread = nil
+            shouldStopTapThread = false
+            pendingTapRestart = false
+            return shouldRestart
+        }
+    }
+
+    private func startOnMain() {
+        DispatchQueue.main.async { [weak self] in self?.start() }
+    }
+
+    private func tapDidStart(_ startedTap: CFMachPort) {
+        let active = tapLifecycleLock.withLock {
+            tap === startedTap && !shouldStopTapThread
+        }
+        guard active, activationObserver == nil else { return }
+        // Switching apps invalidates whatever was half-typed there.
+        activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.resetBuffer()
+        }
+    }
+
+    private func resetBuffer() {
+        inputLock.withLock { buffer = "" }
     }
 
     // MARK: - Tap
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+            let currentTap = tapLifecycleLock.withLock { shouldStopTapThread ? nil : tap }
+            if let currentTap { CGEvent.tapEnable(tap: currentTap, enable: true) }
             return Unmanaged.passUnretained(event)
         }
         // Clicks move the caret somewhere unknown; the half-typed trigger is
         // no longer where the deletes would land.
         if type == .leftMouseDown || type == .rightMouseDown {
-            buffer = ""
+            resetBuffer()
             return Unmanaged.passUnretained(event)
         }
         guard type == .keyDown else { return Unmanaged.passUnretained(event) }
@@ -118,32 +232,31 @@ final class TextSnippetService {
         // Password fields: the system enables secure input; typing there must
         // stay exactly as typed, and the buffer must not remember any of it.
         guard !IsSecureEventInputEnabled() else {
-            buffer = ""
+            resetBuffer()
             return Unmanaged.passUnretained(event)
         }
-        // Typing in the library's or the command bar's own search field must
-        // never expand a trigger: the deletes would land in the search box.
-        // Taps and panels all live on the main run loop, so the check is
-        // safe here.
-        guard !SnippetLibraryService.shared.isVisible,
-              !CommandBarService.shared.isVisible else {
-            buffer = ""
+        // Visibility is mirrored behind the same lock as the buffer, so this
+        // callback never has to ask AppKit or wait for the main thread.
+        guard !inputLock.withLock({ libraryVisible || commandBarVisible }) else {
+            resetBuffer()
             return Unmanaged.passUnretained(event)
         }
         // Shortcuts are commands, not text.
         if !event.flags.intersection([.maskCommand, .maskControl]).isEmpty {
-            buffer = ""
+            resetBuffer()
             return Unmanaged.passUnretained(event)
         }
 
         let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
         switch keyCode {
         case kVK_Delete:
-            if !buffer.isEmpty { buffer.removeLast() }
+            inputLock.withLock {
+                if !buffer.isEmpty { buffer.removeLast() }
+            }
             return Unmanaged.passUnretained(event)
         case kVK_LeftArrow, kVK_RightArrow, kVK_UpArrow, kVK_DownArrow, kVK_Escape,
              kVK_Home, kVK_End, kVK_PageUp, kVK_PageDown, kVK_ForwardDelete:
-            buffer = ""
+            resetBuffer()
             return Unmanaged.passUnretained(event)
         default:
             break
@@ -159,10 +272,13 @@ final class TextSnippetService {
             // A delimiter can complete an afterDelimiter trigger. The typed
             // delimiter is swallowed and re-posted after the replacement, so
             // it lands where the user expects: right after the expanded text.
-            let matched = TextSnippetSupport.match(buffer: buffer,
-                                                   expansion: .afterDelimiter,
-                                                   snippets: delimiterSnippets)
-            buffer = ""
+            let matched = inputLock.withLock { () -> TextSnippet? in
+                let match = TextSnippetSupport.match(buffer: buffer,
+                                                     expansion: .afterDelimiter,
+                                                     snippets: delimiterSnippets)
+                buffer = ""
+                return match
+            }
             if let matched {
                 expand(matched,
                        deleteCount: matched.trigger.count,
@@ -173,14 +289,22 @@ final class TextSnippetService {
             return Unmanaged.passUnretained(event)
         }
 
-        buffer = TextSnippetSupport.bufferAppending(buffer, typed: typed)
-        if let matched = TextSnippetSupport.match(buffer: buffer,
-                                                  expansion: .immediate,
-                                                  snippets: immediateSnippets) {
-            buffer = ""
-            // The final trigger character passes through (it is on screen by
-            // the time the deletes land), so it counts toward the deletes.
-            expand(matched, deleteCount: matched.trigger.count, trailingKeyCode: nil, trailingFlags: [])
+        let matched = inputLock.withLock { () -> TextSnippet? in
+            buffer = TextSnippetSupport.bufferAppending(buffer, typed: typed)
+            let match = TextSnippetSupport.match(buffer: buffer,
+                                                 expansion: .immediate,
+                                                 snippets: immediateSnippets)
+            if match != nil { buffer = "" }
+            return match
+        }
+        if let matched {
+            // Suppress the final trigger event. The replacement is posted
+            // before this callback returns, so later typing cannot overtake it.
+            expand(matched,
+                   deleteCount: max(0, matched.trigger.count - typed.count),
+                   trailingKeyCode: nil,
+                   trailingFlags: [])
+            return nil
         }
         return Unmanaged.passUnretained(event)
     }
@@ -191,16 +315,21 @@ final class TextSnippetService {
                         deleteCount: Int,
                         trailingKeyCode: CGKeyCode?,
                         trailingFlags: CGEventFlags) {
-        let text = TextSnippetSupport.expand(snippet.replacement,
-                                             date: Date(),
-                                             clipboard: NSPasteboard.general.string(forType: .string))
-        // Outside the tap callback: posting from inside it would reorder the
-        // synthetic events around the one still in flight.
-        DispatchQueue.main.async {
+        let post = {
+            let text = TextSnippetSupport.expand(
+                snippet.replacement,
+                date: Date(),
+                clipboard: NSPasteboard.general.string(forType: .string)
+            )
             Self.postExpansion(deleteCount: deleteCount,
                                text: text,
                                trailingKeyCode: trailingKeyCode,
                                trailingFlags: trailingFlags)
+        }
+        if Thread.isMainThread {
+            post()
+        } else {
+            DispatchQueue.main.sync(execute: post)
         }
     }
 

@@ -43,6 +43,8 @@ final class AppUpdatesService: ObservableObject {
     private var timer: Timer?
     private var wakeObserver: NSObjectProtocol?
     private var scanGeneration = 0
+    private var sourceRefreshPending = false
+    private var automaticCheckPending = false
     private var knownIDs = Set<String>()
     /// The person was sent to the store to finish an update, so the list is
     /// about to be wrong until it is read again.
@@ -111,25 +113,43 @@ final class AppUpdatesService: ObservableObject {
 
     // MARK: - Checking
 
+    /// A source switch changes the answer. Let an in-flight scan finish its
+    /// read, discard that answer and immediately run once with the new choice.
+    func sourceSelectionDidChange() {
+        if isChecking {
+            sourceRefreshPending = true
+        } else {
+            check()
+        }
+    }
+
     /// Scans both sources. `automatic` marks the background pass, which is
     /// the only one that can post a notification and re-arm the schedule.
     func check(automatic: Bool = false) {
-        guard AppFeature.appUpdates.isAvailable, !isChecking else { return }
+        guard AppFeature.appUpdates.isAvailable else { return }
+        if isChecking {
+            automaticCheckPending = automaticCheckPending || automatic
+            return
+        }
         isChecking = true
         lastError = nil
         scanGeneration += 1
         let generation = scanGeneration
+        let includeHomebrewApps = UserDefaults.standard.bool(
+            forKey: DefaultsKey.appUpdatesIncludeHomebrewApps)
         let includeAppStore = UserDefaults.standard.bool(forKey: DefaultsKey.appUpdatesIncludeAppStore)
         let country = Locale.current.region?.identifier
 
         workQueue.async { [weak self] in
             guard let self else { return }
             let apps = Self.scanInstalledApps()
-            let packageResult = self.packageManagerFindings(apps: apps)
+            let packageResult = includeHomebrewApps
+                ? self.packageManagerFindings(apps: apps)
+                : PackageResult(items: [], available: true)
             let coveredPaths = Set(packageResult.items.compactMap(\.bundlePath))
             let storeCandidates = includeAppStore
                 ? AppUpdatesSupport.appStoreCandidates(
-                    apps: apps.map(\.record), coveredPaths: coveredPaths)
+                    apps: apps, coveredPaths: coveredPaths)
                 : []
 
             self.storeFindings(for: storeCandidates, country: country) { storeItems in
@@ -150,6 +170,16 @@ final class AppUpdatesService: ObservableObject {
         // flight; its findings belong to a surface that no longer exists.
         guard AppFeature.appUpdates.isAvailable else {
             isChecking = false
+            sourceRefreshPending = false
+            automaticCheckPending = false
+            return
+        }
+        let shouldFinishAutomatically = automatic || automaticCheckPending
+        automaticCheckPending = false
+        if sourceRefreshPending {
+            sourceRefreshPending = false
+            isChecking = false
+            check(automatic: shouldFinishAutomatically)
             return
         }
         // What was already announced survives relaunches, unlike knownIDs:
@@ -170,7 +200,7 @@ final class AppUpdatesService: ObservableObject {
         lastCheck = now
         UserDefaults.standard.set(now.timeIntervalSince1970, forKey: DefaultsKey.appUpdatesLastCheck)
         UserDefaults.standard.set(newItems.count, forKey: DefaultsKey.appUpdatesLastCount)
-        if automatic {
+        if shouldFinishAutomatically {
             if notifyIfWanted(freshCount: fresh.count, total: newItems.count) {
                 announced = Set(newItems.map(\.id))
             }
@@ -208,7 +238,7 @@ final class AppUpdatesService: ObservableObject {
         let available: Bool
     }
 
-    private func packageManagerFindings(apps: [ScannedApp]) -> PackageResult {
+    private func packageManagerFindings(apps: [AppUpdatesSupport.InstalledApp]) -> PackageResult {
         guard let brewPath = HomebrewCommandBuilder.candidatePaths.first(where: {
             FileManager.default.isExecutableFile(atPath: $0)
         }) else {
@@ -227,14 +257,11 @@ final class AppUpdatesService: ObservableObject {
         }
         let records = HomebrewParser.parseInstalledCaskRecords(installedOutput.output)
         let updates = (try? HomebrewParser.parseOutdatedCommandOutput(outdatedOutput.output)) ?? [:]
-        let byFileName = Dictionary(apps.map { ($0.fileName, $0) }, uniquingKeysWith: { first, _ in first })
         let items = AppUpdatesSupport.packageUpdates(
             outdated: Array(updates.values),
             installed: records,
-            bundleVersion: { fileName in
-                guard let app = byFileName[fileName], !app.record.version.isEmpty else { return nil }
-                return (name: app.record.name, version: app.record.version, path: app.record.path)
-            })
+            ignoredTokens: Self.ownPackageTokens,
+            apps: apps.filter { !$0.version.isEmpty })
         return PackageResult(items: items, available: true)
     }
 
@@ -268,7 +295,11 @@ final class AppUpdatesService: ObservableObject {
         }
 
         group.notify(queue: workQueue) {
-            completion(AppUpdatesSupport.appStoreUpdates(apps: candidates, storeVersions: merged))
+            let os = ProcessInfo.processInfo.operatingSystemVersion
+            let version = "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"
+            completion(AppUpdatesSupport.appStoreUpdates(apps: candidates,
+                                                         storeVersions: merged,
+                                                         operatingSystemVersion: version))
         }
     }
 
@@ -300,7 +331,10 @@ final class AppUpdatesService: ObservableObject {
         if !tokens.isEmpty {
             startUpgrade(tokens)
         }
-        if AppUpdatesSupport.hasStoreSelection(in: items, selection: selection) {
+        if let page = AppUpdatesSupport.singleStorePage(in: items, selection: selection),
+           let url = URL(string: page) {
+            handOffToStore(url)
+        } else if AppUpdatesSupport.hasStoreSelection(in: items, selection: selection) {
             openAppStoreUpdates()
         }
     }
@@ -385,42 +419,47 @@ final class AppUpdatesService: ObservableObject {
 
     // MARK: - Scanning the Applications folders
 
-    private struct ScannedApp {
-        let fileName: String
-        let record: AppUpdatesSupport.InstalledApp
+    /// Reads the normal Applications folders plus shallow app results from
+    /// Spotlight in the user's home, all off the main thread.
+    private static func scanInstalledApps() -> [AppUpdatesSupport.InstalledApp] {
+        InstalledApps.applicationScanPaths(
+            folderPaths: folderApplicationPaths(),
+            spotlightPaths: spotlightApplicationPaths(),
+            homeDirectory: NSHomeDirectory()
+        ).compactMap { scannedApp(at: URL(fileURLWithPath: $0)) }
     }
 
-    /// Reads the Applications folders directly instead of going through
-    /// AppKit, so the whole scan can stay off the main thread.
-    private static func scanInstalledApps() -> [ScannedApp] {
+    private static func folderApplicationPaths() -> [String] {
         let fm = FileManager.default
         let roots = [
             URL(fileURLWithPath: "/Applications", isDirectory: true),
             URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Applications",
                                                                           isDirectory: true),
         ]
-        var seen = Set<String>()
-        var apps: [ScannedApp] = []
+        var paths: [String] = []
         for root in roots where fm.fileExists(atPath: root.path) {
             guard let enumerator = fm.enumerator(at: root,
                                                  includingPropertiesForKeys: [.isDirectoryKey],
                                                  options: [.skipsPackageDescendants]) else { continue }
             for case let url as URL in enumerator {
                 guard url.pathExtension == "app" else { continue }
-                let resolved = url.resolvingSymlinksInPath().standardizedFileURL
-                // Apps that live on the system volume belong to macOS and are
-                // updated with it.
-                guard !resolved.path.hasPrefix("/System/"),
-                      !resolved.path.hasPrefix("/Library/Apple/"),
-                      seen.insert(resolved.path).inserted,
-                      let app = scannedApp(at: url) else { continue }
-                apps.append(app)
+                paths.append(url.path)
             }
         }
-        return apps
+        return paths
     }
 
-    private static func scannedApp(at url: URL) -> ScannedApp? {
+    private static func spotlightApplicationPaths() -> [String] {
+        let command = HomebrewCommand(
+            executable: "/usr/bin/mdfind",
+            arguments: ["-onlyin", NSHomeDirectory(),
+                        "kMDItemContentType == 'com.apple.application-bundle'"])
+        let result = runCommand(command)
+        guard result.status == 0 else { return [] }
+        return result.output.split(separator: "\n").map(String.init)
+    }
+
+    private static func scannedApp(at url: URL) -> AppUpdatesSupport.InstalledApp? {
         let infoURL = url.appendingPathComponent("Contents/Info.plist")
         guard let data = try? Data(contentsOf: infoURL),
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil)
@@ -437,12 +476,11 @@ final class AppUpdatesService: ObservableObject {
         // is the only reliable marker macOS gives.
         let hasReceipt = FileManager.default.fileExists(
             atPath: url.appendingPathComponent("Contents/_MASReceipt/receipt").path)
-        let record = AppUpdatesSupport.InstalledApp(name: name,
-                                                    bundleID: bundleID,
-                                                    path: url.standardizedFileURL.path,
-                                                    version: version,
-                                                    isFromAppStore: hasReceipt)
-        return ScannedApp(fileName: url.lastPathComponent, record: record)
+        return AppUpdatesSupport.InstalledApp(name: name,
+                                              bundleID: bundleID,
+                                              path: url.standardizedFileURL.path,
+                                              version: version,
+                                              isFromAppStore: hasReceipt)
     }
 
     /// This app never lists itself: it has its own updater, and letting the
@@ -452,55 +490,19 @@ final class AppUpdatesService: ObservableObject {
         bundleID == Bundle.main.bundleIdentifier || bundleID.hasPrefix("com.vorssaint")
     }
 
+    private static let ownPackageTokens: Set<String> = ["vorssaint", "vorssaint@beta", "vorssaint-beta"]
+
     /// The package manager refreshes its own catalog on the way, which can sit
     /// on a slow network. A ceiling keeps a stalled command from leaving the
     /// check spinning for the rest of the session; the next check simply tries
     /// again.
     private static let commandTimeout: TimeInterval = 120
-
-    /// How long the output is still collected after the command was told to
-    /// stop, so a healthy command that was merely slow keeps its answer.
-    private static let commandTerminationGrace: TimeInterval = 5
-
-    /// Carries the output back from the reading queue.
-    private final class OutputBox: @unchecked Sendable {
-        var data = Data()
-    }
+    private static let commandOutputLimit = 32 * 1_024 * 1_024
 
     private static func runCommand(_ command: HomebrewCommand) -> (status: Int32, output: String) {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: command.executable)
-        process.arguments = command.arguments
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-        do {
-            try process.run()
-        } catch {
-            return (-1, error.localizedDescription)
-        }
-        // Read before waiting: a large listing fills the pipe buffer and a
-        // waiting process would never drain it. The read runs on its own queue
-        // because terminating the command does NOT necessarily end it: the
-        // package manager spawns helpers that inherit the pipe, and one of
-        // those outliving the signal keeps the write end open forever. The
-        // wait below is therefore the real ceiling, so a stuck descriptor can
-        // never leave the check spinning for the rest of the session.
-        let box = OutputBox()
-        let read = DispatchSemaphore(value: 0)
-        DispatchQueue.global(qos: .utility).async {
-            box.data = pipe.fileHandleForReading.readDataToEndOfFile()
-            read.signal()
-        }
-        if read.wait(timeout: .now() + commandTimeout) == .timedOut {
-            if process.isRunning { process.terminate() }
-            guard read.wait(timeout: .now() + commandTerminationGrace) == .success else {
-                // The output is given up on, not waited for. The reading queue
-                // ends by itself whenever the last holder of the pipe goes.
-                return (-1, "")
-            }
-        }
-        process.waitUntilExit()
-        return (process.terminationStatus, String(data: box.data, encoding: .utf8) ?? "")
+        let result = BoundedProcessRunner.run(command.executable, command.arguments,
+                                              timeout: commandTimeout,
+                                              maxOutputBytes: commandOutputLimit)
+        return (result.status, String(decoding: result.output, as: UTF8.self))
     }
 }

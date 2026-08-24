@@ -176,14 +176,12 @@ struct AppUpdatesListView: View {
                         .font(.system(size: compact ? 11.5 : 12.5, weight: .medium))
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    if item.source == .appStore {
-                        Text(text.appStoreBadge)
-                            .font(.system(size: 8.5, weight: .semibold))
-                            .foregroundStyle(Color.accentColor)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(Capsule().fill(Color.accentColor.opacity(0.12)))
-                    }
+                    Text(item.source == .appStore ? text.appStoreBadge : text.homebrewBadge)
+                        .font(.system(size: 8.5, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(Color.accentColor.opacity(0.12)))
                 }
                 Text(item.versionSummary)
                     .font(.system(size: compact ? 9.5 : 10.5))

@@ -1,0 +1,4 @@
+module VMStatisticsCompat {
+    header "include/VMStatisticsCompat.h"
+    export *
+}

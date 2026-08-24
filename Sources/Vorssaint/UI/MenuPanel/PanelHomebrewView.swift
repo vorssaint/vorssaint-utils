@@ -5,6 +5,8 @@ import AppKit
 import SwiftUI
 
 struct PanelHomebrewView: View {
+    private static let packageListTopID = "panel-homebrew-package-list-top"
+
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var homebrew = HomebrewManager.shared
     @State private var query = ""
@@ -314,13 +316,23 @@ struct PanelHomebrewView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(height: 64)
             } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 5) {
-                        ForEach(packages) { package in
-                            row(package)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 5) {
+                            Color.clear
+                                .frame(height: 0)
+                                .id(Self.packageListTopID)
+                            ForEach(packages) { package in
+                                row(package)
+                            }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onChange(of: homebrew.operationStatus?.result) { _, result in
+                        guard result == .succeeded,
+                              homebrew.operationStatus?.action.clearsSelectionOnSuccess == true else { return }
+                        proxy.scrollTo(Self.packageListTopID, anchor: .top)
+                    }
                 }
                 .frame(height: 162)
             }

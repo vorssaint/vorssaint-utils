@@ -6,11 +6,14 @@
 	     (its features need system-wide access gated by TCC at runtime, not by
 	     entitlements). Hardened runtime blocks two capabilities the app uses:
 	     sending Apple Events (cut & paste and the uninstaller drive the Finder)
-	     and the camera (the preview mirror); these entitlements restore them.
+	     the camera (the preview mirror) and audio input (optional recordings);
+	     these entitlements restore them.
 	     The user still grants each one through the normal TCC prompts. -->
 	<key>com.apple.security.automation.apple-events</key>
 	<true/>
 	<key>com.apple.security.device.camera</key>
+	<true/>
+	<key>com.apple.security.device.audio-input</key>
 	<true/>
 </dict>
 </plist>

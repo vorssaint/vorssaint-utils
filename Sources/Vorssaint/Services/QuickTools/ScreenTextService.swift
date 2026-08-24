@@ -16,68 +16,32 @@ import Vision
 final class ScreenTextService: ObservableObject {
     static let shared = ScreenTextService()
 
-    @Published private(set) var shortcutRegistrationFailed = false
+    private var recognitionGeneration = 0
 
-    private let hotkey = QuickToolHotkey(id: 13)
-    private var session: ScreenshotSelectionController?
-
-    private var captureStrings: ScreenshotFeatureStrings {
-        FeatureStrings.screenshot(L10n.shared.language)
-    }
-
-    private init() {
-        hotkey.onPress = { [weak self] in self?.capture() }
-    }
+    private init() {}
 
     func syncWithPreferences() {
         guard AppFeature.screenOCR.isAvailable else {
-            shortcutRegistrationFailed = false
-            hotkey.unregister()
             cancelSession()
             return
         }
-        let enabled = UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRShortcutEnabled)
-        let shortcut = GlobalShortcut.saved(for: DefaultsKey.screenOCRShortcut,
-                                            fallback: .screenOCRDefault)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
     }
 
     func suspend() {
-        hotkey.unregister()
         cancelSession()
     }
 
     private func cancelSession() {
-        session?.cancel()
-        session = nil
+        recognitionGeneration += 1
     }
 
     func capture() {
-        guard session == nil, !ScreenshotSelectionController.isSessionOnScreen else { return }
-        guard Permissions.shared.screenRecording else {
-            Permissions.shared.requestScreenRecording()
-            return
-        }
-        // The screen is always photographed first here: text has to hold
-        // still while it is being framed, and a still also keeps a menu or a
-        // tooltip on screen instead of closing it under the pointer.
-        let controller = ScreenshotSelectionController(freeze: true,
-                                                       includePointer: false,
-                                                       showLastRegion: false,
-                                                       purpose: L10n.shared.s.ocrName)
-        session = controller
-        controller.begin { [weak self] outcome in
-            guard let self else { return }
-            self.session = nil
-            switch outcome {
-            case .captured(let capture):
-                self.recognize(capture.image)
-            case .cancelled:
-                break
-            case .failed:
-                QuickToolHUD.show(icon: "text.viewfinder", message: self.captureStrings.captureFailed)
-            }
-        }
+        ScreenCaptureService.shared.capture(initial: .text)
+    }
+
+    func receiveUnifiedCapture(_ capture: ScreenshotSelectionController.Capture) {
+        recognitionGeneration += 1
+        recognize(capture.image)
     }
 
     /// What a captured region turned out to hold.
@@ -88,10 +52,15 @@ final class ScreenTextService: ObservableObject {
     }
 
     private func recognize(_ image: CGImage) {
+        let generation = recognitionGeneration
         let detectQRCodes = UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRDetectQRCodes)
-        DispatchQueue.global(qos: .userInitiated).async {
-            let outcome = Self.outcome(for: image, detectQRCodes: detectQRCodes)
-            DispatchQueue.main.async {
+        let fallbackLanguages = MediaSupport.recognitionLanguages(for: L10n.shared.language.rawValue)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let outcome = ScreenTextService.outcome(for: image,
+                                                    detectQRCodes: detectQRCodes,
+                                                    fallbackLanguages: fallbackLanguages)
+            DispatchQueue.main.async { [weak self] in
+                guard self?.recognitionGeneration == generation else { return }
                 let strings = L10n.shared.s
                 switch outcome {
                 case .qr(let reading):
@@ -112,27 +81,54 @@ final class ScreenTextService: ObservableObject {
     /// it is the thing the user pointed at, and the scan is a fast pass that
     /// falls through to text recognition when no code is found. Pure enough
     /// to exercise directly on a known image.
-    static func outcome(for image: CGImage, detectQRCodes: Bool) -> Outcome {
+    static func outcome(for image: CGImage,
+                        detectQRCodes: Bool,
+                        fallbackLanguages: [String] = ["en-US"]) -> Outcome {
         if detectQRCodes, let reading = BarcodeDetector.read(image) {
             return .qr(reading)
         }
 
+        var lines = recognizedLines(in: image,
+                                    level: .accurate,
+                                    automaticallyDetectLanguage: true,
+                                    preferredLanguages: fallbackLanguages)
+        if lines.isEmpty {
+            // The fast path uses a different recognition model. It is a
+            // separate second chance when the accurate model returns no text.
+            lines = recognizedLines(in: image,
+                                    level: .fast,
+                                    automaticallyDetectLanguage: false,
+                                    preferredLanguages: fallbackLanguages)
+        }
+        let text = QuickToolsSupport.joinedRecognizedText(lines)
+        return text.isEmpty ? .empty : .text(text)
+    }
+
+    private static func recognizedLines(
+        in image: CGImage,
+        level: VNRequestTextRecognitionLevel,
+        automaticallyDetectLanguage: Bool,
+        preferredLanguages: [String] = []
+    ) -> [QuickToolsSupport.RecognizedLine] {
         let request = VNRecognizeTextRequest()
-        request.recognitionLevel = .accurate
+        request.recognitionLevel = level
         request.usesLanguageCorrection = true
-        request.automaticallyDetectsLanguage = true
+        request.automaticallyDetectsLanguage = automaticallyDetectLanguage
+        if !preferredLanguages.isEmpty,
+           let supported = try? request.supportedRecognitionLanguages() {
+            let available = preferredLanguages.filter { supported.contains($0) }
+            if !available.isEmpty { request.recognitionLanguages = available }
+        }
 
         let handler = VNImageRequestHandler(cgImage: image, options: [:])
-        try? handler.perform([request])
+        guard (try? handler.perform([request])) != nil else { return [] }
 
-        let lines = (request.results ?? []).compactMap { observation -> QuickToolsSupport.RecognizedLine? in
+        return (request.results ?? []).compactMap { observation -> QuickToolsSupport.RecognizedLine? in
             guard let candidate = observation.topCandidates(1).first else { return nil }
             return QuickToolsSupport.RecognizedLine(text: candidate.string,
                                                     x: observation.boundingBox.minX,
                                                     y: observation.boundingBox.midY)
         }
-        let text = QuickToolsSupport.joinedRecognizedText(lines)
-        return text.isEmpty ? .empty : .text(text)
     }
 
     private static func copyToPasteboard(_ value: String) {
